@@ -32,11 +32,14 @@ const CourseCatalog = () => {
     staleTime: 60 * 1000, // 1 minute - cached for quick revisits
   })
 
+  // Backend tells us if user can create courses (superadmin or explicitly granted)
+  const canCreateCourse = !!data?.can_create_course
+
   // Check if user created any courses (enables course builder access for their courses)
   const hasCreatedCourses = useMemo(() => {
     return (data?.courses || []).some(c => c.created_by === user?.id)
   }, [data, user?.id])
-  const canManageCourses = isSuperadmin || hasCreatedCourses
+  const canManageCourses = isSuperadmin || hasCreatedCourses || canCreateCourse
 
   const courses = useMemo(() => {
     const allCourses = data?.courses || []
@@ -81,8 +84,8 @@ const CourseCatalog = () => {
               </p>
             </div>
 
-            {/* Create Course Button (superadmin only) */}
-            {isSuperadmin && (
+            {/* Create Course Button */}
+            {canCreateCourse && (
               <button
                 onClick={() => navigate('/courses/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium min-h-[44px]"

@@ -70,6 +70,8 @@ export default function CourseEditScreen() {
 
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role;
   const isSuperadmin = effectiveRole === 'superadmin';
+  const isCreator = !!course && !!user && course.created_by === user.id;
+  const canEdit = isSuperadmin || isCreator;
 
   // Form state
   const [title, setTitle] = useState('');
@@ -108,20 +110,6 @@ export default function CourseEditScreen() {
     }
   };
 
-  // Auth guard
-  if (!isSuperadmin) {
-    return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
-        <Ionicons name="lock-closed-outline" size={48} color="#9CA3AF" />
-        <Heading size="md" className="text-typo-500 mt-4">Access Denied</Heading>
-        <UIText size="sm" className="text-typo-400 mt-2 text-center">Only superadmins can edit courses.</UIText>
-        <Button className="mt-6" onPress={() => router.back()}>
-          <ButtonText>Go Back</ButtonText>
-        </Button>
-      </SafeAreaView>
-    );
-  }
-
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
@@ -136,6 +124,19 @@ export default function CourseEditScreen() {
         <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
         <Heading size="md" className="text-typo-500 mt-4">Course not found</Heading>
         <UIText size="sm" className="text-typo-400 mt-2 text-center">{error || 'This course may have been removed.'}</UIText>
+        <Button className="mt-6" onPress={() => router.back()}>
+          <ButtonText>Go Back</ButtonText>
+        </Button>
+      </SafeAreaView>
+    );
+  }
+
+  if (!canEdit) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
+        <Ionicons name="lock-closed-outline" size={48} color="#9CA3AF" />
+        <Heading size="md" className="text-typo-500 mt-4">Access Denied</Heading>
+        <UIText size="sm" className="text-typo-400 mt-2 text-center">You do not have permission to edit this course.</UIText>
         <Button className="mt-6" onPress={() => router.back()}>
           <ButtonText>Go Back</ButtonText>
         </Button>

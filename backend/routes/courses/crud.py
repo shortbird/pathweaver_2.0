@@ -17,7 +17,7 @@ from services.course_service import CourseService
 from utils.logger import get_logger
 from utils.roles import get_effective_role
 from utils.slug_utils import generate_slug, ensure_unique_slug
-from routes.courses import can_manage_course
+from routes.courses import can_manage_course, can_create_course
 
 logger = get_logger(__name__)
 
@@ -144,10 +144,13 @@ def register_routes(bp):
                     if course['id'] in progress_map:
                         course['progress'] = progress_map[course['id']]
 
+            user_data_with_id = {**user_data, 'id': user_id}
+
             return jsonify({
                 'success': True,
                 'courses': courses,
-                'count': len(courses)
+                'count': len(courses),
+                'can_create_course': can_create_course(user_data_with_id)
             }), 200
 
         except Exception as e:
@@ -181,12 +184,12 @@ def register_routes(bp):
             if not user_result.data:
                 return jsonify({'error': 'User not found'}), 404
 
-            user_data = user_result.data[0]
+            user_data = {**user_result.data[0], 'id': user_id}
             effective_role = get_effective_role(user_data)
             logger.info(f"[CREATE_COURSE] User {user_id}: role={user_data.get('role')}, org_role={user_data.get('org_role')}, effective_role={effective_role}")
-            if effective_role != 'superadmin':
+            if not can_create_course(user_data):
                 logger.warning(f"[CREATE_COURSE] Permission denied for user {user_id}: effective_role={effective_role}")
-                return jsonify({'error': 'Insufficient permissions. Only superadmin can create courses.'}), 403
+                return jsonify({'error': 'Insufficient permissions'}), 403
 
             data = request.json
             if not data or not data.get('title'):
