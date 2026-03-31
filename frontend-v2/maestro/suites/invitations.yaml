@@ -1,0 +1,12 @@
+# Invitations Suite - Cross-role invitation flows (~5 min)
+
+executionOrder:
+  continueOnFailure: true
+  flows:
+    - ../flows/observer/added-by-student.yaml
+    - ../flows/observer/added-via-link.yaml
+    - ../flows/observer/added-via-qr.yaml
+    - ../flows/observer/student-removes-observer.yaml
+    - ../flows/parent/add-observer.yaml
+    - ../flows/parent/remove-observer.yaml
+    - ../flows/parent/give-under13-login.yaml

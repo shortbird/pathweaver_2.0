@@ -367,7 +367,8 @@ const DiplomaPage = () => {
           fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
           fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
           // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
-          fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
+          fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err)),
+          fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err))
         ]).finally(() => {
           // Ensure loading state is cleared even if some fetches fail
           setIsLoading(false);
@@ -391,7 +392,8 @@ const DiplomaPage = () => {
         fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
         fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
         // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
-        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
+        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err)),
+        fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err))
       ]);
     }
   };
@@ -403,7 +405,8 @@ const DiplomaPage = () => {
         fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
         fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
         // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
-        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
+        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err)),
+        fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err))
       ]);
     }
   };
@@ -602,6 +605,17 @@ const DiplomaPage = () => {
       // Silently handle error for now
       setSubjectXP({});
       setPendingSubjectXP({});
+    }
+  }, []);
+
+  const fetchTransferCredits = useCallback(async () => {
+    try {
+      const response = await api.get('/api/credits/transfer-credits');
+      if (response.data?.transfer_credits) {
+        setTransferCredits(response.data.transfer_credits);
+      }
+    } catch (error) {
+      // Silently handle - transfer credits are optional
     }
   }, []);
 

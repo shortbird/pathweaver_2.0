@@ -12,6 +12,7 @@ from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
 from .dashboard_overview import verify_parent_access
 from routes.users.helpers import calculate_subject_xp_from_tasks
+from services.portfolio_service import PortfolioService
 import logging
 import uuid as uuid_module
 
@@ -553,7 +554,8 @@ def get_child_overview(user_id, student_id):
             'subject_xp': subject_xp,
             'pending_subject_xp': pending_subject_xp,
             'visibility_status': visibility_status,
-            'pillars_data': pillars_data
+            'pillars_data': pillars_data,
+            'transfer_credits': PortfolioService().get_transfer_credits(student_id)
         }), 200
 
     except AuthorizationError as e:

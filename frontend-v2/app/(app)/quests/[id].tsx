@@ -570,26 +570,6 @@ export default function QuestDetailScreen() {
               {quest.description}
             </UIText>
 
-            {/* Approach Examples */}
-            {!isEnrolled && quest.approach_examples && (
-              <Card variant="outline" size="md">
-                <VStack space="sm">
-                  <HStack className="items-center gap-2">
-                    <Ionicons name="bulb-outline" size={18} color="#6D469B" />
-                    <UIText size="sm" className="font-poppins-semibold">How others have approached this</UIText>
-                  </HStack>
-                  {(Array.isArray(quest.approach_examples) ? quest.approach_examples : [quest.approach_examples]).map((ex: any, idx: number) => (
-                    <HStack key={idx} className="items-start gap-2 ml-1">
-                      <UIText size="xs" className="text-optio-purple mt-0.5">•</UIText>
-                      <UIText size="xs" className="text-typo-500 flex-1">
-                        {typeof ex === 'string' ? ex : ex.text || ex.description || JSON.stringify(ex)}
-                      </UIText>
-                    </HStack>
-                  ))}
-                </VStack>
-              </Card>
-            )}
-
             {/* Enrollment CTA (not enrolled) */}
             {!isEnrolled && (
               <Card variant="elevated" size="lg" className="items-center">

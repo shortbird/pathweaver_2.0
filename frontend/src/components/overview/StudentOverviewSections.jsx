@@ -102,6 +102,7 @@ const StudentOverviewSections = ({
             readOnly={portfolioReadOnly}
             hideHeader
             onEvidenceDeleted={onEvidenceDeleted}
+            transferCredits={data.transferCredits}
           />
         </CollapsibleSection>
       )}

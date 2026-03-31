@@ -193,6 +193,82 @@ def list_subscriptions(user_id: str):
         }), 500
 
 
+@bp.route('/expo-token', methods=['POST'])
+@require_auth
+def register_expo_token(user_id: str):
+    """
+    Register an Expo push token for mobile push notifications.
+
+    Request body:
+        token (str): Expo push token (ExponentPushToken[...])
+        platform (str): 'ios' or 'android'
+        device_name (str, optional): Device model name
+
+    Returns:
+        JSON with registration status
+    """
+    from database import get_supabase_admin_client
+
+    data = request.get_json()
+    if not data or not data.get('token'):
+        return jsonify({'error': 'Missing token'}), 400
+
+    token = data['token']
+    platform = data.get('platform', 'unknown')
+    device_name = data.get('device_name')
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Upsert into device_tokens (reuse existing table from FCM service)
+        supabase.table('device_tokens').upsert({
+            'user_id': user_id,
+            'token': token,
+            'platform': platform,
+            'device_name': device_name,
+            'is_active': True,
+        }, on_conflict='user_id,token').execute()
+
+        logger.info(f"Expo push token registered for user {user_id[:8]} ({platform})")
+        return jsonify({'success': True, 'message': 'Push token registered'}), 201
+
+    except Exception as e:
+        logger.error(f"Error registering expo token: {str(e)}")
+        return jsonify({'error': 'Failed to register push token'}), 500
+
+
+@bp.route('/expo-token', methods=['DELETE'])
+@require_auth
+def deactivate_expo_token(user_id: str):
+    """
+    Deactivate an Expo push token (on logout).
+
+    Request body:
+        token (str): Expo push token to deactivate
+
+    Returns:
+        JSON with deactivation status
+    """
+    from database import get_supabase_admin_client
+
+    data = request.get_json()
+    if not data or not data.get('token'):
+        return jsonify({'error': 'Missing token'}), 400
+
+    try:
+        supabase = get_supabase_admin_client()
+        supabase.table('device_tokens').update({
+            'is_active': False,
+        }).eq('user_id', user_id).eq('token', data['token']).execute()
+
+        logger.info(f"Expo push token deactivated for user {user_id[:8]}")
+        return jsonify({'success': True, 'message': 'Push token deactivated'}), 200
+
+    except Exception as e:
+        logger.error(f"Error deactivating expo token: {str(e)}")
+        return jsonify({'error': 'Failed to deactivate push token'}), 500
+
+
 @bp.route('/test', methods=['POST'])
 @require_auth
 def test_push(user_id: str):

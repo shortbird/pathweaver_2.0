@@ -65,6 +65,8 @@ export default function ProfileScreen() {
   const [deletionRequesting, setDeletionRequesting] = useState(false);
   const [portfolioCopied, setPortfolioCopied] = useState(false);
   const [makingPublic, setMakingPublic] = useState(false);
+  const [showFerpaConsent, setShowFerpaConsent] = useState(false);
+  const [ferpaChecked, setFerpaChecked] = useState(false);
   const portfolioPublic = hookPortfolioPublic;
   const setPortfolioPublic = setHookPortfolioPublic;
 
@@ -279,25 +281,10 @@ export default function ProfileScreen() {
                 <HStack className="items-center gap-2">
                   {!portfolioPublic && (
                     <Pressable
-                      onPress={async () => {
+                      onPress={() => {
                         if (makingPublic) return;
-                        const confirmed = Platform.OS === 'web'
-                          ? window.confirm('Make your portfolio public? Anyone with the link will be able to view your learning achievements.')
-                          : true;
-                        if (!confirmed) return;
-                        setMakingPublic(true);
-                        try {
-                          await api.put(`/api/portfolio/user/${user?.id}/privacy`, {
-                            is_public: true,
-                            consent_acknowledged: true,
-                          });
-                          setPortfolioPublic(true);
-                        } catch (err: any) {
-                          const msg = err.response?.data?.message || 'Failed to make portfolio public';
-                          Alert.alert('Error', msg);
-                        } finally {
-                          setMakingPublic(false);
-                        }
+                        setFerpaChecked(false);
+                        setShowFerpaConsent(true);
                       }}
                       className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50"
                     >
@@ -631,6 +618,89 @@ export default function ProfileScreen() {
             </VStack>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* FERPA Consent Modal */}
+      <Modal visible={showFerpaConsent} transparent animationType="fade" onRequestClose={() => setShowFerpaConsent(false)}>
+        <View className="flex-1 items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: '#FFF', borderRadius: 20, width: 440, maxWidth: '92%', padding: 24, maxHeight: '85%' }}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <VStack space="md">
+                <HStack className="items-center gap-3">
+                  <View className="w-10 h-10 rounded-full bg-green-100 items-center justify-center">
+                    <Ionicons name="globe-outline" size={20} color="#16A34A" />
+                  </View>
+                  <Heading size="lg">Make Your Portfolio Public</Heading>
+                </HStack>
+
+                <UIText size="sm" className="text-typo-500">
+                  Making your portfolio public means anyone with the link can see:
+                </UIText>
+
+                <VStack space="sm" className="bg-surface-50 rounded-xl p-4">
+                  {[
+                    { icon: 'eye-outline' as const, text: 'Your completed quests and achievements' },
+                    { icon: 'people-outline' as const, text: 'Evidence of your learning (photos, videos, documents)' },
+                    { icon: 'globe-outline' as const, text: 'Your profile name and skill progress' },
+                  ].map((item, idx) => (
+                    <HStack key={idx} className="items-center gap-3">
+                      <Ionicons name={item.icon} size={16} color="#6D469B" />
+                      <UIText size="xs" className="text-typo-500 flex-1">{item.text}</UIText>
+                    </HStack>
+                  ))}
+                </VStack>
+
+                {user?.is_dependent && (
+                  <View className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <UIText size="xs" className="text-amber-800">
+                      Because you are under 18, your parent or guardian may need to approve this change.
+                    </UIText>
+                  </View>
+                )}
+
+                <Pressable
+                  onPress={() => setFerpaChecked(!ferpaChecked)}
+                  className="flex-row items-start gap-3 p-3 rounded-xl border border-surface-200"
+                >
+                  <View className={`w-5 h-5 rounded border-2 items-center justify-center mt-0.5 ${ferpaChecked ? 'bg-optio-purple border-optio-purple' : 'border-surface-300'}`}>
+                    {ferpaChecked && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                  </View>
+                  <UIText size="xs" className="text-typo-500 flex-1">
+                    I understand that my portfolio will be visible to anyone with the link, and I consent to sharing my learning achievements publicly.
+                  </UIText>
+                </Pressable>
+
+                <HStack className="gap-3">
+                  <Button size="md" variant="outline" onPress={() => setShowFerpaConsent(false)} className="flex-1">
+                    <ButtonText>Cancel</ButtonText>
+                  </Button>
+                  <Button
+                    size="md"
+                    isDisabled={!ferpaChecked || makingPublic}
+                    onPress={async () => {
+                      setMakingPublic(true);
+                      try {
+                        await api.put(`/api/portfolio/user/${user?.id}/privacy`, {
+                          is_public: true,
+                          consent_acknowledged: true,
+                        });
+                        setPortfolioPublic(true);
+                        setShowFerpaConsent(false);
+                      } catch (err: any) {
+                        Alert.alert('Error', err.response?.data?.message || 'Failed to make portfolio public');
+                      } finally {
+                        setMakingPublic(false);
+                      }
+                    }}
+                    className="flex-1 bg-optio-purple"
+                  >
+                    <ButtonText>{makingPublic ? 'Publishing...' : 'Make Public'}</ButtonText>
+                  </Button>
+                </HStack>
+              </VStack>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );

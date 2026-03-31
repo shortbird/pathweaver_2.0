@@ -180,7 +180,7 @@ describe('FeedCard', () => {
     fireEvent.press(getByText('Public'));
 
     await waitFor(() => {
-      expect(toggleVisibility).toHaveBeenCalledWith('task_completed', 'tc_feed-1', true);
+      expect(toggleVisibility).toHaveBeenCalledWith('task_completed', 'tc_feed-1', true, undefined);
       expect(getByText('Private')).toBeTruthy();
     });
   });

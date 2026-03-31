@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 import { authAPI, api } from '../services/api';
 import { tokenStore } from '../services/tokenStore';
 import { supabase } from '../services/supabaseClient';
+import { useActingAsStore } from './actingAsStore';
 
 export interface User {
   id: string;
@@ -36,6 +37,7 @@ interface AuthState {
   // Actions
   loadUser: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithUsername: (slug: string, username: string, password: string) => Promise<void>;
   googleLogin: () => Promise<void>;
   handleGoogleCallback: (accessToken: string, refreshToken: string) => Promise<void>;
   register: (data: {
@@ -97,6 +99,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err: any) {
       const message =
         err.response?.data?.error?.message || err.response?.data?.error || 'Login failed. Please try again.';
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  loginWithUsername: async (slug, username, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data } = await authAPI.loginWithUsername(slug, username, password);
+      await tokenStore.setTokens(data.app_access_token, data.app_refresh_token);
+      set({
+        user: data.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error?.message || err.response?.data?.error || 'Login failed. Please check your username and password.';
       set({ isLoading: false, error: message });
       throw err;
     }
@@ -209,7 +230,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Ignore errors -- clear local state regardless
     }
     // Clear acting-as / masquerade state
-    const { useActingAsStore } = await import('./actingAsStore');
     useActingAsStore.getState().clear();
     await tokenStore.clearTokens();
     set({ user: null, isAuthenticated: false, error: null });

@@ -13,8 +13,16 @@ from app_config import Config
 
 logger = get_logger(__name__)
 
-# Notification types that should trigger push notifications
-PUSH_NOTIFICATION_TYPES = {'message_received'}
+# Notification types that should trigger web push notifications
+WEB_PUSH_NOTIFICATION_TYPES = {'message_received'}
+
+# Notification types that should trigger mobile push notifications (broader set)
+MOBILE_PUSH_NOTIFICATION_TYPES = {
+    'message_received', 'quest_invitation', 'task_approved',
+    'task_revision_requested', 'badge_earned', 'announcement',
+    'observer_comment', 'observer_like', 'observer_added',
+    'parent_approval_required',
+}
 
 
 class NotificationService(BaseService):
@@ -88,9 +96,18 @@ class NotificationService(BaseService):
             if notification:
                 self._broadcast_realtime(user_id, notification)
 
-            # Send push notification for supported types (message_received, etc.)
-            if notification and notification_type in PUSH_NOTIFICATION_TYPES:
+            # Send web push notification for supported types
+            if notification and notification_type in WEB_PUSH_NOTIFICATION_TYPES:
                 self._send_push_notification(
+                    user_id=user_id,
+                    title=title,
+                    message=message,
+                    url=link
+                )
+
+            # Send mobile push notification (Expo) for broader set of types
+            if notification and notification_type in MOBILE_PUSH_NOTIFICATION_TYPES:
+                self._send_expo_push_notification(
                     user_id=user_id,
                     title=title,
                     message=message,
@@ -307,6 +324,45 @@ class NotificationService(BaseService):
         except Exception as e:
             # Don't fail notification creation if push fails
             logger.warning(f"Push notification failed for user {user_id[:8]}: {str(e)}")
+            return False
+
+    def _send_expo_push_notification(
+        self,
+        user_id: str,
+        title: str,
+        message: str,
+        url: Optional[str] = None
+    ) -> bool:
+        """
+        Send a mobile push notification via Expo Push API.
+
+        Args:
+            user_id: Target user ID
+            title: Notification title
+            message: Notification body
+            url: Optional URL to open when tapped
+
+        Returns:
+            True if any push was sent successfully
+        """
+        try:
+            from services.expo_push_service import ExpoPushService
+
+            expo_service = ExpoPushService(supabase=self.supabase)
+            data = {'url': url} if url else None
+            result = expo_service.send_notification(
+                user_id=user_id,
+                title=title,
+                body=message,
+                data=data,
+            )
+            return result.get('sent', 0) > 0
+
+        except ImportError:
+            logger.debug("Expo push service not available")
+            return False
+        except Exception as e:
+            logger.warning(f"Expo push notification failed for user {user_id[:8]}: {str(e)}")
             return False
 
     def _broadcast_realtime(self, user_id: str, notification: Dict[str, Any]) -> bool:

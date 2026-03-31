@@ -40,7 +40,7 @@ describe('useFeed', () => {
     expect(result.current.items).toHaveLength(1);
   });
 
-  it('student role: fetches from /api/observers/student/{userId}/activity', async () => {
+  it('student role: fetches from /api/observers/feed', async () => {
     setAuthAsStudent();
     const items = [createMockFeedItem()];
     (api.get as jest.Mock).mockResolvedValueOnce({
@@ -54,7 +54,7 @@ describe('useFeed', () => {
     });
 
     expect(api.get).toHaveBeenCalledWith(
-      '/api/observers/student/user-1/activity',
+      '/api/observers/feed',
       { params: {} }
     );
   });
