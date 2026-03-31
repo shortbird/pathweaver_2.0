@@ -70,16 +70,14 @@ jobs:
         shell: bash
         run: |
           python3.12 -m venv venv 2>/dev/null || python3 -m venv venv
-          source venv/bin/activate
-          pip install -r backend/requirements.txt --quiet
+          ./venv/bin/pip install -r backend/requirements.txt --quiet
+          echo "Flask check: $(./venv/bin/python -c 'import flask; print(flask.__version__)')"
 
       - name: Start backend
         shell: bash
         run: |
-          source venv/bin/activate
-          python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
           echo "BACKEND_PID=$!" >> $GITHUB_ENV
-          # Wait for backend
           for i in $(seq 1 30); do
             curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
             sleep 2
@@ -90,17 +88,24 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
+      - name: Write frontend .env
+        shell: bash
+        working-directory: frontend-v2
+        run: |
+          cat > .env << ENVEOF
+          EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          ENVEOF
+          echo "Frontend .env written"
+
       - name: Start frontend web
         shell: bash
         working-directory: frontend-v2
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
-          EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
           npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
           echo "FRONTEND_PID=$!" >> $GITHUB_ENV
-          # Wait for frontend
           for i in $(seq 1 30); do
             curl -s http://localhost:8081 > /dev/null 2>&1 && break
             sleep 2
@@ -197,20 +202,31 @@ jobs:
       - name: Install backend dependencies
         shell: bash
         run: |
-          python3 -m venv venv 2>/dev/null || true
-          source venv/bin/activate
-          pip install -r backend/requirements.txt --quiet
+          python3.12 -m venv venv 2>/dev/null || python3 -m venv venv
+          ./venv/bin/pip install -r backend/requirements.txt --quiet
 
       - name: Start backend
         shell: bash
         run: |
-          source venv/bin/activate
-          python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
           echo "BACKEND_PID=$!" >> $GITHUB_ENV
           for i in $(seq 1 30); do
             curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
             sleep 2
           done
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Write frontend .env
+        shell: bash
+        working-directory: frontend-v2
+        run: |
+          cat > .env << ENVEOF
+          EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          ENVEOF
 
       - name: Start frontend web
         shell: bash
@@ -218,7 +234,7 @@ jobs:
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          npx expo start --web --port 8081 --non-interactive > /tmp/optio-frontend.log 2>&1 &
+          npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
           echo "FRONTEND_PID=$!" >> $GITHUB_ENV
           for i in $(seq 1 30); do
             curl -s http://localhost:8081 > /dev/null 2>&1 && break
