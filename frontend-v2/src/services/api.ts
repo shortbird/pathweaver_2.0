@@ -122,6 +122,8 @@ export const authAPI = {
     api.post('/api/auth/forgot-password', { email }),
   resetPassword: (token: string, newPassword: string) =>
     api.post('/api/auth/reset-password', { token, new_password: newPassword }),
+  loginWithUsername: (slug: string, username: string, password: string) =>
+    api.post(`/api/auth/login/org/${slug}`, { username, password }),
 };
 
 export const questAPI = {

@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UIText } from '../ui/text';
 import { Divider } from '../ui/divider';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { desktopNavItems, navItems } from '@/src/config/navigation';
 import type { NavItem } from '@/src/config/navigation';
 import api from '@/src/services/api';
@@ -44,6 +45,43 @@ function NavLink({ item }: { item: NavItem }) {
       {isAdminOnly && (
         <Ionicons name="shield-checkmark-outline" size={14} color="#9CA3AF" />
       )}
+    </Pressable>
+  );
+}
+
+function SidebarNotificationLink() {
+  const { user } = useAuthStore();
+  const { unreadCount } = useUnreadCount(user?.id);
+  const pathname = usePathname();
+  const isActive = pathname === '/notifications';
+
+  return (
+    <Pressable
+      onPress={() => router.push('/(app)/notifications' as any)}
+      className={`flex-row items-center gap-2 py-2 active:opacity-70 ${isActive ? 'opacity-100' : ''}`}
+    >
+      <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons
+          name={isActive ? 'notifications' : 'notifications-outline'}
+          size={18}
+          color={isActive ? '#6D469B' : '#6B7280'}
+        />
+        {unreadCount > 0 && (
+          <View style={{
+            position: 'absolute', top: -4, right: -6,
+            minWidth: 14, height: 14, borderRadius: 7,
+            backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center',
+            paddingHorizontal: 2,
+          }}>
+            <UIText style={{ color: '#fff', fontSize: 9, fontWeight: '700', lineHeight: 11 }}>
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </UIText>
+          </View>
+        )}
+      </View>
+      <UIText size="sm" className={isActive ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500'}>
+        Notifications
+      </UIText>
     </Pressable>
   );
 }
@@ -109,6 +147,7 @@ export function Sidebar() {
 
       {/* User info + logout */}
       <View className="px-4 gap-2">
+        <SidebarNotificationLink />
         <Pressable
           onPress={() => router.push('/(app)/(tabs)/profile' as any)}
           className="flex-row items-center gap-2 py-1 active:opacity-70"

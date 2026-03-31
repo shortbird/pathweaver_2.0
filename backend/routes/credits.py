@@ -169,6 +169,24 @@ def get_transcript(user_id, target_user_id):
     raise AuthorizationError('You do not have permission to view this transcript')
 
 
+@bp.route('/transfer-credits', methods=['GET'])
+@require_auth
+def get_my_transfer_credits(user_id):
+    """
+    Get transfer credits for the authenticated user.
+    Returns transfer credit records with subject breakdown and transcript URLs.
+    """
+    from services.portfolio_service import PortfolioService
+
+    portfolio_service = PortfolioService()
+    transfer_credits = portfolio_service.get_transfer_credits(user_id)
+
+    return jsonify({
+        'success': True,
+        'transfer_credits': transfer_credits
+    }), 200
+
+
 @bp.route('/requirements', methods=['GET'])
 def get_requirements():
     """

@@ -36,6 +36,7 @@ interface AuthState {
   // Actions
   loadUser: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithUsername: (slug: string, username: string, password: string) => Promise<void>;
   googleLogin: () => Promise<void>;
   handleGoogleCallback: (accessToken: string, refreshToken: string) => Promise<void>;
   register: (data: {
@@ -97,6 +98,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err: any) {
       const message =
         err.response?.data?.error?.message || err.response?.data?.error || 'Login failed. Please try again.';
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  loginWithUsername: async (slug, username, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data } = await authAPI.loginWithUsername(slug, username, password);
+      await tokenStore.setTokens(data.app_access_token, data.app_refresh_token);
+      set({
+        user: data.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error?.message || err.response?.data?.error || 'Login failed. Please check your username and password.';
       set({ isLoading: false, error: message });
       throw err;
     }

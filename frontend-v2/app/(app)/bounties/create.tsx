@@ -37,6 +37,7 @@ export default function CreateBountyPage() {
   const [rewards, setRewards] = useState<Reward[]>([{ type: 'xp', value: 50, pillar: 'stem', text: '' }]);
   const [pillar, setPillar] = useState('stem');
   const [visibility, setVisibility] = useState<'public' | 'family'>('public');
+  const [maxClaims, setMaxClaims] = useState('0');
   const [dependents, setDependents] = useState<any[]>([]);
   const [selectedKids, setSelectedKids] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -67,6 +68,7 @@ export default function CreateBountyPage() {
         );
         setPillar(bounty.pillar || 'stem');
         setVisibility(bounty.visibility === 'family' ? 'family' : 'public');
+        if (bounty.max_participants != null) setMaxClaims(String(bounty.max_participants));
         setSelectedKids(bounty.allowed_student_ids || []);
       } catch {
         Alert.alert('Error', 'Failed to load bounty');
@@ -160,7 +162,7 @@ export default function CreateBountyPage() {
         title: title.trim(),
         description: description.trim(),
         pillar,
-        max_participants: 0,
+        max_participants: parseInt(maxClaims, 10) || 0,
         visibility,
         deliverables: deliverables.filter((d) => d.trim()),
         rewards: rewards.filter((r) => (r.type === 'xp' && r.value >= 25) || (r.type === 'custom' && r.text.trim())),
@@ -431,6 +433,20 @@ export default function CreateBountyPage() {
                 </HStack>
               </VStack>
             )}
+          </VStack>
+
+          {/* Max Claims */}
+          <VStack space="xs">
+            <UIText size="sm" className="font-poppins-medium">Max Claims</UIText>
+            <UIText size="xs" className="text-typo-400">0 = unlimited. Set a number to limit how many students can claim this bounty.</UIText>
+            <TextInput
+              className="border border-surface-300 rounded-xl px-4 py-3 text-sm bg-white"
+              placeholder="0"
+              value={maxClaims}
+              onChangeText={setMaxClaims}
+              keyboardType="numeric"
+              style={{ fontFamily: 'Poppins_400Regular' }}
+            />
           </VStack>
 
           {/* Error */}

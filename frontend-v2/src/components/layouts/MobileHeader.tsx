@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { VStack, UIText, Heading } from '../ui';
 
 const DESKTOP_BREAKPOINT = 768;
@@ -123,6 +124,32 @@ interface PageHeaderProps {
   title: string;
 }
 
+function NotificationBell() {
+  const { user } = useAuthStore();
+  const { unreadCount } = useUnreadCount(user?.id);
+
+  return (
+    <Pressable
+      onPress={() => router.push('/(app)/notifications' as any)}
+      style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Ionicons name="notifications-outline" size={22} color="#6B7280" />
+      {unreadCount > 0 && (
+        <View style={{
+          position: 'absolute', top: 2, right: 2,
+          minWidth: 16, height: 16, borderRadius: 8,
+          backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center',
+          paddingHorizontal: 3,
+        }}>
+          <UIText style={{ color: '#fff', fontSize: 10, fontWeight: '700', lineHeight: 12 }}>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </UIText>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 export function PageHeader({ title }: PageHeaderProps) {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
@@ -133,7 +160,10 @@ export function PageHeader({ title }: PageHeaderProps) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
       <Heading size="2xl">{title}</Heading>
-      <AvatarMenu />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <NotificationBell />
+        <AvatarMenu />
+      </View>
     </View>
   );
 }

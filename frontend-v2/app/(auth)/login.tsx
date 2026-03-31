@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Image, KeyboardAvoidingView, Platform, Pressable, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import {
   VStack, HStack, Heading, UIText, Button, ButtonText,
@@ -37,7 +37,15 @@ function getRedirectForRole(user: User): string {
 }
 
 export default function LoginScreen() {
+  const { observer_code } = useLocalSearchParams<{ observer_code?: string }>();
   const { login, googleLogin, forgotPassword, isLoading, error, clearError } = useAuthStore();
+
+  // Store pending observer invitation code
+  React.useEffect(() => {
+    if (observer_code && Platform.OS === 'web') {
+      sessionStorage.setItem('pendingObserverInvitation', observer_code);
+    }
+  }, [observer_code]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -78,6 +86,17 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password);
       const user = useAuthStore.getState().user;
+
+      // Check for pending observer invitation
+      if (Platform.OS === 'web') {
+        const pendingCode = sessionStorage.getItem('pendingObserverInvitation');
+        if (pendingCode) {
+          sessionStorage.removeItem('pendingObserverInvitation');
+          router.replace(`/(app)/observers/accept?code=${pendingCode}` as any);
+          return;
+        }
+      }
+
       const destination = user ? getRedirectForRole(user) : '/(app)/(tabs)/feed';
       router.replace(destination as any);
     } catch {

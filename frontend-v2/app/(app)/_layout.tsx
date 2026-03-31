@@ -1,9 +1,37 @@
-import { Redirect, Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Redirect, Stack, router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { View, ActivityIndicator } from 'react-native';
+import {
+  registerForPushNotifications,
+  configurePushNotifications,
+  addNotificationResponseListener,
+} from '@/src/services/pushNotifications';
+
+// Configure notification display once at module load
+configurePushNotifications();
 
 export default function AppLayout() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
+
+  // Register for push notifications after auth
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    registerForPushNotifications();
+  }, [isAuthenticated, user?.id]);
+
+  // Handle notification taps (navigate to link)
+  useEffect(() => {
+    const cleanup = addNotificationResponseListener((link) => {
+      if (link) {
+        const route = link.startsWith('/') ? `/(app)${link}` : link;
+        try { router.push(route as any); } catch { /* invalid route */ }
+      } else {
+        router.push('/(app)/notifications' as any);
+      }
+    });
+    return () => cleanup?.();
+  }, []);
 
   if (isLoading) {
     return (
@@ -20,6 +48,7 @@ export default function AppLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="notifications" />
       <Stack.Screen name="quests/[id]" />
       <Stack.Screen name="courses/[id]" />
       <Stack.Screen name="bounties/[id]" />

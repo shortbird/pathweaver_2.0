@@ -87,6 +87,7 @@ export default function RootLayout() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
       <Stack.Screen name="auth/callback" />
+      <Stack.Screen name="invite/[code]" />
       <Stack.Screen name="terms" />
       <Stack.Screen name="privacy" />
     </Stack>
