@@ -17,6 +17,13 @@ jest.mock('@/src/services/tokenStore', () => ({
     getRefreshToken: jest.fn(),
   },
 }));
+jest.mock('@/src/stores/actingAsStore', () => ({
+  useActingAsStore: {
+    getState: jest.fn(() => ({
+      clear: jest.fn(),
+    })),
+  },
+}));
 
 import { useAuthStore } from '../authStore';
 import { authAPI } from '@/src/services/api';

@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 import { authAPI, api } from '../services/api';
 import { tokenStore } from '../services/tokenStore';
 import { supabase } from '../services/supabaseClient';
+import { useActingAsStore } from './actingAsStore';
 
 export interface User {
   id: string;
@@ -229,7 +230,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Ignore errors -- clear local state regardless
     }
     // Clear acting-as / masquerade state
-    const { useActingAsStore } = await import('./actingAsStore');
     useActingAsStore.getState().clear();
     await tokenStore.clearTokens();
     set({ user: null, isAuthenticated: false, error: null });
