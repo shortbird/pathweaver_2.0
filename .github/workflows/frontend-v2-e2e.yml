@@ -25,7 +25,7 @@ on:
 jobs:
   # ── Smoke tests on every push to develop ──
   smoke-tests:
-    name: "Smoke Tests (Web + iOS)"
+    name: "Smoke Tests (Web)"
     runs-on: [self-hosted, macOS, maestro]
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
     timeout-minutes: 15
@@ -50,13 +50,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Kill stale servers
         shell: bash
         run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          nvm use 22 || nvm install 22
-          echo "Node: $(node --version)"
+          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
 
       - name: Install frontend dependencies
         shell: bash
@@ -64,81 +62,90 @@ jobs:
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          npm ci --legacy-peer-deps
+          npm install --legacy-peer-deps 2>&1 | tail -5
 
       - name: Install backend dependencies
         shell: bash
         run: |
           python3.12 -m venv venv 2>/dev/null || python3 -m venv venv
-          ./venv/bin/pip install -r backend/requirements.txt --quiet
-          echo "Flask check: $(./venv/bin/python -c 'import flask; print(flask.__version__)')"
-
-      - name: Start backend
-        shell: bash
-        run: |
-          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
-          echo "BACKEND_PID=$!" >> $GITHUB_ENV
-          for i in $(seq 1 30); do
-            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
-            sleep 2
-          done
-          echo "Backend ready"
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ./venv/bin/pip install -r backend/requirements.txt -q 2>&1 | tail -3
+          echo "Flask: $(./venv/bin/python -c 'import flask; print(flask.__version__)' 2>&1)"
 
       - name: Write frontend .env
         shell: bash
         working-directory: frontend-v2
         run: |
-          cat > .env << ENVEOF
-          EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          ENVEOF
-          echo "Frontend .env written"
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
 
-      - name: Start frontend web
+      - name: Start servers and run tests
         shell: bash
-        working-directory: frontend-v2
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          export PATH="$PATH:$HOME/.maestro/bin"
+
+          # Start backend
+          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          BACKEND_PID=$!
+
+          # Start frontend
+          cd frontend-v2
           npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
-          echo "FRONTEND_PID=$!" >> $GITHUB_ENV
+          FRONTEND_PID=$!
+          cd ..
+
+          # Wait for backend
+          echo "Waiting for backend..."
           for i in $(seq 1 30); do
+            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
+            sleep 2
+          done
+
+          # Wait for frontend
+          echo "Waiting for frontend..."
+          for i in $(seq 1 40); do
             curl -s http://localhost:8081 > /dev/null 2>&1 && break
             sleep 2
           done
-          echo "Frontend ready"
 
-      - name: Run Maestro smoke tests
-        shell: bash
-        run: |
-          export PATH="$PATH:$HOME/.maestro/bin"
+          # Extra wait for Expo to finish bundling
+          sleep 10
+
+          echo "=== Server status ==="
+          curl -s http://localhost:5001/api/health 2>&1 | head -5 || echo "Backend not ready"
+          curl -s http://localhost:8081 2>&1 | head -1 | cut -c1-100 || echo "Frontend not ready"
+          echo ""
+
+          # Run Maestro
+          echo "Running Maestro smoke tests..."
           maestro test \
             frontend-v2/maestro/suites/smoke.yaml \
             --format junit \
             --output maestro-smoke-report.xml
+          TEST_EXIT=$?
 
-      - name: Dump server logs on failure
+          # Cleanup
+          kill $BACKEND_PID 2>/dev/null || true
+          kill $FRONTEND_PID 2>/dev/null || true
+          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
+
+          exit $TEST_EXIT
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Dump logs on failure
         if: failure()
         shell: bash
         run: |
-          echo "=== Backend stdout ==="
-          cat /tmp/optio-backend.log 2>/dev/null | tail -50 || echo "No backend log"
+          echo "=== Backend log ==="
+          tail -30 /tmp/optio-backend.log 2>/dev/null || echo "No log"
           echo ""
-          echo "=== Frontend stdout ==="
-          cat /tmp/optio-frontend.log 2>/dev/null | tail -50 || echo "No frontend log"
-          echo ""
-          echo "=== Curl backend health ==="
-          curl -s http://localhost:5001/api/health 2>&1 || echo "Backend unreachable"
-          echo ""
-          echo "=== Curl frontend ==="
-          curl -s http://localhost:8081 2>&1 | head -20 || echo "Frontend unreachable"
-          echo ""
-          echo "=== Maestro screenshots ==="
-          ls -la ~/.maestro/tests/ 2>/dev/null || echo "No test artifacts"
+          echo "=== Frontend log ==="
+          tail -30 /tmp/optio-frontend.log 2>/dev/null || echo "No log"
 
       - name: Upload test report
         if: always()
@@ -147,15 +154,6 @@ jobs:
           name: maestro-smoke-report
           path: maestro-smoke-report.xml
           retention-days: 30
-
-      - name: Cleanup
-        if: always()
-        shell: bash
-        run: |
-          kill ${{ env.BACKEND_PID }} 2>/dev/null || true
-          kill ${{ env.FRONTEND_PID }} 2>/dev/null || true
-          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
-          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
 
   # ── Full test suite on PR to main ──
   full-tests:
@@ -184,12 +182,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Kill stale servers
         shell: bash
         run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          nvm use 22 || nvm install 22
+          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
 
       - name: Install frontend dependencies
         shell: bash
@@ -197,49 +194,20 @@ jobs:
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          npm ci --legacy-peer-deps
+          npm install --legacy-peer-deps 2>&1 | tail -5
 
       - name: Install backend dependencies
         shell: bash
         run: |
           python3.12 -m venv venv 2>/dev/null || python3 -m venv venv
-          ./venv/bin/pip install -r backend/requirements.txt --quiet
-
-      - name: Start backend
-        shell: bash
-        run: |
-          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
-          echo "BACKEND_PID=$!" >> $GITHUB_ENV
-          for i in $(seq 1 30); do
-            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
-            sleep 2
-          done
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ./venv/bin/pip install -r backend/requirements.txt -q 2>&1 | tail -3
 
       - name: Write frontend .env
         shell: bash
         working-directory: frontend-v2
         run: |
-          cat > .env << ENVEOF
-          EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          ENVEOF
-
-      - name: Start frontend web
-        shell: bash
-        working-directory: frontend-v2
-        run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
-          echo "FRONTEND_PID=$!" >> $GITHUB_ENV
-          for i in $(seq 1 30); do
-            curl -s http://localhost:8081 > /dev/null 2>&1 && break
-            sleep 2
-          done
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
 
       - name: Determine suite
         id: suite
@@ -247,26 +215,67 @@ jobs:
         run: |
           SUITE="${{ github.event.inputs.suite || 'core' }}"
           echo "name=$SUITE" >> $GITHUB_OUTPUT
-          echo "Running suite: $SUITE"
 
-      - name: Run Maestro E2E tests
+      - name: Start servers and run tests
         shell: bash
         run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
           export PATH="$PATH:$HOME/.maestro/bin"
+
+          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          BACKEND_PID=$!
+
+          cd frontend-v2
+          npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
+          FRONTEND_PID=$!
+          cd ..
+
+          echo "Waiting for backend..."
+          for i in $(seq 1 30); do
+            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
+            sleep 2
+          done
+
+          echo "Waiting for frontend..."
+          for i in $(seq 1 40); do
+            curl -s http://localhost:8081 > /dev/null 2>&1 && break
+            sleep 2
+          done
+          sleep 10
+
           SUITE="${{ steps.suite.outputs.name }}"
           SUITE_FILE="frontend-v2/maestro/suites/${SUITE}.yaml"
 
           if [ ! -f "$SUITE_FILE" ]; then
-            echo "Suite file not found: $SUITE_FILE"
-            echo "Available suites:"
+            echo "Suite not found: $SUITE_FILE"
             ls frontend-v2/maestro/suites/
             exit 1
           fi
 
-          maestro test \
-            "$SUITE_FILE" \
-            --format junit \
-            --output "maestro-${SUITE}-report.xml"
+          maestro test "$SUITE_FILE" --format junit --output "maestro-${SUITE}-report.xml"
+          TEST_EXIT=$?
+
+          kill $BACKEND_PID 2>/dev/null || true
+          kill $FRONTEND_PID 2>/dev/null || true
+          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
+
+          exit $TEST_EXIT
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Dump logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Backend log ==="
+          tail -30 /tmp/optio-backend.log 2>/dev/null || echo "No log"
+          echo ""
+          echo "=== Frontend log ==="
+          tail -30 /tmp/optio-frontend.log 2>/dev/null || echo "No log"
 
       - name: Upload test report
         if: always()
@@ -275,12 +284,3 @@ jobs:
           name: "maestro-${{ steps.suite.outputs.name }}-report"
           path: "maestro-*-report.xml"
           retention-days: 30
-
-      - name: Cleanup
-        if: always()
-        shell: bash
-        run: |
-          kill ${{ env.BACKEND_PID }} 2>/dev/null || true
-          kill ${{ env.FRONTEND_PID }} 2>/dev/null || true
-          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
-          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
