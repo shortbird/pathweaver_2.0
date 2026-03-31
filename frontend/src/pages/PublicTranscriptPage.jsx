@@ -125,62 +125,62 @@ const PublicTranscriptPage = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Transcript */}
-      <div className="max-w-5xl mx-auto px-6 pb-8">
+      <div className="max-w-5xl mx-auto px-2 sm:px-6 pb-8">
         <div id="printable-transcript" className="bg-white shadow-sm" style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}>
           {/* Header */}
-          <div className="border-b-4 border-double border-gray-900 px-10 pt-10 pb-6">
+          <div className="border-b-4 border-double border-gray-900 px-4 sm:px-10 pt-6 sm:pt-10 pb-4 sm:pb-6">
             <div className="text-center">
               <img
                 src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
                 alt="Optio"
-                className="h-10 mx-auto"
+                className="h-8 sm:h-10 mx-auto"
               />
-              {orgName && <p className="text-sm text-gray-600 mt-0.5">{orgName}</p>}
-              <p className="text-xs text-gray-500 mt-1 tracking-widest uppercase">
+              {orgName && <p className="text-xs sm:text-sm text-gray-600 mt-0.5">{orgName}</p>}
+              <p className="text-[10px] sm:text-xs text-gray-500 mt-1 tracking-widest uppercase">
                 Official Academic Transcript
               </p>
             </div>
           </div>
 
           {/* Student info */}
-          <div className="border-b border-gray-300 px-10 py-4">
-            <div className="grid grid-cols-2 gap-x-12 gap-y-1 text-sm">
+          <div className="border-b border-gray-300 px-4 sm:px-10 py-3 sm:py-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-1 text-xs sm:text-sm">
               <div className="flex">
-                <span className="w-32 text-gray-500 flex-shrink-0">Student Name:</span>
+                <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Student Name:</span>
                 <span className="font-semibold text-gray-900">{studentName}</span>
               </div>
               <div className="flex">
-                <span className="w-32 text-gray-500 flex-shrink-0">Date Issued:</span>
+                <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Date Issued:</span>
                 <span className="text-gray-900">{dateIssued}</span>
               </div>
               {dateOfBirth && (
                 <div className="flex">
-                  <span className="w-32 text-gray-500 flex-shrink-0">Date of Birth:</span>
+                  <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Date of Birth:</span>
                   <span className="text-gray-900">{dateOfBirth}</span>
                 </div>
               )}
               <div className="flex">
-                <span className="w-32 text-gray-500 flex-shrink-0">Enrollment Date:</span>
+                <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Enrollment Date:</span>
                 <span className="text-gray-900">{enrollmentDate}</span>
               </div>
             </div>
           </div>
 
           {/* Credit summary */}
-          <div className="border-b border-gray-300 px-10 py-4">
-            <div className="flex justify-between text-sm">
+          <div className="border-b border-gray-300 px-4 sm:px-10 py-3 sm:py-4">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs sm:text-sm">
               <div>
-                <span className="text-gray-500">Credits Completed: </span>
+                <span className="text-gray-500">Completed: </span>
                 <span className="font-bold text-gray-900">{totals.total_completed.toFixed(1)}</span>
               </div>
               {totals.planned_credits > 0 && (
                 <div>
-                  <span className="text-gray-500">Credits In Progress: </span>
+                  <span className="text-gray-500">In Progress: </span>
                   <span className="font-bold text-gray-900">{totals.planned_credits.toFixed(1)}</span>
                 </div>
               )}
               <div>
-                <span className="text-gray-500">Total (incl. planned): </span>
+                <span className="text-gray-500">Total: </span>
                 <span className="font-bold text-gray-900">
                   {(totals.total_completed + totals.planned_credits).toFixed(1)}
                 </span>
@@ -188,8 +188,8 @@ const PublicTranscriptPage = () => {
             </div>
           </div>
 
-          {/* Credit table */}
-          <div className="px-10 py-6">
+          {/* Credit table - desktop */}
+          <div className="hidden sm:block px-4 sm:px-10 py-6">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b-2 border-gray-900">
@@ -225,13 +225,37 @@ const PublicTranscriptPage = () => {
             </table>
           </div>
 
+          {/* Credit cards - mobile */}
+          <div className="sm:hidden px-4 py-4 space-y-3">
+            {rows.map((row, i) => (
+              <div
+                key={i}
+                className={`border border-gray-200 rounded-lg p-3 ${row.status === 'Dropped' ? 'opacity-50' : ''}`}
+              >
+                <div className="flex items-start justify-between mb-1">
+                  <span className="text-sm font-semibold text-gray-900">{row.subject}</span>
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ml-2 ${
+                    row.status === 'Completed' ? 'bg-green-100 text-green-800'
+                    : row.status === 'In Progress' ? 'bg-amber-100 text-amber-800'
+                    : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {row.status}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-700">{row.course}</p>
+                {row.source && <p className="text-xs text-gray-500">{row.source}</p>}
+                <p className="text-xs font-bold text-gray-900 mt-1">{row.credits.toFixed(2)} credits</p>
+              </div>
+            ))}
+          </div>
+
           {/* Subject summary */}
           {Object.keys(subjectTotals).length > 0 && (
-            <div className="border-t border-gray-300 px-10 py-4">
-              <h3 className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">
+            <div className="border-t border-gray-300 px-4 sm:px-10 py-4">
+              <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">
                 Completed Credits by Subject
               </h3>
-              <div className="grid grid-cols-3 gap-x-8 gap-y-1 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-1 text-xs sm:text-sm">
                 {Object.entries(subjectTotals)
                   .sort((a, b) => b[1] - a[1])
                   .map(([subject, credits]) => (
@@ -245,13 +269,13 @@ const PublicTranscriptPage = () => {
           )}
 
           {/* Footer */}
-          <div className="border-t-4 border-double border-gray-900 px-10 py-6 mt-4">
-            <div className="flex justify-between text-xs text-gray-500">
+          <div className="border-t-4 border-double border-gray-900 px-4 sm:px-10 py-4 sm:py-6 mt-4">
+            <div className="flex flex-col sm:flex-row justify-between gap-2 text-[10px] sm:text-xs text-gray-500">
               <div>
                 <p>{footerText}</p>
                 <p className="mt-1">Optio -- www.optioeducation.com</p>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <p>Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 <p className="mt-1">Page 1 of 1</p>
               </div>
@@ -261,7 +285,7 @@ const PublicTranscriptPage = () => {
       </div>
 
       {/* Print button */}
-      <div className="no-print max-w-5xl mx-auto px-6 pb-8 flex justify-center">
+      <div className="no-print max-w-5xl mx-auto px-2 sm:px-6 pb-8 flex justify-center">
         <button
           onClick={() => window.print()}
           className="px-4 py-2 text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-900 flex items-center gap-2"
