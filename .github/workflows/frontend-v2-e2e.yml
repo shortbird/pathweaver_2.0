@@ -67,8 +67,10 @@ jobs:
       - name: Install backend dependencies
         shell: bash
         run: |
-          python3.12 -m venv venv 2>/dev/null || python3 -m venv venv
-          ./venv/bin/pip install -r backend/requirements.txt -q 2>&1 | tail -3
+          export PATH="/opt/homebrew/bin:$PATH"
+          which python3.12 && python3.12 -m venv venv || python3 -m venv venv
+          ./venv/bin/pip install -r backend/requirements.txt -q 2>&1 | tail -5
+          echo "Python: $(./venv/bin/python --version)"
           echo "Flask: $(./venv/bin/python -c 'import flask; print(flask.__version__)' 2>&1)"
 
       - name: Write frontend .env
