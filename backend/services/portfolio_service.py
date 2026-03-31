@@ -286,10 +286,18 @@ class PortfolioService:
             subject_credits[subject] = credits
             total_tc_credits += credits
 
+        # Normalize storage URL to custom domain
+        transcript_url = tc.get('transcript_url')
+        if transcript_url:
+            transcript_url = transcript_url.replace(
+                'vvfgxcykxjybtvpfzwyx.supabase.co',
+                'auth.optioeducation.com'
+            )
+
         return {
             'id': tc.get('id'),
             'school_name': tc.get('school_name'),
-            'transcript_url': tc.get('transcript_url'),
+            'transcript_url': transcript_url,
             'notes': tc.get('notes'),
             'subject_xp': subject_xp_tc,
             'subject_credits': subject_credits,

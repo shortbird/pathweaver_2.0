@@ -66,6 +66,7 @@ export function useStudentOverviewData(studentId, endpoint) {
         // For PortfolioSection
         achievements: apiData.portfolio_achievements || apiData.completed_quests || [],
         visibilityStatus: apiData.visibility_status,
+        transferCredits: apiData.transfer_credits || null,
 
         // Raw data for additional needs
         completedQuests: apiData.completed_quests || []

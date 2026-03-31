@@ -6,6 +6,20 @@ import toast from 'react-hot-toast';
 import QuestAccordionGallery from './QuestAccordionGallery';
 import EvidenceDetailModal from '../diploma/EvidenceDetailModal';
 
+const SUBJECT_DISPLAY_NAMES = {
+  'language_arts': 'Language Arts',
+  'math': 'Mathematics',
+  'science': 'Science',
+  'social_studies': 'Social Studies',
+  'financial_literacy': 'Financial Literacy',
+  'health': 'Health',
+  'pe': 'Physical Education',
+  'fine_arts': 'Fine Arts',
+  'cte': 'Career & Tech Ed',
+  'digital_literacy': 'Digital Literacy',
+  'electives': 'Electives'
+};
+
 const PortfolioSection = ({
   achievements = [],
   visibilityStatus,
@@ -14,7 +28,8 @@ const PortfolioSection = ({
   privacyLoading = false,
   hideHeader = false,
   readOnly = false, // When true, hide privacy toggle and show status badge only
-  onEvidenceDeleted // Callback when evidence is deleted (to refresh data)
+  onEvidenceDeleted, // Callback when evidence is deleted (to refresh data)
+  transferCredits = null
 }) => {
   const [selectedEvidenceItem, setSelectedEvidenceItem] = useState(null);
   const [showShareOptions, setShowShareOptions] = useState(false);
@@ -258,14 +273,74 @@ const PortfolioSection = ({
     );
   };
 
+  // Transfer Credits Card - matches quest card sizing/layout
+  const TransferCreditsCard = () => {
+    if (!transferCredits || !transferCredits.total_credits) return null;
+
+    const subjectCredits = transferCredits.subject_credits || {};
+    const sortedSubjects = Object.entries(subjectCredits)
+      .filter(([, credits]) => credits > 0)
+      .sort((a, b) => b[1] - a[1]);
+    const totalXp = Math.round(transferCredits.total_credits * 2000);
+
+    return (
+      <div className="rounded-xl border border-gray-200 overflow-hidden bg-white flex flex-col mb-4 break-inside-avoid">
+        {/* Image area - matches quest card h-32 */}
+        <div className="relative h-32 overflow-hidden">
+          <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-500 flex flex-col items-center justify-center px-3 text-center">
+            <svg className="w-8 h-8 text-white/50 mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-white font-bold text-sm leading-tight">{transferCredits.school_name || 'Previous School'}</p>
+            <p className="text-white/70 text-xs mt-0.5">Official Transcript</p>
+          </div>
+          <div className="absolute top-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-semibold text-emerald-600">
+            +{totalXp.toLocaleString()} XP
+          </div>
+        </div>
+        {/* Info area - matches quest card p-3 */}
+        <div className="p-3">
+          <h4 className="text-sm font-semibold text-gray-900 truncate">
+            Transfer Credits ({transferCredits.total_credits.toFixed(1)} cr)
+          </h4>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            {sortedSubjects.map(([subject, credits]) => (
+              <span
+                key={subject}
+                className="inline-block px-2 py-0.5 rounded-full text-white text-xs font-medium bg-gradient-to-r from-emerald-500 to-teal-500"
+              >
+                {SUBJECT_DISPLAY_NAMES[subject] || subject}
+              </span>
+            ))}
+            {transferCredits.transcript_url && (
+              <a
+                href={transferCredits.transcript_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                View Transcript
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Evidence gallery content
   const EvidenceContent = () => (
     <>
-      {achievements.length > 0 ? (
+      {achievements.length > 0 || transferCredits?.total_credits ? (
         <QuestAccordionGallery
           achievements={achievements}
           onEvidenceClick={(item) => setSelectedEvidenceItem(item)}
           isOwner={!readOnly}
+          transferCreditsCard={<TransferCreditsCard />}
         />
       ) : (
         <div className="text-center py-12 bg-gray-50 rounded-xl">
@@ -373,7 +448,8 @@ PortfolioSection.propTypes = {
   onPrivacyToggle: PropTypes.func,
   privacyLoading: PropTypes.bool,
   readOnly: PropTypes.bool,
-  onEvidenceDeleted: PropTypes.func
+  onEvidenceDeleted: PropTypes.func,
+  transferCredits: PropTypes.object
 };
 
 export default PortfolioSection;

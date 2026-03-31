@@ -1,113 +1,245 @@
 name: Frontend V2 E2E Tests
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [develop]
     paths:
       - 'frontend-v2/**'
+      - 'backend/**'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - core
+          - invitations
+          - full-web
+          - full-mobile
 
 jobs:
-  build-apk:
-    name: Build APK for E2E
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  # ── Smoke tests on every push to develop ──
+  smoke-tests:
+    name: "Smoke Tests (Web + iOS)"
+    runs-on: [self-hosted, macOS, maestro]
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
+    timeout-minutes: 15
+    env:
+      E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+      E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+      E2E_PARENT_EMAIL: ${{ secrets.E2E_PARENT_EMAIL }}
+      E2E_PARENT_PASSWORD: ${{ secrets.E2E_PARENT_PASSWORD }}
+      E2E_OBSERVER_EMAIL: ${{ secrets.E2E_OBSERVER_EMAIL }}
+      E2E_OBSERVER_PASSWORD: ${{ secrets.E2E_OBSERVER_PASSWORD }}
+      E2E_ADVISOR_EMAIL: ${{ secrets.E2E_ADVISOR_EMAIL }}
+      E2E_ADVISOR_PASSWORD: ${{ secrets.E2E_ADVISOR_PASSWORD }}
+      E2E_ORGADMIN_EMAIL: ${{ secrets.E2E_ORGADMIN_EMAIL }}
+      E2E_ORGADMIN_PASSWORD: ${{ secrets.E2E_ORGADMIN_PASSWORD }}
+      E2E_SUPERADMIN_EMAIL: ${{ secrets.E2E_SUPERADMIN_EMAIL }}
+      E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+        shell: bash
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          nvm use 22 || nvm install 22
+          echo "Node: $(node --version)"
 
-      - name: Setup EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Install dependencies
+      - name: Install frontend dependencies
+        shell: bash
         working-directory: frontend-v2
-        run: npm ci
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          npm ci --legacy-peer-deps
 
-      - name: Build APK
+      - name: Install backend dependencies
+        shell: bash
+        run: |
+          python3 -m venv venv 2>/dev/null || true
+          source venv/bin/activate
+          pip install -r backend/requirements.txt --quiet
+
+      - name: Start backend
+        shell: bash
+        run: |
+          source venv/bin/activate
+          python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          echo "BACKEND_PID=$!" >> $GITHUB_ENV
+          # Wait for backend
+          for i in $(seq 1 30); do
+            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
+            sleep 2
+          done
+          echo "Backend ready"
+
+      - name: Start frontend web
+        shell: bash
         working-directory: frontend-v2
-        run: eas build --platform android --profile development --non-interactive --local
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          npx expo start --web --port 8081 --non-interactive > /tmp/optio-frontend.log 2>&1 &
+          echo "FRONTEND_PID=$!" >> $GITHUB_ENV
+          # Wait for frontend
+          for i in $(seq 1 30); do
+            curl -s http://localhost:8081 > /dev/null 2>&1 && break
+            sleep 2
+          done
+          echo "Frontend ready"
 
-      - name: Upload APK artifact
+      - name: Run Maestro smoke tests
+        shell: bash
+        run: |
+          export PATH="$PATH:$HOME/.maestro/bin"
+          maestro test \
+            frontend-v2/maestro/suites/smoke.yaml \
+            --format junit \
+            --output maestro-smoke-report.xml
+
+      - name: Upload test report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: optio-dev-apk
-          path: frontend-v2/build-*.apk
-          retention-days: 1
+          name: maestro-smoke-report
+          path: maestro-smoke-report.xml
+          retention-days: 30
 
-  maestro-e2e:
-    name: Maestro E2E
-    runs-on: ubuntu-latest
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          kill ${{ env.BACKEND_PID }} 2>/dev/null || true
+          kill ${{ env.FRONTEND_PID }} 2>/dev/null || true
+          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
+
+  # ── Full test suite on PR to main ──
+  full-tests:
+    name: "Full E2E (${{ github.event.inputs.suite || 'core' }})"
+    runs-on: [self-hosted, macOS, maestro]
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite != 'smoke')
     timeout-minutes: 45
-    needs: build-apk
+    env:
+      E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+      E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+      E2E_PARENT_EMAIL: ${{ secrets.E2E_PARENT_EMAIL }}
+      E2E_PARENT_PASSWORD: ${{ secrets.E2E_PARENT_PASSWORD }}
+      E2E_OBSERVER_EMAIL: ${{ secrets.E2E_OBSERVER_EMAIL }}
+      E2E_OBSERVER_PASSWORD: ${{ secrets.E2E_OBSERVER_PASSWORD }}
+      E2E_ADVISOR_EMAIL: ${{ secrets.E2E_ADVISOR_EMAIL }}
+      E2E_ADVISOR_PASSWORD: ${{ secrets.E2E_ADVISOR_PASSWORD }}
+      E2E_ORGADMIN_EMAIL: ${{ secrets.E2E_ORGADMIN_EMAIL }}
+      E2E_ORGADMIN_PASSWORD: ${{ secrets.E2E_ORGADMIN_PASSWORD }}
+      E2E_SUPERADMIN_EMAIL: ${{ secrets.E2E_SUPERADMIN_EMAIL }}
+      E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download APK
-        uses: actions/download-artifact@v4
-        with:
-          name: optio-dev-apk
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Enable KVM
+      - name: Setup Node.js
+        shell: bash
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          nvm use 22 || nvm install 22
 
-      - name: Setup Android emulator and run Maestro
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel_6
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          disable-animations: true
-          script: |
-            # Install APK
-            adb install build-*.apk
+      - name: Install frontend dependencies
+        shell: bash
+        working-directory: frontend-v2
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          npm ci --legacy-peer-deps
 
-            # Install Maestro CLI
-            curl -Ls "https://get.maestro.mobile.dev" | bash
-            export PATH="$PATH":"$HOME/.maestro/bin"
+      - name: Install backend dependencies
+        shell: bash
+        run: |
+          python3 -m venv venv 2>/dev/null || true
+          source venv/bin/activate
+          pip install -r backend/requirements.txt --quiet
 
-            # Setup E2E test data
-            pip install supabase python-dotenv
-            python backend/scripts/setup_e2e_test_data.py
+      - name: Start backend
+        shell: bash
+        run: |
+          source venv/bin/activate
+          python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          echo "BACKEND_PID=$!" >> $GITHUB_ENV
+          for i in $(seq 1 30); do
+            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
+            sleep 2
+          done
 
-            # Run Maestro flows
-            maestro test frontend-v2/maestro/flows/ --format junit --output maestro-report.xml
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
-          E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
-          E2E_PARENT_EMAIL: ${{ secrets.E2E_PARENT_EMAIL }}
-          E2E_PARENT_PASSWORD: ${{ secrets.E2E_PARENT_PASSWORD }}
-          E2E_OBSERVER_EMAIL: ${{ secrets.E2E_OBSERVER_EMAIL }}
-          E2E_OBSERVER_PASSWORD: ${{ secrets.E2E_OBSERVER_PASSWORD }}
+      - name: Start frontend web
+        shell: bash
+        working-directory: frontend-v2
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          npx expo start --web --port 8081 --non-interactive > /tmp/optio-frontend.log 2>&1 &
+          echo "FRONTEND_PID=$!" >> $GITHUB_ENV
+          for i in $(seq 1 30); do
+            curl -s http://localhost:8081 > /dev/null 2>&1 && break
+            sleep 2
+          done
 
-      - name: Upload Maestro report
+      - name: Determine suite
+        id: suite
+        shell: bash
+        run: |
+          SUITE="${{ github.event.inputs.suite || 'core' }}"
+          echo "name=$SUITE" >> $GITHUB_OUTPUT
+          echo "Running suite: $SUITE"
+
+      - name: Run Maestro E2E tests
+        shell: bash
+        run: |
+          export PATH="$PATH:$HOME/.maestro/bin"
+          SUITE="${{ steps.suite.outputs.name }}"
+          SUITE_FILE="frontend-v2/maestro/suites/${SUITE}.yaml"
+
+          if [ ! -f "$SUITE_FILE" ]; then
+            echo "Suite file not found: $SUITE_FILE"
+            echo "Available suites:"
+            ls frontend-v2/maestro/suites/
+            exit 1
+          fi
+
+          maestro test \
+            "$SUITE_FILE" \
+            --format junit \
+            --output "maestro-${SUITE}-report.xml"
+
+      - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: maestro-report
-          path: maestro-report.xml
+          name: "maestro-${{ steps.suite.outputs.name }}-report"
+          path: "maestro-*-report.xml"
           retention-days: 30
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          kill ${{ env.BACKEND_PID }} 2>/dev/null || true
+          kill ${{ env.FRONTEND_PID }} 2>/dev/null || true
+          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+          lsof -ti:8081 | xargs kill -9 2>/dev/null || true

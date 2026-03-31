@@ -12,6 +12,7 @@ const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement
 const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard'))
 const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue'))
 const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
+const TranscriptGeneratorPage = lazy(() => import('./admin/TranscriptGeneratorPage'))
 const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
 const DocsManager = lazy(() => import('../components/admin/DocsManager'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
@@ -145,6 +146,7 @@ const AdminPage = () => {
           <Route path="users" element={<AdminUsers />} />
           <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
           <Route path="user/:userId/transfer-credits" element={<TransferCreditForm />} />
+          <Route path="user/:userId/transcript" element={<TranscriptGeneratorPage />} />
           <Route path="emails" element={<AutomatedEmailsList />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />

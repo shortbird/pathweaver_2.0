@@ -1,0 +1,52 @@
+# Core Suite - Run on PR to main (~15 min)
+# All role-based happy paths.
+
+executionOrder:
+  continueOnFailure: true
+  flows:
+    # Auth
+    - ../flows/auth/login-as-student.yaml
+    - ../flows/auth/login-as-parent.yaml
+    - ../flows/auth/login-as-observer.yaml
+    - ../flows/auth/login.yaml
+    - ../flows/auth/register.yaml
+    - ../flows/auth/logout.yaml
+
+    # Dashboard
+    - ../flows/dashboard/full-dashboard-smoke.yaml
+    - ../flows/dashboard/view-hero-section.yaml
+    - ../flows/dashboard/view-current-quests.yaml
+    - ../flows/dashboard/view-learning-rhythm.yaml
+    - ../flows/dashboard/tap-quest-to-detail.yaml
+
+    # Journal
+    - ../flows/journal/capture-moment.yaml
+    - ../flows/journal/create-topic.yaml
+    - ../flows/journal/assign-to-topic.yaml
+
+    # Bounties
+    - ../flows/bounties/browse-bounties.yaml
+    - ../flows/bounties/claim-bounty.yaml
+    - ../flows/bounties/parent-post-bounty.yaml
+
+    # Parent
+    - ../flows/parent/capture-for-one-kid.yaml
+    - ../flows/parent/capture-for-multiple-kids.yaml
+    - ../flows/parent/masquerade.yaml
+    - ../flows/parent/add-observer.yaml
+    - ../flows/parent/remove-observer.yaml
+
+    # Observer
+    - ../flows/observer/added-by-student.yaml
+    - ../flows/observer/added-via-link.yaml
+    - ../flows/observer/like-post.yaml
+    - ../flows/observer/comment-on-post.yaml
+    - ../flows/observer/student-removes-observer.yaml
+
+    # Feed
+    - ../flows/feed/view-entries.yaml
+    - ../flows/feed/create-entry.yaml
+
+    # Profile
+    - ../flows/profile/view-xp-breakdown.yaml
+    - ../flows/profile/edit-profile.yaml

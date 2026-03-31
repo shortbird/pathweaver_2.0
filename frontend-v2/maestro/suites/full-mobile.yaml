@@ -1,0 +1,16 @@
+# Full Mobile Suite - All flows on iOS Simulator (~25 min)
+# Run nightly or before release.
+# Same flows as full-web -- platform differences handled via testID selectors.
+
+executionOrder:
+  continueOnFailure: true
+  flows:
+    - ../flows/auth/
+    - ../flows/dashboard/
+    - ../flows/journal/
+    - ../flows/bounties/
+    - ../flows/evidence/
+    - ../flows/feed/
+    - ../flows/parent/
+    - ../flows/observer/
+    - ../flows/profile/

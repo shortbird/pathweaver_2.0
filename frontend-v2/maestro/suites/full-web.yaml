@@ -1,0 +1,24 @@
+# Full Web Suite - All flows, web platform (~25 min)
+# Run nightly or before release.
+
+executionOrder:
+  continueOnFailure: true
+  flows:
+    # Auth
+    - ../flows/auth/
+    # Dashboard
+    - ../flows/dashboard/
+    # Journal
+    - ../flows/journal/
+    # Bounties
+    - ../flows/bounties/
+    # Evidence
+    - ../flows/evidence/
+    # Feed
+    - ../flows/feed/
+    # Parent
+    - ../flows/parent/
+    # Observer
+    - ../flows/observer/
+    # Profile
+    - ../flows/profile/

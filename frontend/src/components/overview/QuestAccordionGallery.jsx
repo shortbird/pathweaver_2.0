@@ -10,7 +10,7 @@ import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
  * Mobile: quest cards stacked; clicking expands inline accordion.
  * Evidence detail is shown within the quest context with back navigation.
  */
-const QuestAccordionGallery = ({ achievements, isOwner }) => {
+const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) => {
   const [expandedQuests, setExpandedQuests] = useState(new Set());
   const [selectedPillar, setSelectedPillar] = useState('all');
   const [modalQuest, setModalQuest] = useState(null);
@@ -201,6 +201,7 @@ const QuestAccordionGallery = ({ achievements, isOwner }) => {
 
       {/* Quest cards */}
       <div className="columns-1 md:columns-2 xl:columns-3 gap-4 [column-fill:_balance]">
+        {transferCreditsCard}
         {filteredGroups.map(group => {
           const isExpanded = expandedQuests.has(group.questId);
           const primaryPillar = group.pillars[0];
@@ -674,6 +675,7 @@ QuestAccordionGallery.propTypes = {
   })).isRequired,
   onEvidenceClick: PropTypes.func,
   isOwner: PropTypes.bool,
+  transferCreditsCard: PropTypes.node,
 };
 
 EvidenceCard.propTypes = {

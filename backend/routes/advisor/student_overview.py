@@ -13,6 +13,7 @@ from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.roles import get_effective_role
 from utils.logger import get_logger
+from services.portfolio_service import PortfolioService
 from routes.users.helpers import calculate_subject_xp_from_tasks
 
 logger = get_logger(__name__)
@@ -570,7 +571,8 @@ def get_student_overview(user_id, student_id):
             'subject_xp': subject_xp,
             'pending_subject_xp': pending_subject_xp,
             'visibility_status': visibility_status,
-            'pillars_data': pillars_data
+            'pillars_data': pillars_data,
+            'transfer_credits': PortfolioService().get_transfer_credits(student_id)
         }), 200
 
     except AuthorizationError as e:
