@@ -1,23 +1,18 @@
+appId: com.optioeducation.optio
+name: "Smoke Suite"
+tags:
+  - smoke
+  - ci
+---
 # Smoke Suite - Run on every push to develop (~3 min)
 # Tests the critical happy paths that must never break.
-#
-# S1: Student login
-# S2: Dashboard loads with stats
-# S3: Parent login + family tab
-# S4: Org login via slug
-#
-# These reference existing flows in flows/
-# Add more as flows are built out.
 
-executionOrder:
-  continueOnFailure: true
-  flows:
-    # S1 + S2: Student login -> dashboard loads
-    - ../flows/auth/login-as-student.yaml
-    - ../flows/dashboard/full-dashboard-smoke.yaml
+# S1 + S2: Student login -> dashboard loads
+- runFlow: ../flows/auth/login-as-student.yaml
+- runFlow: ../flows/dashboard/full-dashboard-smoke.yaml
 
-    # S3: Parent login -> family view
-    - ../flows/auth/login-as-parent.yaml
+# S3: Parent login -> family view
+- runFlow: ../flows/auth/login-as-parent.yaml
 
-    # S4: Auth flows
-    - ../flows/auth/login.yaml
+# S4: Auth flows
+- runFlow: ../flows/auth/login.yaml
