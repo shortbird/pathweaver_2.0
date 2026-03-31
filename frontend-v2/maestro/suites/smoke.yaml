@@ -5,11 +5,12 @@ tags:
   - ci
   - web
 ---
-# S1: Student login -> verify dashboard
-- launchApp
+# Wait for app to fully load (Expo web can take a while on first bundle)
 - extendedWaitUntil:
     visible: "Welcome Back"
-    timeout: 15000
+    timeout: 30000
+
+# S1: Student login -> verify dashboard
 - tapOn: "you@email.com"
 - inputText: ${E2E_STUDENT_EMAIL}
 - tapOn: "Enter password"
@@ -17,6 +18,6 @@ tags:
 - tapOn: "Sign In"
 - extendedWaitUntil:
     visible: "Welcome back"
-    timeout: 15000
+    timeout: 20000
 - assertVisible: "Total XP"
 - assertVisible: "Active Quests"
