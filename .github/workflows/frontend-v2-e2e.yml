@@ -49,13 +49,17 @@ jobs:
       - name: Wait for Render deploy
         shell: bash
         run: |
-          echo "Waiting 90s for Render to deploy from this push..."
-          sleep 90
-          echo "Checking dev frontend..."
-          curl -s -o /dev/null -w "%{http_code}" https://optio-dev-frontend.onrender.com/login || echo "Frontend not responding"
-          echo ""
-          echo "Checking dev backend..."
-          curl -s https://api.optioeducation.com/api/health 2>&1 | head -5 || echo "Backend not responding"
+          echo "Waiting for Render to deploy..."
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://optio-dev-frontend.onrender.com/login 2>/dev/null)
+            if [ "$STATUS" = "200" ]; then
+              echo "Frontend ready (attempt $i)"
+              break
+            fi
+            echo "  Attempt $i: status=$STATUS, waiting 10s..."
+            sleep 10
+          done
+          echo "Backend: $(curl -s https://api.optioeducation.com/api/health 2>&1 | head -1)"
 
       - name: Run Maestro smoke tests
         shell: bash
