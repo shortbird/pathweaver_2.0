@@ -5,4 +5,13 @@ tags:
   - ci
   - web
 ---
+- launchApp
 - takeScreenshot: /tmp/maestro-debug-1
+
+- openLink: http://localhost:8081/login
+- takeScreenshot: /tmp/maestro-debug-2
+
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 30000
+- takeScreenshot: /tmp/maestro-debug-3
