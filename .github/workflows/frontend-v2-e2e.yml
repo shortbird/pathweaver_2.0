@@ -23,7 +23,6 @@ on:
           - full-mobile
 
 jobs:
-  # ── Smoke tests on every push to develop ──
   smoke-tests:
     name: "Smoke Tests (Web)"
     runs-on: [self-hosted, macOS, maestro]
@@ -42,91 +41,78 @@ jobs:
       E2E_ORGADMIN_PASSWORD: ${{ secrets.E2E_ORGADMIN_PASSWORD }}
       E2E_SUPERADMIN_EMAIL: ${{ secrets.E2E_SUPERADMIN_EMAIL }}
       E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Kill stale servers
+      - name: Run smoke tests
         shell: bash
         run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          export PATH="/opt/homebrew/bin:$PATH:$HOME/.maestro/bin"
+
+          # Kill stale servers
           lsof -ti:5001 | xargs kill -9 2>/dev/null || true
           lsof -ti:8081 | xargs kill -9 2>/dev/null || true
+          sleep 2
 
-      - name: Install frontend dependencies
-        shell: bash
-        working-directory: frontend-v2
-        run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          npm install --legacy-peer-deps 2>&1 | tail -5
+          # Use pre-installed deps from ~/optio, but current code from checkout
+          WORK_DIR="${GITHUB_WORKSPACE}"
 
-      - name: Install backend dependencies
-        shell: bash
-        run: |
-          export PATH="/opt/homebrew/bin:$PATH"
-          which python3.12 && python3.12 -m venv venv || python3 -m venv venv
-          ./venv/bin/pip install -r backend/requirements.txt 2>&1 | tail -20
-          echo "Python: $(./venv/bin/python --version)"
-          echo "Flask: $(./venv/bin/python -c 'import flask; print(flask.__version__)' 2>&1)"
-          echo "All imports: $(./venv/bin/python -c 'import flask, supabase, dotenv; print("OK")' 2>&1)"
+          # Symlink node_modules from pre-installed location
+          if [ ! -d "$WORK_DIR/frontend-v2/node_modules" ]; then
+            ln -s "$HOME/optio/frontend-v2/node_modules" "$WORK_DIR/frontend-v2/node_modules"
+          fi
 
-      - name: Write frontend .env
-        shell: bash
-        working-directory: frontend-v2
-        run: |
-          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+          # Write frontend .env
+          echo "EXPO_PUBLIC_SUPABASE_URL=$SUPABASE_URL" > "$WORK_DIR/frontend-v2/.env"
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$WORK_DIR/frontend-v2/.env"
 
-      - name: Start servers and run tests
-        shell: bash
-        run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          export PATH="$PATH:$HOME/.maestro/bin"
-
-          # Start backend
-          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          # Start backend using pre-installed venv
+          SUPABASE_URL="$SUPABASE_URL" \
+          SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
+          SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+          FLASK_SECRET_KEY="ci-test-secret-key-not-for-production" \
+          FLASK_ENV="testing" \
+          GEMINI_API_KEY="dummy-key-for-ci" \
+          $HOME/optio/venv/bin/python "$WORK_DIR/backend/app.py" > /tmp/optio-backend.log 2>&1 &
           BACKEND_PID=$!
 
           # Start frontend
-          cd frontend-v2
+          cd "$WORK_DIR/frontend-v2"
           npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
           FRONTEND_PID=$!
-          cd ..
+          cd "$WORK_DIR"
 
           # Wait for backend
           echo "Waiting for backend..."
           for i in $(seq 1 30); do
-            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
+            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && echo "Backend ready" && break
             sleep 2
           done
 
           # Wait for frontend
           echo "Waiting for frontend..."
           for i in $(seq 1 40); do
-            curl -s http://localhost:8081 > /dev/null 2>&1 && break
+            curl -s http://localhost:8081 > /dev/null 2>&1 && echo "Frontend ready" && break
             sleep 2
           done
-
-          # Extra wait for Expo to finish bundling
           sleep 10
 
+          # Debug: check server status
           echo "=== Server status ==="
           curl -s http://localhost:5001/api/health 2>&1 | head -5 || echo "Backend not ready"
           curl -s http://localhost:8081 2>&1 | head -1 | cut -c1-100 || echo "Frontend not ready"
-          echo ""
 
           # Run Maestro
           echo "Running Maestro smoke tests..."
           maestro test \
-            frontend-v2/maestro/suites/smoke.yaml \
+            "$WORK_DIR/frontend-v2/maestro/suites/smoke.yaml" \
             --format junit \
-            --output maestro-smoke-report.xml
-          TEST_EXIT=$?
+            --output "$WORK_DIR/maestro-smoke-report.xml" || true
+          TEST_EXIT=${PIPESTATUS[0]:-$?}
 
           # Cleanup
           kill $BACKEND_PID 2>/dev/null || true
@@ -139,9 +125,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          FLASK_SECRET_KEY: ci-test-secret-key-not-for-production
-          FLASK_ENV: testing
-          GEMINI_API_KEY: dummy-key-for-ci-startup
 
       - name: Dump logs on failure
         if: failure()
@@ -169,7 +152,6 @@ jobs:
           path: /tmp/maestro-debug-*.png
           retention-days: 7
 
-  # ── Full test suite on PR to main ──
   full-tests:
     name: "Full E2E (${{ github.event.inputs.suite || 'core' }})"
     runs-on: [self-hosted, macOS, maestro]
@@ -188,40 +170,10 @@ jobs:
       E2E_ORGADMIN_PASSWORD: ${{ secrets.E2E_ORGADMIN_PASSWORD }}
       E2E_SUPERADMIN_EMAIL: ${{ secrets.E2E_SUPERADMIN_EMAIL }}
       E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Kill stale servers
-        shell: bash
-        run: |
-          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
-          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
-
-      - name: Install frontend dependencies
-        shell: bash
-        working-directory: frontend-v2
-        run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          npm install --legacy-peer-deps 2>&1 | tail -5
-
-      - name: Install backend dependencies
-        shell: bash
-        run: |
-          python3.12 -m venv venv 2>/dev/null || python3 -m venv venv
-          ./venv/bin/pip install -r backend/requirements.txt -q 2>&1 | tail -3
-
-      - name: Write frontend .env
-        shell: bash
-        working-directory: frontend-v2
-        run: |
-          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
 
       - name: Determine suite
         id: suite
@@ -230,28 +182,44 @@ jobs:
           SUITE="${{ github.event.inputs.suite || 'core' }}"
           echo "name=$SUITE" >> $GITHUB_OUTPUT
 
-      - name: Start servers and run tests
+      - name: Run E2E tests
         shell: bash
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          export PATH="$PATH:$HOME/.maestro/bin"
+          export PATH="/opt/homebrew/bin:$PATH:$HOME/.maestro/bin"
 
-          ./venv/bin/python backend/app.py > /tmp/optio-backend.log 2>&1 &
+          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
+          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
+          sleep 2
+
+          WORK_DIR="${GITHUB_WORKSPACE}"
+
+          if [ ! -d "$WORK_DIR/frontend-v2/node_modules" ]; then
+            ln -s "$HOME/optio/frontend-v2/node_modules" "$WORK_DIR/frontend-v2/node_modules"
+          fi
+
+          echo "EXPO_PUBLIC_SUPABASE_URL=$SUPABASE_URL" > "$WORK_DIR/frontend-v2/.env"
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$WORK_DIR/frontend-v2/.env"
+
+          SUPABASE_URL="$SUPABASE_URL" \
+          SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
+          SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+          FLASK_SECRET_KEY="ci-test-secret-key-not-for-production" \
+          FLASK_ENV="testing" \
+          GEMINI_API_KEY="dummy-key-for-ci" \
+          $HOME/optio/venv/bin/python "$WORK_DIR/backend/app.py" > /tmp/optio-backend.log 2>&1 &
           BACKEND_PID=$!
 
-          cd frontend-v2
+          cd "$WORK_DIR/frontend-v2"
           npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
           FRONTEND_PID=$!
-          cd ..
+          cd "$WORK_DIR"
 
-          echo "Waiting for backend..."
           for i in $(seq 1 30); do
             curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
             sleep 2
           done
-
-          echo "Waiting for frontend..."
           for i in $(seq 1 40); do
             curl -s http://localhost:8081 > /dev/null 2>&1 && break
             sleep 2
@@ -259,16 +227,16 @@ jobs:
           sleep 10
 
           SUITE="${{ steps.suite.outputs.name }}"
-          SUITE_FILE="frontend-v2/maestro/suites/${SUITE}.yaml"
+          SUITE_FILE="$WORK_DIR/frontend-v2/maestro/suites/${SUITE}.yaml"
 
           if [ ! -f "$SUITE_FILE" ]; then
             echo "Suite not found: $SUITE_FILE"
-            ls frontend-v2/maestro/suites/
+            ls "$WORK_DIR/frontend-v2/maestro/suites/"
             exit 1
           fi
 
-          maestro test "$SUITE_FILE" --format junit --output "maestro-${SUITE}-report.xml"
-          TEST_EXIT=$?
+          maestro test "$SUITE_FILE" --format junit --output "$WORK_DIR/maestro-${SUITE}-report.xml" || true
+          TEST_EXIT=${PIPESTATUS[0]:-$?}
 
           kill $BACKEND_PID 2>/dev/null || true
           kill $FRONTEND_PID 2>/dev/null || true
@@ -280,9 +248,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          FLASK_SECRET_KEY: ci-test-secret-key-not-for-production
-          FLASK_ENV: testing
-          GEMINI_API_KEY: dummy-key-for-ci-startup
 
       - name: Dump logs on failure
         if: failure()
