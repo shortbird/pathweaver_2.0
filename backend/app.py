@@ -98,6 +98,8 @@ app.register_blueprint(images.bp)  # /api/images (blueprint has url_prefix)
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 from routes.contact import bp as contact_bp
 app.register_blueprint(contact_bp, url_prefix='/api')  # /api/contact (contact form submissions)
+from routes.promo import bp as promo_bp
+app.register_blueprint(promo_bp, url_prefix='/api')  # /api/promo/interest (public promo form)
 app.register_blueprint(demo_bp)  # /api/demo (public demo task generation with AI)
 app.register_blueprint(ai_access_bp)  # /api/ai-access (AI feature access status)
 app.register_blueprint(observer_requests_bp)  # /api/observer-requests (blueprint has url_prefix in route definitions)

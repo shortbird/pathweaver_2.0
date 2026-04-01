@@ -90,6 +90,7 @@ const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
 const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
 // Platform explainer page
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
+const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
 // Help Center / Docs pages (February 2026)
 const DocsLandingPage = lazy(() => import('./pages/docs/DocsLandingPage'))
 const DocsCategoryPage = lazy(() => import('./pages/docs/DocsCategoryPage'))
@@ -371,6 +372,9 @@ function App() {
           />
           <Suspense fallback={<PageLoader />}>
             <Routes>
+              {/* Public promo page (standalone, no platform layout) */}
+              <Route path="for-students" element={<PromoStudentPage />} />
+
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
