@@ -161,6 +161,14 @@ jobs:
           path: maestro-smoke-report.xml
           retention-days: 30
 
+      - name: Upload debug screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug-screenshots
+          path: /tmp/maestro-debug-*.png
+          retention-days: 7
+
   # ── Full test suite on PR to main ──
   full-tests:
     name: "Full E2E (${{ github.event.inputs.suite || 'core' }})"
