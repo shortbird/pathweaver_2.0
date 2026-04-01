@@ -1,4 +1,4 @@
-url: https://optio-dev-frontend.onrender.com
+url: https://optio-dev-v2-frontend.onrender.com
 name: "Smoke Suite - Web"
 tags:
   - smoke
@@ -9,17 +9,16 @@ tags:
 - takeScreenshot: /tmp/maestro-debug-1
 
 - extendedWaitUntil:
-    visible: "Sign In"
-    timeout: 60000
+    visible: "Welcome Back"
+    timeout: 30000
 - takeScreenshot: /tmp/maestro-debug-2
 
+# S1: Student login -> verify dashboard
 - tapOn: "you@email.com"
 - inputText: ${E2E_STUDENT_EMAIL}
 - tapOn: "Enter password"
 - inputText: ${E2E_STUDENT_PASSWORD}
-- tapOn:
-    text: "Sign In"
-    index: 0
+- tapOn: "Sign In"
 - extendedWaitUntil:
     visible: "Welcome back"
     timeout: 20000
