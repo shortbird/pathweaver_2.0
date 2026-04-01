@@ -27,7 +27,7 @@ jobs:
     name: "Smoke Tests (Web)"
     runs-on: [self-hosted, macOS, maestro]
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
       E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
@@ -46,95 +46,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run smoke tests
+      - name: Wait for Render deploy
         shell: bash
         run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          export PATH="/opt/homebrew/bin:$PATH:$HOME/.maestro/bin"
-
-          # Kill stale servers
-          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
-          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
-          sleep 2
-
-          # Use pre-installed deps from ~/optio, but current code from checkout
-          WORK_DIR="${GITHUB_WORKSPACE}"
-
-          # Symlink node_modules from pre-installed location
-          if [ ! -d "$WORK_DIR/frontend-v2/node_modules" ]; then
-            ln -s "$HOME/optio/frontend-v2/node_modules" "$WORK_DIR/frontend-v2/node_modules"
-          fi
-
-          # Write frontend .env
-          echo "EXPO_PUBLIC_SUPABASE_URL=$SUPABASE_URL" > "$WORK_DIR/frontend-v2/.env"
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$WORK_DIR/frontend-v2/.env"
-
-          # Start backend using pre-installed venv
-          SUPABASE_URL="$SUPABASE_URL" \
-          SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
-          SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-          FLASK_SECRET_KEY="ci-test-secret-key-not-for-production" \
-          FLASK_ENV="testing" \
-          GEMINI_API_KEY="dummy-key-for-ci" \
-          $HOME/optio/venv/bin/python "$WORK_DIR/backend/app.py" > /tmp/optio-backend.log 2>&1 &
-          BACKEND_PID=$!
-
-          # Start frontend
-          cd "$WORK_DIR/frontend-v2"
-          npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
-          FRONTEND_PID=$!
-          cd "$WORK_DIR"
-
-          # Wait for backend
-          echo "Waiting for backend..."
-          for i in $(seq 1 30); do
-            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && echo "Backend ready" && break
-            sleep 2
-          done
-
-          # Wait for frontend
-          echo "Waiting for frontend..."
-          for i in $(seq 1 40); do
-            curl -s http://localhost:8081 > /dev/null 2>&1 && echo "Frontend ready" && break
-            sleep 2
-          done
-          sleep 10
-
-          # Debug: check server status
-          echo "=== Server status ==="
-          curl -s http://localhost:5001/api/health 2>&1 | head -5 || echo "Backend not ready"
-          curl -s http://localhost:8081 2>&1 | head -1 | cut -c1-100 || echo "Frontend not ready"
-
-          # Run Maestro
-          echo "Running Maestro smoke tests..."
-          maestro test \
-            "$WORK_DIR/frontend-v2/maestro/suites/smoke.yaml" \
-            --format junit \
-            --output "$WORK_DIR/maestro-smoke-report.xml" || true
-          TEST_EXIT=${PIPESTATUS[0]:-$?}
-
-          # Cleanup
-          kill $BACKEND_PID 2>/dev/null || true
-          kill $FRONTEND_PID 2>/dev/null || true
-          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
-          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
-
-          exit $TEST_EXIT
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-
-      - name: Dump logs on failure
-        if: failure()
-        shell: bash
-        run: |
-          echo "=== Backend log ==="
-          tail -30 /tmp/optio-backend.log 2>/dev/null || echo "No log"
+          echo "Waiting 90s for Render to deploy from this push..."
+          sleep 90
+          echo "Checking dev frontend..."
+          curl -s -o /dev/null -w "%{http_code}" https://optio-dev-frontend.onrender.com/login || echo "Frontend not responding"
           echo ""
-          echo "=== Frontend log ==="
-          tail -30 /tmp/optio-frontend.log 2>/dev/null || echo "No log"
+          echo "Checking dev backend..."
+          curl -s https://api.optioeducation.com/api/health 2>&1 | head -5 || echo "Backend not responding"
+
+      - name: Run Maestro smoke tests
+        shell: bash
+        run: |
+          export PATH="$PATH:$HOME/.maestro/bin"
+          maestro test \
+            frontend-v2/maestro/suites/smoke.yaml \
+            --format junit \
+            --output maestro-smoke-report.xml
 
       - name: Upload test report
         if: always()
@@ -156,7 +86,7 @@ jobs:
     name: "Full E2E (${{ github.event.inputs.suite || 'core' }})"
     runs-on: [self-hosted, macOS, maestro]
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite != 'smoke')
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
       E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
       E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
@@ -182,82 +112,26 @@ jobs:
           SUITE="${{ github.event.inputs.suite || 'core' }}"
           echo "name=$SUITE" >> $GITHUB_OUTPUT
 
-      - name: Run E2E tests
+      - name: Wait for Render deploy
         shell: bash
         run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          export PATH="/opt/homebrew/bin:$PATH:$HOME/.maestro/bin"
+          echo "Waiting 90s for Render to deploy..."
+          sleep 90
 
-          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
-          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
-          sleep 2
-
-          WORK_DIR="${GITHUB_WORKSPACE}"
-
-          if [ ! -d "$WORK_DIR/frontend-v2/node_modules" ]; then
-            ln -s "$HOME/optio/frontend-v2/node_modules" "$WORK_DIR/frontend-v2/node_modules"
-          fi
-
-          echo "EXPO_PUBLIC_SUPABASE_URL=$SUPABASE_URL" > "$WORK_DIR/frontend-v2/.env"
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$WORK_DIR/frontend-v2/.env"
-
-          SUPABASE_URL="$SUPABASE_URL" \
-          SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
-          SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-          FLASK_SECRET_KEY="ci-test-secret-key-not-for-production" \
-          FLASK_ENV="testing" \
-          GEMINI_API_KEY="dummy-key-for-ci" \
-          $HOME/optio/venv/bin/python "$WORK_DIR/backend/app.py" > /tmp/optio-backend.log 2>&1 &
-          BACKEND_PID=$!
-
-          cd "$WORK_DIR/frontend-v2"
-          npx expo start --web --port 8081 > /tmp/optio-frontend.log 2>&1 &
-          FRONTEND_PID=$!
-          cd "$WORK_DIR"
-
-          for i in $(seq 1 30); do
-            curl -s http://localhost:5001/api/health > /dev/null 2>&1 && break
-            sleep 2
-          done
-          for i in $(seq 1 40); do
-            curl -s http://localhost:8081 > /dev/null 2>&1 && break
-            sleep 2
-          done
-          sleep 10
-
+      - name: Run Maestro E2E tests
+        shell: bash
+        run: |
+          export PATH="$PATH:$HOME/.maestro/bin"
           SUITE="${{ steps.suite.outputs.name }}"
-          SUITE_FILE="$WORK_DIR/frontend-v2/maestro/suites/${SUITE}.yaml"
+          SUITE_FILE="frontend-v2/maestro/suites/${SUITE}.yaml"
 
           if [ ! -f "$SUITE_FILE" ]; then
             echo "Suite not found: $SUITE_FILE"
-            ls "$WORK_DIR/frontend-v2/maestro/suites/"
+            ls frontend-v2/maestro/suites/
             exit 1
           fi
 
-          maestro test "$SUITE_FILE" --format junit --output "$WORK_DIR/maestro-${SUITE}-report.xml" || true
-          TEST_EXIT=${PIPESTATUS[0]:-$?}
-
-          kill $BACKEND_PID 2>/dev/null || true
-          kill $FRONTEND_PID 2>/dev/null || true
-          lsof -ti:5001 | xargs kill -9 2>/dev/null || true
-          lsof -ti:8081 | xargs kill -9 2>/dev/null || true
-
-          exit $TEST_EXIT
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-
-      - name: Dump logs on failure
-        if: failure()
-        shell: bash
-        run: |
-          echo "=== Backend log ==="
-          tail -30 /tmp/optio-backend.log 2>/dev/null || echo "No log"
-          echo ""
-          echo "=== Frontend log ==="
-          tail -30 /tmp/optio-frontend.log 2>/dev/null || echo "No log"
+          maestro test "$SUITE_FILE" --format junit --output "maestro-${SUITE}-report.xml"
 
       - name: Upload test report
         if: always()

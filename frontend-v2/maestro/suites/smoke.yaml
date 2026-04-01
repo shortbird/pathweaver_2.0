@@ -1,4 +1,4 @@
-url: http://localhost:8081
+url: https://optio-dev-frontend.onrender.com/login
 name: "Smoke Suite - Web"
 tags:
   - smoke
@@ -8,10 +8,21 @@ tags:
 - launchApp
 - takeScreenshot: /tmp/maestro-debug-1
 
-- openLink: http://localhost:8081/login
-- takeScreenshot: /tmp/maestro-debug-2
-
 - extendedWaitUntil:
     visible: "Sign In"
-    timeout: 30000
+    timeout: 60000
+- takeScreenshot: /tmp/maestro-debug-2
+
+- tapOn: "you@email.com"
+- inputText: ${E2E_STUDENT_EMAIL}
+- tapOn: "Enter password"
+- inputText: ${E2E_STUDENT_PASSWORD}
+- tapOn:
+    text: "Sign In"
+    index: 0
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 20000
 - takeScreenshot: /tmp/maestro-debug-3
+- assertVisible: "Total XP"
+- assertVisible: "Active Quests"
