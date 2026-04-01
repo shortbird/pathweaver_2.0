@@ -266,45 +266,52 @@ class PortfolioService:
             for subject, xp in subject_xp_map.items()
         ]
 
-    def get_transfer_credits(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """Get transfer credits data formatted for diploma display."""
+    def get_transfer_credits(self, user_id: str) -> Optional[list]:
+        """Get all transfer credits data formatted for diploma display.
+
+        Returns a list of transfer credit records (one per source institution).
+        """
         result = self.client.table('transfer_credits').select('*').eq(
             'user_id', user_id
-        ).execute()
+        ).order('created_at').execute()
 
         if not result.data:
             return None
 
-        tc = result.data[0]
         XP_PER_CREDIT = 2000
-        subject_credits = {}
-        total_tc_credits = 0
-        subject_xp_tc = tc.get('subject_xp', {})
+        records = []
 
-        for subject, xp in subject_xp_tc.items():
-            credits = xp / XP_PER_CREDIT
-            subject_credits[subject] = credits
-            total_tc_credits += credits
+        for tc in result.data:
+            subject_credits = {}
+            total_tc_credits = 0
+            subject_xp_tc = tc.get('subject_xp', {})
 
-        # Normalize storage URL to custom domain
-        transcript_url = tc.get('transcript_url')
-        if transcript_url:
-            transcript_url = transcript_url.replace(
-                'vvfgxcykxjybtvpfzwyx.supabase.co',
-                'auth.optioeducation.com'
-            )
+            for subject, xp in subject_xp_tc.items():
+                credits = xp / XP_PER_CREDIT
+                subject_credits[subject] = credits
+                total_tc_credits += credits
 
-        return {
-            'id': tc.get('id'),
-            'school_name': tc.get('school_name'),
-            'transcript_url': transcript_url,
-            'notes': tc.get('notes'),
-            'subject_xp': subject_xp_tc,
-            'subject_credits': subject_credits,
-            'total_xp': tc.get('total_xp', 0),
-            'total_credits': total_tc_credits,
-            'created_at': tc.get('created_at')
-        }
+            # Normalize storage URL to custom domain
+            transcript_url = tc.get('transcript_url')
+            if transcript_url:
+                transcript_url = transcript_url.replace(
+                    'vvfgxcykxjybtvpfzwyx.supabase.co',
+                    'auth.optioeducation.com'
+                )
+
+            records.append({
+                'id': tc.get('id'),
+                'school_name': tc.get('school_name'),
+                'transcript_url': transcript_url,
+                'notes': tc.get('notes'),
+                'subject_xp': subject_xp_tc,
+                'subject_credits': subject_credits,
+                'total_xp': tc.get('total_xp', 0),
+                'total_credits': total_tc_credits,
+                'created_at': tc.get('created_at')
+            })
+
+        return records
 
     def get_skill_details(self, user_id: str) -> List[Dict[str, Any]]:
         """Get skill details (times practiced) for a user."""
