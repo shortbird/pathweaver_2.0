@@ -25,7 +25,7 @@ on:
 jobs:
   smoke-tests:
     name: "Smoke Tests (Web)"
-    runs-on: [self-hosted, macOS, maestro]
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
     timeout-minutes: 10
     env:
@@ -61,10 +61,15 @@ jobs:
           done
           echo "Backend: $(curl -s https://api.optioeducation.com/api/health 2>&1 | head -1)"
 
+      - name: Install Maestro
+        shell: bash
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
       - name: Run Maestro smoke tests
         shell: bash
         run: |
-          export PATH="$PATH:$HOME/.maestro/bin"
           maestro test \
             frontend-v2/maestro/suites/smoke.yaml \
             --format junit \
@@ -88,7 +93,7 @@ jobs:
 
   full-tests:
     name: "Full E2E (${{ github.event.inputs.suite || 'core' }})"
-    runs-on: [self-hosted, macOS, maestro]
+    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite != 'smoke')
     timeout-minutes: 30
     env:
@@ -122,10 +127,15 @@ jobs:
           echo "Waiting 90s for Render to deploy..."
           sleep 90
 
+      - name: Install Maestro
+        shell: bash
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
       - name: Run Maestro E2E tests
         shell: bash
         run: |
-          export PATH="$PATH:$HOME/.maestro/bin"
           SUITE="${{ steps.suite.outputs.name }}"
           SUITE_FILE="frontend-v2/maestro/suites/${SUITE}.yaml"
 
