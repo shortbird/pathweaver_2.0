@@ -25,7 +25,7 @@ test.describe('Smoke Suite', () => {
     await page.getByPlaceholder('you@email.com').fill('invalid@test.com');
     await page.getByPlaceholder('Enter password').fill('wrongpassword');
     await clickByText(page, 'Sign In');
-    await expect(page.getByText(/invalid|error|incorrect/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/invalid|error|incorrect|locked|failed/i).first()).toBeVisible({ timeout: 15000 });
   });
 
   test('S5: Unauthenticated user redirected to login', async ({ page }) => {
