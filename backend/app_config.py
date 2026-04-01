@@ -88,6 +88,7 @@ class Config:
             if origin.strip()
         ] or [
             'https://optio-dev-frontend.onrender.com',
+            'https://optio-dev-v2-frontend.onrender.com',
             'https://optio-prod-frontend.onrender.com',
             'https://www.optioeducation.com',
             'https://optioeducation.com',
