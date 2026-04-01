@@ -17,16 +17,11 @@ on:
         type: choice
         options:
           - smoke
-          - core
-          - invitations
-          - full-web
-          - full-mobile
 
 jobs:
-  smoke-tests:
-    name: "Smoke Tests (Web)"
+  e2e-tests:
+    name: "E2E Tests"
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke')
     timeout-minutes: 10
     env:
       E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
@@ -46,8 +41,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        working-directory: frontend-v2
+        run: |
+          npm install -D @playwright/test
+          npx playwright install chromium
+
       - name: Wait for Render deploy
-        shell: bash
         run: |
           echo "Waiting for Render to deploy..."
           for i in $(seq 1 60); do
@@ -59,104 +64,18 @@ jobs:
             echo "  Attempt $i: status=$STATUS, waiting 10s..."
             sleep 10
           done
-          echo "Backend: $(curl -s https://api.optioeducation.com/api/health 2>&1 | head -1)"
 
-      - name: Install Maestro
-        shell: bash
-        run: |
-          curl -Ls "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-
-      - name: Run Maestro smoke tests
-        shell: bash
-        run: |
-          maestro test \
-            --env E2E_STUDENT_EMAIL="${E2E_STUDENT_EMAIL}" \
-            --env E2E_STUDENT_PASSWORD="${E2E_STUDENT_PASSWORD}" \
-            --env E2E_PARENT_EMAIL="${E2E_PARENT_EMAIL}" \
-            --env E2E_PARENT_PASSWORD="${E2E_PARENT_PASSWORD}" \
-            --env E2E_OBSERVER_EMAIL="${E2E_OBSERVER_EMAIL}" \
-            --env E2E_OBSERVER_PASSWORD="${E2E_OBSERVER_PASSWORD}" \
-            frontend-v2/maestro/suites/smoke.yaml \
-            --format junit \
-            --output maestro-smoke-report.xml
+      - name: Run E2E tests
+        working-directory: frontend-v2
+        run: npx playwright test
 
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: maestro-smoke-report
-          path: maestro-smoke-report.xml
-          retention-days: 30
-
-      - name: Upload debug screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: maestro-debug-screenshots
-          path: /tmp/maestro-debug-*.png
-          retention-days: 7
-
-  full-tests:
-    name: "Full E2E (${{ github.event.inputs.suite || 'core' }})"
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite != 'smoke')
-    timeout-minutes: 30
-    env:
-      E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
-      E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
-      E2E_PARENT_EMAIL: ${{ secrets.E2E_PARENT_EMAIL }}
-      E2E_PARENT_PASSWORD: ${{ secrets.E2E_PARENT_PASSWORD }}
-      E2E_OBSERVER_EMAIL: ${{ secrets.E2E_OBSERVER_EMAIL }}
-      E2E_OBSERVER_PASSWORD: ${{ secrets.E2E_OBSERVER_PASSWORD }}
-      E2E_ADVISOR_EMAIL: ${{ secrets.E2E_ADVISOR_EMAIL }}
-      E2E_ADVISOR_PASSWORD: ${{ secrets.E2E_ADVISOR_PASSWORD }}
-      E2E_ORGADMIN_EMAIL: ${{ secrets.E2E_ORGADMIN_EMAIL }}
-      E2E_ORGADMIN_PASSWORD: ${{ secrets.E2E_ORGADMIN_PASSWORD }}
-      E2E_SUPERADMIN_EMAIL: ${{ secrets.E2E_SUPERADMIN_EMAIL }}
-      E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Determine suite
-        id: suite
-        shell: bash
-        run: |
-          SUITE="${{ github.event.inputs.suite || 'core' }}"
-          echo "name=$SUITE" >> $GITHUB_OUTPUT
-
-      - name: Wait for Render deploy
-        shell: bash
-        run: |
-          echo "Waiting 90s for Render to deploy..."
-          sleep 90
-
-      - name: Install Maestro
-        shell: bash
-        run: |
-          curl -Ls "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-
-      - name: Run Maestro E2E tests
-        shell: bash
-        run: |
-          SUITE="${{ steps.suite.outputs.name }}"
-          SUITE_FILE="frontend-v2/maestro/suites/${SUITE}.yaml"
-
-          if [ ! -f "$SUITE_FILE" ]; then
-            echo "Suite not found: $SUITE_FILE"
-            ls frontend-v2/maestro/suites/
-            exit 1
-          fi
-
-          maestro test "$SUITE_FILE" --format junit --output "maestro-${SUITE}-report.xml"
-
-      - name: Upload test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: "maestro-${{ steps.suite.outputs.name }}-report"
-          path: "maestro-*-report.xml"
+          name: playwright-report
+          path: |
+            frontend-v2/playwright-report.xml
+            frontend-v2/playwright-report/
+            frontend-v2/test-results/
           retention-days: 30
