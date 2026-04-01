@@ -71,6 +71,12 @@ jobs:
         shell: bash
         run: |
           maestro test \
+            --env E2E_STUDENT_EMAIL="${E2E_STUDENT_EMAIL}" \
+            --env E2E_STUDENT_PASSWORD="${E2E_STUDENT_PASSWORD}" \
+            --env E2E_PARENT_EMAIL="${E2E_PARENT_EMAIL}" \
+            --env E2E_PARENT_PASSWORD="${E2E_PARENT_PASSWORD}" \
+            --env E2E_OBSERVER_EMAIL="${E2E_OBSERVER_EMAIL}" \
+            --env E2E_OBSERVER_PASSWORD="${E2E_OBSERVER_PASSWORD}" \
             frontend-v2/maestro/suites/smoke.yaml \
             --format junit \
             --output maestro-smoke-report.xml
