@@ -1,21 +1,23 @@
-url: http://localhost:8081
+url: http://localhost:8081/login
 name: "Smoke Suite - Web"
 tags:
   - smoke
   - ci
   - web
 ---
-# Wait for app to fully load (Expo web can take a while on first bundle)
+# Wait for login page to fully render
 - extendedWaitUntil:
-    visible: "Welcome Back"
-    timeout: 30000
+    visible: "Sign In"
+    timeout: 45000
 
 # S1: Student login -> verify dashboard
 - tapOn: "you@email.com"
 - inputText: ${E2E_STUDENT_EMAIL}
 - tapOn: "Enter password"
 - inputText: ${E2E_STUDENT_PASSWORD}
-- tapOn: "Sign In"
+- tapOn:
+    text: "Sign In"
+    index: 0
 - extendedWaitUntil:
     visible: "Welcome back"
     timeout: 20000
