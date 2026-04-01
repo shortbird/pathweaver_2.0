@@ -1052,13 +1052,17 @@ const DiplomaPage = () => {
               </p>
             </div>
 
-            {/* Transfer Credits Card - Shows imported credits from external transcripts */}
-            {transferCredits && transferCredits.total_credits > 0 && (
-              <TransferCreditsCard
-                transferCredits={transferCredits}
-                className="mb-8"
-              />
-            )}
+            {/* Transfer Credits Cards - Shows imported credits from external transcripts */}
+            {transferCredits && (Array.isArray(transferCredits) ? transferCredits : [transferCredits])
+              .filter(tc => tc && tc.total_credits > 0)
+              .map(tc => (
+                <TransferCreditsCard
+                  key={tc.id}
+                  transferCredits={tc}
+                  className="mb-8"
+                />
+              ))
+            }
 
             <EvidenceMasonryGallery
               achievements={achievements}

@@ -209,7 +209,7 @@ BOUNTIES = [
         'id': 'b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0',
         'title': 'Clean Up the Community Garden',
         'description': 'Help maintain the community garden for 2 hours',
-        'created_by': '33333333-3333-3333-3333-333333333333',
+        'poster_id': '33333333-3333-3333-3333-333333333333',
         'xp_reward': 100,
         'pillar': 'Community',
         'status': 'open',
@@ -433,6 +433,36 @@ def main():
     return len(errors) == 0
 
 
+def cleanup():
+    """Remove all test data created by the seeder."""
+    supabase_url = os.environ.get('SUPABASE_URL')
+    supabase_service_key = os.environ.get('SUPABASE_SERVICE_KEY')
+
+    if not supabase_url or not supabase_service_key:
+        print("ERROR: Set SUPABASE_URL and SUPABASE_SERVICE_KEY env vars")
+        sys.exit(1)
+
+    supabase = create_client(supabase_url, supabase_service_key)
+
+    print("=" * 60)
+    print("  Optio E2E Test Data Cleanup")
+    print("=" * 60)
+
+    # Delete in reverse dependency order
+    for bounty in BOUNTIES:
+        try:
+            supabase.table('bounties').delete().eq('id', bounty['id']).execute()
+            print(f"  Deleted bounty: {bounty['title']}")
+        except Exception as e:
+            print(f"  Failed to delete bounty {bounty['title']}: {e}")
+
+    print("\n  Cleanup complete.")
+    print("=" * 60)
+
+
 if __name__ == '__main__':
-    success = main()
-    sys.exit(0 if success else 1)
+    if len(sys.argv) > 1 and sys.argv[1] == '--cleanup':
+        cleanup()
+    else:
+        success = main()
+        sys.exit(0 if success else 1)
