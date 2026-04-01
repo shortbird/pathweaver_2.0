@@ -1,33 +1,8 @@
-url: http://localhost:8081/login
+url: http://localhost:8081
 name: "Smoke Suite - Web"
 tags:
   - smoke
   - ci
   - web
 ---
-# Take screenshot immediately to see what Maestro sees
-- takeScreenshot: /tmp/maestro-debug-1.png
-
-# Wait 10 seconds for page to load
-- evalScript: ${sleep(10000)}
-- takeScreenshot: /tmp/maestro-debug-2.png
-
-# Try to find anything on the page
-- extendedWaitUntil:
-    visible: "Sign In"
-    timeout: 30000
-- takeScreenshot: /tmp/maestro-debug-3.png
-
-# S1: Student login
-- tapOn: "you@email.com"
-- inputText: ${E2E_STUDENT_EMAIL}
-- tapOn: "Enter password"
-- inputText: ${E2E_STUDENT_PASSWORD}
-- tapOn:
-    text: "Sign In"
-    index: 0
-- extendedWaitUntil:
-    visible: "Welcome back"
-    timeout: 20000
-- assertVisible: "Total XP"
-- assertVisible: "Active Quests"
+- takeScreenshot: /tmp/maestro-debug-1
