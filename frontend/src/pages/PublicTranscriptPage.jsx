@@ -80,15 +80,30 @@ const PublicTranscriptPage = () => {
   });
 
   (transfer_credits || []).forEach(tc => {
+    const courseNames = tc.course_names || {};
     Object.entries(tc.subjects || {}).forEach(([subject, info]) => {
-      const overrideKey = `tc_course_${tc.id}_${subject}`;
-      rows.push({
-        subject: info.display_name,
-        course: field(overrideKey, info.display_name),
-        source: tc.school_name || 'Transfer',
-        credits: info.credits,
-        status: 'Completed'
-      });
+      const courses = courseNames[subject];
+      if (courses && courses.length > 0) {
+        courses.forEach((course, idx) => {
+          const overrideKey = `tc_course_${tc.id}_${subject}_${idx}`;
+          rows.push({
+            subject: info.display_name,
+            course: field(overrideKey, course.name),
+            source: tc.school_name || 'Transfer',
+            credits: course.credits,
+            status: 'Completed'
+          });
+        });
+      } else {
+        const overrideKey = `tc_course_${tc.id}_${subject}`;
+        rows.push({
+          subject: info.display_name,
+          course: field(overrideKey, info.display_name),
+          source: tc.school_name || 'Transfer',
+          credits: info.credits,
+          status: 'Completed'
+        });
+      }
     });
   });
 

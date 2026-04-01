@@ -11,6 +11,11 @@ export const USERS = {
   superadmin: { email: process.env.E2E_SUPERADMIN_EMAIL || '', password: process.env.E2E_SUPERADMIN_PASSWORD || '' },
 };
 
+/**
+ * React Native Web renders Pressable/Button as <div> without role="button".
+ * Standard Playwright button selectors don't work. This helper finds and
+ * clicks elements by their exact visible text via JS evaluate.
+ */
 export async function clickByText(page: Page, text: string) {
   await page.evaluate((t: string) => {
     const elements = document.querySelectorAll('*');
@@ -39,17 +44,18 @@ export async function loginAsStudent(page: Page) {
 
 export async function loginAsParent(page: Page) {
   await login(page, USERS.parent.email, USERS.parent.password);
-  await page.waitForTimeout(5000);
+  // Parent redirects to family tab - wait for any content to load
+  await page.waitForTimeout(3000);
 }
 
 export async function loginAsAdvisor(page: Page) {
   await login(page, USERS.advisor.email, USERS.advisor.password);
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(3000);
 }
 
 export async function loginAsObserver(page: Page) {
   await login(page, USERS.observer.email, USERS.observer.password);
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(3000);
 }
 
 export async function loginAsSuperadmin(page: Page) {
@@ -59,10 +65,64 @@ export async function loginAsSuperadmin(page: Page) {
 
 export async function loginAsOrgAdmin(page: Page) {
   await login(page, USERS.orgAdmin.email, USERS.orgAdmin.password);
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(3000);
 }
 
-export async function navigateTo(page: Page, sidebarLabel: string) {
-  await clickByText(page, sidebarLabel);
-  await page.waitForTimeout(2000);
+/**
+ * Navigate by URL path - more reliable than clicking sidebar text.
+ * Sidebar items: Home, Courses, Quests, Bounties, Buddy, Feed, Journal, Messages, Advisor, Admin
+ * Profile and Family are NOT in the sidebar (accessed via avatar or URL).
+ */
+const ROUTES: Record<string, string> = {
+  dashboard: '/(app)/(tabs)/dashboard',
+  courses: '/(app)/(tabs)/courses',
+  quests: '/(app)/(tabs)/quests',
+  bounties: '/(app)/(tabs)/bounties',
+  buddy: '/(app)/(tabs)/buddy',
+  feed: '/(app)/(tabs)/feed',
+  journal: '/(app)/(tabs)/journal',
+  family: '/(app)/(tabs)/family',
+  profile: '/(app)/(tabs)/profile',
+  messages: '/(app)/(tabs)/messages',
+  advisor: '/(app)/(tabs)/advisor',
+  admin: '/(app)/(tabs)/admin',
+  notifications: '/(app)/notifications',
+};
+
+/**
+ * Navigate to a section. Uses sidebar click for sections in the sidebar,
+ * falls back to URL for hidden sections (profile, family).
+ * Must be called AFTER login (session cookies required).
+ */
+const SIDEBAR_ITEMS = ['dashboard', 'courses', 'quests', 'bounties', 'buddy', 'feed', 'journal', 'messages', 'advisor', 'admin'];
+const SIDEBAR_LABELS: Record<string, string> = {
+  dashboard: 'Home',
+  courses: 'Courses',
+  quests: 'Quests',
+  bounties: 'Bounties',
+  buddy: 'Buddy',
+  feed: 'Feed',
+  journal: 'Journal',
+  messages: 'Messages',
+  advisor: 'Advisor',
+  admin: 'Admin',
+};
+
+export async function navigateTo(page: Page, section: string) {
+  const key = section.toLowerCase();
+  if (SIDEBAR_ITEMS.includes(key)) {
+    // Click sidebar link - use locator to find the nav item
+    const label = SIDEBAR_LABELS[key];
+    await page.locator(`text="${label}"`).first().click();
+    await page.waitForTimeout(2000);
+  } else {
+    // Hidden sections (profile, family, notifications) - use hash navigation
+    const path = ROUTES[key];
+    if (!path) throw new Error(`Unknown section: ${section}`);
+    // Navigate within the same origin to preserve cookies
+    await page.evaluate((p: string) => { window.location.hash = ''; window.history.pushState({}, '', p); }, path);
+    await page.waitForTimeout(1000);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+  }
 }

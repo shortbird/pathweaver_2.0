@@ -1,0 +1,20 @@
+<testsuites id="" name="" tests="8" failures="0" skipped="0" errors="0" time="41.00318300000001">
+<testsuite name="smoke.spec.ts" timestamp="2026-04-01T21:19:00.306Z" hostname="chromium" tests="8" failures="0" skipped="0" time="39.229" errors="0">
+<testcase name="Smoke Suite › S1: Student login -&gt; dashboard loads" classname="smoke.spec.ts" time="4.938">
+</testcase>
+<testcase name="Smoke Suite › S2: Parent login -&gt; family view loads" classname="smoke.spec.ts" time="4.896">
+</testcase>
+<testcase name="Smoke Suite › S3: Superadmin login -&gt; admin panel accessible" classname="smoke.spec.ts" time="5.772">
+</testcase>
+<testcase name="Smoke Suite › S4: Invalid credentials -&gt; error message" classname="smoke.spec.ts" time="2.663">
+</testcase>
+<testcase name="Smoke Suite › S5: Unauthenticated user redirected to login" classname="smoke.spec.ts" time="1.61">
+</testcase>
+<testcase name="Smoke Suite › S6: Student can navigate to quests" classname="smoke.spec.ts" time="5.366">
+</testcase>
+<testcase name="Smoke Suite › S7: Student can navigate to journal" classname="smoke.spec.ts" time="5.303">
+</testcase>
+<testcase name="Smoke Suite › S8: Student can navigate to profile" classname="smoke.spec.ts" time="8.681">
+</testcase>
+</testsuite>
+</testsuites>

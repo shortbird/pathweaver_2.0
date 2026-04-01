@@ -117,6 +117,11 @@ const TranscriptGeneratorPage = () => {
   });
   const [saving, setSaving] = useState(false);
 
+  // Course breakdown editor state
+  const [splitTarget, setSplitTarget] = useState(null); // { transferCreditId, subjectKey, subjectName, totalCredits }
+  const [splitCourses, setSplitCourses] = useState([{ name: '', credits: '' }]);
+  const [splitSaving, setSplitSaving] = useState(false);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -212,6 +217,98 @@ const TranscriptGeneratorPage = () => {
     setShowAddForm(true);
   };
 
+  // Start splitting a transfer credit subject into courses
+  const startSplit = (row) => {
+    // Find existing course breakdown if any
+    const tc = (transfer_credits || []).find(t => t.id === row.transferCreditId);
+    const existing = tc?.course_names?.[row.subjectKey];
+
+    if (existing && existing.length > 0) {
+      setSplitCourses(existing.map(c => ({ name: c.name, credits: String(c.credits) })));
+    } else {
+      setSplitCourses([{ name: '', credits: String(row.totalSubjectCredits) }]);
+    }
+    setSplitTarget({
+      transferCreditId: row.transferCreditId,
+      subjectKey: row.subjectKey,
+      subjectName: row.subject,
+      totalCredits: row.totalSubjectCredits
+    });
+  };
+
+  const addSplitRow = () => {
+    setSplitCourses(prev => [...prev, { name: '', credits: '' }]);
+  };
+
+  const removeSplitRow = (idx) => {
+    setSplitCourses(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateSplitRow = (idx, field, value) => {
+    setSplitCourses(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+  };
+
+  const saveSplit = async () => {
+    if (!splitTarget) return;
+
+    const courses = splitCourses
+      .filter(c => c.name.trim() && parseFloat(c.credits) > 0)
+      .map(c => ({ name: c.name.trim(), credits: parseFloat(c.credits) }));
+
+    if (courses.length === 0) {
+      toast.error('Add at least one course with a name and credits');
+      return;
+    }
+
+    const totalAssigned = courses.reduce((sum, c) => sum + c.credits, 0);
+    if (Math.abs(totalAssigned - splitTarget.totalCredits) > 0.01) {
+      toast.error(`Course credits must total ${splitTarget.totalCredits} (currently ${totalAssigned.toFixed(2)})`);
+      return;
+    }
+
+    setSplitSaving(true);
+    try {
+      // Get existing course_names for this transfer credit
+      const tc = (transfer_credits || []).find(t => t.id === splitTarget.transferCreditId);
+      const existingCourseNames = { ...(tc?.course_names || {}) };
+      existingCourseNames[splitTarget.subjectKey] = courses;
+
+      await api.put(
+        `/api/admin/transcript/transfer-credits/${splitTarget.transferCreditId}/course-names`,
+        { course_names: existingCourseNames }
+      );
+      toast.success('Course breakdown saved');
+      setSplitTarget(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save');
+    } finally {
+      setSplitSaving(false);
+    }
+  };
+
+  const clearSplit = async () => {
+    if (!splitTarget) return;
+    setSplitSaving(true);
+    try {
+      const tc = (transfer_credits || []).find(t => t.id === splitTarget.transferCreditId);
+      const existingCourseNames = { ...(tc?.course_names || {}) };
+      delete existingCourseNames[splitTarget.subjectKey];
+
+      await api.put(
+        `/api/admin/transcript/transfer-credits/${splitTarget.transferCreditId}/course-names`,
+        { course_names: existingCourseNames }
+      );
+      toast.success('Course breakdown removed');
+      setSplitTarget(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to clear');
+    } finally {
+      setSplitSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -251,20 +348,46 @@ const TranscriptGeneratorPage = () => {
       }
     });
 
-    // Transfer credits
+    // Transfer credits - expand into individual courses if course_names breakdown exists
     (transfer_credits || []).forEach(tc => {
+      const courseNames = tc.course_names || {};
       Object.entries(tc.subjects || {}).forEach(([subject, info]) => {
-        const overrideKey = `tc_course_${tc.id}_${subject}`;
-        rows.push({
-          type: 'transfer',
-          subject: info.display_name,
-          course: field(overrideKey, info.display_name),
-          courseOverrideKey: overrideKey,
-          source: tc.school_name || 'Transfer',
-          credits: info.credits,
-          status: 'Completed',
-          transcriptUrl: tc.transcript_url
-        });
+        const courses = courseNames[subject];
+        if (courses && courses.length > 0) {
+          // Render individual course rows
+          courses.forEach((course, idx) => {
+            const overrideKey = `tc_course_${tc.id}_${subject}_${idx}`;
+            rows.push({
+              type: 'transfer',
+              subject: info.display_name,
+              course: field(overrideKey, course.name),
+              courseOverrideKey: overrideKey,
+              source: tc.school_name || 'Transfer',
+              credits: course.credits,
+              status: 'Completed',
+              transcriptUrl: idx === 0 ? tc.transcript_url : null,
+              transferCreditId: tc.id,
+              subjectKey: subject,
+              hasCourseBreakdown: true
+            });
+          });
+        } else {
+          // No breakdown - single row for the whole subject
+          const overrideKey = `tc_course_${tc.id}_${subject}`;
+          rows.push({
+            type: 'transfer',
+            subject: info.display_name,
+            course: field(overrideKey, info.display_name),
+            courseOverrideKey: overrideKey,
+            source: tc.school_name || 'Transfer',
+            credits: info.credits,
+            status: 'Completed',
+            transcriptUrl: tc.transcript_url,
+            transferCreditId: tc.id,
+            subjectKey: subject,
+            totalSubjectCredits: info.credits
+          });
+        }
       });
     });
 
@@ -456,6 +579,97 @@ const TranscriptGeneratorPage = () => {
         </div>
       )}
 
+      {/* Course breakdown editor - no-print */}
+      {splitTarget && (
+        <div className="no-print max-w-5xl mx-auto px-6 pt-4">
+          <div className="bg-white rounded-lg border border-emerald-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">
+                Break Down: <span className="text-emerald-600">{splitTarget.subjectName}</span>
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  ({splitTarget.totalCredits} credits total)
+                </span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${
+                  Math.abs(splitCourses.reduce((s, c) => s + (parseFloat(c.credits) || 0), 0) - splitTarget.totalCredits) <= 0.01
+                    ? 'text-emerald-600' : 'text-red-500'
+                }`}>
+                  Assigned: {splitCourses.reduce((s, c) => s + (parseFloat(c.credits) || 0), 0).toFixed(2)} / {splitTarget.totalCredits}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {splitCourses.map((course, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={course.name}
+                    onChange={e => updateSplitRow(idx, 'name', e.target.value)}
+                    placeholder="Course name (e.g. Woodworking)"
+                    className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                  <input
+                    type="number"
+                    step="0.25"
+                    min="0.25"
+                    value={course.credits}
+                    onChange={e => updateSplitRow(idx, 'credits', e.target.value)}
+                    placeholder="Credits"
+                    className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                  {splitCourses.length > 1 && (
+                    <button
+                      onClick={() => removeSplitRow(idx)}
+                      className="text-gray-400 hover:text-red-500 p-1"
+                      title="Remove"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between mt-3">
+              <button
+                onClick={addSplitRow}
+                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Course
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={clearSplit}
+                  disabled={splitSaving}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+                  title="Remove breakdown and show as single row"
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={() => setSplitTarget(null)}
+                  className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveSplit}
+                  disabled={splitSaving}
+                  className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {splitSaving ? 'Saving...' : 'Save Breakdown'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Printable transcript */}
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div id="printable-transcript" className="bg-white shadow-sm" style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}>
@@ -634,6 +848,35 @@ const TranscriptGeneratorPage = () => {
                             </svg>
                           </button>
                         </div>
+                      )}
+                      {row.type === 'transfer' && !row.hasCourseBreakdown && row.totalSubjectCredits && (
+                        <button
+                          onClick={() => startSplit(row)}
+                          className="text-gray-400 hover:text-emerald-600"
+                          title="Break into individual courses"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                          </svg>
+                        </button>
+                      )}
+                      {row.type === 'transfer' && row.hasCourseBreakdown && (
+                        <button
+                          onClick={() => {
+                            const tc = (transfer_credits || []).find(t => t.id === row.transferCreditId);
+                            const subjectInfo = tc?.subjects?.[row.subjectKey];
+                            startSplit({
+                              ...row,
+                              totalSubjectCredits: subjectInfo?.credits || 0
+                            });
+                          }}
+                          className="text-emerald-500 hover:text-emerald-700"
+                          title="Edit course breakdown"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
                       )}
                     </td>
                   </tr>

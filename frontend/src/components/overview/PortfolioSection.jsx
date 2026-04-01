@@ -309,14 +309,6 @@ const PortfolioSection = ({
             Transfer Credits ({tc.total_credits.toFixed(1)} cr)
           </h4>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            {sortedSubjects.map(([subject, credits]) => (
-              <span
-                key={subject}
-                className="inline-block px-2 py-0.5 rounded-full text-white text-xs font-medium bg-gradient-to-r from-emerald-500 to-teal-500"
-              >
-                {SUBJECT_DISPLAY_NAMES[subject] || subject}
-              </span>
-            ))}
             {tc.transcript_url && (
               <a
                 href={tc.transcript_url}
