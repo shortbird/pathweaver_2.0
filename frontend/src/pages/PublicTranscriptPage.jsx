@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
 
+const CREDIT_REQUIREMENTS = {
+  'Language Arts': 4.0, 'Mathematics': 3.0, 'Science': 3.0, 'Social Studies': 3.5,
+  'Financial Literacy': 0.5, 'Health': 0.5, 'Physical Education': 2.0, 'Fine Arts': 1.5,
+  'Career & Technical Education': 1.0, 'Digital Literacy': 0.5, 'Electives': 4.0
+};
+
 const SUBJECT_DISPLAY_NAMES = {
   'language_arts': 'Language Arts', 'math': 'Mathematics', 'science': 'Science',
   'social_studies': 'Social Studies', 'financial_literacy': 'Financial Literacy',
@@ -273,12 +279,17 @@ const PublicTranscriptPage = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-1 text-xs sm:text-sm">
                 {Object.entries(subjectTotals)
                   .sort((a, b) => b[1] - a[1])
-                  .map(([subject, credits]) => (
-                    <div key={subject} className="flex justify-between">
-                      <span className="text-gray-700">{subject}</span>
-                      <span className="font-semibold text-gray-900">{credits.toFixed(1)}</span>
-                    </div>
-                  ))}
+                  .map(([subject, credits]) => {
+                    const required = CREDIT_REQUIREMENTS[subject];
+                    return (
+                      <div key={subject} className="flex justify-between">
+                        <span className="text-gray-700">{subject}</span>
+                        <span className="font-semibold text-gray-900">
+                          {credits.toFixed(1)}{required != null && ` / ${required.toFixed(1)}`}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
