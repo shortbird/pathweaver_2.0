@@ -11,19 +11,34 @@ test.describe('Smoke Suite', () => {
 
     // Wait for login page
     await page.waitForSelector('text=Welcome', { timeout: 30000 });
-    await page.screenshot({ path: 'test-results/02-login-page.png' });
 
-    // Fill login form - React Native Web uses div[role="textbox"] not <input>
+    // Fill login form
     await page.getByPlaceholder('you@email.com').fill(STUDENT_EMAIL);
     await page.getByPlaceholder('Enter password').fill(STUDENT_PASSWORD);
-    await page.screenshot({ path: 'test-results/03-filled-form.png' });
+    await page.screenshot({ path: 'test-results/02-filled-form.png' });
 
-    // Click sign in - RNW Button renders as div[role="button"], not <button>
-    await page.locator('[role="button"]:has-text("Sign In")').first().click();
+    // Debug: log what's on the page
+    const html = await page.content();
+    const fs = require('fs');
+    fs.writeFileSync('test-results/page-source.html', html);
+
+    // Click sign in - try every possible selector
+    const clicked = await page.evaluate(() => {
+      // Find any element containing "Sign In" text
+      const elements = document.querySelectorAll('*');
+      for (const el of elements) {
+        if (el.textContent?.trim() === 'Sign In' && el.offsetHeight > 0) {
+          (el as HTMLElement).click();
+          return `Clicked: ${el.tagName} role=${el.getAttribute('role')} class=${el.className?.substring?.(0, 50)}`;
+        }
+      }
+      return 'NOT FOUND';
+    });
+    console.log('Sign In click result:', clicked);
 
     // Verify dashboard loads
     await page.waitForSelector('text=Welcome back', { timeout: 20000 });
-    await page.screenshot({ path: 'test-results/04-dashboard.png' });
+    await page.screenshot({ path: 'test-results/03-dashboard.png' });
 
     await expect(page.getByText('Total XP')).toBeVisible();
     await expect(page.getByText('Active Quests')).toBeVisible();
