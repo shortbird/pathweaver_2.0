@@ -97,7 +97,8 @@ def get_transcript_data(admin_user_id, user_id):
                 'total_credits': sum(s['credits'] for s in subjects.values()),
                 'transcript_url': transcript_url,
                 'notes': tc.get('notes'),
-                'created_at': tc.get('created_at')
+                'created_at': tc.get('created_at'),
+                'course_names': tc.get('course_names') or {}
             })
 
         # Aggregate transfer credit XP by subject to subtract from earned
@@ -310,6 +311,64 @@ def delete_planned_credit(admin_user_id, user_id, credit_id):
         return success_response({'message': 'Planned credit deleted'})
     except Exception as e:
         logger.error(f"Error deleting planned credit: {str(e)}")
+        return error_response(str(e), status_code=500)
+
+
+@bp.route('/transfer-credits/<transfer_credit_id>/course-names', methods=['PUT'])
+@require_school_admin
+def update_course_names(admin_user_id, transfer_credit_id):
+    """
+    Update course name breakdowns for a transfer credit record.
+
+    Request body:
+        course_names: dict - Per-subject course breakdowns, e.g.:
+            {"cte": [{"name": "Woodworking", "credits": 0.5}, {"name": "Auto Shop", "credits": 1.0}]}
+
+    Course credits within a subject must sum to the subject's total credits.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        data = request.json or {}
+        course_names = data.get('course_names', {})
+
+        # Verify record exists
+        existing = supabase.table('transfer_credits').select('id, subject_xp').eq(
+            'id', transfer_credit_id
+        ).execute()
+
+        if not existing.data:
+            return error_response('Transfer credit not found', status_code=404)
+
+        subject_xp = existing.data[0].get('subject_xp', {})
+
+        # Validate: each subject in course_names must exist in subject_xp,
+        # and course credits must sum to the subject total
+        for subject, courses in course_names.items():
+            if subject not in subject_xp:
+                return error_response(
+                    f'Subject "{subject}" not found in this transfer credit record',
+                    status_code=400
+                )
+            if not isinstance(courses, list):
+                return error_response(f'Courses for "{subject}" must be a list', status_code=400)
+
+            total_course_credits = sum(float(c.get('credits', 0)) for c in courses)
+            subject_credits = round(subject_xp[subject] / XP_PER_CREDIT, 2)
+
+            if abs(total_course_credits - subject_credits) > 0.01:
+                return error_response(
+                    f'Course credits for {subject} ({total_course_credits}) must equal subject total ({subject_credits})',
+                    status_code=400
+                )
+
+        supabase.table('transfer_credits').update({
+            'course_names': course_names
+        }).eq('id', transfer_credit_id).execute()
+
+        return success_response({'message': 'Course names updated', 'course_names': course_names})
+
+    except Exception as e:
+        logger.error(f"Error updating course names for {transfer_credit_id}: {str(e)}")
         return error_response(str(e), status_code=500)
 
 

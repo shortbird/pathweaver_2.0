@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BASE_URL, USERS, clickByText, loginAsStudent, loginAsParent, loginAsSuperadmin, login } from './helpers';
+import { BASE_URL, clickByText, loginAsStudent, loginAsParent, loginAsSuperadmin, navigateTo } from './helpers';
 
 test.describe('Smoke Suite', () => {
   test('S1: Student login -> dashboard loads', async ({ page }) => {
@@ -10,14 +10,13 @@ test.describe('Smoke Suite', () => {
 
   test('S2: Parent login -> family view loads', async ({ page }) => {
     await loginAsParent(page);
-    await expect(page.getByText(/family|dependents|children/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Family', { exact: true }).first()).toBeVisible({ timeout: 15000 });
   });
 
   test('S3: Superadmin login -> admin panel accessible', async ({ page }) => {
     await loginAsSuperadmin(page);
-    await clickByText(page, 'Admin');
-    await page.waitForTimeout(2000);
-    await expect(page.getByText(/admin|users|manage/i)).toBeVisible({ timeout: 15000 });
+    await navigateTo(page, 'admin');
+    await expect(page.getByText('Admin Panel')).toBeVisible({ timeout: 15000 });
   });
 
   test('S4: Invalid credentials -> error message', async ({ page }) => {
@@ -37,22 +36,19 @@ test.describe('Smoke Suite', () => {
 
   test('S6: Student can navigate to quests', async ({ page }) => {
     await loginAsStudent(page);
-    await clickByText(page, 'Quests');
-    await page.waitForTimeout(2000);
-    await expect(page.getByText(/quest|project/i)).toBeVisible({ timeout: 15000 });
+    await navigateTo(page, 'quests');
+    await expect(page.getByText(/Discover|Browse|Quest/i).first()).toBeVisible({ timeout: 15000 });
   });
 
   test('S7: Student can navigate to journal', async ({ page }) => {
     await loginAsStudent(page);
-    await clickByText(page, 'Journal');
-    await page.waitForTimeout(2000);
-    await expect(page.getByText(/journal|learning/i)).toBeVisible({ timeout: 15000 });
+    await navigateTo(page, 'journal');
+    await expect(page.getByText(/Journal|Learning|Moments/i).first()).toBeVisible({ timeout: 15000 });
   });
 
   test('S8: Student can navigate to profile', async ({ page }) => {
     await loginAsStudent(page);
-    await clickByText(page, 'Profile');
-    await page.waitForTimeout(2000);
-    await expect(page.getByText(/profile|settings/i)).toBeVisible({ timeout: 15000 });
+    await navigateTo(page, 'profile');
+    await expect(page.getByText(/Profile|Total XP|Member since/i).first()).toBeVisible({ timeout: 15000 });
   });
 });

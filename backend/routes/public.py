@@ -231,7 +231,8 @@ def get_public_transcript(user_id):
                 'school_name': tc.get('school_name'),
                 'subjects': subjects,
                 'total_credits': sum(s['credits'] for s in subjects.values()),
-                'transcript_url': transcript_url
+                'transcript_url': transcript_url,
+                'course_names': tc.get('course_names') or {}
             })
 
         # Earned subject XP minus transfer
