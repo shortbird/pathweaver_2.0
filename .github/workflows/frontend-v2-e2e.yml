@@ -51,7 +51,7 @@ jobs:
         run: |
           echo "Waiting for Render to deploy..."
           for i in $(seq 1 60); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://optio-dev-frontend.onrender.com/login 2>/dev/null)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://optio-dev-frontend.onrender.com/ 2>/dev/null)
             if [ "$STATUS" = "200" ]; then
               echo "Frontend ready (attempt $i)"
               break
