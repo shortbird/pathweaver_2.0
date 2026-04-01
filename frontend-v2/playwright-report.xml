@@ -1,28 +1,610 @@
-<testsuites id="" name="" tests="12" failures="0" skipped="0" errors="0" time="58.603901">
-<testsuite name="auth.spec.ts" timestamp="2026-04-01T21:34:05.224Z" hostname="chromium" tests="12" failures="0" skipped="0" time="56.234" errors="0">
-<testcase name="Auth Suite › A1: Login with valid student credentials" classname="auth.spec.ts" time="2.012">
+<testsuites id="" name="" tests="16" failures="6" skipped="0" errors="0" time="169.850726">
+<testsuite name="student-buddy.spec.ts" timestamp="2026-04-01T21:35:22.089Z" hostname="chromium" tests="3" failures="1" skipped="0" time="29.856" errors="0">
+<testcase name="Student Buddy (AI) › ST42: Buddy page loads" classname="student-buddy.spec.ts" time="13.337">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium\trace.zip]]
+
+[[ATTACHMENT|test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium-retry1\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium-retry1\error-context.md]]
+
+[[ATTACHMENT|test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium-retry1\trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [chromium] › student-buddy.spec.ts:10:7 › Student Buddy (AI) › ST42: Buddy page loads ────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/buddy|chat|assistant|ai/i)
+    Expected: visible
+    Error: strict mode violation: getByText(/buddy|chat|assistant|ai/i) resolved to 4 elements:
+        1) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm flex-1 text-optio-purple font-poppins-semibold">Buddy</div> aka getByText('Buddy', { exact: true })
+        2) <div dir="auto" class="css-146c3p1 text-typo dark:text-dark-typo text-2xl font-poppins-bold ">Adopt Your Buddy</div> aka getByText('Adopt Your Buddy')
+        3) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm text-typo-500 text-center">Give your buddy a name and watch it grow as you f…</div> aka getByText('Give your buddy a name and')
+        4) <div dir="auto" class="css-146c3p1 r-dnmrzs r-1udh08x r-1udbk01 r-3s2u2q r-1iln25a r-1niwhzg r-q4m81j r-10x49cs">buddy</div> aka getByText('buddy', { exact: true })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/buddy|chat|assistant|ai/i)
+
+
+       9 |
+      10 |   test('ST42: Buddy page loads', async ({ page }) => {
+    > 11 |     await expect(page.getByText(/buddy|chat|assistant|ai/i)).toBeVisible({ timeout: 15000 });
+         |                                                              ^
+      12 |   });
+      13 |
+      14 |   test('ST43: Can send a message to Buddy', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-buddy.spec.ts:11:62
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/buddy|chat|assistant|ai/i)
+    Expected: visible
+    Error: strict mode violation: getByText(/buddy|chat|assistant|ai/i) resolved to 4 elements:
+        1) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm flex-1 text-optio-purple font-poppins-semibold">Buddy</div> aka getByText('Buddy', { exact: true })
+        2) <div dir="auto" class="css-146c3p1 text-typo dark:text-dark-typo text-2xl font-poppins-bold ">Adopt Your Buddy</div> aka getByText('Adopt Your Buddy')
+        3) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm text-typo-500 text-center">Give your buddy a name and watch it grow as you f…</div> aka getByText('Give your buddy a name and')
+        4) <div dir="auto" class="css-146c3p1 r-dnmrzs r-1udh08x r-1udbk01 r-3s2u2q r-1iln25a r-1niwhzg r-q4m81j r-10x49cs">buddy</div> aka getByText('buddy', { exact: true })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/buddy|chat|assistant|ai/i)
+
+
+       9 |
+      10 |   test('ST42: Buddy page loads', async ({ page }) => {
+    > 11 |     await expect(page.getByText(/buddy|chat|assistant|ai/i)).toBeVisible({ timeout: 15000 });
+         |                                                              ^
+      12 |   });
+      13 |
+      14 |   test('ST43: Can send a message to Buddy', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-buddy.spec.ts:11:62
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium-retry1\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium-retry1\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-buddy-Student-Buddy-AI-ST42-Buddy-page-loads-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
 </testcase>
-<testcase name="Auth Suite › A2: Login with valid parent credentials" classname="auth.spec.ts" time="4.807">
+<testcase name="Student Buddy (AI) › ST43: Can send a message to Buddy" classname="student-buddy.spec.ts" time="7.945">
 </testcase>
-<testcase name="Auth Suite › A3: Login with valid advisor credentials" classname="auth.spec.ts" time="4.781">
+<testcase name="Student Buddy (AI) › ST44: Buddy shows conversation history" classname="student-buddy.spec.ts" time="8.574">
 </testcase>
-<testcase name="Auth Suite › A4: Login with valid observer credentials" classname="auth.spec.ts" time="4.784">
+</testsuite>
+<testsuite name="student-dashboard.spec.ts" timestamp="2026-04-01T21:35:22.089Z" hostname="chromium" tests="8" failures="4" skipped="0" time="144.592" errors="0">
+<testcase name="Student Dashboard › ST1: Dashboard shows total XP" classname="student-dashboard.spec.ts" time="7.606">
 </testcase>
-<testcase name="Auth Suite › A5: Login with valid superadmin credentials" classname="auth.spec.ts" time="1.785">
+<testcase name="Student Dashboard › ST2: Dashboard shows active quests count" classname="student-dashboard.spec.ts" time="5.876">
 </testcase>
-<testcase name="Auth Suite › A6: Login with valid org admin credentials" classname="auth.spec.ts" time="4.788">
+<testcase name="Student Dashboard › ST3: Dashboard shows welcome message with user name" classname="student-dashboard.spec.ts" time="1.405">
 </testcase>
-<testcase name="Auth Suite › A7: Login with invalid email shows error" classname="auth.spec.ts" time="2.594">
+<testcase name="Student Dashboard › ST4: Dashboard shows engagement heatmap" classname="student-dashboard.spec.ts" time="4.498">
 </testcase>
-<testcase name="Auth Suite › A8: Login with wrong password shows error" classname="auth.spec.ts" time="2.636">
+<testcase name="Student Dashboard › ST5: Dashboard shows recent activity" classname="student-dashboard.spec.ts" time="33.73">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium\trace.zip]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium-retry1\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium-retry1\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium-retry1\trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [chromium] › student-dashboard.spec.ts:28:7 › Student Dashboard › ST5: Dashboard shows recent activity 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/recent|activity|latest/i)
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/recent|activity|latest/i)
+
+
+      27 |
+      28 |   test('ST5: Dashboard shows recent activity', async ({ page }) => {
+    > 29 |     await expect(page.getByText(/recent|activity|latest/i)).toBeVisible({ timeout: 15000 });
+         |                                                             ^
+      30 |   });
+      31 |
+      32 |   test('ST6: Dashboard sidebar navigation is visible', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:29:61
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/recent|activity|latest/i)
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/recent|activity|latest/i)
+
+
+      27 |
+      28 |   test('ST5: Dashboard shows recent activity', async ({ page }) => {
+    > 29 |     await expect(page.getByText(/recent|activity|latest/i)).toBeVisible({ timeout: 15000 });
+         |                                                             ^
+      30 |   });
+      31 |
+      32 |   test('ST6: Dashboard sidebar navigation is visible', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:29:61
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium-retry1\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium-retry1\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--26c2d-board-shows-recent-activity-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
 </testcase>
-<testcase name="Auth Suite › A9: Login with empty fields shows validation" classname="auth.spec.ts" time="3.758">
+<testcase name="Student Dashboard › ST6: Dashboard sidebar navigation is visible" classname="student-dashboard.spec.ts" time="21.952">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium\trace.zip]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium-retry1\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium-retry1\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium-retry1\trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [chromium] › student-dashboard.spec.ts:32:7 › Student Dashboard › ST6: Dashboard sidebar navigation is visible 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Journal')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Journal')
+
+
+      32 |   test('ST6: Dashboard sidebar navigation is visible', async ({ page }) => {
+      33 |     await expect(page.getByText('Quests')).toBeVisible({ timeout: 15000 });
+    > 34 |     await expect(page.getByText('Journal')).toBeVisible({ timeout: 15000 });
+         |                                             ^
+      35 |     await expect(page.getByText('Profile')).toBeVisible({ timeout: 15000 });
+      36 |   });
+      37 |
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:34:45
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Quests')
+    Expected: visible
+    Error: strict mode violation: getByText('Quests') resolved to 2 elements:
+        1) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm flex-1 text-typo-500">Quests</div> aka getByText('Quests', { exact: true })
+        2) <div dir="auto" class="css-146c3p1 r-dnmrzs r-1udh08x r-1udbk01 r-3s2u2q r-1iln25a r-1niwhzg r-q4m81j r-10x49cs">quests</div> aka getByText('quests', { exact: true })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Quests')
+
+
+      31 |
+      32 |   test('ST6: Dashboard sidebar navigation is visible', async ({ page }) => {
+    > 33 |     await expect(page.getByText('Quests')).toBeVisible({ timeout: 15000 });
+         |                                            ^
+      34 |     await expect(page.getByText('Journal')).toBeVisible({ timeout: 15000 });
+      35 |     await expect(page.getByText('Profile')).toBeVisible({ timeout: 15000 });
+      36 |   });
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:33:44
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium-retry1\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium-retry1\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--b8a4f-debar-navigation-is-visible-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
 </testcase>
-<testcase name="Auth Suite › A10: Logout returns to login page" classname="auth.spec.ts" time="13.762">
+<testcase name="Student Dashboard › ST7: Dashboard shows skill pillars breakdown" classname="student-dashboard.spec.ts" time="34.902">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium\trace.zip]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium-retry1\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium-retry1\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium-retry1\trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [chromium] › student-dashboard.spec.ts:38:7 › Student Dashboard › ST7: Dashboard shows skill pillars breakdown 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/pillar|skill|knowledge|creativity|leadership|physical/i)
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/pillar|skill|knowledge|creativity|leadership|physical/i)
+
+
+      38 |   test('ST7: Dashboard shows skill pillars breakdown', async ({ page }) => {
+      39 |     // XP breakdown by pillar should be visible
+    > 40 |     await expect(page.getByText(/pillar|skill|knowledge|creativity|leadership|physical/i)).toBeVisible({ timeout: 15000 });
+         |                                                                                            ^
+      41 |   });
+      42 |
+      43 |   test('ST8: Dashboard shows badges section', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:40:92
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/pillar|skill|knowledge|creativity|leadership|physical/i)
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/pillar|skill|knowledge|creativity|leadership|physical/i)
+
+
+      38 |   test('ST7: Dashboard shows skill pillars breakdown', async ({ page }) => {
+      39 |     // XP breakdown by pillar should be visible
+    > 40 |     await expect(page.getByText(/pillar|skill|knowledge|creativity|leadership|physical/i)).toBeVisible({ timeout: 15000 });
+         |                                                                                            ^
+      41 |   });
+      42 |
+      43 |   test('ST8: Dashboard shows badges section', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:40:92
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium-retry1\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium-retry1\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--4000b-ows-skill-pillars-breakdown-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
 </testcase>
-<testcase name="Auth Suite › A11: Session persists on page refresh" classname="auth.spec.ts" time="5.868">
+<testcase name="Student Dashboard › ST8: Dashboard shows badges section" classname="student-dashboard.spec.ts" time="34.623">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium\trace.zip]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium-retry1\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium-retry1\error-context.md]]
+
+[[ATTACHMENT|test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium-retry1\trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [chromium] › student-dashboard.spec.ts:43:7 › Student Dashboard › ST8: Dashboard shows badges section 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/badge|achievement/i)
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/badge|achievement/i)
+
+
+      42 |
+      43 |   test('ST8: Dashboard shows badges section', async ({ page }) => {
+    > 44 |     await expect(page.getByText(/badge|achievement/i)).toBeVisible({ timeout: 15000 });
+         |                                                        ^
+      45 |   });
+      46 | });
+      47 |
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:44:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/badge|achievement/i)
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/badge|achievement/i)
+
+
+      42 |
+      43 |   test('ST8: Dashboard shows badges section', async ({ page }) => {
+    > 44 |     await expect(page.getByText(/badge|achievement/i)).toBeVisible({ timeout: 15000 });
+         |                                                        ^
+      45 |   });
+      46 | });
+      47 |
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-dashboard.spec.ts:44:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium-retry1\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium-retry1\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-dashboard-Student--e67e2-hboard-shows-badges-section-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
 </testcase>
-<testcase name="Auth Suite › A12: Protected route redirects unauthenticated user to login" classname="auth.spec.ts" time="4.659">
+</testsuite>
+<testsuite name="student-feed.spec.ts" timestamp="2026-04-01T21:35:22.089Z" hostname="chromium" tests="5" failures="1" skipped="0" time="107.253" errors="0">
+<testcase name="Student Feed › ST53: Feed page loads" classname="student-feed.spec.ts" time="12.942">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium\trace.zip]]
+
+[[ATTACHMENT|test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium-retry1\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium-retry1\error-context.md]]
+
+[[ATTACHMENT|test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium-retry1\trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [chromium] › student-feed.spec.ts:10:7 › Student Feed › ST53: Feed page loads ────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/feed|activity|updates/i)
+    Expected: visible
+    Error: strict mode violation: getByText(/feed|activity|updates/i) resolved to 5 elements:
+        1) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm flex-1 text-optio-purple font-poppins-semibold">Feed</div> aka getByText('Feed').first()
+        2) <div dir="auto" class="css-146c3p1 text-typo dark:text-dark-typo text-2xl font-poppins-bold ">Feed</div> aka getByText('Feed').nth(1)
+        3) <div dir="auto" class="css-146c3p1 text-typo dark:text-dark-typo text-base font-poppins-semibold text-typo-500 mt-3">No activity yet</div> aka getByText('No activity yet')
+        4) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm text-typo-400 mt-1 text-center px-4">Complete tasks and capture learning moments to bu…</div> aka getByText('Complete tasks and capture')
+        5) <div dir="auto" class="css-146c3p1 r-dnmrzs r-1udh08x r-1udbk01 r-3s2u2q r-1iln25a r-1niwhzg r-q4m81j r-10x49cs">feed</div> aka getByText('feed', { exact: true })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/feed|activity|updates/i)
+
+
+       9 |
+      10 |   test('ST53: Feed page loads', async ({ page }) => {
+    > 11 |     await expect(page.getByText(/feed|activity|updates/i)).toBeVisible({ timeout: 15000 });
+         |                                                            ^
+      12 |   });
+      13 |
+      14 |   test('ST54: Feed shows activity items', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-feed.spec.ts:11:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/feed|activity|updates/i)
+    Expected: visible
+    Error: strict mode violation: getByText(/feed|activity|updates/i) resolved to 5 elements:
+        1) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm flex-1 text-optio-purple font-poppins-semibold">Feed</div> aka getByText('Feed').first()
+        2) <div dir="auto" class="css-146c3p1 text-typo dark:text-dark-typo text-2xl font-poppins-bold ">Feed</div> aka getByText('Feed').nth(1)
+        3) <div dir="auto" class="css-146c3p1 text-typo dark:text-dark-typo text-base font-poppins-semibold text-typo-500 mt-3">No activity yet</div> aka getByText('No activity yet')
+        4) <div dir="auto" class="css-146c3p1 font-poppins text-typo dark:text-dark-typo text-sm text-typo-400 mt-1 text-center px-4">Complete tasks and capture learning moments to bu…</div> aka getByText('Complete tasks and capture')
+        5) <div dir="auto" class="css-146c3p1 r-dnmrzs r-1udh08x r-1udbk01 r-3s2u2q r-1iln25a r-1niwhzg r-q4m81j r-10x49cs">feed</div> aka getByText('feed', { exact: true })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText(/feed|activity|updates/i)
+
+
+       9 |
+      10 |   test('ST53: Feed page loads', async ({ page }) => {
+    > 11 |     await expect(page.getByText(/feed|activity|updates/i)).toBeVisible({ timeout: 15000 });
+         |                                                            ^
+      12 |   });
+      13 |
+      14 |   test('ST54: Feed shows activity items', async ({ page }) => {
+        at C:\Users\tanne\Desktop\pw_v2\frontend-v2\e2e\student-feed.spec.ts:11:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium-retry1\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium-retry1\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\test-results\student-feed-Student-Feed-ST53-Feed-page-loads-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+</testcase>
+<testcase name="Student Feed › ST54: Feed shows activity items" classname="student-feed.spec.ts" time="8.054">
+</testcase>
+<testcase name="Student Feed › ST55: Feed items show timestamps" classname="student-feed.spec.ts" time="7.855">
+</testcase>
+<testcase name="Student Feed › ST56: Feed shows different activity types" classname="student-feed.spec.ts" time="7.795">
+</testcase>
+<testcase name="Student Feed › ST57: Can scroll/load more feed items" classname="student-feed.spec.ts" time="70.607">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\student-feed-Student-Feed--3bdb0-scroll-load-more-feed-items-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\student-feed-Student-Feed--3bdb0-scroll-load-more-feed-items-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\student-feed-Student-Feed--3bdb0-scroll-load-more-feed-items-chromium\trace.zip]]
+]]>
+</system-out>
 </testcase>
 </testsuite>
 </testsuites>
