@@ -17,12 +17,16 @@ on:
         type: choice
         options:
           - smoke
+          - auth
+          - student
+          - parent
+          - all
 
 jobs:
   e2e-tests:
-    name: "E2E Tests"
+    name: "E2E Tests (${{ github.event.inputs.suite || 'smoke' }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
       E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
@@ -54,16 +58,51 @@ jobs:
 
       - name: Wait for Render deploy
         run: |
-          echo "Waiting 5 minutes for Render to build and deploy both services..."
-          sleep 300
-          echo "Checking frontend..."
-          curl -s -o /dev/null -w "Frontend: %{http_code}\n" https://optio-dev-v2-frontend.onrender.com/
-          echo "Checking backend..."
-          curl -s https://optio-dev-backend.onrender.com/api/health | head -1
+          echo "Polling Render API for deploy completion..."
+          # Poll v2 frontend service
+          for i in $(seq 1 60); do
+            DEPLOY_STATUS=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+              "https://api.render.com/v1/services/srv-d76n4bdm5p6s73fac69g/deploys?limit=1" \
+              2>/dev/null | jq -r '.[0].deploy.status // "unknown"')
+            echo "  Attempt $i: frontend deploy status=$DEPLOY_STATUS"
+            if [ "$DEPLOY_STATUS" = "live" ]; then
+              echo "Frontend deploy is live!"
+              break
+            fi
+            sleep 10
+          done
+          # Also check backend
+          for i in $(seq 1 30); do
+            BACKEND_STATUS=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+              "https://api.render.com/v1/services/srv-d2tnvlvfte5s73ae8npg/deploys?limit=1" \
+              2>/dev/null | jq -r '.[0].deploy.status // "unknown"')
+            echo "  Backend deploy status=$BACKEND_STATUS"
+            if [ "$BACKEND_STATUS" = "live" ]; then
+              echo "Backend deploy is live!"
+              break
+            fi
+            sleep 10
+          done
+          # Final health check
+          echo "Frontend: $(curl -s -o /dev/null -w '%{http_code}' https://optio-dev-v2-frontend.onrender.com/)"
+          echo "Backend: $(curl -s https://optio-dev-backend.onrender.com/api/health | head -1)"
+
+      - name: Determine test files
+        id: tests
+        run: |
+          SUITE="${{ github.event.inputs.suite || 'smoke' }}"
+          case "$SUITE" in
+            smoke)   echo "files=e2e/smoke.spec.ts" >> $GITHUB_OUTPUT ;;
+            auth)    echo "files=e2e/auth.spec.ts" >> $GITHUB_OUTPUT ;;
+            student) echo "files=e2e/student-*.spec.ts" >> $GITHUB_OUTPUT ;;
+            parent)  echo "files=e2e/parent.spec.ts" >> $GITHUB_OUTPUT ;;
+            all)     echo "files=e2e/" >> $GITHUB_OUTPUT ;;
+            *)       echo "files=e2e/smoke.spec.ts" >> $GITHUB_OUTPUT ;;
+          esac
 
       - name: Run E2E tests
         working-directory: frontend-v2
-        run: npx playwright test
+        run: npx playwright test ${{ steps.tests.outputs.files }}
 
       - name: Upload test report
         if: always()
