@@ -54,16 +54,10 @@ jobs:
 
       - name: Wait for Render deploy
         run: |
-          echo "Waiting for Render to deploy..."
-          for i in $(seq 1 60); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://optio-dev-v2-frontend.onrender.com/ 2>/dev/null)
-            if [ "$STATUS" = "200" ]; then
-              echo "Frontend ready (attempt $i)"
-              break
-            fi
-            echo "  Attempt $i: status=$STATUS, waiting 10s..."
-            sleep 10
-          done
+          echo "Waiting 3 minutes for Render to build and deploy..."
+          sleep 180
+          echo "Checking site..."
+          curl -s -o /dev/null -w "Frontend status: %{http_code}\n" https://optio-dev-v2-frontend.onrender.com/
 
       - name: Run E2E tests
         working-directory: frontend-v2
