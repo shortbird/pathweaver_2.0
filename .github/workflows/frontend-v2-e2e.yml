@@ -139,6 +139,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          FLASK_SECRET_KEY: ci-test-secret-key-not-for-production
+          FLASK_ENV: testing
 
       - name: Dump logs on failure
         if: failure()
@@ -269,6 +271,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          FLASK_SECRET_KEY: ci-test-secret-key-not-for-production
+          FLASK_ENV: testing
 
       - name: Dump logs on failure
         if: failure()
