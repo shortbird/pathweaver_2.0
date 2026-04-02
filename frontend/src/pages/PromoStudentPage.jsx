@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Helmet } from 'react-helmet-async'
 import api from '../services/api'
 import { captureEvent } from '../services/posthog'
+import MarketingLayout from '../components/marketing/MarketingLayout'
 
 // Scroll animation hook
 const useScrollReveal = () => {
@@ -189,7 +190,7 @@ const PromoStudentPage = () => {
   }
 
   return (
-    <>
+    <MarketingLayout>
       <Helmet>
         <title>Take Classes Your Way | Optio Education</title>
         <meta name="description" content="Self-directed accredited high school classes with teacher support. Transfer credits to your school. WASC accredited. $249 per credit." />
@@ -200,7 +201,7 @@ const PromoStudentPage = () => {
         <style>{`html { scroll-behavior: smooth; }`}</style>
       </Helmet>
 
-      <div className="min-h-screen bg-white -mt-12 sm:mt-0">
+      <div className="min-h-screen bg-white">
 
         {/* ========== 1. HERO ========== */}
         <div className="relative overflow-hidden min-h-[55vh] flex items-center">
@@ -683,12 +684,6 @@ const PromoStudentPage = () => {
           </div>
         </section>
 
-        {/* Footer */}
-        <section className="py-8 px-4 bg-gray-900 text-center">
-          <p className="text-gray-500 text-sm">
-            Optio Education &middot; WASC Accredited &middot; Personalized diplomas, real teachers, real learning.
-          </p>
-        </section>
       </div>
 
       {/* Credit Example Modal */}
@@ -839,7 +834,7 @@ const PromoStudentPage = () => {
           </div>
         </div>
       )}
-    </>
+    </MarketingLayout>
   )
 }
 

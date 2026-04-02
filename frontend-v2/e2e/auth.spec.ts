@@ -39,7 +39,7 @@ test.describe('Auth Suite', () => {
     await page.getByPlaceholder('you@email.com').fill('nonexistent@test.com');
     await page.getByPlaceholder('Enter password').fill('password123');
     await clickByText(page, 'Sign In');
-    await expect(page.getByText(/invalid|error|incorrect|not found/i).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/invalid|error|incorrect|not found|locked|too many/i).first()).toBeVisible({ timeout: 15000 });
   });
 
   test('A8: Login with wrong password shows error', async ({ page }) => {

@@ -27,7 +27,7 @@ import { toast } from 'react-hot-toast'
 // Always-loaded components (critical for initial render)
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
-import HomePage from './pages/HomePage'
+import HomePage from './pages/marketing/HomePage'
 import LoginPage from './pages/LoginPage'
 import OrgLoginPage from './pages/auth/OrgLoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -88,9 +88,11 @@ const CourseHomepage = lazy(() => import('./pages/courses/CourseHomepage'))
 const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
 const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
 const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
-// Platform explainer page
-const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
+// Marketing pages
+const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
+const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
+const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))
 // Help Center / Docs pages (February 2026)
 const DocsLandingPage = lazy(() => import('./pages/docs/DocsLandingPage'))
 const DocsCategoryPage = lazy(() => import('./pages/docs/DocsCategoryPage'))
@@ -372,11 +374,14 @@ function App() {
           />
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* Public promo page (standalone, no platform layout) */}
+              {/* Marketing pages (standalone, use MarketingLayout) */}
+              <Route path="/" element={<HomePage />} />
               <Route path="for-students" element={<PromoStudentPage />} />
+              <Route path="for-families" element={<ForFamiliesPage />} />
+              <Route path="for-schools" element={<ForSchoolsPage />} />
+              <Route path="how-it-works" element={<HowItWorksPage />} />
 
               <Route path="/" element={<Layout />}>
-                <Route index element={<HomePage />} />
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
                 <Route path="login/:slug" element={<OrgLoginPage />} />
@@ -394,7 +399,6 @@ function App() {
                 {/* Public course pages (no auth required) */}
                 <Route path="catalog" element={<PublicCatalogPage />} />
                 <Route path="course/:slug" element={<PublicCoursePage />} />
-                <Route path="how-it-works" element={<HowItWorksPage />} />
                 {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
