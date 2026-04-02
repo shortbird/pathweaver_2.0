@@ -5,6 +5,8 @@ export default defineConfig({
   timeout: 60000,
   retries: 1,
   workers: 1,
+  globalSetup: './e2e/global-setup.ts',
+  globalTeardown: './e2e/global-teardown.ts',
   reporter: [['html', { open: 'never' }], ['junit', { outputFile: 'playwright-report.xml' }]],
   use: {
     screenshot: 'only-on-failure',
