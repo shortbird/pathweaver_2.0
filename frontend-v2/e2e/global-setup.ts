@@ -18,7 +18,10 @@ const SUPERADMIN_ID = '8081b187-f8b8-4ec3-bb18-3cbbb55ad6fa';
 const ORGADMIN_ID = '93b049fd-c8a2-48ef-b483-161acc559860';
 
 const QUEST_A_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const QUEST_B_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const COURSE_ID = '12345678-1234-1234-1234-123456789012';
+const TASK_1_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+const TASK_2_ID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 
 // E2E-specific IDs (prefixed for cleanup)
 const E2E_LEARNING_EVENT_1 = 'e2e00001-0000-0000-0000-000000000001';
@@ -72,7 +75,7 @@ export default async function globalSetup() {
 
   console.log('[e2e-setup] Seeding test data...');
 
-  // ── Clean up previous E2E data ──
+  // ── Clean up previous E2E data (reverse dependency order) ──
   console.log('[e2e-setup] Cleaning previous e2e data...');
   await deleteWhere('bounty_claims', `?id=eq.${E2E_BOUNTY_CLAIM_1}`);
   await deleteWhere('bounties', `?id=eq.${E2E_BOUNTY_1}`);
@@ -81,6 +84,96 @@ export default async function globalSetup() {
   await deleteWhere('notifications', `?id=in.(${E2E_NOTIFICATION_1},${E2E_NOTIFICATION_2},${E2E_NOTIFICATION_3})`);
   await deleteWhere('buddies', `?id=eq.${E2E_BUDDY_ID}`);
   await deleteWhere('curriculum_lessons', `?id=in.(${E2E_LESSON_1},${E2E_LESSON_2})`);
+  // Clean up seed-script data too
+  await deleteWhere('quest_task_completions', `?user_id=eq.${STUDENT_ID}`);
+  await deleteWhere('user_quest_tasks', `?id=in.(${TASK_1_ID},${TASK_2_ID})`);
+  await deleteWhere('course_enrollments', `?user_id=eq.${STUDENT_ID}&course_id=eq.${COURSE_ID}`);
+  await deleteWhere('course_quests', `?course_id=eq.${COURSE_ID}&quest_id=eq.${QUEST_A_ID}`);
+  await deleteWhere('user_quests', `?user_id=in.(${STUDENT_ID},${CHILD_ID})&quest_id=in.(${QUEST_A_ID},${QUEST_B_ID})`);
+  await deleteWhere('courses', `?id=eq.${COURSE_ID}`);
+  await deleteWhere('quests', `?id=in.(${QUEST_A_ID},${QUEST_B_ID})`);
+
+  // ── Seed quests (never public) ──
+  console.log('[e2e-setup] Seeding quests...');
+  await upsert('quests', [
+    {
+      id: QUEST_A_ID,
+      title: 'Learn to Code',
+      description: 'Introduction to programming fundamentals',
+      big_idea: 'Programming opens doors to creativity and problem-solving',
+      quest_type: 'optio',
+      is_active: true,
+      is_public: false,
+      created_by: SUPERADMIN_ID,
+    },
+    {
+      id: QUEST_B_ID,
+      title: 'Financial Literacy',
+      description: 'Understanding money management and investing',
+      big_idea: 'Financial knowledge empowers independence',
+      quest_type: 'optio',
+      is_active: true,
+      is_public: false,
+      created_by: SUPERADMIN_ID,
+    },
+  ]);
+
+  // ── Seed enrollments ──
+  console.log('[e2e-setup] Seeding enrollments...');
+  await upsert('user_quests', [
+    { user_id: STUDENT_ID, quest_id: QUEST_A_ID, status: 'picked_up' },
+    { user_id: STUDENT_ID, quest_id: QUEST_B_ID, status: 'picked_up' },
+    { user_id: CHILD_ID, quest_id: QUEST_A_ID, status: 'picked_up' },
+  ]);
+
+  // ── Get enrollment ID for tasks ──
+  const enrollRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/user_quests?user_id=eq.${STUDENT_ID}&quest_id=eq.${QUEST_A_ID}&select=id`,
+    { headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` } }
+  );
+  const enrollments = await enrollRes.json();
+  const userQuestId = enrollments?.[0]?.id;
+
+  if (userQuestId) {
+    console.log('[e2e-setup] Seeding tasks...');
+    await upsert('user_quest_tasks', [
+      {
+        id: TASK_1_ID,
+        user_id: STUDENT_ID,
+        quest_id: QUEST_A_ID,
+        user_quest_id: userQuestId,
+        title: 'Complete Python Tutorial',
+        description: 'Work through the Python basics tutorial',
+        pillar: 'Knowledge',
+        xp_value: 50,
+        approval_status: 'approved',
+      },
+      {
+        id: TASK_2_ID,
+        user_id: STUDENT_ID,
+        quest_id: QUEST_A_ID,
+        user_quest_id: userQuestId,
+        title: 'Build a Calculator App',
+        description: 'Create a simple calculator using Python',
+        pillar: 'Skill',
+        xp_value: 100,
+        approval_status: 'pending',
+      },
+    ]);
+  }
+
+  // ── Seed course ──
+  console.log('[e2e-setup] Seeding course...');
+  await upsert('courses', [{
+    id: COURSE_ID,
+    title: 'Introduction to Self-Directed Learning',
+    description: 'Learn how to take charge of your own education',
+    status: 'published',
+    visibility: 'public',
+    created_by: SUPERADMIN_ID,
+  }]);
+  await upsert('course_quests', [{ course_id: COURSE_ID, quest_id: QUEST_A_ID, sequence_order: 1 }]);
+  await upsert('course_enrollments', [{ user_id: STUDENT_ID, course_id: COURSE_ID, status: 'active' }]);
 
   // ── Seed learning events (for journal + feed) ──
   console.log('[e2e-setup] Seeding learning events...');
