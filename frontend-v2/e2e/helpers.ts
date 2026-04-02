@@ -1,6 +1,6 @@
 import { Page } from '@playwright/test';
 
-export const BASE_URL = 'https://optio-dev-v2-frontend.onrender.com';
+export const BASE_URL = process.env.E2E_BASE_URL || 'https://optio-dev-v2-frontend.onrender.com';
 
 export const USERS = {
   student: { email: process.env.E2E_STUDENT_EMAIL || '', password: process.env.E2E_STUDENT_PASSWORD || '' },

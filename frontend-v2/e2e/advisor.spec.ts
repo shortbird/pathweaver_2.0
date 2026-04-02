@@ -43,6 +43,12 @@ test.describe('Advisor Suite', () => {
     expect(content?.toLowerCase()).toMatch(/student|xp|quest|advisor|select/);
   });
 
+  test('AD6b: Advisor sees Create Quest button on quests page', async ({ page }) => {
+    await navigateTo(page, 'quests');
+    await page.waitForTimeout(3000);
+    await expect(page.getByText('Create Quest')).toBeVisible({ timeout: 15000 });
+  });
+
   test('AD7: Advisor can navigate to profile', async ({ page }) => {
     await navigateTo(page, 'profile');
     await expect(page.getByText(/Total XP|Profile|Sign Out/i).first()).toBeVisible({ timeout: 15000 });
