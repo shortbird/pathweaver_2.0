@@ -178,6 +178,7 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
         totalPages={state.totalPages}
         startIndex={state.startIndex}
         usersPerPage={state.usersPerPage}
+        orgId={orgId}
         onEditUser={(user) => {
           state.setSelectedUser(user)
           state.setShowEditModal(true)

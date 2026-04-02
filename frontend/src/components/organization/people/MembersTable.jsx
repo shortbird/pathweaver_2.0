@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 
 /**
  * Table displaying organization members with pagination.
@@ -15,8 +16,10 @@ function MembersTable({
   totalPages,
   startIndex,
   usersPerPage,
-  onEditUser
+  onEditUser,
+  orgId
 }) {
+  const navigate = useNavigate()
   const roleColors = {
     superadmin: 'bg-purple-100 text-purple-700',
     org_admin: 'bg-purple-100 text-purple-700',
@@ -86,8 +89,12 @@ function MembersTable({
               const displayRoles = getDisplayRoles(user)
 
               return (
-                <tr key={user.id} className={`hover:bg-gray-50 ${selectedUsers.has(user.id) ? 'bg-optio-purple/5' : ''}`}>
-                  <td className="px-4 py-4">
+                <tr
+                  key={user.id}
+                  onClick={() => orgId && navigate(`/admin/organizations/${orgId}/student/${user.id}?tab=people`)}
+                  className={`hover:bg-gray-50 cursor-pointer ${selectedUsers.has(user.id) ? 'bg-optio-purple/5' : ''}`}
+                >
+                  <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedUsers.has(user.id)}
@@ -128,7 +135,7 @@ function MembersTable({
                       ))}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => onEditUser(user)}
                       className="text-optio-purple hover:underline text-sm font-medium"

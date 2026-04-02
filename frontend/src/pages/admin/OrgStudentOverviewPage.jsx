@@ -20,10 +20,9 @@ export default function OrgStudentOverviewPage() {
 
   // Org admins and superadmins can edit student information
   const canEdit = isAdmin || isSuperadmin;
-  const returnTab = searchParams.get('tab') || 'progress';
+  const returnTab = searchParams.get('tab') || 'people';
 
   const handleBack = () => {
-    // Navigate back to org management with progress tab selected
     navigate(`/organization?tab=${returnTab}`);
   };
 
@@ -39,7 +38,7 @@ export default function OrgStudentOverviewPage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to Progress
+            Back to People
           </button>
           <h1 className="text-2xl font-bold">Student Overview</h1>
           <p className="mt-1 text-white/80 text-sm">
