@@ -1,27 +1,25 @@
-import React, { useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React from 'react'
+import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { useAuth } from '../../contexts/AuthContext'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
-import PhilosophyTeaser from '../../components/marketing/PhilosophyTeaser'
 
 const HERO_IMAGE = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/homepage/hero_real.jpg'
 
 const AUDIENCES = [
   {
     title: 'For Students',
-    subtitle: 'A smarter way to do high school',
-    description: 'Turn your interests into real high school credit. Self-directed learning with a dedicated teacher in your corner.',
+    subtitle: 'Take classes on things you care about',
+    description: 'Turn your interests into real high school credit. A dedicated teacher helps you every step of the way. Ages 13+.',
     path: '/for-students',
     image: 'https://images.pexels.com/photos/8033875/pexels-photo-8033875.jpeg?auto=compress&cs=tinysrgb&w=600',
     color: 'from-blue-500 to-indigo-600',
   },
   {
     title: 'For Families',
-    subtitle: 'One hub for your homeschool',
-    description: 'Track every curriculum, class, and learning experience in one place. Everything flows into a professional portfolio.',
+    subtitle: 'Your kids are learning amazing things',
+    description: 'Whether you homeschool or your kids are in public school, Optio tracks their learning, builds portfolios, and can turn it into official credit.',
     path: '/for-families',
     image: 'https://images.pexels.com/photos/4260325/pexels-photo-4260325.jpeg?auto=compress&cs=tinysrgb&w=600',
     color: 'from-emerald-500 to-teal-600',
@@ -43,7 +41,7 @@ const HIGHLIGHTS = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
       </svg>
     ),
-    title: 'Personalized Quests',
+    title: 'Choose Your Quest',
     text: 'Learning adventures built around real interests',
   },
   {
@@ -52,7 +50,7 @@ const HIGHLIGHTS = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
       </svg>
     ),
-    title: 'Automatic Portfolios',
+    title: 'Track Your Achievements',
     text: 'Student work captured as they learn, no extra steps',
   },
   {
@@ -77,23 +75,12 @@ const HIGHLIGHTS = [
 ]
 
 const HomePage = () => {
-  const { isAuthenticated, user, loading } = useAuth()
-  const navigate = useNavigate()
   const trackCta = useCtaTracker('homepage')
 
   const heroRef = useSectionView('hero', 'homepage')
   const audienceRef = useSectionView('audience_cards', 'homepage')
   const highlightsRef = useSectionView('highlights', 'homepage')
   const ctaRef = useSectionView('final_cta', 'homepage')
-
-  // Redirect authenticated users
-  useEffect(() => {
-    if (!loading && isAuthenticated && user) {
-      if (user.role === 'observer') navigate('/observer/feed')
-      else if (user.role === 'superadmin' || user.role === 'parent') navigate('/parent/dashboard')
-      else navigate('/dashboard')
-    }
-  }, [isAuthenticated, user, navigate, loading])
 
   return (
     <MarketingLayout>
@@ -131,7 +118,7 @@ const HomePage = () => {
             Official Credentials.
           </h2>
           <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
-            Where self-directed learning meets accredited diplomas. For students, families, and schools.
+            Where passion projects meet accredited diplomas. For students, families, and schools.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
@@ -148,43 +135,14 @@ const HomePage = () => {
               className="inline-block bg-transparent border-2 border-white text-white hover:bg-white/10 font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
-              Get Started Free
+              Create Free Account
             </Link>
           </div>
         </div>
       </section>
 
-      {/* ========== HIGHLIGHTS BAR ========== */}
-      <section ref={highlightsRef} className="py-12 sm:py-16 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-            {HIGHLIGHTS.map((item, i) => (
-              <RevealItem key={item.title} index={i}>
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 text-optio-purple mb-3">
-                    {item.icon}
-                  </div>
-                  <h3
-                    className="text-base sm:text-lg font-bold text-gray-900 mb-1"
-                    style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                  >
-                    {item.title}
-                  </h3>
-                  <p
-                    className="text-sm text-gray-600"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
-                    {item.text}
-                  </p>
-                </div>
-              </RevealItem>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ========== WHO IS OPTIO FOR? (Audience Cards) ========== */}
-      <section ref={audienceRef} className="py-16 sm:py-24 bg-gray-50">
+      <section ref={audienceRef} className="py-16 sm:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
             <div className="text-center mb-12 sm:mb-16">
@@ -258,6 +216,35 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* ========== HIGHLIGHTS BAR ========== */}
+      <section ref={highlightsRef} className="py-12 sm:py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+            {HIGHLIGHTS.map((item, i) => (
+              <RevealItem key={item.title} index={i}>
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 text-optio-purple mb-3">
+                    {item.icon}
+                  </div>
+                  <h3
+                    className="text-base sm:text-lg font-bold text-gray-900 mb-1"
+                    style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+                  >
+                    {item.title}
+                  </h3>
+                  <p
+                    className="text-sm text-gray-600"
+                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                  >
+                    {item.text}
+                  </p>
+                </div>
+              </RevealItem>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ========== FINAL CTA ========== */}
       <section ref={ctaRef} className="py-16 sm:py-20 bg-gradient-to-r from-optio-purple to-optio-pink">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -288,7 +275,7 @@ const HomePage = () => {
               className="inline-block bg-transparent border-2 border-white text-white hover:bg-white/10 font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
-              Get Started Free
+              Create Free Account
             </Link>
           </div>
           <p

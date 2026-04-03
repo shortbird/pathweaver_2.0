@@ -3,7 +3,6 @@ import { Helmet } from 'react-helmet-async'
 import api from '../services/api'
 import { captureEvent } from '../services/posthog'
 import MarketingLayout from '../components/marketing/MarketingLayout'
-import PhilosophyTeaser from '../components/marketing/PhilosophyTeaser'
 
 // Scroll animation hook
 const useScrollReveal = () => {
@@ -188,10 +187,10 @@ const PromoStudentPage = () => {
   return (
     <MarketingLayout>
       <Helmet>
-        <title>Take Classes Your Way | Optio Education</title>
-        <meta name="description" content="Self-directed accredited high school classes with teacher support. Transfer credits to your school. WASC accredited. $250 per credit." />
-        <meta property="og:title" content="Take Classes Your Way | Optio Education" />
-        <meta property="og:description" content="Self-directed learning with teacher support. Translate your interests into high school credit. WASC accredited, transfer guaranteed." />
+        <title>For Students | Optio</title>
+        <meta name="description" content="Take high school classes on things you actually care about. Get real credit that transfers to your school. Accredited program. Teacher supported." />
+        <meta property="og:title" content="For Students | Optio" />
+        <meta property="og:description" content="Take high school classes on things you actually care about. Get real credit with a teacher in your corner. Accredited program, transfer guaranteed." />
         <meta property="og:url" content="https://www.optioeducation.com/for-students" />
         <link rel="canonical" href="https://www.optioeducation.com/for-students" />
       </Helmet>
@@ -206,10 +205,10 @@ const PromoStudentPage = () => {
           </div>
           <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-              A Smarter Way to Do High School
+              Take Classes on Things You Actually Care About
             </h1>
             <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
-              Self-directed learning with a dedicated teacher in your corner. Translate your interests into real high school credit.
+              Get real high school credit for learning you're already doing. A dedicated teacher helps you turn your interests into official classes that go on your transcript.
             </p>
             <a
               href="#get-info"
@@ -271,7 +270,7 @@ const PromoStudentPage = () => {
                 { img: 'https://images.pexels.com/photos/8217192/pexels-photo-8217192.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Choose your class', sub: 'Pick any subject that interests you' },
                 { img: 'https://images.pexels.com/photos/4145153/pexels-photo-4145153.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Meet your teacher', sub: 'Get a dedicated teacher in your corner' },
                 { img: 'https://images.pexels.com/photos/5622142/pexels-photo-5622142.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Record your learning', sub: 'Self-directed projects, not busywork' },
-                { img: 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/promo/wasc.png', label: 'Credit transferred', sub: 'We only give As. Official WASC transcript.', contain: true },
+                { img: 'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Credit transferred', sub: 'We only give As. Official accredited transcript.' },
                 { img: 'https://images.pexels.com/photos/5211472/pexels-photo-5211472.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Free up a period', sub: 'Use the time for what matters to you' },
               ].map(({ img, label, sub, contain }, i) => (
                 <RevealItem key={label} index={i}>
@@ -344,12 +343,12 @@ const PromoStudentPage = () => {
                 <img src={IMAGES.adventure} alt="Teenagers on an adventure" className="w-full rounded-2xl shadow-lg object-cover aspect-[16/9] mb-6 lg:hidden" style={{ objectPosition: 'center 80%' }} />
                 <div className="space-y-3">
                   {[
-                    { fix: 'Learn on your schedule', detail: 'Morning, night, weekends. You decide when.' },
-                    { fix: 'A teacher in your corner', detail: 'They help get you started and are available to support you on your journey.' },
-                    { fix: 'Real projects you choose', detail: 'Write about what interests you. Build things that matter.' },
-                    { fix: 'Make any subject interesting', detail: 'Study history through film, learn English by writing about what you love.' },
-                    { fix: 'No failing grades', detail: 'You either earn an A or you\'re still working on it. Progress, not punishment.' },
-                    { fix: 'A portfolio of your learning', detail: 'Everything you create becomes a shareable record of real work.' },
+                    { fix: 'Work on your own schedule', detail: 'Morning, night, weekends. You decide when and where you work.' },
+                    { fix: 'Your own teacher', detail: 'A real teacher who helps you get started and is there when you need them.' },
+                    { fix: 'Pick your own projects', detail: 'Write about what you love. Build things that matter to you. Not busywork.' },
+                    { fix: 'Make any class interesting', detail: 'Study history through film. Learn English by writing about your favorite hobby.' },
+                    { fix: 'You can only get an A', detail: 'No failing grades. You either earn your A or you keep working on it.' },
+                    { fix: 'Build a real portfolio', detail: 'Everything you create goes into a portfolio you can show to colleges and employers.' },
                   ].map(({ fix, detail }, i) => (
                     <div key={i} className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-4 border border-optio-purple/15">
                       <p className="font-semibold text-gray-900">{fix}</p>
@@ -361,9 +360,6 @@ const PromoStudentPage = () => {
             </div>
           </div>
         </section>
-
-        {/* ========== PHILOSOPHY ========== */}
-        <PhilosophyTeaser pageName="for_students" />
 
         {/* ========== 8. OPTIO ACADEMY (FULL-TIME) ========== */}
         <section className="py-16 sm:py-20 px-4 bg-white">
@@ -384,12 +380,12 @@ const PromoStudentPage = () => {
               <RevealSection delay={200}>
               <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-8 sm:p-10">
                 <p className="text-gray-500 mb-6">
-                  Optio Academy is our full-time diploma program. Work 1-on-1 with a dedicated teacher to self-direct your entire high school education through Optio.
+                  Want to leave traditional school entirely? Optio Academy is a full-time accredited high school where you design your own education with a dedicated teacher guiding you.
                 </p>
                 <div className="grid sm:grid-cols-3 gap-3 mb-6">
                   {[
                     { title: 'Your own teacher', desc: 'Dedicated 1-on-1 guidance' },
-                    { title: 'WASC-accredited diploma', desc: 'Recognized nationwide' },
+                    { title: 'Accredited diploma', desc: 'Recognized nationwide' },
                     { title: 'Dual enrollment', desc: 'Earn college credit too' },
                   ].map((item) => (
                     <div key={item.title} className="bg-gray-50 rounded-lg p-3 text-center">
@@ -453,7 +449,7 @@ const PromoStudentPage = () => {
                     {[
                       'Dedicated teacher support',
                       'Build your own curriculum',
-                      'WASC-accredited transcript',
+                      'Accredited transcript',
                       'Work at your own pace',
                     ].map((text) => (
                       <div key={text} className="flex items-start gap-2">
@@ -490,7 +486,7 @@ const PromoStudentPage = () => {
                       '1-on-1 dedicated teacher',
                       'Self-direct your entire education',
                       'Personalized learning plan',
-                      'WASC-accredited diploma',
+                      'Accredited diploma',
                     ].map((text) => (
                       <div key={text} className="flex items-start gap-2">
                         <svg className="w-4 h-4 text-optio-purple flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -756,7 +752,7 @@ const PromoStudentPage = () => {
 
             <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
               <p>
-                Many states offer scholarship or education savings account (ESA) programs that can be used toward tuition at accredited private schools. Because Optio Academy is <span className="font-semibold text-gray-900">WASC-accredited</span>, students may qualify for these programs.
+                Many states offer scholarship or education savings account (ESA) programs that can be used toward tuition at accredited private schools. Because Optio Academy is <span className="font-semibold text-gray-900">accredited</span>, students may qualify for these programs.
               </p>
               <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
                 <p className="font-semibold text-gray-900 text-sm mb-1">Example: Utah Fits All Scholarship</p>
@@ -813,7 +809,7 @@ const PromoStudentPage = () => {
                 We stand behind every credit you earn through Optio. If your high school or school district won't accept your transfer credit, we'll give you a <span className="font-semibold text-gray-900">full refund</span>. No questions asked.
               </p>
               <p>
-                Optio is accredited by the <span className="font-semibold text-gray-900">Western Association of Schools and Colleges (WASC)</span>, a nationally recognized accrediting body. Credits from WASC-accredited schools are widely accepted by high schools, colleges, and universities across the country.
+                Optio is nationally accredited, which means credits earned through our program are widely accepted by high schools, colleges, and universities across the country.
               </p>
               <p>
                 Before you start, we recommend confirming with your school counselor that they accept transfer credits from accredited programs. Most do. If yours doesn't, you're fully covered.

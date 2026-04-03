@@ -60,8 +60,9 @@ const MarketingFooter = () => {
             </h4>
             <div className="flex flex-col gap-3">
               <FooterLink to="/how-it-works" section="platform">How It Works</FooterLink>
+              <FooterLink to="/philosophy" section="platform">Our Philosophy</FooterLink>
               <FooterLink to="/demo" section="platform">Demo</FooterLink>
-              <FooterLink to="/register" section="platform">Get Started</FooterLink>
+              <FooterLink to="/register" section="platform">Create Free Account</FooterLink>
             </div>
           </div>
 
@@ -92,7 +93,7 @@ const MarketingFooter = () => {
             className="text-gray-500 text-sm"
             style={{ fontFamily: 'Poppins' }}
           >
-            WASC Accredited
+            Accredited Program
           </p>
         </div>
       </div>

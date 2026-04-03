@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { label: 'For Families', path: '/for-families' },
   { label: 'For Schools', path: '/for-schools' },
   { label: 'How It Works', path: '/how-it-works' },
+  // { label: 'Philosophy', path: '/philosophy' }, // TODO: uncomment when philosophy page is finalized
 ]
 
 const MarketingNav = () => {
@@ -83,7 +84,7 @@ const MarketingNav = () => {
               className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-2.5 rounded-full text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
               style={{ fontFamily: 'Poppins' }}
             >
-              Get Started
+              Create Free Account
             </Link>
           </div>
 
@@ -143,7 +144,7 @@ const MarketingNav = () => {
               className="block text-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-3 rounded-full text-sm font-semibold shadow-md"
               style={{ fontFamily: 'Poppins' }}
             >
-              Get Started
+              Create Free Account
             </Link>
           </div>
         </div>

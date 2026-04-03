@@ -5,7 +5,6 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
 import InlineContactForm from '../../components/marketing/InlineContactForm'
-import PhilosophyTeaser from '../../components/marketing/PhilosophyTeaser'
 
 const PAGE = 'how_it_works'
 
@@ -47,7 +46,7 @@ const HowItWorksPage = () => {
               className="text-xl sm:text-2xl text-white/80 max-w-3xl mx-auto leading-relaxed"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
-              Students pursue real interests. Their work becomes evidence. Evidence builds a portfolio. Family and mentors cheer them on and can even post challenges.
+              Most students learn more outside of school than inside it. Optio makes all of that learning visible, shareable, and official.
             </p>
           </RevealSection>
         </div>
@@ -63,17 +62,17 @@ const HowItWorksPage = () => {
                 <span className="text-sm font-semibold text-blue-600 uppercase tracking-wider" style={{ fontFamily: 'Poppins' }}>The Starting Point</span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Learning Starts With Interests
+                Pick a Project. Make It Yours.
               </h2>
               <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Students don't sit through pre-made courses. They pursue Quests: personalized learning adventures built around things they actually care about.
+                On Optio, students learn through "Quests," which are just projects built around things they actually care about. Instead of lectures and tests, they do real work on real topics.
               </p>
               <div className="space-y-3">
                 {[
-                  'A music lover studies music theory through their piano practice',
-                  'A gamer learns programming by building their own game',
-                  'A nature enthusiast earns science credit through field research',
-                  'Students can create their own quests or choose from a library',
+                  'Love music? Your piano lessons become the foundation of a music class',
+                  'Into gaming? Build your own game and earn a technology credit',
+                  'Play sports? Your season becomes a PE credit with fitness tracking',
+                  'Pick from a library of ideas or create something totally your own',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,17 +186,17 @@ const HowItWorksPage = () => {
                 <span className="text-sm font-semibold text-emerald-600 uppercase tracking-wider" style={{ fontFamily: 'Poppins' }}>Doing The Work</span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Work Creates Evidence
+                Document What You Did
               </h2>
               <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                As students complete tasks, they create Learning Moments: photos, reflections, files, and projects that serve as evidence of personalized learning.
+                As students work on their projects, they document what they're doing and learning. Photos, reflections, files, and videos. This is the proof that real learning happened.
               </p>
               <div className="space-y-3">
                 {[
-                  'Photos, videos, documents, and reflections',
-                  'Each piece maps to one of five learning pillars',
-                  'Students document once. No busywork',
-                  'Evidence is tied to specific quest tasks',
+                  'Upload photos, videos, documents, and reflections',
+                  'Each piece of work connects to a skill area',
+                  'Document once. No busywork or redundant assignments',
+                  'Your work is the proof. No tests required',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -222,10 +221,10 @@ const HowItWorksPage = () => {
                 <span className="text-sm font-semibold text-optio-purple uppercase tracking-wider" style={{ fontFamily: 'Poppins' }}>Automatic Organization</span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Evidence Builds a Portfolio
+                It All Becomes a Portfolio
               </h2>
               <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                All that evidence automatically flows into a professional portfolio. No manual uploading, no extra steps. The portfolio grows as the student learns.
+                Everything students document automatically becomes a shareable portfolio. No manual uploading, no extra steps. As they complete projects, their portfolio grows on its own.
               </p>
               <div className="space-y-3">
                 {[
@@ -338,17 +337,17 @@ const HowItWorksPage = () => {
                 <span className="text-sm font-semibold text-amber-600 uppercase tracking-wider" style={{ fontFamily: 'Poppins' }}>Social Learning</span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                A Feed The Whole Family Follows
+                Share It With the People Who Matter
               </h2>
               <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                The portfolio appears as a social media-style activity feed. Parents, grandparents, mentors, and other trusted adults can follow along and engage with student learning in real time.
+                Think of it like a private Instagram for learning. Parents, grandparents, mentors, and other trusted adults get a feed of your student's latest work. They can see progress as it happens.
               </p>
               <div className="space-y-3">
                 {[
-                  'Real-time updates as students complete work',
-                  'Parents control exactly who has access',
-                  'Observers can leave encouragement and comments',
-                  'Feels familiar, like a private Instagram for learning',
+                  'Updates appear as students complete work',
+                  'Parents decide exactly who can see what',
+                  'Family members can leave encouragement and comments',
+                  'Familiar and easy to use for everyone in the family',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -376,7 +375,7 @@ const HowItWorksPage = () => {
                 Observers and Bounties
               </h2>
               <p className="text-gray-600 text-lg max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Parents invite grandparents, mentors, and trusted adults as Observers. They follow the activity feed, cheer progress, and can post Bounties for students to complete.
+                Parents can invite grandparents, mentors, and other trusted adults to follow along. These "Observers" see the activity feed and can even post real-world challenges called "Bounties" for students to complete.
               </p>
             </div>
           </RevealSection>
@@ -425,18 +424,17 @@ const HowItWorksPage = () => {
               <span className="text-sm font-semibold text-amber-600 uppercase tracking-wider" style={{ fontFamily: 'Poppins' }}>The Outcome</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              Real Credentials From Real Learning
+              Turn It Into Official Credit
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-12" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              All that personalized learning can earn official, accredited credentials. WASC-accredited transcripts, high school diplomas, and dual-enrollment college credit.
+              When students are ready, all that documented learning can become real, accredited credit. Official transcripts, high school diplomas, and even college credit.
             </p>
           </RevealSection>
           <div className="grid sm:grid-cols-3 gap-6">
             {[
               {
                 title: 'Transfer Credit',
-                desc: 'Take individual classes through Optio and transfer official credit to your current school.',
-                price: '$250 / credit',
+                desc: 'Already in school? Take a class through Optio on something you care about and transfer the credit back to your high school transcript.',
                 icon: (
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
@@ -445,8 +443,7 @@ const HowItWorksPage = () => {
               },
               {
                 title: 'Full Diploma',
-                desc: 'Self-direct your entire high school education through Optio Academy with a dedicated teacher.',
-                price: '$8,000 / year',
+                desc: 'Want to leave traditional school? Design your entire high school education with a dedicated teacher guiding you.',
                 icon: (
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path d="M12 14l9-5-9-5-9 5 9 5z" />
@@ -458,7 +455,6 @@ const HowItWorksPage = () => {
               {
                 title: 'College Credit',
                 desc: 'Earn transferable college credit through dual enrollment while completing high school coursework.',
-                price: '$250 / credit',
                 icon: (
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
@@ -473,7 +469,6 @@ const HowItWorksPage = () => {
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
                   <p className="text-sm text-gray-600 mb-4 flex-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
-                  <p className="text-lg font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.price}</p>
                 </div>
               </RevealItem>
             ))}
