@@ -5,7 +5,6 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
 import InlineContactForm from '../../components/marketing/InlineContactForm'
-import PhilosophyTeaser from '../../components/marketing/PhilosophyTeaser'
 
 const PAGE = 'for_families'
 
@@ -35,9 +34,9 @@ const ForFamiliesPage = () => {
     <MarketingLayout>
       <Helmet>
         <title>For Families | Optio</title>
-        <meta name="description" content="One hub for your homeschool. Track every curriculum, class, and learning experience. Build portfolios automatically. Official diploma pathway." />
+        <meta name="description" content="Track your kids' learning, build portfolios automatically, and turn it into official credit. For homeschool families and public school families alike." />
         <meta property="og:title" content="For Families | Optio" />
-        <meta property="og:description" content="The homeschool platform that tracks learning, builds portfolios, and provides an official diploma pathway." />
+        <meta property="og:description" content="Your kids are learning amazing things. Optio tracks it, builds portfolios, and can turn it into official credit." />
         <meta property="og:url" content="https://www.optioeducation.com/for-families" />
         <link rel="canonical" href="https://www.optioeducation.com/for-families" />
       </Helmet>
@@ -50,10 +49,10 @@ const ForFamiliesPage = () => {
         </div>
         <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-            One Hub For Your Homeschool
+            Your Kids Are Learning Amazing Things. Now It Can Count.
           </h1>
           <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
-            Track every curriculum, class, and learning experience in one place. Build portfolios automatically. Earn official credentials.
+            No matter how your family learns, Optio tracks it all. Build a record of your kids' learning and share it with loved ones.
           </p>
           <a
             href="#get-info"
@@ -78,9 +77,9 @@ const ForFamiliesPage = () => {
           </RevealSection>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { problem: 'Spreadsheets everywhere', detail: 'A different tracker for every kid, every subject, every requirement', img: 'https://images.pexels.com/photos/669615/pexels-photo-669615.jpeg?auto=compress&cs=tinysrgb&w=400' },
-              { problem: 'No proof of learning', detail: 'Incredible work with nothing to show colleges or employers', img: 'https://images.pexels.com/photos/3791136/pexels-photo-3791136.jpeg?auto=compress&cs=tinysrgb&w=400' },
-              { problem: 'Diploma uncertainty', detail: 'Will your homeschool diploma actually be recognized?', img: 'https://images.pexels.com/photos/3931399/pexels-photo-3931399.jpeg?auto=compress&cs=tinysrgb&w=400' },
+              { problem: 'So much learning, no record of it', detail: 'Piano lessons, sports, coding projects, volunteering. None of it shows up on a transcript.', img: 'https://images.pexels.com/photos/669615/pexels-photo-669615.jpeg?auto=compress&cs=tinysrgb&w=400' },
+              { problem: 'No way to show what they can do', detail: 'Your kids are doing incredible things but colleges and employers only see grades.', img: 'https://images.pexels.com/photos/3791136/pexels-photo-3791136.jpeg?auto=compress&cs=tinysrgb&w=400' },
+              { problem: 'Family can\'t see progress', detail: 'Grandparents and relatives ask what the kids are learning and you have no easy way to share.', img: 'https://images.pexels.com/photos/3931399/pexels-photo-3931399.jpeg?auto=compress&cs=tinysrgb&w=400' },
             ].map((item, i) => (
               <RevealItem key={i} index={i}>
                 <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
@@ -104,10 +103,10 @@ const ForFamiliesPage = () => {
           <RevealSection>
             <div className="text-center mb-14">
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Optio Brings It All Together
+                One Place for All Their Learning
               </h2>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                One platform for tracking, portfolios, and credentials.
+                Whether it happens in school, at home, or out in the world, Optio captures it all.
               </p>
             </div>
           </RevealSection>
@@ -122,7 +121,7 @@ const ForFamiliesPage = () => {
                 Capture Every Learning Moment
               </h3>
               <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                The Learning Journal makes it easy to document spontaneous learning. A nature walk, a cooking experiment, a deep conversation. Quick entries that add up to a complete picture.
+                Did your kid just spend three hours building something amazing? Snap a photo, write a quick note, and it's recorded. Piano recitals, science experiments, volunteer work. Quick entries that add up to a complete picture of who your child is becoming.
               </p>
               <div className="space-y-3">
                 {['Quick capture from your phone or desktop', 'Organize into topics that evolve into quests', 'Attach photos, videos, and files as evidence', 'Connect any curriculum or outside class'].map((item) => (
@@ -139,7 +138,7 @@ const ForFamiliesPage = () => {
                 Portfolios That Build Themselves
               </h3>
               <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                As students complete quests and journal their learning, their work automatically flows into a professional portfolio. No manual uploading, no extra steps.
+                Every project, reflection, and achievement your kids document automatically becomes part of a professional portfolio. No scrapbooking required. When it's time to apply to colleges or jobs, it's all there.
               </p>
               <div className="space-y-3">
                 {['Social media-style activity feed of learning', 'Evidence of real projects, not just grades', 'Share with colleges, employers, or family', 'Parent controls who can view'].map((item) => (
@@ -166,16 +165,16 @@ const ForFamiliesPage = () => {
                 The Whole Family Can Participate
               </h3>
               <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Invite grandparents, mentors, and trusted adults as Observers. They can follow along, cheer progress, and even post Bounties, real-world tasks that earn XP.
+                Invite grandparents, mentors, and other trusted adults to follow your kids' learning journey. They can see updates, leave encouragement, and even post real-world challenges for your kids to complete.
               </p>
               <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-5 border border-optio-purple/15 mb-6">
-                <p className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Example Bounty</p>
+                <p className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Example: A "Bounty" from Grandma</p>
                 <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                  Grandma posts a bounty: "Help me organize my photo albums." Only available to her grandkids. They earn XP for completing it, and Grandma gets help.
+                  Grandma posts a challenge: "Help me organize my photo albums." Only available to her grandkids. They earn points for completing it, learn real skills, and Grandma gets help.
                 </p>
               </div>
               <div className="space-y-3">
-                {['Parents control who has observer access', 'Observers see the activity feed, not admin tools', 'Bounties turn real-world help into learning XP', 'Transforms education into a shared family experience'].map((item) => (
+                {['You control exactly who can see your kids\' work', 'Observers get a view-only feed, not admin access', 'Challenges from family turn everyday tasks into learning', 'Education becomes something the whole family participates in'].map((item) => (
                   <div key={item} className="flex items-start gap-3"><CheckIcon /><p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item}</p></div>
                 ))}
               </div>
@@ -197,24 +196,68 @@ const ForFamiliesPage = () => {
         </div>
       </section>
 
-      {/* ========== PHILOSOPHY ========== */}
-      <PhilosophyTeaser pageName="for_families" />
+      {/* ========== FOR YOUNGER LEARNERS ========== */}
+      <section className="py-16 sm:py-20 bg-gray-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <RevealSection>
+            <div className="text-center mb-12">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Great for Younger Learners Too
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Kids are natural learners. Optio gives them a place to capture what they're discovering and share it with the people who care most.
+              </p>
+            </div>
+          </RevealSection>
+          <div className="grid sm:grid-cols-3 gap-6">
+            {[
+              {
+                title: 'Learning Journal',
+                desc: 'Built a fort? Identified a bird? Finished a book? Snap a photo and write about it. Every adventure becomes part of their story.',
+                img: 'https://images.pexels.com/photos/5622142/pexels-photo-5622142.jpeg?auto=compress&cs=tinysrgb&w=400',
+              },
+              {
+                title: 'Family Activity Feed',
+                desc: 'Grandparents, aunts, uncles, and mentors can follow along and cheer progress. Like a private social media feed just for your family.',
+                img: 'https://images.pexels.com/photos/5960687/pexels-photo-5960687.jpeg?auto=compress&cs=tinysrgb&w=400',
+              },
+              {
+                title: 'Challenges from Family',
+                desc: 'Grandma can post a challenge: "Help me organize my garden." Kids earn points for completing it and learn real skills along the way.',
+                img: 'https://images.pexels.com/photos/7799601/pexels-photo-7799601.jpeg?auto=compress&cs=tinysrgb&w=400',
+              },
+            ].map((item, i) => (
+              <RevealItem key={item.title} index={i}>
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm h-full">
+                  <div className="aspect-[16/9] overflow-hidden">
+                    <img src={item.img} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                  <div className="p-5">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.title}</h3>
+                    <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                  </div>
+                </div>
+              </RevealItem>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ========== DIPLOMA PATH ========== */}
       <section ref={diplomaRef} className="py-16 sm:py-20 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <RevealSection>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              An Official Diploma Path
+              Turn Learning Into Official Credit
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-10" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              The same WASC-accredited pathway that our partner schools use. Real credentials that colleges and employers recognize.
+              When your family is ready, Optio can turn all that learning into real, accredited credentials that colleges and employers recognize.
             </p>
           </RevealSection>
           <div className="grid sm:grid-cols-3 gap-6">
             {[
               { title: 'Individual Credits', desc: 'Turn your learning on Optio into official credit that transfers to your current school. $250 per credit.', img: 'https://images.pexels.com/photos/33780218/pexels-photo-33780218.jpeg?auto=compress&cs=tinysrgb&w=400' },
-              { title: 'Full-Time Diploma', desc: 'Self-direct your entire education through Optio Academy with a dedicated teacher.', img: 'https://images.pexels.com/photos/7692559/pexels-photo-7692559.jpeg?auto=compress&cs=tinysrgb&w=400' },
+              { title: 'Full-Time Diploma', desc: 'Personalize your entire education through Optio Academy with a dedicated teacher.', img: 'https://images.pexels.com/photos/7692559/pexels-photo-7692559.jpeg?auto=compress&cs=tinysrgb&w=400' },
               { title: 'Dual Enrollment', desc: 'Earn college credit while completing high school requirements. Save thousands on tuition.', img: 'https://images.pexels.com/photos/5211472/pexels-photo-5211472.jpeg?auto=compress&cs=tinysrgb&w=400' },
             ].map((item, i) => (
               <RevealItem key={item.title} index={i}>

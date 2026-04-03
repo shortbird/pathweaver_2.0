@@ -93,6 +93,7 @@ const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
 const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
 const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))
+const PhilosophyPage = lazy(() => import('./pages/marketing/PhilosophyPage'))
 // Help Center / Docs pages (February 2026)
 const DocsLandingPage = lazy(() => import('./pages/docs/DocsLandingPage'))
 const DocsCategoryPage = lazy(() => import('./pages/docs/DocsCategoryPage'))
@@ -380,6 +381,7 @@ function App() {
               <Route path="for-families" element={<ForFamiliesPage />} />
               <Route path="for-schools" element={<ForSchoolsPage />} />
               <Route path="how-it-works" element={<HowItWorksPage />} />
+              <Route path="philosophy" element={<PhilosophyPage />} />
 
               <Route path="/" element={<Layout />}>
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
