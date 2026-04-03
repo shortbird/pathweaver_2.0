@@ -810,6 +810,23 @@ class EmailService(BaseService):
             }
         )
 
+    def send_family_inquiry_confirmation(
+        self,
+        user_name: str,
+        user_email: str,
+        message: str = None
+    ) -> bool:
+        """Send family inquiry confirmation email from the for-families page."""
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Welcome to Optio! Let's Talk About Your Family",
+            template_name='family_inquiry_confirmation',
+            context={
+                'name': user_name,
+                'message': message or ''
+            }
+        )
+
     def send_promo_code_email(
         self,
         to_email: str,

@@ -464,6 +464,29 @@ emails:
     closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
     signature: "tanner"
 
+  family_inquiry_confirmation:
+    subject: "Welcome to Optio! Let's Talk About Your Family"
+    title: "Welcome to Optio!"
+    salutation: "Hi {{ name }},"
+    paragraphs:
+      - "Thank you for reaching out! We're excited to learn more about your family and how Optio can support your homeschool journey."
+      - "Optio is built for families like yours. Our platform brings all of your learning into one place, automatically builds portfolios as your kids learn, and gives you a clear path to official credentials when you're ready."
+    highlight_box:
+      title: "What Optio Families Get"
+      bullet_points:
+        - "A parent dashboard to see all your kids' learning in one place"
+        - "Automatic portfolios that grow as your students complete work"
+        - "Observer access so grandparents and mentors can follow along"
+        - "Bounties that turn real-world family tasks into learning XP"
+        - "An official diploma pathway through our WASC-accredited partners"
+    closing_paragraphs:
+      - "I'd love to hear more about your family. How many kids are you homeschooling? What does your typical week look like? What are you hoping to solve?"
+      - "Just hit reply and tell me about your situation. I read and respond to every message personally."
+    cta:
+      text: "See How Optio Works"
+      url: "https://www.optioeducation.com/how-it-works"
+    signature: "tanner"
+
   sales_inquiry_confirmation:
     subject: "Thanks for Contacting Optio Sales"
     title: "Thanks for Reaching Out!"

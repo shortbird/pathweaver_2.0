@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async'
 import api from '../services/api'
 import { captureEvent } from '../services/posthog'
 import MarketingLayout from '../components/marketing/MarketingLayout'
+import PhilosophyTeaser from '../components/marketing/PhilosophyTeaser'
 
 // Scroll animation hook
 const useScrollReveal = () => {
@@ -69,11 +70,6 @@ const RevealItem = ({ children, index = 0 }) => {
 }
 
 
-const CheckIcon = () => (
-  <svg className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-  </svg>
-)
 
 const TransferGuarantee = () => (
   <div className="bg-green-50 border border-green-200 rounded-xl px-6 py-4 flex flex-col items-center gap-1 text-center max-w-md mx-auto">
@@ -193,32 +189,26 @@ const PromoStudentPage = () => {
     <MarketingLayout>
       <Helmet>
         <title>Take Classes Your Way | Optio Education</title>
-        <meta name="description" content="Self-directed accredited high school classes with teacher support. Transfer credits to your school. WASC accredited. $249 per credit." />
+        <meta name="description" content="Self-directed accredited high school classes with teacher support. Transfer credits to your school. WASC accredited. $250 per credit." />
         <meta property="og:title" content="Take Classes Your Way | Optio Education" />
         <meta property="og:description" content="Self-directed learning with teacher support. Translate your interests into high school credit. WASC accredited, transfer guaranteed." />
         <meta property="og:url" content="https://www.optioeducation.com/for-students" />
         <link rel="canonical" href="https://www.optioeducation.com/for-students" />
-        <style>{`html { scroll-behavior: smooth; }`}</style>
       </Helmet>
 
       <div className="min-h-screen bg-white">
 
         {/* ========== 1. HERO ========== */}
-        <div className="relative overflow-hidden min-h-[55vh] flex items-center">
+        <div className="relative overflow-hidden min-h-[55vh] flex items-end">
           <div className="absolute inset-0">
-            <img src={IMAGES.hero} alt="" className="w-full h-full object-cover" style={{ objectPosition: 'center 65%' }} />
-            <div className="absolute inset-0 bg-optio-purple/70 sm:bg-transparent sm:bg-gradient-to-r sm:from-optio-purple/90 sm:via-optio-purple-dark/80 sm:to-optio-pink/70" />
+            <img src={IMAGES.hero} alt="" className="w-full h-full object-cover" style={{ objectPosition: 'center 75%' }} />
+            <div className="absolute inset-0 bg-gradient-to-t from-gray-900/95 via-gray-900/60 via-50% to-transparent" />
           </div>
-          <div className="relative max-w-5xl mx-auto px-4 py-16 sm:py-20 text-center text-white">
-            <img
-              src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
-              alt="Optio Education"
-              className="h-10 sm:h-12 mx-auto mb-6 brightness-0 invert"
-            />
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight">
+          <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
               A Smarter Way to Do High School
             </h1>
-            <p className="text-lg sm:text-xl text-white/85 max-w-2xl mx-auto leading-relaxed mb-8">
+            <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
               Self-directed learning with a dedicated teacher in your corner. Translate your interests into real high school credit.
             </p>
             <a
@@ -263,61 +253,26 @@ const PromoStudentPage = () => {
           </div>
         </section>
 
-        {/* ========== 3. NOT YOUR TYPICAL ONLINE SCHOOL ========== */}
-        <section className="py-16 sm:py-20 px-4 bg-gray-50">
-          <div className="max-w-5xl mx-auto">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <RevealSection className="hidden lg:block">
-                <img
-                  src={IMAGES.different}
-                  alt="Student working on creative project"
-                  className="rounded-2xl shadow-xl w-full aspect-[4/3] object-cover"
-                />
-              </RevealSection>
-              <RevealSection delay={200}>
-                <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6 text-center lg:text-left">
-                  This Isn't Your Typical Online School
-                </h2>
-                <div className="space-y-3">
-                  {[
-                    'Coursework designed around your interests',
-                    'A dedicated teacher available when you need guidance',
-                    'Real-world projects, not videos + quizzes',
-                    'Learn about topics that actually interest you',
-                    'Work at your own pace. Accelerate if you want, or take your time.',
-                    'No failing grades. You either earn an A or you\'re still working on it.',
-                    'A portfolio record of all your learning you can share with friends and family',
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <CheckIcon />
-                      <p className="text-gray-700">{item}</p>
-                    </div>
-                  ))}
-                </div>
-              </RevealSection>
-            </div>
-          </div>
-        </section>
-
-        {/* ========== 4. HOW IT WORKS + CREDIT TRANSFER ========== */}
+        {/* ========== 3. HOW IT WORKS + CREDIT TRANSFER ========== */}
         <section className="py-16 sm:py-20 px-4 bg-white">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <RevealSection>
               <h2 className="text-3xl sm:text-4xl font-bold text-center text-gray-900 mb-3">
                 How It Works
               </h2>
               <p className="text-center text-gray-500 mb-12">
-                Four steps. You don't have to leave your school.
+                Five steps. You don't have to leave your school.
               </p>
             </RevealSection>
 
             {/* Step flow */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-14">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 mb-14">
               {[
-                { img: 'https://images.pexels.com/photos/8217192/pexels-photo-8217192.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Choose your class', sub: 'Pick any subject' },
-                { img: 'https://images.pexels.com/photos/4145153/pexels-photo-4145153.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Meet your teacher', sub: 'Then self-direct your learning' },
-                { img: 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/promo/wasc.png', label: 'We send your transcript', sub: 'Official WASC-accredited record', contain: true },
-                { img: 'https://images.pexels.com/photos/5211472/pexels-photo-5211472.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Credit on your record', sub: 'Free up a period at school' },
+                { img: 'https://images.pexels.com/photos/8217192/pexels-photo-8217192.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Choose your class', sub: 'Pick any subject that interests you' },
+                { img: 'https://images.pexels.com/photos/4145153/pexels-photo-4145153.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Meet your teacher', sub: 'Get a dedicated teacher in your corner' },
+                { img: 'https://images.pexels.com/photos/5622142/pexels-photo-5622142.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Record your learning', sub: 'Self-directed projects, not busywork' },
+                { img: 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/promo/wasc.png', label: 'Credit transferred', sub: 'We only give As. Official WASC transcript.', contain: true },
+                { img: 'https://images.pexels.com/photos/5211472/pexels-photo-5211472.jpeg?auto=compress&cs=tinysrgb&w=400', label: 'Free up a period', sub: 'Use the time for what matters to you' },
               ].map(({ img, label, sub, contain }, i) => (
                 <RevealItem key={label} index={i}>
                   <div className="text-center">
@@ -333,8 +288,8 @@ const PromoStudentPage = () => {
 
             <RevealSection>
               <TransferGuarantee />
-              <p className="text-center text-sm text-gray-500 mt-3">
-                <a href="#get-info" className="text-optio-purple font-medium hover:underline">Claim your first credit free</a> below.
+              <p className="text-center mt-4">
+                <a href="/how-it-works" className="text-optio-purple font-semibold text-sm hover:underline">See how the platform works →</a>
               </p>
             </RevealSection>
           </div>
@@ -393,7 +348,8 @@ const PromoStudentPage = () => {
                     { fix: 'A teacher in your corner', detail: 'They help get you started and are available to support you on your journey.' },
                     { fix: 'Real projects you choose', detail: 'Write about what interests you. Build things that matter.' },
                     { fix: 'Make any subject interesting', detail: 'Study history through film, learn English by writing about what you love.' },
-                    { fix: 'Progress based on mastery', detail: 'Show what you know. Move on when you\'re ready.' },
+                    { fix: 'No failing grades', detail: 'You either earn an A or you\'re still working on it. Progress, not punishment.' },
+                    { fix: 'A portfolio of your learning', detail: 'Everything you create becomes a shareable record of real work.' },
                   ].map(({ fix, detail }, i) => (
                     <div key={i} className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-4 border border-optio-purple/15">
                       <p className="font-semibold text-gray-900">{fix}</p>
@@ -406,23 +362,58 @@ const PromoStudentPage = () => {
           </div>
         </section>
 
+        {/* ========== PHILOSOPHY ========== */}
+        <PhilosophyTeaser pageName="for_students" />
+
         {/* ========== 8. OPTIO ACADEMY (FULL-TIME) ========== */}
         <section className="py-16 sm:py-20 px-4 bg-white">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <RevealSection>
-              <div className="bg-white rounded-2xl p-8 sm:p-10 border border-gray-200 shadow-lg">
-                <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-center text-gray-900">
-                  Want to Go Full Time?
-                </h2>
-                <p className="text-gray-500 text-center max-w-xl mx-auto mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-center text-gray-900">
+                Want to Go Full Time?
+              </h2>
+            </RevealSection>
+            <div className="grid lg:grid-cols-2 gap-8 items-center">
+              <RevealSection>
+                <img
+                  src="https://images.pexels.com/photos/7692559/pexels-photo-7692559.jpeg?auto=compress&cs=tinysrgb&w=800"
+                  alt="Teacher working with students"
+                  className="w-full rounded-2xl shadow-xl object-cover aspect-[4/3]"
+                />
+              </RevealSection>
+              <RevealSection delay={200}>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-8 sm:p-10">
+                <p className="text-gray-500 mb-6">
                   Optio Academy is our full-time diploma program. Work 1-on-1 with a dedicated teacher to self-direct your entire high school education through Optio.
                 </p>
-                <div className="bg-amber-50 rounded-xl p-5 border border-amber-200 max-w-md mx-auto text-center mb-6">
-                  <p className="text-sm text-amber-700 font-semibold mb-1">Utah Students</p>
-                  <p className="text-gray-600 text-sm">
-                    Your full tuition could be covered by the Utah Fits All Scholarship program.
-                  </p>
+                <div className="grid sm:grid-cols-3 gap-3 mb-6">
+                  {[
+                    { title: 'Your own teacher', desc: 'Dedicated 1-on-1 guidance' },
+                    { title: 'WASC-accredited diploma', desc: 'Recognized nationwide' },
+                    { title: 'Dual enrollment', desc: 'Earn college credit too' },
+                  ].map((item) => (
+                    <div key={item.title} className="bg-gray-50 rounded-lg p-3 text-center">
+                      <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
+                    </div>
+                  ))}
                 </div>
+                <button
+                  onClick={() => { setShowUFA(true); captureEvent('promo_scholarship_viewed') }}
+                  className="w-full bg-amber-50 rounded-xl p-4 border border-amber-200 text-left hover:bg-amber-100 transition-colors cursor-pointer mb-6"
+                >
+                  <div className="flex items-start gap-3">
+                    <svg className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Scholarship programs may cover your tuition</p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        State scholarship programs like Utah Fits All can cover the full cost of tuition at accredited schools like Optio. Tap to learn more.
+                      </p>
+                    </div>
+                  </div>
+                </button>
                 <div className="text-center">
                   <a
                     href="#get-info"
@@ -432,7 +423,8 @@ const PromoStudentPage = () => {
                   </a>
                 </div>
               </div>
-            </RevealSection>
+              </RevealSection>
+            </div>
           </div>
         </section>
 
@@ -453,14 +445,14 @@ const PromoStudentPage = () => {
                 <div className="bg-gradient-to-br from-optio-purple to-optio-pink rounded-2xl p-8 text-white shadow-xl h-full flex flex-col">
                   <div className="text-center mb-6 flex-1">
                     <p className="text-sm font-medium text-white/70 mb-3 uppercase tracking-wide">Individual Classes</p>
-                    <p className="text-4xl sm:text-5xl font-bold">$249</p>
+                    <p className="text-4xl sm:text-5xl font-bold">$250</p>
                     <p className="text-lg text-white/90 mt-1">per credit</p>
                     <p className="text-white/60 text-sm mt-2">1 credit = 1 full-year class</p>
                   </div>
                   <div className="space-y-2">
                     {[
                       'Dedicated teacher support',
-                      'All course materials included',
+                      'Build your own curriculum',
                       'WASC-accredited transcript',
                       'Work at your own pace',
                     ].map((text) => (
@@ -497,7 +489,7 @@ const PromoStudentPage = () => {
                     {[
                       '1-on-1 dedicated teacher',
                       'Self-direct your entire education',
-                      'All courses and materials',
+                      'Personalized learning plan',
                       'WASC-accredited diploma',
                     ].map((text) => (
                       <div key={text} className="flex items-start gap-2">
@@ -515,7 +507,7 @@ const PromoStudentPage = () => {
                     <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span className="text-sm font-semibold text-amber-700">Utah Fits All may cover tuition</span>
+                    <span className="text-sm font-semibold text-amber-700">Scholarships available</span>
                   </button>
                 </div>
               </RevealSection>
@@ -530,7 +522,7 @@ const PromoStudentPage = () => {
               Get Started
             </h2>
             <p className="text-gray-300 mb-8 text-lg">
-              Drop your info and we'll reach out with everything you need, including a free credit code for your first class.
+              Drop your info and we'll reach out with everything you need to get started.
             </p>
 
             {submitted ? (
@@ -541,7 +533,7 @@ const PromoStudentPage = () => {
                   </svg>
                 </div>
                 <h3 className="text-2xl font-bold mb-2">You're in!</h3>
-                <p className="text-gray-300">We'll be in touch soon with next steps and your free credit code.</p>
+                <p className="text-gray-300">We'll be in touch soon with next steps.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4 text-left">
@@ -727,7 +719,7 @@ const PromoStudentPage = () => {
                 onClick={() => setSelectedExample(null)}
                 className="mt-6 block w-full text-center bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-3 rounded-lg hover:opacity-90 transition-opacity"
               >
-                Get My Free Credit Code
+                Get Started
               </a>
             </div>
           </div>
@@ -749,7 +741,7 @@ const PromoStudentPage = () => {
                 <svg className="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <h3 className="text-xl font-bold text-gray-900">Utah Fits All Scholarship</h3>
+                <h3 className="text-xl font-bold text-gray-900">Scholarship Opportunities</h3>
               </div>
               <button
                 onClick={() => setShowUFA(false)}
@@ -764,13 +756,16 @@ const PromoStudentPage = () => {
 
             <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
               <p>
-                The <span className="font-semibold text-gray-900">Utah Fits All Scholarship</span> is a state-funded program that provides Utah students with funds to use toward approved educational expenses, including tuition at accredited private schools.
+                Many states offer scholarship or education savings account (ESA) programs that can be used toward tuition at accredited private schools. Because Optio Academy is <span className="font-semibold text-gray-900">WASC-accredited</span>, students may qualify for these programs.
               </p>
+              <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                <p className="font-semibold text-gray-900 text-sm mb-1">Example: Utah Fits All Scholarship</p>
+                <p className="text-gray-600 text-sm">
+                  Utah's scholarship program can cover the <span className="font-semibold text-gray-900">full $8,000 annual tuition</span> at accredited schools like Optio Academy. Eligibility is determined by the state of Utah.
+                </p>
+              </div>
               <p>
-                Because Optio Academy is WASC-accredited, Utah students may be eligible to have their <span className="font-semibold text-gray-900">full $8,000 annual tuition covered</span> through this program.
-              </p>
-              <p>
-                Eligibility is determined by the state of Utah. We can help you through the application process and confirm whether you qualify.
+                Contact us and we'll help you research what scholarship or ESA programs are available in your state and walk you through the application process.
               </p>
             </div>
 

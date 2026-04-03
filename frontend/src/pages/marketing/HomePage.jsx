@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
+import PhilosophyTeaser from '../../components/marketing/PhilosophyTeaser'
 
 const HERO_IMAGE = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/homepage/hero_real.jpg'
 
@@ -27,8 +28,8 @@ const AUDIENCES = [
   },
   {
     title: 'For Schools',
-    subtitle: 'Instant accreditation for your program',
-    description: 'From 5-student microschools to 500+ student networks. Student management, parent portals, and official credentials from day one.',
+    subtitle: 'Better outcomes through student-directed learning',
+    description: 'When students pursue their own interests, they show up differently. Stronger academics, better mental health, and skills that transfer to real life.',
     path: '/for-schools',
     image: 'https://images.pexels.com/photos/8613089/pexels-photo-8613089.jpeg?auto=compress&cs=tinysrgb&w=600',
     color: 'from-optio-purple to-optio-pink',
@@ -106,66 +107,49 @@ const HomePage = () => {
       </Helmet>
 
       {/* ========== HERO ========== */}
-      <section ref={heroRef} className="relative overflow-hidden min-h-[60vh] sm:min-h-[70vh] flex items-center">
-        {/* Background */}
+      <section ref={heroRef} className="relative overflow-hidden min-h-[60vh] sm:min-h-[70vh] flex items-end">
         <div className="absolute inset-0">
           <img src={HERO_IMAGE} alt="" className="w-full h-full object-cover" style={{ objectPosition: 'center 40%' }} />
-          {/* Mobile overlay */}
-          <div className="absolute inset-0 bg-optio-purple/70 sm:hidden" />
-          {/* Desktop gradient overlay */}
-          <div className="absolute inset-0 hidden sm:block" style={{
-            background: 'linear-gradient(to right, #6D469B 0%, #6D469B 25%, rgba(109,70,155,0.95) 35%, rgba(109,70,155,0.7) 45%, rgba(109,70,155,0.3) 55%, transparent 65%)'
-          }} />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/95 via-gray-900/60 via-50% to-transparent" />
         </div>
 
-        <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-          <div className="max-w-xl">
-            <h1
-              className="text-4xl sm:text-5xl lg:text-6xl text-white mb-3 leading-tight text-center sm:text-left"
-              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+        <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 leading-tight drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+            Personalized Learning.
+          </h1>
+          <h2
+            className="text-3xl sm:text-4xl md:text-5xl mb-6 leading-tight"
+            style={{
+              fontFamily: 'Poppins',
+              fontWeight: 700,
+              background: 'linear-gradient(180deg, #E7ABF3 0%, #BE84C9 100%)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Official Credentials.
+          </h2>
+          <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+            Where self-directed learning meets accredited diplomas. For students, families, and schools.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/how-it-works"
+              onClick={() => trackCta('hero_how_it_works')}
+              className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
+              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
-              Personalized Learning.
-            </h1>
-            <h2
-              className="text-3xl sm:text-4xl lg:text-5xl mb-6 leading-tight text-center sm:text-left"
-              style={{
-                fontFamily: 'Poppins',
-                fontWeight: 700,
-                background: 'linear-gradient(180deg, #E7ABF3 0%, #BE84C9 100%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
+              See How It Works
+            </Link>
+            <Link
+              to="/register"
+              onClick={() => trackCta('hero_get_started')}
+              className="inline-block bg-transparent border-2 border-white text-white hover:bg-white/10 font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
+              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
-              Official Credentials.
-            </h2>
-            <p
-              className="text-lg sm:text-xl text-white/90 mb-8 leading-relaxed text-center sm:text-left"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-            >
-              Where self-directed learning meets accredited diplomas. For students, families, and schools.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center sm:justify-start">
-              <Link
-                to="/how-it-works"
-                onClick={() => trackCta('hero_how_it_works')}
-                className="bg-white text-optio-pink hover:bg-gray-100 text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center justify-center font-bold"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                See How It Works
-                <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
-              <Link
-                to="/register"
-                onClick={() => trackCta('hero_get_started')}
-                className="bg-transparent border-2 border-white text-white hover:bg-white/10 text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center justify-center font-semibold"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                Get Started Free
-              </Link>
-            </div>
+              Get Started Free
+            </Link>
           </div>
         </div>
       </section>
@@ -234,16 +218,16 @@ const HomePage = () => {
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       loading="lazy"
                     />
-                    <div className={`absolute inset-0 bg-gradient-to-t ${audience.color} opacity-60 group-hover:opacity-50 transition-opacity`} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-6">
                       <h3
-                        className="text-2xl font-bold text-white mb-1"
+                        className="text-2xl font-bold text-white mb-1 drop-shadow-md"
                         style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                       >
                         {audience.title}
                       </h3>
                       <p
-                        className="text-white/90 text-sm font-medium"
+                        className="text-white/90 text-sm font-medium drop-shadow-sm"
                         style={{ fontFamily: 'Poppins' }}
                       >
                         {audience.subtitle}
@@ -274,99 +258,6 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* ========== SOCIAL PROOF / STATS ========== */}
-      <section className="py-12 sm:py-16 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <RevealSection>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-              {[
-                { stat: 'WASC', label: 'Accredited' },
-                { stat: '5', label: 'Learning Pillars' },
-                { stat: '100%', label: 'Personalized' },
-                { stat: 'Free', label: 'To Start' },
-              ].map((item) => (
-                <div key={item.label}>
-                  <p
-                    className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent"
-                    style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                  >
-                    {item.stat}
-                  </p>
-                  <p
-                    className="text-sm text-gray-500 mt-1"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
-                    {item.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </RevealSection>
-        </div>
-      </section>
-
-      {/* ========== HOW IT WORKS TEASER ========== */}
-      <section className="py-16 sm:py-20 bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <RevealSection>
-            <h2
-              className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
-              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-            >
-              How Does It Work?
-            </h2>
-            <p
-              className="text-lg text-gray-600 max-w-2xl mx-auto mb-10"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-            >
-              Students pursue interests through personalized quests. Their work becomes a portfolio. Family and mentors cheer them on.
-            </p>
-          </RevealSection>
-
-          <div className="grid sm:grid-cols-3 gap-6 mb-10">
-            {[
-              { step: '1', title: 'Learn Through Quests', desc: 'Personalized adventures built around real interests' },
-              { step: '2', title: 'Build a Portfolio', desc: 'Work is automatically captured and organized' },
-              { step: '3', title: 'Earn Credentials', desc: 'Official transcripts and accredited diplomas' },
-            ].map((item, i) => (
-              <RevealItem key={item.step} index={i}>
-                <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-lg font-bold mx-auto mb-4">
-                    {item.step}
-                  </div>
-                  <h3
-                    className="text-lg font-bold text-gray-900 mb-2"
-                    style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                  >
-                    {item.title}
-                  </h3>
-                  <p
-                    className="text-sm text-gray-600"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
-                    {item.desc}
-                  </p>
-                </div>
-              </RevealItem>
-            ))}
-          </div>
-
-          <RevealSection delay={300}>
-            <Link
-              to="/how-it-works"
-              onClick={() => trackCta('how_it_works_teaser')}
-              className="inline-flex items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white px-8 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Explore the Full Platform
-              <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-          </RevealSection>
-        </div>
-      </section>
-
       {/* ========== FINAL CTA ========== */}
       <section ref={ctaRef} className="py-16 sm:py-20 bg-gradient-to-r from-optio-purple to-optio-pink">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -382,25 +273,22 @@ const HomePage = () => {
           >
             Join families and schools proving that personalized education can be official.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/register"
-              onClick={() => trackCta('final_get_started')}
-              className="bg-white text-optio-pink hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all inline-flex items-center justify-center"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Get Started Free
-              <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/how-it-works"
               onClick={() => trackCta('final_how_it_works')}
-              className="bg-transparent border-2 border-white text-white hover:bg-white/10 px-8 py-4 rounded-lg font-bold text-lg transition-all inline-flex items-center justify-center"
-              style={{ fontFamily: 'Poppins' }}
+              className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
+              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               See How It Works
+            </Link>
+            <Link
+              to="/register"
+              onClick={() => trackCta('final_get_started')}
+              className="inline-block bg-transparent border-2 border-white text-white hover:bg-white/10 font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
+              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+            >
+              Get Started Free
             </Link>
           </div>
           <p

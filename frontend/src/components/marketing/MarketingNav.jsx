@@ -45,7 +45,7 @@ const MarketingNav = () => {
             className="flex-shrink-0"
             onClick={() => captureEvent('marketing_nav_logo_click')}
           >
-            <img src={LOGO_URL} alt="Optio Education" className="h-8 sm:h-9" />
+            <img src={LOGO_URL} alt="Optio" className="h-8 sm:h-9" />
           </Link>
 
           {/* Desktop nav links */}

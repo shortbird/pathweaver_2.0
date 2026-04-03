@@ -56,7 +56,7 @@ def submit_contact():
         contact_type = data.get('type', 'general').strip()
 
         # Validate contact type
-        valid_types = ['demo', 'sales', 'general']
+        valid_types = ['demo', 'sales', 'general', 'families']
         if contact_type not in valid_types:
             contact_type = 'general'
 
@@ -100,6 +100,21 @@ def submit_contact():
             except Exception as e:
                 # Don't fail the request if email fails
                 logger.warning(f"Failed to send demo confirmation email: {e}")
+
+        # Send confirmation email for family inquiries
+        if contact_type == 'families':
+            try:
+                email_sent = email_service.send_family_inquiry_confirmation(
+                    user_name=name,
+                    user_email=email,
+                    message=message
+                )
+                if email_sent:
+                    logger.info(f"Family inquiry confirmation email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send family inquiry confirmation email to {email}")
+            except Exception as e:
+                logger.warning(f"Failed to send family inquiry confirmation email: {e}")
 
         # Send confirmation email for sales inquiries
         if contact_type == 'sales':
