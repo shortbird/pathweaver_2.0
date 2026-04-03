@@ -52,6 +52,12 @@ const MarketingLayout = ({ children }) => {
     }
   }, [location.pathname])
 
+  // Enable smooth scrolling on marketing pages
+  useEffect(() => {
+    document.documentElement.style.scrollBehavior = 'smooth'
+    return () => { document.documentElement.style.scrollBehavior = '' }
+  }, [])
+
   return (
     <div className="min-h-screen flex flex-col">
       <MarketingNav />

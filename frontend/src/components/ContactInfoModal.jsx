@@ -3,7 +3,15 @@ import { Modal } from './ui/Modal';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 
+const CONTACT_CONFIG = {
+  demo: { title: 'Get More Info', placeholder: 'Tell us about your learning community...' },
+  sales: { title: 'Contact Sales', placeholder: 'Tell us about your organization...' },
+  families: { title: 'Tell Us About Your Family', placeholder: 'How many kids do you have? What does your homeschool look like? What are you hoping Optio can help with?' },
+  general: { title: 'Get More Info', placeholder: 'How can we help?' },
+};
+
 const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
+  const config = CONTACT_CONFIG[contactType] || CONTACT_CONFIG.general;
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', message: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -52,7 +60,7 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
     }
   };
 
-  const title = contactType === 'sales' ? 'Contact Sales' : 'Get More Info';
+  const title = config.title;
 
   if (success) {
     return (
@@ -156,7 +164,7 @@ const ContactInfoModal = ({ isOpen, onClose, contactType = 'demo' }) => {
             rows={3}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all resize-none"
             style={{ fontFamily: 'Poppins' }}
-            placeholder="Tell us about your learning community..."
+            placeholder={config.placeholder}
             disabled={loading}
           />
         </div>

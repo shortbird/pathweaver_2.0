@@ -24,7 +24,7 @@ const MarketingFooter = () => {
           <div className="col-span-2 sm:col-span-1">
             <img
               src={LOGO_URL}
-              alt="Optio Education"
+              alt="Optio"
               className="h-8 brightness-0 invert mb-4"
             />
             <p
@@ -86,7 +86,7 @@ const MarketingFooter = () => {
             className="text-gray-500 text-sm"
             style={{ fontFamily: 'Poppins' }}
           >
-            &copy; {new Date().getFullYear()} Optio Education. All rights reserved.
+            &copy; {new Date().getFullYear()} Optio. All rights reserved.
           </p>
           <p
             className="text-gray-500 text-sm"

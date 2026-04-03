@@ -1,21 +1,20 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
-import ContactInfoModal from '../../components/ContactInfoModal'
+import InlineContactForm from '../../components/marketing/InlineContactForm'
+import PhilosophyTeaser from '../../components/marketing/PhilosophyTeaser'
 
 const PAGE = 'how_it_works'
 
 const OPTIO_ICON = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
 const HowItWorksPage = () => {
-  const [contactOpen, setContactOpen] = useState(false)
   const trackCta = useCtaTracker(PAGE)
 
   const heroRef = useSectionView('hero', PAGE)
-  const overviewRef = useSectionView('overview', PAGE)
   const questsRef = useSectionView('quests', PAGE)
   const evidenceRef = useSectionView('evidence', PAGE)
   const portfolioRef = useSectionView('portfolio', PAGE)
@@ -23,8 +22,6 @@ const HowItWorksPage = () => {
   const observerRef = useSectionView('observers', PAGE)
   const bountiesRef = useSectionView('bounties', PAGE)
   const credentialsRef = useSectionView('credentials', PAGE)
-  const ctaRef = useSectionView('final_cta', PAGE)
-
   return (
     <MarketingLayout>
       <Helmet>
@@ -37,12 +34,9 @@ const HowItWorksPage = () => {
       </Helmet>
 
       {/* ========== HERO ========== */}
-      <section ref={heroRef} className="py-16 sm:py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+      <section ref={heroRef} className="py-16 sm:py-24 bg-gradient-to-r from-optio-purple to-optio-pink text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <RevealSection>
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-6">
-              <img src={OPTIO_ICON} alt="Optio" className="w-10 h-10" />
-            </div>
             <h1
               className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
@@ -53,41 +47,9 @@ const HowItWorksPage = () => {
               className="text-xl sm:text-2xl text-white/80 max-w-3xl mx-auto leading-relaxed"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
-              Students pursue real interests. Their work becomes evidence. Evidence builds a portfolio. Family and mentors cheer them on -- and can even post challenges.
+              Students pursue real interests. Their work becomes evidence. Evidence builds a portfolio. Family and mentors cheer them on and can even post challenges.
             </p>
           </RevealSection>
-        </div>
-      </section>
-
-      {/* ========== VISUAL FLOW OVERVIEW ========== */}
-      <section ref={overviewRef} className="py-12 sm:py-16 bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-0">
-            {[
-              { label: 'Quests', color: 'from-blue-500 to-indigo-600' },
-              { label: 'Evidence', color: 'from-emerald-500 to-teal-600' },
-              { label: 'Portfolio', color: 'from-optio-purple to-optio-pink' },
-              { label: 'Activity Feed', color: 'from-amber-500 to-orange-500' },
-              { label: 'Observers & Bounties', color: 'from-rose-500 to-pink-600' },
-              { label: 'Credentials', color: 'from-yellow-500 to-amber-600' },
-            ].map((step, i) => (
-              <React.Fragment key={step.label}>
-                <div className="flex flex-col items-center">
-                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br ${step.color} text-white flex items-center justify-center text-sm sm:text-base font-bold shadow-md`}>
-                    {i + 1}
-                  </div>
-                  <p className="text-xs sm:text-sm font-semibold text-gray-700 mt-2 text-center whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
-                    {step.label}
-                  </p>
-                </div>
-                {i < 5 && (
-                  <svg className="w-6 h-6 text-gray-300 flex-shrink-0 hidden sm:block mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                )}
-              </React.Fragment>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -104,7 +66,7 @@ const HowItWorksPage = () => {
                 Learning Starts With Interests
               </h2>
               <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Students don't sit through pre-made courses. They pursue Quests -- personalized learning adventures built around things they actually care about.
+                Students don't sit through pre-made courses. They pursue Quests: personalized learning adventures built around things they actually care about.
               </p>
               <div className="space-y-3">
                 {[
@@ -174,37 +136,47 @@ const HowItWorksPage = () => {
               <div className="space-y-4">
                 {[
                   {
-                    type: 'Photo',
-                    title: 'Golden hour at the old bridge',
-                    desc: 'Experimented with rule of thirds and natural lighting. The shadows were perfect around 6pm.',
+                    task: 'Photograph 5 local landmarks',
+                    evidence: 'Experimented with rule of thirds and natural lighting. The shadows were perfect around 6pm.',
                     pillar: 'Art',
                     pillarColor: 'bg-pink-100 text-pink-700',
-                    time: '2 hours ago',
+                    attachments: '5 photos attached',
                   },
                   {
-                    type: 'Reflection',
-                    title: 'What I learned about composition',
-                    desc: 'After studying Ansel Adams, I realized I was centering everything. Tried off-center framing today and the results were way more interesting.',
+                    task: 'Study composition techniques',
+                    evidence: 'After studying Ansel Adams, I realized I was centering everything. Tried off-center framing today and the results were way more interesting.',
                     pillar: 'Communication',
                     pillarColor: 'bg-blue-100 text-blue-700',
-                    time: 'Yesterday',
+                    attachments: '1 document attached',
                   },
                   {
-                    type: 'File',
-                    title: 'Photo essay draft v2',
-                    desc: 'Revised version with 12 photos organized by theme. Added captions with historical context.',
+                    task: 'Create photo essay on community',
+                    evidence: 'Revised version with 12 photos organized by theme. Added captions with historical context.',
                     pillar: 'Art',
                     pillarColor: 'bg-pink-100 text-pink-700',
-                    time: '3 days ago',
+                    attachments: '12 photos, 1 document attached',
                   },
                 ].map((item) => (
-                  <div key={item.title} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${item.pillarColor}`}>{item.pillar}</span>
-                      <span className="text-xs text-gray-400" style={{ fontFamily: 'Poppins' }}>{item.time}</span>
+                  <div key={item.task} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                    <div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'Poppins' }}>Task</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${item.pillarColor}`}>{item.pillar}</span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>{item.task}</p>
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                          <p className="text-xs font-semibold text-optio-purple mb-1" style={{ fontFamily: 'Poppins' }}>Evidence</p>
+                          <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.evidence}</p>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                            <span className="text-xs text-gray-400" style={{ fontFamily: 'Poppins' }}>{item.attachments}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <h4 className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>{item.title}</h4>
-                    <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
                   </div>
                 ))}
               </div>
@@ -218,13 +190,13 @@ const HowItWorksPage = () => {
                 Work Creates Evidence
               </h2>
               <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                As students complete tasks, they create Learning Moments -- photos, reflections, files, and projects that serve as evidence of personalized learning.
+                As students complete tasks, they create Learning Moments: photos, reflections, files, and projects that serve as evidence of personalized learning.
               </p>
               <div className="space-y-3">
                 {[
                   'Photos, videos, documents, and reflections',
                   'Each piece maps to one of five learning pillars',
-                  'Students document once -- no busywork',
+                  'Students document once. No busywork',
                   'Evidence is tied to specific quest tasks',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
@@ -302,11 +274,16 @@ const HowItWorksPage = () => {
                     ))}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
-                    {[1,2,3,4,5,6].map((i) => (
-                      <div key={i} className="aspect-square rounded-lg bg-gray-100 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
+                    {[
+                      'https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg?auto=compress&cs=tinysrgb&w=200',
+                      'https://images.pexels.com/photos/1624496/pexels-photo-1624496.jpeg?auto=compress&cs=tinysrgb&w=200',
+                      'https://images.pexels.com/photos/2662116/pexels-photo-2662116.jpeg?auto=compress&cs=tinysrgb&w=200',
+                      'https://images.pexels.com/photos/1266810/pexels-photo-1266810.jpeg?auto=compress&cs=tinysrgb&w=200',
+                      'https://images.pexels.com/photos/3408744/pexels-photo-3408744.jpeg?auto=compress&cs=tinysrgb&w=200',
+                      'https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=200',
+                    ].map((img, i) => (
+                      <div key={i} className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                        <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" />
                       </div>
                     ))}
                   </div>
@@ -325,25 +302,19 @@ const HowItWorksPage = () => {
               {/* Feed mockup */}
               <div className="bg-gray-50 rounded-2xl p-4 sm:p-6 border border-gray-200">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center">
-                    <img src={OPTIO_ICON} alt="" className="w-5 h-5" />
-                  </div>
+                  <img src={OPTIO_ICON} alt="" className="w-7 h-7" />
                   <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>Activity Feed</span>
                 </div>
                 <div className="space-y-3">
                   {[
-                    { user: 'Emma', action: 'completed a task', detail: '"Photograph 5 local landmarks"', xp: '+50 XP', time: '2h ago', avatar: 'E' },
-                    { user: 'Grandma Sue', action: 'posted a bounty', detail: '"Help organize my photo albums"', xp: '75 XP reward', time: '5h ago', avatar: 'S', isBounty: true },
-                    { user: 'Emma', action: 'submitted evidence', detail: 'Photo essay draft with 12 images', xp: '+75 XP', time: '1d ago', avatar: 'E' },
-                    { user: 'Uncle Dave', action: 'left encouragement', detail: '"These photos are incredible! So proud of you."', time: '1d ago', avatar: 'D', isComment: true },
+                    { user: 'Emma', action: 'completed a task', detail: '"Photograph 5 local landmarks"', xp: '+50 XP', time: '2h ago', photo: 'https://images.pexels.com/photos/3783725/pexels-photo-3783725.jpeg?auto=compress&cs=tinysrgb&w=100' },
+                    { user: 'Grandma Sue', action: 'posted a bounty', detail: '"Help organize my photo albums"', xp: '75 XP reward', time: '5h ago', photo: 'https://images.pexels.com/photos/3768114/pexels-photo-3768114.jpeg?auto=compress&cs=tinysrgb&w=100', isBounty: true },
+                    { user: 'Emma', action: 'submitted evidence', detail: 'Photo essay draft with 12 images', xp: '+75 XP', time: '1d ago', photo: 'https://images.pexels.com/photos/3783725/pexels-photo-3783725.jpeg?auto=compress&cs=tinysrgb&w=100' },
+                    { user: 'Uncle Dave', action: 'left encouragement', detail: '"These photos are incredible! So proud of you."', time: '1d ago', photo: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=100', isComment: true },
                   ].map((item, i) => (
                     <div key={i} className={`bg-white rounded-xl p-4 border ${item.isBounty ? 'border-amber-200 bg-amber-50' : item.isComment ? 'border-green-200 bg-green-50' : 'border-gray-100'}`}>
                       <div className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
-                          item.isBounty ? 'bg-amber-500' : item.isComment ? 'bg-green-500' : 'bg-gradient-to-br from-optio-purple to-optio-pink'
-                        }`}>
-                          {item.avatar}
-                        </div>
+                        <img src={item.photo} alt={item.user} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                             <span className="font-semibold text-gray-900">{item.user}</span>{' '}
@@ -377,7 +348,7 @@ const HowItWorksPage = () => {
                   'Real-time updates as students complete work',
                   'Parents control exactly who has access',
                   'Observers can leave encouragement and comments',
-                  'Feels familiar -- like a private Instagram for learning',
+                  'Feels familiar, like a private Instagram for learning',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -395,73 +366,53 @@ const HowItWorksPage = () => {
       {/* ========== STEP 5: OBSERVERS & BOUNTIES ========== */}
       <section ref={observerRef} className="py-16 sm:py-24 bg-gray-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <RevealSection>
-              <div className="flex items-center gap-3 mb-4">
+          <RevealSection>
+            <div className="text-center mb-12">
+              <div className="flex items-center justify-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center text-lg font-bold">5</div>
                 <span className="text-sm font-semibold text-rose-600 uppercase tracking-wider" style={{ fontFamily: 'Poppins' }}>Family Engagement</span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                 Observers and Bounties
               </h2>
-              <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Parents invite trusted adults as Observers. Observers can view the activity feed, cheer progress, and post Bounties -- real-world challenges that earn XP.
+              <p className="text-gray-600 text-lg max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Parents invite grandparents, mentors, and trusted adults as Observers. They follow the activity feed, cheer progress, and can post Bounties for students to complete.
               </p>
-              <div className="space-y-4">
-                <div className="bg-white rounded-xl p-5 border border-gray-200">
-                  <h4 className="font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Observer Access</h4>
-                  <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                    Grandparents, aunts, uncles, mentors, and family friends get view-only access. They see learning happen in real time and can leave encouragement. Parents control who gets access.
-                  </p>
+            </div>
+          </RevealSection>
+
+          <div className="grid sm:grid-cols-2 gap-4 mb-8 max-w-2xl mx-auto">
+            {[
+              { role: 'Parent', desc: 'Controls who has observer access. Manages the family account.', color: 'border-t-blue-500' },
+              { role: 'Observer', desc: 'Views the activity feed. Leaves encouragement. Posts bounties.', color: 'border-t-emerald-500' },
+            ].map((item, i) => (
+              <RevealItem key={item.role} index={i}>
+                <div className={`bg-white rounded-xl p-5 border border-gray-100 shadow-sm border-t-4 ${item.color}`}>
+                  <h4 className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>{item.role}</h4>
+                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
                 </div>
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-200">
-                  <h4 className="font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Bounties</h4>
-                  <p className="text-sm text-gray-600 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                    Observers can post Bounties -- real-world tasks that specific students can complete for XP. It turns everyday help into a learning opportunity.
+              </RevealItem>
+            ))}
+          </div>
+
+          <RevealSection>
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 sm:p-6 border border-amber-200 max-w-2xl mx-auto">
+              <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-3" style={{ fontFamily: 'Poppins' }}>Example Bounty</p>
+              <div className="flex items-start gap-3">
+                <img src="https://images.pexels.com/photos/3768114/pexels-photo-3768114.jpeg?auto=compress&cs=tinysrgb&w=100" alt="Grandma Sue" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>Grandma Sue posted a bounty</p>
+                  <p className="text-sm text-gray-700 mt-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    "Help me organize my photo albums from the 1980s. Sort them by year and label the people in each photo."
                   </p>
-                  <div className="bg-white rounded-lg p-4 border border-amber-100">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">G</div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>Grandma Sue posted a bounty</p>
-                        <p className="text-sm text-gray-700 mt-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                          "Help me organize my photo albums from the 1980s. Sort them by year and label the people in each photo."
-                        </p>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">75 XP reward</span>
-                          <span className="text-xs text-gray-400">Available to: Emma, Jake</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">75 XP reward</span>
+                    <span className="text-xs text-gray-400">Available to: Emma, Jake</span>
                   </div>
                 </div>
               </div>
-            </RevealSection>
-            <RevealSection delay={200}>
-              {/* Observer access diagram */}
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
-                <h3 className="text-lg font-bold text-gray-900 mb-6 text-center" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Who Can See What</h3>
-                <div className="space-y-4">
-                  {[
-                    { role: 'Student', access: 'Full access to their own quests, tasks, portfolio, and feed', color: 'bg-gradient-to-r from-optio-purple to-optio-pink', icon: 'S' },
-                    { role: 'Parent', access: 'Dashboard view of all children, controls observer access, manages dependents', color: 'bg-gradient-to-r from-blue-500 to-indigo-600', icon: 'P' },
-                    { role: 'Observer', access: 'View-only activity feed, can comment and post bounties', color: 'bg-gradient-to-r from-emerald-500 to-teal-600', icon: 'O' },
-                    { role: 'Advisor', access: 'Guides student learning, reviews and approves task completions', color: 'bg-gradient-to-r from-amber-500 to-orange-500', icon: 'A' },
-                  ].map((item) => (
-                    <div key={item.role} className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-full ${item.color} text-white flex items-center justify-center text-sm font-bold flex-shrink-0`}>
-                        {item.icon}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>{item.role}</p>
-                        <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.access}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </RevealSection>
-          </div>
+            </div>
+          </RevealSection>
         </div>
       </section>
 
@@ -485,7 +436,7 @@ const HowItWorksPage = () => {
               {
                 title: 'Transfer Credit',
                 desc: 'Take individual classes through Optio and transfer official credit to your current school.',
-                price: '$249 / credit',
+                price: '$250 / credit',
                 icon: (
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
@@ -507,10 +458,10 @@ const HowItWorksPage = () => {
               {
                 title: 'College Credit',
                 desc: 'Earn transferable college credit through dual enrollment while completing high school coursework.',
-                price: 'Included',
+                price: '$250 / credit',
                 icon: (
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
                   </svg>
                 ),
               },
@@ -530,59 +481,14 @@ const HowItWorksPage = () => {
         </div>
       </section>
 
-      {/* ========== THE PHILOSOPHY ========== */}
-      <section className="py-16 sm:py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <RevealSection>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              The Process Is The Goal
-            </h2>
-            <p className="text-xl text-white/80 leading-relaxed max-w-3xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Optio isn't about reaching a destination or impressing others. It's about who you become through the journey of discovery, creation, and growth. Learning matters today -- not just for some future outcome.
-            </p>
-          </RevealSection>
-        </div>
-      </section>
+      {/* ========== INLINE CONTACT FORM ========== */}
+      <InlineContactForm
+        source="demo"
+        heading="Get More Info"
+        subheading="Drop your info and we'll reach out with everything you need."
+        placeholder="What are you most interested in learning about?"
+      />
 
-      {/* ========== FINAL CTA ========== */}
-      <section ref={ctaRef} className="py-16 sm:py-20 bg-gradient-to-r from-optio-purple to-optio-pink">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-            Ready to See It In Action?
-          </h2>
-          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            Start free. Build your first quest. See the portfolio grow.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/register"
-              onClick={() => trackCta('final_get_started')}
-              className="bg-white text-optio-pink hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all inline-flex items-center justify-center"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Get Started Free
-              <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-            <button
-              onClick={() => { trackCta('final_get_info'); setContactOpen(true) }}
-              className="bg-transparent border-2 border-white text-white hover:bg-white/10 px-8 py-4 rounded-lg font-bold text-lg transition-all inline-flex items-center justify-center"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Get More Info
-            </button>
-          </div>
-          <p className="text-white/70 text-sm mt-8" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            Questions? Email{' '}
-            <a href="mailto:support@optioeducation.com" className="underline hover:no-underline text-white/90">
-              support@optioeducation.com
-            </a>
-          </p>
-        </div>
-      </section>
-
-      <ContactInfoModal isOpen={contactOpen} onClose={() => setContactOpen(false)} contactType="demo" />
     </MarketingLayout>
   )
 }
