@@ -15,28 +15,24 @@ const SDT_DATA = {
     subtitle: 'Autonomy',
     color: '#6D469B',
     desc: 'Students pick their own projects, decide how to show what they\'ve learned, and choose what evidence to share. There\'s no single right path through Optio. This is the piece that changes everything.',
-    schoolStatus: 'Rarely present in traditional schools',
   },
   competence: {
     label: 'Competence',
     subtitle: 'Growth',
     color: '#F59E0B',
     desc: 'The work meets students where they are and pushes them just enough. When a challenge is too easy, students check out. When it\'s overwhelming, they shut down. The sweet spot in between is where real growth happens.',
-    schoolStatus: 'Present in most traditional schools',
   },
   connection: {
     label: 'Connection',
     subtitle: 'Relatedness',
     color: '#EF597B',
     desc: 'Students see themselves in what they\'re learning. The work connects to who they are, and family and mentors get to be part of it. Education stops being something that happens to you and becomes something you share.',
-    schoolStatus: 'Present in most traditional schools',
   },
   center: {
     label: 'Self-Determination',
     subtitle: 'Intrinsic Motivation',
     color: '#FFFFFF',
     desc: 'When choice, competence, and connection are all present and in balance, something changes. Students stop needing external motivation. They become genuinely self-determined learners who pursue growth because they want to, not because someone is making them.',
-    schoolStatus: 'The goal of Optio\'s entire design',
   },
 }
 
@@ -71,7 +67,7 @@ const SdtSection = ({ sectionRef }) => {
               Three Things Every Learner Needs
             </h2>
             <p className="text-lg text-white/60 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Decades of research on what actually motivates people to learn. Tap each element to learn more.
+              Centuries of research on what actually motivates people to learn. Tap each element to learn more.
             </p>
           </div>
         </RevealSection>
@@ -170,9 +166,6 @@ const SdtSection = ({ sectionRef }) => {
               <p className="text-sm text-white/80 leading-relaxed mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                 {SDT_DATA[active].desc}
               </p>
-              <p className="text-xs text-white/40 italic" style={{ fontFamily: 'Poppins' }}>
-                {SDT_DATA[active].schoolStatus}
-              </p>
             </div>
 
             <button
@@ -222,8 +215,6 @@ const PhilosophyPage = () => {
   const teacherRef = useSectionView('teacher_role', PAGE)
   const xpRef = useSectionView('xp_not_grades', PAGE)
   const sdtRef = useSectionView('sdt_pillars', PAGE)
-  const testRef = useSectionView('ultimate_test', PAGE)
-
   return (
     <MarketingLayout>
       <Helmet>
@@ -337,7 +328,10 @@ const PhilosophyPage = () => {
         </div>
       </section>
 
-      {/* ========== THE POWER OF CHOICE ========== */}
+      {/* ========== THREE THINGS EVERY LEARNER NEEDS ========== */}
+      <SdtSection sectionRef={sdtRef} />
+
+      {/* ========== CHOICE AND CONSEQUENCES ========== */}
       <section ref={choiceRef} className="py-16 sm:py-20 bg-gray-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -552,47 +546,6 @@ const PhilosophyPage = () => {
         </div>
       </section>
 
-      {/* ========== THREE THINGS EVERY LEARNER NEEDS ========== */}
-      <SdtSection sectionRef={sdtRef} />
-
-      {/* ========== WHAT WE EVALUATE ========== */}
-      <section ref={testRef} className="py-20 sm:py-32 bg-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <RevealSection>
-            <h2
-              className="text-3xl sm:text-4xl font-bold text-gray-900 mb-12 text-center"
-              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-            >
-              What We Actually Evaluate
-            </h2>
-          </RevealSection>
-
-          <div className="grid sm:grid-cols-2 gap-6">
-            {[
-              { label: 'Curiosity', desc: 'Are they asking questions because they want to know, not because they have to?', icon: <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg> },
-              { label: 'Effort', desc: 'Did they push themselves, or did they do the minimum to check a box?', icon: <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
-              { label: 'Growth', desc: 'Can they do something today that they couldn\'t do last month?', icon: <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> },
-              { label: 'Reflection', desc: 'Can they articulate what they learned and why it mattered to them?', icon: <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
-            ].map((item, i) => (
-              <RevealItem key={item.label} index={i}>
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 h-full">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 text-optio-purple flex items-center justify-center mb-4">
-                    {item.icon}
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>{item.label}</h3>
-                  <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
-                </div>
-              </RevealItem>
-            ))}
-          </div>
-
-          <RevealSection>
-            <p className="text-center text-gray-500 mt-10" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              No percentages. No letter grades. No class rank. Just evidence that a student is growing.
-            </p>
-          </RevealSection>
-        </div>
-      </section>
 
       {/* ========== LEARNING FOR EVERYONE ========== */}
       <section className="py-20 sm:py-32 bg-gray-50">
@@ -617,46 +570,137 @@ const PhilosophyPage = () => {
 
             <RevealSection delay={200}>
               <div className="space-y-4">
-                {[
-                  { label: 'Multiple ways to show learning', desc: 'Photos, videos, writing, audio, projects, conversations. Students choose how to demonstrate what they know.' },
-                  { label: 'Self-paced by design', desc: 'No timed tests, no falling behind the class. Students move at the speed that works for them.' },
-                  { label: 'Strengths over deficits', desc: 'XP accumulates based on what students can do, not what they can\'t. Every student has a path forward.' },
-                  { label: 'Teacher who knows them', desc: 'A dedicated 1-on-1 teacher relationship means support is always tailored, never generic.' },
-                ].map((item) => (
-                  <div key={item.label} className="bg-white rounded-xl p-5 border border-gray-100">
-                    <p className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>{item.label}</p>
-                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{item.desc}</p>
+                {/* Multiple ways to show learning */}
+                <div className="bg-white rounded-xl p-5 border border-gray-100">
+                  <div className="flex gap-3 mb-3 justify-evenly">
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                    </div>
                   </div>
-                ))}
+                  <p className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Multiple ways to show learning</p>
+                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Photos, videos, audio recordings, written reflections, projects. Students choose how to demonstrate what they know.</p>
+                </div>
+
+                {/* Engagement over deadlines */}
+                <div className="bg-white rounded-xl p-5 border border-gray-100">
+                  <div className="flex items-center gap-1 mb-3">
+                    {['M','T','W','T','F','S','S'].map((day, i) => (
+                      <div key={i} className="flex flex-col items-center gap-0.5 flex-1">
+                        <div className={`w-full h-6 rounded-sm ${[0,1,2,4,5].includes(i) ? 'bg-gradient-to-t from-emerald-400 to-emerald-300' : 'bg-gray-100'}`}></div>
+                        <span className="text-[8px] text-gray-400" style={{ fontFamily: 'Poppins' }}>{day}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Engagement, not deadlines</p>
+                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>We don't track completion or due dates. We track regular, consistent engagement in the process of learning.</p>
+                </div>
+
+                {/* XP rewards the process */}
+                <div className="bg-white rounded-xl p-5 border border-gray-100">
+                  <div className="space-y-1.5 mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-optio-purple/20 flex items-center justify-center"><svg className="w-2.5 h-2.5 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                      <span className="text-[10px] text-gray-500" style={{ fontFamily: 'Poppins' }}>First draft submitted</span>
+                      <span className="text-[10px] font-bold text-optio-purple ml-auto" style={{ fontFamily: 'Poppins' }}>+20 XP</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-amber-100 flex items-center justify-center"><svg className="w-2.5 h-2.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></div>
+                      <span className="text-[10px] text-gray-500" style={{ fontFamily: 'Poppins' }}>Revised after feedback</span>
+                      <span className="text-[10px] font-bold text-optio-purple ml-auto" style={{ fontFamily: 'Poppins' }}>+25 XP</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center"><svg className="w-2.5 h-2.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                      <span className="text-[10px] text-gray-500" style={{ fontFamily: 'Poppins' }}>Reflected on what changed</span>
+                      <span className="text-[10px] font-bold text-optio-purple ml-auto" style={{ fontFamily: 'Poppins' }}>+15 XP</span>
+                    </div>
+                  </div>
+                  <p className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>XP rewards the process</p>
+                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Letter grades penalize failure. XP recognizes failure as valuable learning. We reward engagement in the process, not perfection or meeting standards.</p>
+                </div>
+
+                {/* Teacher who knows them */}
+                <div className="bg-white rounded-xl p-5 border border-gray-100">
+                  <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                    <div className="flex items-start gap-2">
+                      <img src="https://images.pexels.com/photos/6147253/pexels-photo-6147253.jpeg?auto=compress&cs=tinysrgb&w=100" alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                      <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+                        <p className="text-[10px] text-gray-600" style={{ fontFamily: 'Poppins' }}>Your photography quest is coming together really well. I have some ideas for how you could take the composition section even further. Want to hop on a call?</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>A teacher who actually knows them</p>
+                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>A dedicated 1-on-1 relationship means support is personal, not generic. Your teacher knows your goals, your struggles, and your story.</p>
+                </div>
               </div>
             </RevealSection>
           </div>
         </div>
       </section>
 
-      {/* ========== DEWEY CLOSING ========== */}
-      <section className="py-16 sm:py-24 bg-white">
+      {/* ========== CONCLUSION ========== */}
+      <section className="py-20 sm:py-32 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <RevealSection>
-            <div className="flex flex-col sm:flex-row items-center gap-6 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10">
-              <img
-                src="https://upload.wikimedia.org/wikipedia/commons/e/ef/John_Dewey_cph.3a51565.jpg"
-                alt="John Dewey"
-                className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover object-top flex-shrink-0 border-4 border-white shadow-lg"
-              />
-              <div>
-                <p className="text-lg sm:text-xl text-gray-800 italic leading-relaxed mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                  "{DEWEY_QUOTE}"
-                </p>
-                <p className="text-sm text-gray-500 font-semibold" style={{ fontFamily: 'Poppins' }}>
-                  John Dewey, My Pedagogic Creed (1897)
-                </p>
-              </div>
-            </div>
-            <p className="text-center text-gray-500 mt-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Optio is rooted in this tradition. The work of John Dewey and the research of Dr. Tanner Bowman.
-            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-8" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              Why It's Called "The Process Is The Goal"
+            </h2>
           </RevealSection>
+
+          <div className="space-y-6">
+            <RevealSection>
+              <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Most schools treat learning as a means to an end. You study so you can pass the test. You pass the test so you can get the grade. You get the grade so you can graduate. You graduate so you can get into college. Everything points to some future payoff.
+              </p>
+            </RevealSection>
+
+            <RevealSection>
+              <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                We think that gets it backwards. The learning itself is the valuable part. The curiosity a student feels when they choose their own project. The persistence they develop when they push through something hard. The pride of creating something that matters to them. That's not preparation for life. That <em>is</em> life.
+              </p>
+            </RevealSection>
+
+            <RevealSection>
+              <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                The diploma, the transcript, the college acceptance letter? Those are real, and they matter. But they're the byproduct of a student who learned how to drive their own education. Not the other way around.
+              </p>
+            </RevealSection>
+
+            <RevealSection>
+              <div className="flex flex-col sm:flex-row items-center gap-6 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 my-8">
+                <img
+                  src="https://upload.wikimedia.org/wikipedia/commons/e/ef/John_Dewey_cph.3a51565.jpg"
+                  alt="John Dewey"
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover object-top flex-shrink-0 border-4 border-white shadow-lg"
+                />
+                <div>
+                  <p className="text-lg sm:text-xl text-gray-800 italic leading-relaxed mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    "{DEWEY_QUOTE}"
+                  </p>
+                  <p className="text-sm text-gray-500 font-semibold" style={{ fontFamily: 'Poppins' }}>
+                    John Dewey, My Pedagogic Creed (1897)
+                  </p>
+                </div>
+              </div>
+            </RevealSection>
+
+            <RevealSection>
+              <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Dewey said it over a century ago, and it's still the truest thing anyone has said about education. Optio was built on his tradition, informed by the research of Dr. Tanner Bowman, and designed for a generation of students who deserve to feel like their learning matters right now.
+              </p>
+            </RevealSection>
+          </div>
         </div>
       </section>
 
