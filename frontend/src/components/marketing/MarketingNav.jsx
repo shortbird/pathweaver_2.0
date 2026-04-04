@@ -9,7 +9,7 @@ const NAV_LINKS = [
   { label: 'For Families', path: '/for-families' },
   { label: 'For Schools', path: '/for-schools' },
   { label: 'How It Works', path: '/how-it-works' },
-  // { label: 'Philosophy', path: '/philosophy' }, // TODO: uncomment when philosophy page is finalized
+  { label: 'Philosophy', path: '/philosophy' },
 ]
 
 const MarketingNav = () => {
