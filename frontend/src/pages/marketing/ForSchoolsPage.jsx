@@ -168,7 +168,7 @@ const ForSchoolsPage = () => {
                 desc: 'Students make meaningful decisions about their learning. They choose which quests to pursue, how to demonstrate understanding, and what evidence to share. We never dictate a single path.',
               },
               {
-                title: 'Competency',
+                title: 'Competence',
                 subtitle: 'Growth',
                 desc: 'Challenges meet students where they are. Tasks stretch them just enough to feel accomplishment without overwhelming them. Progress is based on mastery, not compliance.',
               },

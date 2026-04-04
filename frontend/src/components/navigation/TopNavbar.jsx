@@ -78,7 +78,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
             )}
 
             {/* Logo - Shows both Organization and Optio */}
-            <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3">
               {/* Organization Logo (if authenticated and org has custom branding) - LEFT of Optio */}
               {isAuthenticated && organization && organization.branding_config?.logo_url && (
                 <>
