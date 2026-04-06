@@ -94,9 +94,9 @@ const HowItWorksPage = () => {
   return (
     <>
       <Helmet>
-        <title>How It Works | Optio Education</title>
+        <title>How It Works | Optio</title>
         <meta name="description" content="Learn how Optio's unique approach to education works. Self-directed quests, XP-based progress, and portfolio assessment help students learn by doing real projects." />
-        <meta property="og:title" content="How It Works | Optio Education" />
+        <meta property="og:title" content="How It Works | Optio" />
         <meta property="og:description" content="A different kind of learning. Self-directed projects, mastery-based progression, and real-world skills." />
         <meta property="og:url" content="https://www.optioeducation.com/how-it-works" />
         <link rel="canonical" href="https://www.optioeducation.com/how-it-works" />

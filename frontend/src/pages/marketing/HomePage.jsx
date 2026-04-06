@@ -85,9 +85,9 @@ const HomePage = () => {
   return (
     <MarketingLayout>
       <Helmet>
-        <title>Optio Education | Personalized Learning, Official Credentials</title>
+        <title>Optio | Personalized Learning, Official Credentials</title>
         <meta name="description" content="Where self-directed learning meets accredited diplomas. For students, homeschool families, microschools, and learning communities." />
-        <meta property="og:title" content="Optio Education | Personalized Learning, Official Credentials" />
+        <meta property="og:title" content="Optio | Personalized Learning, Official Credentials" />
         <meta property="og:description" content="Turn interests into real learning. Turn learning into official credentials. For students, families, and schools." />
         <meta property="og:url" content="https://www.optioeducation.com" />
         <link rel="canonical" href="https://www.optioeducation.com" />

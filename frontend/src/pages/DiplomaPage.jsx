@@ -867,7 +867,7 @@ const DiplomaPage = () => {
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDescription} />
         <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:site_name" content="Optio Education" />
+        <meta property="og:site_name" content="Optio" />
 
         {/* Twitter Card Tags */}
         <meta name="twitter:card" content="summary_large_image" />
