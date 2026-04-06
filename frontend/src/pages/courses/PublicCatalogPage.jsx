@@ -177,9 +177,9 @@ const PublicCatalogPage = () => {
   return (
     <>
       <Helmet>
-        <title>Course Catalog | Optio Education</title>
-        <meta name="description" content="Browse self-directed learning courses at Optio Education. Project-based learning for homeschoolers and independent learners." />
-        <meta property="og:title" content="Course Catalog | Optio Education" />
+        <title>Course Catalog | Optio</title>
+        <meta name="description" content="Browse self-directed learning courses at Optio. Project-based learning for homeschoolers and independent learners." />
+        <meta property="og:title" content="Course Catalog | Optio" />
         <meta property="og:description" content="Browse self-directed learning courses. Project-based education that builds real skills." />
         <meta property="og:url" content="https://www.optioeducation.com/catalog" />
         <link rel="canonical" href="https://www.optioeducation.com/catalog" />

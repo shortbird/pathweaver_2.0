@@ -231,9 +231,9 @@ const PublicCoursePage = () => {
   return (
     <>
       <Helmet>
-        <title>{course.title} | Optio Education</title>
-        <meta name="description" content={course.description || `Learn ${course.title} at Optio Education`} />
-        <meta property="og:title" content={`${course.title} | Optio Education`} />
+        <title>{course.title} | Optio</title>
+        <meta name="description" content={course.description || `Learn ${course.title} at Optio`} />
+        <meta property="og:title" content={`${course.title} | Optio`} />
         <meta property="og:description" content={course.description} />
         {course.cover_image_url && <meta property="og:image" content={course.cover_image_url} />}
         <meta property="og:url" content={`https://www.optioeducation.com/course/${course.slug}`} />

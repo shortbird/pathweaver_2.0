@@ -141,7 +141,7 @@ export default function ObserverAcceptInvitationPage() {
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
           <img
             src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
-            alt="Optio Education"
+            alt="Optio"
             className="h-10 mx-auto mb-6"
           />
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -185,7 +185,7 @@ export default function ObserverAcceptInvitationPage() {
         <div className="text-center mb-6">
           <img
             src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
-            alt="Optio Education"
+            alt="Optio"
             className="h-10 sm:h-12 mx-auto"
           />
         </div>

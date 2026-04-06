@@ -180,7 +180,7 @@ export default function DependentProgressReport() {
             <div className="text-right">
               <p className="text-sm text-gray-500">Generated via</p>
               <p className="text-lg font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
-                Optio Education
+                Optio
               </p>
             </div>
           </div>
@@ -357,7 +357,7 @@ export default function DependentProgressReport() {
 
       {/* Print Footer */}
       <div className="hidden print:block mt-8 pt-4 border-t text-center text-sm text-gray-500">
-        <p>Generated via Optio Education on {new Date().toLocaleDateString()}</p>
+        <p>Generated via Optio on {new Date().toLocaleDateString()}</p>
       </div>
     </div>
   );

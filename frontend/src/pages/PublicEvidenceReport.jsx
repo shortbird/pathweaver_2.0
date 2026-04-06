@@ -351,7 +351,7 @@ const PublicEvidenceReport = () => {
               <div className="flex justify-center mb-6">
                 <img
                   src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
-                  alt="Optio Education"
+                  alt="Optio"
                   className="h-12"
                 />
               </div>
@@ -564,7 +564,7 @@ const PublicEvidenceReport = () => {
                   rel="noopener noreferrer"
                   className="text-optio-purple hover:underline"
                 >
-                  Optio Education
+                  Optio
                 </a>
                 {' '}- The Process Is The Goal
               </p>

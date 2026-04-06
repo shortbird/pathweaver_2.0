@@ -266,7 +266,7 @@ const ValidationComparison = () => {
             </div>
             
             <div className="p-4 bg-optio-purple/10 rounded-lg">
-              <h4 className="font-semibold text-text-primary mb-2">Optio Education</h4>
+              <h4 className="font-semibold text-text-primary mb-2">Optio</h4>
               <p className="text-sm text-gray-700">
                 Focus on creation → Students build real things → Learning happens naturally
               </p>
