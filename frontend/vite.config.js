@@ -61,48 +61,15 @@ export default defineConfig(({ mode }) => {
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Vendor chunks (most stable, best for caching)
           if (id.includes('node_modules')) {
-            // Core React bundle - most stable, best for caching
-            // CRITICAL: Include ALL React-dependent packages to prevent load order issues
-            // that cause "Cannot read properties of undefined (reading 'useLayoutEffect')" errors
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') ||
-                id.includes('@dnd-kit') || id.includes('@stripe/react-stripe-js') ||
-                id.includes('react-hot-toast') || id.includes('react-helmet-async') ||
-                id.includes('qrcode.react') || id.includes('react-masonry-css') ||
-                id.includes('react-ga4') || id.includes('focus-trap-react') ||
-                id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
-                id.includes('@fullcalendar/react') || id.includes('@tiptap') ||
-                id.includes('framer-motion') || id.includes('use-sync-external-store') ||
-                id.includes('recharts') || id.includes('react-pdf') ||
-                id.includes('@xyflow')) {
-              return 'react-vendor';
-            }
-            // UI libraries (React-independent)
-            if (id.includes('@heroicons')) {
-              return 'ui-vendor';
-            }
-            // Calendar library core (non-React parts)
-            if (id.includes('@fullcalendar') && !id.includes('@fullcalendar/react')) {
-              return 'fullcalendar';
-            }
-            // Form validation (React-independent)
-            if (id.includes('yup')) {
-              return 'forms-vendor';
-            }
-            // API client (React-independent)
-            if (id.includes('axios')) {
-              return 'utils-vendor';
-            }
-            // PostHog session replay (~45KB gzipped, separate for caching)
+            // PostHog is large and React-independent, safe to separate
             if (id.includes('posthog')) {
               return 'posthog'
             }
-            // All other vendors
+            // All other vendor deps in one chunk to prevent load order / TDZ issues
+            // between React and React-dependent libraries
             return 'vendor';
           }
-          // Let Vite handle application code splitting automatically
-          // Manual app chunks were causing load order issues with React
         },
       },
     },
