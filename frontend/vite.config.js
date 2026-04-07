@@ -74,7 +74,8 @@ export default defineConfig(({ mode }) => {
                 id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
                 id.includes('@fullcalendar/react') || id.includes('@tiptap') ||
                 id.includes('framer-motion') || id.includes('use-sync-external-store') ||
-                id.includes('recharts') || id.includes('react-pdf')) {
+                id.includes('recharts') || id.includes('react-pdf') ||
+                id.includes('@xyflow')) {
               return 'react-vendor';
             }
             // UI libraries (React-independent)
