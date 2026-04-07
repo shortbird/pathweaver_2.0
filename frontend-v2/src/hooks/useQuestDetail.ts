@@ -18,8 +18,10 @@ export interface QuestTask {
   order_index: number;
   is_completed: boolean;
   is_required: boolean;
+  is_moment?: boolean;
   evidence_text?: string;
   evidence_url?: string;
+  evidence_blocks?: any[];
   completed_at?: string;
 }
 

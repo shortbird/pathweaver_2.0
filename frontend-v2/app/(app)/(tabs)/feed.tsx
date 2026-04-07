@@ -186,8 +186,7 @@ export default function FeedScreen() {
 
   const renderHeader = () => (
     <>
-      <PageHeader title="Feed" />
-      <View className={`px-5 md:px-0 pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+      <View className={`pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
         <HStack className="items-center justify-between">
           <VStack>
             {isDesktop && <Heading size="xl">Feed</Heading>}
@@ -254,6 +253,7 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
+      <PageHeader title="Feed" />
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}

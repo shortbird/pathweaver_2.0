@@ -18,8 +18,10 @@ import { CaptureModal } from '@/src/components/capture/CaptureModal';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { LearningEventCard } from '@/src/components/journal/LearningEventCard';
 import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
+import { QuestTasksSection } from '@/src/components/journal/QuestTasksSection';
+import { GenerateTasksModal } from '@/src/components/journal/GenerateTasksModal';
 import {
-  useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments,
+  useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
   deleteInterestTrack, updateInterestTrack, evolveTrackToQuest,
 } from '@/src/hooks/useJournal';
 import type { LearningEvent } from '@/src/hooks/useJournal';
@@ -88,12 +90,17 @@ export default function JournalScreen() {
   const { moments: questMoments, loading: questLoading, refetch: refetchQuest } = useQuestMoments(
     selectedType === 'quest' ? selectedId : null
   );
+  const {
+    tasks: questTasks, questTitle: questTasksTitle, loading: questTasksLoading,
+    refetch: refetchQuestTasks, generateTasks, acceptTask,
+  } = useQuestTasks(selectedType === 'quest' ? selectedId : null);
+  const [generateModalVisible, setGenerateModalVisible] = useState(false);
 
   const refetchCurrentView = async () => {
     await Promise.all([
       selectedType === 'unassigned' ? refetchUnassigned() :
       selectedType === 'topic' || selectedType === 'track' ? refetchTrack() :
-      selectedType === 'quest' ? refetchQuest() : Promise.resolve(),
+      selectedType === 'quest' ? Promise.all([refetchQuest(), refetchQuestTasks()]) : Promise.resolve(),
       refetchTopics(),
     ]);
   };
@@ -302,6 +309,27 @@ export default function JournalScreen() {
           </View>
         )}
 
+        {/* Quest tasks (above moments when viewing a quest) */}
+        {selectedType === 'quest' && selectedId && (
+          <QuestTasksSection
+            tasks={questTasks}
+            loading={questTasksLoading}
+            onGenerateTasks={() => setGenerateModalVisible(true)}
+          />
+        )}
+
+        {/* Divider between tasks and moments */}
+        {selectedType === 'quest' && questTasks.length > 0 && activeMoments.length > 0 && (
+          <VStack className="mt-2">
+            <HStack className="items-center gap-2 mb-1">
+              <Ionicons name="journal-outline" size={14} color="#6B6280" />
+              <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+                Moments
+              </UIText>
+            </HStack>
+          </VStack>
+        )}
+
         {/* Moments grid */}
         {!activeLoading && activeMoments.length > 0 && (
           <View className="flex flex-col md:flex-row md:flex-wrap gap-3">
@@ -466,6 +494,15 @@ export default function JournalScreen() {
             </Pressable>
           </Pressable>
         </Modal>
+
+        {/* AI Task Generation Modal (desktop) */}
+        <GenerateTasksModal
+          visible={generateModalVisible}
+          questTitle={questTasksTitle}
+          onClose={() => setGenerateModalVisible(false)}
+          onGenerate={generateTasks}
+          onAcceptTask={acceptTask}
+        />
       </SafeAreaView>
     );
   }
@@ -604,6 +641,15 @@ export default function JournalScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* AI Task Generation Modal */}
+      <GenerateTasksModal
+        visible={generateModalVisible}
+        questTitle={questTasksTitle}
+        onClose={() => setGenerateModalVisible(false)}
+        onGenerate={generateTasks}
+        onAcceptTask={acceptTask}
+      />
     </SafeAreaView>
   );
 }

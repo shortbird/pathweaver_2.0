@@ -16,6 +16,7 @@ const TranscriptGeneratorPage = lazy(() => import('./admin/TranscriptGeneratorPa
 const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
 const DocsManager = lazy(() => import('../components/admin/DocsManager'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
+const PhilosophyEditor = lazy(() => import('./admin/PhilosophyEditor'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -55,7 +56,8 @@ const AdminPage = () => {
 
   const superadminTabs = [
     { path: 'bulk-generate', label: 'Bulk Generate' },
-    { path: 'docs', label: 'Docs' }
+    { path: 'docs', label: 'Docs' },
+    { path: 'philosophy', label: 'Philosophy' }
   ]
 
   const getTabIsActive = (tab) => {
@@ -157,6 +159,7 @@ const AdminPage = () => {
           <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
           <Route path="bulk-generate" element={<BulkCourseGeneration />} />
           <Route path="docs" element={<DocsManager />} />
+          <Route path="philosophy" element={<PhilosophyEditor />} />
         </Routes>
       </Suspense>
     </div>

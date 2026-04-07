@@ -3,6 +3,8 @@ import FilterBar from './FilterBar'
 import StatusTimeline from './StatusTimeline'
 
 const statusColors = {
+  pending_org_approval: 'bg-purple-100 text-purple-800',
+  pending_optio_approval: 'bg-indigo-100 text-indigo-800',
   pending_review: 'bg-yellow-100 text-yellow-800',
   approved: 'bg-green-100 text-green-800',
   grow_this: 'bg-orange-100 text-orange-800',
@@ -10,6 +12,16 @@ const statusColors = {
   merged: 'bg-gray-100 text-gray-500',
   confirmed: 'bg-emerald-100 text-emerald-800',
   flagged: 'bg-red-100 text-red-800',
+}
+
+const statusLabels = {
+  pending_org_approval: 'pending org',
+  pending_optio_approval: 'pending optio',
+  pending_review: 'pending review',
+  approved: 'approved',
+  grow_this: 'grow this',
+  finalized: 'finalized',
+  merged: 'merged',
 }
 
 const ItemList = ({
@@ -62,7 +74,7 @@ const ItemList = ({
                       <span className={`inline-flex text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                         statusColors[item.diploma_status] || 'bg-gray-100 text-gray-600'
                       }`}>
-                        {item.diploma_status?.replace('_', ' ')}
+                        {statusLabels[item.diploma_status] || item.diploma_status?.replace('_', ' ')}
                       </span>
                     </div>
                     <p className="text-xs text-gray-600 truncate mt-0.5">{item.task_title}</p>

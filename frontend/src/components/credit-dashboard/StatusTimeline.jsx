@@ -1,25 +1,41 @@
 import React from 'react'
 
-const steps = [
+const ORG_STEPS = [
   { key: 'submitted', label: 'Submitted' },
-  { key: 'advisor_review', label: 'Advisor' },
-  { key: 'approved', label: 'Approved' },
+  { key: 'org_review', label: 'Org Admin' },
+  { key: 'optio_review', label: 'Optio' },
   { key: 'accreditor_review', label: 'Accreditor' },
-  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'approved', label: 'Approved' },
 ]
 
-const getActiveStep = (diplomaStatus, accreditorStatus) => {
-  if (accreditorStatus === 'confirmed') return 4
-  if (accreditorStatus === 'flagged' || accreditorStatus === 'overridden') return 3
-  if (accreditorStatus === 'pending_accreditor') return 3
+const PLATFORM_STEPS = [
+  { key: 'submitted', label: 'Submitted' },
+  { key: 'advisor_review', label: 'Advisor' },
+  { key: 'accreditor_review', label: 'Accreditor' },
+  { key: 'approved', label: 'Approved' },
+]
+
+const getActiveStep = (diplomaStatus, accreditorStatus, isOrgStudent) => {
+  if (isOrgStudent) {
+    // Submitted(0) -> Org Admin(1) -> Optio(2) -> Accreditor(3) -> Approved(4)
+    if (accreditorStatus === 'confirmed') return 4
+    if (['flagged', 'overridden', 'pending_accreditor'].includes(accreditorStatus)) return 3
+    if (diplomaStatus === 'approved') return 3
+    if (diplomaStatus === 'pending_optio_approval') return 2
+    if (diplomaStatus === 'pending_org_approval' || diplomaStatus === 'grow_this') return 1
+    return 0
+  }
+  // Submitted(0) -> Advisor(1) -> Accreditor(2) -> Approved(3)
+  if (accreditorStatus === 'confirmed') return 3
+  if (['flagged', 'overridden', 'pending_accreditor'].includes(accreditorStatus)) return 2
   if (diplomaStatus === 'approved') return 2
-  if (diplomaStatus === 'pending_review') return 1
-  if (diplomaStatus === 'grow_this') return 1
+  if (diplomaStatus === 'pending_review' || diplomaStatus === 'grow_this') return 1
   return 0
 }
 
-const StatusTimeline = ({ diplomaStatus, accreditorStatus }) => {
-  const activeStep = getActiveStep(diplomaStatus, accreditorStatus)
+const StatusTimeline = ({ diplomaStatus, accreditorStatus, isOrgStudent = false }) => {
+  const steps = isOrgStudent ? ORG_STEPS : PLATFORM_STEPS
+  const activeStep = getActiveStep(diplomaStatus, accreditorStatus, isOrgStudent)
   const isFlagged = accreditorStatus === 'flagged'
 
   return (
@@ -31,7 +47,7 @@ const StatusTimeline = ({ diplomaStatus, accreditorStatus }) => {
               i < activeStep
                 ? 'bg-green-500 text-white'
                 : i === activeStep
-                  ? isFlagged && i >= 3
+                  ? isFlagged && step.key === 'accreditor_review'
                     ? 'bg-orange-500 text-white'
                     : 'bg-optio-purple text-white'
                   : 'bg-gray-200 text-gray-400'

@@ -124,7 +124,13 @@ function TaskItem({
   const colors = pillarColors[task.pillar] || pillarColors.stem;
 
   // Fetch evidence on mount (for count indicator) and when expanded (for full display)
+  // Moment-tasks carry their evidence inline from the backend — skip the API call
   useEffect(() => {
+    if (task.is_moment) {
+      setEvidenceBlocks(task.evidence_blocks || []);
+      setEvidenceLoaded(true);
+      return;
+    }
     if (!evidenceLoaded) {
       (async () => {
         try {
@@ -137,7 +143,7 @@ function TaskItem({
         }
       })();
     }
-  }, [task.id]);
+  }, [task.id, task.is_moment]);
 
   const handleComplete = async () => {
     setCompleting(true);
@@ -265,20 +271,26 @@ function TaskItem({
         <VStack space="sm">
           {/* Header row */}
           <HStack className="items-center gap-3">
-            <Pressable
-              onPress={(e) => { e.stopPropagation(); if (!task.is_completed) handleComplete(); }}
-              className="flex-shrink-0"
-            >
-              <Ionicons
-                name={task.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
-                size={24}
-                color={task.is_completed ? '#16A34A' : '#D1D5DB'}
-              />
-            </Pressable>
+            {task.is_moment ? (
+              <View className="flex-shrink-0 w-6 h-6 rounded-full bg-optio-purple/15 items-center justify-center">
+                <Ionicons name="journal" size={14} color="#6D469B" />
+              </View>
+            ) : (
+              <Pressable
+                onPress={(e) => { e.stopPropagation(); if (!task.is_completed) handleComplete(); }}
+                className="flex-shrink-0"
+              >
+                <Ionicons
+                  name={task.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={24}
+                  color={task.is_completed ? '#16A34A' : '#CEC6D6'}
+                />
+              </Pressable>
+            )}
             <VStack className="flex-1 min-w-0">
               <UIText
                 size="sm"
-                className={`font-poppins-medium ${task.is_completed ? 'text-typo-400 line-through' : ''}`}
+                className={`font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 line-through' : ''}`}
               >
                 {task.title}
               </UIText>
@@ -289,9 +301,14 @@ function TaskItem({
                   </UIText>
                 </View>
                 <UIText size="xs" className="text-typo-400">{task.xp_value || task.xp_amount || 0} XP</UIText>
-                {evidenceBlocks.length > 0 && (
+                {task.is_moment && (
+                  <View className="px-1.5 py-0.5 rounded bg-optio-purple/10">
+                    <UIText size="xs" className="text-optio-purple" style={{ fontSize: 10 }}>From Journal</UIText>
+                  </View>
+                )}
+                {!task.is_moment && evidenceBlocks.length > 0 && (
                   <HStack className="items-center gap-1">
-                    <Ionicons name="attach" size={12} color="#9CA3AF" />
+                    <Ionicons name="attach" size={12} color="#9A93A8" />
                     <UIText size="xs" className="text-typo-400">{evidenceBlocks.length}</UIText>
                   </HStack>
                 )}

@@ -117,6 +117,16 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Docs routes: {e}", exc_info=True)
 
+# Register Philosophy Mind Map blueprint (public + admin)
+try:
+    from routes.philosophy import public_philosophy_bp, admin_philosophy_bp
+    app.register_blueprint(public_philosophy_bp)  # /api/public/philosophy (public mind map, no auth)
+    app.register_blueprint(admin_philosophy_bp)  # /api/admin/philosophy (superadmin mind map editor)
+except ImportError as e:
+    logger.warning(f"Warning: Philosophy module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Philosophy routes: {e}", exc_info=True)
+
 # Register homepage images route (January 2025 - Homepage redesign)
 from routes.homepage_images import bp as homepage_images_bp
 app.register_blueprint(homepage_images_bp)  # /api/homepage (blueprint has url_prefix in route definitions)

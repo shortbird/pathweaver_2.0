@@ -238,6 +238,60 @@ def get_quest_detail(user_id: str, quest_id: str):
         quest_data['active_course_enrollment'] = active_course_enrollment
         quest_data['course_cover_image_url'] = course_cover_image_url
 
+        # ── Include linked learning moments as virtual completed tasks ──
+        # Moments attached to this quest appear as pre-completed tasks with is_moment=True
+        try:
+            from services.interest_tracks_service import InterestTracksService
+            moment_result = InterestTracksService.get_quest_moments(
+                user_id=user_id,
+                quest_id=quest_id,
+                limit=100,
+                offset=0
+            )
+            quest_moments = moment_result.get('moments', []) if moment_result.get('success') else []
+
+            # Get existing task IDs to avoid counting moments in progress twice
+            existing_task_ids = {t['id'] for t in quest_data.get('quest_tasks', [])}
+
+            moment_tasks = []
+            for m in quest_moments:
+                moment_id = f"moment-{m['id']}"
+                if moment_id in existing_task_ids:
+                    continue
+                pillars = m.get('pillars', [])
+                pillar = pillars[0] if pillars else 'art'
+                try:
+                    pillar = normalize_pillar_name(pillar)
+                except (ValueError, Exception):
+                    pillar = 'art'
+
+                moment_tasks.append({
+                    'id': moment_id,
+                    'title': m.get('title', 'Learning Moment'),
+                    'description': m.get('description', ''),
+                    'pillar': pillar,
+                    'xp_value': 50,
+                    'xp_amount': 50,
+                    'is_completed': True,
+                    'is_moment': True,
+                    'completed_at': m.get('event_date') or m.get('created_at'),
+                    'evidence_blocks': m.get('evidence_blocks', []),
+                    'order_index': 9999,  # Sort after real tasks
+                })
+
+            if moment_tasks:
+                quest_data['quest_tasks'] = quest_data.get('quest_tasks', []) + moment_tasks
+                # Update progress to include moment-tasks
+                progress = quest_data.get('progress')
+                if progress:
+                    progress['total_tasks'] = progress['total_tasks'] + len(moment_tasks)
+                    progress['completed_tasks'] = progress['completed_tasks'] + len(moment_tasks)
+                    total = progress['total_tasks']
+                    progress['percentage'] = (progress['completed_tasks'] / total * 100) if total > 0 else 0
+
+        except Exception as moment_err:
+            logger.warning(f"[QUEST DETAIL] Error fetching quest moments as tasks: {moment_err}")
+
         return jsonify({
             'success': True,
             'quest': quest_data

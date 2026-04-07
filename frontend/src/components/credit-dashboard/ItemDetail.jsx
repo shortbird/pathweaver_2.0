@@ -76,10 +76,55 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
   const accreditorReviews = detail?.accreditor_reviews || []
   const suggestedSubjects = detail?.suggested_subjects || {}
 
+  const isOrgAdmin = effectiveRole === 'org_admin'
   const isAdvisor = effectiveRole === 'advisor' || effectiveRole === 'superadmin'
   const isAccreditor = effectiveRole === 'accreditor' || effectiveRole === 'superadmin'
-  const canAdvisorAct = isAdvisor && completion.diploma_status === 'pending_review'
+  const isOrgStudent = detail?.is_org_student || item?.is_org_student || false
+  const canOrgAdminAct = isOrgAdmin && completion.diploma_status === 'pending_org_approval'
+  const canAdvisorAct = isAdvisor && ['pending_review', 'pending_optio_approval'].includes(completion.diploma_status)
   const canAccreditorAct = isAccreditor && completion.diploma_status === 'approved'
+  const canEditSubjects = canAdvisorAct || canOrgAdminAct
+
+  const handleOrgApprove = async () => {
+    const completionId = item.completion_id
+    const savedFeedback = feedback
+    const savedSubjects = { ...editedSubjects }
+    for (const [k, v] of Object.entries(savedSubjects)) {
+      if (!v || v <= 0) delete savedSubjects[k]
+    }
+    setFeedback('')
+    if (onAdvance) onAdvance(completionId)
+    try {
+      await api.post(`/api/credit-dashboard/items/${completionId}/org-approve`, {
+        feedback: savedFeedback || undefined,
+        subjects: Object.keys(savedSubjects).length > 0 ? savedSubjects : undefined
+      })
+      toast.success('Approved for Optio review')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to approve')
+      onRefresh()
+    }
+  }
+
+  const handleOrgGrowThis = async () => {
+    if (!feedback.trim()) {
+      toast.error('Feedback is required for Grow This')
+      return
+    }
+    const completionId = item.completion_id
+    const savedFeedback = feedback
+    setFeedback('')
+    if (onAdvance) onAdvance(completionId)
+    try {
+      await api.post(`/api/credit-dashboard/items/${completionId}/org-grow-this`, {
+        feedback: savedFeedback
+      })
+      toast.success('Returned to student')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to return')
+      onRefresh()
+    }
+  }
 
   const handleApprove = async () => {
     const completionId = item.completion_id
@@ -172,6 +217,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
       <StatusTimeline
         diplomaStatus={completion.diploma_status}
         accreditorStatus={completion.accreditor_status}
+        isOrgStudent={isOrgStudent}
       />
 
       {/* Accreditor decision banner (for accreditor view) */}
@@ -185,17 +231,17 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
       )}
 
       {/* Subject Distribution */}
-      {(Object.keys(editedSubjects).length > 0 || canAdvisorAct) && (
+      {(Object.keys(editedSubjects).length > 0 || canEditSubjects) && (
         <div>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-700">Subject XP Distribution</h3>
-            {canAdvisorAct && (
+            {canEditSubjects && (
               <span className="text-xs text-gray-400">
                 Total: {Object.values(editedSubjects).reduce((s, v) => s + (parseInt(v, 10) || 0), 0)} XP
               </span>
             )}
           </div>
-          {canAdvisorAct ? (
+          {canEditSubjects ? (
             <div className="space-y-2 max-w-sm">
               {Object.entries(editedSubjects).map(([subject, xp]) => (
                 <div key={subject} className="flex items-center gap-2">
@@ -388,6 +434,39 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                 {review.notes && <p className="text-gray-600 mt-1">{review.notes}</p>}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons - Org Admin */}
+      {canOrgAdminAct && (
+        <div className="border-t border-gray-200 pt-4 space-y-3">
+          <textarea
+            ref={feedbackTextareaRef}
+            value={feedback}
+            onChange={e => {
+              setFeedback(e.target.value)
+              if (onFeedbackChange) onFeedbackChange(e.target.value)
+            }}
+            placeholder="Feedback for student (required for Grow This, press g)..."
+            rows={3}
+            className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleOrgApprove}
+              disabled={actionLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {actionLoading ? 'Processing...' : 'Approve for Optio Review (a)'}
+            </button>
+            <button
+              onClick={handleOrgGrowThis}
+              disabled={actionLoading || !feedback.trim()}
+              className="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50"
+            >
+              Grow This (g)
+            </button>
           </div>
         </div>
       )}

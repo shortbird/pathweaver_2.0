@@ -2,6 +2,8 @@ import React from 'react'
 
 const DIPLOMA_STATUSES = [
   { value: '', label: 'All Statuses' },
+  { value: 'pending_org_approval', label: 'Pending Org Approval' },
+  { value: 'pending_optio_approval', label: 'Pending Optio Approval' },
   { value: 'pending_review', label: 'Pending Advisor' },
   { value: 'approved', label: 'Approved' },
   { value: 'grow_this', label: 'Grow This' },

@@ -26,9 +26,9 @@ export const navItems: NavItem[] = [
   { key: 'buddy', label: 'Buddy', icon: 'heart-outline', iconActive: 'heart', href: '/(app)/(tabs)/buddy', platforms: ['web', 'mobile'] },
   { key: 'feed', label: 'Feed', icon: 'newspaper-outline', iconActive: 'newspaper', href: '/(app)/(tabs)/feed', platforms: ['web', 'mobile'] },
   { key: 'journal', label: 'Journal', icon: 'book-outline', iconActive: 'book', href: '/(app)/(tabs)/journal', platforms: ['web', 'mobile'] },
-  { key: 'family', label: 'Family', icon: 'people-outline', iconActive: 'people', href: '/(app)/(tabs)/family', platforms: [] },
-  { key: 'profile', label: 'Profile', icon: 'person-outline', iconActive: 'person', href: '/(app)/(tabs)/profile', platforms: [] },
-  { key: 'messages', label: 'Messages', icon: 'chatbubbles-outline', iconActive: 'chatbubbles', href: '/(app)/(tabs)/messages', platforms: ['web'] },
+  { key: 'family', label: 'Family', icon: 'people-outline', iconActive: 'people', href: '/(app)/(tabs)/family', platforms: ['mobile'] },
+  { key: 'profile', label: 'Profile', icon: 'person-outline', iconActive: 'person', href: '/(app)/(tabs)/profile', platforms: ['mobile'] },
+  { key: 'messages', label: 'Messages', icon: 'chatbubbles-outline', iconActive: 'chatbubbles', href: '/(app)/(tabs)/messages', platforms: ['web', 'mobile'] },
   { key: 'advisor', label: 'Advisor', icon: 'clipboard-outline', iconActive: 'clipboard', href: '/(app)/(tabs)/advisor', platforms: ['web'], roles: ['advisor', 'org_admin', 'superadmin'] },
   { key: 'admin', label: 'Admin', icon: 'shield-outline', iconActive: 'shield', href: '/(app)/(tabs)/admin', platforms: ['web'], roles: ['superadmin', 'org_admin'] },
 ];
@@ -37,7 +37,7 @@ export const navItems: NavItem[] = [
  * Mobile tab order: Feed, Journal, [+ Capture], Buddy, Bounties
  * 'capture' is a special key -- not a route, triggers a modal.
  */
-export const mobileTabOrder = ['feed', 'journal', 'capture', 'buddy', 'bounties'];
+export const mobileTabOrder = ['journal', 'feed', 'capture', 'bounties', 'messages'];
 
 /** Items visible in desktop sidebar */
 export const desktopNavItems = navItems.filter((n) => n.platforms.includes('web'));

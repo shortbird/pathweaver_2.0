@@ -34,7 +34,7 @@ def resolve_user_name(user_data):
 
 
 @bp.route('/items', methods=['GET'])
-@require_role('accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin', 'org_admin')
 def get_dashboard_items(user_id: str):
     """Get credit review items filtered by role and query params."""
     try:
@@ -42,7 +42,7 @@ def get_dashboard_items(user_id: str):
 
         # Determine user's role for scoping
         user_result = admin_supabase.table('users') \
-            .select('role, org_role, org_roles') \
+            .select('role, org_role, org_roles, organization_id') \
             .eq('id', user_id) \
             .single() \
             .execute()
@@ -63,7 +63,19 @@ def get_dashboard_items(user_id: str):
         # Determine which student IDs to scope to
         student_ids = None
 
-        if effective_role == 'advisor':
+        if effective_role == 'org_admin':
+            # Org admins see only students in their organization
+            org_id = user_data.get('organization_id')
+            if org_id:
+                org_students = admin_supabase.table('users') \
+                    .select('id') \
+                    .eq('organization_id', org_id) \
+                    .execute()
+                student_ids = [s['id'] for s in (org_students.data or [])]
+            if not student_ids:
+                return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
+            # No default status filter -- org_admin sees all actionable items from their org
+        elif effective_role == 'advisor':
             # Advisors see only their assigned students
             assignments = admin_supabase.table('advisor_student_assignments') \
                 .select('student_id') \
@@ -87,7 +99,7 @@ def get_dashboard_items(user_id: str):
             query = query.eq('diploma_status', status_filter)
         else:
             # Default: show actionable items (not none/draft/merged)
-            query = query.in_('diploma_status', ['pending_review', 'approved', 'grow_this', 'finalized'])
+            query = query.in_('diploma_status', ['pending_review', 'pending_org_approval', 'pending_optio_approval', 'approved', 'grow_this', 'finalized'])
 
         if accreditor_status_filter:
             query = query.eq('accreditor_status', accreditor_status_filter)
@@ -122,7 +134,7 @@ def get_dashboard_items(user_id: str):
         students_map = {}
         if c_student_ids:
             students = admin_supabase.table('users') \
-                .select('id, display_name, first_name, last_name, email, avatar_url') \
+                .select('id, display_name, first_name, last_name, email, avatar_url, organization_id') \
                 .in_('id', c_student_ids) \
                 .execute()
             students_map = {s['id']: s for s in (students.data or [])}
@@ -198,7 +210,8 @@ def get_dashboard_items(user_id: str):
                 'submitted_at': c.get('credit_requested_at'),
                 'finalized_at': c.get('finalized_at'),
                 'merged_into': c.get('merged_into'),
-                'evidence_block_count': evidence_counts.get(c['id'], 0)
+                'evidence_block_count': evidence_counts.get(c['id'], 0),
+                'is_org_student': bool(student.get('organization_id'))
             })
 
         return success_response(data={
@@ -214,7 +227,7 @@ def get_dashboard_items(user_id: str):
 
 
 @bp.route('/items/<completion_id>', methods=['GET'])
-@require_role('accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin', 'org_admin')
 def get_dashboard_item_detail(user_id: str, completion_id: str):
     """Get full detail for a credit review item including evidence and review history."""
     try:
@@ -255,10 +268,25 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
 
         # Get student info
         student = admin_supabase.table('users') \
-            .select('id, display_name, first_name, last_name, email, avatar_url') \
+            .select('id, display_name, first_name, last_name, email, avatar_url, organization_id') \
             .eq('id', student_id) \
             .single() \
             .execute()
+
+        # Verify org_admin can only view their own org's students
+        if student.data:
+            caller = admin_supabase.table('users') \
+                .select('role, organization_id') \
+                .eq('id', user_id) \
+                .single() \
+                .execute()
+            caller_data = caller.data or {}
+            caller_eff = get_effective_role(caller_data)
+            if caller_eff == 'org_admin':
+                caller_org = caller_data.get('organization_id')
+                student_org = student.data.get('organization_id')
+                if not caller_org or caller_org != student_org:
+                    return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
 
         # Get evidence blocks
         evidence_blocks_data = []
@@ -319,7 +347,8 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             'review_rounds': rounds.data or [],
             'accreditor_reviews': accreditor_reviews.data or [],
             'suggested_subjects': subjects,
-            'student_subject_xp': student_subject_xp.data or []
+            'student_subject_xp': student_subject_xp.data or [],
+            'is_org_student': bool(student_data.get('organization_id'))
         })
 
     except Exception as e:
@@ -328,7 +357,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
 
 
 @bp.route('/stats', methods=['GET'])
-@require_role('accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin', 'org_admin')
 def get_dashboard_stats(user_id: str):
     """Get aggregate counts for dashboard overview."""
     try:
@@ -336,14 +365,29 @@ def get_dashboard_stats(user_id: str):
 
         # Check role for scoping
         user_result = admin_supabase.table('users') \
-            .select('role, org_role, org_roles') \
+            .select('role, org_role, org_roles, organization_id') \
             .eq('id', user_id) \
             .single() \
             .execute()
-        effective_role = get_effective_role(user_result.data or {})
+        user_data = user_result.data or {}
+        effective_role = get_effective_role(user_data)
 
         student_ids = None
-        if effective_role == 'advisor':
+        if effective_role == 'org_admin':
+            org_id = user_data.get('organization_id')
+            if org_id:
+                org_students = admin_supabase.table('users') \
+                    .select('id') \
+                    .eq('organization_id', org_id) \
+                    .execute()
+                student_ids = [s['id'] for s in (org_students.data or [])]
+            if not student_ids:
+                return success_response(data={
+                    'pending_org_approval': 0, 'pending_advisor': 0,
+                    'pending_accreditor': 0, 'confirmed': 0,
+                    'flagged': 0, 'merged_this_week': 0
+                })
+        elif effective_role == 'advisor':
             assignments = admin_supabase.table('advisor_student_assignments') \
                 .select('student_id') \
                 .eq('advisor_id', user_id) \
@@ -352,8 +396,9 @@ def get_dashboard_stats(user_id: str):
             student_ids = [a['student_id'] for a in (assignments.data or [])]
             if not student_ids:
                 return success_response(data={
-                    'pending_advisor': 0, 'pending_accreditor': 0,
-                    'confirmed': 0, 'flagged': 0, 'merged_this_week': 0
+                    'pending_org_approval': 0, 'pending_advisor': 0,
+                    'pending_accreditor': 0, 'confirmed': 0,
+                    'flagged': 0, 'merged_this_week': 0
                 })
 
         # Count by status
@@ -370,6 +415,8 @@ def get_dashboard_stats(user_id: str):
             return result.count or 0
 
         stats = {
+            'pending_org_approval': count_status(diploma_status='pending_org_approval'),
+            'pending_optio_approval': count_status(diploma_status='pending_optio_approval'),
             'pending_advisor': count_status(diploma_status='pending_review'),
             'pending_accreditor': count_status(accreditor_status='pending_accreditor'),
             'confirmed': count_status(accreditor_status='confirmed'),
@@ -399,7 +446,7 @@ def get_dashboard_stats(user_id: str):
 
 
 @bp.route('/student-context/<student_id>', methods=['GET'])
-@require_role('accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin', 'org_admin')
 def get_student_context(user_id: str, student_id: str):
     """Get student's diploma progress and pending items for context panel."""
     try:
@@ -428,7 +475,7 @@ def get_student_context(user_id: str, student_id: str):
         pending_items = admin_supabase.table('quest_task_completions') \
             .select('id, diploma_status, accreditor_status, user_quest_task_id') \
             .eq('user_id', student_id) \
-            .in_('diploma_status', ['pending_review', 'approved', 'grow_this']) \
+            .in_('diploma_status', ['pending_org_approval', 'pending_optio_approval', 'pending_review', 'approved', 'grow_this']) \
             .order('credit_requested_at', desc=True) \
             .limit(20) \
             .execute()

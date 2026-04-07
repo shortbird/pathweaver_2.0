@@ -1,12 +1,14 @@
 /**
- * ConversationList - Left sidebar showing DM contacts and group chats.
- * Web-only component.
+ * ConversationList - Shows DM contacts and group chats.
+ * Desktop: fixed-width sidebar panel.
+ * Mobile: full-screen list with PageHeader.
  */
 
 import React, { useMemo, useState } from 'react';
 import { View, Pressable, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading, Avatar, AvatarFallbackText, AvatarImage } from '@/src/components/ui';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import type { Contact, Group } from '@/src/hooks/useMessages';
 
 interface SelectedConversation {
@@ -25,6 +27,7 @@ interface Props {
   onCreateGroup: () => void;
   loading: boolean;
   canCreateGroups: boolean;
+  isMobile?: boolean;
 }
 
 function formatTime(timestamp: string | null) {
@@ -66,6 +69,7 @@ export function ConversationList({
   onCreateGroup,
   loading,
   canCreateGroups,
+  isMobile,
 }: Props) {
   const [search, setSearch] = useState('');
 
@@ -121,28 +125,36 @@ export function ConversationList({
     );
   }
 
+  const containerStyle = isMobile
+    ? 'flex-1 bg-white'
+    : 'flex-1 bg-white border-r border-surface-200';
+
   return (
-    <View className="flex-1 bg-white border-r border-surface-200" style={{ minWidth: 320, maxWidth: 380 }}>
+    <View className={containerStyle} style={isMobile ? undefined : { minWidth: 320, maxWidth: 380 }}>
       {/* Header */}
-      <View className="p-4 border-b border-surface-200">
-        <Heading size="lg">Messages</Heading>
-      </View>
+      {isMobile ? (
+        <PageHeader title="Messages" />
+      ) : (
+        <View className="p-4 border-b border-surface-200">
+          <Heading size="lg">Messages</Heading>
+        </View>
+      )}
 
       {/* Search */}
       <View className="px-4 py-3 border-b border-surface-200">
-        <View className="flex-row items-center bg-surface-100 rounded-lg px-3 py-2">
-          <Ionicons name="search-outline" size={18} color="#9CA3AF" />
+        <View className="flex-row items-center bg-surface-100 rounded-xl px-3 py-2.5">
+          <Ionicons name="search-outline" size={18} color="#9A93A8" />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search conversations..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor="#9A93A8"
             className="flex-1 ml-2 font-poppins text-sm"
             style={{ outline: 'none' } as any}
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              <Ionicons name="close-circle" size={18} color="#9A93A8" />
             </Pressable>
           )}
         </View>
@@ -166,19 +178,19 @@ export function ConversationList({
               )}
             </View>
             {filteredGroups.map((group) => {
-              const isSelected = selected?.type === 'group' && selected?.id === group.id;
+              const isSelected = !isMobile && selected?.type === 'group' && selected?.id === group.id;
               return (
                 <Pressable
                   key={group.id}
                   onPress={() => onSelect({ id: group.id, type: 'group', group })}
-                  className={`flex-row items-center px-4 py-3 ${isSelected ? 'bg-optio-purple/5' : ''}`}
+                  className={`flex-row items-center px-4 py-3 active:bg-surface-100 ${isSelected ? 'bg-optio-purple/5' : ''}`}
                   style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
                 >
                   <View
-                    className="w-10 h-10 rounded-full items-center justify-center"
+                    className="w-12 h-12 rounded-full items-center justify-center"
                     style={{ backgroundColor: '#6D469B' }}
                   >
-                    <Ionicons name="people" size={20} color="#fff" />
+                    <Ionicons name="people" size={22} color="#fff" />
                   </View>
                   <View className="flex-1 ml-3">
                     <View className="flex-row items-center justify-between">
@@ -197,18 +209,21 @@ export function ConversationList({
                     </View>
                     <UIText
                       size="xs"
-                      className={`${group.unread_count ? 'text-typo-700 font-poppins-medium' : 'text-typo-400'}`}
+                      className={`mt-0.5 ${group.unread_count ? 'text-typo-700 font-poppins-medium' : 'text-typo-400'}`}
                       numberOfLines={1}
                     >
                       {group.last_message_preview || `${group.member_count || 0} members`}
                     </UIText>
                   </View>
                   {group.unread_count > 0 && (
-                    <View className="bg-red-500 rounded-full w-5 h-5 items-center justify-center ml-2">
+                    <View className="bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center ml-2 px-1">
                       <UIText size="xs" className="text-white font-poppins-bold" style={{ fontSize: 10 }}>
                         {group.unread_count > 9 ? '9+' : group.unread_count}
                       </UIText>
                     </View>
+                  )}
+                  {isMobile && (
+                    <Ionicons name="chevron-forward" size={16} color="#CEC6D6" style={{ marginLeft: 4 }} />
                   )}
                 </Pressable>
               );
@@ -227,14 +242,14 @@ export function ConversationList({
           {filteredContacts.length > 0 ? (
             filteredContacts.map((contact) => {
               const name = getDisplayName(contact);
-              const isSelected = selected?.type === 'dm' && selected?.id === contact.conversation_id;
+              const isSelected = !isMobile && selected?.type === 'dm' && selected?.id === contact.conversation_id;
               const relColor = relationshipColors[contact.relationship] || '#6B7280';
 
               return (
                 <Pressable
                   key={contact.id}
                   onPress={() => onSelect({ id: contact.conversation_id, type: 'dm', contact })}
-                  className={`flex-row items-center px-4 py-3 ${isSelected ? 'bg-optio-purple/5' : ''}`}
+                  className={`flex-row items-center px-4 py-3 active:bg-surface-100 ${isSelected ? 'bg-optio-purple/5' : ''}`}
                   style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
                 >
                   <Avatar size="md">
@@ -272,25 +287,28 @@ export function ConversationList({
                     </View>
                     <UIText
                       size="xs"
-                      className={`${contact.unread_count ? 'text-typo-700 font-poppins-medium' : 'text-typo-400'}`}
+                      className={`mt-0.5 ${contact.unread_count ? 'text-typo-700 font-poppins-medium' : 'text-typo-400'}`}
                       numberOfLines={1}
                     >
                       {contact.last_message_preview || 'Start a conversation'}
                     </UIText>
                   </View>
                   {contact.unread_count > 0 && (
-                    <View className="bg-red-500 rounded-full w-5 h-5 items-center justify-center ml-2">
+                    <View className="bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center ml-2 px-1">
                       <UIText size="xs" className="text-white font-poppins-bold" style={{ fontSize: 10 }}>
                         {contact.unread_count > 9 ? '9+' : contact.unread_count}
                       </UIText>
                     </View>
+                  )}
+                  {isMobile && (
+                    <Ionicons name="chevron-forward" size={16} color="#CEC6D6" style={{ marginLeft: 4 }} />
                   )}
                 </Pressable>
               );
             })
           ) : (
             <View className="items-center py-10 px-4">
-              <Ionicons name="chatbubbles-outline" size={40} color="#D1D5DB" />
+              <Ionicons name="chatbubbles-outline" size={40} color="#CEC6D6" />
               <UIText size="sm" className="text-typo-400 mt-3 text-center">
                 {search ? 'No contacts match your search' : 'No contacts available'}
               </UIText>

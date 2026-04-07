@@ -481,8 +481,8 @@ function App() {
                 <Route path="quests/:questId/curriculum/edit" element={<CurriculumBuilder />} />
               </Route>
 
-              {/* Credit Review Dashboard - superadmin only */}
-              <Route element={<PrivateRoute requiredRole="superadmin" />}>
+              {/* Credit Review Dashboard - superadmin, org_admin, accreditor */}
+              <Route element={<PrivateRoute requiredRole={["superadmin", "org_admin", "accreditor"]} />}>
                 <Route path="credit-dashboard" element={<CreditReviewDashboardPage />} />
               </Route>
 
