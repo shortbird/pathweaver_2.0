@@ -63,10 +63,10 @@ function AvatarMenu() {
           borderRadius: 17,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: menuOpen ? '#6D469B15' : '#F3F4F6',
+          backgroundColor: menuOpen ? '#6D469B15' : '#F1EDF5',
         }}
       >
-        <Ionicons name="person-circle-outline" size={28} color={menuOpen ? '#6D469B' : '#6B7280'} />
+        <Ionicons name="person-circle-outline" size={28} color={menuOpen ? '#6D469B' : '#6B6280'} />
       </Pressable>
 
       <Modal
@@ -88,10 +88,10 @@ function AvatarMenu() {
               boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)',
               elevation: 10,
               borderWidth: 1,
-              borderColor: '#E5E7EB',
+              borderColor: '#E2DCE8',
             }}
           >
-            <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1EDF5' }}>
               <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
                 {user?.display_name || `${user?.first_name} ${user?.last_name}`}
               </UIText>
@@ -106,7 +106,7 @@ function AvatarMenu() {
                 style={{ paddingHorizontal: 16, paddingVertical: 12 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Ionicons name={item.icon} size={18} color={item.color || '#6B7280'} />
+                  <Ionicons name={item.icon} size={18} color={item.color || '#6B6280'} />
                   <UIText size="sm" style={{ color: item.color || '#1F2937' }} className="font-poppins-medium">
                     {item.label}
                   </UIText>
@@ -158,12 +158,27 @@ export function PageHeader({ title }: PageHeaderProps) {
   if (isDesktop) return null;
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
-      <Heading size="2xl">{title}</Heading>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-        <NotificationBell />
-        <AvatarMenu />
+    <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Heading size="2xl">{title}</Heading>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <NotificationBell />
+          <AvatarMenu />
+        </View>
       </View>
+      {/* Brand accent line */}
+      <View
+        style={{
+          height: 3,
+          borderRadius: 1.5,
+          marginTop: 10,
+          backgroundColor: '#6D469B',
+          ...(Platform.OS === 'web'
+            ? { backgroundImage: 'linear-gradient(90deg, #6D469B 0%, #EF597B 100%)' }
+            : {}),
+          width: 40,
+        }}
+      />
     </View>
   );
 }

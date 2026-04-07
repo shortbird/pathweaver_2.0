@@ -7,4 +7,4 @@ from flask import Blueprint
 
 bp = Blueprint('credit_dashboard', __name__, url_prefix='/api/credit-dashboard')
 
-from . import items, accreditor_actions, merge  # noqa: E402, F401
+from . import items, accreditor_actions, merge, org_admin_actions  # noqa: E402, F401

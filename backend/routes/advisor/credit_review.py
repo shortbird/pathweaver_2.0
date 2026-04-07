@@ -89,7 +89,7 @@ def get_credit_queue(user_id: str):
 
         completions = admin_supabase.table('quest_task_completions')\
             .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id, credit_requested_at')\
-            .eq('diploma_status', 'pending_review')\
+            .in_('diploma_status', ['pending_review', 'pending_optio_approval'])\
             .in_('user_id', student_ids)\
             .execute()
 
@@ -322,7 +322,7 @@ def approve_credit(user_id: str, completion_id: str):
         except PermissionError:
             return error_response(code='FORBIDDEN', message='Not authorized', status=403)
 
-        if completion_data['diploma_status'] != 'pending_review':
+        if completion_data['diploma_status'] not in ('pending_review', 'pending_optio_approval'):
             return error_response(
                 code='INVALID_STATE',
                 message=f'Cannot approve: current status is {completion_data["diploma_status"]}',
@@ -474,7 +474,7 @@ def grow_this(user_id: str, completion_id: str):
         except PermissionError:
             return error_response(code='FORBIDDEN', message='Not authorized', status=403)
 
-        if completion_data['diploma_status'] != 'pending_review':
+        if completion_data['diploma_status'] not in ('pending_review', 'pending_optio_approval'):
             return error_response(
                 code='INVALID_STATE',
                 message=f'Cannot return: current status is {completion_data["diploma_status"]}',

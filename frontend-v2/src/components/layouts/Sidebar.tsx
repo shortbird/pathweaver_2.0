@@ -34,7 +34,7 @@ function NavLink({ item }: { item: NavItem }) {
       <Ionicons
         name={isActive ? item.iconActive : item.icon}
         size={22}
-        color={isActive ? '#6D469B' : '#6B7280'}
+        color={isActive ? '#6D469B' : '#6B6280'}
       />
       <UIText
         size="sm"
@@ -43,7 +43,7 @@ function NavLink({ item }: { item: NavItem }) {
         {item.label}
       </UIText>
       {isAdminOnly && (
-        <Ionicons name="shield-checkmark-outline" size={14} color="#9CA3AF" />
+        <Ionicons name="shield-checkmark-outline" size={14} color="#9A93A8" />
       )}
     </Pressable>
   );
@@ -64,7 +64,7 @@ function SidebarNotificationLink() {
         <Ionicons
           name={isActive ? 'notifications' : 'notifications-outline'}
           size={18}
-          color={isActive ? '#6D469B' : '#6B7280'}
+          color={isActive ? '#6D469B' : '#6B6280'}
         />
         {unreadCount > 0 && (
           <View style={{
@@ -161,7 +161,7 @@ export function Sidebar() {
           onPress={logout}
           className="flex-row items-center gap-2 py-2 active:opacity-70"
         >
-          <Ionicons name="log-out-outline" size={18} color="#9CA3AF" />
+          <Ionicons name="log-out-outline" size={18} color="#9A93A8" />
           <UIText size="sm" className="text-typo-400">Sign Out</UIText>
         </Pressable>
       </View>

@@ -245,7 +245,18 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
-  // Credit Review moved to advisor dashboard (March 2026 - superadmin-only button there)
+  // Credit Review link for org_admins (they review their org's student credit requests)
+  if (userHasRole('org_admin')) {
+    navItems.push({
+      name: 'Credit Review',
+      path: '/credit-dashboard',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    })
+  }
 
   // Add global Admin panel link ONLY for superadmins
   if (user?.role === 'superadmin') {

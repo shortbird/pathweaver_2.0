@@ -178,6 +178,95 @@ export async function previewEvolvedQuest(trackId: string) {
   return data;
 }
 
+// ── Quest tasks for journal integration ──
+
+export interface QuestTask {
+  id: string;
+  title: string;
+  description: string;
+  pillar: string;
+  xp_value: number;
+  xp_amount: number;
+  is_completed: boolean;
+  is_moment?: boolean;
+  completed_at?: string;
+  evidence_text?: string;
+  evidence_url?: string;
+  evidence_blocks?: EvidenceBlock[];
+}
+
+export function useQuestTasks(questId: string | null) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [tasks, setTasks] = useState<QuestTask[]>([]);
+  const [questTitle, setQuestTitle] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetchTasks = useCallback(async () => {
+    if (!isAuthenticated || !questId) { setLoading(false); return; }
+    try {
+      setLoading(true);
+      const { data } = await api.get(`/api/quests/${questId}`);
+      const quest = data.quest || data;
+      setTasks(quest.quest_tasks || []);
+      setQuestTitle(quest.title || '');
+    } catch {
+      // Non-critical
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, questId]);
+
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  // Personalization session management
+  const sessionRef = { current: null as string | null };
+
+  const ensureSession = async (): Promise<string> => {
+    if (sessionRef.current) return sessionRef.current;
+    if (!questId) throw new Error('No quest ID');
+    const { data } = await api.post(`/api/quests/${questId}/start-personalization`, {});
+    const sid = data.session_id;
+    if (!sid) throw new Error('No session ID returned');
+    sessionRef.current = sid;
+    return sid;
+  };
+
+  const generateTasks = async (interests?: string) => {
+    if (!questId) return [];
+    const sessionId = await ensureSession();
+    const existingTitles = tasks.map((t) => t.title);
+    const { data } = await api.post(`/api/quests/${questId}/generate-tasks`, {
+      session_id: sessionId,
+      approach: 'hybrid',
+      interests: interests ? [interests] : [],
+      exclude_tasks: existingTitles,
+    });
+    return data.tasks || data.generated_tasks || [];
+  };
+
+  const acceptTask = async (task: any) => {
+    if (!questId) return;
+    const sessionId = await ensureSession();
+    const { data } = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
+      session_id: sessionId,
+      task,
+    });
+    const newTask: QuestTask = {
+      id: data.task_id || `temp-${Date.now()}`,
+      title: task.title,
+      description: task.description || '',
+      pillar: task.pillar || 'stem',
+      xp_value: task.xp_value || 50,
+      xp_amount: task.xp_value || 50,
+      is_completed: false,
+    };
+    setTasks((prev) => [...prev, newTask]);
+    return data;
+  };
+
+  return { tasks, questTitle, loading, refetch: fetchTasks, generateTasks, acceptTask };
+}
+
 export function useQuestMoments(questId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [moments, setMoments] = useState<LearningEvent[]>([]);

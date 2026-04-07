@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import FilterBar from './FilterBar'
 
 const statusColors = {
+  pending_org_approval: 'bg-purple-100 text-purple-800',
+  pending_optio_approval: 'bg-indigo-100 text-indigo-800',
   pending_review: 'bg-yellow-100 text-yellow-800',
   approved: 'bg-green-100 text-green-800',
   grow_this: 'bg-orange-100 text-orange-800',

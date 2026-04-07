@@ -12,11 +12,17 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
   const handleBulkApprove = async () => {
     try {
       setBulkLoading(true)
-      const pendingItems = selectedItems.filter(i => i.diploma_status === 'pending_review')
-      for (const item of pendingItems) {
-        await api.post(`/api/advisor/credit-queue/${item.completion_id}/approve`, {})
+      let approvedCount = 0
+      for (const item of selectedItems) {
+        if (effectiveRole === 'org_admin' && item.diploma_status === 'pending_org_approval') {
+          await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
+          approvedCount++
+        } else if (['pending_review', 'pending_optio_approval'].includes(item.diploma_status)) {
+          await api.post(`/api/advisor/credit-queue/${item.completion_id}/approve`, {})
+          approvedCount++
+        }
       }
-      toast.success(`Approved ${pendingItems.length} items`)
+      toast.success(`Approved ${approvedCount} items`)
       onDeselectAll()
       onRefresh()
     } catch (err) {
@@ -47,7 +53,7 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-xl flex items-center gap-4 z-50">
       <span className="text-sm font-medium">{selectedCount} selected</span>
 
-      {(effectiveRole === 'advisor' || effectiveRole === 'superadmin') && (
+      {(effectiveRole === 'advisor' || effectiveRole === 'superadmin' || effectiveRole === 'org_admin') && (
         <button
           onClick={handleBulkApprove}
           disabled={bulkLoading}

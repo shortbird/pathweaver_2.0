@@ -38,6 +38,9 @@ const CreditReviewDashboardPage = () => {
     if (!effectiveRole || filtersInitialized) return
     if (effectiveRole === 'accreditor') {
       setFilters(f => ({ ...f, status: 'approved', accreditor_status: 'pending_accreditor' }))
+    } else if (effectiveRole === 'org_admin') {
+      // Show all actionable items from org students (no status filter)
+      setFilters(f => ({ ...f, status: '' }))
     } else {
       setFilters(f => ({ ...f, status: 'pending_review' }))
     }
@@ -162,6 +165,8 @@ const CreditReviewDashboardPage = () => {
       try {
         if (effectiveRole === 'accreditor') {
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/confirm`, {})
+        } else if (effectiveRole === 'org_admin') {
+          await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
         } else {
           await api.post(`/api/advisor/credit-queue/${item.completion_id}/approve`, {})
         }
@@ -201,6 +206,11 @@ const CreditReviewDashboardPage = () => {
             feedback: fb
           })
           toast.success('Returned to advisor')
+        } else if (effectiveRole === 'org_admin') {
+          await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-grow-this`, {
+            feedback: fb
+          })
+          toast.success('Returned to student')
         } else {
           await api.post(`/api/advisor/credit-queue/${item.completion_id}/grow-this`, {
             feedback: fb
@@ -296,6 +306,16 @@ const CreditReviewDashboardPage = () => {
           <h1 className="text-xl font-semibold text-gray-900">Credit Review Dashboard</h1>
           {stats && (
             <div className="flex gap-2 text-sm">
+              {stats.pending_org_approval > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                  {stats.pending_org_approval} pending org
+                </span>
+              )}
+              {stats.pending_optio_approval > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                  {stats.pending_optio_approval} pending optio
+                </span>
+              )}
               {stats.pending_advisor > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
                   {stats.pending_advisor} pending advisor

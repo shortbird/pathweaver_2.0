@@ -1,11 +1,12 @@
 /**
  * ChatWindow - Direct message chat view.
- * Shows message thread + input for a selected DM contact.
- * Web-only component.
+ * Desktop: panel inside split layout.
+ * Mobile: full-screen with back button, keyboard-aware input.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   UIText, Heading, Avatar, AvatarFallbackText, AvatarImage,
@@ -22,6 +23,7 @@ import {
 interface Props {
   contact: Contact;
   conversationId: string;
+  onBack?: () => void;
 }
 
 function getDisplayName(c: Contact) {
@@ -40,13 +42,15 @@ function formatTime(ts: string) {
   });
 }
 
-export function ChatWindow({ contact, conversationId }: Props) {
+export function ChatWindow({ contact, conversationId, onBack }: Props) {
   const { user } = useAuthStore();
   const { messages, loading, refetch, setMessages } = useConversationMessages(conversationId);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
+  const insets = useSafeAreaInsets();
+  const isMobile = !!onBack;
 
   const name = getDisplayName(contact);
 
@@ -67,10 +71,10 @@ export function ChatWindow({ contact, conversationId }: Props) {
     });
   }, [messages, user?.id]);
 
-  // Focus input when contact changes
+  // Focus input when contact changes (desktop only)
   useEffect(() => {
-    inputRef.current?.focus();
-  }, [contact.id]);
+    if (!isMobile) inputRef.current?.focus();
+  }, [contact.id, isMobile]);
 
   const handleSend = async () => {
     const content = input.trim();
@@ -109,143 +113,168 @@ export function ChatWindow({ contact, conversationId }: Props) {
     }
   };
 
-  return (
-    <View className="flex-1 bg-white">
-      {/* Header */}
-      <View className="flex-row items-center px-5 py-3 border-b border-surface-200">
-        <Avatar size="md">
-          {contact.avatar_url ? (
-            <AvatarImage source={{ uri: contact.avatar_url }} />
-          ) : (
-            <AvatarFallbackText>{name.charAt(0).toUpperCase()}</AvatarFallbackText>
-          )}
-        </Avatar>
-        <View className="ml-3">
-          <Heading size="sm">{name}</Heading>
-          <UIText size="xs" className="text-typo-400 capitalize">{contact.relationship || contact.role}</UIText>
-        </View>
-      </View>
-
-      {/* Messages */}
-      <ScrollView
-        ref={scrollRef}
-        className="flex-1 bg-surface-50"
-        contentContainerStyle={{ padding: 20, gap: 12 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          <View className="flex-1 items-center justify-center py-20">
-            <View className="w-8 h-8 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
-          </View>
-        ) : messages.length === 0 ? (
-          <View className="items-center py-20">
-            <Ionicons name="chatbubble-ellipses-outline" size={48} color="#D1D5DB" />
-            <UIText size="sm" className="text-typo-400 mt-3">
-              No messages yet. Start the conversation!
-            </UIText>
-          </View>
+  const header = (
+    <View
+      className="flex-row items-center px-4 py-3 border-b border-surface-200 bg-white"
+      style={isMobile ? { paddingTop: Platform.OS === 'web' ? 12 : insets.top + 8 } : undefined}
+    >
+      {isMobile && (
+        <Pressable onPress={onBack} className="mr-2 p-1" hitSlop={8}>
+          <Ionicons name="chevron-back" size={24} color="#6D469B" />
+        </Pressable>
+      )}
+      <Avatar size="md">
+        {contact.avatar_url ? (
+          <AvatarImage source={{ uri: contact.avatar_url }} />
         ) : (
-          messages.map((msg) => {
-            const isMine = msg.sender_id === user?.id;
-            return (
+          <AvatarFallbackText>{name.charAt(0).toUpperCase()}</AvatarFallbackText>
+        )}
+      </Avatar>
+      <View className="ml-3 flex-1">
+        <Heading size="sm">{name}</Heading>
+        <UIText size="xs" className="text-typo-400 capitalize">{contact.relationship || contact.role}</UIText>
+      </View>
+    </View>
+  );
+
+  const messageList = (
+    <ScrollView
+      ref={scrollRef}
+      className="flex-1 bg-surface-50"
+      contentContainerStyle={{ padding: 16, gap: 8 }}
+      showsVerticalScrollIndicator={false}
+      keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
+    >
+      {loading ? (
+        <View className="flex-1 items-center justify-center py-20">
+          <View className="w-8 h-8 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+        </View>
+      ) : messages.length === 0 ? (
+        <View className="items-center py-20">
+          <Ionicons name="chatbubble-ellipses-outline" size={48} color="#CEC6D6" />
+          <UIText size="sm" className="text-typo-400 mt-3">
+            No messages yet. Start the conversation!
+          </UIText>
+        </View>
+      ) : (
+        messages.map((msg) => {
+          const isMine = msg.sender_id === user?.id;
+          return (
+            <View
+              key={msg.id}
+              className={`flex-row ${isMine ? 'justify-end' : 'justify-start'}`}
+            >
               <View
-                key={msg.id}
-                className={`flex-row ${isMine ? 'justify-end' : 'justify-start'}`}
+                style={{
+                  maxWidth: '75%',
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 18,
+                  ...(isMine
+                    ? {
+                        backgroundColor: '#6D469B',
+                        borderBottomRightRadius: 4,
+                      }
+                    : {
+                        backgroundColor: '#fff',
+                        borderBottomLeftRadius: 4,
+                        borderWidth: 1,
+                        borderColor: '#E2DCE8',
+                      }),
+                  opacity: msg.isOptimistic ? 0.7 : 1,
+                }}
               >
-                <View
-                  style={{
-                    maxWidth: '75%',
-                    padding: 12,
-                    borderRadius: 16,
-                    ...(isMine
-                      ? {
-                          backgroundColor: '#6D469B',
-                          borderBottomRightRadius: 4,
-                        }
-                      : {
-                          backgroundColor: '#fff',
-                          borderBottomLeftRadius: 4,
-                          borderWidth: 1,
-                          borderColor: '#E5E7EB',
-                        }),
-                    opacity: msg.isOptimistic ? 0.7 : 1,
-                  }}
+                <UIText
+                  size="sm"
+                  style={{ color: isMine ? '#fff' : '#1F2937', lineHeight: 20 }}
                 >
+                  {msg.message_content}
+                </UIText>
+                <View className="flex-row items-center justify-end mt-1 gap-2">
                   <UIText
-                    size="sm"
-                    style={{ color: isMine ? '#fff' : '#1F2937' }}
+                    size="xs"
+                    style={{ color: isMine ? 'rgba(255,255,255,0.6)' : '#9A93A8', fontSize: 10 }}
                   >
-                    {msg.message_content}
+                    {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
                   </UIText>
-                  <View className="flex-row items-center justify-between mt-1.5 gap-3">
-                    <UIText
-                      size="xs"
-                      style={{ color: isMine ? 'rgba(255,255,255,0.7)' : '#9CA3AF', fontSize: 10 }}
-                    >
-                      {formatTime(msg.created_at)}
-                    </UIText>
-                    {isMine && (
-                      <UIText
-                        size="xs"
-                        style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10 }}
-                      >
-                        {msg.isOptimistic ? 'Sending...' : msg.read_at ? 'Read' : 'Sent'}
-                      </UIText>
-                    )}
-                  </View>
+                  {isMine && !msg.isOptimistic && (
+                    <Ionicons
+                      name={msg.read_at ? 'checkmark-done' : 'checkmark'}
+                      size={12}
+                      color={msg.read_at ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.5)'}
+                    />
+                  )}
                 </View>
               </View>
-            );
-          })
-        )}
-      </ScrollView>
-
-      {/* Input */}
-      <View className="border-t border-surface-200 bg-white px-4 py-3">
-        <View className="flex-row items-end gap-3">
-          <View className="flex-1">
-            <TextInput
-              ref={inputRef}
-              value={input}
-              onChangeText={setInput}
-              onKeyPress={handleKeyPress}
-              placeholder={`Message ${name}...`}
-              placeholderTextColor="#9CA3AF"
-              multiline
-              maxLength={2000}
-              className="border border-surface-200 rounded-xl px-4 py-2.5 font-poppins text-sm"
-              style={{
-                outline: 'none',
-                minHeight: 42,
-                maxHeight: 120,
-              } as any}
-            />
-            <View className="flex-row justify-between mt-1 px-1">
-              <UIText size="xs" className="text-typo-400" style={{ fontSize: 10 }}>
-                {input.length}/2000
-              </UIText>
-              <UIText size="xs" className="text-typo-300" style={{ fontSize: 10 }}>
-                Enter to send, Shift+Enter for new line
-              </UIText>
             </View>
-          </View>
-          <Pressable
-            onPress={handleSend}
-            disabled={!input.trim() || sending}
-            style={{
-              backgroundColor: input.trim() && !sending ? '#6D469B' : '#D1D5DB',
-              width: 42,
-              height: 42,
-              borderRadius: 21,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 18,
-            }}
-          >
-            <Ionicons name="send" size={18} color="#fff" />
-          </Pressable>
-        </View>
+          );
+        })
+      )}
+    </ScrollView>
+  );
+
+  const inputBar = (
+    <View
+      className="border-t border-surface-200 bg-white px-3"
+      style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
+    >
+      <View className="flex-row items-end gap-2">
+        <TextInput
+          ref={inputRef}
+          value={input}
+          onChangeText={setInput}
+          onKeyPress={handleKeyPress}
+          placeholder={`Message ${name}...`}
+          placeholderTextColor="#9A93A8"
+          multiline
+          maxLength={2000}
+          className="flex-1 bg-surface-100 rounded-2xl px-4 py-2 font-poppins text-sm"
+          style={{
+            outline: 'none',
+            minHeight: 36,
+            maxHeight: 100,
+          } as any}
+        />
+        <Pressable
+          onPress={handleSend}
+          disabled={!input.trim() || sending}
+          style={{
+            backgroundColor: input.trim() && !sending ? '#6D469B' : '#CEC6D6',
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="arrow-up" size={18} color="#fff" />
+        </Pressable>
       </View>
+    </View>
+  );
+
+  // Mobile: wrap in KeyboardAvoidingView
+  if (isMobile) {
+    return (
+      <KeyboardAvoidingView
+        className="flex-1 bg-white"
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+        {header}
+        {messageList}
+        {inputBar}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Desktop
+  return (
+    <View className="flex-1 bg-white">
+      {header}
+      {messageList}
+      {inputBar}
     </View>
   );
 }

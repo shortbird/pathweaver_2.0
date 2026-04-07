@@ -13,6 +13,16 @@ import {
 } from '@heroicons/react/24/outline';
 
 const STATUS_CONFIG = {
+  pending_org_approval: {
+    label: 'Awaiting Org Review',
+    color: 'bg-purple-100 text-purple-800',
+    icon: ClockIcon,
+  },
+  pending_optio_approval: {
+    label: 'Awaiting Optio Review',
+    color: 'bg-indigo-100 text-indigo-800',
+    icon: ClockIcon,
+  },
   pending_review: {
     label: 'Awaiting Review',
     color: 'bg-amber-100 text-amber-800',
@@ -32,6 +42,8 @@ const STATUS_CONFIG = {
 
 const FILTER_TABS = [
   { key: 'grow_this', label: 'Grow This' },
+  { key: 'pending_org_approval', label: 'Awaiting Org Review' },
+  { key: 'pending_optio_approval', label: 'Awaiting Optio Review' },
   { key: 'pending_review', label: 'Awaiting Review' },
 ];
 
@@ -57,11 +69,17 @@ export default function DiplomaCreditTracker() {
       // Auto-select the first tab that has actionable items
       if (filter === null && requests.length > 0) {
         const growCount = requests.filter(r => r.diploma_status === 'grow_this').length;
-        const pendingCount = requests.filter(r => r.diploma_status === 'pending_review').length;
+        const pendingAnyCount = requests.filter(r =>
+          ['pending_review', 'pending_org_approval', 'pending_optio_approval'].includes(r.diploma_status)
+        ).length;
         if (growCount > 0) {
           setFilter('grow_this');
-        } else if (pendingCount > 0) {
-          setFilter('pending_review');
+        } else if (pendingAnyCount > 0) {
+          // Pick the first pending tab that has items
+          const firstPending = requests.find(r =>
+            ['pending_org_approval', 'pending_optio_approval', 'pending_review'].includes(r.diploma_status)
+          );
+          if (firstPending) setFilter(firstPending.diploma_status);
         }
         // Otherwise filter stays null — shows "all caught up" summary
       }
@@ -77,7 +95,9 @@ export default function DiplomaCreditTracker() {
     : [];
 
   const growCount = creditRequests.filter(r => r.diploma_status === 'grow_this').length;
-  const pendingCount = creditRequests.filter(r => r.diploma_status === 'pending_review').length;
+  const pendingCount = creditRequests.filter(r =>
+    ['pending_review', 'pending_org_approval', 'pending_optio_approval'].includes(r.diploma_status)
+  ).length;
   const approvedCount = creditRequests.filter(r => r.diploma_status === 'approved').length;
   const allCaughtUp = growCount === 0 && pendingCount === 0;
 

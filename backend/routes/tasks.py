@@ -977,10 +977,10 @@ def request_diploma_credit(user_id: str, task_id: str):
 
         # Verify eligible status
         if completion_data['diploma_status'] not in ('none', 'grow_this'):
-            if completion_data['diploma_status'] == 'pending_review':
+            if completion_data['diploma_status'] in ('pending_review', 'pending_org_approval', 'pending_optio_approval'):
                 return error_response(
                     code='ALREADY_PENDING',
-                    message='Credit request is already pending advisor review.',
+                    message='Credit request is already pending review.',
                     status=400
                 )
             if completion_data['diploma_status'] == 'approved':
@@ -1058,10 +1058,22 @@ def request_diploma_credit(user_id: str, task_id: str):
             'submitted_at': now
         }).execute()
 
+        # Check if student is in an organization (determines approval flow)
+        student_user = admin_supabase.table('users')\
+            .select('organization_id')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+        student_org_id = student_user.data.get('organization_id') if student_user.data else None
+        is_org_student = student_org_id is not None
+
+        # Org students go to org_admin first; platform students go to superadmin
+        new_diploma_status = 'pending_org_approval' if is_org_student else 'pending_review'
+
         # Update completion status
         new_revision = round_number
         admin_supabase.table('quest_task_completions').update({
-            'diploma_status': 'pending_review',
+            'diploma_status': new_diploma_status,
             'credit_requested_at': now,
             'revision_number': new_revision
         }).eq('id', completion_data['id']).execute()
@@ -1072,32 +1084,67 @@ def request_diploma_credit(user_id: str, task_id: str):
         except Exception as xp_err:
             logger.error(f"Failed to add pending subject XP for credit request: {xp_err}")
 
-        # Notify superadmin only (credit review is superadmin-only)
+        # Send notifications
         try:
             from services.notification_service import NotificationService
-            superadmin_result = admin_supabase.table('users')\
-                .select('id')\
-                .eq('role', 'superadmin')\
+
+            # Get student display name
+            student_result = admin_supabase.table('users')\
+                .select('display_name, first_name, last_name, email')\
+                .eq('id', user_id)\
+                .single()\
                 .execute()
+            if student_result.data:
+                student_name = (
+                    student_result.data.get('display_name')
+                    or f"{student_result.data.get('first_name', '')} {student_result.data.get('last_name', '')}".strip()
+                    or student_result.data.get('email')
+                    or 'A student'
+                )
+            else:
+                student_name = 'A student'
 
-            if superadmin_result.data:
-                student_result = admin_supabase.table('users')\
-                    .select('display_name, first_name, last_name, email')\
-                    .eq('id', user_id)\
-                    .single()\
+            notification_service = NotificationService()
+
+            if is_org_student:
+                # Notify org_admin(s) in the same organization
+                org_admins = admin_supabase.table('users')\
+                    .select('id')\
+                    .eq('organization_id', student_org_id)\
+                    .eq('role', 'org_managed')\
+                    .contains('org_roles', ['org_admin'])\
                     .execute()
-                if student_result.data:
-                    student_name = (
-                        student_result.data.get('display_name')
-                        or f"{student_result.data.get('first_name', '')} {student_result.data.get('last_name', '')}".strip()
-                        or student_result.data.get('email')
-                        or 'A student'
-                    )
-                else:
-                    student_name = 'A student'
 
-                notification_service = NotificationService()
-                for sa in superadmin_result.data:
+                # Fallback: also check legacy org_role field
+                if not org_admins.data:
+                    org_admins = admin_supabase.table('users')\
+                        .select('id')\
+                        .eq('organization_id', student_org_id)\
+                        .eq('role', 'org_managed')\
+                        .eq('org_role', 'org_admin')\
+                        .execute()
+
+                for oa in (org_admins.data or []):
+                    notification_service.create_notification(
+                        user_id=oa['id'],
+                        notification_type='diploma_credit_requested',
+                        title='Student Credit Request',
+                        message=f'{student_name} requested diploma credit for "{task_data.get("title", "a task")}"',
+                        link='/credit-dashboard',
+                        metadata={
+                            'student_id': user_id,
+                            'task_id': task_id,
+                            'completion_id': completion_data['id']
+                        }
+                    )
+            else:
+                # Notify superadmin(s) for platform students
+                superadmin_result = admin_supabase.table('users')\
+                    .select('id')\
+                    .eq('role', 'superadmin')\
+                    .execute()
+
+                for sa in (superadmin_result.data or []):
                     notification_service.create_notification(
                         user_id=sa['id'],
                         notification_type='diploma_credit_requested',
@@ -1111,18 +1158,23 @@ def request_diploma_credit(user_id: str, task_id: str):
                         }
                     )
         except Exception as notify_err:
-            logger.warning(f"Failed to notify superadmin of credit request: {notify_err}")
+            logger.warning(f"Failed to send credit request notification: {notify_err}")
 
-        logger.info(f"User {user_id[:8]} requested diploma credit for task {task_id[:8]} (round {round_number})")
+        review_message = (
+            'Diploma credit requested. Your organization admin will review your work.'
+            if is_org_student else
+            'Diploma credit requested. Your advisor will review your work.'
+        )
+        logger.info(f"User {user_id[:8]} requested diploma credit for task {task_id[:8]} (round {round_number}, status={new_diploma_status})")
 
         return success_response(
             data={
                 'success': True,
                 'round_number': round_number,
-                'diploma_status': 'pending_review',
+                'diploma_status': new_diploma_status,
                 'subjects': subject_xp,
                 'completion_id': completion_data['id'],
-                'message': 'Diploma credit requested. Your advisor will review your work.'
+                'message': review_message
             }
         )
 

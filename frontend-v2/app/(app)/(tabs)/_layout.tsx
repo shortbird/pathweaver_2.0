@@ -10,6 +10,7 @@ import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { useAuthStore } from '@/src/stores/authStore';
 import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder } from '@/src/config/navigation';
+import { useUIStore } from '@/src/stores/uiStore';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -33,11 +34,11 @@ function ObserverHeader() {
     <View className="bg-white dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300 px-6 py-3 flex-row items-center justify-between">
       <Image source={{ uri: LOGO_URI }} style={{ width: 110, height: 34 }} resizeMode="contain" />
       <Pressable onPress={logout} className="flex-row items-center gap-2 active:opacity-70">
-        <Ionicons name="person-circle-outline" size={20} color="#6B7280" />
+        <Ionicons name="person-circle-outline" size={20} color="#6B6280" />
         <UIText size="sm" className="text-typo-500 font-poppins-medium">
           {user?.display_name || user?.first_name || user?.email}
         </UIText>
-        <Ionicons name="log-out-outline" size={18} color="#9CA3AF" />
+        <Ionicons name="log-out-outline" size={18} color="#9A93A8" />
       </Pressable>
     </View>
   );
@@ -50,8 +51,10 @@ export default function TabsLayout() {
   const isObserver = useIsObserver();
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const tabBarHidden = useUIStore((s) => s.tabBarHidden);
 
-  // ── Observer: feed-only, no sidebar, no tabs ──
+  // ── Observer: feed + bounties, minimal chrome ──
+  const observerTabs = ['feed', 'bounties'];
   if (isObserver) {
     return (
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
@@ -61,12 +64,40 @@ export default function TabsLayout() {
           initialRouteName="feed"
           screenOptions={{
             headerShown: false,
-            tabBarStyle: { display: 'none' },
+            tabBarActiveTintColor: '#6D469B',
+            tabBarInactiveTintColor: '#9A93A8',
+            tabBarLabelStyle: {
+              fontFamily: 'Poppins_500Medium',
+              fontSize: 11,
+            },
+            tabBarStyle: isDesktop
+              ? { display: 'none' }
+              : {
+                  height: 85,
+                  paddingBottom: 20,
+                  borderTopColor: isDark ? '#3A3A52' : '#E2DCE8',
+                  backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
+                },
           }}
         >
-          <Tabs.Screen name="feed" />
-          {/* Register all routes but hide them — Expo Router requires it */}
-          {navItems.filter((n) => n.key !== 'feed').map((n) => (
+          {observerTabs.map((key) => {
+            const item = navItems.find((n) => n.key === key);
+            if (!item) return null;
+            return (
+              <Tabs.Screen
+                key={item.key}
+                name={item.key}
+                options={{
+                  title: item.label,
+                  tabBarIcon: ({ color, size }) => (
+                    <Ionicons name={item.icon} size={size} color={color} />
+                  ),
+                }}
+              />
+            );
+          })}
+          {/* Register all other routes but hide them */}
+          {navItems.filter((n) => !observerTabs.includes(n.key)).map((n) => (
             <Tabs.Screen key={n.key} name={n.key} options={{ href: null }} />
           ))}
           <Tabs.Screen name="capture" options={{ href: null }} />
@@ -108,17 +139,19 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#6D469B',
-          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarInactiveTintColor: '#9A93A8',
           tabBarLabelStyle: {
             fontFamily: 'Poppins_500Medium',
             fontSize: 11,
           },
-          tabBarStyle: {
-            height: 85,
-            paddingBottom: 20,
-            borderTopColor: isDark ? '#3A3A52' : '#E5E7EB',
-            backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
-          },
+          tabBarStyle: tabBarHidden
+            ? { display: 'none' as const }
+            : {
+                height: 85,
+                paddingBottom: 20,
+                borderTopColor: isDark ? '#3A3A52' : '#E2DCE8',
+                backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
+              },
         }}
       >
         {mobileTabOrder.map((key) => {

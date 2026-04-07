@@ -104,9 +104,18 @@ def return_to_advisor(user_id: str, completion_id: str):
             'reviewed_at': now
         }).execute()
 
-        # Reset completion back to pending_review
+        # Determine return status based on whether student is in an org
+        student_result = admin_supabase.table('users') \
+            .select('organization_id') \
+            .eq('id', completion.data['user_id']) \
+            .single() \
+            .execute()
+        has_org = student_result.data and student_result.data.get('organization_id')
+        return_status = 'pending_optio_approval' if has_org else 'pending_review'
+
+        # Reset completion back to appropriate review step
         admin_supabase.table('quest_task_completions').update({
-            'diploma_status': 'pending_review',
+            'diploma_status': return_status,
             'accreditor_status': 'returned',
             'credit_reviewer_id': None,
             'finalized_at': None

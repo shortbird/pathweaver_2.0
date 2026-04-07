@@ -260,8 +260,8 @@ const TaskWorkspace = ({
     try {
       const response = await api.post(`/api/tasks/${task.id}/request-credit`, {});
       const resData = response.data?.data || response.data;
-      if (resData.success || resData.diploma_status === 'pending_review') {
-        setCreditStatus('pending_review');
+      if (resData.success || ['pending_review', 'pending_org_approval'].includes(resData.diploma_status)) {
+        setCreditStatus(resData.diploma_status || 'pending_review');
         toast.success(resData.message || 'Diploma credit requested!');
       }
     } catch (err) {
@@ -994,6 +994,18 @@ const TaskWorkspace = ({
                           <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
                             <AcademicCapIcon className="w-4 h-4" />
                             <span className="hidden sm:inline">Awaiting Review</span>
+                          </span>
+                        )}
+                        {creditStatus === 'pending_org_approval' && (
+                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg">
+                            <AcademicCapIcon className="w-4 h-4" />
+                            <span className="hidden sm:inline">Awaiting Org Review</span>
+                          </span>
+                        )}
+                        {creditStatus === 'pending_optio_approval' && (
+                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <AcademicCapIcon className="w-4 h-4" />
+                            <span className="hidden sm:inline">Awaiting Optio Review</span>
                           </span>
                         )}
                         {creditStatus === 'approved' && (
