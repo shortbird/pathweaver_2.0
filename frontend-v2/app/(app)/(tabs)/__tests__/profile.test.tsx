@@ -99,7 +99,11 @@ describe('ProfileScreen', () => {
     expect(getByText('Social Studies')).toBeTruthy();
   });
 
-  it('capitalizes CTE and PE as all-caps acronyms', () => {
+  it('renders human-readable display names for CTE and PE subjects', () => {
+    // ProfileScreen's CREDIT_REQUIREMENTS maps 'cte' → 'Career & Tech' and
+    // 'pe' → 'Physical Education'. Earlier tests asserted the raw acronyms,
+    // but the component no longer renders them — the displayName lookup
+    // always wins before the acronym-capitalization fallback.
     (useProfile as jest.Mock).mockReturnValue({
       ...baseProfileMock,
       subjectXP: [
@@ -112,11 +116,11 @@ describe('ProfileScreen', () => {
 
     fireEvent.press(getByText('Subject Credits'));
 
-    expect(getByText('CTE')).toBeTruthy();
-    expect(getByText('PE')).toBeTruthy();
+    expect(getByText('Career & Tech')).toBeTruthy();
+    expect(getByText('Physical Education')).toBeTruthy();
   });
 
-  it('renders progress bars and pending XP badge for subject credits', () => {
+  it('renders progress and pending XP badge for subject credits', () => {
     (useProfile as jest.Mock).mockReturnValue({
       ...baseProfileMock,
       subjectXP: [
@@ -129,7 +133,9 @@ describe('ProfileScreen', () => {
     // Section is collapsed by default -- expand it
     fireEvent.press(getByText('Subject Credits'));
 
-    expect(getByText('400 XP')).toBeTruthy();
+    // Math requires 3 credits × 2000 XP/credit = 6,000 XP.
+    // Component formats with toLocaleString() as "400 / 6,000 XP".
+    expect(getByText('400 / 6,000 XP')).toBeTruthy();
     expect(getByText('+75 pending')).toBeTruthy();
   });
 });
