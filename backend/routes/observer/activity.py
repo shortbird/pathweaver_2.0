@@ -354,40 +354,34 @@ def register_routes(bp):
             has_more = len(raw_feed_items) > limit
             paginated_items = raw_feed_items[:limit]
 
-            # Get like counts for task completions
+            # Get view counts for task completions
             completion_ids = list(set([item['completion_id'] for item in paginated_items if item.get('completion_id')]))
-            likes_count = {}
-            user_likes = set()
+            views_count = {}
             try:
                 if completion_ids:
-                    likes = supabase.table('observer_likes') \
-                        .select('completion_id, observer_id') \
+                    views = supabase.table('feed_item_views') \
+                        .select('completion_id') \
                         .in_('completion_id', completion_ids) \
                         .execute()
 
-                    for like in likes.data:
-                        likes_count[like['completion_id']] = likes_count.get(like['completion_id'], 0) + 1
-                        if like['observer_id'] == user_id:
-                            user_likes.add(like['completion_id'])
+                    for view in views.data:
+                        views_count[view['completion_id']] = views_count.get(view['completion_id'], 0) + 1
             except Exception:
                 pass
 
-            # Get like counts for learning events
+            # Get view counts for learning events
             le_ids = list(set([item['learning_event_id'] for item in paginated_items if item.get('learning_event_id')]))
-            le_likes_count = {}
-            le_user_likes = set()
+            le_views_count = {}
             try:
                 if le_ids:
-                    le_likes = supabase.table('observer_likes') \
-                        .select('learning_event_id, observer_id') \
+                    le_views = supabase.table('feed_item_views') \
+                        .select('learning_event_id') \
                         .in_('learning_event_id', le_ids) \
                         .execute()
 
-                    for like in le_likes.data:
-                        le_id = like['learning_event_id']
-                        le_likes_count[le_id] = le_likes_count.get(le_id, 0) + 1
-                        if like['observer_id'] == user_id:
-                            le_user_likes.add(le_id)
+                    for view in le_views.data:
+                        le_id = view['learning_event_id']
+                        le_views_count[le_id] = le_views_count.get(le_id, 0) + 1
             except Exception:
                 pass
 
@@ -453,9 +447,8 @@ def register_routes(bp):
                             'title': item.get('evidence_title')
                         },
                         'media': item.get('media_items', []),
-                        'likes_count': le_likes_count.get(le_id, 0),
+                        'views_count': le_views_count.get(le_id, 0),
                         'comments_count': le_comments_count.get(le_id, 0),
-                        'user_has_liked': le_id in le_user_likes,
                         'is_confidential': item.get('is_confidential', False)
                     })
                 else:
@@ -488,9 +481,8 @@ def register_routes(bp):
                             'title': item.get('evidence_title')
                         },
                         'xp_awarded': item['task_xp'],
-                        'likes_count': likes_count.get(item.get('completion_id'), 0),
+                        'views_count': views_count.get(item.get('completion_id'), 0),
                         'comments_count': comments_count.get(item.get('completion_id'), 0),
-                        'user_has_liked': item.get('completion_id') in user_likes,
                         'is_confidential': item.get('is_confidential', False)
                     })
 

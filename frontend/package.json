@@ -84,6 +84,13 @@
             "error"
           ]
         }
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "CallExpression[callee.object.name='localStorage'][callee.property.name='setItem'][arguments.0.value=/^(access_token|refresh_token|app_access_token|app_refresh_token|user|original_admin_token|masquerade_token|session_encryption_key)$/]",
+          "message": "C2 security: never persist auth tokens, the user object, or the legacy encryption key in localStorage. Tokens live in memory + httpOnly cookies via tokenStore (services/api.js)."
+        }
       ]
     }
   },

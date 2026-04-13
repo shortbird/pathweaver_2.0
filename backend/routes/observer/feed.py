@@ -445,42 +445,36 @@ def register_routes(bp):
             has_more = len(raw_feed_items) > limit
             paginated_items = raw_feed_items[:limit]
 
-            # Get like counts and user's likes for task completions
+            # Get view counts for task completions
             completion_ids = list(set([item.get('completion_id') for item in paginated_items if item.get('completion_id')]))
-            likes_count = {}
-            user_likes = set()
+            views_count = {}
             try:
                 if completion_ids:
-                    likes = supabase.table('observer_likes') \
-                        .select('completion_id, observer_id') \
+                    views = supabase.table('feed_item_views') \
+                        .select('completion_id') \
                         .in_('completion_id', completion_ids) \
                         .execute()
 
-                    for like in likes.data:
-                        likes_count[like['completion_id']] = likes_count.get(like['completion_id'], 0) + 1
-                        if like['observer_id'] == observer_id:
-                            user_likes.add(like['completion_id'])
-            except Exception as likes_error:
-                logger.warning(f"Could not fetch observer_likes for completions: {likes_error}")
+                    for view in views.data:
+                        views_count[view['completion_id']] = views_count.get(view['completion_id'], 0) + 1
+            except Exception as views_error:
+                logger.warning(f"Could not fetch feed_item_views for completions: {views_error}")
 
-            # Get like counts and user's likes for learning events
+            # Get view counts for learning events
             le_ids = list(set([item.get('learning_event_id') for item in paginated_items if item.get('learning_event_id')]))
-            le_likes_count = {}
-            le_user_likes = set()
+            le_views_count = {}
             try:
                 if le_ids:
-                    le_likes = supabase.table('observer_likes') \
-                        .select('learning_event_id, observer_id') \
+                    le_views = supabase.table('feed_item_views') \
+                        .select('learning_event_id') \
                         .in_('learning_event_id', le_ids) \
                         .execute()
 
-                    for like in le_likes.data:
-                        le_id = like['learning_event_id']
-                        le_likes_count[le_id] = le_likes_count.get(le_id, 0) + 1
-                        if like['observer_id'] == observer_id:
-                            le_user_likes.add(le_id)
-            except Exception as likes_error:
-                logger.warning(f"Could not fetch observer_likes for learning events: {likes_error}")
+                    for view in le_views.data:
+                        le_id = view['learning_event_id']
+                        le_views_count[le_id] = le_views_count.get(le_id, 0) + 1
+            except Exception as views_error:
+                logger.warning(f"Could not fetch feed_item_views for learning events: {views_error}")
 
             # Get comment counts for task completions
             comments_count = {}
@@ -544,9 +538,8 @@ def register_routes(bp):
                         },
                         # All media items for carousel display
                         'media': item.get('media_items', []),
-                        'likes_count': le_likes_count.get(le_id, 0),
+                        'views_count': le_views_count.get(le_id, 0),
                         'comments_count': le_comments_count.get(le_id, 0),
-                        'user_has_liked': le_id in le_user_likes
                     })
                 else:
                     # Task completion feed item
@@ -577,9 +570,8 @@ def register_routes(bp):
                             'title': item.get('evidence_title')
                         },
                         'xp_awarded': item.get('task_xp', 0),
-                        'likes_count': likes_count.get(item.get('completion_id'), 0),
+                        'views_count': views_count.get(item.get('completion_id'), 0),
                         'comments_count': comments_count.get(item.get('completion_id'), 0),
-                        'user_has_liked': item.get('completion_id') in user_likes
                     })
 
             # Log feed access

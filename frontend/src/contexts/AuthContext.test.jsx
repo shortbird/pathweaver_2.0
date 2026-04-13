@@ -22,7 +22,6 @@ vi.mock('react-hot-toast', () => ({
 vi.mock('../services/api', () => {
   const tokenStoreMock = {
     init: vi.fn().mockResolvedValue(undefined),
-    restoreTokens: vi.fn().mockResolvedValue(false),
     getAccessToken: vi.fn().mockReturnValue(null),
     setTokens: vi.fn().mockResolvedValue(undefined),
     clearTokens: vi.fn().mockResolvedValue(undefined)
@@ -120,7 +119,6 @@ describe('AuthContext', () => {
 
     it('restores session from token store', async () => {
       tokenStore.getAccessToken.mockReturnValue('valid-token')
-      tokenStore.restoreTokens.mockResolvedValue(true)
       api.get.mockResolvedValue({ data: { id: '1', role: 'student', email: 'test@test.com' } })
 
       const wrapper = createWrapper()
@@ -135,7 +133,6 @@ describe('AuthContext', () => {
 
     it('clears invalid tokens on failed session restore', async () => {
       tokenStore.getAccessToken.mockReturnValue('expired-token')
-      tokenStore.restoreTokens.mockResolvedValue(true)
       api.get.mockRejectedValue({ response: { status: 401 } })
 
       const wrapper = createWrapper()
@@ -417,7 +414,6 @@ describe('AuthContext', () => {
     it('clears tokens and navigates to /', async () => {
       // Start authenticated
       tokenStore.getAccessToken.mockReturnValue('valid-token')
-      tokenStore.restoreTokens.mockResolvedValue(true)
       api.get.mockResolvedValue({ data: { id: '1', role: 'student' } })
       api.post.mockResolvedValue({})
 
@@ -474,7 +470,6 @@ describe('AuthContext', () => {
   describe('getEffectiveRole / computed properties', () => {
     async function renderWithUser(userData) {
       tokenStore.getAccessToken.mockReturnValue('valid-token')
-      tokenStore.restoreTokens.mockResolvedValue(true)
       api.get.mockResolvedValue({ data: userData })
 
       const wrapper = createWrapper()

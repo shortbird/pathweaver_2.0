@@ -1,17 +1,20 @@
 /**
  * Masquerade Service
  * Handles admin masquerade sessions (viewing platform as another user)
+ *
+ * Security: No tokens are persisted to localStorage. The masquerade JWT lives
+ * in tokenStore (memory + httpOnly cookie). Only non-sensitive UI state
+ * (target user display info, log id) is cached in localStorage so the banner
+ * can render immediately on reload; the backend is the source of truth.
  */
 
 import { tokenStore } from './api.js';
 import logger from '../utils/logger';
 
 const MASQUERADE_STORAGE_KEY = 'masquerade_state';
-const ADMIN_TOKEN_STORAGE_KEY = 'original_admin_token';
-const MASQUERADE_TOKEN_STORAGE_KEY = 'masquerade_token'; // Backup storage for masquerade token
 
 /**
- * Get current masquerade state from localStorage
+ * Get current masquerade UI state from localStorage
  */
 export const getMasqueradeState = () => {
   try {
@@ -31,39 +34,6 @@ export const isMasquerading = () => {
 };
 
 /**
- * Get masquerade token from localStorage backup
- * Used to restore token after page reload if IndexedDB fails
- */
-export const getMasqueradeToken = () => {
-  try {
-    return localStorage.getItem(MASQUERADE_TOKEN_STORAGE_KEY);
-  } catch (error) {
-    console.error('Error getting masquerade token from localStorage:', error);
-    return null;
-  }
-};
-
-/**
- * Restore masquerade token from localStorage backup to tokenStore
- * Call this on app initialization to ensure masquerade persists across page reloads
- */
-export const restoreMasqueradeToken = async () => {
-  const state = getMasqueradeState();
-  const backupToken = getMasqueradeToken();
-
-  if (state && backupToken) {
-    // Only restore if we have both state AND token backup
-    const currentToken = tokenStore.getAccessToken();
-    if (!currentToken || currentToken !== backupToken) {
-      logger.debug('[Masquerade] Restoring masquerade token from localStorage backup');
-      await tokenStore.setTokens(backupToken, tokenStore.getRefreshToken() || '');
-      return true;
-    }
-  }
-  return false;
-};
-
-/**
  * Start masquerade session
  * @param {string} userId - Target user ID to masquerade as
  * @param {string} reason - Optional reason for masquerade (for audit log)
@@ -72,39 +42,21 @@ export const restoreMasqueradeToken = async () => {
  */
 export const startMasquerade = async (userId, reason = '', apiCall) => {
   try {
-    // Store current admin token before masquerading
-    const currentToken = tokenStore.getAccessToken();
     const currentRefreshToken = tokenStore.getRefreshToken();
 
-    if (currentToken) {
-      localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, JSON.stringify({
-        access_token: currentToken,
-        refresh_token: currentRefreshToken
-      }));
-      logger.debug('[Masquerade] Backed up admin tokens before masquerading');
-    }
-
-    // Call masquerade API
     const response = await apiCall.post(`/api/admin/masquerade/${userId}`, {
       reason
     });
 
     const { masquerade_token, log_id, target_user } = response.data;
 
-    // Store masquerade token using tokenStore, preserving refresh token for page refresh persistence
-    // This matches the pattern used by ActingAsContext which works correctly
-    const existingRefreshToken = tokenStore.getRefreshToken() || currentRefreshToken;
-    await tokenStore.setTokens(masquerade_token, existingRefreshToken);
+    // Swap the active token to the masquerade JWT. Preserve the admin refresh
+    // token so /exit can mint a fresh admin access token server-side.
+    await tokenStore.setTokens(masquerade_token, currentRefreshToken || '');
 
-    // BACKUP: Also store masquerade token in localStorage for reliable restoration after reload
-    // IndexedDB can be unreliable in some browsers/scenarios
-    localStorage.setItem(MASQUERADE_TOKEN_STORAGE_KEY, masquerade_token);
-    logger.debug('[Masquerade] Masquerade token stored in tokenStore AND localStorage backup');
-
-    // Store masquerade state
     const masqueradeState = {
       is_masquerading: true,
-      admin_id: null, // Will be determined by backend from token
+      admin_id: null,
       target_user: target_user,
       log_id: log_id,
       started_at: new Date().toISOString()
@@ -113,30 +65,17 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
     localStorage.setItem(MASQUERADE_STORAGE_KEY, JSON.stringify(masqueradeState));
     logger.debug('[Masquerade] Started masquerading as:', `${target_user.first_name || ''} ${target_user.last_name || ''}`.trim() || target_user.display_name || target_user.email);
 
-    // CRITICAL FIX: Force full page reload to clear React Query cache
-    // Without this, cached data from admin session shows instead of target user data
-    // Redirect to dashboard based on target user's role
+    // Force full page reload to clear React Query cache
     const targetRole = target_user.role;
     const redirectPath = targetRole === 'parent' ? '/parent/dashboard' : '/dashboard';
     window.location.href = redirectPath;
 
-    // This return won't be reached due to page redirect, but keep for type safety
     return {
       success: true,
       targetUser: target_user
     };
   } catch (error) {
     console.error('[Masquerade] Error starting masquerade:', error);
-
-    // Restore original token if masquerade failed
-    const originalTokens = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
-    if (originalTokens) {
-      const { access_token, refresh_token } = JSON.parse(originalTokens);
-      await tokenStore.setTokens(access_token, refresh_token);
-      localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-      logger.debug('[Masquerade] Restored admin tokens after failed masquerade attempt');
-    }
-
     return {
       success: false,
       error: error.response?.data?.error || 'Failed to start masquerade session'
@@ -151,19 +90,12 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
  */
 export const exitMasquerade = async (apiCall) => {
   try {
-    // Call exit masquerade API
     const response = await apiCall.post('/api/admin/masquerade/exit', {});
 
     const { access_token, refresh_token, user: adminUser } = response.data;
 
-    // Restore admin tokens using tokenStore
     await tokenStore.setTokens(access_token, refresh_token);
-    logger.debug('[Masquerade] Admin tokens restored from backend response');
-
-    // Clear masquerade state
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
-    localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-    localStorage.removeItem(MASQUERADE_TOKEN_STORAGE_KEY);
     logger.debug('[Masquerade] Exited masquerade session, returned to admin identity');
 
     return {
@@ -172,22 +104,12 @@ export const exitMasquerade = async (apiCall) => {
     };
   } catch (error) {
     console.error('[Masquerade] Error exiting masquerade:', error);
-
-    // Fallback: Try to restore from stored admin token
-    const originalTokens = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
-    if (originalTokens) {
-      const { access_token, refresh_token } = JSON.parse(originalTokens);
-      await tokenStore.setTokens(access_token, refresh_token);
+    // Backend says we're not masquerading server-side — local state is stale.
+    // Clear it so the banner disappears and the user lands back as themselves.
+    if (error.response?.status === 400) {
       localStorage.removeItem(MASQUERADE_STORAGE_KEY);
-      localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-      localStorage.removeItem(MASQUERADE_TOKEN_STORAGE_KEY);
-      logger.debug('[Masquerade] Restored admin tokens from backup after exit error');
-
-      // Force page reload to refresh with admin token
-      window.location.href = '/admin/users';
-      return { success: true };
+      logger.debug('[Masquerade] Cleared stale local masquerade state (no active server session)');
     }
-
     return {
       success: false,
       error: error.response?.data?.error || 'Failed to exit masquerade session'
@@ -215,34 +137,8 @@ export const checkMasqueradeStatus = async (apiCall) => {
  */
 export const clearMasqueradeData = () => {
   try {
-    // Clear all masquerade-related storage
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
-    localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-    localStorage.removeItem(MASQUERADE_TOKEN_STORAGE_KEY);
-
-    // CRITICAL FIX: Also clear any active masquerade tokens from tokenStore
-    // This prevents the masquerade token from being restored on page refresh
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-
-    logger.debug('[Masquerade] Cleared masquerade data and tokens');
-
-    // Verify cleanup
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    const masqueradeState = localStorage.getItem(MASQUERADE_STORAGE_KEY);
-    const adminToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
-    const masqueradeToken = localStorage.getItem(MASQUERADE_TOKEN_STORAGE_KEY);
-
-    if (accessToken || refreshToken || masqueradeState || adminToken || masqueradeToken) {
-      console.error('[Masquerade] CRITICAL: Tokens still exist after clearing!', {
-        hasAccess: !!accessToken,
-        hasRefresh: !!refreshToken,
-        hasMasqueradeState: !!masqueradeState,
-        hasAdminToken: !!adminToken,
-        hasMasqueradeToken: !!masqueradeToken
-      });
-    }
+    logger.debug('[Masquerade] Cleared masquerade UI state');
   } catch (error) {
     console.error('[Masquerade] Error clearing masquerade data:', error);
   }

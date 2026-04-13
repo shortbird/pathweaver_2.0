@@ -15,7 +15,7 @@ import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
 import SessionConflictOverlay from './components/SessionConflictOverlay'
-import { getMasqueradeState, exitMasquerade, restoreMasqueradeToken } from './services/masqueradeService'
+import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
 import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
 import api from './services/api'
@@ -146,8 +146,10 @@ const queryClient = new QueryClient({
 function AppContent() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Initialize masquerade state immediately from localStorage for instant banner display
-  const [masqueradeState, setMasqueradeState] = useState(() => getMasqueradeState());
+  // C2: backend /status is the source of truth. Don't trust localStorage cache —
+  // after C2 the masquerade JWT can't survive page reload, so any persisted
+  // `masquerade_state` may be stale. Banner appears only after backend confirms.
+  const [masqueradeState, setMasqueradeState] = useState(null);
   const { actingAsDependent, clearActingAs } = useActingAs();
   const [consentBlockData, setConsentBlockData] = useState(null);
 
@@ -158,52 +160,39 @@ function AppContent() {
   // Check masquerade state on mount and periodically
   useEffect(() => {
     const checkMasquerade = async () => {
-      const state = getMasqueradeState();
+      try {
+        const response = await api.get('/api/admin/masquerade/status');
+        const backendStatus = response.data;
 
-      // Show banner immediately from localStorage (don't wait for API verification)
-      if (state) {
-        setMasqueradeState(state);
-
-        // CRITICAL: Restore masquerade token from localStorage backup if needed
-        // This ensures the token persists even if IndexedDB fails
-        await restoreMasqueradeToken();
-
-        // Verify with backend in the background (don't block the UI)
-        const token = tokenStore.getAccessToken();
-        if (token) {
-          try {
-            const response = await api.get('/api/admin/masquerade/status');
-            const backendStatus = response.data;
-
-            // Reset failure counter on successful check
-            statusCheckFailures.current = 0;
-
-            // If backend says we're not masquerading but localStorage says we are, clear it
-            if (!backendStatus.is_masquerading) {
-              console.warn('Clearing stale masquerade state from localStorage');
-              localStorage.removeItem('masquerade_state');
-              localStorage.removeItem('original_admin_token');
-              setMasqueradeState(null);
-            }
-          } catch (error) {
-            // RESILIENCE FIX: Don't immediately clear masquerade state on transient errors
-            // Only clear after multiple consecutive failures to avoid losing banner on network blips
-            statusCheckFailures.current += 1;
-            console.warn(`Masquerade status check failed (${statusCheckFailures.current}/${MAX_STATUS_CHECK_FAILURES}):`, error.message);
-
-            if (statusCheckFailures.current >= MAX_STATUS_CHECK_FAILURES) {
-              console.error('Too many masquerade status check failures, clearing state');
-              localStorage.removeItem('masquerade_state');
-              localStorage.removeItem('original_admin_token');
-              setMasqueradeState(null);
-              statusCheckFailures.current = 0;
-            }
-            // Otherwise keep the banner visible - user can still use exit button
-          }
-        }
-      } else {
-        setMasqueradeState(null);
         statusCheckFailures.current = 0;
+
+        if (backendStatus.is_masquerading) {
+          // Hydrate UI state from backend; keep localStorage in sync for the
+          // few places that still read it (exit handler, sidebar label).
+          const next = {
+            is_masquerading: true,
+            admin_id: backendStatus.admin_id || null,
+            target_user: backendStatus.target_user,
+            log_id: backendStatus.log_id || null,
+            started_at: getMasqueradeState()?.started_at || new Date().toISOString()
+          };
+          localStorage.setItem('masquerade_state', JSON.stringify(next));
+          setMasqueradeState(next);
+        } else {
+          // Not masquerading server-side — purge any stale local cache.
+          if (getMasqueradeState()) {
+            localStorage.removeItem('masquerade_state');
+          }
+          setMasqueradeState(null);
+        }
+      } catch (error) {
+        // 401/network blip: don't flap the banner. After repeated failures, clear.
+        statusCheckFailures.current += 1;
+        if (statusCheckFailures.current >= MAX_STATUS_CHECK_FAILURES) {
+          localStorage.removeItem('masquerade_state');
+          setMasqueradeState(null);
+          statusCheckFailures.current = 0;
+        }
       }
     };
 

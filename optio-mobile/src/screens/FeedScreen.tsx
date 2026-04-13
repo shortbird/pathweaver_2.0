@@ -20,7 +20,6 @@ import { useNavigation } from '@react-navigation/native';
 import { tokens, PillarKey } from '../theme/tokens';
 import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
-import { ReactionBar } from '../components/feed/ReactionBar';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
 import api from '../services/api';
@@ -74,9 +73,8 @@ export interface FeedItem {
   };
   media?: MediaItem[];
   xp_awarded?: number;
-  likes_count: number;
+  views_count: number;
   comments_count: number;
-  user_has_liked: boolean;
 }
 
 export function FeedScreen() {
@@ -282,21 +280,14 @@ function FeedCard({ item }: { item: FeedItem }) {
 
         <View style={[styles.feedFooter, { borderTopColor: colors.border }]}>
           <Text style={[styles.footerStat, { color: colors.textMuted }]}>
-            {item.likes_count} {item.likes_count === 1 ? 'like' : 'likes'}
+            {item.views_count || 0} {(item.views_count || 0) === 1 ? 'view' : 'views'}
           </Text>
           <Text style={[styles.footerStat, { color: colors.textMuted }]}>
             {item.comments_count} {item.comments_count === 1 ? 'comment' : 'comments'}
           </Text>
         </View>
 
-        <ReactionBar
-          targetType={item.type === 'task_completed' ? 'completion' : 'learning_event'}
-          targetId={
-            item.type === 'task_completed'
-              ? (item.completion_id || item.id)
-              : (item.learning_event_id || item.id)
-          }
-        />
+        {/* Comments only - views are tracked automatically */}
       </SurfaceCard>
     </TouchableOpacity>
   );

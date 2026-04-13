@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { secureTokenStore } from './secureTokenStore'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 
@@ -8,100 +7,56 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // ✅ SECURITY FIX: Always send cookies for httpOnly authentication
-  // Backend sets httpOnly cookies with SameSite=None and Secure=true for cross-origin support
+  // Always send cookies for httpOnly authentication.
+  // Backend sets httpOnly cookies with SameSite=None and Secure=true for cross-origin support.
   withCredentials: true,
 })
 
-// ✅ P0 SECURITY FIX (December 2024): Encrypted IndexedDB token storage
-// - Replaced localStorage (XSS vulnerable) with encrypted IndexedDB
-// - In-memory cache for synchronous access (fast)
-// - IndexedDB for persistence across page refreshes (secure)
-// - Safari/iOS compatible while maintaining security
-
-// In-memory token storage (synchronous access for request interceptor)
+// In-memory-only token storage (C2, April 2026).
+// Access token lives in memory for synchronous use by the request interceptor.
+// Refresh token is held in the httpOnly cookie; the in-memory copy is only used
+// as a Safari/iOS/Firefox fallback within the current tab's lifetime.
+// On page reload everything is discarded; the response interceptor will
+// re-hydrate via /api/auth/refresh using the httpOnly refresh cookie.
 let accessToken = null
 let refreshToken = null
 
-// Export token storage interface
+// One-time migration: purge any legacy token/user data from localStorage/IndexedDB.
+const purgeLegacyPersistence = () => {
+  try {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('app_access_token')
+    localStorage.removeItem('app_refresh_token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('session_encryption_key')
+    sessionStorage.removeItem('session_encryption_key')
+    if (typeof indexedDB !== 'undefined') {
+      indexedDB.deleteDatabase('optio_secure_storage')
+    }
+  } catch (_) {
+    // Non-fatal; old data will expire on its own.
+  }
+}
+
 export const tokenStore = {
-  // Initialize secure token store (call once on app load)
-  init: async () => {
-    try {
-      await secureTokenStore.init()
-      logger.debug('[TokenStore] Secure token store initialized')
-    } catch (error) {
-      console.error('[TokenStore] Failed to initialize secure token store:', error)
-    }
+  init: () => {
+    purgeLegacyPersistence()
   },
 
-  // Restore tokens from storage (for page refresh persistence)
-  // Used for Safari/iOS cross-origin fallback when cookies don't work
-  // With same-site deployment (api.optioeducation.com), httpOnly cookies work and this is just a fallback
-  restoreTokens: async () => {
-    // Try IndexedDB (encrypted storage for Safari/iOS fallback)
-    try {
-      const storedAccess = await secureTokenStore.getAccessToken()
-      const storedRefresh = await secureTokenStore.getRefreshToken()
-
-      if (storedAccess) {
-        accessToken = storedAccess
-        refreshToken = storedRefresh
-        logger.debug('[TokenStore] Tokens restored from IndexedDB')
-        return true
-      }
-    } catch (error) {
-      console.error('[TokenStore] Failed to restore tokens from IndexedDB:', error)
-    }
-
-    return false
-  },
-
-  // Store tokens in memory and IndexedDB (for Safari/iOS cross-origin fallback)
-  // With same-site deployment, httpOnly cookies are primary - this is just a fallback
-  setTokens: async (access, refresh) => {
-    // Store in memory for synchronous access
+  setTokens: (access, refresh) => {
     accessToken = access
     refreshToken = refresh
-
-    // Store in encrypted IndexedDB for Safari/iOS fallback
-    try {
-      await secureTokenStore.setTokens(access, refresh)
-      logger.debug('[TokenStore] Tokens stored in memory and IndexedDB')
-    } catch (error) {
-      console.error('[TokenStore] Failed to store tokens in IndexedDB:', error)
-    }
+    logger.debug('[TokenStore] Tokens stored in memory')
   },
 
-  // Get access token from memory (synchronous for request interceptor)
   getAccessToken: () => accessToken,
-
-  // Get refresh token from memory (synchronous for request interceptor)
   getRefreshToken: () => refreshToken,
 
-  // Clear tokens from memory and IndexedDB
-  clearTokens: async () => {
-    // Clear from memory
+  clearTokens: () => {
     accessToken = null
     refreshToken = null
-
-    // Clear from encrypted IndexedDB
-    try {
-      await secureTokenStore.clearTokens()
-      logger.debug('[TokenStore] Tokens cleared from memory and IndexedDB')
-    } catch (error) {
-      console.error('[TokenStore] Failed to clear tokens from IndexedDB:', error)
-    }
-
-    // Migration cleanup: Remove any old localStorage tokens
-    try {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-      localStorage.removeItem('app_access_token')
-      localStorage.removeItem('app_refresh_token')
-    } catch (error) {
-      // Ignore errors
-    }
+    purgeLegacyPersistence()
   }
 }
 
@@ -236,12 +191,10 @@ api.interceptors.response.use(
               const response = await api.post('/api/auth/refresh', requestBody)
 
               if (response.status === 200) {
-                // CRITICAL FIX (January 2025): Always update in-memory tokens after refresh
-                // Previously only updated for Safari/iOS/Firefox, but Chrome users also have
-                // tokens in memory from login. Without this, expired tokens cause infinite 401 loops.
                 // Backend returns access_token and refresh_token in response body for all browsers.
+                // Store in memory so subsequent requests can attach the Authorization header.
                 if (response.data.access_token && response.data.refresh_token) {
-                  await tokenStore.setTokens(response.data.access_token, response.data.refresh_token)
+                  tokenStore.setTokens(response.data.access_token, response.data.refresh_token)
                   logger.debug('[API] New tokens stored after refresh')
                 }
 
@@ -261,11 +214,8 @@ api.interceptors.response.use(
         // Retry the original request (new tokens automatically sent via cookies or Authorization header)
         return api(originalRequest)
       } catch (refreshError) {
-        // Clear user data on refresh failure (tokens cleared by backend)
-        localStorage.removeItem('user')
-
-        // Also clear tokens from tokenStore for Safari/iOS/Firefox users
-        await tokenStore.clearTokens()
+        // Tokens are cleared by the backend response and from in-memory storage.
+        tokenStore.clearTokens()
 
         // Only redirect to login if we're not already on auth pages or public pages
         const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services', '/catalog', '/how-it-works', '/auth/callback']
@@ -353,13 +303,13 @@ export const observerAPI = {
 
   getMyStudents: () => api.get('/api/observers/my-students'),
 
-  // Likes on task completions
-  toggleLike: (completionId) =>
-    api.post(`/api/observers/completions/${completionId}/like`, {}),
+  // Record feed item views
+  recordViews: (items) =>
+    api.post('/api/observers/feed/record-views', { items }),
 
-  // Likes on learning events (moments)
-  toggleLearningEventLike: (learningEventId) =>
-    api.post(`/api/observers/learning-events/${learningEventId}/like`, {}),
+  // Get viewers for a feed item
+  getViewers: (targetType, targetId) =>
+    api.get(`/api/observers/views/${targetType}/${targetId}`),
 
   // Comments on specific completions
   getCompletionComments: (completionId) =>
@@ -638,6 +588,15 @@ export const checkinAPI = {
 
   // End a student's quest during check-in
   endStudentQuest: (studentId, questId) => api.post(`/api/advisor/students/${studentId}/quests/${questId}/end`, {}),
+
+  // Generate parent recap email from meeting notes (AI)
+  generateEmail: (studentId, meetingNotes) => api.post('/api/advisor/checkins/generate-email', {
+    student_id: studentId,
+    meeting_notes: meetingNotes
+  }),
+
+  // Send the reviewed parent recap email (set test: true to send to advisor's own email)
+  sendEmail: (data) => api.post('/api/advisor/checkins/send-email', data),
 
   // Admin endpoints
   getAllCheckins: (page = 1, limit = 50) => api.get('/api/admin/checkins', { params: { page, limit } }),

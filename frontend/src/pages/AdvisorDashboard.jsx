@@ -178,7 +178,7 @@ export default function AdvisorDashboard() {
               onTasksUpdated={fetchData}
             />
           ) : (
-            <AdvisorDefaultPanel caseloadSummary={caseloadSummary} />
+            <AdvisorDefaultPanel />
           )}
         </div>
       </div>

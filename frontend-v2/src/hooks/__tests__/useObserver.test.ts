@@ -90,13 +90,13 @@ describe('observer removal', () => {
 });
 
 describe('observer feed interactions', () => {
-  it('like feed post (task_completed): POST correct endpoint', async () => {
+  it('record views: POST correct endpoint', async () => {
     setAuthAsObserver();
-    (api.post as jest.Mock).mockResolvedValueOnce({ data: { liked: true, likes_count: 3 } });
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, recorded: 1 } });
 
-    await api.post('/api/observers/completions/task-123/like', {});
+    await api.post('/api/observers/feed/record-views', { items: [{ type: 'task_completed', id: 'task-123' }] });
 
-    expect(api.post).toHaveBeenCalledWith('/api/observers/completions/task-123/like', {});
+    expect(api.post).toHaveBeenCalledWith('/api/observers/feed/record-views', { items: [{ type: 'task_completed', id: 'task-123' }] });
   });
 
   it('comment on feed post: POST /api/observers/comments', async () => {

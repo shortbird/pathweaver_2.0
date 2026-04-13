@@ -146,11 +146,6 @@ class AuthService {
         }
       }
 
-      // Store user data for quick access (non-sensitive only - no tokens!)
-      if (this.user) {
-        localStorage.setItem('user', JSON.stringify(this.user))
-      }
-
       // Start token health monitoring
       this.startTokenHealthMonitoring()
 
@@ -197,11 +192,6 @@ class AuthService {
           await this.setTokens(appAccessToken, appRefreshToken)
           logger.debug('[AuthService] Tokens stored for Authorization header usage (Safari/iOS/Firefox)')
         }
-      }
-
-      // Store user data for quick access (non-sensitive only - no tokens!)
-      if (this.user) {
-        localStorage.setItem('user', JSON.stringify(this.user))
       }
 
       this.notifyListeners()
@@ -346,11 +336,6 @@ class AuthService {
         logger.warn('[AuthService] Google OAuth: No tokens received from server')
       }
 
-      // Store user data for quick access
-      if (this.user) {
-        localStorage.setItem('user', JSON.stringify(this.user))
-      }
-
       // Start token health monitoring
       this.startTokenHealthMonitoring()
 
@@ -410,11 +395,6 @@ class AuthService {
         logger.debug('[AuthService] TOS acceptance tokens stored in IndexedDB')
       }
 
-      // Store user data for quick access
-      if (this.user) {
-        localStorage.setItem('user', JSON.stringify(this.user))
-      }
-
       // Start token health monitoring
       this.startTokenHealthMonitoring()
 
@@ -448,24 +428,10 @@ class AuthService {
         console.warn('Failed to clear masquerade data:', e)
       }
 
-      // Step 2: Clear encrypted IndexedDB tokens
+      // Step 2: Clear in-memory tokens (also purges any legacy localStorage/IndexedDB)
       await this.clearTokens()
 
-      // Step 3: Clear localStorage tokens explicitly (migration cleanup)
-      localStorage.removeItem('user')
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-
-      // Step 4: Verify tokens are cleared
-      const accessStillExists = localStorage.getItem('access_token')
-      const refreshStillExists = localStorage.getItem('refresh_token')
-      if (accessStillExists || refreshStillExists) {
-        console.error('[AuthService] CRITICAL: Tokens still exist after logout clearing!')
-        // Force clear again
-        localStorage.clear()
-      }
-
-      // Step 5: Now call backend logout (this clears cookies)
+      // Step 3: Now call backend logout (this clears httpOnly cookies)
       // IMPORTANT: Must include empty body {} for CSRF validation
       await api.post('/api/auth/logout', {})
 
@@ -538,27 +504,10 @@ class AuthService {
   }
 
   /**
-   * Get current user (from memory or localStorage cache)
+   * Get current user (in-memory only — server is the source of truth via /api/auth/me)
    */
   getCurrentUser() {
-    if (this.user) {
-      return this.user
-    }
-
-    // Try to get from localStorage cache
-    try {
-      const userData = localStorage.getItem('user')
-      if (userData) {
-        this.user = JSON.parse(userData)
-        this.isAuthenticated = true
-        return this.user
-      }
-    } catch (error) {
-      console.warn('Failed to parse user data from localStorage:', error)
-      localStorage.removeItem('user')
-    }
-
-    return null
+    return this.user
   }
 
   /**
@@ -667,24 +616,17 @@ class AuthService {
   }
 
   /**
-   * Initialize auth service and check current session
+   * Initialize auth service and check current session.
+   *
+   * In-memory-only token model (C2): on page reload, memory is empty. The first
+   * /api/auth/me call will 401, the response interceptor will re-hydrate via
+   * /api/auth/refresh using the httpOnly refresh cookie, then retry. If refresh
+   * fails (no/expired cookie), the user is treated as logged out.
    */
   async initialize() {
-    // Initialize token store for encrypted IndexedDB
-    await tokenStore.init()
-
-    // ALWAYS restore tokens from IndexedDB for cross-origin compatibility
-    // This is critical because cookies may not work reliably in cross-origin scenarios
-    // (e.g., localhost:3000 -> localhost:5001 in development)
-    await tokenStore.restoreTokens()
-
-    // First check if we have cached user data
-    this.getCurrentUser()
-
-    // Then verify with server
+    tokenStore.init()
     await this.checkAuthStatus()
 
-    // Start token health monitoring if authenticated
     if (this.isAuthenticated) {
       this.startTokenHealthMonitoring()
     }

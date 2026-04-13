@@ -35,13 +35,20 @@ from middleware.error_handler import error_handler
 from middleware.memory_monitor import memory_monitor
 from middleware.activity_tracker import activity_tracker
 
-# Optional CSRF protection (not critical for JWT-based auth)
+# CSRF protection is mandatory in production. In development we still tolerate
+# a missing Flask-WTF install so contributors don't hit hard failures before
+# their venv is fully provisioned, but a missing module in prod is a hard fail.
 try:
     from middleware.csrf_protection import init_csrf, get_csrf_token
     CSRF_AVAILABLE = True
-except ImportError:
+except ImportError as _csrf_import_err:
+    if os.environ.get('FLASK_ENV', 'development') == 'production':
+        raise ImportError(
+            "Flask-WTF is required in production for CSRF protection. "
+            "Install it (it is pinned in requirements.txt) and redeploy."
+        ) from _csrf_import_err
     CSRF_AVAILABLE = False
-    logger.warning("Warning: Flask-WTF not installed. CSRF protection unavailable.")
+    logger.warning("Warning: Flask-WTF not installed. CSRF protection unavailable (development only).")
 
 # Set Flask environment (development or production)
 if not os.getenv('FLASK_ENV'):
@@ -600,42 +607,23 @@ def health_check():
 
 @app.route('/csrf-token', methods=['GET'])
 def get_csrf():
-    """
-    Get a CSRF token for the session.
+    """Get a CSRF token for the session.
+
+    In production, CSRF must be available — return 500 if it isn't, rather
+    than the previous 200 that silently disabled CSRF on the client.
     """
     if CSRF_AVAILABLE:
         token = get_csrf_token()
         return jsonify({'csrf_token': token, 'csrf_enabled': True}), 200
-    else:
-        # CSRF module not installed
-        return jsonify({'csrf_token': None, 'csrf_enabled': False, 'module_available': False}), 200
 
-@app.route('/test-config')
-def test_config():
-    """Test endpoint to verify configuration"""
-    from app_config import Config
-    
-    config_status = {
-        'has_supabase_url': bool(Config.SUPABASE_URL),
-        'has_supabase_anon_key': bool(Config.SUPABASE_ANON_KEY),
-        'has_supabase_service_key': bool(Config.SUPABASE_SERVICE_ROLE_KEY),
-        'frontend_url': Config.FRONTEND_URL,
-        'supabase_url': Config.SUPABASE_URL[:30] + '...' if Config.SUPABASE_URL else None
-    }
-    
-    # Try to connect to Supabase
-    try:
-        from database import get_supabase_client
-        client = get_supabase_client()
-        config_status['supabase_connection'] = 'success'
-    except ImportError as e:
-        config_status['supabase_connection'] = f'import error: {str(e)}'
-    except (ConnectionError, TimeoutError) as e:
-        config_status['supabase_connection'] = f'connection failed: {str(e)}'
-    except Exception as e:
-        config_status['supabase_connection'] = f'unexpected error: {str(e)}'
-    
-    return jsonify(config_status), 200
+    if os.environ.get('FLASK_ENV', 'development') == 'production':
+        logger.error("[CSRF] /csrf-token requested in production but Flask-WTF is unavailable")
+        return jsonify({
+            'error': 'CSRF protection is unavailable',
+            'csrf_enabled': False,
+        }), 500
+
+    return jsonify({'csrf_token': None, 'csrf_enabled': False, 'module_available': False}), 200
 
 # Initialize Swagger documentation (must be after all blueprints are registered)
 try:

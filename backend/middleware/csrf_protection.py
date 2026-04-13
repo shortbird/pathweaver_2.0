@@ -67,7 +67,6 @@ def init_csrf(app):
         'auth.register',  # Registration is public
         'auth.refresh',  # Token refresh uses refresh token
         'health_check',  # Health check is public
-        'test_config',  # Test endpoint
         # Webhook endpoints (if any) that use signature verification
         'subscriptions.stripe_webhook',  # Stripe webhook uses signature verification
     ]

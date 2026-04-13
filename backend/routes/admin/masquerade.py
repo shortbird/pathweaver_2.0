@@ -8,7 +8,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED - Admin Utility
 
 Admin masquerade routes - Allow admins to view platform as other users
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, make_response
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from utils.session_manager import session_manager
@@ -80,8 +80,10 @@ def start_masquerade(admin_id, target_user_id):
 
         logger.info(f"[Masquerade] Admin {admin_id} started masquerading as {target_user_id} (log_id: {log_id})")
 
-        # Return masquerade token and target user info
-        return jsonify({
+        # Set the masquerade JWT as an httpOnly cookie so it survives page reloads
+        # under the in-memory-only token model (C2). Cookie takes precedence over
+        # the admin's access_token cookie in session_manager resolution.
+        response = make_response(jsonify({
             'masquerade_token': masquerade_token,
             'log_id': log_id,
             'target_user': {
@@ -93,8 +95,10 @@ def start_masquerade(admin_id, target_user_id):
                 'role': target_user_data.get('role'),
                 'avatar_url': target_user_data.get('avatar_url')
             },
-            'expires_in': 3600  # 1 hour in seconds
-        }), 200
+            'expires_in': 3600
+        }), 200)
+        session_manager.set_masquerade_cookie(response, masquerade_token)
+        return response
 
     except Exception as e:
         logger.error(f"[Masquerade] Error starting masquerade: {str(e)}")
@@ -150,7 +154,7 @@ def exit_masquerade():
         admin_user = supabase.table('users').select('*').eq('id', admin_id).execute()
         admin_data = admin_user.data[0] if admin_user.data else {}
 
-        return jsonify({
+        response = make_response(jsonify({
             'access_token': admin_access_token,
             'refresh_token': admin_refresh_token,
             'user': {
@@ -160,7 +164,11 @@ def exit_masquerade():
                 'role': admin_data.get('role'),
                 'avatar_url': admin_data.get('avatar_url')
             }
-        }), 200
+        }), 200)
+        # Refresh admin auth cookies and clear masquerade cookie
+        session_manager.set_auth_cookies(response, admin_id, admin_access_token, admin_refresh_token)
+        session_manager.clear_masquerade_cookie(response)
+        return response
 
     except Exception as e:
         logger.error(f"[Masquerade] Error exiting masquerade: {str(e)}")

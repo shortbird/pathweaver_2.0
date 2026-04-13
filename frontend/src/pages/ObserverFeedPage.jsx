@@ -110,6 +110,11 @@ export default function ObserverFeedPage() {
       setFeedItems(newItems);
       setHasMore(response.data.has_more);
       setNextCursor(response.data.next_cursor);
+
+      // Record views for loaded items
+      if (newItems.length > 0) {
+        observerAPI.recordViews(newItems.map(i => ({ type: i.type, id: i.id }))).catch(() => {});
+      }
     } catch (error) {
       console.error('Failed to fetch feed:', error);
       toast.error('Failed to load feed');
@@ -148,6 +153,11 @@ export default function ObserverFeedPage() {
 
       setHasMore(response.data.has_more);
       setNextCursor(response.data.next_cursor);
+
+      // Record views for loaded items
+      if (newItems.length > 0) {
+        observerAPI.recordViews(newItems.map(i => ({ type: i.type, id: i.id }))).catch(() => {});
+      }
     } catch (error) {
       console.error('Failed to fetch feed:', error);
       if (reset) {

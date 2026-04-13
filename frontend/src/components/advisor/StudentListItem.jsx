@@ -57,14 +57,12 @@ const StudentListItem = ({ student, rhythm, isSelected, onClick }) => {
         <p className={`text-sm font-medium truncate ${isSelected ? 'text-optio-purple' : 'text-gray-900'}`}>
           {name}
         </p>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>{student.total_xp || 0} XP</span>
+        <div className="text-xs text-gray-500">
           {student.last_checkin ? (
-            <>
-              <span className="text-gray-300">|</span>
-              <span>{student.last_checkin.days_since_checkin}d ago</span>
-            </>
-          ) : null}
+            <span>{student.last_checkin.days_since_checkin}d since last check-in</span>
+          ) : (
+            <span>No check-ins yet</span>
+          )}
         </div>
       </div>
     </button>

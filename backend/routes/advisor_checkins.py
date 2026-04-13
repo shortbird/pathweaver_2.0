@@ -12,6 +12,8 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from utils.auth.decorators import require_role, require_admin
 from services.checkin_service import CheckinService
+from services.checkin_email_service import CheckinEmailService
+from services.email_service import EmailService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -281,6 +283,259 @@ def get_checkin_analytics(user_id):
         logger.error(f"Error in get_checkin_analytics: {str(e)}")
         logger.info(traceback.format_exc())
         return jsonify({'error': f'Failed to fetch analytics: {str(e)}'}), 500
+
+
+@checkins_bp.route('/api/advisor/checkins/generate-email', methods=['POST', 'OPTIONS'])
+@require_role('advisor', 'superadmin')
+def generate_checkin_email(user_id):
+    """
+    Generate a parent recap email from meeting notes using AI.
+
+    Expected JSON body:
+    {
+        "student_id": "uuid",
+        "meeting_notes": "text of meeting notes/transcript"
+    }
+
+    Returns generated email subject and body for advisor review.
+    """
+    try:
+        data = request.get_json()
+
+        student_id = data.get('student_id')
+        meeting_notes = data.get('meeting_notes', '').strip()
+
+        if not student_id:
+            return jsonify({'error': 'Missing required field: student_id'}), 400
+        if not meeting_notes:
+            return jsonify({'error': 'Missing required field: meeting_notes'}), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Verify advisor-student relationship
+        from repositories.checkin_repository import CheckinRepository
+        repository = CheckinRepository()
+        if not repository.verify_advisor_student_relationship(user_id, student_id):
+            return jsonify({'error': 'Not authorized for this student'}), 403
+
+        # Get advisor info
+        advisor_resp = supabase.table('users')\
+            .select('display_name, first_name, last_name')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+        advisor = advisor_resp.data
+        advisor_name = advisor.get('display_name') or f"{advisor.get('first_name', '')} {advisor.get('last_name', '')}".strip() or 'Your Advisor'
+
+        # Get student info
+        student_resp = supabase.table('users')\
+            .select('display_name, first_name, last_name, managed_by_parent_id, is_dependent')\
+            .eq('id', student_id)\
+            .single()\
+            .execute()
+        student = student_resp.data
+        student_first_name = student.get('first_name') or (student.get('display_name', '').split()[0] if student.get('display_name') else '') or 'your student'
+
+        # Find parent - check both mechanisms
+        parent_name = 'there'
+        parent_email = None
+
+        # Mechanism 1: dependent (managed_by_parent_id)
+        if student.get('is_dependent') and student.get('managed_by_parent_id'):
+            parent_resp = supabase.table('users')\
+                .select('id, display_name, first_name, last_name, email')\
+                .eq('id', student['managed_by_parent_id'])\
+                .single()\
+                .execute()
+            if parent_resp.data:
+                parent = parent_resp.data
+                parent_name = parent.get('display_name') or parent.get('first_name') or 'there'
+                parent_email = parent.get('email')
+
+        # Mechanism 2: parent_student_links table
+        if not parent_email:
+            links_resp = supabase.table('parent_student_links')\
+                .select('parent_user_id, parent:parent_user_id(id, display_name, first_name, last_name, email)')\
+                .eq('student_user_id', student_id)\
+                .eq('status', 'approved')\
+                .limit(1)\
+                .execute()
+            if links_resp.data and links_resp.data[0].get('parent'):
+                parent = links_resp.data[0]['parent']
+                parent_name = parent.get('display_name') or parent.get('first_name') or 'there'
+                parent_email = parent.get('email')
+
+        if not parent_email:
+            return jsonify({'error': 'No linked parent found for this student. A parent must be linked before sending a recap email.'}), 404
+
+        # Generate email with AI
+        email_service = CheckinEmailService()
+        result = email_service.generate_parent_email(
+            meeting_notes=meeting_notes,
+            advisor_name=advisor_name,
+            student_name=student_first_name,
+            parent_name=parent_name
+        )
+
+        return jsonify({
+            'success': True,
+            'email': {
+                'subject': result['subject'],
+                'body': result['body'],
+                'parent_email': parent_email,
+                'parent_name': parent_name,
+                'advisor_name': advisor_name,
+                'student_name': student_first_name
+            }
+        }), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error generating check-in email: {str(e)}")
+        return jsonify({'error': f'Failed to generate email: {str(e)}'}), 500
+
+
+@checkins_bp.route('/api/advisor/checkins/send-email', methods=['POST', 'OPTIONS'])
+@require_role('advisor', 'superadmin')
+def send_checkin_email(user_id):
+    """
+    Send the advisor-reviewed parent recap email.
+
+    Expected JSON body:
+    {
+        "student_id": "uuid",
+        "parent_email": "email@example.com",
+        "subject": "email subject",
+        "body": "email body text",
+        "meeting_notes": "original meeting notes (stored with check-in record)",
+        "test": false  // optional - if true, sends to advisor's email instead
+    }
+    """
+    try:
+        data = request.get_json()
+
+        student_id = data.get('student_id')
+        parent_email = data.get('parent_email')
+        subject = data.get('subject', '').strip()
+        body = data.get('body', '').strip()
+        meeting_notes = data.get('meeting_notes', '')
+        is_test = data.get('test', False)
+
+        if not student_id:
+            return jsonify({'error': 'Missing required field: student_id'}), 400
+        if not parent_email:
+            return jsonify({'error': 'Missing required field: parent_email'}), 400
+        if not subject:
+            return jsonify({'error': 'Missing required field: subject'}), 400
+        if not body:
+            return jsonify({'error': 'Missing required field: body'}), 400
+
+        # Verify advisor-student relationship
+        from repositories.checkin_repository import CheckinRepository
+        repository = CheckinRepository()
+        if not repository.verify_advisor_student_relationship(user_id, student_id):
+            return jsonify({'error': 'Not authorized for this student'}), 403
+
+        # For test sends, get advisor email and send there instead
+        if is_test:
+            supabase = get_supabase_admin_client()
+            advisor_resp = supabase.table('users')\
+                .select('email')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+            send_to_email = advisor_resp.data.get('email')
+            send_subject = f"[TEST] {subject}"
+        else:
+            send_to_email = parent_email
+            send_subject = subject
+
+        # Convert plain text body to HTML for email
+        body_lines = body.split('\n')
+        html_parts = []
+        for line in body_lines:
+            stripped = line.strip()
+            if stripped.startswith('- '):
+                html_parts.append(f'<li style="margin-bottom: 6px; line-height: 1.6; color: #333333;">{stripped[2:]}</li>')
+            elif stripped == '':
+                html_parts.append('<br>')
+            else:
+                html_parts.append(f'<p style="margin: 8px 0; line-height: 1.6; color: #333333;">{stripped}</p>')
+
+        # Wrap bullet points in <ul>
+        html_body_str = ''
+        in_list = False
+        for part in html_parts:
+            if part.startswith('<li'):
+                if not in_list:
+                    html_body_str += '<ul style="margin: 14px 0; padding-left: 20px;">'
+                    in_list = True
+                html_body_str += part
+            else:
+                if in_list:
+                    html_body_str += '</ul>'
+                    in_list = False
+                html_body_str += part
+        if in_list:
+            html_body_str += '</ul>'
+
+        # Wrap in a styled container with Optio logo
+        logo_url = 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/email/optio-logo.png'
+        html_email = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 24px;">
+                <img src="{logo_url}" alt="Optio" style="height: 40px; width: auto;" />
+            </div>
+            {html_body_str}
+        </div>
+        """
+
+        # Send email
+        email_svc = EmailService()
+        success = email_svc.send_email(
+            to_email=send_to_email,
+            subject=send_subject,
+            html_body=html_email,
+            text_body=body
+        )
+
+        if not success:
+            return jsonify({'error': 'Failed to send email. Please try again.'}), 500
+
+        # Only create a check-in record for real sends (not test)
+        if not is_test:
+            checkin_service = CheckinService()
+            checkin_service.create_checkin(
+                advisor_id=user_id,
+                student_id=student_id,
+                checkin_date=datetime.now(timezone.utc),
+                advisor_notes=f"[Meeting Notes Email Sent to Parent]\n\n{meeting_notes}",
+                growth_moments='',
+                student_voice='',
+                obstacles='',
+                solutions='',
+                active_quests_snapshot=[],
+                quest_notes=[],
+                reading_notes='',
+                writing_notes='',
+                math_notes=''
+            )
+
+        log_target = f"self (test)" if is_test else parent_email
+        logger.info(f"Advisor {user_id} sent {'test ' if is_test else ''}check-in recap email to {log_target} for student {student_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Test email sent to your inbox.' if is_test else 'Email sent successfully.',
+            'test': is_test
+        }), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error sending check-in email: {str(e)}")
+        return jsonify({'error': f'Failed to send email: {str(e)}'}), 500
 
 
 @checkins_bp.route('/api/admin/checkins', methods=['GET', 'OPTIONS'])

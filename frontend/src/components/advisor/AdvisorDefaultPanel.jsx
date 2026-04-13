@@ -1,10 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import PropTypes from 'prop-types';
 import { useAuth } from '../../contexts/AuthContext';
-import CaseloadEngagementSummary from './CaseloadEngagementSummary';
 import AdvisorActivityFeed from './AdvisorActivityFeed';
 
-const AdvisorDefaultPanel = ({ caseloadSummary }) => {
+const AdvisorDefaultPanel = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -50,17 +48,11 @@ const AdvisorDefaultPanel = ({ caseloadSummary }) => {
 
       </div>
 
-      {/* Caseload Engagement Summary */}
-      <CaseloadEngagementSummary summary={caseloadSummary} />
-
       {/* Activity Feed */}
       <AdvisorActivityFeed />
     </div>
   );
 };
 
-AdvisorDefaultPanel.propTypes = {
-  caseloadSummary: PropTypes.object,
-};
 
 export default AdvisorDefaultPanel;
