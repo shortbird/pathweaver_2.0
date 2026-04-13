@@ -32,7 +32,17 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        # Retry up to 3 times — npm registry occasionally ECONNRESETs mid-install.
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $i failed; retrying..."
+            sleep 10
+          done
+          exit 1
 
       - name: Run tests
         working-directory: frontend
