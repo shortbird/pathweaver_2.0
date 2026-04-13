@@ -3,9 +3,9 @@
 from database import get_supabase_client
 from utils.retry_handler import retry_database_operation
 import jwt
-import os
 from datetime import datetime, timedelta
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,7 +26,7 @@ def verify_token(token):
 
     # First try to verify as custom JWT token (for incognito mode fallback)
     try:
-        secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY') or os.getenv('FLASK_SECRET_KEY')
+        secret_key = Config.JWT_SECRET_KEY
         if secret_key:
             payload = jwt.decode(token, secret_key, algorithms=['HS256'])
             # Check if this is our custom token format
@@ -64,9 +64,9 @@ def generate_token(user_id: str, expires_in: int = 3600) -> str:
     Returns:
         JWT token string
     """
-    secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY')
+    secret_key = Config.JWT_SECRET_KEY
     if not secret_key:
-        raise ValueError("JWT_SECRET_KEY or SECRET_KEY environment variable must be set")
+        raise ValueError("JWT_SECRET_KEY or FLASK_SECRET_KEY must be set (see Config.JWT_SECRET_KEY)")
     
     payload = {
         'user_id': user_id,

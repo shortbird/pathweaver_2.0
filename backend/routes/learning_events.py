@@ -434,6 +434,7 @@ def upload_event_file(user_id, event_id):
     """Upload a file for a learning event evidence block"""
     try:
         from database import get_supabase_admin_client
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth; cross-user only after parent/observer relationship verification
         admin_supabase = get_supabase_admin_client()
 
         # Verify event belongs to user
@@ -529,6 +530,7 @@ def get_thread_chain(user_id, event_id):
     """Get the full thread chain for a moment (parent and children)."""
     try:
         from database import get_supabase_admin_client
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get the moment to find its place in the thread
@@ -613,6 +615,7 @@ def get_user_threads(user_id):
     """List all threads (root moments that have children) for a user."""
     try:
         from database import get_supabase_admin_client
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get all moments with children
@@ -660,6 +663,7 @@ def find_related_moments(user_id, event_id):
         from database import get_supabase_admin_client
         from services.thread_ai_service import ThreadAIService
 
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get the source moment
@@ -727,6 +731,7 @@ def detect_hidden_threads(user_id):
         from database import get_supabase_admin_client
         from services.thread_ai_service import ThreadAIService
 
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get unlinked moments (no parent and no children)
@@ -775,6 +780,7 @@ def get_thread_narrative(user_id, event_id):
         from database import get_supabase_admin_client
         from services.thread_ai_service import ThreadAIService
 
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get the thread chain

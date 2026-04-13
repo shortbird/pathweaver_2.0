@@ -18,10 +18,9 @@ class JobScheduler:
     """Manages scheduled jobs for AI content pipeline"""
 
     # Job types
-    JOB_TYPE_CONTENT_GENERATION = 'content_generation'
-    JOB_TYPE_QUALITY_MONITOR = 'quality_monitor'
-    JOB_TYPE_METRICS_UPDATE = 'metrics_update'
-    JOB_TYPE_MONTHLY_REPORT = 'monthly_report'
+    # Removed 2026-04-13 (M1 cleanup): CONTENT_GENERATION (deprecated), QUALITY_MONITOR,
+    # METRICS_UPDATE, MONTHLY_REPORT — all depended on services.ai_quest_maintenance_service
+    # / jobs.quality_monitor (deleted).
     JOB_TYPE_COURSE_GENERATION = 'course_generation'
     JOB_TYPE_DAILY_ADVISOR_SUMMARY = 'daily_advisor_summary'
 
@@ -194,25 +193,7 @@ class JobScheduler:
             JobScheduler.start_job(job_id)
 
             # Execute based on job type
-            if job_type == JobScheduler.JOB_TYPE_CONTENT_GENERATION:
-                # DEPRECATED: ContentGenerationWorker removed - incompatible with personalized quest system
-                raise ValueError(f"Job type {job_type} is deprecated and no longer supported")
-
-            elif job_type == JobScheduler.JOB_TYPE_QUALITY_MONITOR:
-                from jobs.quality_monitor import QualityMonitor
-                result = QualityMonitor.execute(job_data)
-
-            elif job_type == JobScheduler.JOB_TYPE_METRICS_UPDATE:
-                from services.ai_quest_maintenance_service import AIQuestMaintenanceService
-                count = AIQuestMaintenanceService.update_ai_content_metrics()
-                result = {'metrics_updated': count}
-
-            elif job_type == JobScheduler.JOB_TYPE_MONTHLY_REPORT:
-                from services.ai_quest_maintenance_service import AIQuestMaintenanceService
-                report = AIQuestMaintenanceService.generate_monthly_report()
-                result = report
-
-            elif job_type == JobScheduler.JOB_TYPE_COURSE_GENERATION:
+            if job_type == JobScheduler.JOB_TYPE_COURSE_GENERATION:
                 from services.course_generation_job_service import CourseGenerationJobService
                 job_service = CourseGenerationJobService()
                 gen_job_id = job_data.get('job_id')
@@ -280,46 +261,11 @@ class JobScheduler:
     def schedule_recurring_jobs():
         """
         Schedule recurring jobs (call this daily via cron or scheduler).
+
+        2026-04-13 M1 cleanup: removed quality monitor, metrics update, monthly
+        report, and content generation schedulers — all depended on deleted
+        services. Only the daily advisor summary survives.
         """
-        supabase = get_supabase_admin_client()
-
-        # Daily quality monitoring
-        JobScheduler.schedule_job(
-            job_type=JobScheduler.JOB_TYPE_QUALITY_MONITOR,
-            job_data={
-                'check_type': 'daily_audit',
-                'include_all_quests': True
-            },
-            priority=8
-        )
-
-        # Daily metrics update
-        JobScheduler.schedule_job(
-            job_type=JobScheduler.JOB_TYPE_METRICS_UPDATE,
-            job_data={},
-            priority=7
-        )
-
-        # Monthly report (only on first day of month)
-        today = datetime.utcnow()
-        if today.day == 1:
-            JobScheduler.schedule_job(
-                job_type=JobScheduler.JOB_TYPE_MONTHLY_REPORT,
-                job_data={},
-                priority=9
-            )
-
-        # Weekly content generation for underserved pillars
-        if today.weekday() == 0:  # Monday
-            JobScheduler.schedule_job(
-                job_type=JobScheduler.JOB_TYPE_CONTENT_GENERATION,
-                job_data={
-                    'generation_type': 'balance_pillars',
-                    'target_count': 5
-                },
-                priority=6
-            )
-
         # Daily advisor summary at 5 AM - recap of previous day's activity
         # Scheduled for next 5 AM UTC
         next_5am = datetime.utcnow().replace(hour=5, minute=0, second=0, microsecond=0)

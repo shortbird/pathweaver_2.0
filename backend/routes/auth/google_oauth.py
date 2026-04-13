@@ -16,10 +16,10 @@ from utils.log_scrubber import mask_email, mask_user_id
 from utils.api_response_v1 import success_response, error_response
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 from datetime import datetime, timedelta
-import os
 import jwt
 import secrets
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,7 +28,7 @@ bp = Blueprint('auth_google', __name__)
 
 # TOS acceptance token settings
 TOS_TOKEN_EXPIRY_MINUTES = 15
-TOS_TOKEN_SECRET = os.getenv('JWT_SECRET_KEY', 'fallback-secret-key-change-in-production')
+TOS_TOKEN_SECRET = Config.JWT_SECRET_KEY
 
 
 def generate_tos_acceptance_token(user_id: str) -> str:
@@ -148,7 +148,7 @@ def google_oauth_callback():
 
         logger.info("[GOOGLE_OAUTH] Processing OAuth callback")
 
-        # Use admin client to verify and get user info
+        # admin client justified: OAuth callback; verifies Supabase access_token via auth.get_user, performs cross-user account-linking lookups (id/google_user_id/email), creates new user profile, and writes diplomas/skills — all pre-session
         admin_client = get_supabase_admin_client()
 
         # Get user from Supabase using the access token
@@ -426,6 +426,7 @@ def accept_tos():
 
         logger.info(f"[GOOGLE_OAUTH] Processing TOS acceptance for: {mask_user_id(user_id)}")
 
+        # admin client justified: TOS-acceptance flow gated by short-lived JWT (verify_tos_acceptance_token above); finalizes user profile + promo_code redemption before issuing session tokens
         admin_client = get_supabase_admin_client()
 
         # Verify user exists and hasn't already accepted TOS

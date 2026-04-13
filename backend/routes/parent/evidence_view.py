@@ -29,6 +29,7 @@ def get_task_details(user_id, student_id, task_id):
     """
     supabase = None
     try:
+        # admin client justified: parent reads child task evidence + completions; cross-user read gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -122,6 +123,7 @@ def get_recent_completions(user_id, student_id):
     """
     supabase = None
     try:
+        # admin client justified: parent reads child task evidence + completions; cross-user read gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 

@@ -78,8 +78,9 @@ def upload_evidence(user_id):
     Upload evidence files for quest submissions
     Accepts multipart/form-data with files
     """
+    # admin client justified: file upload to Supabase Storage scoped to caller (self) under @require_auth
     supabase = get_supabase_admin_client()
-    
+
     try:
         if 'files' not in request.files:
             return jsonify({'error': 'No files provided'}), 400
@@ -190,6 +191,7 @@ def upload_evidence_base64(user_id):
     Upload evidence files as base64 encoded data
     Useful for when multipart/form-data is not convenient
     """
+    # admin client justified: base64 file upload to Supabase Storage scoped to caller (self) under @require_auth
     supabase = get_supabase_admin_client()
     data = request.json
     
@@ -345,6 +347,7 @@ def request_signed_upload_url(user_id):
         bucket = DEFAULT_BUCKETS.get(context_type, 'quest-evidence')
 
         # Create signed upload URL
+        # admin client justified: file upload endpoints write to Supabase Storage scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         result = supabase.storage.from_(bucket).create_signed_upload_url(storage_path)
 
@@ -387,6 +390,7 @@ def process_uploaded_file(user_id):
         if not storage_path:
             return jsonify({'error': 'storage_path required'}), 400
 
+        # admin client justified: file upload endpoints write to Supabase Storage scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get public URL

@@ -112,6 +112,7 @@ def track_client_events(user_id):
             # Generate new session ID if not present
             session_id = str(uuid.uuid4())
 
+        # admin client justified: client-side activity tracking writes events scoped to user_id from @require_auth
         supabase = get_supabase_admin_client()
 
         # Prepare records for bulk insert

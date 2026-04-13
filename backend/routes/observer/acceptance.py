@@ -37,6 +37,7 @@ def register_routes(bp):
             410: Invitation expired
         """
         try:
+            # admin client justified: observer-invite flow needs cross-user access (parent->child relationship checks, observer_student_links + observer_invitations writes, organization-scoped notifications)
             supabase = get_supabase_admin_client()
 
             # Find invitation
@@ -134,6 +135,7 @@ def register_routes(bp):
             404: Invitation not found
         """
         try:
+            # admin client justified: observer-invite flow needs cross-user access (parent->child relationship checks, observer_student_links + observer_invitations writes, organization-scoped notifications)
             supabase = get_supabase_admin_client()
 
             # Find invitation (codes are reusable, so don't filter by status)
@@ -422,6 +424,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: observer-invite flow needs cross-user access (parent->child relationship checks, observer_student_links + observer_invitations writes, organization-scoped notifications)
             supabase = get_supabase_admin_client()
 
             # Get user role to check if they're superadmin/advisor/parent

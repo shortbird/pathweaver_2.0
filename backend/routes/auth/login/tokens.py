@@ -54,6 +54,7 @@ def register_routes(bp):
 
         # Check if token was issued before last logout (with retry for connection failures)
         try:
+            # admin client justified: token-refresh path runs before the new session is established; reads users.last_logout_at to detect post-logout token replay
             admin_client = get_supabase_admin_client()
             user_data = with_connection_retry(
                 lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute(),
@@ -77,6 +78,7 @@ def register_routes(bp):
 
         # Update last_active timestamp on token refresh
         try:
+            # admin client justified: refresh-path housekeeping write after token validated above; updates users.last_active without requiring an RLS-aware session
             admin_client = get_supabase_admin_client()
             admin_client.table('users').update({
                 'last_active': datetime.utcnow().isoformat()

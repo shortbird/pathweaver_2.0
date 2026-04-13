@@ -48,6 +48,7 @@ def register_routes(bp):
         relationship = data.get('relationship', 'other')
 
         try:
+            # admin client justified: parent-side observer mgmt; verifies parent role + parent->child ownership (managed_by_parent_id / parent_student_links) before writing observer_invitations / observer_invitation_students / observer_student_links
             supabase = get_supabase_admin_client()
 
             # Verify parent role
@@ -159,6 +160,7 @@ def register_routes(bp):
         parent_id = user_id
 
         try:
+            # admin client justified: parent-side observer mgmt; verifies parent role + parent->child ownership (managed_by_parent_id / parent_student_links) before writing observer_invitations / observer_invitation_students / observer_student_links
             supabase = get_supabase_admin_client()
 
             # Verify parent role
@@ -287,6 +289,7 @@ def register_routes(bp):
         enabled = data.get('enabled', True)
 
         try:
+            # admin client justified: parent-side observer mgmt; verifies parent role + parent->child ownership (managed_by_parent_id / parent_student_links) before writing observer_invitations / observer_invitation_students / observer_student_links
             supabase = get_supabase_admin_client()
 
             # Verify parent role
@@ -398,6 +401,7 @@ def register_routes(bp):
         parent_id = user_id
 
         try:
+            # admin client justified: parent-side observer mgmt; verifies parent role + parent->child ownership (managed_by_parent_id / parent_student_links) before writing observer_invitations / observer_invitation_students / observer_student_links
             supabase = get_supabase_admin_client()
 
             # Verify parent role

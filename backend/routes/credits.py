@@ -82,6 +82,7 @@ def get_transcript(user_id, target_user_id):
     from middleware.error_handler import AuthorizationError
 
     format_type = request.args.get('format', 'json')
+    # admin client justified: transcript generation reads cross-user credit data; access scoped to self or advisor->student under @require_auth
     supabase = get_supabase_admin_client()
 
     # Check if user is viewing their own transcript

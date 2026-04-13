@@ -149,6 +149,7 @@ def accept_family_quest_idea(user_id):
         if not selected_children:
             return jsonify({'success': False, 'error': 'selected_children is required'}), 400
 
+        # admin client justified: family quest AI generation reads parent + child profiles to ground prompts; cross-user read gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to all selected children

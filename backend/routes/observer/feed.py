@@ -42,6 +42,7 @@ def register_routes(bp):
         cursor = request.args.get('cursor')
 
         try:
+            # admin client justified: observer feed aggregates across observer_student_links + advisor_student_assignments + parent_student_links + own activity; cross-user reads gated by per-row can_view_evidence permission filter
             supabase = get_supabase_admin_client()
 
             # Get user role to check if they're superadmin/advisor/parent

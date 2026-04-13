@@ -119,6 +119,7 @@ def get_student_overview(user_id, student_id):
     Returns: student profile, dashboard data, engagement, completed quests, subject XP, visibility.
     """
     try:
+        # admin client justified: advisor consolidated student overview; cross-user reads gated by advisor_student_assignments + @require_advisor verification
         supabase = get_supabase_admin_client()
         verify_advisor_access(supabase, user_id, student_id)
 

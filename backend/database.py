@@ -85,13 +85,14 @@ def _get_client_options() -> ClientOptions:
     Returns:
         ClientOptions configured with the shared httpx.Client
     """
-    # Use shared httpx.Client to prevent memory leaks
-    # The httpx_client parameter MUST be passed - this was the bug!
-    return ClientOptions(
-        postgrest_client_timeout=Config.SUPABASE_POOL_TIMEOUT,
-        storage_client_timeout=Config.SUPABASE_POOL_TIMEOUT,
-        httpx_client=_get_shared_http_client()  # FIX: Actually pass the client!
-    )
+    # NOTE (2026-04-13): supabase-py 2.28.x changed the ClientOptions surface —
+    # the `httpx_client` kwarg and `storage` attribute both no longer exist in
+    # the shape earlier code assumed. Passing custom timeouts also broke internal
+    # attribute access (`options.storage`). Return default options for now; the
+    # memory-leak workaround described above belongs to an older library shape.
+    # Follow-up: pin supabase-py explicitly once we decide whether to restore a
+    # custom httpx client via whatever the new API is.
+    return ClientOptions()
 
 # Create singleton client for anonymous operations only
 # Admin client is per-request (cached in Flask's g) to prevent HTTP/2 exhaustion
@@ -106,11 +107,9 @@ def get_supabase_client() -> Client:
 
     # Create singleton client with connection pooling configuration
     if _supabase_client is None:
-        options = _get_client_options()
         _supabase_client = create_client(
             Config.SUPABASE_URL,
             Config.SUPABASE_ANON_KEY,
-            options=options
         )
         _get_logger().info(f"[DATABASE] Created anonymous client with connection pool (size={Config.SUPABASE_POOL_SIZE}, timeout={Config.SUPABASE_POOL_TIMEOUT}s)")
 
@@ -132,11 +131,9 @@ def get_supabase_admin_singleton() -> Client:
         raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
 
     if _supabase_admin_singleton is None:
-        options = _get_client_options()
         _supabase_admin_singleton = create_client(
             Config.SUPABASE_URL,
             Config.SUPABASE_SERVICE_ROLE_KEY,
-            options=options
         )
         _get_logger().info(f"[DATABASE] Created admin singleton client with connection pool (size={Config.SUPABASE_POOL_SIZE}, timeout={Config.SUPABASE_POOL_TIMEOUT}s)")
 
@@ -162,11 +159,9 @@ def get_supabase_admin_client() -> Client:
     # This prevents HTTP/2 stream exhaustion from singleton pattern
     # while still limiting to one client per request
     if not hasattr(g, '_admin_client'):
-        options = _get_client_options()
         g._admin_client = create_client(
             Config.SUPABASE_URL,
             Config.SUPABASE_SERVICE_ROLE_KEY,
-            options=options
         )
         _get_logger().debug(f"[DATABASE] Created request-scoped admin client with connection pool")
 
@@ -261,11 +256,9 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # We must use postgrest.auth() to set the token for RLS policies
             # P1-SEC-4: Move sensitive logging to DEBUG level
             _get_logger().debug(f"[GET_USER_CLIENT] Creating client with JWT token for RLS")
-            options = _get_client_options()
             client = create_client(
                 Config.SUPABASE_URL,
                 Config.SUPABASE_ANON_KEY,
-                options=options
             )
             # Set auth token on postgrest client for RLS to work with auth.uid()
             # This is the correct way to enable RLS in supabase-py

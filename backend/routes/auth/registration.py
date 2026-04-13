@@ -18,9 +18,9 @@ from middleware.error_handler import ValidationError, ExternalServiceError, Conf
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 from utils.api_response_v1 import success_response, error_response, created_response
 import re
-import os
 from datetime import datetime, date
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -158,7 +158,7 @@ def register():
             except ValueError:
                 raise ValidationError("Invalid date of birth format. Use YYYY-MM-DD")
 
-        # Use admin client for registration to bypass RLS
+        # admin client justified: pre-auth registration; calls supabase.auth.sign_up + writes users/diplomas/user_skill_xp/promo_codes; no session exists yet
         supabase = get_supabase_admin_client()
 
         # Sign up with Supabase Auth
@@ -462,7 +462,7 @@ def register():
                 raise ValidationError('Too many registration attempts. Please wait a minute and try again.')
 
         # Log unexpected errors in development only
-        if os.getenv('FLASK_ENV') == 'development':
+        if Config.FLASK_ENV == 'development':
             logger.error(f"Registration error: {str(e)}")
         raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
 
@@ -485,7 +485,7 @@ def resend_verification():
         # Sanitize email input
         email = sanitize_input(email.lower().strip())
 
-        # Use admin client since this is unauthenticated - avoids RLS infinite recursion
+        # admin client justified: unauthenticated /resend-verification; reads users by email and calls supabase.auth.resend
         supabase = get_supabase_admin_client()
 
         # Check if user exists in our users table

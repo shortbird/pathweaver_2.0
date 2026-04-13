@@ -57,6 +57,7 @@ def get_child_overview(user_id, student_id):
     """
     supabase = None
     try:
+        # admin client justified: parent child-overview consolidated endpoint; reads cross-user child profile + quests + tasks + xp after parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -585,6 +586,7 @@ def upload_child_avatar(user_id, child_id):
         404: Child not found
     """
     try:
+        # admin client justified: parent child-overview consolidated endpoint; reads cross-user child profile + quests + tasks + xp after parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child (dependent or linked student)

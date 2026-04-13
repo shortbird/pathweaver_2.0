@@ -43,6 +43,7 @@ def register_routes(bp):
             if not items:
                 return jsonify({'success': True, 'recorded': 0}), 200
 
+            # admin client justified: feed_item_views write where viewer_id always equals authenticated user_id; bypassing RLS avoids policy churn for a passive analytics signal
             supabase = get_supabase_admin_client()
             recorded = 0
 
@@ -98,6 +99,7 @@ def register_routes(bp):
             return jsonify({'error': 'Invalid target_type'}), 400
 
         try:
+            # admin client justified: cross-user viewer-list read joining users table; needed to display "viewed by" avatars to feed-item author
             supabase = get_supabase_admin_client()
 
             col = 'completion_id' if target_type == 'completion' else 'learning_event_id'
@@ -148,6 +150,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: explicit relationship gate below (observer/advisor/parent/superadmin) controls cross-user comment access; admin client needed to traverse users + observer_student_links + advisor_student_assignments + parent_student_links across orgs
             supabase = get_supabase_admin_client()
 
             # Get learning event info
@@ -259,6 +262,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: explicit relationship gate below (observer/advisor/superadmin) controls cross-user comment access on quest_task_completions
             supabase = get_supabase_admin_client()
 
             # Get completion info

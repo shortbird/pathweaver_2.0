@@ -5,13 +5,13 @@ Uses Redis for persistent rate limiting across deployments.
 Falls back to in-memory storage if Redis is unavailable (local development).
 """
 import time
-import os
 from flask import request, jsonify
 from functools import wraps
 from collections import defaultdict
 from typing import Dict, Tuple, Optional
 from config.rate_limits import get_rate_limit
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -48,7 +48,7 @@ def get_real_ip() -> str:
     # We want the leftmost IP (original client), but must validate it
 
     # Check if we're behind a trusted proxy (production environment)
-    is_production = os.getenv('FLASK_ENV') == 'production'
+    is_production = Config.FLASK_ENV == 'production'
 
     if is_production and 'X-Forwarded-For' in request.headers:
         # Get the full chain
@@ -75,7 +75,7 @@ def get_redis_client():
     if _redis_client is not None:
         return _redis_client
 
-    redis_url = os.getenv('REDIS_URL')
+    redis_url = Config.RATE_LIMIT_STORAGE_URL  # REDIS_URL
     if not redis_url:
         logger.info("REDIS_URL not set - using in-memory rate limiting")
         return None
@@ -382,7 +382,7 @@ def rate_limit(config_key: str = None, max_requests: int = None, window_seconds:
             client_ip = get_real_ip()
 
             # Get environment
-            environment = 'development' if os.getenv('FLASK_ENV') == 'development' else 'production'
+            environment = 'development' if Config.FLASK_ENV == 'development' else 'production'
 
             # Determine rate limit based on priority:
             # 1. Explicit config_key parameter

@@ -131,6 +131,7 @@ def get_user_engagement(user_id: str):
     Get global engagement metrics for the current user across all quests.
     """
     try:
+        # admin client justified: caller's own engagement metrics aggregated across all quests under @require_auth
         supabase = get_supabase_admin_client()
         today = datetime.now().date()
 

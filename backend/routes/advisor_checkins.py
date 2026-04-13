@@ -100,6 +100,7 @@ def advisor_end_student_quest(user_id, student_id, quest_id):
         if not repository.verify_advisor_student_relationship(user_id, student_id):
             return jsonify({'error': 'Not authorized for this student'}), 403
 
+        # admin client justified: advisor check-ins on assigned students; cross-user writes gated by @require_advisor + advisor_student_assignments verification
         supabase = get_supabase_admin_client()
 
         # Find the active enrollment
@@ -176,6 +177,7 @@ def get_student_checkins(user_id, student_id):
             return jsonify({'error': 'Not authorized to view this student'}), 403
 
         # Check if user is admin
+        # admin client justified: advisor check-ins on assigned students; cross-user writes gated by @require_advisor + advisor_student_assignments verification
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
         is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
@@ -214,6 +216,7 @@ def get_checkin_data(user_id, student_id):
             return jsonify({'error': 'Not authorized to view this student'}), 403
 
         # Check if user is admin
+        # admin client justified: advisor check-ins on assigned students; cross-user writes gated by @require_advisor + advisor_student_assignments verification
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
         is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
@@ -310,6 +313,7 @@ def generate_checkin_email(user_id):
         if not meeting_notes:
             return jsonify({'error': 'Missing required field: meeting_notes'}), 400
 
+        # admin client justified: advisor check-ins on assigned students; cross-user writes gated by @require_advisor + advisor_student_assignments verification
         supabase = get_supabase_admin_client()
 
         # Verify advisor-student relationship
@@ -439,6 +443,7 @@ def send_checkin_email(user_id):
 
         # For test sends, get advisor email and send there instead
         if is_test:
+            # admin client justified: advisor check-ins on assigned students; cross-user writes gated by @require_advisor + advisor_student_assignments verification
             supabase = get_supabase_admin_client()
             advisor_resp = supabase.table('users')\
                 .select('email')\

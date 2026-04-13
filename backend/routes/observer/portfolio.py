@@ -35,6 +35,7 @@ def register_routes(bp):
         observer_id = request.user_id
 
         try:
+            # admin client justified: observer portfolio view; cross-user student profile + diploma + skills read after observer_student_links / advisor / parent / superadmin gate
             supabase = get_supabase_admin_client()
 
             # Verify observer has access to this student

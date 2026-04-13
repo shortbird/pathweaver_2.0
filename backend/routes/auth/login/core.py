@@ -67,7 +67,7 @@ def register_routes(bp):
                         # Make token_issued_at timezone-aware (UTC) for comparison
                         token_issued_at = datetime.fromtimestamp(payload.get('iat'), tz=timezone.utc)
 
-                        # Use admin client to check last logout with retry logic
+                        # admin client justified: /me logout-replay check; reads users.last_logout_at to reject tokens issued before logout (pre-trust validation)
                         admin_client = get_supabase_admin_client()
                         user_data = with_connection_retry(
                             lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute(),
@@ -89,7 +89,7 @@ def register_routes(bp):
                 logger.error(f"[ME] Error checking last_logout_at: {logout_check_error}")
                 # Don't fail the request if we can't check - but log it
 
-            # Use admin client to bypass RLS and get fresh data
+            # admin client justified: /me fetches the caller's full profile + organization + parent/advisor relationship counts; cross-table reads that would require many overlapping RLS policies for a self-read
             admin_client = get_supabase_admin_client()
 
             try:
@@ -224,7 +224,7 @@ def register_routes(bp):
             )
 
             if auth_response.user and auth_response.session:
-                # Use admin client to fetch user data (bypasses RLS for login)
+                # admin client justified: post-Supabase-auth profile fetch + first-login profile creation + diploma/skills init; user session cookies not yet set
                 admin_client = get_supabase_admin_client()
 
                 # Fetch user data with admin client (with retry for connection failures)
@@ -484,6 +484,7 @@ def register_routes(bp):
 
         logger.info(f"Org login attempt for username '{username}' in org '{org_slug}'")
 
+        # admin client justified: pre-auth org-login flow; resolves org slug -> id, looks up user by username within org, fetches placeholder email from auth.users via Admin API
         admin_client = get_supabase_admin_client()
 
         # Look up organization by slug
@@ -725,6 +726,7 @@ def register_routes(bp):
         try:
             # Invalidate all tokens by recording logout timestamp
             if user_id:
+                # admin client justified: logout housekeeping; writes users.last_logout_at to invalidate all outstanding tokens, must succeed even if user's session is already torn down
                 admin_client = get_supabase_admin_client()
                 admin_client.table('users').update({
                     'last_logout_at': datetime.utcnow().isoformat()

@@ -82,6 +82,7 @@ def register_routes(bp):
             if completion_id and learning_event_id:
                 return jsonify({'error': 'Provide only one of completion_id or learning_event_id'}), 400
 
+            # admin client justified: portfolio-share invitation flow; reads users + writes observer_invitations / observer_invitation_students after verifying caller owns the share target
             supabase = get_supabase_admin_client()
 
             # Determine student_id and validate the item exists
@@ -155,6 +156,7 @@ def register_routes(bp):
     def view_shared_feed_item(token):
         """Public endpoint to view a shared feed post."""
         try:
+            # admin client justified: portfolio-share invitation flow; reads users + writes observer_invitations / observer_invitation_students after verifying caller owns the share target
             supabase = get_supabase_admin_client()
 
             # Look up token

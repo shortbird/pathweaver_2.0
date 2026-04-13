@@ -44,7 +44,7 @@ def get_completed_quests(user_id):
     
     offset = (page - 1) * per_page
     
-    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+    # admin client justified: completed-quests list for caller (self) under @require_auth; reads user_quests + quest_task_completions scoped by user_id
     supabase = get_supabase_admin_client()
     
     try:
@@ -161,6 +161,7 @@ def calculate_quest_xp(quest: dict, user_id: str = None) -> dict:
         return {'total': 0, 'breakdown': {}}
 
     try:
+        # admin client justified: per-quest XP breakdown for caller (self); reads quest_task_completions scoped by user_id
         supabase = get_supabase_admin_client()
         quest_id = quest.get('id')
 

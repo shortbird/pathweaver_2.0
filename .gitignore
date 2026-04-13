@@ -142,10 +142,7 @@ site/
 !Pipfile.lock
 !poetry.lock
 
-# Mobile app (Expo / React Native)
-optio-mobile/.expo/
-optio-mobile/android/
-optio-mobile/ios/
+# Mobile app (Expo / React Native) — frontend-v2 builds for native too
 *.apk
 *.aab
 *.ipa

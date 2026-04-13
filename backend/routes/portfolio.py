@@ -231,6 +231,7 @@ def update_portfolio_privacy(authenticated_user_id, user_id):
         if is_minor_user:
             # Find parent
             from database import get_supabase_admin_client
+            # admin client justified: minor-user portfolio share requires looking up parent (managed_by_parent_id) for consent verification
             supabase = get_supabase_admin_client()
             user_result = supabase.table('users').select(
                 'managed_by_parent_id'

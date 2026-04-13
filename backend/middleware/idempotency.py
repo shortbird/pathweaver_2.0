@@ -9,10 +9,11 @@ According to API design best practices, POST/PUT/DELETE requests should support
 idempotency keys to prevent accidental duplicate charges, data corruption, etc.
 """
 import json
-import os
 from flask import request, jsonify, Response
 from functools import wraps
 from typing import Dict, Optional, Tuple
+
+from app_config import Config
 from datetime import datetime, timedelta
 from collections import OrderedDict
 
@@ -30,7 +31,7 @@ def get_redis_client():
     if _redis_client is not None:
         return _redis_client
 
-    redis_url = os.getenv('REDIS_URL')
+    redis_url = Config.RATE_LIMIT_STORAGE_URL  # REDIS_URL
     if not redis_url:
         logger.info("REDIS_URL not set - using in-memory idempotency cache")
         return None

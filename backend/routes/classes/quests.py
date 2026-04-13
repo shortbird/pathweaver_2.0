@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 
 def get_user_info(user_id: str):
     """Get user role and organization info"""
+    # admin client justified: classes module helper; cross-class quest assignment reads/writes gated by org admin / advisor role checks at route handler level
     supabase = get_supabase_admin_client()
     user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
     if not user.data:
@@ -113,6 +114,7 @@ def add_class_quest(user_id, org_id, class_id):
             return jsonify({'success': False, 'error': 'quest_id is required'}), 400
 
         # Verify quest exists and is accessible
+        # admin client justified: class quest assignment under @require_role; cross-org quest lookup before assignment
         supabase = get_supabase_admin_client()
         cls = service.get_class(class_id)
         class_org_id = cls.get('organization_id')
@@ -289,6 +291,7 @@ def create_and_add_class_quest(user_id, org_id, class_id):
         if not title:
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
+        # admin client justified: class quest creation under @require_role; writes new quest scoped to caller's org
         supabase = get_supabase_admin_client()
 
         # Verify the class belongs to this org
@@ -388,6 +391,7 @@ def get_available_quests(user_id, org_id):
         search = request.args.get('search', '').strip()
         limit = min(int(request.args.get('limit', 50)), 100)
 
+        # admin client justified: org-aware quest catalog read with visibility-policy filter
         supabase = get_supabase_admin_client()
 
         # Get organization visibility policy

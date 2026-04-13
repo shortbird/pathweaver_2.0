@@ -414,6 +414,7 @@ def get_invitable_quests(user_id):
     """
     try:
         from database import get_supabase_admin_client
+        # admin client justified: @require_role('advisor', 'org_admin', 'superadmin') gate above; needs cross-org quest visibility for superadmin and org-filtered global+org quest read
         admin = get_supabase_admin_client()
 
         # Get advisor's role and organization
@@ -503,6 +504,7 @@ def assign_students_to_quest(user_id):
 
         from database import get_supabase_admin_client
         from datetime import datetime
+        # admin client justified: @require_role('advisor', 'org_admin', 'superadmin') gate above; advisor writing user_quests rows for OTHER students requires cross-user write
         admin = get_supabase_admin_client()
 
         quest_id = data['quest_id']
@@ -612,6 +614,7 @@ def get_enrollable_courses(user_id):
     """
     try:
         from database import get_supabase_admin_client
+        # admin client justified: @require_role('advisor', 'org_admin', 'superadmin') gate above; cross-org course visibility for superadmin and org-filtered public+org course reads
         admin = get_supabase_admin_client()
 
         # Get advisor's role and organization
@@ -707,6 +710,7 @@ def enroll_students_in_course(user_id):
             raise ValidationError("Maximum 50 students per enrollment request")
 
         from database import get_supabase_admin_client
+        # admin client justified: @require_role('advisor', 'org_admin', 'superadmin') gate above; bulk enrolling OTHER students into a course requires cross-user write + verifying student org membership matches advisor's
         admin = get_supabase_admin_client()
 
         # Verify course exists and is published
@@ -821,6 +825,7 @@ def get_caseload_summary(user_id):
                 }
             }), 200
 
+        # admin client justified: @require_advisor gate above; batch-reads quest_task_completions for the advisor's entire student caseload (cross-user)
         admin = get_supabase_admin_client()
         today = datetime.now().date()
         twelve_weeks_ago = today - timedelta(weeks=12)

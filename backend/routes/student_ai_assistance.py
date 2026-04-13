@@ -174,6 +174,7 @@ def find_similar_quests(user_id):
             }), 400
 
         # Get active quests from database
+        # admin client justified: student AI assistance reads quest data for similarity comparison (cross-quest) under @require_auth
         supabase = get_supabase_admin_client()
         response = supabase.table('quests')\
             .select('id, title, description, pillar')\

@@ -227,6 +227,7 @@ def get_contacts(user_id: str):
     """
     try:
         from database import get_supabase_admin_client
+        # admin client justified: cross-user contact lookup gated by relationship (advisor-student / parent-student / org-isolation) checks below; replacing with user_client would require complex RLS policies for advisor_student_assignments and cross-org filtering
         supabase = get_supabase_admin_client()
 
         # Get user role and organization

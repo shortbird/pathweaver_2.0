@@ -36,6 +36,7 @@ def register_routes(bp):
             429: Rate limit exceeded
         """
         try:
+            # admin client justified: student-side observer-invite mgmt; verifies caller is the student and writes observer_invitations / observer_invitation_students scoped to self
             supabase = get_supabase_admin_client()
 
             # Get student name for the invitation record
@@ -127,6 +128,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: student-side observer-invite mgmt; verifies caller is the student and writes observer_invitations / observer_invitation_students scoped to self
             supabase = get_supabase_admin_client()
 
             # Get the invitation first
@@ -188,6 +190,7 @@ def register_routes(bp):
                  viewers = all people who can see the feed (for display)
         """
         try:
+            # admin client justified: student-side observer-invite mgmt; verifies caller is the student and writes observer_invitations / observer_invitation_students scoped to self
             supabase = get_supabase_admin_client()
 
             # --- 1) Observer links (removable) ---
@@ -328,6 +331,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: student-side observer-invite mgmt; verifies caller is the student and writes observer_invitations / observer_invitation_students scoped to self
             supabase = get_supabase_admin_client()
 
             # Verify link belongs to student

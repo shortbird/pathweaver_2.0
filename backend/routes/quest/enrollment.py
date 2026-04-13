@@ -112,6 +112,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # and reset enrollment metadata so the quest shows as in-progress
         if force_new and not load_previous_tasks and has_completed_enrollment:
             logger.info(f"[START_FRESH] Cleaning up for user {user_id[:8]}, quest {quest_id[:8]}, enrollment {enrollment['id'][:8]}")
+            # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
             admin_client = get_supabase_admin_client()
 
             # Get all existing tasks for this enrollment
@@ -184,6 +185,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 logger.info(f"[QUEST_RESTART] Enrollment {enrollment['id'][:8]} was reactivated (not new). Tasks already exist, skipping copy.")
                 # Tasks are already there from the previous attempt - just mark as personalized and continue
                 # IMPORTANT: Update last_picked_up_at to mark this as a restart (for dashboard filtering)
+                # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
                 admin_client = get_supabase_admin_client()
                 admin_client.table('user_quests')\
                     .update({
@@ -222,6 +224,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     logger.warning(f"[QUEST_RESTART] No previous completed enrollment found (only current one exists)")
                     # Just mark as personalized and continue - no tasks to copy
                     # IMPORTANT: Update last_picked_up_at to mark this as a restart
+                    # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
                     admin_client = get_supabase_admin_client()
                     admin_client.table('user_quests')\
                         .update({
@@ -239,6 +242,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     })
 
                 previous_enrollment = most_recent_completed_enrollment
+                # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
                 admin_client = get_supabase_admin_client()
                 previous_tasks = admin_client.table('user_quest_tasks')\
                     .select('*')\
@@ -307,6 +311,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # Step 1: Copy ALL template tasks (required + optional) to user_quest_tasks
         if has_template_tasks:
             try:
+                # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
                 admin_client = get_supabase_admin_client()
                 all_tasks = get_template_tasks(quest_id, filter_type='all')
 
@@ -373,6 +378,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
             logger.info(f"[UNIFIED_ENROLL] Wizard skipped: quest has {task_summary.get('total_tasks', 0)} template tasks")
             # Mark personalization as complete since template tasks are pre-set
             try:
+                # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
                 admin_client = get_supabase_admin_client()
                 admin_client.table('user_quests')\
                     .update({'personalization_completed': True})\
@@ -390,6 +396,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
             skip_wizard = True
             # Mark personalization as complete since there's nothing to personalize
             try:
+                # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
                 admin_client = get_supabase_admin_client()
                 admin_client.table('user_quests')\
                     .update({'personalization_completed': True})\
@@ -448,6 +455,7 @@ def create_user_quest(user_id: str):
     try:
         from services.image_service import search_quest_image
 
+        # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         data = request.json
 

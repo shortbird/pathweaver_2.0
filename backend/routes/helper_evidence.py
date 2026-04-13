@@ -14,6 +14,7 @@ REPOSITORY MIGRATION: COMPLETE
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
 from middleware.rate_limiter import rate_limit
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
 from repositories import (
@@ -38,12 +39,12 @@ def verify_advisor_access(advisor_user_id, student_user_id):
     user_repo = UserRepository()
     advisor_repo = AdvisorRepository()
 
-    # Verify advisor role
+    # Verify advisor role (A2: get_effective_role resolves org_managed → real role)
     user = user_repo.find_by_id(advisor_user_id)
     if not user:
         raise AuthorizationError("User not found")
 
-    user_role = user.get('role')
+    user_role = get_effective_role(user)
     if user_role not in ['advisor', 'org_admin', 'superadmin']:
         raise AuthorizationError("Only advisors can access this endpoint")
 
@@ -56,17 +57,17 @@ def verify_advisor_access(advisor_user_id, student_user_id):
 
 def verify_parent_access(parent_user_id, student_user_id):
     """Verify parent has active access to student"""
-    # Admin client: Cross-user access verification (ADR-002, Rule 5)
+    # admin client justified: parent-access verification helper; reads users + parent_student_links to validate cross-user access
     user_repo = UserRepository()
     supabase = get_supabase_admin_client()
     parent_repo = ParentRepository(client=supabase)
 
-    # Verify parent role
+    # Verify parent role (A2: get_effective_role resolves org_managed → real role)
     user = user_repo.find_by_id(parent_user_id)
     if not user:
         raise AuthorizationError("User not found")
 
-    user_role = user.get('role')
+    user_role = get_effective_role(user)
     if user_role not in ['parent', 'superadmin']:
         raise AuthorizationError("Only parents can access this endpoint")
 
@@ -80,7 +81,7 @@ def verify_parent_access(parent_user_id, student_user_id):
 
 def get_or_create_evidence_document(student_user_id, task_id, quest_id):
     """Get existing evidence document ID or create a new one"""
-    # Admin client: Cross-user data creation (ADR-002, Rule 5)
+    # admin client justified: cross-user evidence document creation helper; access already verified by caller (parent/advisor)
     supabase = get_supabase_admin_client()
     evidence_repo = EvidenceDocumentRepository()
     evidence_repo._client = supabase  # Use admin client since we already verified access
@@ -106,6 +107,7 @@ def upload_evidence_for_student(user_id):
     """
     try:
         # Admin client: Parent/advisor cross-user access (ADR-002, Rule 5)
+        # admin client justified: advisor/parent uploads evidence onto student tasks; cross-user writes gated by helper relationship verification (advisor_student_assignments / parent->child)
         supabase = get_supabase_admin_client()
         user_repo = UserRepository()
         task_repo = TaskRepository()
@@ -130,7 +132,7 @@ def upload_evidence_for_student(user_id):
         if not user:
             raise NotFoundError("User not found")
 
-        user_role = user.get('role')
+        user_role = get_effective_role(user)  # A2: resolves org_managed → real role
 
         # Verify access based on role
         if user_role in ['advisor', 'org_admin', 'superadmin']:
@@ -306,6 +308,7 @@ def get_student_tasks_for_evidence(user_id, student_id):
     """
     try:
         # Admin client: Parent/advisor cross-user access (ADR-002, Rule 5)
+        # admin client justified: advisor/parent uploads evidence onto student tasks; cross-user writes gated by helper relationship verification (advisor_student_assignments / parent->child)
         supabase = get_supabase_admin_client()
         user_repo = UserRepository()
 
@@ -314,7 +317,7 @@ def get_student_tasks_for_evidence(user_id, student_id):
         if not user:
             raise NotFoundError("User not found")
 
-        user_role = user.get('role')
+        user_role = get_effective_role(user)  # A2: resolves org_managed → real role
 
         # Verify access based on role
         if user_role in ['advisor', 'org_admin', 'superadmin']:

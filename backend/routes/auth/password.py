@@ -36,9 +36,10 @@ PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1
 def reset_login_attempts(email):
     """
     Reset login attempts after password reset.
-    (Imported from login module logic)
+    NOTE: lockout_count intentionally preserved (H7) so backoff survives reset.
     """
     try:
+        # admin client justified: post-reset lockout clear; login_attempts is service-role-only
         admin_client = get_supabase_admin_client()
 
         admin_client.table('login_attempts').update({
@@ -49,6 +50,112 @@ def reset_login_attempts(email):
 
     except Exception as e:
         logger.error(f"Error resetting login attempts: {e}")
+
+
+# ── H7: Per-email throttle for /forgot-password ───────────────────────────────
+# Threat: IP-level @rate_limit (3/hr) doesn't stop a distributed attacker from
+# flooding a specific account with reset emails. Track per-email requests in a
+# sliding window; silently drop (still 200) when exceeded, with exponential
+# backoff on `lockout_count` so repeat offenders are throttled harder.
+# NOTE: response must be identical whether throttled or not — exposing lockout
+# state would leak account existence.
+
+RESET_WINDOW_SECONDS = Config.RATE_LIMIT_LOGIN_WINDOW  # default 900s (15m)
+RESET_MAX_REQUESTS = 3  # per window before soft-lock
+RESET_BASE_LOCKOUT_SECONDS = Config.RATE_LIMIT_LOCKOUT_DURATION  # default 3600
+RESET_MAX_LOCKOUT_SECONDS = 24 * 60 * 60
+
+
+def _compute_reset_lockout_seconds(lockout_count: int) -> int:
+    if lockout_count < 1:
+        return RESET_BASE_LOCKOUT_SECONDS
+    return min(
+        RESET_BASE_LOCKOUT_SECONDS * (2 ** (lockout_count - 1)),
+        RESET_MAX_LOCKOUT_SECONDS,
+    )
+
+
+def should_throttle_password_reset(email: str) -> bool:
+    """
+    Returns True when the email is currently locked out OR the caller has
+    exceeded RESET_MAX_REQUESTS within RESET_WINDOW_SECONDS. Side-effect:
+    records the attempt and escalates lockout_count on threshold breach.
+    """
+    try:
+        email_lc = email.lower()
+        # admin client justified: pre-auth throttle write; password_reset_attempts is service-role-only
+        admin_client = get_supabase_admin_client()
+        now = datetime.now(timezone.utc)
+
+        result = admin_client.table('password_reset_attempts')\
+            .select('*')\
+            .eq('email', email_lc)\
+            .execute()
+
+        if not result.data:
+            admin_client.table('password_reset_attempts').insert({
+                'email': email_lc,
+                'attempt_count': 1,
+                'lockout_count': 0,
+                'locked_until': None,
+                'last_attempt_at': now.isoformat(),
+                'created_at': now.isoformat(),
+                'updated_at': now.isoformat(),
+            }).execute()
+            return False
+
+        record = result.data[0]
+
+        # Currently locked? Throttle, don't increment further.
+        locked_until = record.get('locked_until')
+        if locked_until:
+            locked_until_dt = datetime.fromisoformat(locked_until.replace('Z', '+00:00'))
+            if now < locked_until_dt:
+                return True
+
+        # Reset the window if the last attempt was outside it.
+        last_attempt_at = datetime.fromisoformat(
+            record['last_attempt_at'].replace('Z', '+00:00')
+        )
+        if (now - last_attempt_at).total_seconds() > RESET_WINDOW_SECONDS:
+            admin_client.table('password_reset_attempts').update({
+                'attempt_count': 1,
+                'locked_until': None,
+                'last_attempt_at': now.isoformat(),
+                'updated_at': now.isoformat(),
+            }).eq('email', email_lc).execute()
+            return False
+
+        new_count = record.get('attempt_count', 0) + 1
+        if new_count > RESET_MAX_REQUESTS:
+            new_lockout_count = record.get('lockout_count', 0) + 1
+            duration = _compute_reset_lockout_seconds(new_lockout_count)
+            new_locked_until = now + timedelta(seconds=duration)
+            admin_client.table('password_reset_attempts').update({
+                'attempt_count': new_count,
+                'lockout_count': new_lockout_count,
+                'locked_until': new_locked_until.isoformat(),
+                'last_attempt_at': now.isoformat(),
+                'updated_at': now.isoformat(),
+            }).eq('email', email_lc).execute()
+            logger.warning(
+                f"[RESET-THROTTLE] {mask_email(email)} soft-locked for "
+                f"{duration // 60}m (lockout #{new_lockout_count})"
+            )
+            return True
+
+        admin_client.table('password_reset_attempts').update({
+            'attempt_count': new_count,
+            'last_attempt_at': now.isoformat(),
+            'updated_at': now.isoformat(),
+        }).eq('email', email_lc).execute()
+        return False
+
+    except Exception as e:
+        # Fail-open on the throttle: better to risk a duplicate email than to
+        # lock legitimate users out due to a DB hiccup.
+        logger.error(f"Error in should_throttle_password_reset: {e}")
+        return False
 
 
 # ============================================================================
@@ -86,6 +193,17 @@ def forgot_password():
             logger.warning(f"[FORGOT_PASSWORD] Invalid email format: {mask_email(email)}")
             return jsonify({'error': 'Invalid email format'}), 400
 
+        # H7: Per-email throttle (supplements the per-IP @rate_limit decorator).
+        # When throttled we still return the standard 200 message so callers can't
+        # probe account state via lockout timing.
+        if should_throttle_password_reset(email):
+            logger.info(f"[FORGOT_PASSWORD] Soft-throttled (per-email limit): {mask_email(email)}")
+            return jsonify({
+                'message': 'If an account exists with this email, you will receive password reset instructions shortly.',
+                'note': 'Please check your spam folder if you don\'t see the email within a few minutes.'
+            }), 200
+
+        # admin client justified: pre-auth password reset flow; needs auth.users access via Admin API and password_reset_tokens write
         admin_client = get_supabase_admin_client()
         logger.info("[FORGOT_PASSWORD] Got admin client")
 
@@ -230,6 +348,7 @@ def reset_password():
         if not is_valid:
             return jsonify({'error': error_message}), 400
 
+        # admin client justified: token-gated password reset; updates auth.users via Admin API, no user session yet
         admin_client = get_supabase_admin_client()
 
         try:

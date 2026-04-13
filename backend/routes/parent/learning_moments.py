@@ -48,6 +48,7 @@ def create_child_learning_moment(user_id, child_id):
         403: Not authorized to access this child
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -187,6 +188,7 @@ def upload_moment_media(user_id, child_id):
         403: Not authorized to access this child
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, child_id)
 
@@ -235,6 +237,7 @@ def get_child_learning_moments(user_id, child_id):
         200: List of learning moments with evidence
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -317,6 +320,7 @@ def get_child_topics(user_id, child_id):
         403: Not authorized to access this child
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -370,6 +374,7 @@ def create_child_topic(user_id, child_id):
         403: Not authorized to access this child
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -453,6 +458,7 @@ def get_child_topic_suggestions(user_id, child_id):
     try:
         from services.learning_ai_service import LearningAIService
 
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -497,6 +503,7 @@ def get_child_topic_detail(user_id, child_id, track_id):
         404: Track not found
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -551,6 +558,7 @@ def assign_child_moment_to_topic(user_id, child_id, moment_id):
         403: Not authorized
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -626,6 +634,7 @@ def update_child_learning_moment(user_id, child_id, moment_id):
         404: Moment not found
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -783,6 +792,7 @@ def delete_child_learning_moment(user_id, child_id, moment_id):
         404: Moment not found
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -880,6 +890,7 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
         404: Moment not found
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
@@ -980,6 +991,7 @@ def upload_child_moment_file(user_id, child_id, moment_id):
         404: Moment not found
     """
     try:
+        # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child

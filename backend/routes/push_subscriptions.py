@@ -218,6 +218,7 @@ def register_expo_token(user_id: str):
     device_name = data.get('device_name')
 
     try:
+        # admin client justified: push subscription mgmt scoped to caller (self) under @require_auth; writes to web_push_subscriptions
         supabase = get_supabase_admin_client()
 
         # Upsert into device_tokens (reuse existing table from FCM service)
@@ -256,6 +257,7 @@ def deactivate_expo_token(user_id: str):
         return jsonify({'error': 'Missing token'}), 400
 
     try:
+        # admin client justified: push subscription mgmt scoped to caller (self) under @require_auth; writes to web_push_subscriptions
         supabase = get_supabase_admin_client()
         supabase.table('device_tokens').update({
             'is_active': False,

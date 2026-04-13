@@ -82,7 +82,7 @@ def authorize():
                 'error_description': 'Only response_type=code is supported'
             }), 400
 
-        # Verify OAuth client exists
+        # admin client justified: OAuth /authorize entry; oauth_clients is service-role-only credential table; no user session required to validate client_id
         supabase = get_supabase_admin_client()
         client_result = supabase.table('oauth_clients').select('*').eq('client_id', client_id).single().execute()
 
@@ -170,7 +170,7 @@ def token():
                 'error_description': 'Missing required parameters'
             }), 400
 
-        # Verify client credentials
+        # admin client justified: OAuth token-exchange client-credentials check; oauth_clients is service-role-only and lookup happens before any user identity is established
         supabase = get_supabase_admin_client()
         client_result = supabase.table('oauth_clients').select('*').eq('client_id', client_id).single().execute()
 
@@ -218,6 +218,7 @@ def _handle_authorization_code_grant(request, client):
             'error_description': 'Missing code or redirect_uri'
         }), 400
 
+    # admin client justified: OAuth /token authorization-code exchange; reads oauth_authorization_codes + writes oauth_access_tokens, all on service-role-only tables
     supabase = get_supabase_admin_client()
 
     # Verify authorization code
@@ -293,6 +294,7 @@ def _handle_refresh_token_grant(request, client):
             'error_description': 'Missing refresh_token'
         }), 400
 
+    # admin client justified: OAuth /token refresh-token exchange; reads oauth_refresh_tokens + writes new oauth_access_tokens via hashed lookup on service-role-only tables
     supabase = get_supabase_admin_client()
     refresh_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
 
@@ -370,7 +372,7 @@ def revoke():
                 'error_description': 'Missing required parameters'
             }), 400
 
-        # Verify client credentials
+        # admin client justified: OAuth /revoke client-credentials check; oauth_clients is service-role-only
         supabase = get_supabase_admin_client()
         client_result = supabase.table('oauth_clients').select('*').eq('client_id', client_id).single().execute()
 
@@ -411,6 +413,7 @@ def list_clients(user_id: str):
         403: Insufficient permissions
     """
     try:
+        # admin client justified: @require_admin gate above; reads service-role-only oauth_clients table
         supabase = get_supabase_admin_client()
 
         # Get all OAuth clients
@@ -442,6 +445,7 @@ def create_client(user_id: str):
         403: Insufficient permissions
     """
     try:
+        # admin client justified: @require_admin gate above; writes new client credentials to service-role-only oauth_clients table
         supabase = get_supabase_admin_client()
 
         data = request.get_json()

@@ -332,6 +332,7 @@ def get_quest_sources():
     Used by frontend to display source-based header images.
     """
     try:
+        # admin client justified: quest catalog with org-aware visibility; needs cross-org public quest reads + organization filtering that would require many overlapping RLS policies
         supabase = get_supabase_admin_client()
 
         # Get all sources with their header images (only public data)
@@ -424,6 +425,7 @@ def backfill_quest_topics():
             return jsonify({'error': 'Authentication required'}), 401
 
         # Verify superadmin role
+        # admin client justified: quest catalog with org-aware visibility; needs cross-org public quest reads + organization filtering that would require many overlapping RLS policies
         supabase = get_supabase_admin_client()
         user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
 

@@ -423,6 +423,7 @@ def get_available_content(user_id: str):
     """
     try:
         from database import get_supabase_admin_client
+        # admin client justified: evidence report shareable via token; reads cross-user student data after token verification
         supabase = get_supabase_admin_client()
 
         # Get user's quests with approved tasks

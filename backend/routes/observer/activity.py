@@ -44,6 +44,7 @@ def register_routes(bp):
         if user_id != student_id:
             # Check if user has parent/observer access to this student
             try:
+                # admin client justified: cross-user access check (superadmin / dependent / parent_student_links / observer_student_links) before granting student-activity feed access
                 supabase_check = get_supabase_admin_client()
                 # Check superadmin
                 user_resp = supabase_check.table('users').select('role').eq('id', user_id).single().execute()
@@ -67,6 +68,7 @@ def register_routes(bp):
         cursor = request.args.get('cursor')
 
         try:
+            # admin client justified: relationship gate above grants access; reads cross-user activity feed (quest_task_completions + learning_events + evidence blocks) and writes feed-item visibility toggle on user's own rows
             supabase = get_supabase_admin_client()
 
             # Get student profile for feed display
@@ -524,6 +526,7 @@ def register_routes(bp):
             return jsonify({'error': 'completion_id or learning_event_id is required'}), 400
 
         try:
+            # admin client justified: relationship gate above grants access; reads cross-user activity feed (quest_task_completions + learning_events + evidence blocks) and writes feed-item visibility toggle on user's own rows
             supabase = get_supabase_admin_client()
 
             if completion_id:

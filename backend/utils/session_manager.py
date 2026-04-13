@@ -1,7 +1,6 @@
 """
 Secure session management using httpOnly cookies
 """
-import os
 import jwt
 import hashlib
 from datetime import datetime, timedelta, timezone
@@ -19,15 +18,15 @@ class SessionManager:
     
     def __init__(self):
         # Primary secret key for token signing
-        self.secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY') or os.getenv('FLASK_SECRET_KEY')
+        self.secret_key = Config.JWT_SECRET_KEY
         if not self.secret_key:
-            raise ValueError("JWT_SECRET_KEY, SECRET_KEY, or FLASK_SECRET_KEY environment variable must be set")
+            raise ValueError("JWT_SECRET_KEY or FLASK_SECRET_KEY must be set (see Config.JWT_SECRET_KEY)")
 
         # Previous secret key for graceful rotation (optional)
-        self.previous_secret_key = os.getenv('FLASK_SECRET_KEY_OLD')
+        self.previous_secret_key = Config.JWT_PREVIOUS_SECRET_KEY
 
         # Token version for tracking rotations
-        self.token_version = os.getenv('TOKEN_VERSION', 'v1')
+        self.token_version = Config.TOKEN_VERSION
 
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
@@ -36,7 +35,7 @@ class SessionManager:
 
         # Session timeout configuration (independent of token expiry)
         # This provides an additional layer of security by enforcing absolute session timeouts
-        self.SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT_HOURS', '24'))
+        self.SESSION_TIMEOUT = Config.SESSION_TIMEOUT_HOURS
 
         # Log token versioning status
         if self.previous_secret_key:
@@ -46,9 +45,9 @@ class SessionManager:
 
         # Detect cross-origin deployment (frontend and backend on different domains)
         frontend_url = Config.FRONTEND_URL
-        backend_url = os.getenv('BACKEND_URL', request.host_url if request else '')
+        backend_url = Config.BACKEND_URL or (request.host_url if request else '')
         is_on_render = 'onrender.com' in frontend_url
-        is_production = os.getenv('FLASK_ENV') == 'production'
+        is_production = Config.FLASK_ENV == 'production'
 
         # Check if frontend and backend are on same root domain (e.g., www.optioeducation.com and api.optioeducation.com)
         # Same-site means cookies work with SameSite=Lax (more secure, no third-party cookie issues)

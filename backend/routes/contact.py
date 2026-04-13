@@ -61,6 +61,7 @@ def submit_contact():
             contact_type = 'general'
 
         # Store in database
+        # admin client justified: contact form is unauthenticated; writes to contact_submissions service-role-only table
         supabase = get_supabase_admin_client()
 
         submission_data = {

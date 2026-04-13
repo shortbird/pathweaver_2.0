@@ -27,6 +27,7 @@ def list_public_courses():
     No authentication required.
     """
     try:
+        # admin client justified: unauthenticated public catalog reads (courses, quests, marketing); RLS would have to permit anonymous reads which adds policy complexity
         client = get_supabase_admin_client()
 
         limit = min(int(request.args.get('limit', 50)), 100)  # Cap at 100
@@ -95,6 +96,7 @@ def get_public_course_by_slug(slug: str):
     is both published AND public. No authentication required.
     """
     try:
+        # admin client justified: unauthenticated public catalog reads (courses, quests, marketing); RLS would have to permit anonymous reads which adds policy complexity
         client = get_supabase_admin_client()
 
         # Get course by slug (must be public and published)
@@ -166,6 +168,7 @@ def get_public_transcript(user_id):
     No authentication required.
     """
     try:
+        # admin client justified: unauthenticated public catalog reads (courses, quests, marketing); RLS would have to permit anonymous reads which adds policy complexity
         client = get_supabase_admin_client()
 
         # Check transcript exists

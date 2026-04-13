@@ -48,6 +48,7 @@ def register_routes(bp):
         relationship = data.get('relationship', 'other')
 
         try:
+            # admin client justified: parent-management endpoints under @require_auth verify parent role + parent->child ownership before reading/writing observer_student_links and parent_student_links
             supabase = get_supabase_admin_client()
 
             # Verify parent role
@@ -154,6 +155,7 @@ def register_routes(bp):
         parent_id = user_id
 
         try:
+            # admin client justified: parent-management endpoints under @require_auth verify parent role + parent->child ownership before reading/writing observer_student_links and parent_student_links
             supabase = get_supabase_admin_client()
 
             # Verify parent-child relationship
@@ -207,6 +209,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: parent-management endpoints under @require_auth verify parent role + parent->child ownership before reading/writing observer_student_links and parent_student_links
             supabase = get_supabase_admin_client()
 
             # Check if user is the student, their parent, or superadmin
@@ -286,6 +289,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: parent-management endpoints under @require_auth verify parent role + parent->child ownership before reading/writing observer_student_links and parent_student_links
             supabase = get_supabase_admin_client()
 
             # Check if user is the student, their parent, or superadmin

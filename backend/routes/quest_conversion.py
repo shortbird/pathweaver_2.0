@@ -179,6 +179,7 @@ def estimate_xp(user_id):
                 'error': 'Either moment_ids or track_id is required'
             }), 400
 
+        # admin client justified: learning-moment-to-quest conversion writes new quest + user_quests rows scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get moments
@@ -235,6 +236,7 @@ def suggest_improvements(user_id):
         moment_ids = data.get('moment_ids')
         track_id = data.get('track_id')
 
+        # admin client justified: learning-moment-to-quest conversion writes new quest + user_quests rows scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get moments

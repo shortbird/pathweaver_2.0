@@ -132,6 +132,7 @@ def generate_tasks(user_id: str, quest_id: str):
         # Fetch user's learning vision (bio field) for AI context
         vision_statement = ''
         try:
+            # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
             supabase = get_supabase_admin_client()
             user_result = supabase.table('users').select('bio').eq('id', user_id).single().execute()
             if user_result.data and user_result.data.get('bio'):
@@ -335,6 +336,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
         from utils.pillar_utils import normalize_pillar_name
         from services.subject_classification_service import SubjectClassificationService
 
+        # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         subject_service = SubjectClassificationService()
         data = request.get_json()
@@ -494,6 +496,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
         from utils.pillar_utils import normalize_pillar_name
         from services.subject_classification_service import SubjectClassificationService
 
+        # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         subject_service = SubjectClassificationService()
         data = request.get_json()
@@ -673,6 +676,7 @@ def get_personalization_status(user_id: str, quest_id: str):
     Check if user has completed personalization for a quest.
     """
     try:
+        # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         enrollment = supabase.table('user_quests')\

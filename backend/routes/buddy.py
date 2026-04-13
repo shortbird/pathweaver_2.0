@@ -21,6 +21,7 @@ buddy_bp = Blueprint('buddy', __name__)
 def get_buddy(user_id):
     """Get the current user's buddy record."""
     try:
+        # admin client justified: buddy companion reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         result = supabase.table('buddies').select('*').eq('user_id', user_id).execute()
 
@@ -47,6 +48,7 @@ def create_buddy(user_id):
         if not name:
             return jsonify({'error': 'Name cannot be empty'}), 400
 
+        # admin client justified: buddy companion reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Check if buddy already exists
@@ -99,6 +101,7 @@ def update_buddy(user_id):
         if 'stage' in updates:
             updates['stage'] = max(0, min(6, int(updates['stage'])))
 
+        # admin client justified: buddy companion reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         result = supabase.table('buddies').update(updates).eq('user_id', user_id).execute()
 
@@ -132,6 +135,7 @@ def feed_buddy(user_id):
         if xp_cost < 0:
             return jsonify({'error': 'xp_cost cannot be negative'}), 400
 
+        # admin client justified: buddy companion reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get current buddy
@@ -196,6 +200,7 @@ def tap_buddy(user_id):
     try:
         data = request.get_json() or {}
 
+        # admin client justified: buddy companion reads/writes scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         updates = {

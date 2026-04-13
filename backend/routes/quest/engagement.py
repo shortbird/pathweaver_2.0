@@ -155,6 +155,7 @@ def get_quest_engagement(user_id: str, quest_id: str):
     - rhythm: Current rhythm state with positive messaging
     """
     try:
+        # admin client justified: quest engagement metrics; reads quest_task_completions for the requesting user (self) under @require_auth, joining quest data
         supabase = get_supabase_admin_client()
         today = datetime.now().date()
 

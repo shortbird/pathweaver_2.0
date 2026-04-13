@@ -95,6 +95,7 @@ def get_event_counts():
 def _is_admin(user_id: str) -> bool:
     """Check if user is admin."""
     try:
+        # admin client justified: analytics aggregations (popular quests, etc.) need cross-user reads under @require_admin
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
 

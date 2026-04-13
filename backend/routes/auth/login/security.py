@@ -16,11 +16,29 @@ import time
 import random
 
 from utils.logger import get_logger
-from config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
+from app_config import Config
 from utils.api_response_v1 import success_response, error_response
 from utils.retry_handler import with_connection_retry
 
 logger = get_logger(__name__)
+
+# H7: Per-account lockout backoff
+# Threshold and base lockout duration now come from Config (env-overridable).
+# `lockout_count` on login_attempts persists across reset_login_attempts so a
+# successful guess can't reset the backoff history.
+MAX_LOGIN_ATTEMPTS = Config.RATE_LIMIT_LOGIN_ATTEMPTS       # default 5
+BASE_LOCKOUT_SECONDS = Config.RATE_LIMIT_LOCKOUT_DURATION   # default 3600 (1h)
+MAX_LOCKOUT_SECONDS = 24 * 60 * 60                          # hard cap at 24h
+
+
+def compute_lockout_seconds(lockout_count: int) -> int:
+    """Exponential backoff: base * 2^(lockout_count - 1), capped at 24h.
+    lockout_count = 1 → base, 2 → 2×base, 3 → 4×base, ... (cap 86400).
+    """
+    if lockout_count < 1:
+        return BASE_LOCKOUT_SECONDS
+    duration = BASE_LOCKOUT_SECONDS * (2 ** (lockout_count - 1))
+    return min(duration, MAX_LOCKOUT_SECONDS)
 
 def constant_time_delay(min_ms=100, max_ms=300):
     """
@@ -37,6 +55,7 @@ def check_account_lockout(email):
     Returns (is_locked, retry_after_seconds, attempt_count)
     """
     try:
+        # admin client justified: pre-auth lockout check; login_attempts is service-role-only and called before any session exists
         admin_client = get_supabase_admin_client()
 
         # Get login attempt record with retry logic for transient connection failures
@@ -74,9 +93,11 @@ def check_account_lockout(email):
 def record_failed_login(email):
     """
     Record a failed login attempt and lock account if threshold is reached.
+    Lockout duration uses exponential backoff via login_attempts.lockout_count.
     Returns (is_now_locked, attempts_remaining, lockout_duration_minutes)
     """
     try:
+        # admin client justified: pre-auth failed-login write; login_attempts is service-role-only
         admin_client = get_supabase_admin_client()
 
         # Get current record
@@ -90,6 +111,7 @@ def record_failed_login(email):
             admin_client.table('login_attempts').insert({
                 'email': email.lower(),
                 'attempt_count': 1,
+                'lockout_count': 0,
                 'locked_until': None,
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
@@ -101,13 +123,21 @@ def record_failed_login(email):
 
         # Check if we should lock the account
         if attempt_count >= MAX_LOGIN_ATTEMPTS:
-            locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+            new_lockout_count = record.get('lockout_count', 0) + 1
+            duration_seconds = compute_lockout_seconds(new_lockout_count)
+            locked_until = datetime.utcnow() + timedelta(seconds=duration_seconds)
+            duration_minutes = duration_seconds // 60
             admin_client.table('login_attempts').update({
                 'attempt_count': attempt_count,
+                'lockout_count': new_lockout_count,
                 'locked_until': locked_until.isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }).eq('email', email.lower()).execute()
-            return True, 0, LOCKOUT_DURATION_MINUTES
+            logger.warning(
+                f"[LOCKOUT] {mask_email(email)} locked for {duration_minutes}m "
+                f"(lockout #{new_lockout_count})"
+            )
+            return True, 0, duration_minutes
         else:
             # Increment attempt count
             admin_client.table('login_attempts').update({
@@ -124,8 +154,11 @@ def record_failed_login(email):
 def reset_login_attempts(email):
     """
     Reset login attempts after successful login.
+    NOTE: lockout_count is intentionally preserved — exponential backoff must
+    not be reset by a successful guess mid-attack.
     """
     try:
+        # admin client justified: post-auth lockout reset; login_attempts is service-role-only
         admin_client = get_supabase_admin_client()
 
         admin_client.table('login_attempts').update({

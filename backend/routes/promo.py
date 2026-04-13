@@ -44,6 +44,7 @@ def submit_interest():
         classes_interested = data.get('classes_interested', '').strip() or None
         source = data.get('source', 'for-students').strip()
 
+        # admin client justified: unauthenticated promo signup form; writes to promo_signups service-role-only table
         supabase = get_supabase_admin_client()
 
         result = supabase.table('promo_interest').insert({

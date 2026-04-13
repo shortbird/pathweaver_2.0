@@ -24,7 +24,6 @@ Security features:
 from flask import Blueprint, request, redirect, jsonify
 from app_config import Config
 import jwt
-import os
 import hmac
 import hashlib
 import json
@@ -84,7 +83,7 @@ def spark_sso():
 
     # Validate JWT signature and claims
     try:
-        secret = os.getenv('SPARK_SSO_SECRET')
+        secret = Config.SPARK_SSO_SECRET
         if not secret:
             logger.error("SPARK_SSO_SECRET not configured")
             return jsonify({'error': 'SSO not configured'}), 503
@@ -142,6 +141,7 @@ def spark_sso():
         auth_code = generate_auth_code()
         expires_at = datetime.utcnow() + timedelta(seconds=60)  # 60 second expiry
 
+        # admin client justified: Spark LMS SSO/webhook handlers verify JWT/HMAC signatures externally; admin client used for cross-user account provisioning + XP attribution from external system
         supabase = get_supabase_admin_client()
         supabase.table('spark_auth_codes').insert({
             'code': auth_code,
@@ -223,6 +223,7 @@ def exchange_auth_code():
         if not code:
             return jsonify({'error': 'Missing authorization code'}), 400
 
+        # admin client justified: Spark LMS SSO/webhook handlers verify JWT/HMAC signatures externally; admin client used for cross-user account provisioning + XP attribution from external system
         supabase = get_supabase_admin_client()
 
         # Validate code (one-time use, not expired)
@@ -392,7 +393,7 @@ def course_sync_webhook():
     try:
         # Validate signature using webhook secret BEFORE parsing JSON
         # IMPORTANT: Must use raw request body bytes, not re-serialized JSON
-        webhook_secret = os.getenv('SPARK_WEBHOOK_SECRET')
+        webhook_secret = Config.SPARK_WEBHOOK_SECRET
         if not webhook_secret:
             logger.error("SPARK_WEBHOOK_SECRET not configured")
             return jsonify({'error': 'Webhook not configured'}), 503
@@ -626,7 +627,7 @@ def validate_spark_signature(payload: bytes, signature: str) -> bool:
     Returns:
         True if signature is valid, False otherwise
     """
-    secret = os.getenv('SPARK_WEBHOOK_SECRET')
+    secret = Config.SPARK_WEBHOOK_SECRET
     if not secret:
         logger.error("SPARK_WEBHOOK_SECRET not configured")
         return False
@@ -652,6 +653,7 @@ def create_or_update_spark_user(claims: dict, course_ids: list = None) -> dict:
     Returns:
         User dict with 'id' field
     """
+    # admin client justified: Spark SSO user provisioning helper; cross-user user creation/lookup from JWT claims
     supabase = get_supabase_admin_client()
     spark_user_id = claims['sub']
 
@@ -751,6 +753,7 @@ def process_spark_submission(data: dict, files=None) -> dict:
         ValueError: If user or task not found, or file validation fails
         Exception: For other processing errors
     """
+    # admin client justified: Spark webhook handler; cross-user task completion writes attributed to spark_user_id from HMAC-validated payload
     supabase = get_supabase_admin_client()
 
     # Find user by Spark ID
@@ -1120,6 +1123,7 @@ def process_spark_course_sync(
     Returns:
         Dict with quest_id and task_count
     """
+    # admin client justified: Spark course-to-quest mapping; writes new quest + sample tasks for SPARK course (system-level operation)
     supabase = get_supabase_admin_client()
 
     # Check if quest already exists for this course
@@ -1243,6 +1247,7 @@ def auto_enroll_spark_courses(user_id: str, spark_user_id: str, course_ids: list
         - user_quests enrollment records for each SPARK course
         - user_quest_tasks from quest_sample_tasks for each enrollment
     """
+    # admin client justified: bulk SPARK course enrollment helper for SSO user; cross-user user_quests + user_quest_tasks writes
     supabase = get_supabase_admin_client()
 
     try:

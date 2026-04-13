@@ -17,6 +17,9 @@ const API_URL = Platform.select({
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  // Web: send the httpOnly refresh cookie cross-origin so /api/auth/refresh works
+  // after a hard reload (the access token only lives in memory). No-op on native.
+  withCredentials: Platform.OS === 'web',
 });
 
 // Track refresh state to prevent concurrent refreshes
@@ -83,11 +86,16 @@ api.interceptors.response.use(
 
     try {
       const refreshToken = tokenStore.getRefreshToken();
-      if (!refreshToken) throw new Error('No refresh token');
+      // Web has no in-memory refresh token after reload — backend reads it from the
+      // httpOnly cookie sent via withCredentials. Native must have it in SecureStore.
+      if (!refreshToken && Platform.OS !== 'web') {
+        throw new Error('No refresh token');
+      }
 
-      const { data } = await api.post('/api/auth/refresh', {
-        refresh_token: refreshToken,
-      });
+      const { data } = await api.post(
+        '/api/auth/refresh',
+        refreshToken ? { refresh_token: refreshToken } : {},
+      );
 
       const newAccess = data.access_token;
       const newRefresh = data.refresh_token;

@@ -28,6 +28,7 @@ def get_quest_detail(user_id: str, quest_id: str):
     try:
         # Use admin client for all queries since we're accessing user-specific data
         # User authentication is already enforced by @require_auth decorator
+        # admin client justified: quest detail view with org-aware visibility check + enrollment status read for current user
         supabase = get_supabase_admin_client()
 
         # Get quest with course association in single query (consolidation optimization)

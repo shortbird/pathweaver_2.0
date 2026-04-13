@@ -109,6 +109,7 @@ def register_routes(bp):
             return jsonify({'error': 'Comment text exceeds maximum length of 2000 characters'}), 400
 
         try:
+            # admin client justified: observer-comment flow gated by relationship check below (observer_student_links / advisor_student_assignments / superadmin); writes observer_comments + reads users for author/student lookup
             supabase = get_supabase_admin_client()
             student_id = data['student_id']
             can_comment = False
@@ -212,6 +213,7 @@ def register_routes(bp):
             404: Comment not found
         """
         try:
+            # admin client justified: observer-comment flow gated by relationship check below (observer_student_links / advisor_student_assignments / superadmin); writes observer_comments + reads users for author/student lookup
             supabase = get_supabase_admin_client()
 
             # Get the comment with student_id for parent check
@@ -283,6 +285,7 @@ def register_routes(bp):
         """
 
         try:
+            # admin client justified: observer-comment flow gated by relationship check below (observer_student_links / advisor_student_assignments / superadmin); writes observer_comments + reads users for author/student lookup
             supabase = get_supabase_admin_client()
 
             # Check if user is the student or an observer

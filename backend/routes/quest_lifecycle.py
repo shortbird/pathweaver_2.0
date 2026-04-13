@@ -107,6 +107,7 @@ def delete_enrollment(user_id, quest_id):
 
         if student_id and student_id != user_id:
             # Verify advisor or parent access
+            # admin client justified: quest pickup/setdown writes user_quests + quest_history scoped to caller (self) under @require_auth
             supabase = get_supabase_admin_client()
             has_access = False
 

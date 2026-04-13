@@ -61,6 +61,7 @@ def mark_tutorial_completed(user_id):
     """Mark the user's onboarding tutorial as completed."""
     try:
         current_user_id = session_manager.get_effective_user_id()
+        # admin client justified: writes user's own tutorial_completed_at after @require_auth; bypasses RLS to avoid policy churn for a one-shot self-update
         client = get_supabase_admin_client()
 
         client.table('users').update({

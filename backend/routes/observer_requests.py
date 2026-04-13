@@ -58,6 +58,7 @@ def create_observer_request(user_id, user_role):
             }), 400
 
         # Admin client: Cross-user invitation creation (ADR-002, Rule 5)
+        # admin client justified: student-initiated observer requests; reads/writes observer_requests scoped to user_id from @require_auth
         supabase = get_supabase_admin_client()
 
         # Check for duplicate pending requests
@@ -164,6 +165,7 @@ def update_observer_request(user_id, user_role, request_id):
                 'error': 'Status must be "approved" or "rejected"'
             }), 400
 
+        # admin client justified: student-initiated observer requests; reads/writes observer_requests scoped to user_id from @require_auth
         supabase = get_supabase_admin_client()
 
         # Update request
@@ -206,6 +208,7 @@ def get_all_observer_requests(user_id, user_role):
     Includes user information for display
     """
     try:
+        # admin client justified: student-initiated observer requests; reads/writes observer_requests scoped to user_id from @require_auth
         supabase = get_supabase_admin_client()
 
         # Get requests with user information
