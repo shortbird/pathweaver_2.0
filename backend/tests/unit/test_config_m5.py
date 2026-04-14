@@ -31,7 +31,10 @@ M5_MIGRATED_FILES = [
     BACKEND / 'routes' / 'auth' / 'google_oauth.py',
     BACKEND / 'routes' / 'auth' / 'login' / 'diagnostics.py',
     BACKEND / 'routes' / 'evidence_documents.py',
-    BACKEND / 'routes' / 'spark_integration.py',
+    # Split into routes/spark_integration/ package on 2026-04-14 (Q1).
+    BACKEND / 'routes' / 'spark_integration' / '__init__.py',
+    BACKEND / 'routes' / 'spark_integration' / 'sso.py',
+    BACKEND / 'routes' / 'spark_integration' / 'webhooks.py',
     BACKEND / 'utils' / 'auth' / 'token_utils.py',
     BACKEND / 'utils' / 'session_manager.py',
     BACKEND / 'utils' / 'log_scrubber.py',
