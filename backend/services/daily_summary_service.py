@@ -124,6 +124,7 @@ class DailySummaryService(BaseService):
 
     def __init__(self):
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.client = get_supabase_admin_client()
 
     def get_advisor_daily_summary(

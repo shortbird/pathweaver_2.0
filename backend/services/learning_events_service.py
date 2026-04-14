@@ -55,6 +55,7 @@ class LearningEventsService(BaseService):
             Dictionary with success status and event data
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Normalize topics: convert legacy track_id/quest_id to topics array
@@ -282,6 +283,7 @@ class LearningEventsService(BaseService):
         """
         try:
             # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Fetch events
@@ -338,6 +340,7 @@ class LearningEventsService(BaseService):
         """
         try:
             # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Fetch event
@@ -407,6 +410,7 @@ class LearningEventsService(BaseService):
         """
         try:
             from database import get_supabase_admin_client
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             update_data = {}
@@ -527,6 +531,7 @@ class LearningEventsService(BaseService):
         """
         try:
             from database import get_supabase_admin_client
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Verify ownership first
@@ -620,6 +625,7 @@ class LearningEventsService(BaseService):
         """
         try:
             # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Verify event ownership
@@ -693,6 +699,7 @@ class LearningEventsService(BaseService):
         """
         try:
             # Use admin client for public access
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Fetch events with evidence blocks

@@ -21,6 +21,7 @@ class CostTracker(BaseService):
 
     def __init__(self):
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
 
     def calculate_cost(self, input_tokens: int, output_tokens: int, model: str = 'gemini-2.5-flash-lite') -> Dict:

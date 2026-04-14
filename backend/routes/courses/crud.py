@@ -344,23 +344,7 @@ def register_routes(bp):
             updated_course = result.data[0]
             logger.info(f"Course updated: {course_id} by {user_id}")
 
-            # Sync badge if title or description was updated and course has a badge
-            if ('title' in updates or 'description' in updates) and updated_course.get('badge_id'):
-                try:
-                    badge_result = client.table('badges').select('id, badge_type').eq('id', updated_course['badge_id']).execute()
-                    if badge_result.data and badge_result.data[0].get('badge_type') == 'course_completion':
-                        badge_updates = {}
-                        if 'title' in updates:
-                            badge_updates['name'] = f"{updates['title']} Completion"
-                        if 'description' in updates:
-                            badge_updates['description'] = f"Complete the {updates.get('title', updated_course['title'])} course"
-
-                        if badge_updates:
-                            client.table('badges').update(badge_updates).eq('id', updated_course['badge_id']).execute()
-                            logger.info(f"Badge synced for course {course_id}")
-                except Exception as badge_err:
-                    # Log but don't fail the request
-                    logger.warning(f"Failed to sync badge for course {course_id}: {str(badge_err)}")
+            # (Badges feature removed 2026-04 — no badge sync needed.)
 
             return jsonify({
                 'success': True,

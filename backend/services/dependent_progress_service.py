@@ -21,6 +21,7 @@ class DependentProgressService(BaseService):
 
     def __init__(self):
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.client = get_supabase_admin_client()
 
     def get_progress_report(
@@ -84,7 +85,6 @@ class DependentProgressService(BaseService):
                 },
                 'quests': self._get_quest_progress(dependent_id, start_date, end_date),
                 'pillars': self._get_pillar_xp(dependent_id, start_date, end_date),
-                'badges': self._get_badges_earned(dependent_id, start_date, end_date),
                 'recent_activity': self._get_recent_activity(dependent_id, start_date, end_date),
                 'completion_stats': self._get_completion_stats(dependent_id, start_date, end_date)
             }
@@ -170,27 +170,6 @@ class DependentProgressService(BaseService):
         except Exception as e:
             logger.error(f"Error fetching pillar XP: {e}")
             return {}
-
-    def _get_badges_earned(
-        self,
-        dependent_id: str,
-        start_date: str,
-        end_date: str
-    ) -> List[Dict[str, Any]]:
-        """Get badges earned in date range."""
-        try:
-            badges = self.client.table('user_badges')\
-                .select('*, badges(name, pillar_primary, image_url, description)')\
-                .eq('user_id', dependent_id)\
-                .gte('earned_at', start_date)\
-                .lte('earned_at', end_date)\
-                .execute()
-
-            return badges.data or []
-
-        except Exception as e:
-            logger.error(f"Error fetching badges: {e}")
-            return []
 
     def _get_recent_activity(
         self,

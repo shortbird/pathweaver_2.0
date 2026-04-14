@@ -106,11 +106,27 @@ def register_routes(bp):
                 student_ids.append(observer_id)
                 evidence_permissions[observer_id] = True
 
+            # Exclude blocked users (never hide own content)
+            try:
+                blocks_result = supabase.table('user_blocks') \
+                    .select('blocked_id') \
+                    .eq('blocker_id', observer_id) \
+                    .execute()
+                blocked_ids = {b['blocked_id'] for b in (blocks_result.data or [])}
+            except Exception as block_err:
+                logger.warning(f"Failed to fetch user blocks for {observer_id[:8]}: {block_err}")
+                blocked_ids = set()
+
+            if blocked_ids:
+                student_ids = [sid for sid in student_ids if sid == observer_id or sid not in blocked_ids]
+
             if not student_ids:
                 return jsonify({'items': [], 'has_more': False}), 200
 
             # Filter to specific student if requested
             if student_id_filter:
+                if student_id_filter in blocked_ids and student_id_filter != observer_id:
+                    return jsonify({'error': 'Access denied to this student'}), 403
                 if student_id_filter not in student_ids:
                     return jsonify({'error': 'Access denied to this student'}), 403
                 student_ids = [student_id_filter]

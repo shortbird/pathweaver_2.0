@@ -21,14 +21,15 @@ const DESKTOP_BREAKPOINT = 768;
 const TYPE_ICONS: Record<string, { name: keyof typeof Ionicons.glyphMap; color: string }> = {
   quest_invitation: { name: 'compass-outline', color: '#6D469B' },
   announcement: { name: 'megaphone-outline', color: '#2469D1' },
-  badge_earned: { name: 'trophy-outline', color: '#FF9028' },
   task_approved: { name: 'checkmark-circle-outline', color: '#16A34A' },
   task_revision_requested: { name: 'alert-circle-outline', color: '#E65C5C' },
   observer_comment: { name: 'chatbubble-outline', color: '#3DA24A' },
-  observer_like: { name: 'heart-outline', color: '#E65C5C' },
   observer_added: { name: 'person-add-outline', color: '#6D469B' },
   parent_approval_required: { name: 'shield-checkmark-outline', color: '#FF9028' },
   message_received: { name: 'mail-outline', color: '#2469D1' },
+  bounty_posted: { name: 'flag-outline', color: '#E85D8A' },
+  bounty_claimed: { name: 'checkmark-circle-outline', color: '#16A34A' },
+  bounty_submission: { name: 'cloud-upload-outline', color: '#6D469B' },
 };
 
 function getIcon(type: string) {

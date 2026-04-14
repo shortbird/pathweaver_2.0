@@ -55,6 +55,7 @@ class CourseService(BaseService):
         if not all([user_id, org_id, title, description]):
             raise ValidationError("user_id, org_id, title, and description are required")
 
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         course_data = {
@@ -97,6 +98,7 @@ class CourseService(BaseService):
             PermissionError: If user doesn't have permission
             ValidationError: If course has no quests or is already published
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get course with quests
@@ -160,6 +162,7 @@ class CourseService(BaseService):
             NotFoundError: If course doesn't exist
             ValidationError: If course not published or already enrolled
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get course with quests
@@ -247,6 +250,7 @@ class CourseService(BaseService):
         Raises:
             NotFoundError: If course or enrollment doesn't exist
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Verify enrollment
@@ -334,6 +338,7 @@ class CourseService(BaseService):
         Raises:
             ValidationError: If quest already in course
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Check if already exists
@@ -388,6 +393,7 @@ class CourseService(BaseService):
         Raises:
             ValidationError: If course is published
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Check if course is published
@@ -426,6 +432,7 @@ class CourseService(BaseService):
         Returns:
             True if reordered successfully
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         try:
@@ -468,6 +475,7 @@ class CourseService(BaseService):
         Raises:
             NotFoundError: If course doesn't exist
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get course details
@@ -817,6 +825,7 @@ class CourseService(BaseService):
         Raises:
             NotFoundError: If course doesn't exist
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get course with quests

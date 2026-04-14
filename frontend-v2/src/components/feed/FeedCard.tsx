@@ -18,6 +18,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { PillarBadge } from '../ui';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
+import { FeedItemMenu } from './FeedItemMenu';
 
 /** Request a server-resized thumbnail for Supabase storage URLs to save memory */
 function thumbUrl(url: string, width = 600): string {
@@ -182,6 +183,8 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
   const [showComments, setShowComments] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareToast, setShareToast] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const { user } = useAuthStore();
 
   const isTask = item.type === 'task_completed';
@@ -250,6 +253,14 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
     }
   };
 
+  if (hidden) return null;
+
+  const moderationTargetType: 'learning_event' | 'task_completion' =
+    isTask ? 'task_completion' : 'learning_event';
+  const moderationTargetId = isTask
+    ? (item.completion_id || item.id)
+    : (item.learning_event_id || item.id);
+
   return (
     <Pressable onPress={onPress}>
       <Card variant="elevated" size="md">
@@ -277,6 +288,19 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
                   </UIText>
                 </HStack>
               </VStack>
+              {!isOwnPost && (
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    setMenuOpen(true);
+                  }}
+                  hitSlop={10}
+                  accessibilityLabel="More options"
+                  className="p-1"
+                >
+                  <Ionicons name="ellipsis-horizontal" size={20} color="#9CA3AF" />
+                </Pressable>
+              )}
             </HStack>
           )}
 
@@ -412,6 +436,19 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
           item={item}
           onClose={() => setShowComments(false)}
           onCommentPosted={() => setCommentsCount((c) => c + 1)}
+        />
+      )}
+
+      {/* Moderation overflow menu */}
+      {menuOpen && (
+        <FeedItemMenu
+          visible={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          targetType={moderationTargetType}
+          targetId={moderationTargetId}
+          studentId={item.student?.id || null}
+          studentName={item.student?.display_name || 'this user'}
+          onBlocked={() => setHidden(true)}
         />
       )}
     </Pressable>

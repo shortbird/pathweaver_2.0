@@ -4,19 +4,27 @@
  * Handles Google OAuth redirect from Supabase.
  * Captures tokens from URL hash, exchanges for app session, then redirects.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { supabase } from '@/src/services/supabaseClient';
 import { UIText } from '@/src/components/ui';
+import { hasSeenOnboarding } from '@/src/stores/onboardingStore';
 
 export default function AuthCallbackScreen() {
-  const { handleGoogleCallback } = useAuthStore();
+  const { handleGoogleCallback, handleAppleCallback } = useAuthStore();
   const [status, setStatus] = useState<'processing' | 'error'>('processing');
   const [error, setError] = useState('');
+  // Guard against React 18 strict-mode double-fire: each OAuth callback must
+  // run exactly once per mount, otherwise the TOS accept + welcome email fire
+  // twice for new users (observed: two welcome emails from Apple signup).
+  const hasRunRef = useRef(false);
 
   useEffect(() => {
+    if (hasRunRef.current) return;
+    hasRunRef.current = true;
+
     if (Platform.OS !== 'web') {
       router.replace('/(auth)/login');
       return;
@@ -24,6 +32,10 @@ export default function AuthCallbackScreen() {
 
     const processCallback = async () => {
       try {
+        // Provider hint is passed via ?provider=apple|google on redirectTo
+        const search = new URLSearchParams(window.location.search);
+        const provider = (search.get('provider') || 'google') as 'google' | 'apple';
+
         // Capture tokens from URL hash before Supabase clears them
         const hash = window.location.hash.substring(1);
         let accessToken: string | null = null;
@@ -38,7 +50,6 @@ export default function AuthCallbackScreen() {
         // If no hash tokens, try to get from Supabase session
         if (!accessToken) {
           if (hash) {
-            // Set session from hash params first
             const params = new URLSearchParams(hash);
             const at = params.get('access_token');
             const rt = params.get('refresh_token');
@@ -64,12 +75,19 @@ export default function AuthCallbackScreen() {
           return;
         }
 
-        await handleGoogleCallback(accessToken, refreshToken || '');
+        if (provider === 'apple') {
+          await handleAppleCallback(accessToken, refreshToken || '');
+        } else {
+          await handleGoogleCallback(accessToken, refreshToken || '');
+        }
 
-        // Redirect to main app
-        router.replace('/(app)/(tabs)/feed');
+        // Decide destination here so there's no race with (app)/_layout.
+        // If the user hasn't seen onboarding, go there directly; otherwise feed.
+        const userId = useAuthStore.getState().user?.id;
+        const seen = userId ? await hasSeenOnboarding(userId) : true;
+        router.replace(seen ? '/(app)/(tabs)/feed' : '/(app)/onboarding');
       } catch (err: any) {
-        console.error('[AuthCallback] Google OAuth failed:', err);
+        console.error('[AuthCallback] OAuth failed:', err);
         setError(err.message || 'Authentication failed');
         setStatus('error');
         setTimeout(() => router.replace('/(auth)/login'), 3000);

@@ -122,10 +122,6 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
               <VStack space="xs">
                 <Heading size="md">What You Can Do</Heading>
                 <HStack className="flex-wrap gap-2 mt-1">
-                  <HStack className="items-center gap-2 bg-optio-purple/5 rounded-lg px-3 py-2">
-                    <Ionicons name="heart-outline" size={16} color="#6D469B" />
-                    <UIText size="xs" className="font-poppins-medium">Like</UIText>
-                  </HStack>
                   <HStack className="items-center gap-2 bg-optio-pink/5 rounded-lg px-3 py-2">
                     <Ionicons name="chatbubble-outline" size={16} color="#E85D8A" />
                     <UIText size="xs" className="font-poppins-medium">Comment</UIText>

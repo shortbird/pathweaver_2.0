@@ -22,7 +22,7 @@ emails:
   welcome:
     subject: "Welcome to Optio!"
     title: "Welcome to Optio!"
-    greeting: "Welcome to Optio, {{ user_name }}!"
+    greeting: "{% if user_name %}Welcome to Optio, {{ user_name }}!{% else %}Welcome to Optio!{% endif %}"
     paragraphs:
       - "We're excited to have you join our learning community."
       - "Your account has been successfully created. Here's what you can do next:"

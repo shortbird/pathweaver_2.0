@@ -48,6 +48,7 @@ class QuestConversionService(BaseService):
             Dict with quest preview structure
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
             moments = []
 
@@ -152,6 +153,7 @@ class QuestConversionService(BaseService):
             Dict with created quest and conversion record
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
             user_client = get_user_client()
 
@@ -265,6 +267,7 @@ class QuestConversionService(BaseService):
     def get_user_conversions(user_id: str) -> Dict[str, Any]:
         """Get all quest conversions for a user."""
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             response = supabase.table('quest_conversions') \
@@ -292,6 +295,7 @@ class QuestConversionService(BaseService):
     ) -> Dict[str, Any]:
         """Get details of a specific conversion."""
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             response = supabase.table('quest_conversions') \

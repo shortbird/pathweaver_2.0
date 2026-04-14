@@ -147,6 +147,35 @@ class BountyService(BaseService):
 
         bounty = self.repository.create_bounty(bounty_data)
         logger.info(f"Bounty '{data['title']}' created by {poster_id[:8]} with {len(deliverables)} deliverables")
+
+        # Notify target students (family-visibility bounties only — avoids spamming on public bounties)
+        if visibility == 'family' and allowed_student_ids:
+            try:
+                import threading
+                from services.notification_service import NotificationService
+
+                def _notify():
+                    try:
+                        ns = NotificationService()
+                        poster_name = (sponsor or {}).get('name') or 'Someone'
+                        for sid in allowed_student_ids:
+                            try:
+                                ns.notify_bounty_posted(
+                                    student_id=sid,
+                                    bounty_title=bounty['title'],
+                                    poster_name=poster_name,
+                                    bounty_id=bounty['id'],
+                                    organization_id=bounty.get('organization_id'),
+                                )
+                            except Exception as inner:
+                                logger.warning(f"bounty_posted notify failed for {sid[:8]}: {inner}")
+                    except Exception as e:
+                        logger.warning(f"bounty_posted notify thread failed: {e}")
+
+                threading.Thread(target=_notify, daemon=True).start()
+            except Exception as e:
+                logger.warning(f"Failed to start bounty_posted notify thread: {e}")
+
         return bounty
 
     def update_bounty(self, bounty_id: str, poster_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -380,6 +409,39 @@ class BountyService(BaseService):
 
         claim = self.repository.create_claim(bounty_id, student_id)
         logger.info(f"Student {student_id[:8]} claimed bounty {bounty_id[:8]}")
+
+        # Notify poster
+        try:
+            import threading
+            from services.notification_service import NotificationService
+
+            def _notify():
+                try:
+                    ns = NotificationService()
+                    student_result = self.repository.client.table('users') \
+                        .select('display_name, first_name, last_name') \
+                        .eq('id', student_id).execute()
+                    student_name = 'A student'
+                    if student_result.data:
+                        s = student_result.data[0]
+                        student_name = s.get('display_name') or \
+                            f"{s.get('first_name', '')} {s.get('last_name', '')}".strip() or \
+                            'A student'
+                    ns.notify_bounty_claimed(
+                        poster_id=bounty['poster_id'],
+                        student_name=student_name,
+                        bounty_title=bounty['title'],
+                        bounty_id=bounty_id,
+                        claim_id=claim['id'],
+                        organization_id=bounty.get('organization_id'),
+                    )
+                except Exception as e:
+                    logger.warning(f"bounty_claimed notify failed: {e}")
+
+            threading.Thread(target=_notify, daemon=True).start()
+        except Exception as e:
+            logger.warning(f"Failed to start bounty_claimed notify thread: {e}")
+
         return claim
 
     def toggle_deliverable(self, claim_id: str, student_id: str, bounty_id: str,

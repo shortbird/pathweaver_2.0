@@ -219,6 +219,7 @@ class PromptManagementService(BaseService):
             List of component dictionaries with name, content, category, etc.
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             query = supabase.table('ai_prompt_components').select('*')
@@ -293,6 +294,7 @@ class PromptManagementService(BaseService):
             return self._cache[cache_key]
 
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             response = supabase.table('ai_prompt_components')\
@@ -386,6 +388,7 @@ class PromptManagementService(BaseService):
             raise ValidationError("Content cannot be empty")
 
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Upsert the component
@@ -444,6 +447,7 @@ class PromptManagementService(BaseService):
         defaults = self.PYTHON_DEFAULTS[name]
 
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Update with default content

@@ -99,10 +99,16 @@ def sample_quest_submission():
 
 @pytest.fixture
 def mock_verify_token():
-    """Mock token verification"""
-    with patch('utils.auth.token_utils.verify_token') as mock:
-        mock.return_value = 'test-user-123'
-        yield mock
+    """Mock token verification (both legacy and session_manager paths)"""
+    with patch('utils.auth.token_utils.verify_token') as legacy_mock, \
+         patch('utils.session_manager.session_manager.verify_access_token') as sm_mock, \
+         patch('utils.session_manager.session_manager.verify_acting_as_token') as acting_mock, \
+         patch('utils.session_manager.session_manager.verify_masquerade_token') as mq_mock:
+        legacy_mock.return_value = 'test-user-123'
+        sm_mock.return_value = {'user_id': 'test-user-123'}
+        acting_mock.return_value = None
+        mq_mock.return_value = None
+        yield legacy_mock
 
 @pytest.fixture
 def admin_user():
@@ -137,7 +143,7 @@ def test_supabase():
         # Delete test data from all tables (in reverse dependency order)
         tables = [
             'quest_task_completions', 'user_quest_tasks', 'user_quests',
-            'user_badges', 'user_skill_xp', 'friendships',
+            'user_skill_xp',
             'parent_student_links', 'parent_invitations', 'login_attempts',
             'tutor_messages', 'tutor_conversations', 'badges', 'quests', 'users'
         ]

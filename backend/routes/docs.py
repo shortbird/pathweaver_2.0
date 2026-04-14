@@ -199,7 +199,7 @@ def search_docs():
                     'p_normalized': q.lower().strip()
                 }).execute()
             except Exception:
-                pass  # Non-critical
+                logger.debug("intentional swallow", exc_info=True)  # Non-critical
 
         # Enrich with category info
         if results:

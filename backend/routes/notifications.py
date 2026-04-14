@@ -274,6 +274,60 @@ def send_notification(user_id: str):
         return jsonify({'error': 'Failed to send notification'}), 500
 
 
+@bp.route('/preferences', methods=['GET'])
+@require_auth
+def get_preferences(user_id: str):
+    """
+    Get notification preferences for the authenticated user.
+
+    Returns dict of { notification_type: enabled }. Absent types default to enabled.
+    """
+    try:
+        # admin client justified: notification_preferences scoped to user_id from @require_auth
+        supabase = get_supabase_admin_client()
+        result = supabase.table('notification_preferences') \
+            .select('notification_type, enabled') \
+            .eq('user_id', user_id) \
+            .execute()
+        prefs = {row['notification_type']: row['enabled'] for row in (result.data or [])}
+        return jsonify({'preferences': prefs}), 200
+    except Exception as e:
+        logger.error(f"Error fetching notification preferences: {str(e)}")
+        return jsonify({'error': 'Failed to fetch preferences'}), 500
+
+
+@bp.route('/preferences', methods=['PUT'])
+@require_auth
+def update_preferences(user_id: str):
+    """
+    Upsert notification preferences for the authenticated user.
+
+    Body:
+        preferences (dict): { notification_type: bool }
+    """
+    data = request.get_json() or {}
+    prefs = data.get('preferences')
+    if not isinstance(prefs, dict):
+        return jsonify({'error': 'preferences must be an object of {type: bool}'}), 400
+
+    # admin client justified: notification_preferences writes scoped to user_id from @require_auth
+    supabase = get_supabase_admin_client()
+    try:
+        rows = [
+            {'user_id': user_id, 'notification_type': t, 'enabled': bool(v)}
+            for t, v in prefs.items()
+            if isinstance(t, str) and t.strip()
+        ]
+        if rows:
+            supabase.table('notification_preferences') \
+                .upsert(rows, on_conflict='user_id,notification_type') \
+                .execute()
+        return jsonify({'success': True, 'updated': len(rows)}), 200
+    except Exception as e:
+        logger.error(f"Error updating notification preferences: {str(e)}")
+        return jsonify({'error': 'Failed to update preferences'}), 500
+
+
 @bp.route('/broadcast', methods=['POST'])
 @require_auth
 def broadcast_notification(user_id: str):

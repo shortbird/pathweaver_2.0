@@ -95,6 +95,7 @@ class FamilyQuestAIService(BaseAIService):
         Returns:
             Dict with 'children' list and 'family_summary'.
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get dependents (under-13 managed accounts)

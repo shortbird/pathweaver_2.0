@@ -1,6 +1,6 @@
 """
 Advisor Service - Manages advisor-specific functionality
-Handles custom badge creation, student monitoring, and advisor-student relationships
+Handles student monitoring and advisor-student relationships
 """
 
 import sys
@@ -18,6 +18,7 @@ class AdvisorService(BaseService):
 
     def __init__(self):
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
 
     # ==================== Organization Isolation ====================
@@ -207,7 +208,6 @@ class AdvisorService(BaseService):
                 for student in students:
                     student['quest_count'] = quest_counts.get(student['id'], 0)
                     student['total_xp'] = xp_totals.get(student['id'], 0)
-                    student['active_badges'] = []  # Can be loaded on-demand if needed
 
             # Sort by display name (handle null values)
             students.sort(key=lambda x: x.get('display_name') or '')
@@ -373,227 +373,6 @@ class AdvisorService(BaseService):
             print(f"Error getting quest count for student {student_id}: {str(e)}", file=sys.stderr, flush=True)
             return 0
 
-    def _get_student_active_badges(self, student_id: str) -> List[Dict[str, Any]]:
-        """Get active (in-progress) badges for student"""
-        try:
-            # Note: Active badges are those NOT YET earned (earned_at IS NULL) but with progress
-            response = self.supabase.table('user_badges')\
-                .select('badge_id, progress_percentage, badges(name, pillar_primary)')\
-                .eq('user_id', student_id)\
-                .is_('earned_at', 'null')\
-                .gt('progress_percentage', 0)\
-                .limit(3)\
-                .execute()
-            return response.data if response.data else []
-        except Exception as e:
-            print(f"Error getting active badges for student {student_id}: {str(e)}", file=sys.stderr, flush=True)
-            return []
-
-    # ==================== Custom Badge Creation ====================
-
-    def create_custom_badge(
-        self,
-        advisor_id: str,
-        name: str,
-        description: str,
-        identity_statement: str,
-        primary_pillar: str,
-        min_quests: int,
-        xp_requirement: int,
-        icon: str = "🎯",
-        color: str = "#6d469b",
-        is_public: bool = False
-    ) -> Dict[str, Any]:
-        """
-        Create a custom badge by an advisor
-
-        NOTE: Custom badges are currently not supported in the database schema.
-        This method creates regular badges. Track custom badges via a separate
-        advisor_badges table or metadata field in the future.
-
-        Args:
-            advisor_id: UUID of the advisor creating the badge
-            name: Badge name
-            description: Badge description
-            identity_statement: What this badge represents
-            primary_pillar: Main skill pillar
-            min_quests: Minimum quests to complete
-            xp_requirement: Total XP needed
-            icon: Badge icon (emoji or path)
-            color: Badge color (hex)
-            is_public: Whether visible to all students
-
-        Returns:
-            Created badge record
-        """
-        try:
-            # Verify advisor role
-            advisor_check = self.supabase.table('users')\
-                .select('role')\
-                .eq('id', advisor_id)\
-                .single()\
-                .execute()
-
-            if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'org_admin', 'superadmin']:
-                raise ValueError("User is not an advisor")
-
-            # Create badge (without created_by/is_custom fields that don't exist)
-            badge_data = {
-                'name': name,
-                'description': description,
-                'identity_statement': identity_statement,
-                'pillar_primary': primary_pillar,  # Use pillar_primary not primary_pillar
-                'min_quests': min_quests,
-                'min_xp': xp_requirement,  # Use min_xp not xp_requirement
-                'status': 'active',  # Use status field
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            }
-
-            response = self.supabase.table('badges')\
-                .insert(badge_data)\
-                .execute()
-
-            if not response.data:
-                raise Exception("Failed to create badge")
-
-            return response.data[0]
-
-        except Exception as e:
-            print(f"Error creating custom badge: {str(e)}", file=sys.stderr, flush=True)
-            raise
-
-    def get_advisor_custom_badges(self, advisor_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all custom badges created by an advisor
-
-        NOTE: Since created_by column doesn't exist, return empty list for now.
-        In the future, implement an advisor_badges tracking table.
-
-        Args:
-            advisor_id: UUID of the advisor
-
-        Returns:
-            List of custom badge records (currently always empty)
-        """
-        try:
-            # Return empty list since we can't track which badges were created by advisors
-            # TODO: Add advisor_badges table or created_by column to badges table
-            return []
-
-        except Exception as e:
-            print(f"Error fetching advisor badges: {str(e)}", file=sys.stderr, flush=True)
-            raise
-
-    def update_custom_badge(
-        self,
-        badge_id: str,
-        advisor_id: str,
-        updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Update a custom badge (only by creator)
-
-        NOTE: Disabled until created_by tracking is implemented
-
-        Args:
-            badge_id: UUID of the badge
-            advisor_id: UUID of the advisor
-            updates: Dictionary of fields to update
-
-        Returns:
-            Updated badge record
-        """
-        try:
-            raise ValueError("Badge editing is currently disabled. Custom badge tracking not yet implemented.")
-
-        except Exception as e:
-            print(f"Error updating custom badge: {str(e)}", file=sys.stderr, flush=True)
-            raise
-
-    def delete_custom_badge(self, badge_id: str, advisor_id: str) -> bool:
-        """
-        Delete a custom badge (only by creator, only if no students have earned it)
-
-        NOTE: Disabled until created_by tracking is implemented
-
-        Args:
-            badge_id: UUID of the badge
-            advisor_id: UUID of the advisor
-
-        Returns:
-            Success boolean
-        """
-        try:
-            raise ValueError("Badge deletion is currently disabled. Custom badge tracking not yet implemented.")
-
-        except Exception as e:
-            print(f"Error deleting custom badge: {str(e)}", file=sys.stderr, flush=True)
-            raise
-
-    # ==================== Badge Assignment & Recommendations ====================
-
-    def assign_badge_to_student(
-        self,
-        badge_id: str,
-        student_id: str,
-        advisor_id: str
-    ) -> Dict[str, Any]:
-        """
-        Recommend a badge to a specific student
-
-        Args:
-            badge_id: UUID of the badge
-            student_id: UUID of the student
-            advisor_id: UUID of the advisor making recommendation
-
-        Returns:
-            Created user_badge record
-        """
-        try:
-            # Verify advisor-student relationship or advisor role
-            advisor = self.supabase.table('users')\
-                .select('role')\
-                .eq('id', advisor_id)\
-                .single()\
-                .execute()
-
-            if not advisor.data or advisor.data['role'] not in ['advisor', 'org_admin', 'superadmin']:
-                raise ValueError("Not authorized")
-
-            # Check if student already has this badge
-            existing = self.supabase.table('user_badges')\
-                .select('id')\
-                .eq('user_id', student_id)\
-                .eq('badge_id', badge_id)\
-                .execute()
-
-            if existing.data:
-                raise ValueError("Student already has this badge assigned")
-
-            # Create user_badge record
-            user_badge_data = {
-                'user_id': student_id,
-                'badge_id': badge_id,
-                'progress': 0,
-                'earned': False,
-                'assigned_by': advisor_id,  # Track who assigned it
-                'started_at': datetime.utcnow().isoformat()
-            }
-
-            response = self.supabase.table('user_badges')\
-                .insert(user_badge_data)\
-                .execute()
-
-            if not response.data:
-                raise Exception("Failed to assign badge")
-
-            return response.data[0]
-
-        except Exception as e:
-            print(f"Error assigning badge to student: {str(e)}", file=sys.stderr, flush=True)
-            raise
-
     def get_student_progress_report(self, student_id: str, advisor_id: str) -> Dict[str, Any]:
         """
         Get comprehensive progress report for a student.
@@ -647,12 +426,6 @@ class AdvisorService(BaseService):
             if not (is_admin or is_assigned_advisor):
                 raise ValueError("Not authorized to view this student's progress")
 
-            # Get badge progress
-            badges = self.supabase.table('user_badges')\
-                .select('badge_id, progress, earned, earned_at, badges(name, pillar_primary, min_quests)')\
-                .eq('user_id', student_id)\
-                .execute()
-
             # Get skill XP breakdown
             skill_xp = self.supabase.table('user_skill_xp')\
                 .select('pillar, xp_amount')\
@@ -670,12 +443,6 @@ class AdvisorService(BaseService):
 
             return {
                 'student': student.data,
-                'badges': {
-                    'total': len(badges.data) if badges.data else 0,
-                    'earned': len([b for b in badges.data if b['earned']]) if badges.data else 0,
-                    'in_progress': len([b for b in badges.data if not b['earned']]) if badges.data else 0,
-                    'details': badges.data if badges.data else []
-                },
                 'skill_xp': skill_xp.data if skill_xp.data else [],
                 'recent_activity': recent_quests.data if recent_quests.data else []
             }

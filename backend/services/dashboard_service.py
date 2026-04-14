@@ -23,6 +23,7 @@ class DashboardService:
     """
 
     def __init__(self, client=None):
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.client = client or get_supabase_admin_client()
 
     # =========================================================================

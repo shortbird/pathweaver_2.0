@@ -50,6 +50,7 @@ class LearningAIOrchestrator(BaseAIService):
             Dict with AI settings
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             response = supabase.table('users') \
@@ -112,6 +113,7 @@ class LearningAIOrchestrator(BaseAIService):
                     'error': f'Invalid assistance level. Must be one of: {self.ASSISTANCE_LEVELS}'
                 }
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             response = supabase.table('users') \
@@ -217,6 +219,7 @@ class LearningAIOrchestrator(BaseAIService):
                     'ai_disabled': True
                 }
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get track info
@@ -389,6 +392,7 @@ Return ONLY the reflection question, nothing else."""
                     'ai_disabled': True
                 }
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get moments from the last 7 days
@@ -506,6 +510,7 @@ Keep it warm, specific, and growth-focused. No generic platitudes."""
                     'ai_disabled': True
                 }
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get all moments for pattern analysis

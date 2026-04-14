@@ -19,9 +19,10 @@ WEB_PUSH_NOTIFICATION_TYPES = {'message_received'}
 # Notification types that should trigger mobile push notifications (broader set)
 MOBILE_PUSH_NOTIFICATION_TYPES = {
     'message_received', 'quest_invitation', 'task_approved',
-    'task_revision_requested', 'badge_earned', 'announcement',
-    'observer_comment', 'observer_like', 'observer_added',
+    'task_revision_requested', 'announcement',
+    'observer_comment', 'observer_added',
     'parent_approval_required',
+    'bounty_posted', 'bounty_claimed', 'bounty_submission',
 }
 
 
@@ -69,6 +70,11 @@ class NotificationService(BaseService):
             Created notification record
         """
         try:
+            # Respect user preferences: an explicit {enabled: false} row suppresses delivery entirely.
+            if not self._is_type_enabled(user_id, notification_type):
+                logger.debug(f"Notification '{notification_type}' suppressed by user {user_id[:8]} preferences")
+                return {}
+
             notification_data = {
                 'user_id': user_id,
                 'type': notification_type,
@@ -278,6 +284,23 @@ class NotificationService(BaseService):
             logger.error(f"Error deleting all notifications: {str(e)}")
             raise
 
+    def _is_type_enabled(self, user_id: str, notification_type: str) -> bool:
+        """Check if a user has disabled a given notification type. Absence of row = enabled."""
+        try:
+            result = self.supabase.table('notification_preferences') \
+                .select('enabled') \
+                .eq('user_id', user_id) \
+                .eq('notification_type', notification_type) \
+                .limit(1) \
+                .execute()
+            if result.data:
+                return bool(result.data[0].get('enabled', True))
+            return True
+        except Exception as e:
+            # Never block notification delivery on pref-lookup failures.
+            logger.warning(f"Notification preference lookup failed for {user_id[:8]}: {e}")
+            return True
+
     def _send_push_notification(
         self,
         user_id: str,
@@ -416,6 +439,45 @@ class NotificationService(BaseService):
             return False
 
     # Notification trigger helpers
+    def notify_bounty_posted(
+        self,
+        student_id: str,
+        bounty_title: str,
+        poster_name: str,
+        bounty_id: str,
+        organization_id: Optional[str] = None,
+    ):
+        """Notify a student that a bounty has been posted for them."""
+        return self.create_notification(
+            user_id=student_id,
+            notification_type='bounty_posted',
+            title='New Bounty',
+            message=f'{poster_name} posted a new bounty: "{bounty_title}"',
+            link=f'/bounties/{bounty_id}',
+            metadata={'bounty_id': bounty_id},
+            organization_id=organization_id,
+        )
+
+    def notify_bounty_claimed(
+        self,
+        poster_id: str,
+        student_name: str,
+        bounty_title: str,
+        bounty_id: str,
+        claim_id: str,
+        organization_id: Optional[str] = None,
+    ):
+        """Notify the bounty poster that a student claimed their bounty."""
+        return self.create_notification(
+            user_id=poster_id,
+            notification_type='bounty_claimed',
+            title='Bounty Claimed',
+            message=f'{student_name} claimed your bounty "{bounty_title}"',
+            link=f'/bounties/{bounty_id}',
+            metadata={'bounty_id': bounty_id, 'claim_id': claim_id},
+            organization_id=organization_id,
+        )
+
     def notify_quest_invitation(
         self,
         user_id: str,
@@ -515,24 +577,6 @@ class NotificationService(BaseService):
             organization_id=organization_id
         )
 
-    def notify_badge_earned(
-        self,
-        user_id: str,
-        badge_name: str,
-        badge_id: str,
-        organization_id: Optional[str] = None
-    ):
-        """Send notification when badge is earned."""
-        return self.create_notification(
-            user_id=user_id,
-            notification_type='badge_earned',
-            title='Badge Earned!',
-            message=f'You earned the "{badge_name}" badge!',
-            link=f'/badges',
-            metadata={'badge_id': badge_id},
-            organization_id=organization_id
-        )
-
     def notify_parent_approval_required(
         self,
         parent_user_id: str,
@@ -548,26 +592,6 @@ class NotificationService(BaseService):
             message=f'{student_name} wants to make their portfolio public and needs your approval.',
             link='/parent-dashboard',
             metadata={'student_id': student_id},
-            organization_id=organization_id
-        )
-
-    def notify_parent_observer_like(
-        self,
-        parent_user_id: str,
-        observer_name: str,
-        student_name: str,
-        item_title: str,
-        student_id: str,
-        organization_id: Optional[str] = None
-    ):
-        """Send notification to parent when an observer likes their child's work."""
-        return self.create_notification(
-            user_id=parent_user_id,
-            notification_type='observer_like',
-            title='New Like',
-            message=f'{observer_name} liked {student_name}\'s "{item_title}"',
-            link='/observer/feed',
-            metadata={'student_id': student_id, 'observer_name': observer_name},
             organization_id=organization_id
         )
 
@@ -588,24 +612,6 @@ class NotificationService(BaseService):
             message=f'{observer_name} commented on {student_name}\'s work: "{comment_preview[:50]}{"..." if len(comment_preview) > 50 else ""}"',
             link='/observer/feed',
             metadata={'student_id': student_id, 'observer_name': observer_name},
-            organization_id=organization_id
-        )
-
-    def notify_student_like(
-        self,
-        student_id: str,
-        observer_name: str,
-        item_title: str,
-        organization_id: Optional[str] = None
-    ):
-        """Send notification to student when someone likes their work."""
-        return self.create_notification(
-            user_id=student_id,
-            notification_type='observer_like',
-            title='Someone liked your work!',
-            message=f'{observer_name} liked your "{item_title}"',
-            link='/feedback',
-            metadata={'observer_name': observer_name},
             organization_id=organization_id
         )
 

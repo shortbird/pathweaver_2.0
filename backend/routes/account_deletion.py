@@ -36,15 +36,14 @@ bp = Blueprint('account_deletion', __name__)
 @bp.route('/users/delete-account', methods=['POST'])
 @require_auth
 @rate_limit(max_requests=3, window_seconds=86400)  # 3 requests per day
-def request_account_deletion(current_user):
+def request_account_deletion(user_id):
     """
     Request account deletion (soft delete with 30-day grace period)
     GDPR/CCPA Right to Erasure
     """
     try:
-        data = request.json or{}
+        data = request.json or {}
         reason = data.get('reason', '')
-        user_id = current_user['id']
 
         # admin client justified: GDPR delete-request schedules deletion + writes account_deletion_log (audit trail must succeed even if user RLS policies block); @require_auth ensures self-only deletion (user_id from token)
         supabase = get_supabase_admin_client()
@@ -116,12 +115,11 @@ def request_account_deletion(current_user):
 # Using repository pattern for database access
 @bp.route('/users/cancel-deletion', methods=['POST'])
 @require_auth
-def cancel_account_deletion(current_user):
+def cancel_account_deletion(user_id):
     """
     Cancel account deletion during grace period
     """
     try:
-        user_id = current_user['id']
         # Use user client for RLS enforcement
         supabase = get_user_client(user_id)
 
@@ -166,12 +164,11 @@ def cancel_account_deletion(current_user):
 
 @bp.route('/users/deletion-status', methods=['GET'])
 @require_auth
-def get_deletion_status(current_user):
+def get_deletion_status(user_id):
     """
     Get account deletion status
     """
     try:
-        user_id = current_user['id']
         # Use user client for RLS enforcement
         supabase = get_user_client(user_id)
 
@@ -208,14 +205,13 @@ def get_deletion_status(current_user):
 @bp.route('/users/export-data', methods=['GET'])
 @require_auth
 # @rate_limit(max_requests=5, window_seconds=3600)  # 5 exports per hour - Temporarily disabled for debugging
-def export_user_data(current_user):
+def export_user_data(user_id):
     """
     Export all user data (GDPR Right to Data Portability)
     Returns comprehensive JSON export of all user data
     """
     try:
-        logger.info(f"[EXPORT] Starting data export for user: {current_user}")
-        user_id = current_user['id']
+        logger.info(f"[EXPORT] Starting data export for user: {user_id}")
         logger.info(f"[EXPORT] User ID: {user_id}")
         # admin client justified: GDPR data export reads ~15 tables for the authenticated user; cross-table self-export would need many overlapping RLS policies (parental_consent_log, observer_audit_log, advisor_student_notes, etc.); user_id from @require_auth scopes every query to self
         supabase = get_supabase_admin_client()
@@ -366,13 +362,8 @@ def export_user_data(current_user):
             logger.error(f"Error fetching direct messages: {str(e)}")
             export_data['direct_messages'] = []
 
-        # Get user badges
-        try:
-            badges_response = supabase.table('user_badges').select('*').eq('user_id', user_id).execute()
-            export_data['user_badges'] = badges_response.data if badges_response.data else []
-        except Exception as e:
-            logger.error(f"Error fetching user badges: {str(e)}")
-            export_data['user_badges'] = []
+        # Badges feature removed (2026-04); export field kept empty for shape stability.
+        export_data['user_badges'] = []
 
         # Get file URLs for evidence and profile images
         # Note: Actual file download would require separate endpoints due to size
@@ -425,7 +416,7 @@ def export_user_data(current_user):
 @bp.route('/users/delete-account-permanent', methods=['DELETE'])
 @require_auth
 @rate_limit(max_requests=1, window_seconds=3600)  # 1 permanent deletion per hour (safety measure)
-def delete_user_account_permanent(current_user):
+def delete_user_account_permanent(user_id):
     """
     Permanently delete user account and all associated data (GDPR Right to Erasure)
 
@@ -435,7 +426,6 @@ def delete_user_account_permanent(current_user):
     GDPR Compliance: Article 17 - Right to Erasure
     """
     try:
-        user_id = current_user['id']
 
         # admin client justified: GDPR Article 17 hard-delete cascades across ~15 tables; bypassing RLS is required because deleting users row revokes the caller's own access mid-transaction; user_id from @require_auth scopes every delete to self
         supabase = get_supabase_admin_client()
@@ -477,7 +467,6 @@ def delete_user_account_permanent(current_user):
 
             # Skills and achievements
             'user_skill_xp',
-            'user_badges',
 
             # AI Tutor data
             'tutor_messages',  # Delete messages before conversations

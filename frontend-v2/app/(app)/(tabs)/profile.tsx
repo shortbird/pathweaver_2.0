@@ -25,6 +25,7 @@ import {
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
+import { NotificationPreferences } from '@/src/components/profile/NotificationPreferences';
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -497,6 +498,11 @@ export default function ProfileScreen() {
               </Card>
             </Pressable>
           )}
+
+          {/* Notifications */}
+          <CollapsibleSection title="Notifications" defaultOpen={false}>
+            <NotificationPreferences />
+          </CollapsibleSection>
 
           {/* Account Settings */}
           <CollapsibleSection title="Account Settings" defaultOpen={false}>

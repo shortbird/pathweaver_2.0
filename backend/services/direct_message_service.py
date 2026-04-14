@@ -44,6 +44,19 @@ class DirectMessageService(BaseService):
             supabase = self._get_client()
             print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
+            # Block check (bidirectional): either party blocking the other blocks messaging.
+            try:
+                block_check = supabase.table('user_blocks') \
+                    .select('id') \
+                    .or_(f'and(blocker_id.eq.{user_id},blocked_id.eq.{target_id}),and(blocker_id.eq.{target_id},blocked_id.eq.{user_id})') \
+                    .limit(1) \
+                    .execute()
+                if block_check.data:
+                    print(f"[can_message_user] DENIED: user_blocks row between {user_id} and {target_id}", file=sys.stderr, flush=True)
+                    return False
+            except Exception as block_err:
+                print(f"[can_message_user] block check failed (allowing): {block_err}", file=sys.stderr, flush=True)
+
             # SUPERADMIN: Can message anyone, and anyone can reply to superadmin
             from utils.roles import get_effective_role
             sender = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()

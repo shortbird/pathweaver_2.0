@@ -64,15 +64,17 @@ class TestParentRoutesImport:
         from routes.parent.analytics import verify_parent_access
         assert callable(verify_parent_access)
 
-    def test_v1_parent_routes_import(self):
+    def test_parent_package_imports_cleanly(self):
         """
-        Test v1 parent routes can be imported.
+        The parent routes package must import without side-effect errors.
 
-        Bug fix: v1/parent/__init__.py was importing old module names
-        (dashboard, evidence) instead of refactored module names.
+        Replaces the prior `routes.v1.parent` test — that module was
+        removed in the 2026-03 API-version cleanup.
         """
-        from routes.v1.parent import register_parent_blueprints_v1
-        assert callable(register_parent_blueprints_v1)
+        import routes.parent as parent_pkg
+        assert hasattr(parent_pkg, 'dashboard_overview_bp')
+        assert hasattr(parent_pkg, 'quests_view_bp')
+        assert hasattr(parent_pkg, 'evidence_view_bp')
 
 
 @pytest.mark.unit
@@ -120,11 +122,19 @@ class TestDependentRoutesExist:
     """Test that required dependent routes are defined."""
 
     def test_my_dependents_route_exists(self):
-        """Test /my-dependents route is defined."""
+        """Test /my-dependents route is defined.
+
+        Uses a throwaway Flask app to register the blueprint and then
+        inspects the resulting URL map — Blueprint.deferred_functions
+        contains lambdas on newer Flask, not rule objects.
+        """
+        from flask import Flask
         from routes import dependents
-        rules = [rule.rule for rule in dependents.bp.deferred_functions]
-        # Blueprint deferred_functions contains route registrations
-        assert dependents.bp is not None
+
+        app = Flask(__name__)
+        app.register_blueprint(dependents.bp)
+        rules = {rule.rule for rule in app.url_map.iter_rules()}
+        assert '/api/dependents/my-dependents' in rules
 
     def test_create_dependent_route_exists(self):
         """Test /create route is defined."""

@@ -23,7 +23,6 @@ class AIQuestReviewService(BaseService):
         quality_score: float,
         ai_feedback: Dict[str, Any],
         generation_source: str = 'manual',
-        badge_id: Optional[str] = None,
         generation_metrics: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
@@ -33,8 +32,7 @@ class AIQuestReviewService(BaseService):
             quest_data: Complete quest structure (title, big_idea, tasks, etc.)
             quality_score: AI quality score (0-10)
             ai_feedback: AI feedback with strengths, weaknesses, improvements
-            generation_source: Source of generation (manual, batch, student_idea, badge_aligned)
-            badge_id: Optional badge this quest was generated for
+            generation_source: Source of generation (manual, batch, student_idea)
             generation_metrics: Optional metrics (tokens, time, model, etc.)
 
         Returns:
@@ -52,7 +50,6 @@ class AIQuestReviewService(BaseService):
                 'ai_feedback': ai_feedback if ai_feedback else {},  # JSONB accepts dict directly
                 'status': 'pending_review',
                 'generation_source': generation_source,
-                'badge_id': badge_id if badge_id else None
                 # submitted_at has default value in DB, don't need to set it
             }
 
@@ -135,9 +132,6 @@ class AIQuestReviewService(BaseService):
 
                 if 'generation_source' in filters:
                     query = query.eq('generation_source', filters['generation_source'])
-
-                if 'badge_id' in filters:
-                    query = query.eq('badge_id', filters['badge_id'])
             else:
                 # Default to pending reviews
                 query = query.eq('status', 'pending_review')
@@ -274,13 +268,6 @@ class AIQuestReviewService(BaseService):
                 # Note: In V3, tasks are NOT created as templates
                 # Tasks are generated per-student when they start the quest via personalization system
                 # No need to insert into quest_tasks (that table is archived)
-
-                # Link to badge if applicable
-                if review_item.get('badge_id'):
-                    supabase.table('badge_quests').insert({
-                        'badge_id': review_item['badge_id'],
-                        'quest_id': created_quest_id
-                    }).execute()
 
             # Update review queue item
             update_data = {

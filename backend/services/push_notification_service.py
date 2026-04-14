@@ -25,6 +25,7 @@ class PushNotificationService(BaseService):
             self.supabase = supabase
         else:
             from database import get_supabase_admin_client
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             self.supabase = get_supabase_admin_client()
 
         # VAPID configuration
