@@ -5,9 +5,13 @@ name: Frontend (v1) Tests
 
 on:
   push:
-    branches: [develop]
-    paths:
-      - 'frontend/**'
+    # main is included so Render's "Deploy after CI checks pass" gate sees a
+    # status check on every merge commit (not just PR heads). Paths filter
+    # intentionally omitted on main to guarantee a check reports even when
+    # a merge only touched backend/.
+    branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
   pull_request:
     branches: [main]
     paths:
