@@ -36,6 +36,7 @@ def get_user_org_context(user_id: str) -> tuple:
     Returns:
         tuple: (organization_id, is_authorized)
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     user = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
 

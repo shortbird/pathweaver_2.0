@@ -28,6 +28,7 @@ def backfill_single_task(user_id: str, task_id: str):
     POST /api/admin/subject-backfill/task/<task_id>
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_supabase = get_supabase_admin_client()
         service = SubjectClassificationService(client=admin_supabase)
 
@@ -67,6 +68,7 @@ def backfill_all_tasks(user_id: str):
         data = request.get_json() or {}
         batch_size = data.get('batch_size', 100)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_supabase = get_supabase_admin_client()
         service = SubjectClassificationService(client=admin_supabase)
 
@@ -97,6 +99,7 @@ def preview_task_classification(user_id: str, task_id: str):
     GET /api/admin/subject-backfill/preview/<task_id>
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_supabase = get_supabase_admin_client()
 
         # Get task details
@@ -153,6 +156,7 @@ def get_backfill_stats(user_id: str):
     GET /api/admin/subject-backfill/stats
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_supabase = get_supabase_admin_client()
 
         # Count total tasks
@@ -215,6 +219,7 @@ def list_tasks_for_review(user_id: str):
     - offset: Number of tasks to skip (default: 0)
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_supabase = get_supabase_admin_client()
 
         status = request.args.get('status', 'unclassified')
@@ -280,6 +285,7 @@ def update_task_distribution(user_id: str, task_id: str):
             }), 400
 
         # Get task to validate XP sum
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_supabase = get_supabase_admin_client()
         task = admin_supabase.table('user_quest_tasks')\
             .select('xp_value')\
@@ -332,6 +338,7 @@ def regenerate_task_distribution(user_id: str, task_id: str):
     POST /api/admin/subject-backfill/task/<task_id>/regenerate
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_supabase = get_supabase_admin_client()
 
         # Get task details

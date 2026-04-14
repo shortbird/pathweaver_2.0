@@ -369,7 +369,7 @@ class TestTaskCompletionRepository:
             assert exists is False
 
     def test_create_completion(self):
-        """Test creating a new task completion"""
+        """Test creating a new task completion (happy path — insert succeeds)."""
         repo = TaskCompletionRepository()
 
         completion_data = {
@@ -381,20 +381,12 @@ class TestTaskCompletionRepository:
         }
 
         with patch.object(repo, 'client') as mock_client:
-            # Mock duplicate check (no existing)
-            mock_existing = Mock()
-            mock_existing.data = []
-
-            # Mock insert
             mock_result = Mock()
             mock_result.data = [{
                 **completion_data,
                 'id': str(uuid.uuid4()),
                 'completed_at': datetime.utcnow().isoformat()
             }]
-
-            # Setup chained mocks
-            mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_existing
             mock_client.table.return_value.insert.return_value.execute.return_value = mock_result
 
             created_completion = repo.create_completion(completion_data)
@@ -417,26 +409,39 @@ class TestTaskCompletionRepository:
 
         assert 'Missing required fields' in str(exc_info.value)
 
-    def test_create_completion_duplicate_error(self):
-        """Test creating duplicate completion raises ValueError"""
+    def test_create_completion_duplicate_is_idempotent(self):
+        """E3: On a duplicate-key violation (unique index catches concurrent
+        retries), create_completion returns the existing canonical row rather
+        than raising — XP can't be double-awarded."""
         repo = TaskCompletionRepository()
 
+        user_id = str(uuid.uuid4())
+        task_id = str(uuid.uuid4())
         completion_data = {
-            'user_id': str(uuid.uuid4()),
+            'user_id': user_id,
             'quest_id': str(uuid.uuid4()),
-            'user_quest_task_id': str(uuid.uuid4()),
+            'user_quest_task_id': task_id,
+        }
+        existing_row = {
+            'id': str(uuid.uuid4()),
+            'user_id': user_id,
+            'user_quest_task_id': task_id,
+            'xp_awarded': 100,
         }
 
         with patch.object(repo, 'client') as mock_client:
-            # Mock duplicate check (existing found)
+            # First insert fails with a 23505-style unique violation.
+            mock_client.table.return_value.insert.return_value.execute.side_effect = Exception(
+                'duplicate key value violates unique constraint '
+                '"uniq_quest_task_completions_user_task" (23505)'
+            )
+            # Lookup of the existing row returns the canonical entry.
             mock_existing = Mock()
-            mock_existing.data = [{'id': str(uuid.uuid4())}]
-            mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_existing
+            mock_existing.data = [existing_row]
+            mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = mock_existing
 
-            with pytest.raises(ValueError) as exc_info:
-                repo.create_completion(completion_data)
-
-            assert 'already completed' in str(exc_info.value)
+            result = repo.create_completion(completion_data)
+            assert result == existing_row
 
     def test_get_completion_count(self):
         """Test getting count of completed tasks"""

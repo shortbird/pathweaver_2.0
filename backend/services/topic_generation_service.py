@@ -10,6 +10,7 @@ import google.generativeai as genai
 from app_config import Config
 
 from services.base_service import BaseService
+from services.ai_gen import generate_with_timeout
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -108,7 +109,7 @@ Example for "Build a robot arm":
 {{"primary": "Building", "topics": ["Robotics", "Engineering", "Electronics"]}}
 """
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
 

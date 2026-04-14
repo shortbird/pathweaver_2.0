@@ -17,8 +17,8 @@ from repositories import (
 )
 from datetime import datetime
 import time
-import os
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,8 +41,8 @@ def health_check():
         'status': 'healthy',
         'service': 'optio-backend',
         'timestamp': datetime.utcnow().isoformat() + 'Z',
-        'environment': os.environ.get('FLASK_ENV', 'production'),
-        'version': os.environ.get('APP_VERSION', 'unknown')
+        'environment': Config.FLASK_ENV,
+        'version': Config.APP_VERSION,
     }
 
     checks = {}
@@ -75,9 +75,9 @@ def health_check():
     if request.args.get('full') == 'true':
         # Stripe connectivity check (optional, don't fail overall health)
         try:
-            if os.environ.get('STRIPE_SECRET_KEY'):
+            if Config.STRIPE_SECRET_KEY:
                 import stripe
-                stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+                stripe.api_key = Config.STRIPE_SECRET_KEY
                 stripe_start = time.time()
                 stripe.Balance.retrieve()
                 checks['stripe'] = {

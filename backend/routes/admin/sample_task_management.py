@@ -37,6 +37,7 @@ def generate_sample_tasks_for_quest(user_id, quest_id):
         "regenerate": false  // If true, delete existing and regenerate
     }
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -134,6 +135,7 @@ def generate_sample_tasks_for_quest(user_id, quest_id):
 @require_admin
 def get_sample_tasks(user_id, quest_id):
     """Get all sample tasks for a quest"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -172,6 +174,7 @@ def create_sample_task(user_id, quest_id):
         "order_index": 0
     }
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -244,6 +247,7 @@ def create_sample_task(user_id, quest_id):
 @require_admin
 def update_sample_task(user_id, quest_id, task_id):
     """Update a sample task"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -313,6 +317,7 @@ def update_sample_task(user_id, quest_id, task_id):
 @require_admin
 def delete_sample_task(user_id, quest_id, task_id):
     """Delete a sample task"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:

@@ -8,6 +8,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
 import { tokenStore } from './tokenStore';
+import { postRefreshWithRetry } from './refreshRetry';
 
 const API_URL = Platform.select({
   web: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001',
@@ -92,10 +93,12 @@ api.interceptors.response.use(
         throw new Error('No refresh token');
       }
 
-      const { data } = await api.post(
-        '/api/auth/refresh',
-        refreshToken ? { refresh_token: refreshToken } : {},
-      );
+      // E4: single jittered retry on transient refresh failure (network blip,
+      // 502 from Render cold start). A second 4xx still fails fast.
+      const body = refreshToken ? { refresh_token: refreshToken } : {};
+      const { data } = await postRefreshWithRetry(body, {
+        post: (path, b) => api.post(path, b),
+      });
 
       const newAccess = data.access_token;
       const newRefresh = data.refresh_token;

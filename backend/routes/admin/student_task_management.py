@@ -37,6 +37,7 @@ bp = Blueprint('admin_student_task_management', __name__, url_prefix='/api/admin
 
 def is_advisor_for_student(advisor_id, student_id):
     """Helper function to check if advisor has permission for student"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     result = supabase.table('advisor_student_assignments')\
@@ -58,6 +59,7 @@ def create_student_task(user_id, target_user_id, quest_id):
     1. Create custom task (provide task details)
     2. Copy from template (provide template_task_id)
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -256,6 +258,7 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
     Copy multiple task templates to a student's quest at once.
     Request body: { "template_task_ids": ["id1", "id2", "id3"] }
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -384,6 +387,7 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
     Advisors can only access tasks for their assigned students.
     Admins can access any student's tasks.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -466,6 +470,7 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
     Advisors can only edit tasks for their assigned students.
     Admins can edit any student's tasks.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -589,6 +594,7 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
     Admins can delete any student's tasks.
     Cannot delete completed tasks.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -657,6 +663,7 @@ def reorder_student_tasks(user_id, target_user_id, quest_id):
     Advisors can only reorder tasks for their assigned students.
     Admins can reorder any student's tasks.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:

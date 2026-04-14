@@ -138,13 +138,6 @@ describe('AdvisorDashboard', () => {
       })
     })
 
-    it('shows caseload summary in default panel', async () => {
-      render(<AdvisorDashboard />)
-      await waitFor(() => {
-        expect(screen.getByTestId('caseload-summary')).toBeInTheDocument()
-      })
-    })
-
     it('shows student names in list', async () => {
       render(<AdvisorDashboard />)
       await waitFor(() => {

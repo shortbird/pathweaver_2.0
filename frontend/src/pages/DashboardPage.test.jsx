@@ -301,7 +301,7 @@ describe('DashboardPage', () => {
 
   // --- Recently completed ---
   describe('recently completed', () => {
-    it('renders Recently Completed section when present', () => {
+    it('renders Completed Quests section when present', () => {
       dashboardHookData = {
         data: {
           active_quests: [],
@@ -321,7 +321,7 @@ describe('DashboardPage', () => {
         refetch: vi.fn()
       }
       renderDashboard()
-      expect(screen.getByText('Recently Completed')).toBeInTheDocument()
+      expect(screen.getByText('Completed Quests')).toBeInTheDocument()
       expect(screen.getByText('Finished Quest')).toBeInTheDocument()
     })
   })

@@ -94,6 +94,7 @@ def get_school_subjects():
 @require_admin
 def get_user_details(admin_id, user_id):
     """Get detailed information about a specific user"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     
     try:
@@ -172,6 +173,7 @@ def get_user_details(admin_id, user_id):
 @require_admin
 def update_user_profile(admin_id, user_id):
     """Update user profile information"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     data = request.json
 
@@ -232,6 +234,7 @@ def update_user_profile(admin_id, user_id):
 @require_admin
 def update_user_role(admin_id, user_id):
     """Update user role with audit logging"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     data = request.json
     
@@ -274,6 +277,7 @@ def update_user_role(admin_id, user_id):
 @require_admin
 def reset_user_password(admin_id, user_id):
     """Reset a user's password (admin only)"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -336,6 +340,7 @@ def reset_user_password(admin_id, user_id):
 @require_admin
 def toggle_user_status(admin_id, user_id):
     """Enable or disable a user account"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     
     try:
@@ -372,6 +377,7 @@ def toggle_user_status(admin_id, user_id):
 @require_admin
 def delete_user_account(admin_id, user_id):
     """Permanently delete a user account and all associated data"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     
     try:
@@ -408,6 +414,7 @@ def delete_user_account(admin_id, user_id):
 @require_admin
 def send_bulk_email(admin_id):
     """Send email to multiple users"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     data = request.json
     

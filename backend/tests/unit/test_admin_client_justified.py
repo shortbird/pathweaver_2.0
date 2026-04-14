@@ -18,13 +18,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND = REPO_ROOT / 'backend'
 
-# Currently enforced scope: H1 audit Passes 1-3 (everything under backend/routes/
-# EXCEPT routes/admin/). Pass 4 (admin/*) and Pass 5 (services/repositories/utils/jobs)
-# have NOT been audited yet — when they are, expand SCAN_DIRS and remove the
-# routes/admin/ skip below. See H1_ADMIN_CLIENT_AUDIT.md for the staged plan.
+# Enforced scope: H1 audit Passes 1-4 (all of backend/routes/ including admin/*).
+# Pass 5 (services/repositories/utils/jobs) is still TODO — expand SCAN_DIRS
+# when that work lands. See H1_ADMIN_CLIENT_AUDIT.md.
 SCAN_DIRS = [
     BACKEND / 'routes',
-    # TODO Pass 4: BACKEND / 'routes' / 'admin' (currently skipped via SKIP_PATH_FRAGMENTS)
     # TODO Pass 5: BACKEND / 'services',
     # TODO Pass 5: BACKEND / 'repositories',
     # TODO Pass 5: BACKEND / 'utils',
@@ -32,15 +30,13 @@ SCAN_DIRS = [
 ]
 
 # Out of scope: ops scripts, db migrations, tests, docs, the database singleton itself.
-# Plus admin_core.py and routes/admin/ (Pass 4 — pending).
 SKIP_PATH_FRAGMENTS = (
     '/scripts/', '\\scripts\\',
     '/migrations/', '\\migrations\\',
     '/tests/', '\\tests\\',
     '/docs/', '\\docs\\',
-    '/routes/admin/', '\\routes\\admin\\',  # Pass 4 — TODO
 )
-SKIP_BASENAMES = {'database.py', 'admin_core.py'}  # admin_core.py: Pass 4 — TODO
+SKIP_BASENAMES = {'database.py'}
 
 # How many lines above the call we accept the justification comment on.
 JUSTIFICATION_WINDOW = 3

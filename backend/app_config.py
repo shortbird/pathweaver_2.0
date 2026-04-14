@@ -73,6 +73,7 @@ class Config:
     # API Configuration
     API_VERSION = 'v1'
     API_PREFIX = '/api'
+    APP_VERSION = os.getenv('APP_VERSION', 'unknown')
     
     # Security Settings - imported from centralized constants
     MAX_CONTENT_LENGTH = MAX_CONTENT_LENGTH  # From backend.config.constants
@@ -241,6 +242,9 @@ class Config:
 
     # API Configuration - CONFIGURABLE
     API_TIMEOUT = int(os.getenv('API_TIMEOUT', '30'))
+    # E2: Gemini call timeout (seconds). Default 60s — aggressive enough to
+    # free workers, generous enough for long-context prompts. Override per-env.
+    AI_REQUEST_TIMEOUT = int(os.getenv('AI_REQUEST_TIMEOUT', '60'))
     PEXELS_API_TIMEOUT = int(os.getenv('PEXELS_API_TIMEOUT', '5'))
     LTI_JWKS_TIMEOUT = int(os.getenv('LTI_JWKS_TIMEOUT', '5'))
 
@@ -252,6 +256,12 @@ class Config:
     SUPERADMIN_EMAIL = os.getenv('SUPERADMIN_EMAIL')
     if not SUPERADMIN_EMAIL and FLASK_ENV == 'production':
         raise ValueError("SUPERADMIN_EMAIL must be set in production")
+
+    # D6 — PostHog backend error tracking.
+    # POSTHOG_API_KEY is the *project* key (phc_...), NOT the personal API key.
+    # When unset the error handler silently no-ops — safe default for dev.
+    POSTHOG_API_KEY = os.getenv('POSTHOG_API_KEY')
+    POSTHOG_HOST = os.getenv('POSTHOG_HOST', 'https://us.i.posthog.com')
 
     # Web Push Notifications (VAPID)
     VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY')

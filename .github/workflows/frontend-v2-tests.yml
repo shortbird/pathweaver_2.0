@@ -41,6 +41,18 @@ jobs:
           done
           exit 1
 
+      - name: npm audit (high/critical only)
+        working-directory: frontend-v2
+        # D2: supply-chain gate. Dev-only deps excluded; production surface only.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: TypeScript check (informational)
+        working-directory: frontend-v2
+        # Non-blocking today (pre-existing errors under `strict: true`).
+        # Goal: drive count down, then switch this step to blocking.
+        continue-on-error: true
+        run: npm run typecheck
+
       - name: Run tests
         working-directory: frontend-v2
         run: npm run test:run

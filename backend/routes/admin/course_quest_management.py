@@ -65,6 +65,7 @@ def create_course_quest(user_id):
         ]
     }
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -248,6 +249,7 @@ def create_course_quest(user_id):
 def get_course_tasks(user_id, quest_id):
     """Get all preset tasks for a course quest"""
     from utils.roles import get_effective_role
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -321,6 +323,7 @@ def update_course_tasks(user_id, quest_id):
     }
     """
     from utils.roles import get_effective_role
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -498,6 +501,7 @@ def update_course_tasks(user_id, quest_id):
 def delete_course_task(user_id, quest_id, task_id):
     """Delete a single preset task from a course quest"""
     from utils.roles import get_effective_role
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -552,6 +556,7 @@ def get_template_tasks(user_id, quest_id):
     """
     from utils.roles import get_effective_role
     from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -623,6 +628,7 @@ def update_template_tasks(user_id, quest_id):
     """
     from utils.roles import get_effective_role
     from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -716,6 +722,7 @@ def delete_template_task(user_id, quest_id, task_id):
     """Delete a single template task"""
     from utils.roles import get_effective_role
     from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:

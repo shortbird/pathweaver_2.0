@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Callable
 import google.generativeai as genai
 
 from services.base_service import BaseService
+from services.ai_gen import generate_with_timeout
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from app_config import Config
@@ -196,7 +197,7 @@ class TaskLibrarySanitizationService(BaseService):
 
             # Call Gemini
             logger.info(f"Calling Gemini AI for task sanitization ({len(all_tasks)} tasks)")
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
 
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")

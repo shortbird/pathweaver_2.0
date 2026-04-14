@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.pillar_utils import normalize_pillar_name
+from services.ai_gen import generate_with_timeout
 
 from utils.logger import get_logger
 
@@ -246,7 +247,7 @@ class PersonalizationService(BaseService):
             )
 
             # Generate tasks using AI service
-            result = self.ai_service.model.generate_content(prompt)
+            result = generate_with_timeout(self.ai_service.model, prompt)
 
             if not result or not result.text:
                 return {
@@ -353,7 +354,7 @@ class PersonalizationService(BaseService):
             Return as JSON with fields: title, description, pillar, xp_value, evidence_prompt
             """
 
-            result = self.ai_service.model.generate_content(prompt)
+            result = generate_with_timeout(self.ai_service.model, prompt)
             refined_task = self.ai_service._parse_quest_response(result.text)
 
             # Validate refined task

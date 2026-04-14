@@ -37,6 +37,7 @@ def get_connection_requests(user_id):
     try:
         _verify_admin(user_id)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         parent_repo = ParentRepository(client=supabase)
 
@@ -78,6 +79,7 @@ def approve_connection_request(user_id, request_id):
         data = request.get_json()
         admin_notes = data.get('admin_notes', '').strip()
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         parent_repo = ParentRepository(client=supabase)
 
@@ -135,6 +137,7 @@ def reject_connection_request(user_id, request_id):
         if not admin_notes:
             raise ValidationError("Admin notes are required when rejecting a request")
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         parent_repo = ParentRepository(client=supabase)
 
@@ -170,6 +173,7 @@ def get_active_links(user_id):
     try:
         _verify_admin(user_id)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         parent_repo = ParentRepository(client=supabase)
 
@@ -208,6 +212,7 @@ def disconnect_link(user_id, link_id):
     try:
         _verify_admin(user_id)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         parent_repo = ParentRepository(client=supabase)
 
@@ -247,6 +252,7 @@ def create_manual_link(user_id):
         if not parent_user_id or not student_user_id:
             raise ValidationError("Both parent_user_id and student_user_id are required")
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         parent_repo = ParentRepository(client=supabase)
 

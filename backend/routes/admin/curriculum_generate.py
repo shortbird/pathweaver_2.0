@@ -52,6 +52,7 @@ bp = Blueprint('admin_curriculum_generate', __name__, url_prefix='/api/admin/cur
 
 def get_organization_id(user_id: str) -> str:
     """Get organization ID for user. Returns None for superadmin (platform-level courses)."""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     user = supabase.table('users').select('organization_id, role').eq('id', user_id).execute()
 
@@ -472,6 +473,7 @@ def generate_tasks_for_lesson(user_id, course_id, lesson_id):
 
         # If quest_id not provided, look it up from lesson
         if not quest_id:
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             lesson = supabase.table('curriculum_lessons').select('quest_id').eq('id', lesson_id).execute()
             if lesson.data:
@@ -563,6 +565,7 @@ def regenerate_outline(user_id, course_id):
 
         if not topic:
             # Get topic from existing course title
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             course = supabase.table('courses').select('title').eq('id', course_id).execute()
             if course.data:
@@ -621,6 +624,7 @@ def regenerate_lesson(user_id, course_id, lesson_id):
 
         # Look up quest_id if not provided
         if not quest_id:
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             lesson = supabase.table('curriculum_lessons').select('quest_id').eq('id', lesson_id).execute()
             if lesson.data:
@@ -679,6 +683,7 @@ def regenerate_tasks(user_id, course_id, lesson_id):
 
         # Look up quest_id if not provided
         if not quest_id:
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             lesson = supabase.table('curriculum_lessons').select('quest_id').eq('id', lesson_id).execute()
             if lesson.data:
@@ -878,6 +883,7 @@ def add_project(user_id, course_id):
         order = data.get('order')
 
         organization_id = get_organization_id(user_id)
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get course categories for topics
@@ -961,6 +967,7 @@ def update_project(user_id, course_id, quest_id):
     """
     try:
         data = request.get_json()
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         update_data = {}
@@ -997,6 +1004,7 @@ def delete_project(user_id, course_id, quest_id):
     }
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get lessons
@@ -1189,6 +1197,7 @@ def get_job_status(user_id, job_id):
             }), 404
 
         # Verify ownership
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         job_record = supabase.table('course_generation_jobs').select('user_id').eq('id', job_id).execute()
 
@@ -1558,6 +1567,7 @@ def fix_images(user_id):
         course_ids = data.get('course_ids', [])
         fix_duplicates = data.get('fix_duplicates', True)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_client = get_supabase_admin_client()
 
         # Get courses to process
@@ -1637,6 +1647,7 @@ def fix_images(user_id):
             with flask_app.app_context():
                 from services.image_service import search_quest_image
 
+                # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
                 client = get_supabase_admin_client()
 
                 def log(msg, level='info'):

@@ -12,6 +12,7 @@ import time
 from typing import Dict, List, Optional, Any
 
 from services.base_ai_service import BaseAIService
+from services.ai_gen import generate_with_timeout
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -72,7 +73,7 @@ class QuestAIService(BaseAIService):
         try:
             prompt = self._build_quest_concept_prompt(avoid_titles or [])
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
 
@@ -106,7 +107,7 @@ class QuestAIService(BaseAIService):
         try:
             prompt = self._build_quest_generation_prompt(topic, learning_objectives)
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
 
@@ -155,7 +156,7 @@ class QuestAIService(BaseAIService):
             Return only the improved description, no additional text.
             """
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             enhanced_description = response.text.strip()
 
             return {
@@ -232,7 +233,7 @@ Return ONLY valid JSON (no markdown code blocks):
   "quality_score": 0-100
 }}"""
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
 
@@ -306,7 +307,7 @@ Return ONLY valid JSON (no markdown code blocks):
             Return as valid JSON array with these exact field names.
             """
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             tasks_data = self._parse_tasks_response(response.text)
             tasks_data = self._validate_tasks_data(tasks_data)
 
@@ -356,7 +357,7 @@ Return ONLY valid JSON (no markdown code blocks):
                 prompt = self._build_lesson_tasks_prompt(lesson_content, lesson_title, target_task_count)
 
                 # Generate content with timeout
-                response = self.model.generate_content(prompt)
+                response = generate_with_timeout(self.model, prompt)
 
                 if not response or not response.text:
                     raise Exception("Empty response from Gemini API")
@@ -510,7 +511,7 @@ Return ONLY valid JSON (no markdown code blocks):
             Return as valid JSON with these exact field names.
             """
             
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             feedback = self._parse_validation_response(response.text)
             
             return {
@@ -887,7 +888,7 @@ Return ONLY valid JSON (no markdown code blocks):
             # Build badge-specific prompt
             prompt = self._build_badge_quest_generation_prompt(badge_context)
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
 
@@ -1091,7 +1092,7 @@ Return ONLY valid JSON (no markdown code blocks):
             # Generate new examples
             prompt = self._build_approach_examples_prompt(quest_title, quest_description)
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
 
@@ -1318,7 +1319,7 @@ Return ONLY valid JSON (no markdown code blocks):
   "topics": ["topic1", "topic2", "topic3"]
 }}"""
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
 

@@ -273,15 +273,52 @@ powershell.exe -Command "Get-NetTCPConnection -LocalPort 5001 -ErrorAction Silen
 - Remote: `https://github.com/shortbird/pathweaver_2.0.git` (HTTPS)
 - Auth: Git Credential Manager (`credential.helper = manager`)
 
-**Workflow:**
+**Dev workflow (unchanged):**
 ```bash
-# Claude Code can now run these directly:
-git push origin develop    # Push to dev (auto-deploys to Render dev)
-git push origin main       # Push to prod (auto-deploys to Render prod)
-
-# Merge develop to main:
-git checkout main && git merge develop && git push origin main && git checkout develop
+git push origin develop    # Auto-deploys to Render dev
 ```
+
+**Prod workflow (gated, as of 2026-04-14):**
+
+`main` is protected by a GitHub ruleset and Render prod services are set to
+"Deploy after CI checks pass". Never push directly to `main`, and never click
+"Merge pull request" in the GitHub web UI — always use the API so the flow is
+auditable and scriptable.
+
+Required CI checks (must all be green before merge):
+- `Jest Integration Tests` (frontend-v2-tests.yml)
+- `Vitest + coverage gate` (frontend-tests.yml)
+- `test` (backend-tests.yml)
+
+The merge flow Claude Code should use:
+
+```bash
+# 1. Get the stored token from Git Credential Manager.
+TOKEN=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill 2>/dev/null \
+  | awk -F= '/^password=/ {print $2}')
+
+# 2. Open PR from develop -> main.
+curl -sS -X POST "https://api.github.com/repos/shortbird/pathweaver_2.0/pulls" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{"title":"...","head":"develop","base":"main","body":"..."}'
+
+# 3. Poll required check runs until all three pass.
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "https://api.github.com/repos/shortbird/pathweaver_2.0/commits/<sha>/check-runs"
+
+# 4. Merge only when green.
+curl -sS -X PUT "https://api.github.com/repos/shortbird/pathweaver_2.0/pulls/<N>/merge" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{"merge_method":"merge"}'
+```
+
+Once the merge commit lands on `main`, Render prod services wait for its
+status checks to finish, then auto-deploy. No manual deploy trigger needed.
+
+If the merge returns `"message": "Repository rule violations found"`, one of
+the required checks is red — fix first, don't try to bypass.
 
 **IMPORTANT: When the user says "push", always stage and commit ALL outstanding changes (staged, unstaged, and untracked relevant files) before pushing. Never selectively unstage files -- push everything.**
 
@@ -437,7 +474,15 @@ cd frontend && npm run test:run    # Must be 95%+ pass rate
 npm run test:coverage              # Must be 60%+ coverage
 ```
 
-**Current stats:** 345 tests, 97.9% pass rate, 60.61% coverage
+**Current stats (frontend v1):** 353 tests, 100% pass rate, ~43% CI line coverage. (The 60.61% figure quoted pre-2026-04-14 came from a local run; CI coverage on a `pull_request` event was never verified until the first gated PR. See the coverage baseline note in `.github/workflows/frontend-tests.yml`.)
+**Current stats (frontend v2):** 276 tests, 100% pass rate.
+
+**CI gates (enforced by [.github/workflows/](.github/workflows/) + GitHub ruleset + Render):**
+- `Frontend (v1) Tests` (`Vitest + coverage gate` check) — 95%+ pass + 40%+ line coverage on PRs to main. Ratchet the coverage floor up over time; never down.
+- `Frontend V2 Tests` (`Jest Integration Tests` check) — 95%+ pass rate.
+- `Backend Tests` (`test` check).
+- A GitHub ruleset on `main` makes all three required before merge.
+- Prod Render services use "Deploy after CI checks pass", so only green merge commits deploy. Dev services remain on "On commit" for fast iteration on `develop`.
 
 **Full testing guide:** [frontend/TESTING.md](frontend/TESTING.md)
 
@@ -632,4 +677,6 @@ claude mcp add -s user posthog -- npx -y mcp-remote@latest https://mcp.posthog.c
 - **Repository Pattern**: [backend/docs/REPOSITORY_PATTERN.md](backend/docs/REPOSITORY_PATTERN.md)
 - **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
 - **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
+- **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md) — why v1/v2 web/v2 native each use a different strategy
+- **Audit Implementation Plan**: [AUDIT_IMPLEMENTATION_PLAN.md](AUDIT_IMPLEMENTATION_PLAN.md) — historical record of the C/H/M/L/A audit items and their fixes (2026-04)
 - **Branch Test Data**: [supabase/seed.sql](supabase/seed.sql)

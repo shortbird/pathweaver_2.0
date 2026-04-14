@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "test:run": "jest --ci --forceExit",
-    "test:coverage": "jest --coverage --ci --forceExit"
+    "test:coverage": "jest --coverage --ci --forceExit",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",

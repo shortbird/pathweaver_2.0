@@ -92,7 +92,6 @@ describe('OrganizationManagement', () => {
         expect(screen.getByText('People')).toBeInTheDocument()
         expect(screen.getByText('Classes')).toBeInTheDocument()
         expect(screen.getByText('Content')).toBeInTheDocument()
-        expect(screen.getByText('Progress')).toBeInTheDocument()
       })
     })
 

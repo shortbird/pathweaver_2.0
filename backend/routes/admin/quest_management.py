@@ -69,6 +69,7 @@ def create_quest_v3_clean(user_id):
     Advisors create unpublished drafts; admins can publish immediately.
     """
     logger.info(f"CREATE OPTIO QUEST: user_id={user_id}")
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -356,6 +357,7 @@ def update_quest(user_id, quest_id):
     Org admins can edit and toggle is_active for their organization's quests.
     Superadmins can edit any quest and toggle is_active.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -487,6 +489,7 @@ def ai_cleanup_quest(user_id, quest_id):
     Use AI to clean up and standardize quest title and description.
     Fixes grammar, spelling, punctuation, and ensures Optio formatting standards.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -542,6 +545,7 @@ def ai_cleanup_quest(user_id, quest_id):
 def upload_quest_image(user_id, quest_id):
     """Upload a custom image for a quest"""
     from flask import request
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -580,8 +584,8 @@ def upload_quest_image(user_id, quest_id):
         # Create quest-images bucket if it doesn't exist
         try:
             supabase.storage.create_bucket('quest-images', {'public': True})
-        except:
-            pass  # Bucket might already exist
+        except Exception:
+            logger.debug("quest-images bucket create skipped (likely exists)", exc_info=True)
 
         # Generate unique filename
         unique_filename = f"{quest_id}/{uuid.uuid4()}.{file_extension}"
@@ -594,8 +598,8 @@ def upload_quest_image(user_id, quest_id):
             try:
                 old_path = quest.data['image_url'].split('quest-images/')[-1]
                 supabase.storage.from_('quest-images').remove([old_path])
-            except:
-                pass  # Ignore deletion errors
+            except Exception:
+                logger.debug("quest-images old file delete failed (non-fatal)", exc_info=True)
 
         # Upload to Supabase Storage
         response = supabase.storage.from_('quest-images').upload(
@@ -633,6 +637,7 @@ def upload_quest_image(user_id, quest_id):
 @require_admin
 def refresh_quest_image(user_id, quest_id):
     """Refresh the quest image by fetching a new one from Pexels"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -680,6 +685,7 @@ def delete_quest(user_id, quest_id):
     Advisors can only delete their own unpublished quests.
     Admins can delete any quest.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -766,6 +772,7 @@ def get_admin_quests(user_id):
     - is_active: Filter by active status ('true', 'false', or omit for all)
     - is_public: Filter by public status ('true', 'false', or omit for all)
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -909,6 +916,7 @@ def get_quest_task_templates(user_id, quest_id):
     Optionally filters out tasks already assigned to a specific student.
     """
     from flask import request
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -1017,6 +1025,7 @@ def bulk_generate_images(user_id):
         "max_count": 50  # Optional limit on number of quests to process
     }
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -1153,6 +1162,7 @@ def clone_quest_to_optio(user_id, quest_id):
     - quest_type = 'optio'
     - AI-enhanced title, description, and big_idea
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -1244,6 +1254,7 @@ def fix_course_quest_enrollments(user_id):
 
     Finds all active course quest enrollments without tasks and auto-loads preset tasks.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:

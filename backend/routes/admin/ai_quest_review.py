@@ -40,6 +40,7 @@ def get_review_queue(user_id):
         List of quests awaiting review with metadata
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get query parameters
@@ -114,6 +115,7 @@ def approve_quest(user_id, quest_review_id):
         Created quest data
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.get_json() or {}
 
@@ -205,6 +207,7 @@ def reject_quest(user_id, quest_review_id):
         Success message
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.get_json() or {}
 
@@ -256,6 +259,7 @@ def bulk_approve_quests(user_id):
         Summary of bulk approval
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.get_json()
 

@@ -134,6 +134,11 @@ def get_quest_detail(user_id: str, quest_id: str):
                         pillar_key = 'art'  # Default fallback
                     task['pillar'] = pillar_key  # Send key, not display name
 
+            # Q2: legacy response key — frontend v1 reads `quest.quest_tasks`.
+            # The DB table is `user_quest_tasks`; the `quest_tasks` table was
+            # archived. Keep the response key alive until the v1→v2 migration
+            # retires v1 and v2 can switch to `user_quest_tasks`.
+            # See AUDIT_IMPLEMENTATION_PLAN.md Q2 for the retirement plan.
             quest_data['quest_tasks'] = quest_tasks
 
             # Calculate progress

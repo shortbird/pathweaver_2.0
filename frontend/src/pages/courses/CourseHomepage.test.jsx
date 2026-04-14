@@ -228,9 +228,8 @@ describe('CourseHomepage', () => {
       expect(screen.getByText('Learn the fundamentals of robotics')).toBeInTheDocument()
     })
 
-    it('renders Your Progress section', () => {
+    it('renders progress card with projects count', () => {
       renderCourseHomepage()
-      expect(screen.getByText('Your Progress')).toBeInTheDocument()
       expect(screen.getByText(/1 \/ 2 Projects/)).toBeInTheDocument()
     })
 

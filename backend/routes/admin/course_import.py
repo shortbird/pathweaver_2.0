@@ -147,6 +147,7 @@ def confirm_imscc_import(user_id):
                 'error': 'At least one task is required'
             }), 400
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Create the quest

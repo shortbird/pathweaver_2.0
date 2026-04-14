@@ -9,6 +9,7 @@ import re
 import google.generativeai as genai
 from services.api_usage_tracker import pexels_tracker
 from app_config import Config
+from services.ai_gen import generate_with_timeout
 
 from utils.logger import get_logger
 
@@ -69,7 +70,7 @@ BAD EXAMPLES (too metaphorical/abstract):
 Return ONLY the search term with concrete objects/actions, nothing else.
 """
 
-        response = model.generate_content(prompt)
+        response = generate_with_timeout(model, prompt)
         search_term = response.text.strip().strip('"').strip("'")
 
         # Validate it's not too long
