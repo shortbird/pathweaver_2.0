@@ -1,6 +1,6 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: March 20, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
+**Last Updated**: April 14, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
 
 ---
 
