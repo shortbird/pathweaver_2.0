@@ -21,7 +21,7 @@ MAX_LINES_PER_FILE = 1400
 # (e.g., adding a justification comment) don't flip CI red. Remove each
 # entry once the file has been split into a submodule.
 EXEMPTIONS: dict[str, int] = {
-    "tasks.py": 1500,
+    # tasks.py was split into routes/tasks/ package on 2026-04-14 (Q1).
     "spark_integration.py": 1500,
     "parental_consent.py": 1000,
     "learning_events.py": 1050,
