@@ -20,7 +20,7 @@ ROUTES = Path(__file__).resolve().parents[2] / "routes"
 
 # Baseline set 2026-04-14 — count of .upload() calls on the chain
 # `supabase.storage.from_(...)` in routes/. Ratchet down only.
-BASELINE = 12
+BASELINE = 10
 
 
 def _direct_storage_upload_sites() -> list[str]:

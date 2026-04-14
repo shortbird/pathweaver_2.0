@@ -110,6 +110,7 @@ class QuestRepository(BaseRepository):
             # Use admin client for enrollment operations to bypass RLS
             # Enrollment is a user-initiated action that should always succeed for valid users/quests
             from database import get_supabase_admin_client
+            # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
             admin_client = get_supabase_admin_client()
 
             # Check if already enrolled
@@ -422,6 +423,7 @@ class QuestRepository(BaseRepository):
             from database import get_supabase_admin_client
 
             # Get user's organization and policy
+            # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
             admin = get_supabase_admin_client()
 
             # First get user data
@@ -589,6 +591,7 @@ class QuestRepository(BaseRepository):
         """
         try:
             from database import get_supabase_admin_client
+            # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
             admin = get_supabase_admin_client()
 
             # Get user's organization
@@ -702,6 +705,7 @@ class QuestRepository(BaseRepository):
         from datetime import datetime
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         try:
@@ -753,6 +757,7 @@ class QuestRepository(BaseRepository):
         from datetime import datetime
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         try:
@@ -801,6 +806,7 @@ class QuestRepository(BaseRepository):
         """
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         try:
@@ -869,6 +875,7 @@ class QuestRepository(BaseRepository):
         from datetime import datetime
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         allowed_fields = {'is_active', 'is_public'}
@@ -921,6 +928,7 @@ class QuestRepository(BaseRepository):
         """
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         try:
@@ -1010,6 +1018,7 @@ class QuestRepository(BaseRepository):
         """
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         try:

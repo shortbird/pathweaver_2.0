@@ -113,6 +113,7 @@ class BaseRepository:
                     f"Using admin client for {self.table_name} repository. "
                     "Ensure this is intentional and RLS is not being bypassed."
                 )
+                # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
                 self._client = get_supabase_admin_client()
         return self._client
 

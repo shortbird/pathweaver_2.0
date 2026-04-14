@@ -369,7 +369,7 @@ def register_routes(bp):
                     for view in views.data:
                         views_count[view['completion_id']] = views_count.get(view['completion_id'], 0) + 1
             except Exception:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Get view counts for learning events
             le_ids = list(set([item['learning_event_id'] for item in paginated_items if item.get('learning_event_id')]))
@@ -385,7 +385,7 @@ def register_routes(bp):
                         le_id = view['learning_event_id']
                         le_views_count[le_id] = le_views_count.get(le_id, 0) + 1
             except Exception:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Get comment counts for task completions
             comments_count = {}
@@ -400,7 +400,7 @@ def register_routes(bp):
                         if comment['task_completion_id']:
                             comments_count[comment['task_completion_id']] = comments_count.get(comment['task_completion_id'], 0) + 1
             except Exception:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Get comment counts for learning events
             le_comments_count = {}
@@ -415,7 +415,7 @@ def register_routes(bp):
                         if comment['learning_event_id']:
                             le_comments_count[comment['learning_event_id']] = le_comments_count.get(comment['learning_event_id'], 0) + 1
             except Exception:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Build final feed items
             feed_items = []

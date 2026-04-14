@@ -436,7 +436,7 @@ def get_dashboard_stats(user_id: str):
             merge_result = merge_q.execute()
             stats['merged_this_week'] = merge_result.count or 0
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         return success_response(data=stats)
 
@@ -512,7 +512,7 @@ def get_student_context(user_id: str, student_id: str):
                 .execute()
             recent_merges_data = recent_merges.data or []
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         # Recent flags (table may not exist yet)
         student_flags = []
@@ -526,7 +526,7 @@ def get_student_context(user_id: str, student_id: str):
             student_completion_ids = [p['id'] for p in (pending_items.data or [])]
             student_flags = [f for f in (recent_flags.data or []) if f['completion_id'] in student_completion_ids]
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         return success_response(data={
             'student': student.data,

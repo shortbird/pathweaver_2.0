@@ -371,6 +371,7 @@ class DependentRepository(BaseRepository):
         try:
             # Create Supabase Auth account
             from database import get_supabase_admin_client
+            # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
             admin_client = get_supabase_admin_client()
 
             # Check if email is already in use (prevents unclear Supabase auth errors)

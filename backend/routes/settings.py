@@ -77,7 +77,7 @@ def upload_logo(current_user):
         try:
             supabase.storage.create_bucket('site-assets', {'public': True})
         except:
-            pass  # Bucket might already exist
+            logger.debug("intentional swallow", exc_info=True)  # Bucket might already exist
 
         # Upload file
         response = supabase.storage.from_('site-assets').upload(

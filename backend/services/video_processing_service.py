@@ -235,7 +235,7 @@ class VideoProcessingService:
                 try:
                     supabase.storage.from_(bucket_name).remove([storage_path])
                 except Exception:
-                    pass  # File may already be gone
+                    logger.debug("intentional swallow", exc_info=True)  # File may already be gone
 
                 supabase.storage.from_(bucket_name).upload(
                     path=storage_path,

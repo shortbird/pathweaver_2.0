@@ -730,7 +730,7 @@ def update_child_learning_moment(user_id, child_id, moment_id):
                     if junction_type == 'topic':
                         new_track_ids.append(t_id)
                 except Exception:
-                    pass  # Duplicate
+                    logger.debug("intentional swallow", exc_info=True)  # Duplicate
 
             # Dual-write legacy columns
             first_topic = next((t for t in topics_to_set if t.get('type') in ('topic', 'track')), None)

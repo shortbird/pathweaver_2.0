@@ -531,7 +531,7 @@ def get_student_overview(user_id, student_id):
                     'parent_approval_denied': visibility_response.data.get('parent_approval_denied', False)
                 }
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         # 9. Build pillars data for constellation
         seven_days_ago = (date.today() - timedelta(days=7)).isoformat()

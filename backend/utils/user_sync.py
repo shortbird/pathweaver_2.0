@@ -21,6 +21,7 @@ def ensure_user_exists(user_id: str) -> Optional[Dict]:
         User data dict if found/created, None otherwise
     """
     try:
+        # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
         admin_client = get_supabase_admin_client()
         
         # First check if user exists in users table

@@ -589,6 +589,7 @@ def validate_course_quest_has_preset_tasks(quest_id: str) -> tuple[bool, str]:
     """
     try:
         from database import get_supabase_admin_client
+        # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
         supabase = get_supabase_admin_client()
 
         # Get quest type

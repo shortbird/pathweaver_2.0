@@ -69,6 +69,7 @@ class SubjectClassificationService(BaseAIService):
             self._model_available = False
 
         # Initialize Supabase client for backfill operations
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
 
     def classify_task_subjects(

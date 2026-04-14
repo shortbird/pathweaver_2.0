@@ -240,7 +240,7 @@ def get_parent_dashboard(user_id, student_id):
                     'date': badge['earned_at']
                 })
         except Exception:
-            pass  # Table may not exist yet
+            logger.debug("intentional swallow", exc_info=True)  # Table may not exist yet
 
         # Sort weekly wins by date
         weekly_wins.sort(key=lambda x: x['date'], reverse=True)

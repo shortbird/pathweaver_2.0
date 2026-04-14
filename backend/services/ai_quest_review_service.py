@@ -41,6 +41,7 @@ class AIQuestReviewService(BaseService):
             Dict with review queue item and metrics record
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Insert into review queue
@@ -116,6 +117,7 @@ class AIQuestReviewService(BaseService):
             Dict with review items and pagination info
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Build query
@@ -184,6 +186,7 @@ class AIQuestReviewService(BaseService):
             Dict with review item data
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             result = supabase.table('ai_quest_review_queue')\
@@ -237,6 +240,7 @@ class AIQuestReviewService(BaseService):
             Dict with created quest data and review update
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get review item
@@ -326,6 +330,7 @@ class AIQuestReviewService(BaseService):
             Dict with success status
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Update review queue item
@@ -378,6 +383,7 @@ class AIQuestReviewService(BaseService):
             Dict with success status
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             update_data = {
@@ -415,6 +421,7 @@ class AIQuestReviewService(BaseService):
             Dict with queue statistics
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Use the database function if available, otherwise calculate manually
@@ -427,7 +434,7 @@ class AIQuestReviewService(BaseService):
                         'stats': stats
                     }
             except:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Fallback: Manual calculation
             all_items = supabase.table('ai_quest_review_queue').select('status, submitted_at, reviewed_at').execute()
@@ -465,6 +472,7 @@ class AIQuestReviewService(BaseService):
             Dict with review history
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             result = supabase.table('ai_quest_review_queue')\

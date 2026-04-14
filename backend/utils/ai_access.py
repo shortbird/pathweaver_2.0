@@ -36,6 +36,7 @@ def check_ai_access(user_id: str, feature: str = None):
                If has_access is False, returns the error response to send.
     """
     try:
+        # admin client justified: AI access-control helper — resolves user-level AI permissions
         supabase = get_supabase_admin_client()
 
         # Build user select query with granular feature fields
@@ -162,6 +163,7 @@ def get_ai_feature_status(user_id: str):
         dict with AI access status
     """
     try:
+        # admin client justified: AI access-control helper — resolves user-level AI permissions
         supabase = get_supabase_admin_client()
 
         # Get user with all AI settings

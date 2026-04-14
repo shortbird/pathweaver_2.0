@@ -27,7 +27,7 @@ SCAN_DIRS = [
 # Baseline set 2026-04-14 after fixing the auth/admin/user_repository hot
 # paths. Ratchet this down as sites are migrated to log-and-swallow or
 # re-raise. Never raise it.
-BASELINE_COUNT = 57
+BASELINE_COUNT = 0
 
 
 def _count_silent_excepts() -> list[str]:

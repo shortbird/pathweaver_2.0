@@ -18,15 +18,14 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND = REPO_ROOT / 'backend'
 
-# Enforced scope: H1 audit Passes 1-4 (all of backend/routes/ including admin/*).
-# Pass 5 (services/repositories/utils/jobs) is still TODO — expand SCAN_DIRS
-# when that work lands. See H1_ADMIN_CLIENT_AUDIT.md.
+# Enforced scope: H1 audit Passes 1-5 complete 2026-04-14.
+# All layers that create admin clients now require a justification comment.
 SCAN_DIRS = [
     BACKEND / 'routes',
-    # TODO Pass 5: BACKEND / 'services',
-    # TODO Pass 5: BACKEND / 'repositories',
-    # TODO Pass 5: BACKEND / 'utils',
-    # TODO Pass 5: BACKEND / 'jobs',
+    BACKEND / 'services',
+    BACKEND / 'repositories',
+    BACKEND / 'utils',
+    BACKEND / 'jobs',
 ]
 
 # Out of scope: ops scripts, db migrations, tests, docs, the database singleton itself.

@@ -297,7 +297,7 @@ def export_user_data(current_user):
                 messages_response = supabase.table('tutor_messages').select('*').in_('conversation_id', conversation_ids).execute()
                 export_data['tutor_messages'] = messages_response.data if messages_response.data else []
         except:
-            pass  # Table might not exist
+            logger.debug("intentional swallow", exc_info=True)  # Table might not exist
 
         # Quest submissions feature removed - users can create their own quests directly
         export_data['quest_submissions'] = []

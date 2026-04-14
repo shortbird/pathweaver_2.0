@@ -24,6 +24,7 @@ class ProgressTracker:
     def admin_client(self):
         """Lazy-load admin client."""
         if self._admin_client is None:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             self._admin_client = get_supabase_admin_client()
         return self._admin_client
 

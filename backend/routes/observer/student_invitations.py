@@ -289,7 +289,7 @@ def register_routes(bp):
                         })
             except Exception:
                 # advisor_student_assignments table may not exist
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Observers (from links above, excluding Optio emails)
             for obs_entry in observers_data:

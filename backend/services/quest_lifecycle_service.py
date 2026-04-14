@@ -25,6 +25,7 @@ class QuestLifecycleService:
 
     def __init__(self, user_client=None, admin_client=None):
         self.user_client = user_client or get_user_client()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.admin_client = admin_client or get_supabase_admin_client()
 
     # =========================================================================

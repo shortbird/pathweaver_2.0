@@ -40,6 +40,7 @@ class SafetyService(BaseService):
     def __init__(self):
         """Initialize safety service with filtering rules and patterns"""
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
         self.blocked_patterns = self._load_blocked_patterns()
         self.warning_patterns = self._load_warning_patterns()

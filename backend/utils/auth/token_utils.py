@@ -34,10 +34,10 @@ def verify_token(token):
                 return payload['user_id']
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         # Not a valid custom JWT, try Supabase verification
-        pass
+        logger.debug("intentional swallow", exc_info=True)
     except Exception:
         # Any other error, continue to Supabase verification
-        pass
+        logger.debug("intentional swallow", exc_info=True)
 
     # Fallback to Supabase token verification (for regular mode)
     supabase = get_supabase_client()

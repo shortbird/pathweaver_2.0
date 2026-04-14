@@ -41,6 +41,7 @@ class AdvisorRepository(BaseRepository):
             self._client = client
         else:
             # Default to admin client for cross-user access verification
+            # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
             self._client = get_supabase_admin_client()
 
     def verify_student_access(self, advisor_id: str, student_id: str) -> bool:

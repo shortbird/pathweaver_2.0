@@ -34,6 +34,7 @@ def get_effective_user_id(parent_user_id: str, acting_as_dependent_id: str = Non
     from repositories.base_repository import PermissionError as RepoPermissionError
 
     try:
+        # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -62,6 +63,7 @@ def check_and_complete_personalization(user_id: str, quest_id: str, session_id: 
         session_id: The personalization session ID
     """
     try:
+        # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
         supabase = get_supabase_admin_client()
 
         # Get the session to check how many tasks were generated
@@ -208,6 +210,7 @@ def get_or_create_enrollment(user_id: str, quest_id: str) -> str:
     """
     from datetime import datetime
 
+    # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
     supabase = get_supabase_admin_client()
 
     # Check if already enrolled
@@ -248,6 +251,7 @@ def get_next_order_index(user_id: str, quest_id: str) -> int:
     Returns:
         Next order_index
     """
+    # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
     supabase = get_supabase_admin_client()
 
     existing_tasks = supabase.table('user_quest_tasks')\

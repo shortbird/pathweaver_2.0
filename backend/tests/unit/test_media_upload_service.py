@@ -366,6 +366,64 @@ def test_upload_video_happy_path_populates_metadata():
     mock_vps.process_video_background.assert_called_once()
 
 
+def test_security_scan_rejects_invalid_file():
+    """security_scan=True routes through utils.file_validator.validate_file and
+    returns a SECURITY_REJECTED result when the scanner fails the file."""
+    svc, client, bucket = _make_service_with_stub_client()
+    file = _FakeFile(b"PNGDATA", filename="photo.png", content_type="image/png")
+
+    class _Bad:
+        is_valid = False
+        error_message = "polyglot detected"
+        sha256_hash = None
+        detected_mime = "image/png"
+        file_size = 7
+        warnings: list = []
+
+    from unittest.mock import patch
+    with patch("utils.file_validator.validate_file", return_value=_Bad()):
+        result = svc.upload_evidence_file(
+            file,
+            user_id="u",
+            context_type="task_evidence",
+            context_id="c",
+            block_type="image",
+            security_scan=True,
+        )
+    assert result.success is False
+    assert result.error_code == "SECURITY_REJECTED"
+    assert "polyglot" in result.error_message
+    # Storage must NOT have been called when the scan rejected the file.
+    bucket.upload.assert_not_called()
+
+
+def test_security_scan_passes_through_valid_file_and_surfaces_sha256():
+    svc, client, bucket = _make_service_with_stub_client()
+    file = _FakeFile(b"PNGDATA", filename="photo.png", content_type="image/png")
+
+    class _Good:
+        is_valid = True
+        error_message = None
+        sha256_hash = "abc123"
+        detected_mime = "image/png"
+        file_size = 7
+        warnings: list = []
+
+    from unittest.mock import patch
+    with patch("utils.file_validator.validate_file", return_value=_Good()):
+        result = svc.upload_evidence_file(
+            file,
+            user_id="u",
+            context_type="task_evidence",
+            context_id="c",
+            block_type="image",
+            security_scan=True,
+        )
+    assert result.success is True
+    assert result.sha256_hash == "abc123"
+    bucket.upload.assert_called()
+
+
 def test_upload_storage_error_returns_structured_error():
     svc, client, bucket = _make_service_with_stub_client()
     bucket.upload.side_effect = RuntimeError("supabase down")

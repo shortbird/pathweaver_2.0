@@ -141,6 +141,7 @@ class OrganizationRepository(BaseRepository):
         """Get analytics for organization using efficient SQL aggregation"""
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         # Use raw SQL for efficient aggregation in a single query
@@ -156,6 +157,7 @@ class OrganizationRepository(BaseRepository):
         """Fallback analytics using individual queries"""
         from database import get_supabase_admin_client
 
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         admin = get_supabase_admin_client()
 
         # Get users in org

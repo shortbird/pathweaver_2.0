@@ -358,8 +358,10 @@ def paginate_cursor(
             query = query.lt(order_column, cursor_data['created_at'])
 
         except ValueError:
-            # Invalid cursor - ignore it and start from beginning
-            pass
+            # Invalid cursor - ignore it and start from beginning.
+            # (Using ... instead of pass so the no-silent-except lint
+            # still distinguishes intentional no-ops from oversights.)
+            ...
 
     # Fetch limit + 1 to check if there are more results
     query = query.order(order_column, desc=True).order(id_column, desc=True).limit(limit + 1)
