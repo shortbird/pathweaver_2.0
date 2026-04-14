@@ -437,7 +437,13 @@ cd frontend && npm run test:run    # Must be 95%+ pass rate
 npm run test:coverage              # Must be 60%+ coverage
 ```
 
-**Current stats:** 345 tests, 97.9% pass rate, 60.61% coverage
+**Current stats (frontend v1):** 356 tests, 96.6% pass rate, 60.61% coverage. 12 pre-existing UI render failures; not in the auth/API hot path.
+**Current stats (frontend v2):** 271 tests, 100% pass rate.
+
+**CI gates (enforced by [.github/workflows/](.github/workflows/)):**
+- `Frontend (v1) Tests` — 95%+ pass + 60%+ line coverage on PRs to main
+- `Frontend V2 Tests` — 95%+ pass rate
+- **NOTE:** CI does NOT gate Render deploys. Render watches the branch directly and deploys on push, regardless of Actions outcome. Red workflow + deployed code is possible. To truly gate prod, enable GitHub branch protection on `main` requiring the status checks to pass, and/or disable auto-deploy on the prod Render services.
 
 **Full testing guide:** [frontend/TESTING.md](frontend/TESTING.md)
 
@@ -632,4 +638,6 @@ claude mcp add -s user posthog -- npx -y mcp-remote@latest https://mcp.posthog.c
 - **Repository Pattern**: [backend/docs/REPOSITORY_PATTERN.md](backend/docs/REPOSITORY_PATTERN.md)
 - **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
 - **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
+- **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md) — why v1/v2 web/v2 native each use a different strategy
+- **Audit Implementation Plan**: [AUDIT_IMPLEMENTATION_PLAN.md](AUDIT_IMPLEMENTATION_PLAN.md) — historical record of the C/H/M/L/A audit items and their fixes (2026-04)
 - **Branch Test Data**: [supabase/seed.sql](supabase/seed.sql)
