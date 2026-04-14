@@ -226,22 +226,6 @@ def get_parent_dashboard(user_id, student_id):
                 'date': cq['completed_at']
             })
 
-        # Recent badges earned (check user_badges table if exists, otherwise skip)
-        try:
-            badges_response = supabase.table('user_badges').select('''
-                badge_id, earned_at,
-                badges!inner(name)
-            ''').eq('user_id', student_id).gte('earned_at', seven_days_ago).execute()
-
-            for badge in badges_response.data:
-                weekly_wins.append({
-                    'type': 'badge_earned',
-                    'title': badge['badges']['name'],
-                    'date': badge['earned_at']
-                })
-        except Exception:
-            logger.debug("intentional swallow", exc_info=True)  # Table may not exist yet
-
         # Sort weekly wins by date
         weekly_wins.sort(key=lambda x: x['date'], reverse=True)
 

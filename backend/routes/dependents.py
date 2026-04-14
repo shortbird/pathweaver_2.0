@@ -602,7 +602,7 @@ def add_dependent_login(user_id, dependent_id):
             try:
                 supabase.auth.admin.delete_user(new_auth_id)
             except Exception:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
             raise ValidationError("Failed to link login credentials to profile")
 
         logger.info(f"Parent {user_id} added login credentials for dependent {dependent_id}")

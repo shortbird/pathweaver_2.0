@@ -1,7 +1,7 @@
 """
 Observer Module - Social Features
 
-Views, reactions, and completion comments.
+Views and completion comments.
 """
 
 from flask import request, jsonify

@@ -18,6 +18,7 @@ from .registration import bp as registration_bp
 from .password import bp as password_bp
 from .session import bp as session_bp
 from .google_oauth import bp as google_oauth_bp
+from .apple_oauth import bp as apple_oauth_bp
 
 
 def register_auth_routes(app: Flask):
@@ -41,3 +42,4 @@ def register_auth_routes(app: Flask):
     app.register_blueprint(password_bp, url_prefix='/api/auth')
     app.register_blueprint(session_bp, url_prefix='/api/auth')
     app.register_blueprint(google_oauth_bp, url_prefix='/api/auth')
+    app.register_blueprint(apple_oauth_bp, url_prefix='/api/auth')

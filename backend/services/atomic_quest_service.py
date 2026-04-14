@@ -29,6 +29,7 @@ class AtomicQuestService(BaseService):
         """Lazy-load Supabase admin client on first access."""
         if self._supabase is None:
             # Use admin client for race condition handling (needs direct DB access)
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             self._supabase = get_supabase_admin_client()
         return self._supabase
 

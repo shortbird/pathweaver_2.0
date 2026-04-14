@@ -149,38 +149,6 @@ class AnalyticsRepository(BaseRepository):
                 'xp_by_pillar': {}
             }
 
-    def get_badge_stats(self) -> Dict[str, Any]:
-        """
-        Get badge statistics (total badges, active badges).
-
-        Returns:
-            Dictionary with badge statistics
-        """
-        try:
-            # Total badges
-            total_result = self.client.table('badges')\
-                .select('id', count='exact')\
-                .execute()
-            total_badges = total_result.count or 0
-
-            # Active badges
-            active_result = self.client.table('badges')\
-                .select('id', count='exact')\
-                .eq('is_active', True)\
-                .execute()
-            active_badges = active_result.count or 0
-
-            return {
-                'total_badges': total_badges,
-                'active_badges': active_badges
-            }
-        except Exception as e:
-            logger.error(f"Error fetching badge stats: {e}")
-            return {
-                'total_badges': 0,
-                'active_badges': 0
-            }
-
     def get_activity_stats(self, days: int = 7) -> Dict[str, Any]:
         """
         Get activity statistics for recent period.

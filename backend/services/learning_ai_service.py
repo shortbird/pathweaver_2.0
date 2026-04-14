@@ -145,6 +145,7 @@ Rules:
             Dict with 'success' and 'related_moments' list
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get the source moment
@@ -262,6 +263,7 @@ Select up to {limit} most related moments. Consider:
             Dict with track suggestion or new track recommendation
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get existing tracks if not provided
@@ -347,6 +349,7 @@ Rules:
             Dict with suggested new tracks based on moment clusters
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get unassigned moments (excluding pillars to avoid pillar-based grouping)

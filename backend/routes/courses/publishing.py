@@ -59,31 +59,8 @@ def register_routes(bp):
             if not can_manage_course(user_data, course):
                 return jsonify({'error': 'Insufficient permissions. Only the course creator or superadmin can manage courses.'}), 403
 
-            data = request.json or {}
-            badge_id = course.get('badge_id')
-
-            # Create badge if requested
-            if data.get('create_badge') and not badge_id:
-                badge_data = {
-                    'name': data.get('badge_name', f"{course['title']} Completion"),
-                    'description': data.get('badge_description', f"Complete the {course['title']} course"),
-                    'badge_type': 'course_completion',
-                    'pillar_primary': 'none',
-                    'min_quests': 0,
-                    'min_xp': 0,
-                    'min_tasks': 0,
-                    'image_url': course.get('cover_image_url'),
-                    'organization_id': course['organization_id']
-                }
-                badge_result = admin_client.table('badges').insert(badge_data).execute()
-                if badge_result.data:
-                    badge_id = badge_result.data[0]['id']
-                    logger.info(f"Created course completion badge: {badge_id}")
-
-            # Update course status
+            # Update course status (badges feature removed 2026-04; no badge creation)
             updates = {'status': 'published'}
-            if badge_id:
-                updates['badge_id'] = badge_id
 
             result = admin_client.table('courses').update(updates).eq('id', course_id).execute()
             if not result.data:

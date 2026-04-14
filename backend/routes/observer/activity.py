@@ -25,7 +25,7 @@ def register_routes(bp):
         """
         Student views their own activity feed (same format as observer feed)
 
-        Shows completed tasks with evidence, likes, and comments.
+        Shows completed tasks with evidence and comments.
         Only accessible by the student themselves.
 
         Args:

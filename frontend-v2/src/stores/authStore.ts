@@ -40,6 +40,13 @@ interface AuthState {
   loginWithUsername: (slug: string, username: string, password: string) => Promise<void>;
   googleLogin: () => Promise<void>;
   handleGoogleCallback: (accessToken: string, refreshToken: string) => Promise<void>;
+  appleLoginWeb: () => Promise<void>;
+  handleAppleCallback: (
+    accessToken: string,
+    refreshToken: string,
+    fullName?: { first_name?: string; last_name?: string },
+  ) => Promise<void>;
+  appleLoginNative: () => Promise<void>;
   register: (data: {
     email: string;
     password: string;
@@ -194,6 +201,113 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         err.response?.data?.error?.message || err.response?.data?.message || 'Google sign-in failed';
       set({ isLoading: false, error: message });
       throw err;
+    }
+  },
+
+  appleLoginWeb: async () => {
+    if (Platform.OS !== 'web') return;
+    set({ isLoading: true, error: null });
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback?provider=apple`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo },
+      });
+      if (error) {
+        set({ isLoading: false, error: error.message });
+      }
+      // User is redirected to Apple, then back to /auth/callback
+    } catch (err: any) {
+      set({ isLoading: false, error: 'Failed to initiate Apple sign-in' });
+    }
+  },
+
+  handleAppleCallback: async (accessToken, refreshToken, fullName) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data } = await api.post('/api/auth/apple/callback', {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        full_name: fullName,
+      });
+
+      if (data.requires_tos_acceptance) {
+        // Reuse the same TOS acceptance endpoint as Google (shared helper).
+        const tosRes = await api.post('/api/auth/google/accept-tos', {
+          tos_acceptance_token: data.tos_acceptance_token,
+          accepted_tos: true,
+          accepted_privacy: true,
+        });
+        await tokenStore.setTokens(tosRes.data.app_access_token, tosRes.data.app_refresh_token);
+        set({
+          user: tosRes.data.user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
+
+      await tokenStore.setTokens(data.app_access_token, data.app_refresh_token);
+      set({
+        user: data.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error?.message || err.response?.data?.message || 'Apple sign-in failed';
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  appleLoginNative: async () => {
+    if (Platform.OS !== 'ios') return;
+    set({ isLoading: true, error: null });
+    try {
+      const AppleAuthentication = require('expo-apple-authentication');
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) {
+        set({ isLoading: false, error: 'Apple did not return an identity token' });
+        return;
+      }
+
+      // Exchange Apple identity token for a Supabase session.
+      const { data: sbData, error: sbError } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+      if (sbError || !sbData.session) {
+        set({ isLoading: false, error: sbError?.message || 'Supabase rejected Apple token' });
+        return;
+      }
+
+      const fullName = credential.fullName
+        ? {
+            first_name: credential.fullName.givenName || undefined,
+            last_name: credential.fullName.familyName || undefined,
+          }
+        : undefined;
+
+      await get().handleAppleCallback(
+        sbData.session.access_token,
+        sbData.session.refresh_token,
+        fullName,
+      );
+    } catch (err: any) {
+      // User-cancelled is not an error to surface.
+      if (err?.code === 'ERR_REQUEST_CANCELED') {
+        set({ isLoading: false, error: null });
+        return;
+      }
+      set({ isLoading: false, error: err?.message || 'Apple sign-in failed' });
     }
   },
 

@@ -188,6 +188,7 @@ Return ONLY valid JSON with this exact structure:
 
         # Get existing articles
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             client = get_supabase_admin_client()
             result = client.table('docs_articles').select(
                 'title, summary, target_roles'
@@ -274,6 +275,7 @@ Return 5-15 gaps, ordered by priority (high first)."""
 
         # Fetch the article
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             client = get_supabase_admin_client()
             result = client.table('docs_articles').select('*').eq(
                 'id', article_id
@@ -371,6 +373,7 @@ Return ONLY valid JSON:
 
         # Get existing categories
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             client = get_supabase_admin_client()
             result = client.table('docs_categories').select('title, slug').execute()
             existing_cats = result.data or []

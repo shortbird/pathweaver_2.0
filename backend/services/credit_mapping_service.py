@@ -48,6 +48,7 @@ class CreditMappingService(BaseService):
         Returns:
             Dictionary with credits by subject and totals
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Use the view we created in migration
@@ -95,6 +96,7 @@ class CreditMappingService(BaseService):
         Returns:
             Dictionary with credit breakdown
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get task details including credit_status and verified_subject_distribution
@@ -169,6 +171,7 @@ class CreditMappingService(BaseService):
         Returns:
             Transcript data
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get user info
@@ -285,6 +288,7 @@ class CreditMappingService(BaseService):
         Returns:
             List of credit ledger entries with quest/task details
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # NOTE: Cannot use a Supabase relationship join for the task title — the
@@ -341,6 +345,7 @@ class CreditMappingService(BaseService):
         Returns:
             Dictionary with credit breakdown by subject
         """
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         supabase = get_supabase_admin_client()
 
         # Get all tasks for this quest

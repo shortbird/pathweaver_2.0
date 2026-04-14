@@ -98,6 +98,7 @@ class CourseGenerationService(BaseAIService):
         super().__init__()
         self.user_id = user_id
         self.organization_id = organization_id  # None = platform-level content
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.admin_client = get_supabase_admin_client()
 
     # =========================================================================

@@ -183,6 +183,7 @@ class OrganizationService(BaseService):
 
         # Verify course is a global Optio course (organization_id IS NULL or different org)
         from database import get_supabase_admin_client
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         client = get_supabase_admin_client()
         course_result = client.table('courses').select('id, organization_id, status').eq('id', course_id).execute()
 

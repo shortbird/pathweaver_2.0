@@ -38,7 +38,9 @@ function getRedirectForRole(user: User): string {
 
 export default function LoginScreen() {
   const { observer_code } = useLocalSearchParams<{ observer_code?: string }>();
-  const { login, googleLogin, forgotPassword, isLoading, error, clearError } = useAuthStore();
+  const { login, googleLogin, appleLoginWeb, appleLoginNative, forgotPassword, isLoading, error, clearError } = useAuthStore();
+  const isWeb = Platform.OS === 'web';
+  const isIos = Platform.OS === 'ios';
 
   // Store pending observer invitation code
   React.useEffect(() => {
@@ -51,7 +53,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const isWeb = Platform.OS === 'web';
 
   // Forgot password state
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -214,7 +215,7 @@ export default function LoginScreen() {
                   <ButtonText>Don't have an account? Sign Up</ButtonText>
                 </Button>
 
-                {isWeb && (
+                {(isWeb || isIos) && (
                   <>
                     <View className="flex-row items-center my-1">
                       <View className="flex-1 h-px bg-surface-200" />
@@ -222,15 +223,30 @@ export default function LoginScreen() {
                       <View className="flex-1 h-px bg-surface-200" />
                     </View>
 
+                    {isWeb && (
+                      <Pressable
+                        onPress={googleLogin}
+                        disabled={isLoading}
+                        className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white active:bg-surface-50"
+                        style={{ opacity: isLoading ? 0.5 : 1 }}
+                      >
+                        <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
+                        <UIText className="font-poppins-medium text-typo">
+                          Sign in with Google
+                        </UIText>
+                      </Pressable>
+                    )}
+
                     <Pressable
-                      onPress={googleLogin}
+                      onPress={isIos ? appleLoginNative : appleLoginWeb}
                       disabled={isLoading}
-                      className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white active:bg-surface-50"
+                      className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black active:opacity-80"
                       style={{ opacity: isLoading ? 0.5 : 1 }}
+                      accessibilityLabel="Sign in with Apple"
                     >
-                      <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
-                      <UIText className="font-poppins-medium text-typo">
-                        Sign in with Google
+                      <UIText className="text-white text-[18px]" style={{ fontFamily: Platform.OS === 'web' ? '-apple-system, BlinkMacSystemFont, "San Francisco"' : undefined }}></UIText>
+                      <UIText className="font-poppins-medium text-white">
+                        Sign in with Apple
                       </UIText>
                     </Pressable>
                   </>

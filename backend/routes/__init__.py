@@ -291,6 +291,13 @@ def register_all(app):
     from routes.push_subscriptions import bp as push_subscriptions_bp
     app.register_blueprint(push_subscriptions_bp)
 
+    # ── Content moderation (report/block + admin queue) ───────────────────────
+    from routes.moderation import bp as moderation_bp
+    app.register_blueprint(moderation_bp)
+
+    from routes.admin.moderation_queue import bp as admin_moderation_bp
+    app.register_blueprint(admin_moderation_bp)
+
     # ── Evidence reports (shareable PDFs) ─────────────────────────────────────
     from routes.evidence_reports import bp as evidence_reports_bp
     app.register_blueprint(evidence_reports_bp)

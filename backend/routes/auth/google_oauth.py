@@ -493,26 +493,51 @@ def accept_tos():
             except Exception as promo_update_error:
                 logger.error(f"[GOOGLE_OAUTH] Failed to mark promo code as redeemed: {promo_update_error}")
 
-        # Send welcome email for new Google OAuth users (only once)
+        # Send welcome email for new OAuth users (Google/Apple). Use an atomic
+        # claim update so concurrent requests can't double-send: the UPDATE
+        # matches only when welcome_email_sent is still FALSE, and the winning
+        # caller (the one whose update actually affected a row) is the only
+        # one that goes on to send the email.
         if not user_data.get('welcome_email_sent'):
             try:
-                from services.email_service import EmailService
-                email_service = EmailService()
-                user_name = user_data.get('first_name') or user_data.get('display_name') or 'there'
-                email_sent = email_service.send_welcome_email(
-                    user_email=user_data.get('email'),
-                    user_name=user_name
-                )
-                if email_sent:
-                    # Mark welcome email as sent
-                    admin_client.table('users').update({
-                        'welcome_email_sent': True
-                    }).eq('id', user_id).execute()
-                    logger.info(f"[GOOGLE_OAUTH] Welcome email sent to new user {mask_user_id(user_id)}")
+                claim_result = admin_client.table('users').update({
+                    'welcome_email_sent': True
+                }).eq('id', user_id).eq('welcome_email_sent', False).execute()
+
+                # Only send if we won the claim — `data` is the set of rows
+                # the UPDATE actually modified (empty if someone else got there first).
+                if claim_result.data:
+                    from services.email_service import EmailService
+                    email_service = EmailService()
+                    # Leave user_name empty if we don't have a real one — the
+                    # template renders "Welcome to Optio!" instead of the
+                    # awkward "Welcome to Optio, there!".
+                    first_name_clean = (user_data.get('first_name') or '').strip()
+                    user_name = first_name_clean if first_name_clean.lower() not in ('', 'user') else ''
+                    if not user_name:
+                        user_name = (user_data.get('display_name') or '').strip()
+                    try:
+                        email_sent = email_service.send_welcome_email(
+                            user_email=user_data.get('email'),
+                            user_name=user_name
+                        )
+                        if email_sent:
+                            logger.info(f"[OAUTH] Welcome email sent to new user {mask_user_id(user_id)}")
+                        else:
+                            # Email failed: release the claim so a retry can try again.
+                            logger.warning(f"[OAUTH] Welcome email failed for user {mask_user_id(user_id)} — releasing claim")
+                            admin_client.table('users').update({
+                                'welcome_email_sent': False
+                            }).eq('id', user_id).execute()
+                    except Exception as send_error:
+                        logger.error(f"[OAUTH] Welcome email send raised: {send_error} — releasing claim")
+                        admin_client.table('users').update({
+                            'welcome_email_sent': False
+                        }).eq('id', user_id).execute()
                 else:
-                    logger.warning(f"[GOOGLE_OAUTH] Welcome email failed for user {mask_user_id(user_id)}")
+                    logger.debug(f"[OAUTH] Welcome email already claimed for user {mask_user_id(user_id)} — skipping")
             except Exception as email_error:
-                logger.error(f"[GOOGLE_OAUTH] Warning: Failed to send welcome email: {email_error}")
+                logger.error(f"[OAUTH] Welcome email claim logic raised: {email_error}")
 
         # Fetch updated user data
         updated_user = admin_client.table('users').select('*').eq('id', user_id).single().execute()
