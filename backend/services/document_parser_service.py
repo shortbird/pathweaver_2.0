@@ -144,7 +144,7 @@ class DocumentParserService(BaseService):
                 try:
                     progress_callback(message)
                 except Exception:
-                    pass  # Don't let progress reporting break parsing
+                    logger.debug("intentional swallow", exc_info=True)  # Don't let progress reporting break parsing
 
         try:
             import pdfplumber
@@ -653,7 +653,7 @@ class DocumentParserService(BaseService):
                 try:
                     progress_callback(message)
                 except Exception:
-                    pass
+                    logger.debug("intentional swallow", exc_info=True)
 
         try:
             import fitz  # PyMuPDF

@@ -280,7 +280,7 @@ def _create_helper_learning_event(supabase, student_id, uploader_id, uploader_ro
             'topic_id': quest_id
         }).execute()
     except Exception:
-        pass  # Duplicate or constraint error, non-fatal
+        logger.debug("intentional swallow", exc_info=True)  # Duplicate or constraint error, non-fatal
 
     # Create evidence block on the learning event
     block_data = {

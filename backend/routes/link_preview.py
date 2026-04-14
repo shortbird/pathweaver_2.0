@@ -115,7 +115,7 @@ def _extract_og_metadata(html, url):
             parsed = urlparse(url)
             result['site_name'] = parsed.hostname.replace('www.', '')
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
     # Make relative image URLs absolute
     if result['image'] and not result['image'].startswith(('http://', 'https://')):

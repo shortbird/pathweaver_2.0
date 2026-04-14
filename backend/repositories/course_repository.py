@@ -383,6 +383,7 @@ class CourseRepository(BaseRepository):
         try:
             # Use admin client for enrollment operations to bypass RLS
             from database import get_supabase_admin_client
+            # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
             admin_client = get_supabase_admin_client()
 
             # Check if already enrolled

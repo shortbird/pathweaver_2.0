@@ -30,6 +30,7 @@ class TaskLibrarySanitizationService(BaseService):
     def __init__(self):
         """Initialize the sanitization service with Gemini configuration"""
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
         self.api_key = Config.GEMINI_API_KEY
         self.model_name = Config.GEMINI_MODEL

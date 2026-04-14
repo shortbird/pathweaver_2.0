@@ -25,6 +25,7 @@ class PortfolioService:
     """
 
     def __init__(self, client=None):
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.client = client or get_supabase_admin_client()
 
     # =========================================================================
@@ -706,7 +707,7 @@ class PortfolioService:
                     'requested_at': req_result.data[0]['requested_at']
                 }
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         return None
 
@@ -763,7 +764,7 @@ class PortfolioService:
                 'denial_reason': 'User made portfolio private'
             }).eq('student_user_id', user_id).eq('status', 'pending').execute()
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         return {'success': True, 'is_public': False}
 

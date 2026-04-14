@@ -33,6 +33,7 @@ def save_recommendations_to_database(insights):
     Creates a log entry in a recommendations table (if exists) or logs to file.
     """
     try:
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         # Try to save to ai_improvement_logs table (create if needed)

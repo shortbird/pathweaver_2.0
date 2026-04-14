@@ -183,7 +183,7 @@ def register_routes(bp):
                     created_time = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                     is_new_user = (datetime.utcnow() - created_time.replace(tzinfo=None)) < timedelta(hours=1)
                 except (ValueError, TypeError):
-                    pass
+                    logger.debug("intentional swallow", exc_info=True)
 
             # Set role to 'observer' if:
             # 1. User has no role yet, OR

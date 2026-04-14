@@ -13,6 +13,7 @@ class CheckinRepository:
     """Repository for managing advisor check-in data"""
 
     def __init__(self):
+        # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
         self.supabase = get_supabase_admin_client()
 
     def create_checkin(self, checkin_data: Dict) -> Dict:

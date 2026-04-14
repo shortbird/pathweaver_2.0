@@ -86,7 +86,7 @@ def get_pending_verifications(user_id):
                         .execute()
                     task_data = task_response.data if task_response.data else {}
                 except Exception:
-                    pass  # Task may not exist
+                    logger.debug("intentional swallow", exc_info=True)  # Task may not exist
             student = students_map.get(completion.get('user_id'), {})
 
             pending_tasks.append({

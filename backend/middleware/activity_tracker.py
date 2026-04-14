@@ -259,7 +259,7 @@ class ActivityTracker:
                 if quest_index < len(path_parts) and path_parts[quest_index]:
                     event_data['quest_id'] = path_parts[quest_index]
             except (ValueError, IndexError):
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         if 'tasks' in path_parts:
             try:
@@ -267,7 +267,7 @@ class ActivityTracker:
                 if task_index < len(path_parts) and path_parts[task_index]:
                     event_data['task_id'] = path_parts[task_index]
             except (ValueError, IndexError):
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         if 'badges' in path_parts:
             try:
@@ -275,7 +275,7 @@ class ActivityTracker:
                 if badge_index < len(path_parts) and path_parts[badge_index]:
                     event_data['badge_id'] = path_parts[badge_index]
             except (ValueError, IndexError):
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         return event_data
 

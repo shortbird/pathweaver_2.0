@@ -103,7 +103,7 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                                 total_xp += xp_amount
                                 skill_breakdown[normalized_pillar] += xp_amount
                         except ValueError:
-                            pass
+                            logger.debug("intentional swallow", exc_info=True)
 
     except Exception as e:
         logger.error(f"Error calculating XP from V3 tasks: {str(e)}")
@@ -210,7 +210,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
                         
                 logger.info(f"Total XP from skill awards: {total_xp}")
         except:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
         
         # If no skill XP, try legacy subject-based XP
         if total_xp == 0:
@@ -228,7 +228,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
                         skill_breakdown[skill_cat] += amount
                         total_xp += amount
             except:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
     except Exception as e:
         logger.error(f"Error calculating XP from quests: {str(e)}")
     

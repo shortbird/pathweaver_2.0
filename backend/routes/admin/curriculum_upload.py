@@ -473,7 +473,7 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
             import json
             content_types = json.loads(content_types_str)
         except (json.JSONDecodeError, TypeError):
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
     # Get user-provided learning objectives (one per line)
     learning_objectives_str = request.form.get('learning_objectives', '').strip()

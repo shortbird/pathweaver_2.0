@@ -49,6 +49,7 @@ class JobScheduler:
         Returns:
             Job ID
         """
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         if scheduled_for is None:
@@ -81,6 +82,7 @@ class JobScheduler:
         Returns:
             List of pending job records
         """
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         now = datetime.utcnow().isoformat()
@@ -107,6 +109,7 @@ class JobScheduler:
         Returns:
             True if successful
         """
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         result = supabase.table('scheduled_jobs')\
@@ -131,6 +134,7 @@ class JobScheduler:
         Returns:
             True if successful
         """
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         update_data = {
@@ -160,6 +164,7 @@ class JobScheduler:
         Returns:
             True if successful
         """
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         result = supabase.table('scheduled_jobs')\
@@ -296,6 +301,7 @@ class JobScheduler:
         Returns:
             List of job records
         """
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         query = supabase.table('scheduled_jobs').select('*')
@@ -321,6 +327,7 @@ class JobScheduler:
         Returns:
             Number of jobs deleted
         """
+        # admin client justified: background job / scheduler — no user context, operates platform-wide
         supabase = get_supabase_admin_client()
 
         cutoff_date = (datetime.utcnow() - timedelta(days=days_old)).isoformat()

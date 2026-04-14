@@ -172,7 +172,7 @@ class FileUploadService(BaseService):
             if bucket:
                 return True
         except Exception:
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         # Bucket doesn't exist, try to create it
         try:

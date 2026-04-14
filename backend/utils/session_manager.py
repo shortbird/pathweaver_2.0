@@ -241,7 +241,7 @@ class SessionManager:
                 self._check_device_fingerprint(payload, 'access')
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         # Fallback to previous secret key during rotation period
         if self.previous_secret_key:
@@ -257,7 +257,7 @@ class SessionManager:
                     logger.info(f"[SessionManager] Token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         return None
     
@@ -275,7 +275,7 @@ class SessionManager:
                 self._check_device_fingerprint(payload, 'refresh')
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         # Fallback to previous secret key during rotation period
         if self.previous_secret_key:
@@ -291,7 +291,7 @@ class SessionManager:
                     logger.info(f"[SessionManager] Refresh token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         return None
 
@@ -307,7 +307,7 @@ class SessionManager:
                     return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         # Fallback to previous secret key during rotation period
         if self.previous_secret_key:
@@ -321,7 +321,7 @@ class SessionManager:
                     logger.info(f"[SessionManager] Masquerade token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         return None
 
@@ -337,7 +337,7 @@ class SessionManager:
                     return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            pass
+            logger.debug("intentional swallow", exc_info=True)
 
         # Fallback to previous secret key during rotation period
         if self.previous_secret_key:
@@ -351,7 +351,7 @@ class SessionManager:
                     logger.info(f"[SessionManager] Acting-as token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         return None
     

@@ -33,6 +33,7 @@ class TaskQualityService(BaseAIService):
         """Initialize the service with BaseAIService."""
         # Initialize BaseAIService (uses gemini-2.5-flash-lite by default per CLAUDE.md)
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
 
     def analyze_task_quality(

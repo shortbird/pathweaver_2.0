@@ -740,6 +740,7 @@ class BountyService(BaseService):
             event_id = result['event']['id']
 
             # Copy evidence blocks from claim to learning event
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
             evidence = claim.get('evidence') or {}
             deliverable_evidence = evidence.get('deliverable_evidence', {})

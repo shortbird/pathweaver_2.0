@@ -90,12 +90,11 @@ jobs:
         if: github.event_name == 'pull_request'
         working-directory: frontend
         env:
-          # Baseline was set to 40% on 2026-04-14 after the first PR under
-          # the new gating revealed that real coverage was 43.01% (CLAUDE.md
-          # previously quoted 60.61% but that figure was never CI-verified).
-          # Ratchet this upward over time as coverage improves; never
-          # downward.
-          MIN_COVERAGE: 40
+          # Ratcheted 40 -> 44 on 2026-04-14 after adding unit tests for
+          # utils/logger, utils/browserDetection, utils/nameUtils,
+          # utils/pillarHelpers, utils/errorHandling (coverage 43.02 ->
+          # 44.65 on that change). Ratchet upward only.
+          MIN_COVERAGE: 44
         run: |
           COV_OUTPUT=$(npm run test:coverage 2>&1 || true)
           echo "$COV_OUTPUT"
@@ -123,6 +122,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "**Required Pass Rate:** 95%" >> $GITHUB_STEP_SUMMARY
-          echo "**Required Coverage:** 40% lines (baseline 2026-04-14; ratchet up)" >> $GITHUB_STEP_SUMMARY
+          echo "**Required Coverage:** 44% lines (ratchet up over time, never down)" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

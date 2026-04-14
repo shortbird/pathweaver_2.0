@@ -68,6 +68,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status and track data
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Default color if not provided
@@ -124,6 +125,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status and tracks list
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             response = supabase.table('interest_tracks') \
@@ -167,6 +169,7 @@ class InterestTracksService(BaseService):
             Dictionary with track data and moments
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get track
@@ -245,6 +248,7 @@ class InterestTracksService(BaseService):
             Dictionary with track statistics
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Verify ownership
@@ -331,6 +335,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status and updated track
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             update_data = {'updated_at': datetime.utcnow().isoformat()}
@@ -388,6 +393,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Delete junction rows for this topic
@@ -442,6 +448,7 @@ class InterestTracksService(BaseService):
             Dictionary with unassigned moments
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Use RPC that checks junction table for unassigned moments
@@ -503,6 +510,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Verify moment ownership
@@ -542,7 +550,7 @@ class InterestTracksService(BaseService):
                         'topic_id': track_id
                     }).execute()
                 except Exception:
-                    pass  # Already exists (unique constraint), that's fine
+                    logger.debug("intentional swallow", exc_info=True)  # Already exists (unique constraint), that's fine
 
                 # Dual-write legacy column (set to first/this track)
                 supabase.table('learning_events') \
@@ -624,6 +632,7 @@ class InterestTracksService(BaseService):
                     'assigned_count': 0
                 }
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Verify track ownership
@@ -676,7 +685,7 @@ class InterestTracksService(BaseService):
                         .eq('id', row['learning_event_id']) \
                         .execute()
                 except Exception:
-                    pass  # Already exists (unique constraint)
+                    logger.debug("intentional swallow", exc_info=True)  # Already exists (unique constraint)
 
             # Recalculate moment count
             if assigned_count > 0:
@@ -717,6 +726,7 @@ class InterestTracksService(BaseService):
         try:
             from services.quest_generation_ai_service import QuestGenerationAIService
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # 1. Verify track ownership
@@ -816,6 +826,7 @@ class InterestTracksService(BaseService):
         try:
             from services.quest_generation_ai_service import QuestGenerationAIService
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # 1. Verify track ownership and get track with moments
@@ -1105,6 +1116,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status, standalone quest topics, and course topics
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get active quests with enrollment info
@@ -1290,6 +1302,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status and categorized topics
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get interest tracks
@@ -1381,6 +1394,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Verify moment ownership
@@ -1481,7 +1495,7 @@ class InterestTracksService(BaseService):
                         'topic_id': topic_id
                     }).execute()
                 except Exception:
-                    pass  # Already exists
+                    logger.debug("intentional swallow", exc_info=True)  # Already exists
 
                 # Dual-write legacy column
                 if topic_type == 'track':
@@ -1542,6 +1556,7 @@ class InterestTracksService(BaseService):
         doc_id_pattern = re.compile(r'Document ID: ([a-f0-9-]+)')
 
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
             logger.info(f"get_quest_moments called for quest_id={quest_id}, user_id={user_id}")
 
@@ -1715,6 +1730,7 @@ class InterestTracksService(BaseService):
             Dictionary with success status and created task
         """
         try:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
             # Get moment with quest assignment

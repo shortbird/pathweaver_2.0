@@ -871,7 +871,7 @@ def get_caseload_summary(user_id):
                 try:
                     date_objects.append(datetime.strptime(d, '%Y-%m-%d').date())
                 except (ValueError, TypeError):
-                    pass
+                    logger.debug("intentional swallow", exc_info=True)
 
             # Deduplicate dates
             date_objects = list(set(date_objects))

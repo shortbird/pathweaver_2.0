@@ -24,6 +24,7 @@ class ExpoPushService(BaseService):
             self.supabase = supabase
         else:
             from database import get_supabase_admin_client
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             self.supabase = get_supabase_admin_client()
 
     def send_notification(
@@ -114,7 +115,7 @@ class ExpoPushService(BaseService):
                             .eq('id', token_id)\
                             .execute()
                     except Exception:
-                        pass
+                        logger.debug("intentional swallow", exc_info=True)
                 logger.info(f"Deactivated {len(expired_ids)} expired Expo tokens")
 
             logger.info(f"Expo push to user {user_id[:8]}: {sent} sent, {failed} failed")

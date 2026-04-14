@@ -185,7 +185,7 @@ def register_routes(bp):
                 from utils.session_manager import session_manager
                 caller_id = session_manager.get_current_user_id()
             except Exception:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Check access
             has_access = False

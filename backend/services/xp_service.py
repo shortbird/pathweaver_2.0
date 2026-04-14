@@ -34,6 +34,7 @@ class XPService(BaseService):
                 self._supabase = self._client
             else:
                 from database import get_supabase_admin_client
+                # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
                 self._supabase = get_supabase_admin_client()
         return self._supabase
 

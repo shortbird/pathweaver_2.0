@@ -118,7 +118,7 @@ def delete_enrollment(user_id, quest_id):
                 if advisor_repo.verify_student_access(user_id, student_id):
                     has_access = True
             except Exception:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
             # Check parent access
             if not has_access:

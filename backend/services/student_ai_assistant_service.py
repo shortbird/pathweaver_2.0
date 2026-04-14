@@ -42,6 +42,7 @@ class StudentAIAssistantService(BaseService):
     def __init__(self):
         """Initialize the service with Gemini API."""
         super().__init__()
+        # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
         self.supabase = get_supabase_admin_client()
         if not Config.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY environment variable not set")

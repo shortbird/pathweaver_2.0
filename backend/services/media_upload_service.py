@@ -97,6 +97,7 @@ class MediaUploadResult:
     duration_seconds: Optional[float] = None
     width: Optional[int] = None
     height: Optional[int] = None
+    sha256_hash: Optional[str] = None
     error_message: Optional[str] = None
     error_code: Optional[str] = None
 
@@ -130,6 +131,7 @@ class MediaUploadService:
         bucket: Optional[str] = None,
         sub_id: Optional[str] = None,
         notify_user_id: Optional[str] = None,
+        security_scan: bool = False,
     ) -> MediaUploadResult:
         """
         Unified upload pipeline:
@@ -208,6 +210,31 @@ class MediaUploadService:
                     if not chunk:
                         break
                     tmp.write(chunk)
+
+            # Optional security scan (magic-byte / polyglot / suspicious pattern detection).
+            # Only used by the generic /api/uploads/evidence endpoint — other
+            # contexts trust the FileStorage's claimed type.
+            sha256_hash: Optional[str] = None
+            if security_scan:
+                from utils.file_validator import validate_file as _security_validate
+                with open(tmp_path, 'rb') as f:
+                    _scan_bytes = f.read()
+                _scan = _security_validate(filename, _scan_bytes, content_type)
+                del _scan_bytes  # free
+                if not _scan.is_valid:
+                    logger.warning(
+                        f"[MediaUpload] Security scan rejected {filename!r} "
+                        f"for user {user_id}: {_scan.error_message}"
+                    )
+                    return MediaUploadResult(
+                        success=False,
+                        error_message=_scan.error_message or 'File failed security validation',
+                        error_code='SECURITY_REJECTED',
+                    )
+                sha256_hash = _scan.sha256_hash
+                # Prefer the scanner's detected MIME over the client-supplied one.
+                if _scan.detected_mime:
+                    content_type = _scan.detected_mime
 
             # Convert HEIF/HEIC to JPEG (browsers can't display HEIF natively)
             if ext in ('heic', 'heif') and block_type == 'image':
@@ -323,6 +350,7 @@ class MediaUploadService:
             file_size=file_size,
             content_type=content_type,
             media_type=block_type,
+            sha256_hash=sha256_hash,
             **video_metadata,
         )
 

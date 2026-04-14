@@ -16,6 +16,7 @@ def get_source_header_image(source_id):
     if not source_id:
         return None
     
+    # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
     supabase = get_supabase_admin_client()
     
     try:

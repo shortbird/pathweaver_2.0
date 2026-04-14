@@ -27,6 +27,7 @@ def is_assigned_advisor(user_id: str) -> bool:
     """
     from database import get_supabase_admin_client
     try:
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
         supabase = get_supabase_admin_client()
         result = supabase.table('advisor_student_assignments')\
             .select('id', count='exact')\
@@ -115,6 +116,7 @@ def require_admin(f):
         max_retries = 2
         for attempt in range(max_retries):
             try:
+                # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
                 supabase = get_supabase_admin_client()
                 user = supabase.table('users').select('role').eq('id', user_id).execute()
 
@@ -174,6 +176,7 @@ def require_role(*allowed_roles):
             max_retries = 2
             for attempt in range(max_retries):
                 try:
+                    # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
                     supabase = get_supabase_admin_client()
                     user = supabase.table('users').select('role, org_role, org_roles').eq('id', user_id).execute()
 
@@ -264,6 +267,7 @@ def require_advisor(f):
 
         # Verify advisor or admin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
         supabase = get_supabase_admin_client()
 
         try:
@@ -358,6 +362,7 @@ def require_advisor_for_student(f):
 
         # Verify permissions (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
         supabase = get_supabase_admin_client()
 
         try:
@@ -424,6 +429,7 @@ def require_superadmin(f):
 
         # Verify superadmin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
         supabase = get_supabase_admin_client()
 
         try:
@@ -472,6 +478,7 @@ def require_school_admin(f):
 
         # Verify org_admin or superadmin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
         supabase = get_supabase_admin_client()
 
         try:
@@ -528,6 +535,7 @@ def require_org_admin(f):
 
         # Verify org admin or superadmin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
         supabase = get_supabase_admin_client()
 
         try:
@@ -596,6 +604,7 @@ def get_advisor_assigned_students(advisor_id):
         Empty list if advisor has no assigned students
     """
     from database import get_supabase_admin_client
+    # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
     supabase = get_supabase_admin_client()
 
     try:
@@ -655,6 +664,7 @@ def require_parental_consent(f):
 
         # Check parental consent status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
         supabase = get_supabase_admin_client()
 
         try:

@@ -682,7 +682,7 @@ class BaseAIService(BaseService):
             try:
                 return json.loads(json_obj_match.group())
             except json.JSONDecodeError:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         # Try 4: Find JSON array [ ... ]
         json_arr_match = re.search(r'\[[\s\S]*\]', cleaned_text)
@@ -690,7 +690,7 @@ class BaseAIService(BaseService):
             try:
                 return json.loads(json_arr_match.group())
             except json.JSONDecodeError:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         # Try 5: Find first { and last } (greedy)
         first_brace = cleaned_text.find('{')
@@ -699,7 +699,7 @@ class BaseAIService(BaseService):
             try:
                 return json.loads(cleaned_text[first_brace:last_brace + 1])
             except json.JSONDecodeError:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         # Try 6: Find first [ and last ] (greedy)
         first_bracket = cleaned_text.find('[')
@@ -708,7 +708,7 @@ class BaseAIService(BaseService):
             try:
                 return json.loads(cleaned_text[first_bracket:last_bracket + 1])
             except json.JSONDecodeError:
-                pass
+                logger.debug("intentional swallow", exc_info=True)
 
         # Try 7: Repair truncated JSON (common with long responses)
         logger.debug("Try 7: Attempting truncated JSON repair")
@@ -1357,6 +1357,7 @@ class BaseAIService(BaseService):
         try:
             from database import get_supabase_admin_client
 
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
             if supabase:
                 log_entry = {

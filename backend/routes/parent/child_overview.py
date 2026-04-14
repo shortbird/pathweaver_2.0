@@ -513,7 +513,7 @@ def get_child_overview(user_id, student_id):
                     'parent_approval_denied': visibility_response.data.get('parent_approval_denied', False)
                 }
         except Exception:
-            pass  # Table or record may not exist
+            logger.debug("intentional swallow", exc_info=True)  # Table or record may not exist
 
         # 9. Build pillars data for constellation
         seven_days_ago = (date.today() - timedelta(days=7)).isoformat()

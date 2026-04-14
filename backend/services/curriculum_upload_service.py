@@ -103,6 +103,7 @@ class CurriculumUploadService:
     def admin_client(self):
         """Lazy-loaded admin client for database operations."""
         if self._admin_client is None:
+            # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             self._admin_client = get_supabase_admin_client()
         return self._admin_client
 
@@ -791,7 +792,7 @@ class CurriculumUploadService:
                 try:
                     self._update_progress(upload_id, 1, None, message)
                 except Exception:
-                    pass
+                    logger.debug("intentional swallow", exc_info=True)
 
         if source_type == 'imscc':
             result = self.imscc_parser.parse_imscc_file(content)
