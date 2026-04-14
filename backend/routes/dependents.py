@@ -50,6 +50,7 @@ def verify_parent_role(user_id: str, check_relationships: bool = False):
     2. User is superadmin
     3. (If check_relationships=True) User has dependents or linked students
     """
+    # admin client justified: role/relationship lookup is itself the auth check; reads users + parent_student_links to determine if caller can manage dependents
     supabase = get_supabase_admin_client()
 
     user_response = supabase.table('users').select('role, org_role').eq('id', user_id).execute()
@@ -97,6 +98,7 @@ def get_my_dependents(user_id):
         # Allow users with parent relationships to view their dependents
         verify_parent_role(user_id, check_relationships=True)
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -159,6 +161,7 @@ def create_dependent(user_id):
             raise ValidationError("date_of_birth must be in YYYY-MM-DD format")
 
         # Create dependent
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -203,6 +206,7 @@ def get_dependent(user_id, dependent_id):
     try:
         verify_parent_role(user_id)
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -265,6 +269,7 @@ def update_dependent(user_id, dependent_id):
             except ValueError:
                 raise ValidationError("date_of_birth must be in YYYY-MM-DD format")
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -315,6 +320,7 @@ def upload_dependent_avatar(user_id, dependent_id):
     try:
         verify_parent_role(user_id)
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -402,6 +408,7 @@ def delete_dependent(user_id, dependent_id):
     try:
         verify_parent_role(user_id)
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -469,6 +476,7 @@ def promote_dependent(user_id, dependent_id):
             # Return first error message for user-friendly feedback
             raise ValidationError(error_messages[0] if error_messages else "Password does not meet security requirements")
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -548,6 +556,7 @@ def add_dependent_login(user_id, dependent_id):
         if not is_valid:
             raise ValidationError(error_messages[0] if error_messages else "Password does not meet security requirements")
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -654,6 +663,7 @@ def toggle_child_ai_access(user_id, child_id):
         if not isinstance(enabled, bool):
             raise ValidationError("enabled must be a boolean")
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
 
         # Check if parent owns this child via managed_by_parent_id OR parent_student_links
@@ -750,6 +760,7 @@ def update_child_ai_features(user_id: str, child_id: str):
             if not isinstance(data[key], bool):
                 return jsonify({'success': False, 'error': f'Feature {key} must be a boolean'}), 400
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -831,6 +842,7 @@ def generate_acting_as_token(user_id, dependent_id):
     try:
         verify_parent_role(user_id)
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
@@ -888,6 +900,7 @@ def stop_acting_as():
         if not user_id:
             return jsonify({'success': False, 'error': 'Authentication required'}), 401
 
+        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
 
         # Verify the parent user exists

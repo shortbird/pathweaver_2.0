@@ -17,7 +17,7 @@
     "@tiptap/react": "^3.14.0",
     "@tiptap/starter-kit": "^3.14.0",
     "@xyflow/react": "^12.10.0",
-    "axios": "^1.7.2",
+    "axios": "^1.15.0",
     "canvas-confetti": "^1.9.4",
     "date-fns": "^4.1.0",
     "dompurify": "^3.3.1",
@@ -83,6 +83,13 @@
             "warn",
             "error"
           ]
+        }
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "CallExpression[callee.object.name='localStorage'][callee.property.name='setItem'][arguments.0.value=/^(access_token|refresh_token|app_access_token|app_refresh_token|user|original_admin_token|masquerade_token|session_encryption_key)$/]",
+          "message": "C2 security: never persist auth tokens, the user object, or the legacy encryption key in localStorage. Tokens live in memory + httpOnly cookies via tokenStore (services/api.js)."
         }
       ]
     }

@@ -5,15 +5,15 @@
  * Shows student info, content, evidence, pillar tags, and social actions.
  */
 
-import React, { useState, useRef } from 'react';
-import { View, Image, Pressable, Linking, Animated, Platform, Share } from 'react-native';
+import React, { useState } from 'react';
+import { View, Image, Pressable, Linking, Platform, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '../ui';
 import { VideoPlayer } from './VideoPlayer';
 import { DocumentViewer } from './DocumentViewer';
 import { MediaModal } from './MediaModal';
 import type { FeedItem } from '@/src/hooks/useFeed';
-import { toggleLike, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
+import { getViewers, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
 import { useAuthStore } from '@/src/stores/authStore';
 import { PillarBadge } from '../ui';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
@@ -173,14 +173,15 @@ interface FeedCardProps {
 }
 
 export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
-  const [liked, setLiked] = useState(item.user_has_liked);
-  const [likesCount, setLikesCount] = useState(item.likes_count);
+  const [viewsCount, setViewsCount] = useState(item.views_count || 0);
+  const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null }>>([]);
+  const [showViewersList, setShowViewersList] = useState(false);
+  const [loadingViewers, setLoadingViewers] = useState(false);
   const [commentsCount, setCommentsCount] = useState(item.comments_count);
   const [isConfidential, setIsConfidential] = useState(item.is_confidential);
   const [showComments, setShowComments] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareToast, setShareToast] = useState('');
-  const likeScale = useRef(new Animated.Value(1)).current;
   const { user } = useAuthStore();
 
   const isTask = item.type === 'task_completed';
@@ -195,24 +196,21 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
 
   const timeAgo = formatTimeAgo(item.timestamp);
 
-  const animateLike = () => {
-    Animated.sequence([
-      Animated.spring(likeScale, { toValue: 1.4, useNativeDriver: true, speed: 50, bounciness: 12 }),
-      Animated.spring(likeScale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 12 }),
-    ]).start();
-  };
-
-  const handleLike = async () => {
-    const prevLiked = liked;
-    const prevCount = likesCount;
-    setLiked(!liked);
-    setLikesCount(liked ? likesCount - 1 : likesCount + 1);
-    if (!liked) animateLike();
+  const handleShowViewers = async () => {
+    if (showViewersList) {
+      setShowViewersList(false);
+      return;
+    }
+    setShowViewersList(true);
+    setLoadingViewers(true);
     try {
-      await toggleLike(item.type, item.id);
+      const data = await getViewers(item.type, item.id);
+      setViewers(data.viewers || []);
+      setViewsCount(data.total || 0);
     } catch {
-      setLiked(prevLiked);
-      setLikesCount(prevCount);
+      // silently fail
+    } finally {
+      setLoadingViewers(false);
     }
   };
 
@@ -332,17 +330,15 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
 
           {/* Social actions */}
           <HStack className="items-center gap-4 pt-1 border-t border-surface-100 mt-1">
-            <Pressable onPress={handleLike} className="flex-row items-center gap-1.5 py-1">
-              <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-                <Ionicons
-                  name={liked ? 'heart' : 'heart-outline'}
-                  size={18}
-                  color={liked ? '#EF597B' : '#9CA3AF'}
-                />
-              </Animated.View>
-              {likesCount > 0 && (
-                <UIText size="xs" className={liked ? 'text-optio-pink' : 'text-typo-400'}>
-                  {likesCount}
+            <Pressable onPress={handleShowViewers} className="flex-row items-center gap-1.5 py-1">
+              <Ionicons
+                name="eye-outline"
+                size={18}
+                color={showViewersList ? '#6D469B' : '#9CA3AF'}
+              />
+              {viewsCount > 0 && (
+                <UIText size="xs" className={showViewersList ? 'text-optio-purple' : 'text-typo-400'}>
+                  {viewsCount}
                 </UIText>
               )}
             </Pressable>
@@ -372,6 +368,33 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
               </Pressable>
             )}
           </HStack>
+
+          {/* Viewers list */}
+          {showViewersList && (
+            <View className="bg-surface-50 rounded-lg p-3 mt-1">
+              {loadingViewers ? (
+                <UIText size="xs" className="text-typo-400 text-center">Loading...</UIText>
+              ) : viewers.length > 0 ? (
+                <VStack space="xs">
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Viewed by</UIText>
+                  {viewers.map((v) => (
+                    <HStack key={v.id} className="items-center gap-2">
+                      <Avatar size="xs">
+                        {v.avatar_url ? (
+                          <AvatarImage source={{ uri: v.avatar_url }} />
+                        ) : (
+                          <AvatarFallbackText>{v.display_name?.charAt(0) || '?'}</AvatarFallbackText>
+                        )}
+                      </Avatar>
+                      <UIText size="xs" className="text-typo-600">{v.display_name}</UIText>
+                    </HStack>
+                  ))}
+                </VStack>
+              ) : (
+                <UIText size="xs" className="text-typo-400 text-center">No views yet</UIText>
+              )}
+            </View>
+          )}
 
           {/* Share toast */}
           {shareToast ? (

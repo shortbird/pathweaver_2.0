@@ -12,7 +12,6 @@ from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_user_id, mask_email
 from middleware.error_handler import ValidationError, AuthenticationError
 from datetime import datetime, timedelta, timezone
-import os
 import time
 import random
 
@@ -173,7 +172,7 @@ def register_routes(bp):
                 'cookie_domain': session_manager.cookie_domain,
                 'frontend_url': Config.FRONTEND_URL,
                 'backend_url': request.host_url,
-                'environment': os.getenv('FLASK_ENV', 'Not set'),
+                'environment': Config.FLASK_ENV or 'Not set',
                 'partitioned_cookies_enabled': session_manager.is_cross_origin,
             }
 
@@ -239,7 +238,7 @@ def register_routes(bp):
             return jsonify({
                 'error': 'Failed to generate debug info',
                 'message': str(e),
-                'traceback': traceback.format_exc() if os.getenv('FLASK_ENV') == 'development' else None
+                'traceback': traceback.format_exc() if Config.FLASK_ENV == 'development' else None
             }), 500
 
 

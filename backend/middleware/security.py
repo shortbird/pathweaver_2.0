@@ -4,12 +4,12 @@ Security middleware for input validation and request sanitization
 import re
 import json
 import secrets
-import os
 from flask import request, jsonify, abort, g
 from functools import wraps
 from typing import Dict, List, Any
 from werkzeug.exceptions import BadRequest
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -95,7 +95,7 @@ class SecurityMiddleware:
         response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
 
         # HSTS header (production only)
-        if os.getenv('FLASK_ENV') == 'production':
+        if Config.FLASK_ENV == 'production':
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
 
         # CSP header for additional XSS protection
@@ -106,7 +106,7 @@ class SecurityMiddleware:
             # Enhanced CSP with nonce support for React/Vite application
             # Note: 'unsafe-inline' and 'unsafe-eval' are needed for Vite dev mode
             # In production builds, Vite doesn't require these
-            is_production = os.getenv('FLASK_ENV') == 'production'
+            is_production = Config.FLASK_ENV == 'production'
 
             if is_production:
                 # Strict CSP for production (nonce-based)

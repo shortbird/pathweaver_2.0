@@ -70,6 +70,7 @@ def upload_logo(current_user):
 
         # Admin client: Admin operations (ADR-002, Rule 2)
         file_data = logo_file.read()
+        # admin client justified: site settings are global; writes gated by @require_admin
         supabase = get_supabase_admin_client()
 
         # Create bucket if it doesn't exist

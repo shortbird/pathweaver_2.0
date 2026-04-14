@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 
 def get_user_info(user_id: str):
     """Get user role and organization info"""
+    # admin client justified: classes module helper; class advisor mgmt under org_admin/superadmin role checks
     supabase = get_supabase_admin_client()
     user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
     if not user.data:
@@ -113,6 +114,7 @@ def add_class_advisor(user_id, org_id, class_id):
             return jsonify({'success': False, 'error': 'advisor_id is required'}), 400
 
         # Verify advisor exists and has advisor role in the same org
+        # admin client justified: class advisor mgmt under @require_role(org_admin/superadmin); cross-org user lookup for advisor verification
         supabase = get_supabase_admin_client()
         advisor = supabase.table('users').select('id, role, org_role, organization_id').eq('id', advisor_id).execute()
 

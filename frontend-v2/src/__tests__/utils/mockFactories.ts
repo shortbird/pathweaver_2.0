@@ -189,9 +189,8 @@ export function createMockFeedItem(overrides: Partial<FeedItem> = {}): FeedItem 
       quest_title: 'Math Mastery',
     },
     evidence: { type: 'text', preview_text: 'Solved all problems correctly' },
-    likes_count: 2,
+    views_count: 2,
     comments_count: 1,
-    user_has_liked: false,
     is_confidential: false,
     ...overrides,
   };

@@ -29,6 +29,7 @@ def get_student_progress(user_id, student_id):
     """
     supabase = None
     try:
+        # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -109,6 +110,7 @@ def get_learning_insights(user_id, student_id):
     """
     supabase = None
     try:
+        # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -281,6 +283,7 @@ def get_student_communications(user_id, student_id):
     Read-only access for parents.
     """
     try:
+        # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -358,6 +361,7 @@ def get_encouragement_tips(user_id, student_id):
     Get context-aware process-focused encouragement tips for parents.
     """
     try:
+        # admin client justified: parent dashboard analytics; reads cross-user child data after parent->child relationship verification (managed_by_parent_id / parent_student_links)
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 

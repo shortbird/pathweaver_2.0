@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import api, { observerAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import {
-  HeartIcon,
+  EyeIcon,
   ChatBubbleLeftIcon,
   LinkIcon,
   ShareIcon,
@@ -23,7 +23,6 @@ import LinkPreviewCard from './LinkPreviewCard';
 import VideoLinkPreview from './VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
 import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
-import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
 // Pillar colors mapping
 const PILLAR_COLORS = {
@@ -39,9 +38,10 @@ const TEXT_PREVIEW_LENGTH = 150;
 
 const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdate }) => {
   const { user } = useAuth();
-  const [liked, setLiked] = useState(item.user_has_liked);
-  const [likesCount, setLikesCount] = useState(item.likes_count);
-  const [isLiking, setIsLiking] = useState(false);
+  const [viewsCount, setViewsCount] = useState(item.views_count || 0);
+  const [showViewers, setShowViewers] = useState(false);
+  const [viewers, setViewers] = useState([]);
+  const [loadingViewers, setLoadingViewers] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [comments, setComments] = useState([]);
   const [commentsCount, setCommentsCount] = useState(item.comments_count || 0);
@@ -93,25 +93,24 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
     }
   };
 
-  const handleLike = async () => {
-    if (isLiking || !hasSocialTarget) return;
-    setIsLiking(true);
-    const wasLiked = liked;
-    const prevCount = likesCount;
-    setLiked(!wasLiked);
-    setLikesCount(wasLiked ? prevCount - 1 : prevCount + 1);
+  const handleShowViewers = async () => {
+    if (!hasSocialTarget) return;
+    if (showViewers) {
+      setShowViewers(false);
+      return;
+    }
+    setShowViewers(true);
+    setLoadingViewers(true);
     try {
-      if (isLearningMoment) {
-        await observerAPI.toggleLearningEventLike(learningEventId);
-      } else {
-        await observerAPI.toggleLike(completionId);
-      }
+      const targetType = isLearningMoment ? 'learning_event' : 'completion';
+      const targetId = isLearningMoment ? learningEventId : completionId;
+      const response = await observerAPI.getViewers(targetType, targetId);
+      setViewers(response.data.viewers || []);
+      setViewsCount(response.data.total || 0);
     } catch (err) {
-      setLiked(wasLiked);
-      setLikesCount(prevCount);
-      console.error('Failed to toggle like:', err);
+      console.error('Failed to load viewers:', err);
     } finally {
-      setIsLiking(false);
+      setLoadingViewers(false);
     }
   };
 
@@ -532,15 +531,14 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
         </div>
       )}
 
-      {/* 6. Like/comment/edit buttons */}
+      {/* 6. Views/comment/edit buttons */}
       <div className="px-4 sm:px-5 py-2 border-t border-gray-100 flex items-center gap-4">
         <button
-          onClick={handleLike}
-          disabled={isLiking}
-          className={`flex items-center gap-1 p-2 transition-colors ${liked ? 'text-red-500' : 'text-gray-700 hover:text-gray-500'}`}
+          onClick={handleShowViewers}
+          className={`flex items-center gap-1 p-2 transition-colors ${showViewers ? 'text-optio-purple' : 'text-gray-700 hover:text-gray-500'}`}
         >
-          {liked ? <HeartIconSolid className="w-6 h-6" /> : <HeartIcon className="w-6 h-6" />}
-          {likesCount > 0 && <span className="text-sm">{likesCount}</span>}
+          <EyeIcon className="w-6 h-6" />
+          {viewsCount > 0 && <span className="text-sm">{viewsCount}</span>}
         </button>
         <button
           onClick={() => setCommentsExpanded(!commentsExpanded)}
@@ -590,7 +588,34 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
         )}
       </div>
 
-      {/* 7. Previous comments */}
+      {/* 7. Viewers list */}
+      {showViewers && (
+        <div className="border-t border-gray-100 bg-gray-50 px-4 sm:px-5 py-3">
+          {loadingViewers ? (
+            <p className="text-sm text-gray-500 text-center">Loading viewers...</p>
+          ) : viewers.length > 0 ? (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">Viewed by</p>
+              <div className="flex flex-wrap gap-2">
+                {viewers.map(v => (
+                  <div key={v.id} className="flex items-center gap-1.5 bg-white rounded-full px-2.5 py-1 border border-gray-200">
+                    {v.avatar_url ? (
+                      <img src={v.avatar_url} alt={v.display_name} className="w-5 h-5 rounded-full object-cover" />
+                    ) : (
+                      <UserCircleIcon className="w-5 h-5 text-gray-400" />
+                    )}
+                    <span className="text-xs text-gray-700">{v.display_name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center">No views yet</p>
+          )}
+        </div>
+      )}
+
+      {/* 8. Previous comments */}
       {commentsExpanded && (
         <div className="border-t border-gray-100 bg-gray-50">
           {!isStudentView && (
@@ -732,9 +757,8 @@ FeedCard.propTypes = {
       title: PropTypes.string
     })),
     xp_awarded: PropTypes.number,
-    likes_count: PropTypes.number,
+    views_count: PropTypes.number,
     comments_count: PropTypes.number,
-    user_has_liked: PropTypes.bool,
     is_confidential: PropTypes.bool
   }).isRequired,
   showStudentName: PropTypes.bool,

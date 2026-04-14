@@ -29,6 +29,7 @@ def verify_parent_has_access_to_child(parent_id: str, child_id: str) -> bool:
     1. managed_by_parent_id (dependent under 13)
     2. parent_student_links with approved status (linked 13+ student)
     """
+    # admin client justified: parent->child relationship lookup helper used by route handlers below; reads users + parent_student_links
     supabase = get_supabase_admin_client()
 
     # Check managed_by_parent_id
@@ -63,6 +64,7 @@ def create_family_quest(user_id):
         if not data.get('title'):
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
+        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Auto-fetch image if not provided
@@ -117,6 +119,7 @@ def update_family_quest_template_tasks(user_id, quest_id):
     try:
         verify_parent_role(user_id)
 
+        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify quest ownership
@@ -198,6 +201,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
         if not isinstance(child_ids, list) or len(child_ids) == 0:
             return jsonify({'success': False, 'error': 'child_ids must be a non-empty array'}), 400
 
+        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify quest exists and parent owns it
@@ -302,6 +306,7 @@ def create_task_for_dependent(user_id, quest_id):
         if not verify_parent_has_access_to_child(user_id, child_id):
             return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
+        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify child IS a dependent (managed_by_parent_id == user_id)
@@ -398,6 +403,7 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
         if not verify_parent_has_access_to_child(user_id, child_id):
             return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
+        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify child IS a dependent (managed_by_parent_id == user_id)

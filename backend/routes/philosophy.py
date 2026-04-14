@@ -47,6 +47,7 @@ def generate_slug(label):
 def get_philosophy_map():
     """Return all visible nodes and edges in one payload."""
     try:
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
 
         nodes_result = client.table('philosophy_nodes').select(
@@ -80,6 +81,7 @@ def get_philosophy_map():
 def admin_list_nodes(user_id):
     """List all nodes including hidden ones."""
     try:
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
         result = client.table('philosophy_nodes').select('*').order('sort_order').execute()
         return jsonify({'success': True, 'nodes': result.data or []}), 200
@@ -97,6 +99,7 @@ def admin_create_node(user_id):
         if not data or not data.get('label'):
             return jsonify({'error': 'Label is required'}), 400
 
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
 
         node = {
@@ -131,6 +134,7 @@ def admin_update_positions(user_id):
         if not data or not isinstance(data.get('positions'), list):
             return jsonify({'error': 'positions array is required'}), 400
 
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
 
         for pos in data['positions']:
@@ -157,6 +161,7 @@ def admin_update_node(user_id, node_id):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
 
         allowed_fields = [
@@ -188,6 +193,7 @@ def admin_update_node(user_id, node_id):
 def admin_delete_node(user_id, node_id):
     """Delete a philosophy node. Edges cascade automatically."""
     try:
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
         result = client.table('philosophy_nodes').delete().eq('id', node_id).execute()
 
@@ -208,6 +214,7 @@ def admin_delete_node(user_id, node_id):
 def admin_list_edges(user_id):
     """List all edges."""
     try:
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
         result = client.table('philosophy_edges').select('*').execute()
         return jsonify({'success': True, 'edges': result.data or []}), 200
@@ -225,6 +232,7 @@ def admin_create_edge(user_id):
         if not data or not data.get('source_node_id') or not data.get('target_node_id'):
             return jsonify({'error': 'source_node_id and target_node_id are required'}), 400
 
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
 
         edge = {
@@ -252,6 +260,7 @@ def admin_update_edge(user_id, edge_id):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
 
         allowed_fields = [
@@ -281,6 +290,7 @@ def admin_update_edge(user_id, edge_id):
 def admin_delete_edge(user_id, edge_id):
     """Delete a philosophy edge."""
     try:
+        # admin client justified: philosophy content is public read + admin-gated writes; admin client used for both since philosophy_nodes/edges are global
         client = get_supabase_admin_client()
         result = client.table('philosophy_edges').delete().eq('id', edge_id).execute()
 

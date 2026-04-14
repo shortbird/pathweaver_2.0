@@ -398,6 +398,7 @@ def get_approach_examples(quest_id: str):
             }), 400
 
         # Get quest data
+        # admin client justified: quest AI service uses admin client for cross-quest reads + writes to ai_review_queue
         supabase = get_supabase_admin_client()
         quest_result = supabase.table('quests').select(
             'id, title, big_idea, description, approach_examples'
@@ -487,6 +488,7 @@ def accept_approach(user_id: str, quest_id: str):
                 'error': 'approach_index is required'
             }), 400
 
+        # admin client justified: quest AI service uses admin client for cross-quest reads + writes to ai_review_queue
         supabase = get_supabase_admin_client()
 
         # Get quest with approach examples

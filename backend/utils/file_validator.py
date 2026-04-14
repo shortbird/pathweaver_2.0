@@ -431,8 +431,8 @@ class FileValidator:
 
 # Global validator instance (initialized without virus scanning by default)
 # Enable virus scanning in production by setting ENABLE_VIRUS_SCAN env var
-import os
-_validator = FileValidator(enable_virus_scan=os.getenv('ENABLE_VIRUS_SCAN', 'false').lower() == 'true')
+from app_config import Config
+_validator = FileValidator(enable_virus_scan=Config.ENABLE_VIRUS_SCAN)
 
 
 def validate_file(

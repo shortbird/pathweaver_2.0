@@ -36,6 +36,7 @@ def add_sample_task_to_user_quest(user_id, quest_id):
         "sample_task_id": "uuid"
     }
     """
+    # admin client justified: quest task templates need cross-quest reads on user_quest_tasks for personalization + writes scoped to caller (self) under @require_auth
     supabase = get_supabase_admin_client()
 
     try:
@@ -152,6 +153,7 @@ def get_sample_tasks_for_quest(quest_id: str, randomize: bool = True):
     Helper function to get sample tasks for an Optio quest.
     Returns randomized order for inspiration.
     """
+    # admin client justified: quest task templates need cross-quest reads on user_quest_tasks for personalization + writes scoped to caller (self) under @require_auth
     supabase = get_supabase_admin_client()
 
     try:
@@ -184,6 +186,7 @@ def get_course_tasks_for_quest(quest_id: str):
     DEPRECATED: Use get_template_tasks() instead. This function remains
     for backward compatibility during the unified quest migration.
     """
+    # admin client justified: quest task templates need cross-quest reads on user_quest_tasks for personalization + writes scoped to caller (self) under @require_auth
     supabase = get_supabase_admin_client()
 
     try:
@@ -245,6 +248,7 @@ def _get_legacy_tasks(quest_id: str, filter_type: str, randomize_optional: bool)
     Fallback to legacy task tables during migration.
     Checks both course_quest_tasks (required) and quest_sample_tasks (optional).
     """
+    # admin client justified: quest task templates need cross-quest reads on user_quest_tasks for personalization + writes scoped to caller (self) under @require_auth
     supabase = get_supabase_admin_client()
     tasks = []
 

@@ -45,6 +45,7 @@ def enhance_content(user_id: str):
     try:
         # Get effective user
         effective_user_id = session_manager.get_effective_user_id()
+        # admin client justified: AI curriculum enhancement restricted to superadmin (verified inline below); reads cross-quest curriculum content
         client = get_supabase_admin_client()
 
         # Check if user is superadmin

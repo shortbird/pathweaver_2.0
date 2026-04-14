@@ -100,6 +100,7 @@ def get_student_calendar(user_id, student_id):
     """
     supabase = None
     try:
+        # admin client justified: parent views child quest progress + calendar; cross-user reads gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -195,6 +196,7 @@ def get_completed_quests(user_id, student_id):
     Returns quest details with completion stats for parent viewing.
     """
     try:
+        # admin client justified: parent views child quest progress + calendar; cross-user reads gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -289,6 +291,7 @@ def get_student_quest_view(user_id, student_id, quest_id):
     Shows student's personalized tasks and completion status.
     """
     try:
+        # admin client justified: parent views child quest progress + calendar; cross-user reads gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 

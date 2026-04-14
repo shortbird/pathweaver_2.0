@@ -31,6 +31,7 @@ def register_routes(bp):
         user_id = request.user_id
 
         try:
+            # admin client justified: pending observer-invitation list for caller; reads observer_invitations + observer_invitation_students scoped by invited_by_user_id == user_id
             supabase = get_supabase_admin_client()
 
             # Get user's email

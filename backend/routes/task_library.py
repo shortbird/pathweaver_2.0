@@ -96,6 +96,7 @@ def select_library_task(user_id, quest_id):
 
         # Admin client: Auth verified by decorator (ADR-002, Rule 3)
         from database import get_supabase_admin_client
+        # admin client justified: shared task library browse needs cross-user reads on user_quest_tasks for template selection
         supabase = get_supabase_admin_client()
 
         # Fetch the sample task

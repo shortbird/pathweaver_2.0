@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider } from '../ui';
 import api from '@/src/services/api';
 import type { Lesson, LessonStep } from '@/src/hooks/useCourses';
+import { sanitizeLessonHtml } from './sanitizeLessonHtml';
 
 /** Extract embeddable URL from YouTube/Vimeo/Loom/Drive links. */
 function getEmbedUrl(url: string | undefined | null): string | null {
@@ -53,9 +54,13 @@ function VideoEmbed({ url }: { url: string }) {
   );
 }
 
-/** Renders HTML content (web only). */
+/** Renders sanitized HTML content (web only).
+ *  Lesson content can come from admin curriculum authors; sanitize to strip
+ *  <script>, on* handlers, and other XSS vectors. */
 function HtmlContent({ html }: { html: string }) {
   if (!html || Platform.OS !== 'web') return null;
+
+  const safeHtml = useMemo(() => sanitizeLessonHtml(html), [html]);
 
   return (
     <div
@@ -66,7 +71,7 @@ function HtmlContent({ html }: { html: string }) {
         lineHeight: 1.75,
         color: '#374151',
       }}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: safeHtml }}
     />
   );
 }

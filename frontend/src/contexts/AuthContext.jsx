@@ -51,63 +51,38 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        // Initialize secure token store (migrates from localStorage if needed)
-        await tokenStore.init()
+        // C2: Purge any legacy persisted tokens/user/encryption-key.
+        tokenStore.init()
 
         // Log browser detection info (development only)
         logBrowserInfo()
 
-        // STEP 1: Restore tokens from encrypted IndexedDB (survives page refresh)
-        const tokensRestored = await tokenStore.restoreTokens()
-
-        // STEP 2: Check if we have tokens (either restored or in memory)
-        const hasTokens = !!tokenStore.getAccessToken()
-
-        if (hasTokens) {
-          // We have tokens, verify with backend
+        // C2: Memory is empty on every page load. Hit /me — if the access cookie
+        // is valid we're in; if it's expired the response interceptor will
+        // transparently call /refresh using the httpOnly refresh cookie and retry.
+        try {
           const response = await api.get('/api/auth/me')
           if (response.data) {
-            // ✅ SPARK SSO FIX: Update React Query cache IMMEDIATELY with user data
-            // This prevents PrivateRoute from redirecting to /login before user data loads
             queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
             identifyUser(response.data)
-
             setSession({ authenticated: true })
             setLoginTimestamp(Date.now())
-
-            // ✅ SAFARI FIX: Mark that we're using auth headers successfully
-            setAuthMethodPreference('headers')
+            // The interceptor sets in-memory tokens after a refresh, so subsequent
+            // requests can attach the Authorization header for Safari/iOS/Firefox.
+            setAuthMethodPreference(tokenStore.getAccessToken() ? 'headers' : 'cookies')
           }
-        } else {
-          // No tokens available - try cookie-based auth (localhost fallback)
-          try {
-            const response = await api.get('/api/auth/me')
-            if (response.data) {
-              // ✅ SPARK SSO FIX: Update React Query cache for cookie-based auth too
-              queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
-              identifyUser(response.data)
-
-              setSession({ authenticated: true })
-              setLoginTimestamp(Date.now())
-
-              // ✅ SAFARI FIX: Mark that cookies are working
-              setAuthMethodPreference('cookies')
-            }
-          } catch (cookieError) {
-            // ✅ SAFARI FIX: Cookie auth failed - this is expected on Safari
-            // User needs to log in, and we'll use auth headers automatically
-            if (isSafari() || isIOS()) {
-              logger.debug('[AuthContext] Safari/iOS detected - will use Authorization headers on next login')
-            }
-            // ✅ FIX: Explicitly set user to null so components know auth check is complete
-            queryClient.setQueryData(queryKeys.user.profile('current'), null)
-            setSession(null)
+        } catch (cookieError) {
+          if (isSafari() || isIOS()) {
+            logger.debug('[AuthContext] Safari/iOS detected - will use Authorization headers on next login')
           }
+          // Defensive: drop any stale in-memory tokens so a subsequent /me retry
+          // doesn't attach a header the backend has already invalidated.
+          tokenStore.clearTokens()
+          queryClient.setQueryData(queryKeys.user.profile('current'), null)
+          setSession(null)
         }
       } catch (error) {
-        // Token invalid/expired - clear and require login
-        await tokenStore.clearTokens()
-        // ✅ FIX: Explicitly set user to null so components know auth check is complete
+        tokenStore.clearTokens()
         queryClient.setQueryData(queryKeys.user.profile('current'), null)
         setSession(null)
       } finally {

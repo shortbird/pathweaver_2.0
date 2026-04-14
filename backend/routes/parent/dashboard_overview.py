@@ -114,6 +114,7 @@ def get_parent_dashboard(user_id, student_id):
     """
     supabase = None
     try:
+        # admin client justified: parent dashboard summary; aggregates rhythm/quests/wins across the parent's children after parent->child relationship verification
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 

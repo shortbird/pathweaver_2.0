@@ -30,6 +30,7 @@ def get_notifications(user_id: str):
         200: List of notifications with unread count
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
@@ -72,6 +73,7 @@ def get_unread_count(user_id: str):
         200: Unread count
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
@@ -98,6 +100,7 @@ def mark_as_read(user_id: str, notification_id: str):
         404: Notification not found
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
@@ -123,6 +126,7 @@ def mark_all_as_read(user_id: str):
         200: All notifications marked as read
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
@@ -149,6 +153,7 @@ def delete_notification(user_id: str, notification_id: str):
         404: Notification not found
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
@@ -174,6 +179,7 @@ def delete_all_notifications(user_id: str):
         200: All notifications deleted
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
@@ -210,6 +216,7 @@ def send_notification(user_id: str):
         400: Validation error
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
@@ -285,6 +292,7 @@ def broadcast_notification(user_id: str):
         400: Validation error
     """
     try:
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 

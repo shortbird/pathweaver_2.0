@@ -287,8 +287,12 @@ class CreditMappingService(BaseService):
         """
         supabase = get_supabase_admin_client()
 
+        # NOTE: Cannot use a Supabase relationship join for the task title — the
+        # credit_ledger.task_id FK to the archived `quest_tasks` table was dropped
+        # (see backend/migrations/deprecated/README.md). Resolve titles manually
+        # against `user_quest_tasks` (the canonical task table).
         query = supabase.table('credit_ledger')\
-            .select('*, quests(title), quest_tasks(title)')\
+            .select('*, quests(title)')\
             .eq('user_id', user_id)\
             .order('date_earned', desc=True)
 
@@ -299,11 +303,21 @@ class CreditMappingService(BaseService):
             query = query.eq('credit_type', credit_type)
 
         result = query.execute()
+        records = result.data or []
 
-        # Flatten the nested data
+        # Batch-resolve task titles in a single query
+        task_ids = [r['task_id'] for r in records if r.get('task_id')]
+        task_titles: Dict[str, str] = {}
+        if task_ids:
+            tasks_result = supabase.table('user_quest_tasks')\
+                .select('id, title')\
+                .in_('id', list(set(task_ids)))\
+                .execute()
+            task_titles = {t['id']: t['title'] for t in (tasks_result.data or [])}
+
         entries = []
-        for record in result.data:
-            entry = {
+        for record in records:
+            entries.append({
                 'id': record['id'],
                 'credit_type': record['credit_type'],
                 'xp_amount': record['xp_amount'],
@@ -311,9 +325,8 @@ class CreditMappingService(BaseService):
                 'date_earned': record['date_earned'],
                 'academic_year': record['academic_year'],
                 'quest_title': record['quests']['title'] if record.get('quests') else 'Unknown',
-                'task_title': record['quest_tasks']['title'] if record.get('quest_tasks') else 'Unknown'
-            }
-            entries.append(entry)
+                'task_title': task_titles.get(record.get('task_id'), 'Unknown'),
+            })
 
         return entries
 

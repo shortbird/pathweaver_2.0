@@ -25,6 +25,7 @@ def get_pending_verifications(user_id):
     Returns tasks completed by students in the advisor's organization.
     """
     try:
+        # admin client justified: teacher verification reads cross-user student task completions for advisor's org students under @require_role(advisor/superadmin)
         admin = get_supabase_admin_client()
 
         # Get advisor's organization
@@ -125,6 +126,7 @@ def get_verification_history(user_id):
     Includes both approved and rejected verifications.
     """
     try:
+        # admin client justified: teacher verification reads cross-user student task completions for advisor's org students under @require_role(advisor/superadmin)
         admin = get_supabase_admin_client()
 
         # Get verification history (completions verified by this advisor)
@@ -193,6 +195,7 @@ def verify_task_completion(user_id, task_completion_id):
         if action == 'approve' and not subject_distribution:
             raise ValidationError('Subject distribution is required for approval')
 
+        # admin client justified: teacher verification reads cross-user student task completions for advisor's org students under @require_role(advisor/superadmin)
         admin = get_supabase_admin_client()
 
         # Get the task completion

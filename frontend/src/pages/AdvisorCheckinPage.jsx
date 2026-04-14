@@ -1,344 +1,329 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { checkinAPI } from '../services/api'
 
 const AdvisorCheckinPage = () => {
   const { studentId } = useParams()
   const navigate = useNavigate()
+  const editorRef = useRef(null)
 
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  // Step tracking: 'upload' -> 'review' -> 'sent'
+  const [step, setStep] = useState('upload')
+
+  // Upload step state
+  const [meetingNotes, setMeetingNotes] = useState('')
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
 
-  // Pre-populated data
-  const [activeQuests, setActiveQuests] = useState([])
-  const [lastCheckin, setLastCheckin] = useState(null)
+  // Review step state (AI-generated email, editable)
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
+  const [parentEmail, setParentEmail] = useState('')
+  const [parentName, setParentName] = useState('')
+  const [advisorName, setAdvisorName] = useState('')
+  const [studentName, setStudentName] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testSent, setTestSent] = useState(false)
 
-  // Form fields
-  const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0])
-  const [additionalNotes, setAdditionalNotes] = useState('')
-  const [questNotes, setQuestNotes] = useState({}) // { quest_id: 'notes text' }
-  const [readingNotes, setReadingNotes] = useState('')
-  const [writingNotes, setWritingNotes] = useState('')
-  const [mathNotes, setMathNotes] = useState('')
-
-  // End quest state
-  const [endingQuestId, setEndingQuestId] = useState(null)
-  const [confirmEndQuestId, setConfirmEndQuestId] = useState(null)
-
-  useEffect(() => {
-    fetchCheckinData()
-  }, [studentId])
-
-  const fetchCheckinData = async () => {
-    try {
-      setLoading(true)
-      const response = await checkinAPI.getCheckinData(studentId)
-
-      if (response.data.success) {
-        const { active_quests, last_checkin } = response.data
-        setActiveQuests(active_quests || [])
-        setLastCheckin(last_checkin)
-      }
-    } catch (err) {
-      console.error('Error fetching check-in data:', err)
-      setError('Failed to load check-in data')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleEndQuest = async (questId) => {
-    try {
-      setEndingQuestId(questId)
-      const response = await checkinAPI.endStudentQuest(studentId, questId)
-
-      if (response.data.success) {
-        // Remove the quest from the active list
-        setActiveQuests(prev => prev.filter(q => q.quest_id !== questId))
-        // Clean up quest notes for the ended quest
-        setQuestNotes(prev => {
-          const updated = { ...prev }
-          delete updated[questId]
-          return updated
-        })
-      }
-    } catch (err) {
-      console.error('Error ending quest:', err)
-      setError(err.response?.data?.error || 'Failed to end quest')
-    } finally {
-      setEndingQuestId(null)
-      setConfirmEndQuestId(null)
-    }
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    // Check if at least one note exists
-    const hasQuestNotes = Object.values(questNotes).some(note => note.trim())
-    const hasAnyNote = hasQuestNotes || additionalNotes.trim() || readingNotes.trim() || writingNotes.trim() || mathNotes.trim()
-    if (!hasAnyNote) {
-      setError('Please add at least one note')
+  const handleGenerate = async () => {
+    if (!meetingNotes.trim()) {
+      setError('Please paste your meeting notes before generating.')
       return
     }
 
     try {
-      setSaving(true)
+      setGenerating(true)
       setError(null)
 
-      // Convert quest notes object to array format for backend
-      const questNotesArray = Object.entries(questNotes)
-        .filter(([questId, notes]) => notes.trim())
-        .map(([questId, notes]) => ({ quest_id: questId, notes }))
-
-      const checkinData = {
-        student_id: studentId,
-        checkin_date: new Date(checkinDate).toISOString(),
-        advisor_notes: additionalNotes,
-        active_quests_snapshot: activeQuests,
-        quest_notes: questNotesArray,
-        reading_notes: readingNotes,
-        writing_notes: writingNotes,
-        math_notes: mathNotes
-      }
-
-      const response = await checkinAPI.createCheckin(checkinData)
+      const response = await checkinAPI.generateEmail(studentId, meetingNotes)
 
       if (response.data.success) {
-        navigate('/advisor/dashboard')
+        const { email } = response.data
+        setEmailSubject(email.subject)
+        setEmailBody(email.body)
+        setParentEmail(email.parent_email)
+        setParentName(email.parent_name)
+        setAdvisorName(email.advisor_name)
+        setStudentName(email.student_name)
+        setStep('review')
       }
     } catch (err) {
-      console.error('Error saving check-in:', err)
-      setError(err.response?.data?.error || 'Failed to save check-in')
+      console.error('Error generating email:', err)
+      setError(err.response?.data?.error || 'Failed to generate email. Please try again.')
     } finally {
-      setSaving(false)
+      setGenerating(false)
     }
   }
 
-  const handleCancel = () => {
-    navigate('/advisor/dashboard')
+  const handleSendEmail = async () => {
+    if (!emailBody.trim()) {
+      setError('Email body cannot be empty.')
+      return
+    }
+
+    try {
+      setSending(true)
+      setError(null)
+
+      const response = await checkinAPI.sendEmail({
+        student_id: studentId,
+        parent_email: parentEmail,
+        subject: emailSubject,
+        body: emailBody,
+        meeting_notes: meetingNotes
+      })
+
+      if (response.data.success) {
+        setStep('sent')
+      }
+    } catch (err) {
+      console.error('Error sending email:', err)
+      setError(err.response?.data?.error || 'Failed to send email. Please try again.')
+    } finally {
+      setSending(false)
+    }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading check-in form...</p>
-        </div>
-      </div>
-    )
+  const handleSendTest = async () => {
+    if (!emailBody.trim()) {
+      setError('Email body cannot be empty.')
+      return
+    }
+
+    try {
+      setSendingTest(true)
+      setError(null)
+
+      const response = await checkinAPI.sendEmail({
+        student_id: studentId,
+        parent_email: parentEmail,
+        subject: emailSubject,
+        body: emailBody,
+        meeting_notes: meetingNotes,
+        test: true
+      })
+
+      if (response.data.success) {
+        setTestSent(true)
+      }
+    } catch (err) {
+      console.error('Error sending test email:', err)
+      setError(err.response?.data?.error || 'Failed to send test email.')
+    } finally {
+      setSendingTest(false)
+    }
+  }
+
+  const handleBack = () => {
+    setStep('upload')
+    setError(null)
+  }
+
+  const handleDone = () => {
+    navigate('/advisor/dashboard')
   }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-t-2xl p-6 text-white">
-          <h1 className="text-3xl font-bold mb-2">Advisor Check-in</h1>
-          <p className="text-purple-100 font-medium">Document your conversation and celebrate growth</p>
-          {lastCheckin && (
-            <p className="text-purple-100 text-sm mt-2">
-              Last check-in: {lastCheckin.last_checkin_date_formatted} ({lastCheckin.days_since_checkin} days ago)
-            </p>
-          )}
+          <h1 className="text-3xl font-bold mb-1">Check-in Recap</h1>
+          <p className="text-purple-100 font-medium">
+            Upload your meeting notes and send a recap email to the parent
+          </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-b-2xl shadow-lg p-8 space-y-8">
+        <div className="bg-white rounded-b-2xl shadow-lg p-8">
           {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded mb-6">
               <p className="text-red-800 font-medium">{error}</p>
             </div>
           )}
 
-          {/* Check-in Date */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Check-in Date
-            </label>
-            <input
-              type="date"
-              value={checkinDate}
-              onChange={(e) => setCheckinDate(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors font-medium"
-              required
-            />
-          </div>
-
-          {/* Active Quests Section */}
-          <div>
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Active Quests</h2>
-            {activeQuests.length === 0 ? (
-              <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <p className="text-gray-500 font-medium">No active quests</p>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {activeQuests.map((quest) => (
-                  <div
-                    key={quest.quest_id}
-                    className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-4"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-gray-800 text-lg mb-1">
-                          {quest.title}
-                        </h3>
-                        <p className="text-gray-600 text-sm mb-3">
-                          {quest.description}
-                        </p>
-                      </div>
-                      {/* End Quest Button */}
-                      <div className="ml-3 flex-shrink-0">
-                        {confirmEndQuestId === quest.quest_id ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleEndQuest(quest.quest_id)}
-                              disabled={endingQuestId === quest.quest_id}
-                              className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                            >
-                              {endingQuestId === quest.quest_id ? 'Ending...' : 'Confirm'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmEndQuestId(null)}
-                              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmEndQuestId(quest.quest_id)}
-                            className="px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
-                          >
-                            End Quest
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 mb-3">
-                      <div className="flex-1 bg-white rounded-full h-3 overflow-hidden border border-purple-200">
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
-                          style={{ width: `${quest.completion_percent}%` }}
-                        />
-                      </div>
-                      <span className="font-bold text-purple-700 text-sm whitespace-nowrap">
-                        {quest.completed_tasks}/{quest.total_tasks} tasks ({quest.completion_percent}%)
-                      </span>
-                    </div>
-
-                    {/* Quest-specific notes */}
-                    <div className="mt-3 pt-3 border-t border-purple-200">
-                      <label className="block text-gray-700 font-semibold text-sm mb-2">
-                        Notes (optional)
-                      </label>
-                      <textarea
-                        value={questNotes[quest.quest_id] || ''}
-                        onChange={(e) => setQuestNotes(prev => ({
-                          ...prev,
-                          [quest.quest_id]: e.target.value
-                        }))}
-                        rows={2}
-                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none text-sm"
-                        placeholder="Add notes about this quest..."
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Reading, Writing, Math Section */}
-          <div>
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Core Skills</h2>
-            <div className="grid gap-4">
-              {/* Reading */}
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                <label className="block text-gray-800 font-semibold mb-2">
-                  Reading
+          {/* Step 1: Upload Meeting Notes */}
+          {step === 'upload' && (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-gray-800 font-semibold mb-2 text-lg">
+                  Meeting Notes
                 </label>
-                <p className="text-gray-500 text-xs mb-2">What is the student currently reading? How is it going?</p>
+                <p className="text-gray-500 text-sm mb-3">
+                  Paste your Gemini meeting notes, transcription, or summary below.
+                  AI will read these and draft a parent recap email.
+                </p>
                 <textarea
-                  value={readingNotes}
-                  onChange={(e) => setReadingNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors resize-none text-sm"
-                  placeholder="Current book, progress, comprehension..."
+                  value={meetingNotes}
+                  onChange={(e) => setMeetingNotes(e.target.value)}
+                  rows={14}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-y font-mono text-sm leading-relaxed"
+                  placeholder="Paste your meeting notes here..."
+                  autoFocus
                 />
               </div>
 
-              {/* Writing */}
-              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                <label className="block text-gray-800 font-semibold mb-2">
-                  Writing
-                </label>
-                <p className="text-gray-500 text-xs mb-2">What is the student writing? How are their writing skills developing?</p>
-                <textarea
-                  value={writingNotes}
-                  onChange={(e) => setWritingNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none transition-colors resize-none text-sm"
-                  placeholder="Current writing projects, skills, progress..."
-                />
-              </div>
-
-              {/* Math */}
-              <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
-                <label className="block text-gray-800 font-semibold mb-2">
-                  Math
-                </label>
-                <p className="text-gray-500 text-xs mb-2">How is the student using their mental math muscles?</p>
-                <textarea
-                  value={mathNotes}
-                  onChange={(e) => setMathNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none transition-colors resize-none text-sm"
-                  placeholder="Math concepts, real-world application, problem-solving..."
-                />
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => navigate('/advisor/dashboard')}
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={generating || !meetingNotes.trim()}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generating ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Generating Email...
+                    </span>
+                  ) : (
+                    'Generate Parent Email'
+                  )}
+                </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Additional Notes */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Additional Notes (optional)
-            </label>
-            <textarea
-              value={additionalNotes}
-              onChange={(e) => setAdditionalNotes(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none font-medium"
-              placeholder="Any other notes from this check-in..."
-            />
-          </div>
+          {/* Step 2: Review & Edit Email */}
+          {step === 'review' && (
+            <div className="space-y-6">
+              {/* Recipient info */}
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500 font-medium">To:</span>{' '}
+                    <span className="text-gray-800 font-semibold">{parentName}</span>
+                    <span className="text-gray-500 ml-1">({parentEmail})</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 font-medium">From:</span>{' '}
+                    <span className="text-gray-800 font-semibold">{advisorName}</span>
+                    <span className="text-gray-500 ml-1">(via Optio)</span>
+                  </div>
+                </div>
+              </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-4 pt-4">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save Check-in'}
-            </button>
-          </div>
-        </form>
+              {/* Subject line */}
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors font-medium"
+                />
+              </div>
+
+              {/* Email body editor */}
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Email Body
+                </label>
+                <p className="text-gray-500 text-xs mb-2">
+                  Review and edit the AI-generated email below before sending.
+                </p>
+                <textarea
+                  ref={editorRef}
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={16}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-y text-sm leading-relaxed"
+                />
+              </div>
+
+              {/* Test email confirmation */}
+              {testSent && (
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                  <p className="text-green-800 font-medium">Test email sent to your inbox. Check it before sending to the parent.</p>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="px-5 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                  className="px-5 py-3 border-2 border-purple-300 text-purple-700 rounded-lg font-semibold hover:bg-purple-50 transition-colors disabled:opacity-50"
+                >
+                  {generating ? 'Regenerating...' : 'Regenerate'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendTest}
+                  disabled={sendingTest || !emailBody.trim()}
+                  className="px-5 py-3 border-2 border-blue-300 text-blue-700 rounded-lg font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50"
+                >
+                  {sendingTest ? 'Sending Test...' : 'Send Test to Myself'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendEmail}
+                  disabled={sending || !emailBody.trim()}
+                  className="flex-1 px-5 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Sending to Parent...
+                    </span>
+                  ) : (
+                    'Send to Parent'
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Success */}
+          {step === 'sent' && (
+            <div className="text-center py-12 space-y-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Email Sent</h2>
+                <p className="text-gray-600">
+                  Recap email sent to <span className="font-semibold">{parentName}</span> at{' '}
+                  <span className="font-semibold">{parentEmail}</span>.
+                </p>
+                <p className="text-gray-500 text-sm mt-2">
+                  A check-in record has been saved with the meeting notes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleDone}
+                className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

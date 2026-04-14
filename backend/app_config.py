@@ -168,9 +168,38 @@ class Config:
     SUPPORT_EMAIL = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
     SUPPORT_COPY_EMAIL = os.getenv('SUPPORT_COPY_EMAIL', 'tanner@optioeducation.com')
 
+    # JWT / Session Tokens (M5)
+    # JWT_SECRET_KEY is the dedicated signing key for app-issued access/refresh
+    # tokens. We keep a fallback chain to SECRET_KEY for legacy deployments
+    # where only FLASK_SECRET_KEY was set — but new deploys should set both.
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY') or SECRET_KEY
+    # Previous JWT key — set during a key rotation so already-issued tokens
+    # validate during the cutover window. Optional in steady state.
+    JWT_PREVIOUS_SECRET_KEY = os.getenv('FLASK_SECRET_KEY_OLD')
+    # Token version baked into JWT claims so a global invalidation can be done
+    # by bumping this string.
+    TOKEN_VERSION = os.getenv('TOKEN_VERSION', 'v1')
+    # Session lifetime for app-issued access tokens (in hours).
+    SESSION_TIMEOUT_HOURS = int(os.getenv('SESSION_TIMEOUT_HOURS', '24'))
+    # Optional override for absolute backend URL (used when constructing
+    # callback links from a worker context with no request).
+    BACKEND_URL = os.getenv('BACKEND_URL', '')
+
     # Cron Authentication
     CRON_SECRET = os.getenv('CRON_SECRET')
-    
+
+    # Spark LMS Integration (M5)
+    SPARK_SSO_SECRET = os.getenv('SPARK_SSO_SECRET')
+    SPARK_WEBHOOK_SECRET = os.getenv('SPARK_WEBHOOK_SECRET')
+
+    # File upload paths (M5) — UPLOAD_FOLDER below is the global default;
+    # this is the evidence-specific subfolder used by routes/evidence_documents.
+    EVIDENCE_UPLOAD_FOLDER = os.getenv('EVIDENCE_UPLOAD_FOLDER', 'uploads/evidence')
+
+    # Virus scan toggle (M5). Off by default — flip on only when ClamAV is
+    # available on the host (production containers in Render include it).
+    ENABLE_VIRUS_SCAN = os.getenv('ENABLE_VIRUS_SCAN', 'false').lower() == 'true'
+
     # Stripe Configuration
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
     STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')

@@ -41,6 +41,7 @@ def register_routes(bp):
         """
         try:
             user_id = session_manager.get_effective_user_id()
+            # admin client justified: course publishing flow under @require_auth; updates courses.status after verifying caller is course owner / org admin / superadmin
             admin_client = get_supabase_admin_client()
 
             # Check permissions

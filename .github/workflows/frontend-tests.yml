@@ -1,0 +1,111 @@
+name: Frontend (v1) Tests
+
+# A1: enforces the CLAUDE.md gate — 95%+ pass rate, 60%+ coverage before merge to main.
+# Mirrors the frontend-v2-tests.yml pattern but adds an actual coverage threshold check.
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  test:
+    name: Vitest + coverage gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        # Retry up to 3 times — npm registry occasionally ECONNRESETs mid-install.
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $i failed; retrying..."
+            sleep 10
+          done
+          exit 1
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm run test:run
+
+      - name: Check pass rate (>= 95%)
+        working-directory: frontend
+        run: |
+          TEST_OUTPUT=$(npm run test:run 2>&1 || true)
+          echo "$TEST_OUTPUT"
+
+          # Vitest summary line: "Tests  344 passed | 12 failed (356)"
+          PASSED=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= passed)' | tail -1)
+          FAILED=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || echo "0")
+          PASSED=${PASSED:-0}
+          FAILED=${FAILED:-0}
+          TOTAL=$((PASSED + FAILED))
+
+          if [ $TOTAL -eq 0 ]; then
+            echo "Error: No test results found"
+            exit 1
+          fi
+
+          PASS_RATE=$((PASSED * 100 / TOTAL))
+          echo "Pass Rate: $PASS_RATE% ($PASSED/$TOTAL)"
+          echo "Required: 95%"
+
+          if [ $PASS_RATE -lt 95 ]; then
+            echo "FAILED: Pass rate ($PASS_RATE%) below 95%"
+            exit 1
+          fi
+          echo "PASSED: pass rate gate met"
+
+      - name: Check coverage (>= 60% lines)
+        if: github.event_name == 'pull_request'
+        working-directory: frontend
+        run: |
+          COV_OUTPUT=$(npm run test:coverage 2>&1 || true)
+          echo "$COV_OUTPUT"
+
+          # Vitest text-summary "All files" row: "All files  |  60.61 |  ..."
+          # Pull the first numeric column on the "All files" summary line.
+          LINE_PCT=$(echo "$COV_OUTPUT" | grep -E '^All files' | awk -F'|' '{gsub(/ /, "", $2); print $2}' | head -1)
+          LINE_PCT=${LINE_PCT:-0}
+
+          # Strip decimal for integer comparison
+          LINE_INT=${LINE_PCT%.*}
+          echo "Line coverage: $LINE_PCT% (integer: $LINE_INT%)"
+          echo "Required: 60%"
+
+          if [ "${LINE_INT:-0}" -lt 60 ]; then
+            echo "FAILED: line coverage ($LINE_PCT%) below 60%"
+            exit 1
+          fi
+          echo "PASSED: coverage gate met"
+
+      - name: Test Results Summary
+        if: always()
+        run: |
+          echo "## Frontend V1 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Required Pass Rate:** 95%" >> $GITHUB_STEP_SUMMARY
+          echo "**Required Coverage:** 60% lines" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

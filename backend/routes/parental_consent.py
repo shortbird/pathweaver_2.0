@@ -13,8 +13,15 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 Parental Consent API routes.
 Handles COPPA compliance for users under 13.
 
-NOTE: Admin client usage justified throughout this file for consent management.
-Managing parental consent requires cross-user operations and system-level privileges.
+ADMIN CLIENT USAGE: Every endpoint in this file uses get_supabase_admin_client()
+because the consent flow operates on data the child user (under 13) cannot
+authenticate to themselves: the workflow runs with either no session (parent
+clicking an emailed link) or a child's session writing parent-owned consent
+records. Each call site is annotated `# admin client justified` to satisfy the
+H1 audit; access control comes from (a) one-time hashed consent tokens,
+(b) email verification of the parent address, and (c) explicit user_id matching
+on every update. Parental consent and child user records cannot be exposed to
+arbitrary callers from these endpoints.
 """
 from flask import Blueprint, request, jsonify
 from app_config import Config
@@ -30,6 +37,7 @@ from repositories import (
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth, require_role
+from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
 from services.email_service import email_service
 from werkzeug.utils import secure_filename
 import secrets
@@ -71,6 +79,7 @@ def send_parental_consent():
         if not all([user_id, parent_email, child_email]):
             raise ValidationError("Missing required fields: user_id, parent_email, child_email")
 
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Verify user exists and requires parental consent
@@ -153,6 +162,7 @@ def verify_parental_consent():
         # Hash the provided token
         hashed_token = hash_token(token)
 
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Find user with this token
@@ -200,6 +210,7 @@ def check_consent_status(user_id):
     Check parental consent status for a user
     """
     try:
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         user_response = supabase.table('users').select(
@@ -237,6 +248,7 @@ def resend_parental_consent():
         if not user_id:
             raise ValidationError("user_id is required")
 
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Get user details
@@ -315,11 +327,13 @@ def submit_consent_documents(user_id: str):
     Required before creating dependent profiles or linking to children
     """
     try:
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
-        # Get user info to verify they are a parent
+        # Get user info to verify they are a parent (A2: include org_role/org_roles
+        # so get_effective_role can resolve org_managed users correctly).
         user_response = supabase.table('users').select(
-            'id, display_name, email, role, parental_consent_status, parental_consent_verified'
+            'id, display_name, email, role, org_role, org_roles, parental_consent_status, parental_consent_verified'
         ).eq('id', user_id).execute()
 
         if not user_response.data:
@@ -327,8 +341,8 @@ def submit_consent_documents(user_id: str):
 
         user = user_response.data[0]
 
-        # Verify user is a parent
-        if user.get('role') != 'parent':
+        # Verify user is a parent (resolve org_managed → real role)
+        if get_effective_role(user) != 'parent':
             return jsonify({'error': 'Only parent accounts can submit identity verification documents'}), 400
 
         # Check if already verified
@@ -468,6 +482,7 @@ def get_pending_consent_reviews(user_id: str):
     before they can create dependent profiles or link to children under 13.
     """
     try:
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Get all PARENTS with pending identity verification
@@ -519,6 +534,7 @@ def approve_parental_consent(user_id: str, parent_id):
         data = request.json or {}
         review_notes = data.get('notes', '')
 
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Get parent info
@@ -602,6 +618,7 @@ def reject_parental_consent(user_id: str, parent_id):
         if not rejection_reason:
             raise ValidationError("Rejection reason is required")
 
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Get parent info
@@ -689,6 +706,7 @@ def get_pending_visibility_requests(user_id):
         List of pending requests with child info
     """
     try:
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Get pending requests where this user is the parent
@@ -758,6 +776,7 @@ def respond_to_visibility_request(user_id, request_id):
         approved = data.get('approved', False)
         denial_reason = data.get('reason', '')
 
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Get the request and verify this parent is authorized
@@ -865,6 +884,7 @@ def get_visibility_request_history(user_id):
         List of all requests (pending, approved, denied) with child info
     """
     try:
+        # admin client justified: see file docstring; COPPA consent flow gated by hashed tokens + email verification
         supabase = get_supabase_admin_client()
 
         # Get all requests where this user is the parent

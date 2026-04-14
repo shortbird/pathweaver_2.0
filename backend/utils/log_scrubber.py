@@ -10,9 +10,10 @@ GDPR/Privacy compliance:
 OWASP: A09:2021 - Security Logging and Monitoring Failures mitigation
 """
 
-import os
 import re
 from typing import Optional
+
+from app_config import Config
 
 
 def mask_user_id(user_id: Optional[str]) -> str:
@@ -145,7 +146,7 @@ def should_log_sensitive_data() -> bool:
     Returns:
         True if FLASK_ENV is 'development', False otherwise
     """
-    return os.getenv('FLASK_ENV', 'production') == 'development'
+    return Config.FLASK_ENV == 'development'
 
 
 def log_safe_user_context(user_id: Optional[str], **kwargs) -> dict:

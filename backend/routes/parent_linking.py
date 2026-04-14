@@ -47,6 +47,7 @@ def get_linked_children(user_id):
     Returns student details and learning progress.
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Get all linked students (only approved links)
@@ -106,6 +107,7 @@ def get_parent_links(user_id):
     Returns empty list if no parents linked.
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Get linked parents
@@ -171,6 +173,7 @@ def admin_create_link(admin_id):
         if not parent_user_id or not student_user_id:
             raise ValidationError("Both parent_user_id and student_user_id are required")
 
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Verify parent exists and has parent role
@@ -228,6 +231,7 @@ def admin_delete_link(admin_id, link_id):
     This is the only way to remove a link.
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Verify link exists
@@ -261,6 +265,7 @@ def admin_list_links(admin_id):
     - student_user_id: Filter by student
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         parent_filter = request.args.get('parent_user_id')
@@ -365,6 +370,7 @@ def submit_connection_requests(user_id):
         if not isinstance(children, list) or len(children) == 0:
             raise ValidationError("At least one child must be provided")
 
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Verify requesting user is a parent or admin (admins have full parent privileges)
@@ -479,6 +485,7 @@ def get_pending_requests(user_id):
     Returns list of parents requesting to link to this student's account.
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Get pending requests where this user is the student
@@ -530,6 +537,7 @@ def approve_connection_request(user_id, link_id):
     Updates link status from 'pending_approval' to 'approved'.
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Get the link and verify it's pending and belongs to this student
@@ -583,6 +591,7 @@ def reject_connection_request(user_id, link_id):
     Updates link status from 'pending_approval' to 'rejected'.
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Get the link and verify it's pending and belongs to this student
@@ -640,6 +649,7 @@ def get_family_parents(user_id):
     Co-parents are determined by shared access to the same dependents or linked students.
     """
     try:
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Get current user's dependents (children they manage)
@@ -714,6 +724,7 @@ def promote_observer_to_parent(user_id):
         if not observer_id:
             raise ValidationError("observer_id is required")
 
+        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
         supabase = get_supabase_admin_client()
 
         # Verify requesting user is a parent

@@ -34,6 +34,7 @@ def get_profile(user_id):
 
         # Get XP stats using dashboard service's methods
         from routes.users.helpers import calculate_user_xp
+        # admin client justified: profile XP stats for caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
 
@@ -106,6 +107,7 @@ def upload_avatar(user_id):
         raise ValidationError('File too large. Maximum size is 5MB')
 
     try:
+        # admin client justified: avatar upload for caller (self) under @require_auth; storage write + users.avatar_url update scoped by user_id
         supabase = get_supabase_admin_client()
         user_repo = UserRepository()
 

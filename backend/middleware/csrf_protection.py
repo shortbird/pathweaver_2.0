@@ -8,8 +8,7 @@ This prevents Cross-Site Request Forgery attacks (OWASP A01:2021).
 The application will fail to start if Flask-WTF is not installed.
 """
 
-import os
-
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,7 +51,7 @@ def init_csrf(app):
     app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
 
     # Use secure cookies in production
-    app.config['WTF_CSRF_SSL_STRICT'] = os.getenv('FLASK_ENV') == 'production'
+    app.config['WTF_CSRF_SSL_STRICT'] = Config.FLASK_ENV == 'production'
     
     # Initialize CSRF protection
     csrf.init_app(app)
@@ -67,7 +66,6 @@ def init_csrf(app):
         'auth.register',  # Registration is public
         'auth.refresh',  # Token refresh uses refresh token
         'health_check',  # Health check is public
-        'test_config',  # Test endpoint
         # Webhook endpoints (if any) that use signature verification
         'subscriptions.stripe_webhook',  # Stripe webhook uses signature verification
     ]

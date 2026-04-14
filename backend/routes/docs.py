@@ -58,6 +58,7 @@ def generate_slug(title):
 def list_public_categories():
     """List published categories with article counts."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_categories').select(
@@ -97,6 +98,7 @@ def list_public_categories():
 def get_public_category(slug):
     """Get a category and its published articles by slug."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         cat_result = client.table('docs_categories').select(
@@ -127,6 +129,7 @@ def get_public_category(slug):
 def get_public_article(slug):
     """Get a single published article by slug. Increments view count."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_articles').select(
@@ -169,6 +172,7 @@ def search_docs():
         if not q or len(q) < 2:
             return jsonify({'success': True, 'results': []}), 200
 
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         # Use PostgreSQL full-text search with ts_rank
@@ -215,6 +219,7 @@ def search_docs():
         # Fallback to simple ILIKE if RPC fails
         try:
             q = request.args.get('q', '').strip()
+            # admin client justified: docs search ILIKE fallback; reads public docs_articles
             client = get_supabase_admin_client()
             result = client.table('docs_articles').select(
                 'id, title, slug, summary, category_id'
@@ -236,6 +241,7 @@ def search_docs():
 def admin_list_categories(user_id):
     """List all categories including unpublished."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_categories').select('*').order('sort_order').execute()
@@ -275,6 +281,7 @@ def admin_create_category(user_id):
 
         slug = data.get('slug') or generate_slug(title)
 
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_categories').insert({
@@ -301,6 +308,7 @@ def admin_update_category(user_id, category_id):
     """Update a category."""
     try:
         data = request.get_json() or {}
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         update_data = {}
@@ -341,6 +349,7 @@ def admin_update_category(user_id, category_id):
 def admin_delete_category(user_id, category_id):
     """Delete a category and its articles (CASCADE)."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_categories').delete().eq(
@@ -362,6 +371,7 @@ def admin_delete_category(user_id, category_id):
 def admin_list_articles(user_id):
     """List all articles including unpublished."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_articles').select(
@@ -405,6 +415,7 @@ def admin_create_article(user_id):
 
         slug = data.get('slug') or generate_slug(title)
 
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         insert_data = {
@@ -435,6 +446,7 @@ def admin_create_article(user_id):
 def admin_get_article(user_id, article_id):
     """Get a single article by ID (including content, for editing)."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_articles').select('*').eq(
@@ -457,6 +469,7 @@ def admin_update_article(user_id, article_id):
     """Update an article."""
     try:
         data = request.get_json() or {}
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         update_data = {}
@@ -492,6 +505,7 @@ def admin_update_article(user_id, article_id):
 def admin_delete_article(user_id, article_id):
     """Delete an article."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_articles').delete().eq(
@@ -513,6 +527,7 @@ def admin_delete_article(user_id, article_id):
 def admin_docs_analytics(user_id):
     """Get docs analytics: popular articles, total views, etc."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         # Top articles by views
@@ -674,6 +689,7 @@ def ai_reindex(user_id):
 def ai_search_misses(user_id):
     """Get top search queries that returned 0 results."""
     try:
+        # admin client justified: docs articles are public read + admin-gated writes; admin client used for both since docs_articles/categories are global
         client = get_supabase_admin_client()
 
         result = client.table('docs_search_misses').select(

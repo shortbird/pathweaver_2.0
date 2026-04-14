@@ -69,6 +69,7 @@ def complete_task(user_id: str, task_id: str):
             from repositories.base_repository import PermissionError as RepoPermissionError
 
             try:
+                # admin client justified: parent acting-as dependent verification before allowing task ops on dependent's behalf
                 admin_client = get_supabase_admin_client()
                 dependent_repo = DependentRepository(client=admin_client)
                 # Verify parent owns dependent
@@ -86,6 +87,7 @@ def complete_task(user_id: str, task_id: str):
         # Use user client for user operations (RLS enforcement)
         supabase = get_user_client()
         # Admin client: Storage and XP operations only (ADR-002, Rule 2)
+        # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
 
         # Initialize repositories with user client for RLS
@@ -392,6 +394,7 @@ def update_task(user_id: str, task_id: str):
         from utils.roles import get_effective_role
         from utils.pillar_utils import is_valid_pillar
 
+        # admin client justified: task reads scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
         task_repo = TaskRepository()
 
@@ -629,6 +632,7 @@ def finalize_task(user_id: str, task_id: str):
         JSON response with finalization status and XP awarded
     """
     try:
+        # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
 
         # Get the completion record for this task
@@ -775,6 +779,7 @@ def finalize_task(user_id: str, task_id: str):
 def get_credit_status(user_id: str, task_id: str):
     """Get the diploma credit status for a completed task."""
     try:
+        # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
         completion = admin_supabase.table('quest_task_completions')\
             .select('diploma_status')\
@@ -956,6 +961,7 @@ def request_diploma_credit(user_id: str, task_id: str):
     Can be called on tasks with diploma_status 'none' or 'grow_this' (resubmit).
     """
     try:
+        # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
 
         # Get completion record
@@ -1195,6 +1201,7 @@ def get_my_credit_requests(user_id: str):
     Powers the Diploma Credit Tracker on the student dashboard.
     """
     try:
+        # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
 
         # Get all completions with credit activity
@@ -1292,6 +1299,7 @@ def get_credit_history(user_id: str, task_id: str):
     Accessible by the task owner, assigned advisors, and superadmins.
     """
     try:
+        # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
 
         # Get completion record

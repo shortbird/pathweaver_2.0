@@ -1,5 +1,5 @@
 /**
- * useFeed hook tests - role-based feed routing, like/comment actions.
+ * useFeed hook tests - role-based feed routing, views, comment actions.
  */
 
 jest.mock('@/src/services/api', () =>
@@ -7,7 +7,7 @@ jest.mock('@/src/services/api', () =>
 );
 
 import { renderHook, waitFor } from '@testing-library/react-native';
-import { useFeed, toggleLike, postComment } from '../useFeed';
+import { useFeed, recordViews, getViewers, postComment } from '../useFeed';
 import api from '@/src/services/api';
 import {
   setAuthAsStudent, setAuthAsParent, setAuthAsObserver, clearAuthState,
@@ -29,6 +29,8 @@ describe('useFeed', () => {
     (api.get as jest.Mock).mockResolvedValueOnce({
       data: { items, has_more: false, next_cursor: null },
     });
+    // Mock the recordViews call that happens after fetching
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
 
     const { result } = renderHook(() => useFeed());
 
@@ -46,6 +48,7 @@ describe('useFeed', () => {
     (api.get as jest.Mock).mockResolvedValueOnce({
       data: { items, has_more: false, next_cursor: null },
     });
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
 
     const { result } = renderHook(() => useFeed());
 
@@ -75,21 +78,33 @@ describe('useFeed', () => {
   });
 });
 
-describe('toggleLike', () => {
-  it('POST to correct endpoint for task_completed', async () => {
-    (api.post as jest.Mock).mockResolvedValueOnce({ data: { liked: true } });
+describe('recordViews', () => {
+  it('POST to correct endpoint', async () => {
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, recorded: 1 } });
 
-    await toggleLike('task_completed', 'tc_123');
+    await recordViews([{ type: 'task_completed', id: 'tc_123' }]);
 
-    expect(api.post).toHaveBeenCalledWith('/api/observers/completions/123/like', {});
+    expect(api.post).toHaveBeenCalledWith('/api/observers/feed/record-views', {
+      items: [{ type: 'task_completed', id: 'tc_123' }],
+    });
+  });
+});
+
+describe('getViewers', () => {
+  it('GET correct endpoint for task_completed', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { viewers: [], total: 0 } });
+
+    await getViewers('task_completed', 'tc_123');
+
+    expect(api.get).toHaveBeenCalledWith('/api/observers/views/completion/123');
   });
 
-  it('POST to correct endpoint for learning_moment', async () => {
-    (api.post as jest.Mock).mockResolvedValueOnce({ data: { liked: true } });
+  it('GET correct endpoint for learning_moment', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { viewers: [], total: 0 } });
 
-    await toggleLike('learning_moment', 'le_456');
+    await getViewers('learning_moment', 'le_456');
 
-    expect(api.post).toHaveBeenCalledWith('/api/observers/learning-events/456/like', {});
+    expect(api.get).toHaveBeenCalledWith('/api/observers/views/learning_event/456');
   });
 });
 

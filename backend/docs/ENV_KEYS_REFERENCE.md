@@ -26,6 +26,15 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `CRON_SECRET` | Cron job authentication | `Config.CRON_SECRET` | Self-generated (`secrets.token_hex(16)`) |
 | `VAPID_PUBLIC_KEY` | Web push notifications | `Config.VAPID_PUBLIC_KEY` | `npx web-push generate-vapid-keys` |
 | `VAPID_PRIVATE_KEY` | Web push notifications | `Config.VAPID_PRIVATE_KEY` | Generated with public key |
+| `JWT_SECRET_KEY` | App-issued access/refresh JWT signing (M5) | `Config.JWT_SECRET_KEY` | Self-generated (`secrets.token_hex(32)`); falls back to `FLASK_SECRET_KEY` |
+| `FLASK_SECRET_KEY_OLD` | Previous JWT key during a key rotation cutover (M5) | `Config.JWT_PREVIOUS_SECRET_KEY` | Set to the prior `JWT_SECRET_KEY` value |
+| `TOKEN_VERSION` | Token version baked into JWT claims; bump to invalidate all tokens (M5) | `Config.TOKEN_VERSION` | Default `v1` |
+| `SESSION_TIMEOUT_HOURS` | Absolute session lifetime (M5) | `Config.SESSION_TIMEOUT_HOURS` | Default `24` |
+| `BACKEND_URL` | Absolute backend URL for worker contexts (M5) | `Config.BACKEND_URL` | Default empty (uses `request.host_url`) |
+| `SPARK_SSO_SECRET` | Spark LMS JWT SSO secret (M5) | `Config.SPARK_SSO_SECRET` | Provided by Spark integration |
+| `SPARK_WEBHOOK_SECRET` | Spark LMS webhook HMAC secret (M5) | `Config.SPARK_WEBHOOK_SECRET` | Provided by Spark integration |
+| `EVIDENCE_UPLOAD_FOLDER` | Storage path for evidence document uploads (M5) | `Config.EVIDENCE_UPLOAD_FOLDER` | Default `uploads/evidence` |
+| `ENABLE_VIRUS_SCAN` | Toggle ClamAV virus scanning on uploads (M5) | `Config.ENABLE_VIRUS_SCAN` | Default `false`; set `true` only when ClamAV is on the host |
 
 ### Email Configuration
 

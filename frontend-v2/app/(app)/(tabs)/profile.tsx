@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from 'nativewind';
+import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import { saveTheme } from '@/src/stores/themeStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useProfile, Viewer } from '@/src/hooks/useProfile';
@@ -336,46 +337,91 @@ export default function ProfileScreen() {
             <PortfolioSection achievements={achievements} />
           </CollapsibleSection>
 
-          {/* Subject XP */}
+          {/* Subject Credits */}
           {subjectXP.length > 0 && (
             <CollapsibleSection title="Subject Credits" defaultOpen={false}>
-              <Card variant="elevated" size="md">
-                <VStack space="md">
-                  {(() => {
-                    const maxXP = Math.max(...subjectXP.map((s: any) => (s.xp_amount || 0) + (s.pending_xp || 0)), 1);
-                    return subjectXP.map((s: any, idx: number) => {
-                      const total = (s.xp_amount || 0) + (s.pending_xp || 0);
-                      const earnedPct = Math.min(((s.xp_amount || 0) / maxXP) * 100, 100);
-                      const pendingPct = Math.min(((s.pending_xp || 0) / maxXP) * 100, 100);
-                      return (
-                        <VStack key={s.school_subject || `subject-${idx}`} space="xs">
-                          <HStack className="items-center justify-between">
-                            <UIText size="sm" className="font-poppins-medium">{(s.school_subject || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()).replace(/\b(Cte|Pe)\b/g, (m: string) => m.toUpperCase())}</UIText>
-                            <HStack className="items-center gap-2">
-                              <UIText size="sm" className="text-optio-purple font-poppins-semibold">{s.xp_amount?.toLocaleString()} XP</UIText>
-                              {s.pending_xp > 0 && (
-                                <Badge action="warning"><BadgeText className="text-amber-700">+{s.pending_xp} pending</BadgeText></Badge>
-                              )}
-                            </HStack>
-                          </HStack>
-                          <View className="h-2.5 bg-surface-100 dark:bg-dark-surface-200 rounded-full overflow-hidden flex-row">
-                            <View
-                              className="h-full bg-optio-purple rounded-full"
-                              style={{ width: `${earnedPct}%` }}
+              <View className="flex-row flex-wrap">
+                {subjectXP.map((s: any, idx: number) => {
+                  const XP_PER_CREDIT = 2000;
+                  const CREDIT_REQUIREMENTS: Record<string, { displayName: string; credits: number }> = {
+                    language_arts: { displayName: 'Language Arts', credits: 4 },
+                    math: { displayName: 'Mathematics', credits: 3 },
+                    science: { displayName: 'Science', credits: 3 },
+                    social_studies: { displayName: 'Social Studies', credits: 3.5 },
+                    financial_literacy: { displayName: 'Financial Literacy', credits: 0.5 },
+                    health: { displayName: 'Health', credits: 0.5 },
+                    pe: { displayName: 'Physical Education', credits: 2 },
+                    fine_arts: { displayName: 'Fine Arts', credits: 1.5 },
+                    cte: { displayName: 'Career & Tech', credits: 1 },
+                    digital_literacy: { displayName: 'Digital Literacy', credits: 0.5 },
+                    electives: { displayName: 'Electives', credits: 4 },
+                  };
+                  const subject = s.school_subject || '';
+                  const req = CREDIT_REQUIREMENTS[subject];
+                  const displayName = req?.displayName || subject.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()).replace(/\b(Cte|Pe)\b/g, (m: string) => m.toUpperCase());
+                  const xpRequired = (req?.credits || 1) * XP_PER_CREDIT;
+                  const earned = s.xp_amount || 0;
+                  const pending = s.pending_xp || 0;
+                  const earnedPct = Math.min((earned / xpRequired) * 100, 100);
+                  const pendingPct = Math.min((pending / xpRequired) * 100, 100);
+                  const totalPct = Math.min(earnedPct + pendingPct, 100);
+                  const displayPct = Math.round(totalPct);
+
+                  // SVG donut ring
+                  const size = 80;
+                  const strokeWidth = 7;
+                  const radius = (size - strokeWidth) / 2;
+                  const circumference = 2 * Math.PI * radius;
+                  const earnedOffset = circumference - (earnedPct / 100) * circumference;
+                  const pendingOffset = circumference - (totalPct / 100) * circumference;
+
+                  return (
+                    <View key={subject || `subject-${idx}`} className="w-1/2 items-center p-2 mb-2">
+                      <Card variant="elevated" size="sm" className="w-full items-center py-3 px-2">
+                        <View style={{ width: size, height: size }} className="items-center justify-center">
+                          <Svg width={size} height={size}>
+                            {/* Background track */}
+                            <SvgCircle
+                              cx={size / 2} cy={size / 2} r={radius}
+                              stroke="#E5E7EB" strokeWidth={strokeWidth} fill="none"
                             />
-                            {s.pending_xp > 0 && (
-                              <View
-                                className="h-full bg-amber-300 rounded-full"
-                                style={{ width: `${pendingPct}%` }}
+                            {/* Pending arc (amber, drawn first so earned overlaps) */}
+                            {pending > 0 && (
+                              <SvgCircle
+                                cx={size / 2} cy={size / 2} r={radius}
+                                stroke="#FCD34D" strokeWidth={strokeWidth} fill="none"
+                                strokeDasharray={`${circumference}`}
+                                strokeDashoffset={pendingOffset}
+                                strokeLinecap="round"
+                                transform={`rotate(-90 ${size / 2} ${size / 2})`}
                               />
                             )}
+                            {/* Earned arc (purple, on top) */}
+                            {earned > 0 && (
+                              <SvgCircle
+                                cx={size / 2} cy={size / 2} r={radius}
+                                stroke="#6D469B" strokeWidth={strokeWidth} fill="none"
+                                strokeDasharray={`${circumference}`}
+                                strokeDashoffset={earnedOffset}
+                                strokeLinecap="round"
+                                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                              />
+                            )}
+                          </Svg>
+                          <View className="absolute items-center justify-center">
+                            <UIText size="lg" className="font-poppins-bold text-typography-700">{displayPct}%</UIText>
                           </View>
-                        </VStack>
-                      );
-                    });
-                  })()}
-                </VStack>
-              </Card>
+                        </View>
+                        <UIText size="sm" className="font-poppins-semibold text-center mt-2">{displayName}</UIText>
+                        <UIText size="xs" className="text-typography-500 text-center">{earned.toLocaleString()} / {xpRequired.toLocaleString()} XP</UIText>
+                        {pending > 0 && (
+                          <UIText size="xs" className="text-amber-600 text-center">+{pending.toLocaleString()} pending</UIText>
+                        )}
+                      </Card>
+                    </View>
+                  );
+                })}
+              </View>
             </CollapsibleSection>
           )}
 

@@ -82,6 +82,7 @@ def register_routes(bp):
             if completion_id and learning_event_id:
                 return jsonify({'error': 'Provide only one of completion_id or learning_event_id'}), 400
 
+            # admin client justified: portfolio-share invitation flow; reads users + writes observer_invitations / observer_invitation_students after verifying caller owns the share target
             supabase = get_supabase_admin_client()
 
             # Determine student_id and validate the item exists
@@ -155,6 +156,7 @@ def register_routes(bp):
     def view_shared_feed_item(token):
         """Public endpoint to view a shared feed post."""
         try:
+            # admin client justified: portfolio-share invitation flow; reads users + writes observer_invitations / observer_invitation_students after verifying caller owns the share target
             supabase = get_supabase_admin_client()
 
             # Look up token
@@ -254,7 +256,7 @@ def _build_completion_item(supabase, share, student_info, caller_id):
     evidence = _get_completion_evidence(supabase, c)
 
     # Get social counts
-    likes_count, user_liked = _get_likes(supabase, completion_id=completion_id, caller_id=caller_id)
+    views_count = _get_views_count(supabase, completion_id=completion_id)
     comments_count = _get_comment_count(supabase, completion_id=completion_id)
 
     item = {
@@ -280,9 +282,8 @@ def _build_completion_item(supabase, share, student_info, caller_id):
         },
         'evidence': evidence,
         'xp_awarded': task_info.get('xp_value', 0),
-        'likes_count': likes_count,
+        'views_count': views_count,
         'comments_count': comments_count,
-        'user_has_liked': user_liked
     }
 
     return jsonify({'access': 'granted', 'item': item}), 200
@@ -343,7 +344,7 @@ def _build_learning_moment_item(supabase, share, student_info, caller_id):
     description = e.get('description', '')
 
     # Social counts
-    likes_count, user_liked = _get_likes(supabase, learning_event_id=le_id, caller_id=caller_id)
+    views_count = _get_views_count(supabase, learning_event_id=le_id)
     comments_count = _get_comment_count(supabase, learning_event_id=le_id)
 
     item = {
@@ -372,9 +373,8 @@ def _build_learning_moment_item(supabase, share, student_info, caller_id):
             'title': primary_evidence.get('title') if primary_evidence else None
         },
         'media': media_items,
-        'likes_count': likes_count,
+        'views_count': views_count,
         'comments_count': comments_count,
-        'user_has_liked': user_liked
     }
 
     return jsonify({'access': 'granted', 'item': item}), 200
@@ -438,23 +438,21 @@ def _get_completion_evidence(supabase, completion):
     return {'type': None, 'url': None, 'preview_text': None, 'title': None}
 
 
-def _get_likes(supabase, completion_id=None, learning_event_id=None, caller_id=None):
-    """Get like count and whether caller has liked."""
+def _get_views_count(supabase, completion_id=None, learning_event_id=None):
+    """Get view count for a feed item."""
     try:
-        query = supabase.table('observer_likes').select('observer_id')
+        query = supabase.table('feed_item_views').select('id')
         if completion_id:
             query = query.eq('completion_id', completion_id)
         elif learning_event_id:
             query = query.eq('learning_event_id', learning_event_id)
         else:
-            return 0, False
+            return 0
 
-        likes = query.execute()
-        count = len(likes.data) if likes.data else 0
-        user_liked = caller_id and any(l['observer_id'] == caller_id for l in (likes.data or []))
-        return count, bool(user_liked)
+        views = query.execute()
+        return len(views.data) if views.data else 0
     except Exception:
-        return 0, False
+        return 0
 
 
 def _get_comment_count(supabase, completion_id=None, learning_event_id=None):

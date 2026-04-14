@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 
 def get_user_info(user_id: str):
     """Get user role and organization info"""
+    # admin client justified: classes module helper; class student enrollment mgmt under org_admin/advisor role checks
     supabase = get_supabase_admin_client()
     user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
     if not user.data:
@@ -128,6 +129,7 @@ def enroll_students(user_id, org_id, class_id):
             student_ids = [student_ids]
 
         # Verify students exist and belong to the same org
+        # admin client justified: class student enrollment under @require_role; cross-org user lookup to verify students before enrollment
         supabase = get_supabase_admin_client()
         cls = service.get_class(class_id)
         class_org_id = cls.get('organization_id')

@@ -38,6 +38,7 @@ def register_routes(bp):
             List of quests with their course-specific data
         """
         try:
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
             client = get_supabase_admin_client()
 
             # Check course exists
@@ -97,7 +98,9 @@ def register_routes(bp):
         """
         try:
             user_id = session_manager.get_effective_user_id()
-            client = get_supabase_admin_client()  # Use admin client to bypass RLS
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
+            client = get_supabase_admin_client()
 
             # Check permissions
             course_result = client.table('courses').select('created_by, organization_id').eq('id', course_id).execute()
@@ -167,7 +170,9 @@ def register_routes(bp):
         """
         try:
             user_id = session_manager.get_effective_user_id()
-            client = get_supabase_admin_client()  # Use admin client to bypass RLS
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
+            client = get_supabase_admin_client()
 
             # Check permissions
             course_result = client.table('courses').select('created_by, organization_id').eq('id', course_id).execute()
@@ -249,6 +254,7 @@ def register_routes(bp):
         """
         try:
             user_id = session_manager.get_effective_user_id()
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
             client = get_supabase_admin_client()
 
             # Check permissions
@@ -325,6 +331,7 @@ def register_routes(bp):
         """
         try:
             user_id = session_manager.get_effective_user_id()
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
             client = get_supabase_admin_client()
 
             # Check permissions
@@ -425,7 +432,9 @@ def register_routes(bp):
         """
         try:
             user_id = session_manager.get_effective_user_id()
-            client = get_supabase_admin_client()  # Use admin client to bypass RLS
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
+            # admin client justified: course-quest mgmt under @require_auth; cross-user reads/writes on course_quests + quests gated by course ownership / org membership / superadmin role checks
+            client = get_supabase_admin_client()
 
             # Check permissions
             course_result = client.table('courses').select('created_by, organization_id').eq('id', course_id).execute()

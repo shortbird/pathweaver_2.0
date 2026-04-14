@@ -25,8 +25,8 @@ from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from datetime import datetime, timedelta
 import json
-import os
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,7 +46,7 @@ def request_account_deletion(current_user):
         reason = data.get('reason', '')
         user_id = current_user['id']
 
-        # Admin client: Admin operations for cross-table cleanup (ADR-002, Rule 2)
+        # admin client justified: GDPR delete-request schedules deletion + writes account_deletion_log (audit trail must succeed even if user RLS policies block); @require_auth ensures self-only deletion (user_id from token)
         supabase = get_supabase_admin_client()
 
         # Get user data for logging
@@ -217,7 +217,7 @@ def export_user_data(current_user):
         logger.info(f"[EXPORT] Starting data export for user: {current_user}")
         user_id = current_user['id']
         logger.info(f"[EXPORT] User ID: {user_id}")
-        # Admin client: Admin operations for GDPR export (ADR-002, Rule 2)
+        # admin client justified: GDPR data export reads ~15 tables for the authenticated user; cross-table self-export would need many overlapping RLS policies (parental_consent_log, observer_audit_log, advisor_student_notes, etc.); user_id from @require_auth scopes every query to self
         supabase = get_supabase_admin_client()
         logger.info(f"[EXPORT] Got supabase client")
 
@@ -419,7 +419,7 @@ def export_user_data(current_user):
         logger.info(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'error': 'Failed to export user data',
-            'details': str(e) if os.getenv('FLASK_ENV') == 'development' else None
+            'details': str(e) if Config.FLASK_ENV == 'development' else None
         }), 500
 
 @bp.route('/users/delete-account-permanent', methods=['DELETE'])
@@ -437,7 +437,7 @@ def delete_user_account_permanent(current_user):
     try:
         user_id = current_user['id']
 
-        # Admin client: Admin operations for cross-table deletion (ADR-002, Rule 2)
+        # admin client justified: GDPR Article 17 hard-delete cascades across ~15 tables; bypassing RLS is required because deleting users row revokes the caller's own access mid-transaction; user_id from @require_auth scopes every delete to self
         supabase = get_supabase_admin_client()
 
         # Verify user exists before attempting deletion
@@ -598,5 +598,5 @@ def delete_user_account_permanent(current_user):
         logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'error': 'Failed to permanently delete account',
-            'details': str(e) if os.getenv('FLASK_ENV') == 'development' else None
+            'details': str(e) if Config.FLASK_ENV == 'development' else None
         }), 500

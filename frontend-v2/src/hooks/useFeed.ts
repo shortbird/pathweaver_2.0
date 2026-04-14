@@ -53,9 +53,8 @@ export interface FeedItem {
   };
   evidence: FeedEvidence;
   media?: FeedMedia[];
-  likes_count: number;
+  views_count: number;
   comments_count: number;
-  user_has_liked: boolean;
   is_confidential: boolean;
 }
 
@@ -109,6 +108,11 @@ export function useFeed(options: UseFeedOptions = {}) {
       cursorRef.current = nextCursor;
       setHasMore(more);
       setError(null);
+
+      // Record views for loaded items
+      if (newItems.length > 0) {
+        recordViews(newItems.map((i: FeedItem) => ({ type: i.type, id: i.id }))).catch(() => {});
+      }
     } catch (err: any) {
       if (!isLoadMore) {
         setError(err.response?.data?.error?.message || 'Failed to load feed');
@@ -138,13 +142,18 @@ export function useFeed(options: UseFeedOptions = {}) {
   return { items, loading, loadingMore, hasMore, error, loadMore, refetch };
 }
 
-export async function toggleLike(type: 'task_completed' | 'learning_moment', id: string) {
-  const cleanId = id.replace(/^(tc_|le_)/, '');
-  const endpoint = type === 'task_completed'
-    ? `/api/observers/completions/${cleanId}/like`
-    : `/api/observers/learning-events/${cleanId}/like`;
-  const { data } = await api.post(endpoint, {});
+export async function recordViews(items: Array<{ type: string; id: string }>) {
+  const { data } = await api.post('/api/observers/feed/record-views', { items });
   return data;
+}
+
+export async function getViewers(type: 'task_completed' | 'learning_moment', id: string) {
+  const cleanId = id.replace(/^(tc_|le_)/, '');
+  // Strip block suffix from composite IDs
+  const dbId = cleanId.includes('_') ? cleanId.split('_')[0] : cleanId;
+  const targetType = type === 'task_completed' ? 'completion' : 'learning_event';
+  const { data } = await api.get(`/api/observers/views/${targetType}/${dbId}`);
+  return data as { viewers: Array<{ id: string; display_name: string; avatar_url: string | null; viewed_at: string }>; total: number };
 }
 
 export async function postComment(

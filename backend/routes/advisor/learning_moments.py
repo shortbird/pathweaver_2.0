@@ -40,6 +40,7 @@ def create_student_learning_moment(user_id, student_id):
     At least description or one media item is required.
     """
     try:
+        # admin client justified: advisor captures learning moments for assigned student; cross-user writes (learning_events, evidence blocks) gated by advisor_student_assignments + @require_advisor verification
         supabase = get_supabase_admin_client()
 
         # Verify advisor has access to this student
@@ -163,6 +164,7 @@ def upload_moment_media(user_id, student_id):
     - file: The media file to upload (image or document)
     """
     try:
+        # admin client justified: advisor captures learning moments for assigned student; cross-user writes (learning_events, evidence blocks) gated by advisor_student_assignments + @require_advisor verification
         supabase = get_supabase_admin_client()
         verify_advisor_access(supabase, user_id, student_id)
 
@@ -208,6 +210,7 @@ def get_student_learning_moments(user_id, student_id):
     - offset: Pagination offset (default 0)
     """
     try:
+        # admin client justified: advisor captures learning moments for assigned student; cross-user writes (learning_events, evidence blocks) gated by advisor_student_assignments + @require_advisor verification
         supabase = get_supabase_admin_client()
 
         # Verify advisor has access to this student
@@ -282,6 +285,7 @@ def update_student_learning_moment(user_id, student_id, moment_id):
     }
     """
     try:
+        # admin client justified: advisor captures learning moments for assigned student; cross-user writes (learning_events, evidence blocks) gated by advisor_student_assignments + @require_advisor verification
         supabase = get_supabase_admin_client()
 
         # Verify advisor has access to this student
@@ -354,6 +358,7 @@ def delete_student_learning_moment(user_id, student_id, moment_id):
     Advisors can only delete moments they captured (captured_by_user_id = advisor's ID).
     """
     try:
+        # admin client justified: advisor captures learning moments for assigned student; cross-user writes (learning_events, evidence blocks) gated by advisor_student_assignments + @require_advisor verification
         supabase = get_supabase_admin_client()
 
         # Verify advisor has access to this student

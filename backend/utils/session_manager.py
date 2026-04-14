@@ -1,7 +1,6 @@
 """
 Secure session management using httpOnly cookies
 """
-import os
 import jwt
 import hashlib
 from datetime import datetime, timedelta, timezone
@@ -19,15 +18,15 @@ class SessionManager:
     
     def __init__(self):
         # Primary secret key for token signing
-        self.secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY') or os.getenv('FLASK_SECRET_KEY')
+        self.secret_key = Config.JWT_SECRET_KEY
         if not self.secret_key:
-            raise ValueError("JWT_SECRET_KEY, SECRET_KEY, or FLASK_SECRET_KEY environment variable must be set")
+            raise ValueError("JWT_SECRET_KEY or FLASK_SECRET_KEY must be set (see Config.JWT_SECRET_KEY)")
 
         # Previous secret key for graceful rotation (optional)
-        self.previous_secret_key = os.getenv('FLASK_SECRET_KEY_OLD')
+        self.previous_secret_key = Config.JWT_PREVIOUS_SECRET_KEY
 
         # Token version for tracking rotations
-        self.token_version = os.getenv('TOKEN_VERSION', 'v1')
+        self.token_version = Config.TOKEN_VERSION
 
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
@@ -36,7 +35,7 @@ class SessionManager:
 
         # Session timeout configuration (independent of token expiry)
         # This provides an additional layer of security by enforcing absolute session timeouts
-        self.SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT_HOURS', '24'))
+        self.SESSION_TIMEOUT = Config.SESSION_TIMEOUT_HOURS
 
         # Log token versioning status
         if self.previous_secret_key:
@@ -46,9 +45,9 @@ class SessionManager:
 
         # Detect cross-origin deployment (frontend and backend on different domains)
         frontend_url = Config.FRONTEND_URL
-        backend_url = os.getenv('BACKEND_URL', request.host_url if request else '')
+        backend_url = Config.BACKEND_URL or (request.host_url if request else '')
         is_on_render = 'onrender.com' in frontend_url
-        is_production = os.getenv('FLASK_ENV') == 'production'
+        is_production = Config.FLASK_ENV == 'production'
 
         # Check if frontend and backend are on same root domain (e.g., www.optioeducation.com and api.optioeducation.com)
         # Same-site means cookies work with SameSite=Lax (more secure, no third-party cookie issues)
@@ -426,7 +425,48 @@ class SessionManager:
             )
 
         return response
-    
+
+    def set_masquerade_cookie(self, response, masquerade_token: str):
+        """Set the httpOnly masquerade_token cookie. Used so masquerade survives
+        page reloads under the in-memory-only token model (C2)."""
+        partitioned = self.is_cross_origin
+        cookie_kwargs = {
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'path': '/',
+            'partitioned': partitioned,
+        }
+        if self.cookie_domain:
+            cookie_kwargs['domain'] = self.cookie_domain
+        response.set_cookie(
+            'masquerade_token',
+            masquerade_token,
+            max_age=int(self.masquerade_token_expiry.total_seconds()),
+            **cookie_kwargs,
+        )
+        logger.info(f"[SessionManager] Masquerade cookie set | TTL: {int(self.masquerade_token_expiry.total_seconds())}s")
+        return response
+
+    def clear_masquerade_cookie(self, response):
+        """Clear only the masquerade_token cookie (leaves admin auth intact)."""
+        partitioned = self.is_cross_origin
+        cookie_kwargs = {
+            'expires': 0,
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'path': '/',
+            'partitioned': partitioned,
+        }
+        if self.cookie_domain:
+            domain_kwargs = cookie_kwargs.copy()
+            domain_kwargs['domain'] = self.cookie_domain
+            response.set_cookie('masquerade_token', '', **domain_kwargs)
+        response.set_cookie('masquerade_token', '', **cookie_kwargs)
+        logger.info("[SessionManager] Masquerade cookie cleared")
+        return response
+
     def clear_auth_cookies(self, response):
         """Clear authentication cookies (works for both same-origin and cross-origin)"""
         # Safari ITP Fix: Include Partitioned attribute when clearing cookies
@@ -512,13 +552,21 @@ class SessionManager:
                 logger.debug(f"[SessionManager] Acting-as token auth for parent {parent_id[:8]}...")
                 return parent_id
 
-        # Fallback to cookie (works in both same-origin and cross-origin with SameSite=None)
+        # Cookie fallback. Check masquerade cookie first so an active masquerade
+        # session takes precedence over the admin's own access cookie.
+        masquerade_cookie = request.cookies.get('masquerade_token')
+        if masquerade_cookie:
+            mq_payload = self.verify_masquerade_token(masquerade_cookie)
+            if mq_payload:
+                admin_id = mq_payload.get('user_id')
+                logger.debug(f"[SessionManager] Masquerade cookie auth for admin {admin_id[:8]}...")
+                return admin_id
+
         access_token = request.cookies.get('access_token')
         if access_token:
             payload = self.verify_access_token(access_token)
             if payload:
                 user_id = payload.get('user_id')
-                # Log cookie auth for Safari/Firefox debugging (unexpected on these browsers)
                 user_agent = request.headers.get('User-Agent', '')
                 is_safari_ios = ('Safari' in user_agent and 'Chrome' not in user_agent) or 'iPhone' in user_agent or 'iPad' in user_agent
                 is_firefox = 'Firefox' in user_agent
@@ -568,7 +616,13 @@ class SessionManager:
             logger.warning(f"[SessionManager] Authorization header present but token verification failed")
             return None
 
-        # Cookie fallback (only when no Authorization header)
+        # Cookie fallback. Masquerade cookie wins so the effective user is the target.
+        masquerade_cookie = request.cookies.get('masquerade_token')
+        if masquerade_cookie:
+            mq_payload = self.verify_masquerade_token(masquerade_cookie)
+            if mq_payload:
+                return mq_payload.get('masquerade_as')
+
         access_token = request.cookies.get('access_token')
         if access_token:
             payload = self.verify_access_token(access_token)
@@ -600,27 +654,32 @@ class SessionManager:
 
         return self.get_current_user_id()
 
-    def is_masquerading(self) -> bool:
-        """Check if the current session is a masquerade session"""
+    def _resolve_masquerade_payload(self) -> Optional[Dict[str, Any]]:
+        """Find an active masquerade JWT in the Authorization header or cookie."""
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
-            masquerade_payload = self.verify_masquerade_token(token)
-            return masquerade_payload is not None
-        return False
+            payload = self.verify_masquerade_token(token)
+            if payload:
+                return payload
+        cookie_token = request.cookies.get('masquerade_token')
+        if cookie_token:
+            return self.verify_masquerade_token(cookie_token)
+        return None
+
+    def is_masquerading(self) -> bool:
+        """Check if the current session is a masquerade session"""
+        return self._resolve_masquerade_payload() is not None
 
     def get_masquerade_info(self) -> Optional[Dict[str, str]]:
         """Get masquerade session info (admin_id and target_user_id)"""
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            token = auth_header.replace('Bearer ', '')
-            masquerade_payload = self.verify_masquerade_token(token)
-            if masquerade_payload:
-                return {
-                    'admin_id': masquerade_payload.get('user_id'),
-                    'target_user_id': masquerade_payload.get('masquerade_as'),
-                    'is_masquerading': True
-                }
+        payload = self._resolve_masquerade_payload()
+        if payload:
+            return {
+                'admin_id': payload.get('user_id'),
+                'target_user_id': payload.get('masquerade_as'),
+                'is_masquerading': True
+            }
         return None
     
     def refresh_session(self, refresh_token_override: Optional[str] = None) -> Optional[tuple]:

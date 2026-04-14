@@ -27,6 +27,7 @@ def get_user_active_quests(user_id: str):
     """
     try:
         # Use admin client - user authentication enforced by @require_auth
+        # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth; cross-table writes to RLS-protected XP tables
         supabase = get_supabase_admin_client()
 
         # Get user's active quests with progress
@@ -142,6 +143,7 @@ def get_user_completed_quests(user_id: str):
     try:
         # Use admin client - user authentication already enforced by @require_auth
         # Queries are explicitly filtered by user_id
+        # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth; cross-table writes to RLS-protected XP tables
         supabase = get_supabase_admin_client()
 
         # Fetch ALL user data in parallel using just 3 queries
@@ -426,6 +428,7 @@ def end_quest(user_id: str, quest_id: str):
     try:
         # Use admin client - @require_auth already validated user
         # Using admin client avoids RLS issues with JWT tokens
+        # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth; cross-table writes to RLS-protected XP tables
         supabase = get_supabase_admin_client()
 
         # Check if user is enrolled in this quest (allow both active and completed)
@@ -598,6 +601,7 @@ def reorder_quest_tasks(user_id: str, quest_id: str):
             return jsonify({'error': 'task_ids is required'}), 400
 
         # Use admin client to bypass RLS for updates
+        # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth; cross-table writes to RLS-protected XP tables
         supabase = get_supabase_admin_client()
 
         # Verify user is enrolled in this quest
@@ -648,6 +652,7 @@ def update_display_mode(user_id: str, quest_id: str):
         if display_mode not in ['timeline', 'flexible']:
             return jsonify({'error': 'display_mode must be "timeline" or "flexible"'}), 400
 
+        # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth
         admin = get_supabase_admin_client()
 
         # First, get the user_quest record to find its ID

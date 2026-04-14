@@ -133,6 +133,7 @@ def get_student_engagement(user_id: str, student_id: str):
     Get engagement metrics for a student, viewable by their parent.
     """
     try:
+        # admin client justified: rhythm/engagement metrics for a child; cross-user read gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this student

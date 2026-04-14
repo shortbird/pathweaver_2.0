@@ -25,12 +25,12 @@ from middleware.rate_limiter import rate_limit
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
 from datetime import datetime
-import os
 import mimetypes
 from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional, List
 import json
 
+from app_config import Config
 from utils.logger import get_logger
 from utils.url_metadata import fetch_url_metadata
 
@@ -45,7 +45,7 @@ xp_service = XPService()
 # Import file upload configuration from centralized config
 
 # File upload configuration
-UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
+UPLOAD_FOLDER = Config.EVIDENCE_UPLOAD_FOLDER
 
 # Using repository pattern for database access
 @bp.route('/documents/<task_id>', methods=['GET'])
@@ -57,6 +57,7 @@ def get_evidence_document(user_id: str, task_id: str):
     """
     try:
         # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
+        # admin client justified: evidence document reads scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
 
         # Get the evidence document
@@ -118,6 +119,7 @@ def save_evidence_document(user_id: str, task_id: str):
     """
     try:
         # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
+        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
         admin_supabase = get_supabase_admin_client()
 
         data = request.get_json()
@@ -362,6 +364,7 @@ def upload_task_file(user_id: str, task_id: str):
     Returns the public URL for the uploaded file.
     """
     try:
+        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
         admin_supabase = get_supabase_admin_client()
 
         # Validate task exists and user owns it
@@ -421,6 +424,7 @@ def upload_block_file(user_id: str, block_id: str):
     Upload a file for a specific content block (image or document).
     """
     try:
+        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
         admin_supabase = get_supabase_admin_client()
 
         # Validate block exists and user owns it
@@ -518,6 +522,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
     """
     try:
         # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
+        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
         admin_supabase = get_supabase_admin_client()
 
         # Validate task exists and user is enrolled (V3 personalized task system)
@@ -844,6 +849,7 @@ def delete_block_file(user_id: str, block_id: str):
     """
     try:
         supabase = get_user_client()
+        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
         admin_supabase = get_supabase_admin_client()
 
         # Validate the block exists and belongs to the user
@@ -912,6 +918,7 @@ def delete_storage_urls(user_id: str):
     Request body: { "urls": ["https://...supabase.co/...", ...] }
     """
     try:
+        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
         admin_supabase = get_supabase_admin_client()
 
         data = request.get_json() or {}
@@ -947,6 +954,7 @@ def delete_evidence_block(user_id: str, block_id: str):
     If this is the last block in the document, also deletes the document.
     """
     try:
+        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
         admin_supabase = get_supabase_admin_client()
 
         # Verify the block exists and belongs to this user

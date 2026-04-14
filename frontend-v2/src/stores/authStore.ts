@@ -61,8 +61,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loadUser: async () => {
     try {
-      // Restore tokens from secure storage
-      const hasTokens = await tokenStore.restore();
+      // Native: tokens persist in SecureStore. Web: tokens are memory-only — try
+      // minting a fresh access token from the httpOnly refresh cookie before giving up.
+      let hasTokens = await tokenStore.restore();
+      if (!hasTokens && Platform.OS === 'web') {
+        try {
+          const { data: refreshed } = await api.post('/api/auth/refresh', {});
+          if (refreshed?.access_token && refreshed?.refresh_token) {
+            await tokenStore.setTokens(refreshed.access_token, refreshed.refresh_token);
+            hasTokens = true;
+          }
+        } catch {
+          // No valid refresh cookie — fall through to unauthenticated state.
+        }
+      }
       if (!hasTokens) {
         set({ isLoading: false, isAuthenticated: false, user: null });
         return;

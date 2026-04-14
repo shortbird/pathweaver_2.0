@@ -31,6 +31,7 @@ def get_subject_notes(user_id, subject_id):
 
         # Check if user is admin
         from database import get_supabase_admin_client
+        # admin client justified: confidential advisor notes; @require_advisor + advisor_student_assignments verification + advisor_id scoping prevent cross-advisor leakage on advisor_student_notes service-role-only writes
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users')\
             .select('role')\
@@ -92,6 +93,7 @@ def create_note(user_id):
 
         # Verify advisor has access to this subject (student or parent)
         from database import get_supabase_admin_client
+        # admin client justified: confidential advisor notes; @require_advisor + advisor_student_assignments verification + advisor_id scoping prevent cross-advisor leakage on advisor_student_notes service-role-only writes
         supabase = get_supabase_admin_client()
 
         # Check if user is admin
@@ -181,6 +183,7 @@ def update_note(user_id, note_id):
 
         # Check if user is admin or note owner
         from database import get_supabase_admin_client
+        # admin client justified: confidential advisor notes; @require_advisor + advisor_student_assignments verification + advisor_id scoping prevent cross-advisor leakage on advisor_student_notes service-role-only writes
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users')\
             .select('role')\
@@ -222,6 +225,7 @@ def delete_note(user_id, note_id):
 
         # Check if user is admin or note owner
         from database import get_supabase_admin_client
+        # admin client justified: confidential advisor notes; @require_advisor + advisor_student_assignments verification + advisor_id scoping prevent cross-advisor leakage on advisor_student_notes service-role-only writes
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users')\
             .select('role')\

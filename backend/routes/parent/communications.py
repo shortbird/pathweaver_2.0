@@ -25,6 +25,7 @@ def get_all_student_conversations(user_id, student_id):
     Read-only access for parents.
     """
     try:
+        # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -118,6 +119,7 @@ def get_all_student_conversations(user_id, student_id):
 def get_student_dm_conversations(user_id, student_id):
     """Get all DM conversations for a student (read-only for parent)."""
     try:
+        # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -165,6 +167,7 @@ def get_student_dm_conversations(user_id, student_id):
 def get_student_dm_messages(user_id, student_id, conversation_id):
     """Get messages for a specific DM conversation (read-only for parent)."""
     try:
+        # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -210,6 +213,7 @@ def get_student_dm_messages(user_id, student_id, conversation_id):
 def get_student_group_conversations(user_id, student_id):
     """Get all group conversations for a student (read-only for parent)."""
     try:
+        # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -248,6 +252,7 @@ def get_student_group_conversations(user_id, student_id):
 def get_student_group_messages(user_id, student_id, group_id):
     """Get messages for a specific group conversation (read-only for parent)."""
     try:
+        # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -288,6 +293,7 @@ def get_student_group_messages(user_id, student_id, group_id):
 def get_student_tutor_conversations(user_id, student_id):
     """Get all AI tutor conversations for a student (read-only for parent)."""
     try:
+        # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
@@ -314,6 +320,7 @@ def get_student_tutor_conversations(user_id, student_id):
 def get_student_tutor_messages(user_id, student_id, conversation_id):
     """Get messages for a specific AI tutor conversation (read-only for parent)."""
     try:
+        # admin client justified: parent read-only access to child's DMs + group_messages + tutor_conversations; cross-user reads gated by parent->child relationship + org admin policy
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
