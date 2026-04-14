@@ -13,9 +13,10 @@ on:
     paths-ignore:
       - '**/*.md'
   pull_request:
+    # Required status check — no paths filter so the check always reports,
+    # even on PRs that don't touch frontend/ (ruleset blocks the merge
+    # otherwise with "X of Y required status checks are expected").
     branches: [main]
-    paths:
-      - 'frontend/**'
 
 jobs:
   test:
