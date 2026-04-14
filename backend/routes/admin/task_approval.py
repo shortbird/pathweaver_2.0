@@ -42,6 +42,7 @@ def list_pending_tasks(user_id: str):
     Get all student-created tasks awaiting approval.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get pagination params
@@ -81,6 +82,7 @@ def approve_task(user_id: str, task_id: str):
     Approve a student-created task.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Update task status
@@ -124,6 +126,7 @@ def reject_task(user_id: str, task_id: str):
     }
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.get_json() or {}
 
@@ -179,6 +182,7 @@ def delete_task(user_id: str, task_id: str):
     Delete a rejected task.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Only allow deleting rejected tasks
@@ -214,6 +218,7 @@ def get_approval_stats(user_id: str):
     Get statistics about manual task approvals.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get counts by status

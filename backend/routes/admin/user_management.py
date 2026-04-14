@@ -124,6 +124,7 @@ def update_user(user_id, target_user_id):
     """
     from utils.roles import get_effective_role
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -194,6 +195,7 @@ def update_user_role(user_id, target_user_id):
     Platform roles: superadmin, org_admin, student, parent, advisor, observer, org_managed
     When setting org_managed, the user's actual role comes from their org_role column.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -332,6 +334,7 @@ def bulk_delete_users(user_id):
 @require_admin
 def admin_reset_password(user_id, target_user_id):
     """Reset a user's password (admin only)"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -394,6 +397,7 @@ def admin_reset_password(user_id, target_user_id):
 @require_admin
 def admin_verify_email(user_id, target_user_id):
     """Manually verify a user's email (admin only)"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -461,6 +465,7 @@ def get_user_conversations(admin_user_id, user_id):
 def get_conversation_details(admin_user_id, conversation_id):
     """Get conversation details with all messages (admin only)"""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get conversation details (without user join - auth.users not accessible via PostgREST)
@@ -536,6 +541,7 @@ def get_user_quest_enrollments(user_id, target_user_id):
 @require_admin
 def upload_user_avatar(user_id, target_user_id):
     """Upload profile picture for a user (admin only)"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -578,8 +584,8 @@ def upload_user_avatar(user_id, target_user_id):
         # Create avatars bucket if it doesn't exist
         try:
             supabase.storage.create_bucket('avatars', {'public': True})
-        except:
-            pass  # Bucket might already exist
+        except Exception:
+            logger.debug("avatars bucket create skipped (likely exists)", exc_info=True)
 
         # Delete old avatar if exists
         user_result = supabase.table('users').select('avatar_url').eq('id', target_user_id).single().execute()
@@ -590,8 +596,8 @@ def upload_user_avatar(user_id, target_user_id):
                 old_path = old_url.split('/storage/v1/object/public/avatars/')[1]
                 try:
                     supabase.storage.from_('avatars').remove([old_path])
-                except:
-                    pass  # Ignore if old file doesn't exist
+                except Exception:
+                    logger.debug("avatar old file delete failed (non-fatal)", exc_info=True)
 
         # Upload new avatar
         upload_response = supabase.storage.from_('avatars').upload(
@@ -699,6 +705,7 @@ def update_user_org_role(admin_user_id, user_id):
             }), 400
 
         from database import get_supabase_admin_client
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_client = get_supabase_admin_client()
 
         # First check if user has an organization
@@ -799,6 +806,7 @@ def update_org_user_role(admin_user_id, user_id):
             }), 400
 
         from database import get_supabase_admin_client
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         admin_client = get_supabase_admin_client()
 
         # Get admin's organization
@@ -925,6 +933,7 @@ def assign_advisor_role(user_id, target_user_id):
     This endpoint allows school admins to grant advisor privileges to users
     so they can create quests, invite students, and manage announcements.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -1013,6 +1022,7 @@ def revoke_advisor_role(user_id, target_user_id):
     School admins can revoke advisor role from users in their organization.
     This demotes the user back to student role.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -1106,6 +1116,7 @@ def revoke_advisor_role(user_id, target_user_id):
 def get_user_observer_links(admin_user_id: str, user_id: str):
     """Get observer-student links for a user (as observer or as student)."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         links = []
 
@@ -1176,6 +1187,7 @@ def add_observer_link(admin_user_id: str, user_id: str):
         observer_id = user_id if direction == 'observing' else other_id
         student_id = other_id if direction == 'observing' else user_id
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Check for existing
@@ -1208,6 +1220,7 @@ def add_observer_link(admin_user_id: str, user_id: str):
 def remove_observer_link(admin_user_id: str, user_id: str, link_id: str):
     """Delete an observer-student link."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         supabase.table('observer_student_links').delete().eq('id', link_id).execute()
         return success_response(message='Observer link removed')

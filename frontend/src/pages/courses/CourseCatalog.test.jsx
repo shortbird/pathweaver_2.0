@@ -165,8 +165,13 @@ describe('CourseCatalog', () => {
 
   // --- Admin view ---
   describe('admin view', () => {
-    it('shows Create Course button for admins', () => {
+    it('shows Create Course button when can_create_course flag is set', () => {
       authState = { user: { id: 'user-1', role: 'superadmin' } }
+      coursesHookData = {
+        data: { courses: mockCourses, can_create_course: true },
+        isLoading: false,
+        error: null
+      }
       renderCatalog()
       expect(screen.getByText('Create Course')).toBeInTheDocument()
     })

@@ -100,7 +100,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                 try:
                     supabase.table('user_skill_xp').insert(record).execute()
                 except Exception:
-                    pass
+                    logger.debug("user_skill_xp insert fallback failed (row likely exists)", exc_info=True)
 
     except Exception as e:
         logger.error(f"Error ensuring diploma and skills: {str(e)}")

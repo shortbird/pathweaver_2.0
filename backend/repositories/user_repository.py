@@ -773,7 +773,7 @@ class UserRepository(BaseRepository):
                 try:
                     self.client.auth.admin.delete_user(target_user_id)
                 except Exception:
-                    pass
+                    logger.debug("auth admin delete_user failed (user may already be removed)", exc_info=True)
 
                 deleted.append(target_user_id)
                 logger.info(f"Bulk delete: Deleted user {target_user_id}")

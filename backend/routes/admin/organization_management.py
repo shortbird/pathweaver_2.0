@@ -274,6 +274,7 @@ def list_organization_quests(current_user_id, current_org_id, is_superadmin, org
         if not is_superadmin and current_org_id != org_id:
             return jsonify({'error': 'Access denied'}), 403
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Get quests created by this organization
@@ -423,6 +424,7 @@ def toggle_organization_ai_access(current_user_id, current_org_id, is_superadmin
         if not isinstance(enabled, bool):
             return jsonify({'error': 'enabled must be a boolean'}), 400
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Update organization AI settings
@@ -470,6 +472,7 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
         if not user_ids:
             return jsonify({'error': 'user_ids is required'}), 400
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Update users to join organization with org_managed pattern
@@ -533,6 +536,7 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
         if not user_id:
             return jsonify({'error': 'user_id is required'}), 400
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         if delete_user and is_superadmin:
@@ -593,6 +597,7 @@ def bulk_remove_users_from_organization(current_user_id, current_org_id, is_supe
         if len(user_ids) > 50:
             return jsonify({'error': 'Maximum 50 users can be removed at once'}), 400
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         removed = []
@@ -675,6 +680,7 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
         if not start_date:
             start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Get students in organization
@@ -911,6 +917,7 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
         # Auto-generate kid-friendly password (PIN + word)
         password = generate_simple_password()
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Get organization details (for slug in response)
@@ -1038,6 +1045,7 @@ def reset_user_password(current_user_id, current_org_id, is_superadmin, org_id, 
 
         data = request.get_json() or {}
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Verify user exists and belongs to this organization

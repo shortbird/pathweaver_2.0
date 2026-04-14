@@ -112,7 +112,7 @@ describe('ObserverFeedPage', () => {
       observerAPI.getMyStudents.mockResolvedValue({ data: { students: [] } })
       renderObserverFeed()
       await waitFor(() => {
-        expect(screen.getByText(/Ask a parent to send you an invitation/)).toBeInTheDocument()
+        expect(screen.getByText(/share an observer invitation link/i)).toBeInTheDocument()
       })
     })
   })

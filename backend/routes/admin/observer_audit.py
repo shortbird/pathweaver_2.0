@@ -71,6 +71,7 @@ def get_audit_logs(user_id: str):
             all_user_ids = list(set(observer_ids + student_ids))
 
             # Fetch user details
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             users = supabase.table('users') \
                 .select('id, email, first_name, last_name, display_name, role') \
@@ -212,6 +213,7 @@ def get_student_access_history(user_id: str, student_id: str):
         # Enrich with observer details
         if logs:
             observer_ids = list(set(log['observer_id'] for log in logs))
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             observers = supabase.table('users') \
                 .select('id, email, first_name, last_name, display_name') \
@@ -270,6 +272,7 @@ def get_recent_activity(user_id: str):
             student_ids = list(set(log['student_id'] for log in logs))
             all_user_ids = list(set(observer_ids + student_ids))
 
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             users = supabase.table('users') \
                 .select('id, email, first_name, last_name, display_name, role') \

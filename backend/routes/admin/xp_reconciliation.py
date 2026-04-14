@@ -32,6 +32,7 @@ xp_service = XPService()
 
 def require_admin(user_id: str):
     """Check if user has admin access (superadmin or org_admin)."""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
     user_result = supabase.table('users')\
         .select('role, org_role, organization_id')\
@@ -129,6 +130,7 @@ def audit_user_xp(auth_user_id: str, user_id: str):
     if error:
         return jsonify({'success': False, 'error': error}), 403
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Get user info
@@ -188,6 +190,7 @@ def reconcile_user_xp(auth_user_id: str, user_id: str):
     if error:
         return jsonify({'success': False, 'error': error}), 403
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Calculate expected XP
@@ -269,6 +272,7 @@ def list_discrepancies(auth_user_id: str):
     limit = min(int(request.args.get('limit', 100)), 500)
     offset = int(request.args.get('offset', 0))
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Get users with completed tasks
@@ -365,6 +369,7 @@ def batch_reconcile(auth_user_id: str):
     user_ids = data.get('user_ids', [])
     dry_run = data.get('dry_run', False)
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Get users to process
@@ -467,6 +472,7 @@ def list_failed_awards(auth_user_id: str):
     if error:
         return jsonify({'success': False, 'error': error}), 403
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Get unprocessed failed awards
@@ -500,6 +506,7 @@ def retry_failed_awards(auth_user_id: str):
     data = request.get_json() or {}
     award_ids = data.get('award_ids', [])
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Get failed awards to process

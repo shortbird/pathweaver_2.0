@@ -256,6 +256,7 @@ def get_metrics_summary(user_id):
         Metrics summary including quality scores, approval rates, generation counts
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get review queue stats
@@ -338,6 +339,7 @@ def get_metrics_trends(user_id):
     """
     try:
         days = int(request.args.get('days', 7))
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         from datetime import datetime, timedelta
@@ -490,6 +492,7 @@ def ai_health_check(user_id):
 
         # Check database connection
         try:
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             supabase.table('ai_prompt_components').select('id').limit(1).execute()
             health['database'] = 'connected'

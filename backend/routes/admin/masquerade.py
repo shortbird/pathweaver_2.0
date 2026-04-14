@@ -34,6 +34,7 @@ def start_masquerade(admin_id, target_user_id):
     Returns masquerade token and target user info
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Validate target user exists
@@ -122,6 +123,7 @@ def exit_masquerade():
         admin_id = masquerade_info['admin_id']
         target_user_id = masquerade_info['target_user_id']
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Update masquerade log with end time
@@ -188,6 +190,7 @@ def get_masquerade_history(admin_id):
     - target_user_id: Filter by specific target user (optional)
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         limit = int(request.args.get('limit', 50))
@@ -247,6 +250,7 @@ def get_masquerade_status():
         masquerade_info = session_manager.get_masquerade_info()
 
         if masquerade_info:
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
 
             # Get target user info

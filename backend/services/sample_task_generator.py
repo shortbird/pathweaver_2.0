@@ -24,6 +24,7 @@ from prompts.components import (
     TONE_LEVELS,
 )
 from services.base_ai_service import get_gemini_model, BaseAIService
+from services.ai_gen import generate_with_timeout
 
 logger = get_logger(__name__)
 
@@ -50,7 +51,7 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
     try:
         logger.info(f"Generating {count} sample tasks for quest: {quest_title}")
 
-        response = model.generate_content(prompt)
+        response = generate_with_timeout(model, prompt)
 
         if not response or not response.text:
             raise Exception("Empty response from Gemini API")

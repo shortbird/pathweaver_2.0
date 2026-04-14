@@ -19,6 +19,7 @@ All endpoints require authentication but are available to all student tier level
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from utils.ai_access import require_ai_access
+from middleware.rate_limiter import rate_limit
 from services.student_ai_assistant_service import StudentAIAssistantService
 from database import get_supabase_admin_client
 from repositories import (
@@ -42,6 +43,7 @@ student_ai_bp = Blueprint('student_ai', __name__)
 
 @student_ai_bp.route('/suggest-improvements', methods=['POST'])
 @require_auth
+@rate_limit(calls=30, period=3600)  # D5: per-user AI cap (Gemini spend)
 def suggest_improvements(user_id):
     """
     Get AI suggestions to improve a quest idea.
@@ -121,6 +123,7 @@ def suggest_improvements(user_id):
 
 @student_ai_bp.route('/similar-quests', methods=['POST'])
 @require_auth
+@rate_limit(calls=30, period=3600)  # D5
 def find_similar_quests(user_id):
     """
     Find similar existing quests for inspiration.
@@ -221,6 +224,7 @@ def find_similar_quests(user_id):
 
 @student_ai_bp.route('/validate-idea', methods=['POST'])
 @require_auth
+@rate_limit(calls=30, period=3600)  # D5
 def validate_idea(user_id):
     """
     Validate if a quest idea is ready for submission.
@@ -299,6 +303,7 @@ def validate_idea(user_id):
 
 @student_ai_bp.route('/recommend-tasks', methods=['POST'])
 @require_auth
+@rate_limit(calls=30, period=3600)  # D5
 def recommend_tasks(user_id):
     """
     Get AI-recommended tasks for a quest idea.

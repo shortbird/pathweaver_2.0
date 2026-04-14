@@ -11,6 +11,7 @@ from middleware.error_handler import ValidationError
 import uuid
 import google.generativeai as genai
 from app_config import Config
+from services.ai_gen import generate_with_timeout
 
 logger = get_logger(__name__)
 
@@ -588,7 +589,7 @@ STYLE GUIDELINES:
 
 Return ONLY a valid JSON array with these exact field names. No markdown, no code blocks, no extra text."""
 
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             import json
             import re
             response_text = response.text.strip()

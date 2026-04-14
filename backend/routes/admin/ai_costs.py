@@ -39,6 +39,7 @@ def get_cost_summary(user_id):
         days = int(request.args.get('days', 30))
         days = min(max(days, 1), 365)  # Clamp between 1 and 365
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
@@ -104,6 +105,7 @@ def get_costs_by_service(user_id):
         days = int(request.args.get('days', 30))
         days = min(max(days, 1), 365)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
@@ -186,6 +188,7 @@ def get_cost_trends(user_id):
         days = int(request.args.get('days', 30))
         days = min(max(days, 1), 90)  # Max 90 days for trends
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
 

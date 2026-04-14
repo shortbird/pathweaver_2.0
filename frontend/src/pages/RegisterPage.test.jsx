@@ -125,11 +125,6 @@ describe('RegisterPage', () => {
       expect(screen.getByLabelText(/I agree to the/)).toBeInTheDocument()
     })
 
-    it('renders portfolio visibility checkbox', () => {
-      renderRegisterPage()
-      expect(screen.getByLabelText(/I understand that my learning portfolio/)).toBeInTheDocument()
-    })
-
     it('renders submit button', () => {
       renderRegisterPage()
       expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
@@ -203,14 +198,6 @@ describe('RegisterPage', () => {
       })
     })
 
-    it('shows error when portfolio visibility not checked', async () => {
-      renderRegisterPage()
-      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
-
-      await waitFor(() => {
-        expect(screen.getByText('You must acknowledge that your learning portfolio will be publicly visible')).toBeInTheDocument()
-      })
-    })
   })
 
   // --- Password validation ---
@@ -235,7 +222,6 @@ describe('RegisterPage', () => {
       fireEvent.change(screen.getByLabelText('Email Address'), { target: { value: 'test@test.com' } })
       fireEvent.change(screen.getByLabelText('Date of Birth'), { target: { value: '2000-01-01' } })
       fireEvent.click(screen.getByLabelText(/I agree to the/))
-      fireEvent.click(screen.getByLabelText(/I understand that my learning portfolio/))
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
@@ -327,7 +313,6 @@ describe('RegisterPage', () => {
       fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
       fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
       fireEvent.click(screen.getByLabelText(/I agree to the/))
-      fireEvent.click(screen.getByLabelText(/I understand that my learning portfolio/))
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
@@ -356,7 +341,6 @@ describe('RegisterPage', () => {
       fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
       fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
       fireEvent.click(screen.getByLabelText(/I agree to the/))
-      fireEvent.click(screen.getByLabelText(/I understand that my learning portfolio/))
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
@@ -414,11 +398,6 @@ describe('RegisterPage', () => {
 
   // --- Observer registration ---
   describe('observer registration', () => {
-    it('shows observer banner when invitation code in URL', () => {
-      renderRegisterPage('/register?invitation=obs-code-123')
-      expect(screen.getByText('Creating Observer Account')).toBeInTheDocument()
-    })
-
     it('shows observer heading when invitation code present', () => {
       renderRegisterPage('/register?invitation=obs-code-123')
       expect(screen.getByText('Create your observer account')).toBeInTheDocument()

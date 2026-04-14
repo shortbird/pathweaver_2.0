@@ -179,7 +179,7 @@ class ErrorHandler:
         """Handle unexpected errors"""
         # Check for specific external service errors
         error_str = str(error).lower()
-        
+
         if 'supabase' in error_str:
             app_error = ExternalServiceError('Supabase', 'Database service error', error)
         elif 'stripe' in error_str:
@@ -188,8 +188,22 @@ class ErrorHandler:
             app_error = ExternalServiceError('Network', 'Network connection error', error)
         else:
             app_error = AppError('An unexpected error occurred', 500, 'INTERNAL_ERROR')
-        
-        log_error(error, self.get_request_info())
+
+        request_info = self.get_request_info()
+        log_error(error, request_info)
+
+        # D6: report unexpected server errors to PostHog. 4xx AppError paths
+        # don't come through this handler, so this only fires on true 500s.
+        try:
+            from utils.error_tracking import capture_exception
+            capture_exception(
+                error,
+                user_id=request_info.get('user_id'),
+                request_info=request_info,
+            )
+        except Exception:
+            # Telemetry must never break a request.
+            logger.debug("PostHog capture failed", exc_info=True)
         
         # In production, hide internal error details
         if self.app.config.get('ENV') == 'production':

@@ -49,6 +49,7 @@ def get_transcript_data(admin_user_id, user_id):
     Aggregates: student info, earned subject credits, transfer credits, planned credits.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Student info
@@ -204,6 +205,7 @@ def get_transcript_data(admin_user_id, user_id):
 def get_planned_credits(admin_user_id, user_id):
     """Get all planned/in-progress credits for a student."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         result = supabase.table('planned_credits').select('*').eq(
             'user_id', user_id
@@ -220,6 +222,7 @@ def get_planned_credits(admin_user_id, user_id):
 def add_planned_credit(admin_user_id, user_id):
     """Add a planned/in-progress credit for a student."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.json or {}
 
@@ -264,6 +267,7 @@ def add_planned_credit(admin_user_id, user_id):
 def update_planned_credit(admin_user_id, user_id, credit_id):
     """Update a planned credit."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.json or {}
 
@@ -303,6 +307,7 @@ def update_planned_credit(admin_user_id, user_id, credit_id):
 def delete_planned_credit(admin_user_id, user_id, credit_id):
     """Delete a planned credit."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         supabase.table('planned_credits').delete().eq(
             'id', credit_id
@@ -327,6 +332,7 @@ def update_course_names(admin_user_id, transfer_credit_id):
     Course credits within a subject must sum to the subject's total credits.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.json or {}
         course_names = data.get('course_names', {})
@@ -377,6 +383,7 @@ def update_course_names(admin_user_id, transfer_credit_id):
 def check_transcript_exists(admin_user_id, user_id):
     """Check if a transcript has been created for this student."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         result = supabase.table('transcript_overrides').select('id').eq(
             'user_id', user_id
@@ -391,6 +398,7 @@ def check_transcript_exists(admin_user_id, user_id):
 def get_overrides(admin_user_id, user_id):
     """Get transcript field overrides for a student."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         result = supabase.table('transcript_overrides').select('overrides').eq(
             'user_id', user_id
@@ -407,6 +415,7 @@ def get_overrides(admin_user_id, user_id):
 def save_overrides(admin_user_id, user_id):
     """Save transcript field overrides for a student."""
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         overrides = request.json or {}
 

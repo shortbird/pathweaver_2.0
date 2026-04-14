@@ -31,6 +31,7 @@ pywebpush>=2.0.0
 py-vapid>=1.9.0
 http_ece>=1.2.0
 flasgger>=0.9.7
+posthog>=3.5.0
 python-dateutil>=2.8.0
 tqdm>=4.65.0
 python-magic>=0.4.27

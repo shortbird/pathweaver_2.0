@@ -197,6 +197,7 @@ def bulk_import_users(current_user_id, current_org_id, is_superadmin, org_id):
     # Get option flags
     send_invites = request.form.get('send_invites', 'false').lower() == 'true'
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Get existing emails in the system to check for duplicates
@@ -457,6 +458,7 @@ def validate_import_file(current_user_id, current_org_id, is_superadmin, org_id)
     if not rows:
         return jsonify({'error': 'CSV file has no data rows'}), 400
 
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Get existing emails

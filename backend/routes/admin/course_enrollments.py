@@ -47,6 +47,7 @@ def get_enrollable_users(current_user_id, current_org_id, is_superadmin, course_
         404: Course not found
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Verify course exists and check access
@@ -130,6 +131,7 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
         404: Course not found
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Verify course exists and check access
@@ -294,6 +296,7 @@ def get_course_enrollments(current_user_id, current_org_id, is_superadmin, cours
         404: Course not found
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Verify course exists and check access
@@ -386,6 +389,7 @@ def bulk_unenroll_users(current_user_id, current_org_id, is_superadmin, course_i
         404: Course not found
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         # Verify course exists and check access
@@ -481,6 +485,7 @@ def get_user_enrollments(current_user_id, current_org_id, is_superadmin):
         404: User not found
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
         user_id = request.args.get('user_id')

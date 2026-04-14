@@ -44,6 +44,11 @@ jobs:
           done
           exit 1
 
+      - name: npm audit (high/critical only)
+        working-directory: frontend
+        # D2: supply-chain gate. Dev-only deps excluded; production surface only.
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Run tests
         working-directory: frontend
         run: npm run test:run

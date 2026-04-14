@@ -32,6 +32,7 @@ bp = Blueprint('admin_advisor_management', __name__, url_prefix='/api/admin')
 @require_admin
 def get_all_advisors(user_id):
     """Get list of all advisors and admins with their assigned student counts"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -98,6 +99,7 @@ def get_all_advisors(user_id):
 @require_admin
 def get_advisor_students(user_id, advisor_id):
     """Get list of students assigned to a specific advisor"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -196,6 +198,7 @@ def assign_student_to_advisor(user_id, advisor_id):
         "student_id": "uuid"
     }
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -316,6 +319,7 @@ def assign_student_to_advisor(user_id, advisor_id):
 @require_admin
 def unassign_student_from_advisor(user_id, advisor_id, student_id):
     """Remove a student assignment from an advisor"""
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
@@ -377,6 +381,7 @@ def get_unassigned_students(user_id):
     Get list of students who are not assigned to any advisor.
     Useful for admin UI when assigning students.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:

@@ -157,6 +157,7 @@ def _process_curriculum_in_context(
             # Set resume_from_stage high so resume skips the AI pipeline.
             logger.error(f"Finalize failed for upload {upload_id}: {str(finalize_error)}")
             try:
+                # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
                 supabase = get_supabase_admin_client()
                 supabase.table('curriculum_uploads').update({
                     'status': 'error',
@@ -183,6 +184,7 @@ def _process_curriculum_in_context(
         logger.error(f"Background processing error for upload {upload_id}: {str(e)}")
 
         try:
+            # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
             supabase = get_supabase_admin_client()
             supabase.table('curriculum_uploads').update({
                 'status': 'error',
@@ -253,6 +255,7 @@ def _process_to_review_background(
         except Exception as e:
             logger.error(f"Process to review background error: {str(e)}")
             try:
+                # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
                 supabase = get_supabase_admin_client()
                 supabase.table('curriculum_uploads').update({
                     'status': 'error',
@@ -302,6 +305,7 @@ def upload_curriculum(user_id):
         JSON with upload_id and status 'processing'
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get user's organization (can be overridden by request for masquerading)
@@ -677,6 +681,7 @@ def _generate_course_background(
         except Exception as e:
             logger.error(f"Generate course background error: {str(e)}")
             try:
+                # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
                 supabase = get_supabase_admin_client()
                 supabase.table('curriculum_uploads').update({
                     'status': 'error',
@@ -734,6 +739,7 @@ def generate_course(user_id):
             learning_objectives = [obj.strip() for obj in learning_objectives_str.split('\n') if obj.strip()]
             logger.info(f"User provided {len(learning_objectives)} learning objectives for generation")
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get user's organization
@@ -794,6 +800,7 @@ def get_upload_status(user_id, upload_id):
         JSON with status, progress, stages, quest_id (if complete), and metadata
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         result = supabase.table('curriculum_uploads').select(
@@ -854,6 +861,7 @@ def resume_curriculum_upload(user_id, upload_id):
         JSON with status 'processing' if resumed successfully
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Verify upload exists and can be resumed
@@ -931,6 +939,7 @@ def approve_structure(user_id, upload_id):
         JSON with status 'processing' if approved successfully
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Verify upload exists and is ready for review
@@ -995,6 +1004,7 @@ def get_upload_structure(user_id, upload_id):
         JSON with structured_content for review
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         result = supabase.table('curriculum_uploads').select(
@@ -1063,6 +1073,7 @@ def _finalize_curriculum_upload(upload_id: str, user_id: str, organization_id: s
     Finalize a successful curriculum upload by creating course and sending notification.
     Shared by both normal processing and resume/approve paths.
     """
+    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     # Extract course and projects data
@@ -1183,6 +1194,7 @@ def delete_upload(user_id, upload_id):
         JSON with success status
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Verify upload exists
@@ -1234,6 +1246,7 @@ def list_uploads(user_id):
         - Org admins see only their organization's uploads
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get user role and organization

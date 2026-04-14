@@ -51,7 +51,9 @@ class SnapToLearnAIService(BaseAIService):
                 'data': image_data,
             }
 
-            response = self.model.generate_content(
+            from services.ai_gen import generate_with_timeout
+            response = generate_with_timeout(
+                self.model,
                 [prompt, image_part],
                 generation_config=self.GENERATION_CONFIGS['structured_output'],
             )

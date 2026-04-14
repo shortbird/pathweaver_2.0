@@ -51,6 +51,7 @@ def get_org_invitations(current_user_id, current_org_id, is_superadmin, org_id):
         status: Filter by status (pending, accepted, expired, cancelled)
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Build query
@@ -126,6 +127,7 @@ def create_parent_invitation(current_user_id, current_org_id, is_superadmin, org
         invited_name = sanitize_input(data.get('name', ''))
         send_email = data.get('send_email', True)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Validate student_ids belong to org and have student role
@@ -342,6 +344,7 @@ def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
         invited_name = sanitize_input(data.get('name', ''))
         send_email = data.get('send_email', True)
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Check if user already exists in this organization
@@ -475,6 +478,7 @@ def resend_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
     Resend an invitation email and optionally extend expiration
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get the invitation
@@ -592,6 +596,7 @@ def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org
         if role not in VALID_INVITATION_ROLES:
             return jsonify({'error': f'Invalid role. Must be one of: {", ".join(VALID_INVITATION_ROLES)}'}), 400
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get organization details
@@ -662,6 +667,7 @@ def cancel_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
     Cancel a pending invitation
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get the invitation
@@ -764,6 +770,7 @@ def validate_invitation_code(invitation_code):
     (Public endpoint - used on accept invitation page)
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Find the invitation
@@ -854,6 +861,7 @@ def check_email_exists():
         if not email or not validate_email(email):
             return jsonify({'error': 'Valid email is required'}), 400
 
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Check if user exists
@@ -898,6 +906,7 @@ def accept_invitation(invitation_code):
         from utils.session_manager import session_manager
 
         data = request.json
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Check if user is already authenticated (logged in)

@@ -64,6 +64,7 @@ def get_disclosure_report(user_id: str):
             return jsonify({'error': 'Format must be either "json" or "csv"'}), 400
 
         # Build query
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         query = supabase.table('student_access_logs').select('*')
 
@@ -170,6 +171,7 @@ def get_student_access_summary(user_id: str, student_id: str):
     """
     try:
         # Verify student exists
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         student = supabase.table('users').select('id, email, display_name').eq('id', student_id).execute()
 

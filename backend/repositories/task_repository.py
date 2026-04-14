@@ -264,17 +264,18 @@ class TaskCompletionRepository(BaseRepository):
             return False
 
     def create_completion(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Create a task completion record.
+        """Create a task completion, idempotently.
 
-        Args:
-            data: Completion data
+        E3: This used to be a read-then-insert which had a TOCTOU race under
+        concurrent retries. We now rely on the UNIQUE (user_id,
+        user_quest_task_id) index (migration 20260414_xp_award_idempotency)
+        and catch the 23505 violation, returning the canonical existing row.
 
         Returns:
-            Created completion record
+            The created row, or the existing row if one was already present.
 
         Raises:
-            ValueError: If required fields are missing or duplicate completion
+            ValueError: If required fields are missing.
         """
         required_fields = ['user_id', 'quest_id', 'user_quest_task_id']
 
@@ -282,31 +283,38 @@ class TaskCompletionRepository(BaseRepository):
         if missing_fields:
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
+        if 'completed_at' not in data:
+            data['completed_at'] = datetime.utcnow().isoformat()
+
         try:
-            # Check for duplicate completion
-            existing = self.client.table(self.table_name)\
-                .select('id')\
-                .eq('user_id', data['user_id'])\
-                .eq('user_quest_task_id', data['user_quest_task_id'])\
-                .execute()
-
-            if existing.data:
-                raise ValueError("Task already completed")
-
-            # Add completion timestamp
-            if 'completed_at' not in data:
-                data['completed_at'] = datetime.utcnow().isoformat()
-
             result = self.client.table(self.table_name)\
                 .insert(data)\
                 .execute()
-
             if not result.data:
                 raise ValueError("Failed to create task completion")
-
-            logger.info(f"Created task completion for user {data['user_id']}, task {data['user_quest_task_id']}")
+            logger.info(
+                f"Created task completion for user {data['user_id']}, "
+                f"task {data['user_quest_task_id']}"
+            )
             return result.data[0]
         except Exception as e:
+            # Duplicate key — another concurrent request already inserted this
+            # completion. Return the existing canonical row (idempotent replay).
+            msg = str(e)
+            if '23505' in msg or 'duplicate key' in msg.lower() or 'uniq_quest_task_completions' in msg:
+                existing = self.client.table(self.table_name)\
+                    .select('*')\
+                    .eq('user_id', data['user_id'])\
+                    .eq('user_quest_task_id', data['user_quest_task_id'])\
+                    .limit(1)\
+                    .execute()
+                if existing.data:
+                    logger.info(
+                        "create_completion: duplicate for user "
+                        f"{data['user_id']}/{data['user_quest_task_id']} — "
+                        "returning existing row (idempotent)"
+                    )
+                    return existing.data[0]
             logger.error(f"Error creating task completion: {e}")
             raise
 

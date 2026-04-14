@@ -13,6 +13,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
 from utils.ai_access import require_ai_access
+from middleware.rate_limiter import rate_limit
 import json
 
 from utils.logger import get_logger
@@ -34,6 +35,7 @@ def get_quest_ai_service():
 
 @bp.route('/generate', methods=['POST'])
 @require_admin
+@rate_limit(calls=60, period=3600)  # D5: cap Gemini spend — 60 AI generations/hour/admin
 def generate_quest_from_topic(user_id: str):
     """
     Generate a complete quest structure from a topic using AI.
@@ -127,6 +129,7 @@ def generate_quest_from_topic(user_id: str):
 
 @bp.route('/enhance', methods=['POST'])
 @require_admin
+@rate_limit(calls=120, period=3600)  # D5
 def enhance_quest_description(user_id: str):
     """
     Enhance an existing quest description using AI.
@@ -183,6 +186,7 @@ def enhance_quest_description(user_id: str):
 
 @bp.route('/suggest-tasks', methods=['POST'])
 @require_admin
+@rate_limit(calls=120, period=3600)  # D5
 def suggest_tasks_for_quest(user_id: str):
     """
     Generate specific tasks for a quest using AI.
@@ -242,6 +246,7 @@ def suggest_tasks_for_quest(user_id: str):
 
 @bp.route('/validate', methods=['POST'])
 @require_admin
+@rate_limit(calls=120, period=3600)  # D5
 def validate_quest_quality(user_id: str):
     """
     Analyze quest data and provide quality feedback using AI.
@@ -290,6 +295,7 @@ def validate_quest_quality(user_id: str):
 
 @bp.route('/enhance-student-idea', methods=['POST'])
 @require_auth
+@rate_limit(calls=30, period=3600)  # D5: tighter cap for student-facing AI
 def enhance_student_quest_idea(user_id: str):
     """
     Enhance a student's quest idea submission with AI suggestions.

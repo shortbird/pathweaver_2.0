@@ -19,6 +19,7 @@ from services.base_service import BaseService
 from database import get_supabase_admin_client
 from datetime import datetime
 from app_config import Config
+from services.ai_gen import generate_with_timeout
 
 from utils.logger import get_logger
 
@@ -135,7 +136,7 @@ GUIDELINES:
 """
 
         try:
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             response_text = response.text.strip()
 
             # Extract JSON from response (may be wrapped in markdown code blocks)
@@ -230,7 +231,7 @@ Return the {limit} most relevant quests.
 """
 
         try:
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             response_text = response.text.strip()
 
             # Extract JSON
@@ -318,7 +319,7 @@ Be constructive and encouraging. Focus on helping the student improve their idea
 """
 
         try:
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             response_text = response.text.strip()
 
             # Extract JSON
@@ -395,7 +396,7 @@ Guidelines:
 """
 
         try:
-            response = self.model.generate_content(prompt)
+            response = generate_with_timeout(self.model, prompt)
             response_text = response.text.strip()
 
             # Extract JSON

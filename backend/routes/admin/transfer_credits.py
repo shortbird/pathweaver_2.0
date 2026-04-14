@@ -76,6 +76,7 @@ def get_transfer_credits(admin_user_id, user_id):
         List of transfer credit records with subject_xp breakdown, total_xp, and transcript info
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Verify the target user exists
@@ -136,6 +137,7 @@ def save_transfer_credits(admin_user_id, user_id):
     The total_xp is auto-calculated by database trigger.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
         data = request.json or {}
 
@@ -274,6 +276,7 @@ def upload_transcript(admin_user_id, user_id):
     Max size: 25MB
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Check if file was provided
@@ -382,6 +385,7 @@ def delete_single_transfer_credit(admin_user_id, user_id, transfer_credit_id):
     Also removes the associated XP from user_subject_xp and user_skill_xp.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get the specific transfer credit record (id is unique, no need for user_id filter)
@@ -409,6 +413,7 @@ def delete_all_transfer_credits(admin_user_id, user_id):
     Also removes the XP from user_subject_xp and user_skill_xp.
     """
     try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
         # Get all transfer credits for this user
