@@ -1,6 +1,5 @@
 /**
  * Bounties - Browse bounties, track claims, manage posted bounties.
- * Mobile-optimized: horizontally scrollable pillar filters, full-width cards.
  */
 
 import React, { useState } from 'react';
@@ -10,7 +9,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useBounties, useMyClaims, useMyPosted, deleteBounty, turnInBounty } from '@/src/hooks/useBounties';
-import { pillars as pillarMap, pillarKeys, pillarShortLabels, getPillar } from '@/src/config/pillars';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, PillarBadge,
@@ -188,12 +186,11 @@ export default function BountiesScreen() {
   const isDesktop = Platform.OS === 'web' && width >= 768;
   const { user } = useAuthStore();
   const [tab, setTab] = useState<Tab>('browse');
-  const [pillarFilter, setPillarFilter] = useState<string | undefined>(undefined);
 
   const isStudent = user?.role === 'student' || user?.org_role === 'student';
   const canPost = !isStudent || user?.role === 'superadmin';
 
-  const { bounties, loading: browsing } = useBounties(pillarFilter);
+  const { bounties, loading: browsing } = useBounties();
   const { claims, loading: claimsLoading, refetch: refetchClaims } = useMyClaims();
   const { bounties: posted, loading: postedLoading, refetch: refetchPosted } = useMyPosted();
 
@@ -244,52 +241,6 @@ export default function BountiesScreen() {
           {/* Browse tab */}
           {tab === 'browse' && (
             <VStack space="md">
-              {/* Pillar filters - horizontally scrollable, no clip */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-              >
-                <Pressable onPress={() => setPillarFilter(undefined)}>
-                  <View
-                    style={{
-                      paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: !pillarFilter ? '#6D469B' : '#F3F4F6',
-                      flexDirection: 'row', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    <Ionicons name="apps-outline" size={16} color={!pillarFilter ? '#fff' : '#6B7280'} />
-                    <UIText size="sm" style={{ fontFamily: 'Poppins_500Medium', color: !pillarFilter ? '#fff' : '#6B7280' }}>
-                      All
-                    </UIText>
-                  </View>
-                </Pressable>
-                {pillarKeys.map((p) => {
-                  const pc = getPillar(p);
-                  const active = pillarFilter === p;
-                  return (
-                    <Pressable key={p} onPress={() => setPillarFilter(active ? undefined : p)}>
-                      <View
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: active ? pc.color : '#F3F4F6',
-                          flexDirection: 'row', alignItems: 'center', gap: 6,
-                        }}
-                      >
-                        <Ionicons
-                          name={active ? pc.iconFilled : pc.icon}
-                          size={16}
-                          color={active ? '#fff' : pc.color}
-                        />
-                        <UIText size="sm" style={{ fontFamily: 'Poppins_500Medium', color: active ? '#fff' : pc.color }}>
-                          {pillarShortLabels[p]}
-                        </UIText>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-
               {/* Bounty list */}
               <View className="px-5 md:px-8">
                 {browsing ? (

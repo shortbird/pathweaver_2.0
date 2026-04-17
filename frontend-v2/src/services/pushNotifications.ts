@@ -54,12 +54,17 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     // Get Expo push token
+    // S3: read projectId only from Expo runtime config. A hardcoded fallback
+    // would mask configuration bugs and quietly send push tokens to a stale
+    // project if app.json ever changes.
     const projectId = Constants.default?.expoConfig?.extra?.eas?.projectId
       || Constants.default?.easConfig?.projectId;
+    if (!projectId) {
+      console.warn('[Push] No EAS projectId in expoConfig — skipping push registration.');
+      return null;
+    }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: projectId || 'b8abcb59-cb68-4f26-a25d-6de6fb9551e6',
-    });
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenData.data;
 
     // Send token to backend
@@ -85,12 +90,17 @@ export async function deactivatePushToken(): Promise<void> {
   if (Platform.OS === 'web' || !Notifications || !Constants) return;
 
   try {
+    // S3: read projectId only from Expo runtime config. A hardcoded fallback
+    // would mask configuration bugs and quietly send push tokens to a stale
+    // project if app.json ever changes.
     const projectId = Constants.default?.expoConfig?.extra?.eas?.projectId
       || Constants.default?.easConfig?.projectId;
+    if (!projectId) {
+      console.warn('[Push] No EAS projectId in expoConfig — skipping push deactivation.');
+      return;
+    }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: projectId || 'b8abcb59-cb68-4f26-a25d-6de6fb9551e6',
-    });
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
 
     await api.delete('/api/push/expo-token', {
       data: { token: tokenData.data },

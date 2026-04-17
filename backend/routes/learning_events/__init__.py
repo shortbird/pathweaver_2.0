@@ -28,3 +28,4 @@ from . import crud  # noqa: F401,E402
 from . import evidence  # noqa: F401,E402
 from . import threads  # noqa: F401,E402
 from . import ai  # noqa: F401,E402
+from . import attach  # noqa: F401,E402

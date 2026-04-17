@@ -13,11 +13,11 @@ services:
       - key: CRON_SECRET
         sync: false
       - key: BACKEND_URL
-        value: https://optio-prod-backend.onrender.com
+        value: https://api.optioeducation.com
 
   # Production Backend
   - type: web
-    name: optio-backend-prod
+    name: optio-prod-backend
     env: python
     branch: main
     rootDir: backend
@@ -39,11 +39,11 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: FRONTEND_URL
-        value: https://optio-frontend-prod.onrender.com
+        value: https://www.optioeducation.com
 
   # Development Backend
   - type: web
-    name: optio-backend-dev
+    name: optio-dev-backend
     env: python
     branch: develop
     rootDir: backend
@@ -65,11 +65,11 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: FRONTEND_URL
-        value: https://optio-frontend-dev.onrender.com
+        value: https://optio-dev-frontend.onrender.com
 
   # Production Frontend
   - type: static
-    name: optio-frontend-prod
+    name: optio-prod-frontend
     branch: main
     rootDir: frontend
     buildCommand: npm install && npm run build
@@ -86,7 +86,7 @@ services:
       - key: NODE_VERSION
         value: 22.12.0
       - key: VITE_API_URL
-        value: https://optio-prod-backend.onrender.com
+        value: https://api.optioeducation.com
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
@@ -94,7 +94,7 @@ services:
 
   # Development Frontend
   - type: static
-    name: optio-frontend-dev
+    name: optio-dev-frontend
     branch: develop
     rootDir: frontend
     buildCommand: npm install && npm run build
@@ -111,7 +111,7 @@ services:
       - key: NODE_VERSION
         value: 22.12.0
       - key: VITE_API_URL
-        value: https://optio-backend-dev.onrender.com
+        value: https://optio-dev-backend.onrender.com
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY

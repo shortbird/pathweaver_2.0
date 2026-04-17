@@ -4,13 +4,15 @@
  * Supports edit and delete actions.
  */
 
-import React, { useState } from 'react';
-import { View, Image, Pressable, Alert, Platform, TextInput } from 'react-native';
+import React, { memo, useState } from 'react';
+import { View, Pressable, Alert, Platform, TextInput } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, PillarBadge } from '../ui';
 import type { LearningEvent, UnifiedTopic } from '@/src/hooks/useJournal';
 import { deleteLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
+import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
 
 const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   text: 'document-text-outline',
@@ -29,7 +31,7 @@ interface LearningEventCardProps {
   onAssigned?: () => void;
 }
 
-export function LearningEventCard({ event, onPress, onDeleted, onEdit, topics, onAssigned }: LearningEventCardProps) {
+function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned }: LearningEventCardProps) {
   const [showActions, setShowActions] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showTopicMenu, setShowTopicMenu] = useState(false);
@@ -37,6 +39,29 @@ export function LearningEventCard({ event, onPress, onDeleted, onEdit, topics, o
   const [showNewTopic, setShowNewTopic] = useState(false);
   const [newTopicName, setNewTopicName] = useState('');
   const [creatingTopic, setCreatingTopic] = useState(false);
+  const [taskPickerVisible, setTaskPickerVisible] = useState(false);
+
+  const handleAttachTask = async (taskId: string) => {
+    try {
+      await attachMomentToTask(event.id, taskId);
+      setTaskPickerVisible(false);
+      setShowActions(false);
+      await onAssigned?.();
+    } catch {
+      Alert.alert('Error', 'Failed to attach moment to task.');
+    }
+  };
+
+  const handleDetachTask = async () => {
+    try {
+      await detachMomentFromTask(event.id);
+      setTaskPickerVisible(false);
+      setShowActions(false);
+      await onAssigned?.();
+    } catch {
+      Alert.alert('Error', 'Failed to detach moment.');
+    }
+  };
 
   const getBlockUrl = (b: any) => b?.file_url || b?.content?.url || b?.content?.items?.[0]?.url;
   const imageBlock = event.evidence_blocks?.find((b) => b.block_type === 'image' && getBlockUrl(b));
@@ -131,10 +156,13 @@ export function LearningEventCard({ event, onPress, onDeleted, onEdit, topics, o
         {/* Media header */}
         {imageBlock && getBlockUrl(imageBlock) ? (
           <View className="-mx-3 -mt-3 mb-3">
-            <Image
+            <ExpoImage
               source={{ uri: getBlockUrl(imageBlock) }}
               className="w-full h-40 rounded-t-xl"
-              resizeMode="cover"
+              style={{ width: '100%', height: 160 }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={150}
             />
           </View>
         ) : videoBlock && getBlockUrl(videoBlock) ? (
@@ -184,6 +212,15 @@ export function LearningEventCard({ event, onPress, onDeleted, onEdit, topics, o
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">Assign</UIText>
                   </Pressable>
                 ) : null}
+                <Pressable
+                  onPress={(e) => { e.stopPropagation?.(); setTaskPickerVisible(true); }}
+                  className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg"
+                >
+                  <Ionicons name="flag-outline" size={14} color="#6D469B" />
+                  <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                    {event.attached_task ? 'Change task' : 'Attach task'}
+                  </UIText>
+                </Pressable>
                 <Pressable
                   onPress={(e) => { e.stopPropagation?.(); setShowActions(false); handleDelete(); }}
                   disabled={deleting}
@@ -288,6 +325,17 @@ export function LearningEventCard({ event, onPress, onDeleted, onEdit, topics, o
             ) : null}
           </HStack>
 
+          {/* Attached task chip */}
+          {event.attached_task ? (
+            <HStack className="items-center gap-1.5 px-2 py-1 rounded-lg bg-optio-purple/5 border border-optio-purple/20 self-start">
+              <Ionicons name="flag" size={12} color="#6D469B" />
+              <UIText size="xs" className="text-optio-purple font-poppins-medium" numberOfLines={1}>
+                {event.attached_task.quest_title ? `${event.attached_task.quest_title}: ` : ''}
+                {event.attached_task.title}
+              </UIText>
+            </HStack>
+          ) : null}
+
           {/* Topic tags */}
           {event.topics && event.topics.length > 0 ? (
             <HStack className="items-center gap-1 flex-wrap">
@@ -305,6 +353,32 @@ export function LearningEventCard({ event, onPress, onDeleted, onEdit, topics, o
           ) : null}
         </VStack>
       </Card>
+
+      <TaskPickerSheet
+        visible={taskPickerVisible}
+        onClose={() => setTaskPickerVisible(false)}
+        onPicked={(task) => handleAttachTask(task.id)}
+        currentTaskId={event.attached_task_id || null}
+        allowDetach={!!event.attached_task_id}
+        onDetach={handleDetachTask}
+      />
     </Pressable>
   );
 }
+
+// P4: memoize — same event identity + same attach state skips re-render.
+export const LearningEventCard = memo(LearningEventCardImpl, (prev, next) => {
+  if (prev.onPress !== next.onPress) return false;
+  if (prev.onDeleted !== next.onDeleted) return false;
+  if (prev.onEdit !== next.onEdit) return false;
+  if (prev.onAssigned !== next.onAssigned) return false;
+  if (prev.topics !== next.topics) return false;
+  const a = prev.event;
+  const b = next.event;
+  return (
+    a.id === b.id &&
+    a.attached_task_id === b.attached_task_id &&
+    a.title === b.title &&
+    a.description === b.description
+  );
+});

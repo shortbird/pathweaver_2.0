@@ -9,6 +9,7 @@ import React, { useState, useRef } from 'react';
 import { View, Modal, Pressable, TextInput, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
+import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText,
 } from '../ui';
@@ -135,24 +136,30 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
         const allBlocks: any[] = [];
         let orderIdx = 0;
 
-        // Step 2: Upload files via shared /api/uploads/evidence endpoint
-        if (files.length > 0) {
-          const fd = new FormData();
-          files.forEach((item) => fd.append('files', item.file));
-          const uploadRes = await api.post('/api/uploads/evidence', fd);
-          const uploadedFiles = uploadRes.data?.files || [];
-
-          uploadedFiles.forEach((f: any) => {
-            const blockType = f.content_type?.startsWith('video/') ? 'video' :
-                              f.content_type?.startsWith('image/') ? 'image' : 'document';
+        // Step 2: Upload each file direct-to-Supabase via signed-upload.
+        for (const item of files) {
+          const blockType = item.file.type?.startsWith('video/')
+            ? 'video'
+            : item.file.type?.startsWith('image/')
+              ? 'image'
+              : 'document';
+          try {
+            const result = await uploadViaSignedUrl({
+              file: item.file,
+              initPath: `/api/learning-events/${eventId}/upload-init`,
+              finalizePath: `/api/learning-events/${eventId}/upload-finalize`,
+              blockType,
+            });
             allBlocks.push({
               block_type: blockType,
               content: {},
-              file_url: f.url,
-              file_name: f.original_name || f.stored_name,
+              file_url: (result.file_url || result.url) as string,
+              file_name: (result.filename || result.file_name || item.file.name) as string,
               order_index: orderIdx++,
             });
-          });
+          } catch (uploadErr) {
+            console.warn('signed-upload failed for', item.file.name, uploadErr);
+          }
         }
 
         // Step 3: Add text/link evidence blocks

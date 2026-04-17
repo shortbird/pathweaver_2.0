@@ -61,12 +61,19 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
     }
   }, [messages.length]);
 
-  // Mark unread messages as read
+  // Mark unread messages as read. E4: on failure we just leave the message
+  // marked-unread locally — the next poll cycle will re-attempt. No need to
+  // retry here; a transient 5xx would otherwise spam Sentry on every render.
+  const readAttemptsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!user?.id || !messages.length) return;
     messages.forEach((m) => {
-      if (m.recipient_id === user.id && !m.read_at) {
-        markMessageRead(m.id).catch(() => {});
+      if (m.recipient_id === user.id && !m.read_at && !readAttemptsRef.current.has(m.id)) {
+        readAttemptsRef.current.add(m.id);
+        markMessageRead(m.id).catch(() => {
+          // Allow retry on next poll if it failed.
+          readAttemptsRef.current.delete(m.id);
+        });
       }
     });
   }, [messages, user?.id]);

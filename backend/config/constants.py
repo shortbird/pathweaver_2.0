@@ -16,10 +16,15 @@ XP_THRESHOLDS = {
 
 # File Upload Limits
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB (keep under Render memory budget)
+MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB (keep under Render memory budget; applies to legacy multipart POSTs)
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
 MAX_DOCUMENT_SIZE = 25 * 1024 * 1024  # 25MB for documents (PDFs, etc.)
+# Legacy (multipart-through-backend) video cap — kept small to bound worker memory.
 MAX_VIDEO_SIZE = 50 * 1024 * 1024  # 50MB for videos (was 100MB, caused OOM on Render)
+# Signed-upload (direct-to-Supabase) video cap — payload never touches our workers,
+# so we can accept larger videos. Must match the bucket-level file_size_limit
+# configured in Supabase (supabase/migrations/20260417_raise_evidence_bucket_file_size_limit.sql).
+MAX_VIDEO_SIZE_SIGNED = 500 * 1024 * 1024  # 500MB for videos via signed-upload
 MAX_VIDEO_COMPRESSION_THRESHOLD = 25 * 1024 * 1024  # 25MB - compress videos above this
 MAX_VIDEO_DURATION_SECONDS = 180  # 3 minutes
 
@@ -31,10 +36,20 @@ ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
 ALLOWED_VIDEO_MIME_TYPES = {'video/mp4', 'video/quicktime'}
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'mov'}  # Legacy compatibility
 
-# Grouped evidence upload lookups (used by MediaUploadService)
+# Grouped evidence upload lookups (used by MediaUploadService).
+# EVIDENCE_SIZE_LIMITS applies to the legacy multipart-through-backend flow
+# (MediaUploadService.upload_evidence_file). SIGNED_EVIDENCE_SIZE_LIMITS applies
+# to the signed-upload flow (create_upload_session / finalize_upload) where the
+# payload goes directly to Supabase and we can afford bigger videos.
 EVIDENCE_SIZE_LIMITS = {
     'image': MAX_IMAGE_SIZE,
     'video': MAX_VIDEO_SIZE,
+    'document': MAX_DOCUMENT_SIZE,
+}
+
+SIGNED_EVIDENCE_SIZE_LIMITS = {
+    'image': MAX_IMAGE_SIZE,
+    'video': MAX_VIDEO_SIZE_SIGNED,
     'document': MAX_DOCUMENT_SIZE,
 }
 

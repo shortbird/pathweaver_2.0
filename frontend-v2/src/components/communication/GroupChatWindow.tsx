@@ -120,11 +120,22 @@ export function GroupChatWindow({ group, onBack }: Props) {
     }
   }, [messages.length]);
 
-  // Mark as read when viewing
+  // Mark as read when viewing. E4: if the call fails (transient 5xx, offline)
+  // we retry once on the next poll tick rather than losing the read state.
   useEffect(() => {
-    if (group.id) {
-      markGroupRead(group.id).catch(() => {});
-    }
+    if (!group.id) return;
+    let cancelled = false;
+    const attempt = async (retriesLeft: number) => {
+      try {
+        await markGroupRead(group.id);
+      } catch {
+        if (!cancelled && retriesLeft > 0) {
+          setTimeout(() => attempt(retriesLeft - 1), 15000);
+        }
+      }
+    };
+    attempt(1);
+    return () => { cancelled = true; };
   }, [group.id]);
 
   // Focus input (desktop only)

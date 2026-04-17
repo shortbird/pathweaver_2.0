@@ -28,6 +28,15 @@ export interface LearningEvent {
   topics: Array<{ type: string; id: string; name: string; color?: string }>;
   track_id?: string;
   quest_id?: string;
+  attached_task_id?: string | null;
+  attached_task?: {
+    id: string;
+    title: string;
+    pillar: string;
+    xp_value: number;
+    quest_id?: string;
+    quest_title?: string;
+  } | null;
 }
 
 export interface InterestTrack {

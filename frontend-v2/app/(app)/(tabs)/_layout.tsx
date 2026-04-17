@@ -14,8 +14,11 @@ import { useUIStore } from '@/src/stores/uiStore';
 
 const DESKTOP_BREAKPOINT = 768;
 
+// Q5: canonical Optio logo is the Supabase-hosted gradient_fav.svg — same asset
+// used by v1 (frontend/index.html, TopNavbar.jsx, manifest.json) and by other
+// v2 screens (onboarding.tsx, feed.tsx). Keep these in lockstep.
 const LOGO_URI =
-  'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
+  'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const optioIcon = require('@/assets/images/icon.png');

@@ -1,5 +1,6 @@
 import api from './api';
 import logger from '../utils/logger';
+import { uploadViaSignedUrl } from './signedUpload';
 
 // Use the centralized authenticated API client
 // This ensures Authorization headers are added via interceptors
@@ -61,56 +62,33 @@ export const evidenceDocumentService = {
     }
   },
 
-  // Upload file for a content block
-  async uploadBlockFile(blockId, file, { onProgress } = {}) {
+  // Upload file for a content block via signed-upload flow (direct-to-Supabase).
+  // Block type is derived from the block record on the backend, not the client.
+  async uploadBlockFile(blockId, file, { onProgress, blockType } = {}) {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const config = {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 300000, // 5 minute timeout for large video uploads + server-side compression
-      };
-
-      if (onProgress) {
-        config.onUploadProgress = (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percentCompleted);
-        };
-      }
-
-      const response = await evidenceApi.post(`/blocks/${blockId}/upload`, formData, config);
-      return response.data;
+      return await uploadViaSignedUrl({
+        file,
+        initPath: `/api/evidence/blocks/${blockId}/upload-init`,
+        finalizePath: `/api/evidence/blocks/${blockId}/upload-finalize`,
+        blockType,
+        onProgress,
+      });
     } catch (error) {
       logger.error('Error uploading file:', error);
       throw error;
     }
   },
 
-  // Upload file for a task (before block is created)
-  async uploadFile(file, taskId, { onProgress } = {}) {
+  // Upload file for a task (before block is created) via signed-upload flow.
+  async uploadFile(file, taskId, { onProgress, blockType } = {}) {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const config = {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 300000, // 5 minute timeout for large video uploads + server-side compression
-      };
-
-      if (onProgress) {
-        config.onUploadProgress = (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percentCompleted);
-        };
-      }
-
-      const response = await evidenceApi.post(`/documents/${taskId}/upload`, formData, config);
-      return response.data;
+      return await uploadViaSignedUrl({
+        file,
+        initPath: `/api/evidence/documents/${taskId}/upload-init`,
+        finalizePath: `/api/evidence/documents/${taskId}/upload-finalize`,
+        blockType,
+        onProgress,
+      });
     } catch (error) {
       logger.error('Error uploading file:', error);
       throw error;

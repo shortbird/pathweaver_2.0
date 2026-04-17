@@ -142,6 +142,117 @@ def upload_evidence_base64(user_id):
     return jsonify({'files': uploaded, 'count': len(uploaded)}), 200
 
 
+# --- Signed upload (direct-to-Supabase) for all authenticated users ---
+# These endpoints back the v2 bounty/capture upload flows and any other
+# caller that needs to upload files larger than Render's per-request memory
+# budget. The client uploads directly to Supabase via the returned signed URL,
+# avoiding backend memory pressure entirely.
+
+@bp.route('/sign', methods=['POST'])
+@rate_limit(limit=30, per=3600)
+@require_auth
+def request_upload_session(user_id):
+    """
+    Create a signed upload session for direct-to-Supabase upload.
+
+    Body JSON: {
+      filename, file_size, content_type?, block_type?,
+      context_type? (default 'task_evidence'),
+      context_id? (default 'generic'),
+      sub_id?
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        filename = data.get('filename')
+        file_size = data.get('file_size')
+        if not filename or not isinstance(file_size, int):
+            return jsonify({'error': 'filename and file_size required'}), 400
+
+        context_type = data.get('context_type', 'task_evidence')
+        context_id = data.get('context_id', 'generic')
+
+        from services.media_upload_service import MediaUploadService
+        # admin client justified: file upload to Supabase Storage scoped to caller (self) under @require_auth
+        service = MediaUploadService(get_supabase_admin_client())
+        session = service.create_upload_session(
+            user_id=user_id,
+            context_type=context_type,
+            context_id=context_id,
+            filename=filename,
+            file_size=file_size,
+            content_type=data.get('content_type'),
+            block_type=data.get('block_type'),
+            sub_id=data.get('sub_id'),
+        )
+        if not session.success:
+            return jsonify({'error': session.error_message}), _status_for(session.error_code or 'UNKNOWN')
+        return jsonify({'success': True, 'upload': session.to_dict()})
+    except Exception as e:
+        logger.error(f"[Upload] /sign failed: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create upload session'}), 500
+
+
+@bp.route('/finalize', methods=['POST'])
+@require_auth
+def finalize_signed_upload(user_id):
+    """
+    Finalize a signed upload — verify the file landed in storage, run video
+    post-processing, and return the file URL + metadata.
+
+    Body JSON: {
+      storage_path, bucket,
+      context_type? (default 'task_evidence'),
+      context_id? (default 'generic'),
+      sub_id?, block_type?
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        storage_path = data.get('storage_path')
+        bucket = data.get('bucket')
+        if not storage_path or not bucket:
+            return jsonify({'error': 'storage_path and bucket required'}), 400
+
+        context_type = data.get('context_type', 'task_evidence')
+        context_id = data.get('context_id', 'generic')
+
+        from services.media_upload_service import MediaUploadService
+        # admin client justified: file upload to Supabase Storage scoped to caller (self) under @require_auth
+        service = MediaUploadService(get_supabase_admin_client())
+        result = service.finalize_upload(
+            user_id=user_id,
+            storage_path=storage_path,
+            bucket=bucket,
+            context_type=context_type,
+            context_id=context_id,
+            block_type=data.get('block_type'),
+            sub_id=data.get('sub_id'),
+        )
+        if not result.success:
+            return jsonify({
+                'error': result.error_message,
+                'error_code': result.error_code,
+            }), _status_for(result.error_code or 'UNKNOWN')
+
+        return jsonify({
+            'success': True,
+            'url': result.file_url,
+            'file_url': result.file_url,
+            'filename': result.filename,
+            'file_size': result.file_size,
+            'content_type': result.content_type,
+            'media_type': result.media_type,
+            **({'thumbnail_url': result.thumbnail_url} if result.thumbnail_url else {}),
+            **({'duration_seconds': result.duration_seconds} if result.duration_seconds is not None else {}),
+            **({'width': result.width} if result.width is not None else {}),
+            **({'height': result.height} if result.height is not None else {}),
+        }), 200
+    except Exception as e:
+        logger.error(f"[Upload] /finalize failed: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to finalize upload'}), 500
+
+
 # --- Direct-to-Supabase upload for large files (superadmin only) ---
 
 @bp.route('/request-signed-url', methods=['POST'])

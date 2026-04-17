@@ -11,6 +11,7 @@ import { authAPI, api } from '../services/api';
 import { tokenStore } from '../services/tokenStore';
 import { supabase } from '../services/supabaseClient';
 import { useActingAsStore } from './actingAsStore';
+import { extractApiError } from '../services/apiError';
 
 export interface User {
   id: string;
@@ -87,17 +88,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Fetch current user (/me returns user data directly, not wrapped)
-      const { data } = await authAPI.me();
+      // Fetch current user (/me returns user data directly, not wrapped).
+      // E5: retry once on network error so a transient connectivity blip doesn't
+      // log the user out. Real 401s (expired/invalid token) fall through and clear.
+      let data: unknown;
+      try {
+        ({ data } = await authAPI.me());
+      } catch (err) {
+        const parsed = extractApiError(err);
+        if (parsed.isNetworkError) {
+          // Single retry on network error before giving up.
+          ({ data } = await authAPI.me());
+        } else {
+          throw err;
+        }
+      }
       set({
-        user: data,
+        user: data as User,
         isAuthenticated: true,
         isLoading: false,
         error: null,
       });
-    } catch {
-      // Token expired or invalid
-      await tokenStore.clearTokens();
+    } catch (err) {
+      const parsed = extractApiError(err);
+      // Only clear tokens on real auth failures. Transient network problems keep
+      // tokens so the next open tries again instead of forcing a fresh login.
+      if (parsed.isAuthError || !parsed.isNetworkError) {
+        await tokenStore.clearTokens();
+      }
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
@@ -115,9 +133,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
-    } catch (err: any) {
-      const message =
-        err.response?.data?.error?.message || err.response?.data?.error || 'Login failed. Please try again.';
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Login failed. Please try again.');
       set({ isLoading: false, error: message });
       throw err;
     }
@@ -134,9 +151,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
-    } catch (err: any) {
-      const message =
-        err.response?.data?.error?.message || err.response?.data?.error || 'Login failed. Please check your username and password.';
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Login failed. Please check your username and password.');
       set({ isLoading: false, error: message });
       throw err;
     }
@@ -158,7 +174,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false, error: error.message });
       }
       // User will be redirected to Google, then back to /auth/callback
-    } catch (err: any) {
+    } catch {
       set({ isLoading: false, error: 'Failed to initiate Google sign-in' });
     }
   },
@@ -196,9 +212,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
-    } catch (err: any) {
-      const message =
-        err.response?.data?.error?.message || err.response?.data?.message || 'Google sign-in failed';
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Google sign-in failed');
       set({ isLoading: false, error: message });
       throw err;
     }
@@ -217,7 +232,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false, error: error.message });
       }
       // User is redirected to Apple, then back to /auth/callback
-    } catch (err: any) {
+    } catch {
       set({ isLoading: false, error: 'Failed to initiate Apple sign-in' });
     }
   },
@@ -255,9 +270,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
-    } catch (err: any) {
-      const message =
-        err.response?.data?.error?.message || err.response?.data?.message || 'Apple sign-in failed';
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Apple sign-in failed');
       set({ isLoading: false, error: message });
       throw err;
     }
@@ -267,7 +281,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (Platform.OS !== 'ios') return;
     set({ isLoading: true, error: null });
     try {
-      const AppleAuthentication = require('expo-apple-authentication');
+      // Static platform-gated import (S8). Metro tree-shakes this on non-iOS
+      // builds because the function short-circuits above before the import is
+      // reached at runtime, and iOS bundles have the native module linked in.
+      const AppleAuthentication = await import('expo-apple-authentication');
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -301,13 +318,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         sbData.session.refresh_token,
         fullName,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // User-cancelled is not an error to surface.
-      if (err?.code === 'ERR_REQUEST_CANCELED') {
+      const maybeCode = (err as { code?: string } | null)?.code;
+      if (maybeCode === 'ERR_REQUEST_CANCELED') {
         set({ isLoading: false, error: null });
         return;
       }
-      set({ isLoading: false, error: err?.message || 'Apple sign-in failed' });
+      const { message } = extractApiError(err, 'Apple sign-in failed');
+      set({ isLoading: false, error: message });
     }
   },
 
@@ -315,11 +334,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const { data } = await authAPI.register(regData);
-      if (data.access_token) {
-        await tokenStore.setTokens(data.access_token, data.refresh_token);
+      // Backend registration returns `app_access_token` / `app_refresh_token`
+      // (see backend/routes/auth/registration.py). Align with login response shape.
+      if (data.app_access_token) {
+        await tokenStore.setTokens(data.app_access_token, data.app_refresh_token);
         const { data: meData } = await authAPI.me();
         set({
-          user: meData.user,
+          user: meData as User,
           isAuthenticated: true,
           isLoading: false,
           error: null,
@@ -328,12 +349,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // Email verification required
         set({ isLoading: false });
       }
-    } catch (err: any) {
-      const raw = err.response?.data?.error;
-      const message =
-        typeof raw === 'string' ? raw
-        : raw?.message ? raw.message
-        : 'Registration failed. Please try again.';
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Registration failed. Please try again.');
       set({ isLoading: false, error: message });
       throw err;
     }
@@ -343,8 +360,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data } = await authAPI.forgotPassword(email);
       return data.message || 'If an account exists with this email, you will receive reset instructions.';
-    } catch (err: any) {
-      const message = err.response?.data?.error || 'Failed to send reset email. Please try again.';
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Failed to send reset email. Please try again.');
       throw new Error(message);
     }
   },

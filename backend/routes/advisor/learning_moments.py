@@ -198,6 +198,96 @@ def upload_moment_media(user_id, student_id):
         return jsonify({'error': 'Failed to upload file'}), 500
 
 
+@bp.route('/students/<student_id>/learning-moments/upload-init', methods=['POST'])
+@require_auth
+def init_moment_signed_upload(user_id, student_id):
+    """Begin a signed upload for an advisor-captured learning-moment file."""
+    try:
+        # admin client justified: advisor captures learning moments for assigned student; cross-user writes gated by advisor_student_assignments verification
+        supabase = get_supabase_admin_client()
+        verify_advisor_access(supabase, user_id, student_id)
+
+        data = request.get_json() or {}
+        filename = data.get('filename')
+        file_size = data.get('file_size')
+        if not filename or not isinstance(file_size, int):
+            return jsonify({'error': 'filename and file_size required'}), 400
+
+        from services.media_upload_service import MediaUploadService
+        session = MediaUploadService(supabase).create_upload_session(
+            user_id=user_id,
+            context_type='moment',
+            context_id=student_id,
+            filename=filename,
+            file_size=file_size,
+            content_type=data.get('content_type'),
+            block_type=data.get('block_type'),
+        )
+        if not session.success:
+            status = 413 if session.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'error': session.error_message}), status
+        return jsonify({'success': True, 'upload': session.to_dict()})
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error in advisor init_moment_signed_upload: {str(e)}")
+        return jsonify({'error': 'Failed to create upload session'}), 500
+
+
+@bp.route('/students/<student_id>/learning-moments/upload-finalize', methods=['POST'])
+@require_auth
+def finalize_moment_signed_upload(user_id, student_id):
+    """Finalize a signed upload for an advisor-captured learning-moment file."""
+    try:
+        # admin client justified: advisor captures learning moments for assigned student; cross-user writes gated by advisor_student_assignments verification
+        supabase = get_supabase_admin_client()
+        verify_advisor_access(supabase, user_id, student_id)
+
+        data = request.get_json() or {}
+        storage_path = data.get('storage_path')
+        bucket = data.get('bucket')
+        if not storage_path or not bucket:
+            return jsonify({'error': 'storage_path and bucket required'}), 400
+
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(supabase).finalize_upload(
+            user_id=user_id,
+            storage_path=storage_path,
+            bucket=bucket,
+            context_type='moment',
+            context_id=student_id,
+            block_type=data.get('block_type'),
+            notify_user_id=student_id,
+        )
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'error': result.error_message, 'error_code': result.error_code}), status
+
+        return jsonify({
+            'success': True,
+            'file_url': result.file_url,
+            'file_name': result.filename,
+            'filename': result.filename,
+            'file_size': result.file_size,
+            'media_type': result.media_type,
+            **({'thumbnail_url': result.thumbnail_url} if result.thumbnail_url else {}),
+            **({'duration_seconds': result.duration_seconds} if result.duration_seconds is not None else {}),
+            **({'width': result.width} if result.width is not None else {}),
+            **({'height': result.height} if result.height is not None else {}),
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error in advisor finalize_moment_signed_upload: {str(e)}")
+        return jsonify({'error': 'Failed to finalize upload'}), 500
+
+
 @bp.route('/students/<student_id>/learning-moments', methods=['GET'])
 @require_auth
 def get_student_learning_moments(user_id, student_id):

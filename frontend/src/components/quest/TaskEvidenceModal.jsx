@@ -1,14 +1,29 @@
-import { useState, useRef } from 'react';
-import { TrophyIcon, PhotoIcon, VideoCameraIcon, LinkIcon, DocumentTextIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { useState, useRef, useEffect } from 'react';
+import { TrophyIcon, PhotoIcon, VideoCameraIcon, LinkIcon, DocumentTextIcon, ExclamationCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import MobileModal from '../ui/mobile/MobileModal';
 import { getPillarData } from '../../utils/pillarMappings';
 import { captureEvent } from '../../services/posthog';
+import api from '../../services/api';
 
 const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
   const [error, setError] = useState('');
+  const [attachedMoment, setAttachedMoment] = useState(null);
   const editorRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/api/user-quest-tasks/${task.id}/attached-moment`);
+        if (!cancelled) setAttachedMoment(data?.moment || null);
+      } catch {
+        // Non-critical — no banner shown
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [task.id]);
 
   // Check if task is already completed
   const isTaskCompleted = task.is_completed || false;
@@ -173,6 +188,10 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
 
               {/* Content */}
               <div className="px-4 sm:px-8 py-4 sm:py-6 space-y-6">
+              {/* Attached moment banner (from mobile capture) */}
+              {attachedMoment && !isTaskCompleted && (
+                <AttachedMomentBanner moment={attachedMoment} pillarColor={pillarData.color} />
+              )}
               {/* Error Display */}
               {error && (
                 <div className="p-6 bg-red-50 border-2 border-red-200 rounded-xl">
@@ -223,5 +242,56 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
     </ModalErrorBoundary>
   );
 };
+
+function AttachedMomentBanner({ moment, pillarColor }) {
+  const getBlockUrl = (b) => b?.file_url || b?.content?.url || b?.content?.items?.[0]?.url;
+  const imageBlock = moment.evidence_blocks?.find((b) => b.block_type === 'image' && getBlockUrl(b));
+  const videoBlock = !imageBlock ? moment.evidence_blocks?.find((b) => b.block_type === 'video' && getBlockUrl(b)) : null;
+  const hero = imageBlock || videoBlock;
+  const heroUrl = hero ? getBlockUrl(hero) : null;
+  const otherBlocks = moment.evidence_blocks?.filter((b) => b !== hero) || [];
+
+  return (
+    <div
+      className="border-2 rounded-xl p-5 bg-white"
+      style={{ borderColor: pillarColor }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <SparklesIcon className="w-5 h-5" style={{ color: pillarColor }} />
+        <h4 className="font-bold text-base" style={{ color: pillarColor, fontFamily: 'Poppins' }}>
+          From your journal
+        </h4>
+      </div>
+      <p className="text-sm text-gray-600 mb-4" style={{ fontFamily: 'Poppins' }}>
+        You captured this moment on mobile and attached it to this task. Use it to build your evidence below.
+      </p>
+      <div className="flex gap-4 items-start">
+        {heroUrl && imageBlock && (
+          <img src={heroUrl} alt="" className="w-32 h-32 object-cover rounded-lg flex-shrink-0" />
+        )}
+        {heroUrl && videoBlock && (
+          <video src={heroUrl} controls className="w-48 rounded-lg flex-shrink-0" style={{ maxHeight: 160 }} />
+        )}
+        <div className="flex-1 min-w-0">
+          {moment.title && (
+            <div className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins' }}>
+              {moment.title}
+            </div>
+          )}
+          {moment.description && (
+            <p className="text-sm text-gray-700 whitespace-pre-wrap" style={{ fontFamily: 'Poppins' }}>
+              {moment.description}
+            </p>
+          )}
+          {otherBlocks.length > 0 && (
+            <div className="mt-2 text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+              + {otherBlocks.length} additional attachment{otherBlocks.length === 1 ? '' : 's'}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default TaskEvidenceModal;

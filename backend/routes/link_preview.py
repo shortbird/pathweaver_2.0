@@ -4,6 +4,7 @@ Link Preview - Fetches Open Graph metadata from URLs for rich link previews.
 
 from flask import Blueprint, request, jsonify
 import re
+import html
 import logging
 import requests as http_requests
 from urllib.parse import urlparse
@@ -45,7 +46,7 @@ def _is_safe_url(url):
         return False
 
 
-def _extract_og_metadata(html, url):
+def _extract_og_metadata(html_content, url):
     """Extract Open Graph and fallback metadata from HTML."""
     result = {
         'title': None,
@@ -77,35 +78,35 @@ def _extract_og_metadata(html, url):
     }
 
     for key, pattern in og_patterns.items():
-        match = re.search(pattern, html, re.IGNORECASE)
+        match = re.search(pattern, html_content, re.IGNORECASE)
         if match:
             result[key] = match.group(1).strip()
 
     for key, pattern in og_patterns_rev.items():
         if not result[key]:
-            match = re.search(pattern, html, re.IGNORECASE)
+            match = re.search(pattern, html_content, re.IGNORECASE)
             if match:
                 result[key] = match.group(1).strip()
 
     # Twitter card fallbacks
     if not result['image']:
-        match = re.search(r'<meta[^>]*(?:name|property)=["\']twitter:image["\'][^>]*content=["\']([^"\']*)["\']', html, re.IGNORECASE)
+        match = re.search(r'<meta[^>]*(?:name|property)=["\']twitter:image["\'][^>]*content=["\']([^"\']*)["\']', html_content, re.IGNORECASE)
         if not match:
-            match = re.search(r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*(?:name|property)=["\']twitter:image["\']', html, re.IGNORECASE)
+            match = re.search(r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*(?:name|property)=["\']twitter:image["\']', html_content, re.IGNORECASE)
         if match:
             result['image'] = match.group(1).strip()
 
     # Fallback: <title> tag
     if not result['title']:
-        match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
+        match = re.search(r'<title[^>]*>([^<]+)</title>', html_content, re.IGNORECASE)
         if match:
             result['title'] = match.group(1).strip()
 
     # Fallback: meta description
     if not result['description']:
-        match = re.search(r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\']', html, re.IGNORECASE)
+        match = re.search(r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\']', html_content, re.IGNORECASE)
         if not match:
-            match = re.search(r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*name=["\']description["\']', html, re.IGNORECASE)
+            match = re.search(r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*name=["\']description["\']', html_content, re.IGNORECASE)
         if match:
             result['description'] = match.group(1).strip()
 
@@ -133,6 +134,12 @@ def _extract_og_metadata(html, url):
     # Default og:image is 600x315; request 1200x630 instead
     if result['image'] and 'lh3.googleusercontent.com' in result['image']:
         result['image'] = re.sub(r'=w\d+-h\d+', '=w1200-h630', result['image'])
+
+    # HTML-decode captured values -- TikTok and others embed `&amp;` etc. in
+    # og:image URLs which would 404 if passed straight to an <img> / fetch.
+    for key in list(result.keys()):
+        if isinstance(result[key], str):
+            result[key] = html.unescape(result[key])
 
     return result
 
@@ -168,18 +175,21 @@ def get_link_preview(user_id):
     try:
         resp = http_requests.get(
             url,
-            timeout=5,
+            timeout=8,
             headers={
-                'User-Agent': 'Mozilla/5.0 (compatible; OptioBot/1.0; +https://optioeducation.com)',
-                'Accept': 'text/html,application/xhtml+xml',
+                # Exact facebookexternalhit UA string -- TikTok (and others)
+                # match it exactly when deciding whether to serve OG tags.
+                # Appending anything to it makes TikTok return a stub page.
+                'User-Agent': 'facebookexternalhit/1.1',
+                'Accept': 'text/html,application/xhtml+xml,*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
             },
             allow_redirects=True,
-            stream=True
         )
 
-        # Only read the first 100KB (we only need the <head>)
-        content = resp.raw.read(100_000).decode('utf-8', errors='ignore')
-        resp.close()
+        # Only read the first 100KB of decoded body -- we only need the <head>.
+        # Using resp.text (not resp.raw) so gzip/deflate is decoded automatically.
+        content = resp.text[:100_000]
 
         if resp.status_code != 200:
             return jsonify({'error': 'Could not fetch URL', 'title': None, 'description': None, 'image': None, 'site_name': None, 'video_url': None, 'og_type': None}), 200

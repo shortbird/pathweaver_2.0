@@ -6,6 +6,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { extractApiError } from '../services/apiError';
+import { captureException } from '../services/sentry';
 
 // Read/write URL search params on web for persistence
 function getWebParam(key: string): string | null {
@@ -64,6 +66,9 @@ export function useQuestDiscovery() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
+  // E4/Q4: surface failures + allow retry instead of silently swallowing.
+  const [error, setError] = useState<string | null>(null);
+  const [topicsError, setTopicsError] = useState<string | null>(null);
   const [search, setSearchRaw] = useState(getWebParam('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState(getWebParam('search') || '');
   const [selectedTopic, setSelectedTopicRaw] = useState<string | null>(getWebParam('topic'));
@@ -111,8 +116,11 @@ export function useQuestDiscovery() {
       }
       setHasMore(pageNum < totalPages);
       setPage(pageNum);
-    } catch {
-      // Non-critical
+      setError(null);
+    } catch (err: unknown) {
+      const parsed = extractApiError(err, 'Failed to load quests');
+      setError(parsed.message);
+      captureException(err, { where: 'useQuestDiscovery.fetchQuests' });
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -130,8 +138,11 @@ export function useQuestDiscovery() {
     try {
       const { data } = await api.get('/api/quests/topics');
       setTopics(data.topics || data || []);
-    } catch {
-      // Non-critical
+      setTopicsError(null);
+    } catch (err: unknown) {
+      const parsed = extractApiError(err, 'Failed to load topics');
+      setTopicsError(parsed.message);
+      captureException(err, { where: 'useQuestDiscovery.fetchTopics' });
     }
   }, [isAuthenticated]);
 
@@ -141,28 +152,46 @@ export function useQuestDiscovery() {
   // Derive subtopics from selected topic
   const subtopics = selectedTopic ? TOPIC_TAXONOMY[selectedTopic] || [] : [];
 
-  return { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, selectedSubtopic, setSelectedSubtopic, subtopics, loadMore, refetch: () => fetchQuests(1, false) };
+  return {
+    quests, topics, loading, loadingMore, hasMore,
+    search, setSearch,
+    selectedTopic, setSelectedTopic,
+    selectedSubtopic, setSelectedSubtopic,
+    subtopics, loadMore,
+    error, topicsError,
+    retry: () => { fetchQuests(1, false); fetchTopics(); },
+    refetch: () => fetchQuests(1, false),
+  };
+}
+
+export interface QuestDetail extends Quest {
+  tasks?: unknown[];
+  [key: string]: unknown;
 }
 
 export function useQuestDetail(questId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [quest, setQuest] = useState<any>(null);
+  const [quest, setQuest] = useState<QuestDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetch = useCallback(async () => {
     if (!isAuthenticated || !questId) { setLoading(false); return; }
-    (async () => {
-      try {
-        setLoading(true);
-        const { data } = await api.get(`/api/quests/${questId}`);
-        setQuest(data.quest || data);
-      } catch {
-        // Non-critical
-      } finally {
-        setLoading(false);
-      }
-    })();
+    try {
+      setLoading(true);
+      const { data } = await api.get(`/api/quests/${questId}`);
+      setQuest(data.quest || data);
+      setError(null);
+    } catch (err: unknown) {
+      const parsed = extractApiError(err, 'Failed to load quest');
+      setError(parsed.message);
+      captureException(err, { where: 'useQuestDetail', questId });
+    } finally {
+      setLoading(false);
+    }
   }, [isAuthenticated, questId]);
 
-  return { quest, loading };
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { quest, loading, error, retry: fetch };
 }

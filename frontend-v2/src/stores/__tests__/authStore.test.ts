@@ -120,11 +120,14 @@ describe('authStore', () => {
 
   describe('register', () => {
     it('calls authAPI.register, stores tokens, fetches /me, and sets user', async () => {
+      // Backend returns `app_access_token` / `app_refresh_token` (Optio naming
+      // convention, not generic access_token). authStore.register keys on those.
       (authAPI.register as jest.Mock).mockResolvedValue({
-        data: { access_token: 'new-access', refresh_token: 'new-refresh' },
-      });
-      (authAPI.me as jest.Mock).mockResolvedValue({
-        data: { user: mockUser },
+        data: {
+          app_access_token: 'new-access',
+          app_refresh_token: 'new-refresh',
+          user: mockUser,
+        },
       });
 
       await useAuthStore.getState().register({
@@ -136,7 +139,6 @@ describe('authStore', () => {
 
       expect(authAPI.register).toHaveBeenCalled();
       expect(tokenStore.setTokens).toHaveBeenCalledWith('new-access', 'new-refresh');
-      expect(authAPI.me).toHaveBeenCalled();
 
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(true);

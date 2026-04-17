@@ -272,36 +272,36 @@ const LearningEventModal = ({
   };
 
   const uploadBlockFiles = async (eventId) => {
+    const { uploadViaSignedUrl } = await import('../../services/signedUpload');
     const uploadPromises = evidenceBlocks.map(async (block, index) => {
       const file = block.content._fileToUpload;
-      if (file) {
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          // Detect actual type: if file is video, use 'video' block_type even if block is 'image'
-          const actualBlockType = file.type?.startsWith('video/') ? 'video' : block.block_type;
-          formData.append('block_type', actualBlockType);
+      if (!file) return { success: true, index };
 
-          // Use parent API when studentId is provided
-          const uploadEndpoint = studentId
-            ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload`
-            : `/api/learning-events/${eventId}/upload`;
+      const actualBlockType = file.type?.startsWith('video/') ? 'video' : block.block_type;
+      const initPath = studentId
+        ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-init`
+        : `/api/learning-events/${eventId}/upload-init`;
+      const finalizePath = studentId
+        ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-finalize`
+        : `/api/learning-events/${eventId}/upload-finalize`;
 
-          const response = await api.post(uploadEndpoint, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          });
-
-          if (response.data.success) {
-            return { success: true, index, file_url: response.data.file_url, filename: response.data.filename };
-          }
-        } catch (error) {
-          console.error(`Failed to upload ${file.name}:`, error);
-          return { success: false, index, filename: file.name };
-        }
+      try {
+        const result = await uploadViaSignedUrl({
+          file,
+          initPath,
+          finalizePath,
+          blockType: actualBlockType,
+        });
+        return {
+          success: true,
+          index,
+          file_url: result.file_url || result.url,
+          filename: result.filename || result.file_name,
+        };
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error);
+        return { success: false, index, filename: file.name };
       }
-      return { success: true, index };
     });
 
     return await Promise.all(uploadPromises);

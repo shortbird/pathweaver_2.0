@@ -315,6 +315,7 @@ export default function JournalScreen() {
             tasks={questTasks}
             loading={questTasksLoading}
             onGenerateTasks={() => setGenerateModalVisible(true)}
+            questId={selectedId}
           />
         )}
 

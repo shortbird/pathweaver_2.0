@@ -82,28 +82,17 @@ const ParentMomentCaptureModal = ({
     media.markUploading(attachment.id);
 
     try {
-      let result;
-      const isLargeVideo = attachment.file.size > 50 * 1024 * 1024 && attachment.type === 'video';
-
-      if (isLargeVideo && isSuperadmin) {
-        // Direct-to-Supabase upload for large videos (superadmin only)
-        const { directUploadLargeFile } = await import('../../services/evidenceDocumentService');
-        result = await directUploadLargeFile(attachment.file, {
-          contextType: 'moment',
-          contextId: selectedChildren[0],
-        });
-      } else {
-        // Normal upload through backend
-        const formData = new FormData();
-        formData.append('file', attachment.file);
-
-        const response = await api.post(
-          `/api/parent/children/${selectedChildren[0]}/learning-moments/upload`,
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000 }
-        );
-        result = response.data;
-      }
+      // Signed-upload (direct-to-Supabase): backend issues a signed URL, the
+      // client PUTs the file directly. Avoids Render worker memory pressure
+      // and lifts the previous 50MB cap for videos.
+      const { uploadViaSignedUrl } = await import('../../services/signedUpload');
+      const childId = selectedChildren[0];
+      const result = await uploadViaSignedUrl({
+        file: attachment.file,
+        initPath: `/api/parent/children/${childId}/learning-moments/upload-init`,
+        finalizePath: `/api/parent/children/${childId}/learning-moments/upload-finalize`,
+        blockType: attachment.type,
+      });
 
       media.markUploaded(attachment.id, result.file_url, {
         file_name: result.file_name || attachment.file.name,

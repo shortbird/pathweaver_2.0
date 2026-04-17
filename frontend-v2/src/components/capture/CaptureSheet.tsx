@@ -6,17 +6,23 @@
  */
 
 import React, { useState } from 'react';
-import { View, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import { View, Pressable, TextInput, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
+import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import {
-  VStack, HStack, UIText, Heading, Button, ButtonText,
+  VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet, PillarBadge,
 } from '../ui';
+import {
+  TaskPickerSheet, attachMomentToTask,
+  type AttachableTask, type AttachableQuest,
+} from '../journal/TaskPickerSheet';
 
-// File size limits (must match backend constants)
+// File size limits (must match backend constants).
+// Signed-upload path: videos go direct-to-Supabase and can be up to 500MB.
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB (signed-upload)
 
 interface MediaItem {
   uri: string;
@@ -37,10 +43,13 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
   const [description, setDescription] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<{ task: AttachableTask; questTitle: string } | null>(null);
 
   const reset = () => {
     setDescription('');
     setMedia([]);
+    setSelectedTask(null);
   };
 
   const handleClose = () => {
@@ -102,32 +111,46 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
     }
   };
 
-  const uploadAndAttach = async (eventId: string, items: MediaItem[]) => {
-    // Step 1: Upload via shared /api/uploads/evidence endpoint
-    const fd = new FormData();
-    items.forEach((item) => {
-      const filename = item.uri.split('/').pop() || `capture.${item.type === 'image' ? 'jpg' : 'mp4'}`;
-      const mimeType = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
-      fd.append('files', { uri: item.uri, name: filename, type: mimeType } as any);
-    });
-    const uploadRes = await api.post('/api/uploads/evidence', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    const uploadedFiles = uploadRes.data?.files || [];
+  const uploadAndAttach = async (eventId: string, items: MediaItem[], studentId?: string) => {
+    // Upload each item direct-to-Supabase via signed-upload, then save as
+    // evidence blocks on the event. Uploads in parallel.
+    const initPath = studentId
+      ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-init`
+      : `/api/learning-events/${eventId}/upload-init`;
+    const finalizePath = studentId
+      ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-finalize`
+      : `/api/learning-events/${eventId}/upload-finalize`;
 
-    // Step 2: Save as evidence blocks on the event
+    const uploadedFiles = (
+      await Promise.all(
+        items.map(async (item) => {
+          const filename = item.name || item.uri.split('/').pop() || `capture.${item.type === 'image' ? 'jpg' : 'mp4'}`;
+          const mimeType = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
+          try {
+            const result = await uploadViaSignedUrl({
+              file: { uri: item.uri, name: filename, type: mimeType, size: item.fileSize ?? 0 },
+              initPath,
+              finalizePath,
+              blockType: item.type,
+            });
+            return {
+              block_type: item.type,
+              content: {},
+              file_url: (result.file_url || result.url) as string,
+              file_name: (result.filename || result.file_name || filename) as string,
+            };
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((x): x is { block_type: 'image' | 'video'; content: Record<string, never>; file_url: string; file_name: string } => Boolean(x));
+
     if (uploadedFiles.length > 0) {
-      const blocks = uploadedFiles.map((f: any, i: number) => {
-        const blockType = f.content_type?.startsWith('video/') ? 'video' :
-                          f.content_type?.startsWith('image/') ? 'image' : 'document';
-        return {
-          block_type: blockType,
-          content: {},
-          file_url: f.url,
-          file_name: f.original_name || f.stored_name,
-          order_index: i,
-        };
-      });
+      const blocks = uploadedFiles.map((f, i) => ({
+        ...f,
+        order_index: i,
+      }));
       await api.post(`/api/learning-events/${eventId}/evidence`, { blocks });
     }
   };
@@ -151,13 +174,21 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
         for (const sid of studentIds) {
           const eventId = await createMoment(sid);
           if (eventId && media.length > 0) {
-            await uploadAndAttach(eventId, media);
+            await uploadAndAttach(eventId, media, sid);
           }
         }
       } else {
         const eventId = await createMoment();
         if (eventId && media.length > 0) {
           await uploadAndAttach(eventId, media);
+        }
+        if (eventId && selectedTask) {
+          try {
+            await attachMomentToTask(eventId, selectedTask.task.id);
+          } catch {
+            // Non-fatal: moment saved, attach failed — surface softly
+            Alert.alert('Heads up', 'Moment saved but could not attach to task. You can attach it from the journal.');
+          }
         }
       }
 
@@ -175,31 +206,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
   const canSave = description.trim().length > 0 || media.length > 0;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={handleClose}
-    >
-      <KeyboardAvoidingView
-        className="flex-1 justify-end"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Backdrop */}
-        <Pressable
-          className="flex-1"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-          onPress={handleClose}
-        />
-
-        {/* Sheet */}
-        <View
-          style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}
-        >
-          {/* Handle */}
-          <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
-
-          <VStack space="md">
+    <BottomSheet visible={visible} onClose={handleClose}>
+      <VStack space="md">
             {/* Header */}
             <HStack className="items-center justify-between">
               <Heading size="lg">Capture a Moment</Heading>
@@ -270,6 +278,46 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
               </Pressable>
             </HStack>
 
+            {/* Attach to task (student-only, not parent capture) */}
+            {!studentIds || studentIds.length === 0 ? (
+              selectedTask ? (
+                <View className="bg-optio-purple/5 rounded-xl p-3 border border-optio-purple/20">
+                  <HStack className="items-start justify-between gap-2">
+                    <VStack className="flex-1 min-w-0">
+                      <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider mb-1">
+                        Attaching to
+                      </UIText>
+                      <UIText size="sm" className="font-poppins-medium" numberOfLines={2}>
+                        {selectedTask.task.title}
+                      </UIText>
+                      <HStack className="items-center gap-2 mt-1">
+                        <PillarBadge pillar={selectedTask.task.pillar} size="sm" />
+                        <UIText size="xs" className="text-typo-500" numberOfLines={1}>
+                          {selectedTask.questTitle}
+                        </UIText>
+                      </HStack>
+                    </VStack>
+                    <Pressable
+                      onPress={() => setSelectedTask(null)}
+                      className="w-7 h-7 rounded-full bg-white items-center justify-center"
+                    >
+                      <Ionicons name="close" size={14} color="#6B7280" />
+                    </Pressable>
+                  </HStack>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setPickerVisible(true)}
+                  className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-surface-300 active:bg-surface-50"
+                >
+                  <Ionicons name="flag-outline" size={16} color="#6D469B" />
+                  <UIText size="sm" className="text-optio-purple font-poppins-medium">
+                    Attach to a quest task
+                  </UIText>
+                </Pressable>
+              )
+            ) : null}
+
             {/* Save button */}
             <Button
               size="lg"
@@ -281,8 +329,15 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
               <ButtonText>{saving ? 'Saving...' : 'Save Moment'}</ButtonText>
             </Button>
           </VStack>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+          <TaskPickerSheet
+            visible={pickerVisible}
+            onClose={() => setPickerVisible(false)}
+            onPicked={(task, quest) => {
+              setSelectedTask({ task, questTitle: quest.title });
+              setPickerVisible(false);
+            }}
+          />
+    </BottomSheet>
   );
 }

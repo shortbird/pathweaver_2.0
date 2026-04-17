@@ -12,3 +12,4 @@ export { Avatar, AvatarFallbackText, AvatarImage } from './avatar';
 export { Skeleton } from './skeleton';
 export { PillarBadge } from './pillar-badge';
 export { BrandHeader } from './BrandHeader';
+export { BottomSheet } from './bottom-sheet';

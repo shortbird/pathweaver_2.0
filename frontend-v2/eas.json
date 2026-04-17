@@ -12,8 +12,18 @@
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://optio-dev-backend.onrender.com"
+      }
     },
-    "production": {}
+    "production": {
+      "requireCommit": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.optioeducation.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://vvfgxcykxjybtvpfzwyx.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "REPLACE_WITH_PROD_ANON_KEY"
+      }
+    }
   }
 }
