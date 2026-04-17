@@ -6,9 +6,9 @@
  */
 
 import React, { useState } from 'react';
-import { View, Modal, Pressable, Alert } from 'react-native';
+import { View, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Heading, UIText, Button, ButtonText, VStack, Divider } from '../ui';
+import { Heading, UIText, Button, ButtonText, VStack, Divider, BottomSheet } from '../ui';
 import api from '@/src/services/api';
 
 type Reason = 'spam' | 'harassment' | 'inappropriate' | 'self_harm' | 'other';
@@ -70,12 +70,12 @@ export function FeedItemMenu({
       return;
     }
     Alert.alert(
-      `Block ${studentName}?`,
+      `Unfollow ${studentName}?`,
       `You will no longer see ${studentName}'s posts in your feed. They will not be notified.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Block',
+          text: 'Unfollow',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -83,7 +83,7 @@ export function FeedItemMenu({
               onBlocked?.();
               reset();
             } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.error || 'Could not block user.');
+              Alert.alert('Error', err?.response?.data?.error || 'Could not unfollow user.');
             }
           },
         },
@@ -92,79 +92,58 @@ export function FeedItemMenu({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={reset}>
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={reset}>
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <View
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderTopLeftRadius: 20,
-                borderTopRightRadius: 20,
-                paddingTop: 12,
-                paddingBottom: 32,
-                paddingHorizontal: 20,
-              }}
-            >
-              <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2 }} />
-              </View>
-
-              {stage === 'root' && (
-                <VStack space="sm">
-                  <Pressable onPress={() => setStage('reason')} className="py-3">
-                    <HStackRow icon="flag-outline" label="Report this post" />
-                  </Pressable>
-                  {studentId && (
-                    <>
-                      <Divider />
-                      <Pressable onPress={blockStudent} className="py-3">
-                        <HStackRow
-                          icon="ban-outline"
-                          label={`Block ${studentName}`}
-                          destructive
-                        />
-                      </Pressable>
-                    </>
-                  )}
-                  <Divider />
-                  <Pressable onPress={reset} className="py-3">
-                    <UIText size="md" className="text-typo-500 text-center">Cancel</UIText>
-                  </Pressable>
-                </VStack>
-              )}
-
-              {stage === 'reason' && (
-                <VStack space="sm">
-                  <Heading size="md">Why are you reporting this?</Heading>
-                  {REASONS.map((r) => (
-                    <Pressable
-                      key={r.value}
-                      onPress={() => submitReport(r.value)}
-                      className="py-3"
-                    >
-                      <VStack>
-                        <UIText size="sm" className="font-poppins-medium">{r.label}</UIText>
-                        <UIText size="xs" className="text-typo-400">{r.description}</UIText>
-                      </VStack>
-                    </Pressable>
-                  ))}
-                  <Button variant="outline" onPress={reset}>
-                    <ButtonText>Cancel</ButtonText>
-                  </Button>
-                </VStack>
-              )}
-
-              {stage === 'submitting' && (
-                <View className="items-center py-8">
-                  <UIText size="sm" className="text-typo-500">Submitting…</UIText>
-                </View>
-              )}
-            </View>
+    <BottomSheet visible={visible} onClose={reset}>
+      {stage === 'root' && (
+        <VStack space="sm">
+          <Pressable onPress={() => setStage('reason')} className="py-3">
+            <HStackRow icon="flag-outline" label="Report this post" />
           </Pressable>
+          {studentId && (
+            <>
+              <Divider />
+              <Pressable onPress={blockStudent} className="py-3">
+                <HStackRow
+                  icon="close-circle"
+                  label={`Unfollow ${studentName}`}
+                  destructive
+                />
+              </Pressable>
+            </>
+          )}
+          <Divider />
+          <Pressable onPress={reset} className="py-3">
+            <UIText size="md" className="text-typo-500 text-center">Cancel</UIText>
+          </Pressable>
+        </VStack>
+      )}
+
+      {stage === 'reason' && (
+        <VStack space="sm">
+          <Heading size="md">Why are you reporting this?</Heading>
+          {REASONS.map((r) => (
+            <Pressable
+              key={r.value}
+              onPress={() => submitReport(r.value)}
+              className="py-3"
+            >
+              <VStack>
+                <UIText size="sm" className="font-poppins-medium">{r.label}</UIText>
+                <UIText size="xs" className="text-typo-400">{r.description}</UIText>
+              </VStack>
+            </Pressable>
+          ))}
+          <Button variant="outline" onPress={reset}>
+            <ButtonText>Cancel</ButtonText>
+          </Button>
+        </VStack>
+      )}
+
+      {stage === 'submitting' && (
+        <View className="items-center py-8">
+          <UIText size="sm" className="text-typo-500">Submitting…</UIText>
         </View>
-      </Pressable>
-    </Modal>
+      )}
+    </BottomSheet>
   );
 }
 

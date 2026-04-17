@@ -5,13 +5,15 @@
  * Shows student info, content, evidence, pillar tags, and social actions.
  */
 
-import React, { useState } from 'react';
-import { View, Image, Pressable, Linking, Platform, Share } from 'react-native';
+import React, { memo, useState } from 'react';
+import { View, Pressable, Platform, Share } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '../ui';
 import { VideoPlayer } from './VideoPlayer';
 import { DocumentViewer } from './DocumentViewer';
 import { MediaModal } from './MediaModal';
+import { LinkPreviewCard } from './LinkPreviewCard';
 import type { FeedItem } from '@/src/hooks/useFeed';
 import { getViewers, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -96,11 +98,13 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
       {/* Image - tappable for full screen, fills card width */}
       {imageUrl && (
         <Pressable onPress={() => setModal({ type: 'image', uri: imageUrl })}>
-          <Image
+          <ExpoImage
             source={{ uri: thumbUrl(imageUrl) }}
             className="w-full rounded-lg"
             style={{ height: 280 }}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
           />
         </Pressable>
       )}
@@ -117,28 +121,10 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
 
       {/* Links (top-level or from blocks) */}
       {isLink && (
-        <Pressable onPress={() => Platform.OS === 'web' ? window.open(evidence.url!, '_blank') : Linking.openURL(evidence.url!)}>
-          <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
-            <HStack className="items-center gap-2">
-              <Ionicons name="link-outline" size={16} color="#6D469B" />
-              <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
-                {evidence.title || evidence.url}
-              </UIText>
-            </HStack>
-          </View>
-        </Pressable>
+        <LinkPreviewCard url={evidence.url!} title={evidence.title} />
       )}
       {linkBlocks.map((block, i) => (
-        <Pressable key={`link-${i}`} onPress={() => Platform.OS === 'web' ? window.open(block.url!, '_blank') : Linking.openURL(block.url!)}>
-          <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
-            <HStack className="items-center gap-2">
-              <Ionicons name="link-outline" size={16} color="#6D469B" />
-              <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
-                {block.title || block.url || 'Link'}
-              </UIText>
-            </HStack>
-          </View>
-        </Pressable>
+        <LinkPreviewCard key={`link-${i}`} url={block.url!} title={block.title} />
       ))}
 
       {/* Documents - tappable for full screen */}
@@ -173,7 +159,7 @@ interface FeedCardProps {
   onPress?: () => void;
 }
 
-export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
+function FeedCardImpl({ item, showStudent = true, onPress }: FeedCardProps) {
   const [viewsCount, setViewsCount] = useState(item.views_count || 0);
   const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null }>>([]);
   const [showViewersList, setShowViewersList] = useState(false);
@@ -454,6 +440,22 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
     </Pressable>
   );
 }
+
+// P4: memoize so stable feed items don't re-render when siblings change.
+// Re-render only on identity or on the fields this card actually reads.
+export const FeedCard = memo(FeedCardImpl, (prev, next) => {
+  if (prev.showStudent !== next.showStudent) return false;
+  if (prev.onPress !== next.onPress) return false;
+  const a = prev.item;
+  const b = next.item;
+  return (
+    a.id === b.id &&
+    a.views_count === b.views_count &&
+    a.comments_count === b.comments_count &&
+    a.is_confidential === b.is_confidential &&
+    a.timestamp === b.timestamp
+  );
+});
 
 function formatTimeAgo(timestamp: string): string {
   const now = new Date();

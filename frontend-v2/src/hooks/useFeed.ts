@@ -8,6 +8,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { extractApiError } from '../services/apiError';
+import { captureException } from '../services/sentry';
 
 export interface FeedStudent {
   id: string;
@@ -71,6 +73,9 @@ export function useFeed(options: UseFeedOptions = {}) {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cursorRef = useRef<string | null>(null);
+  // P5: dedupe recordViews — each feed item's view should only be recorded once
+  // per session. Without this, pagination + polling send the same ids repeatedly.
+  const recordedViewsRef = useRef<Set<string>>(new Set());
 
   const fetchFeed = useCallback(async (cursor?: string) => {
     if (!isAuthenticated) return;
@@ -109,13 +114,24 @@ export function useFeed(options: UseFeedOptions = {}) {
       setHasMore(more);
       setError(null);
 
-      // Record views for loaded items
+      // Record views for loaded items, skipping ids we've already sent.
       if (newItems.length > 0) {
-        recordViews(newItems.map((i: FeedItem) => ({ type: i.type, id: i.id }))).catch(() => {});
+        const unseen = newItems.filter((i: FeedItem) => {
+          const key = `${i.type}:${i.id}`;
+          if (recordedViewsRef.current.has(key)) return false;
+          recordedViewsRef.current.add(key);
+          return true;
+        });
+        if (unseen.length > 0) {
+          recordViews(unseen.map((i: FeedItem) => ({ type: i.type, id: i.id }))).catch((e: unknown) => {
+            captureException(e, { where: 'useFeed.recordViews' });
+          });
+        }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!isLoadMore) {
-        setError(err.response?.data?.error?.message || 'Failed to load feed');
+        const { message } = extractApiError(err, 'Failed to load feed');
+        setError(message);
       }
     } finally {
       setLoading(false);

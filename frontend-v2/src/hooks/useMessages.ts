@@ -6,6 +6,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { messageAPI, groupAPI } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useAppActive } from './useAppActive';
+import { captureException } from '../services/sentry';
 
 // ── Types ──
 
@@ -72,7 +74,8 @@ export interface Group {
 /** Fetch all DM conversations for the current user */
 export function useConversations() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [conversations, setConversations] = useState<any[]>([]);
+  const appActive = useAppActive();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetch = useCallback(async () => {
@@ -91,12 +94,12 @@ export function useConversations() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // Poll every 30s
+  // P1: poll every 30s ONLY while app is foregrounded.
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !appActive) return;
     const interval = setInterval(fetch, 30000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, fetch]);
+  }, [isAuthenticated, appActive, fetch]);
 
   return { conversations, loading, refetch: fetch };
 }
@@ -104,6 +107,7 @@ export function useConversations() {
 /** Fetch messages for a specific conversation */
 export function useConversationMessages(conversationId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const appActive = useAppActive();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -123,12 +127,12 @@ export function useConversationMessages(conversationId: string | null) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // Poll every 15s
+  // P1: poll every 15s ONLY while app is foregrounded.
   useEffect(() => {
-    if (!isAuthenticated || !conversationId) return;
+    if (!isAuthenticated || !conversationId || !appActive) return;
     const interval = setInterval(fetch, 15000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, conversationId, fetch]);
+  }, [isAuthenticated, conversationId, appActive, fetch]);
 
   return { messages, loading, refetch: fetch, setMessages };
 }
@@ -161,6 +165,7 @@ export function useContacts() {
 /** Fetch unread message count */
 export function useUnreadCount() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const appActive = useAppActive();
   const [count, setCount] = useState(0);
 
   const fetch = useCallback(async () => {
@@ -177,10 +182,10 @@ export function useUnreadCount() {
   useEffect(() => { fetch(); }, [fetch]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !appActive) return;
     const interval = setInterval(fetch, 30000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, fetch]);
+  }, [isAuthenticated, appActive, fetch]);
 
   return { count, refetch: fetch };
 }
@@ -202,6 +207,7 @@ export async function markMessageRead(messageId: string) {
 /** Fetch all groups for the current user */
 export function useGroups() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const appActive = useAppActive();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -222,10 +228,10 @@ export function useGroups() {
   useEffect(() => { fetch(); }, [fetch]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !appActive) return;
     const interval = setInterval(fetch, 30000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, fetch]);
+  }, [isAuthenticated, appActive, fetch]);
 
   return { groups, loading, refetch: fetch };
 }
@@ -258,6 +264,7 @@ export function useGroupDetail(groupId: string | null) {
 /** Fetch messages for a group */
 export function useGroupMessages(groupId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const appActive = useAppActive();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -278,10 +285,10 @@ export function useGroupMessages(groupId: string | null) {
   useEffect(() => { fetch(); }, [fetch]);
 
   useEffect(() => {
-    if (!isAuthenticated || !groupId) return;
+    if (!isAuthenticated || !groupId || !appActive) return;
     const interval = setInterval(fetch, 15000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, groupId, fetch]);
+  }, [isAuthenticated, groupId, appActive, fetch]);
 
   return { messages, loading, refetch: fetch, setMessages };
 }

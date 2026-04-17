@@ -10,13 +10,20 @@ import { Platform } from 'react-native';
 import { tokenStore } from './tokenStore';
 import { postRefreshWithRetry } from './refreshRetry';
 
+// In dev (no EXPO_PUBLIC_API_URL set), web hits localhost and native hits the LAN IP.
+// In production builds, EAS injects EXPO_PUBLIC_API_URL=https://api.optioeducation.com.
+// If the env var is missing in a native production build we fall back to prod rather
+// than the LAN IP, so a bad build can't accidentally target a developer's laptop.
+const isDev = (typeof __DEV__ !== 'undefined' && __DEV__);
+const NATIVE_FALLBACK = isDev ? 'http://192.168.86.20:5001' : 'https://api.optioeducation.com';
 const API_URL = Platform.select({
-  web: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001',
-  default: process.env.EXPO_PUBLIC_API_URL || 'http://192.168.86.20:5001',
+  web: process.env.EXPO_PUBLIC_API_URL || (isDev ? 'http://localhost:5001' : 'https://api.optioeducation.com'),
+  default: process.env.EXPO_PUBLIC_API_URL || NATIVE_FALLBACK,
 });
 
 export const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
   // Web: send the httpOnly refresh cookie cross-origin so /api/auth/refresh works
   // after a hard reload (the access token only lives in memory). No-op on native.

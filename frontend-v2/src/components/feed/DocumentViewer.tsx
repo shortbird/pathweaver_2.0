@@ -165,6 +165,13 @@ function WebDocumentViewer({ uri, title }: DocumentViewerProps) {
 
 /** HTML that loads pdf.js, renders pages to canvas, and posts base64 images back to RN */
 function getPdfRendererHtml(pdfUrl: string) {
+  // S6: harden WebView. pdfUrl comes from user-uploaded evidence — reject
+  // anything that isn't plain https:// so we can't be tricked into
+  // `javascript:` URIs or string-break out of the template. Encode via
+  // JSON.stringify so quotes/backslashes inside the URL can't close the JS
+  // string and inject code.
+  const safeUrl = /^https:\/\//i.test(pdfUrl) ? pdfUrl : '';
+  const serialized = JSON.stringify(safeUrl);
   return `<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -174,7 +181,7 @@ function getPdfRendererHtml(pdfUrl: string) {
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 (async()=>{try{
-  const pdf=await pdfjsLib.getDocument('${pdfUrl}').promise;
+  const pdf=await pdfjsLib.getDocument(${serialized}).promise;
   const total=pdf.numPages;
   const images=[];
   const max=Math.min(total,10);
@@ -235,7 +242,10 @@ function NativeDocumentViewer({ uri, title }: DocumentViewerProps) {
         {loading && (
           <View style={{ height: 0, overflow: 'hidden' }}>
             <WebView
-              originWhitelist={['*']}
+              // S6: narrow originWhitelist to the PDF CDN + our uploads host.
+              // JS must stay enabled (pdf.js needs it to render pages) but our
+              // HTML is fully controlled and the uri is https-only gated above.
+              originWhitelist={['https://cdnjs.cloudflare.com', 'https://*.supabase.co']}
               source={{ html: getPdfRendererHtml(uri) }}
               onMessage={handleMessage}
               onError={() => { setError(true); setLoading(false); }}

@@ -49,6 +49,15 @@ def _make_service_with_stub_client():
         return_value="https://example.invalid/storage/v1/object/public/quest-evidence/some/path"
     )
     storage_bucket.remove = MagicMock(return_value=None)
+    storage_bucket.create_signed_upload_url = MagicMock(
+        return_value={
+            "signed_url": "https://example.invalid/storage/v1/object/upload/sign/quest-evidence/x?token=tkn",
+            "signedUrl": "https://example.invalid/storage/v1/object/upload/sign/quest-evidence/x?token=tkn",
+            "token": "tkn",
+            "path": "some/path",
+        }
+    )
+    storage_bucket.list = MagicMock(return_value=[])
     client.storage.from_ = MagicMock(return_value=storage_bucket)
 
     return MediaUploadService(supabase_client=client), client, storage_bucket
@@ -482,3 +491,317 @@ def test_result_to_dict_omits_none_values():
     assert "duration_seconds" not in d
     assert d["file_url"] == "https://x"
     assert d["media_type"] == "image"
+
+
+# ── create_upload_session (signed upload init) ────────────────────────
+
+
+def test_create_upload_session_happy_path_image():
+    svc, client, bucket = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="user-1",
+        context_type="task",
+        context_id="task-99",
+        filename="photo.png",
+        file_size=1024,
+        content_type="image/png",
+        block_type="image",
+    )
+    assert session.success is True
+    assert session.signed_url.startswith("https://example.invalid/")
+    assert session.token == "tkn"
+    assert session.storage_path.startswith("evidence-tasks/user-1/task-99_")
+    assert session.storage_path.endswith("photo.png")
+    assert session.bucket == "quest-evidence"
+    assert session.media_type == "image"
+    assert session.final_url is not None
+    bucket.create_signed_upload_url.assert_called_once()
+
+
+def test_create_upload_session_moment_uses_user_uploads_bucket():
+    svc, client, bucket = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="user-1",
+        context_type="moment",
+        context_id="child-9",
+        filename="clip.mp4",
+        file_size=1024,
+        block_type="video",
+    )
+    assert session.success is True
+    assert session.bucket == "user-uploads"
+    client.storage.from_.assert_any_call("user-uploads")
+
+
+def test_create_upload_session_rejects_invalid_extension():
+    svc, *_ = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="u",
+        context_type="task",
+        context_id="t",
+        filename="malware.exe",
+        file_size=1024,
+        block_type="document",
+    )
+    assert session.success is False
+    assert session.error_code == "INVALID_TYPE"
+
+
+def test_create_upload_session_rejects_missing_filename():
+    svc, *_ = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="u",
+        context_type="task",
+        context_id="t",
+        filename="",
+        file_size=1024,
+    )
+    assert session.success is False
+    assert session.error_code == "NO_FILENAME"
+
+
+def test_create_upload_session_rejects_zero_size():
+    svc, *_ = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="u",
+        context_type="task",
+        context_id="t",
+        filename="photo.png",
+        file_size=0,
+        block_type="image",
+    )
+    assert session.success is False
+    assert session.error_code == "INVALID_SIZE"
+
+
+def test_create_upload_session_rejects_oversized_video():
+    """Signed-upload uses the larger signed-video cap (500MB), not the legacy 50MB."""
+    from config.constants import MAX_VIDEO_SIZE, MAX_VIDEO_SIZE_SIGNED
+
+    svc, *_ = _make_service_with_stub_client()
+
+    # File at the legacy-only cap should still succeed on the signed path.
+    ok = svc.create_upload_session(
+        user_id="u",
+        context_type="task",
+        context_id="t",
+        filename="clip.mp4",
+        file_size=MAX_VIDEO_SIZE + 1,
+        block_type="video",
+    )
+    assert ok.success is True
+
+    # Just over the signed cap should fail.
+    session = svc.create_upload_session(
+        user_id="u",
+        context_type="task",
+        context_id="t",
+        filename="clip.mp4",
+        file_size=MAX_VIDEO_SIZE_SIGNED + 1,
+        block_type="video",
+    )
+    assert session.success is False
+    assert session.error_code == "FILE_TOO_LARGE"
+
+
+def test_create_upload_session_auto_detects_block_type():
+    svc, *_ = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="u",
+        context_type="task",
+        context_id="t",
+        filename="clip.mp4",
+        file_size=1024,
+    )
+    assert session.success is True
+    assert session.media_type == "video"
+
+
+def test_create_upload_session_handles_supabase_failure():
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.create_signed_upload_url.side_effect = RuntimeError("supabase down")
+    session = svc.create_upload_session(
+        user_id="u",
+        context_type="task",
+        context_id="t",
+        filename="photo.png",
+        file_size=1024,
+        block_type="image",
+    )
+    assert session.success is False
+    assert session.error_code == "SIGN_FAILED"
+
+
+# ── finalize_upload (signed upload completion) ────────────────────────
+
+
+def _make_list_entry(name: str, size: int, mimetype: str = "image/png"):
+    return {"name": name, "metadata": {"size": size, "mimetype": mimetype}}
+
+
+def test_finalize_upload_rejects_path_without_user_id():
+    """A user must not be able to finalize a path owned by someone else."""
+    svc, *_ = _make_service_with_stub_client()
+    result = svc.finalize_upload(
+        user_id="attacker",
+        storage_path="evidence-tasks/victim/task-99_2026_photo.png",
+        bucket="quest-evidence",
+        context_type="task",
+        context_id="task-99",
+        block_type="image",
+    )
+    assert result.success is False
+    assert result.error_code == "PATH_MISMATCH"
+
+
+def test_finalize_upload_rejects_missing_file():
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = []
+    result = svc.finalize_upload(
+        user_id="user-1",
+        storage_path="evidence-tasks/user-1/task-99_2026_photo.png",
+        bucket="quest-evidence",
+        context_type="task",
+        context_id="task-99",
+        block_type="image",
+    )
+    assert result.success is False
+    assert result.error_code == "FILE_NOT_FOUND"
+
+
+def test_finalize_upload_happy_path_image():
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("task-99_2026_photo.png", 2048, "image/png")]
+
+    result = svc.finalize_upload(
+        user_id="user-1",
+        storage_path="evidence-tasks/user-1/task-99_2026_photo.png",
+        bucket="quest-evidence",
+        context_type="task",
+        context_id="task-99",
+        block_type="image",
+    )
+    assert result.success is True
+    assert result.file_size == 2048
+    assert result.content_type == "image/png"
+    assert result.filename == "task-99_2026_photo.png"
+    assert result.media_type == "image"
+    # Image path should not have video-specific metadata.
+    assert result.thumbnail_url is None
+    assert result.duration_seconds is None
+
+
+def test_finalize_upload_rejects_oversized_file_from_supabase_and_deletes():
+    """If the client lied about size in init, the actual stored size is still
+    checked post-upload. Oversized uploads are deleted from storage."""
+    from config.constants import MAX_IMAGE_SIZE
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [
+        _make_list_entry("task-99_2026_photo.png", MAX_IMAGE_SIZE + 1, "image/png")
+    ]
+
+    result = svc.finalize_upload(
+        user_id="user-1",
+        storage_path="evidence-tasks/user-1/task-99_2026_photo.png",
+        bucket="quest-evidence",
+        context_type="task",
+        context_id="task-99",
+        block_type="image",
+    )
+    assert result.success is False
+    assert result.error_code == "FILE_TOO_LARGE"
+    # Uploaded file must be cleaned up.
+    bucket.remove.assert_called_once()
+
+
+def test_finalize_upload_video_runs_post_processing():
+    """Videos trigger duration validation, thumbnail generation, and background transcode."""
+    from services.video_processing_service import VideoMetadata
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("moment_2026_clip.mp4", 50_000_000, "video/mp4")]
+
+    meta = VideoMetadata(
+        thumbnail_url="https://example.invalid/thumb.jpg",
+        duration_seconds=42.0,
+        width=1920,
+        height=1080,
+    )
+
+    fake_response = MagicMock()
+    fake_response.__enter__ = MagicMock(return_value=fake_response)
+    fake_response.__exit__ = MagicMock(return_value=False)
+    fake_response.raise_for_status = MagicMock()
+    fake_response.iter_content = MagicMock(return_value=iter([b"MP4DATA"]))
+
+    with patch("requests.get", return_value=fake_response), patch(
+        "services.video_processing_service.video_processing_service"
+    ) as mock_vps:
+        mock_vps.validate_duration_from_path.return_value = (True, 42.0)
+        mock_vps.process_video_from_path.return_value = meta
+        mock_vps.process_video_background = MagicMock()
+
+        result = svc.finalize_upload(
+            user_id="user-1",
+            storage_path="evidence-tasks/user-1/moment_2026_clip.mp4",
+            bucket="quest-evidence",
+            context_type="task",
+            context_id="task-99",
+            block_type="video",
+        )
+
+    assert result.success is True
+    assert result.thumbnail_url == "https://example.invalid/thumb.jpg"
+    assert result.duration_seconds == 42.0
+    assert result.width == 1920
+    assert result.height == 1080
+    mock_vps.process_video_background.assert_called_once()
+
+
+def test_finalize_upload_video_rejects_when_too_long_and_deletes():
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("clip.mp4", 50_000_000, "video/mp4")]
+
+    fake_response = MagicMock()
+    fake_response.__enter__ = MagicMock(return_value=fake_response)
+    fake_response.__exit__ = MagicMock(return_value=False)
+    fake_response.raise_for_status = MagicMock()
+    fake_response.iter_content = MagicMock(return_value=iter([b"MP4DATA"]))
+
+    with patch("requests.get", return_value=fake_response), patch(
+        "services.video_processing_service.video_processing_service"
+    ) as mock_vps:
+        mock_vps.validate_duration_from_path.return_value = (False, 600.0)
+
+        result = svc.finalize_upload(
+            user_id="user-1",
+            storage_path="evidence-tasks/user-1/clip.mp4",
+            bucket="quest-evidence",
+            context_type="task",
+            context_id="task-99",
+            block_type="video",
+        )
+
+    assert result.success is False
+    assert result.error_code == "VIDEO_TOO_LONG"
+    # File must be removed after duration rejection.
+    bucket.remove.assert_called_once()
+
+
+def test_upload_session_to_dict_omits_none_values():
+    from services.media_upload_service import UploadSession
+
+    s = UploadSession(
+        success=True,
+        signed_url="https://x",
+        token="tkn",
+        storage_path="p",
+        bucket="b",
+        media_type="image",
+    )
+    d = s.to_dict()
+    assert "error_message" not in d
+    assert "error_code" not in d
+    assert d["signed_url"] == "https://x"
+    assert d["token"] == "tkn"

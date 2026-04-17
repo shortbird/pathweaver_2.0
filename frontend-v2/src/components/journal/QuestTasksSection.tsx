@@ -5,19 +5,21 @@
  * Includes a "Generate Task Ideas" button to open the AI wizard.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Card, Button, ButtonText, PillarBadge } from '../ui';
 import type { QuestTask } from '@/src/hooks/useJournal';
+import api from '@/src/services/api';
 
 interface Props {
   tasks: QuestTask[];
   loading: boolean;
   onGenerateTasks: () => void;
+  questId?: string | null;
 }
 
-function TaskItem({ task }: { task: QuestTask }) {
+function TaskItem({ task, hasAttachment }: { task: QuestTask; hasAttachment?: boolean }) {
   return (
     <Card variant="outline" size="sm">
       <HStack className="items-center gap-3">
@@ -57,13 +59,37 @@ function TaskItem({ task }: { task: QuestTask }) {
           <UIText size="xs" className="text-typo-400 font-poppins-medium">
             {task.xp_value || task.xp_amount} XP
           </UIText>
+          {hasAttachment && !task.is_completed ? (
+            <HStack className="items-center gap-1">
+              <Ionicons name="attach" size={10} color="#6D469B" />
+              <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                Evidence attached
+              </UIText>
+            </HStack>
+          ) : null}
         </VStack>
       </HStack>
     </Card>
   );
 }
 
-export function QuestTasksSection({ tasks, loading, onGenerateTasks }: Props) {
+export function QuestTasksSection({ tasks, loading, onGenerateTasks, questId }: Props) {
+  const [attachments, setAttachments] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!questId) { setAttachments({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/api/quests/${questId}/task-attachments`);
+        if (!cancelled) setAttachments(data?.attachments || {});
+      } catch {
+        if (!cancelled) setAttachments({});
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [questId, tasks.length]);
+
   if (loading) return null;
 
   const completed = tasks.filter((t) => t.is_completed);
@@ -98,10 +124,10 @@ export function QuestTasksSection({ tasks, loading, onGenerateTasks }: Props) {
 
       {/* Task list */}
       {pending.map((task) => (
-        <TaskItem key={task.id} task={task} />
+        <TaskItem key={task.id} task={task} hasAttachment={!!attachments[task.id]} />
       ))}
       {completed.map((task) => (
-        <TaskItem key={task.id} task={task} />
+        <TaskItem key={task.id} task={task} hasAttachment={!!attachments[task.id]} />
       ))}
 
       {/* Generate tasks button */}

@@ -140,6 +140,110 @@ def upload_event_file(user_id, event_id):
         return jsonify({'success': False, 'error': 'Failed to process file upload'}), 500
 
 
+@learning_events_bp.route('/api/learning-events/<event_id>/upload-init', methods=['POST'])
+@require_auth
+def init_event_signed_upload(user_id, event_id):
+    """Begin a signed upload for a learning event's evidence file."""
+    try:
+        from database import get_supabase_admin_client
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth
+        admin_supabase = get_supabase_admin_client()
+
+        event_check = admin_supabase.table('learning_events')\
+            .select('id')\
+            .eq('id', event_id)\
+            .eq('user_id', user_id)\
+            .single()\
+            .execute()
+        if not event_check.data:
+            return jsonify({'success': False, 'error': 'Learning event not found or access denied'}), 404
+
+        data = request.get_json() or {}
+        filename = data.get('filename')
+        file_size = data.get('file_size')
+        if not filename or not isinstance(file_size, int):
+            return jsonify({'success': False, 'error': 'filename and file_size required'}), 400
+
+        from services.media_upload_service import MediaUploadService
+        session = MediaUploadService(admin_supabase).create_upload_session(
+            user_id=user_id,
+            context_type='event',
+            context_id=event_id,
+            filename=filename,
+            file_size=file_size,
+            content_type=data.get('content_type'),
+            block_type=data.get('block_type'),
+        )
+        if not session.success:
+            status = 413 if session.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'success': False, 'error': session.error_message}), status
+        return jsonify({'success': True, 'upload': session.to_dict()})
+
+    except Exception as e:
+        logger.error(f"Error in init_event_signed_upload: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to create upload session'}), 500
+
+
+@learning_events_bp.route('/api/learning-events/<event_id>/upload-finalize', methods=['POST'])
+@require_auth
+def finalize_event_signed_upload(user_id, event_id):
+    """Finalize a signed upload for a learning event's evidence file."""
+    try:
+        from database import get_supabase_admin_client
+        # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth
+        admin_supabase = get_supabase_admin_client()
+
+        event_check = admin_supabase.table('learning_events')\
+            .select('id')\
+            .eq('id', event_id)\
+            .eq('user_id', user_id)\
+            .single()\
+            .execute()
+        if not event_check.data:
+            return jsonify({'success': False, 'error': 'Learning event not found or access denied'}), 404
+
+        data = request.get_json() or {}
+        storage_path = data.get('storage_path')
+        bucket = data.get('bucket')
+        if not storage_path or not bucket:
+            return jsonify({'success': False, 'error': 'storage_path and bucket required'}), 400
+
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(admin_supabase).finalize_upload(
+            user_id=user_id,
+            storage_path=storage_path,
+            bucket=bucket,
+            context_type='event',
+            context_id=event_id,
+            block_type=data.get('block_type'),
+        )
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'success': False, 'error': result.error_message, 'error_code': result.error_code}), status
+
+        response_data = {
+            'success': True,
+            'message': 'File uploaded successfully',
+            'file_url': result.file_url,
+            'filename': result.filename,
+            'file_size': result.file_size,
+            'content_type': result.content_type,
+        }
+        if result.thumbnail_url:
+            response_data['thumbnail_url'] = result.thumbnail_url
+        if result.duration_seconds is not None:
+            response_data['duration_seconds'] = result.duration_seconds
+        if result.width is not None:
+            response_data['width'] = result.width
+        if result.height is not None:
+            response_data['height'] = result.height
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"Error in finalize_event_signed_upload: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to finalize upload'}), 500
+
+
 @learning_events_bp.route('/api/users/<target_user_id>/learning-events/public', methods=['GET'])
 def get_public_learning_events(target_user_id):
     """Get learning events for public diploma view (no auth required)"""

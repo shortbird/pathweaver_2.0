@@ -6,17 +6,19 @@
  */
 
 import React, { useState } from 'react';
-import { View, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { Pressable, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { bountyAPI } from '@/src/services/api';
+import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import {
-  VStack, HStack, UIText, Heading, Button, ButtonText,
+  VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
 
-// File size limits (must match backend constants)
+// File size limits (must match backend constants).
+// Videos use the signed-upload cap (500MB) because uploads go direct to
+// Supabase — the backend never buffers the payload.
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB (signed-upload)
 
 interface EvidenceUploadSheetProps {
   visible: boolean;
@@ -30,6 +32,7 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
   const [mediaUri, setMediaUri] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [mediaName, setMediaName] = useState<string | null>(null);
+  const [mediaSize, setMediaSize] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
@@ -37,6 +40,7 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
     setMediaUri(null);
     setMediaType(null);
     setMediaName(null);
+    setMediaSize(null);
   };
 
   const handleClose = () => {
@@ -68,6 +72,7 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
       setMediaUri(asset.uri);
       setMediaType(isVideo ? 'video' : 'image');
       setMediaName(asset.fileName || (isVideo ? 'Video' : 'Photo'));
+      setMediaSize(asset.fileSize ?? null);
     }
   };
 
@@ -89,6 +94,7 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
       setMediaUri(asset.uri);
       setMediaType(isVideo ? 'video' : 'image');
       setMediaName(asset.fileName || (isVideo ? 'Video' : 'Photo'));
+      setMediaSize(asset.fileSize ?? null);
     }
   };
 
@@ -107,30 +113,33 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
         });
       }
 
-      // Upload file if provided
+      // Upload file if provided — via signed-upload (direct-to-Supabase).
       if (mediaUri && mediaType) {
-        const formData = new FormData();
-        const filename = mediaUri.split('/').pop() || `evidence.${mediaType === 'image' ? 'jpg' : 'mp4'}`;
+        const filename = mediaName || mediaUri.split('/').pop() || `evidence.${mediaType === 'image' ? 'jpg' : 'mp4'}`;
         const mimeType = mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
-        formData.append('files', {
-          uri: mediaUri,
-          name: filename,
-          type: mimeType,
-        } as any);
-
         try {
-          const uploadResult = await bountyAPI.uploadEvidence(formData);
-          const uploaded = uploadResult.data?.files?.[0];
-          if (uploaded) {
+          const result = await uploadViaSignedUrl({
+            file: {
+              uri: mediaUri,
+              name: filename,
+              type: mimeType,
+              size: mediaSize ?? 0,
+            },
+            initPath: '/api/uploads/sign',
+            finalizePath: '/api/uploads/finalize',
+            blockType: mediaType,
+          });
+          const uploadedUrl = (result.url || result.file_url) as string | undefined;
+          if (uploadedUrl) {
             evidenceItems.push({
               type: mediaType === 'video' ? 'video' : 'image',
               content: {
-                items: [{ url: uploaded.url, caption: description.trim() || '', filename }],
+                items: [{ url: uploadedUrl, caption: description.trim() || '', filename }],
               },
             });
           }
         } catch {
-          // If upload fails, include as local reference
+          // If upload fails, include as local reference (legacy fallback behavior).
           evidenceItems.push({
             type: mediaType === 'video' ? 'video' : 'image',
             content: {
@@ -154,31 +163,8 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
   const canSave = description.trim().length > 0 || !!mediaUri;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={handleClose}
-    >
-      <KeyboardAvoidingView
-        className="flex-1 justify-end"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Backdrop */}
-        <Pressable
-          className="flex-1"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-          onPress={handleClose}
-        />
-
-        {/* Sheet */}
-        <View
-          style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}
-        >
-          {/* Handle */}
-          <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
-
-          <VStack space="md">
+    <BottomSheet visible={visible} onClose={handleClose}>
+      <VStack space="md">
             {/* Header */}
             <HStack className="items-center justify-between">
               <VStack className="flex-1 mr-3">
@@ -213,7 +199,7 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
                 <UIText size="sm" className="text-optio-purple flex-1 font-poppins-medium" numberOfLines={1}>
                   {mediaName || 'File attached'}
                 </UIText>
-                <Pressable onPress={() => { setMediaUri(null); setMediaType(null); setMediaName(null); }}>
+                <Pressable onPress={() => { setMediaUri(null); setMediaType(null); setMediaName(null); setMediaSize(null); }}>
                   <Ionicons name="close-circle" size={22} color="#9CA3AF" />
                 </Pressable>
               </HStack>
@@ -248,8 +234,6 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
               <ButtonText>Upload Evidence</ButtonText>
             </Button>
           </VStack>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </BottomSheet>
   );
 }

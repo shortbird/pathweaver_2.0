@@ -78,6 +78,46 @@ describe('useFeed', () => {
   });
 });
 
+describe('useFeed — P5 recordViews dedupe', () => {
+  it('does not re-record ids already sent in a previous fetch', async () => {
+    setAuthAsStudent();
+    const itemA = createMockFeedItem({ id: 'tc_1', type: 'task_completed' });
+    const itemB = createMockFeedItem({ id: 'tc_2', type: 'task_completed' });
+    // First fetch returns A + B.
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { items: [itemA, itemB], has_more: false, next_cursor: null },
+    });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+
+    const { result } = renderHook(() => useFeed());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Exactly one recordViews POST for both ids.
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/api/observers/feed/record-views', {
+      items: [
+        { type: 'task_completed', id: 'tc_1' },
+        { type: 'task_completed', id: 'tc_2' },
+      ],
+    });
+
+    // Second fetch returns the same pair + a new one.
+    const itemC = createMockFeedItem({ id: 'tc_3', type: 'task_completed' });
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { items: [itemA, itemB, itemC], has_more: false, next_cursor: null },
+    });
+
+    await result.current.refetch();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Only itemC is sent on the second call — A and B are deduped.
+    expect(api.post).toHaveBeenCalledTimes(2);
+    expect((api.post as jest.Mock).mock.calls[1][1]).toEqual({
+      items: [{ type: 'task_completed', id: 'tc_3' }],
+    });
+  });
+});
+
 describe('recordViews', () => {
   it('POST to correct endpoint', async () => {
     (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, recorded: 1 } });

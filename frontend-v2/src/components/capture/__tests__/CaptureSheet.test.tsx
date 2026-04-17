@@ -87,18 +87,44 @@ describe('CaptureSheet', () => {
     });
   });
 
-  it('save: creates moment via JSON, uploads via shared endpoint, saves evidence blocks', async () => {
+  it('save: creates moment via JSON, uploads via signed-upload, saves evidence blocks', async () => {
     (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValueOnce({
       canceled: false,
-      assets: [{ uri: 'file://photo.jpg', type: 'image', fileName: 'photo.jpg' }],
+      assets: [{ uri: 'file://photo.jpg', type: 'image', fileName: 'photo.jpg', fileSize: 2048 }],
     });
     (api.post as jest.Mock)
       // 1: create moment
       .mockResolvedValueOnce({ data: { success: true, event: { id: 'evt-1' } } })
-      // 2: upload files
-      .mockResolvedValueOnce({ data: { files: [{ url: 'https://storage/photo.jpg', original_name: 'photo.jpg', content_type: 'image/jpeg' }] } })
+      // 2a: signed-upload init
+      .mockResolvedValueOnce({
+        data: {
+          upload: {
+            signed_url: 'https://storage/upload?token=tkn',
+            token: 'tkn',
+            storage_path: 'learning-events/u/photo.jpg',
+            bucket: 'quest-evidence',
+          },
+        },
+      })
+      // 2b: signed-upload finalize
+      .mockResolvedValueOnce({ data: { url: 'https://storage/photo.jpg', filename: 'photo.jpg' } })
       // 3: save evidence blocks
       .mockResolvedValueOnce({ data: { success: true } });
+
+    // Stub XMLHttpRequest so the PUT-to-Supabase leg resolves immediately.
+    const xhr: Record<string, unknown> = {
+      upload: { onprogress: null },
+      open: jest.fn(),
+      send: jest.fn(() => {
+        queueMicrotask(() => {
+          xhr.status = 200;
+          (xhr.onload as () => void)?.();
+        });
+      }),
+      onload: null, onerror: null, ontimeout: null, timeout: 0, status: 0, responseText: '',
+    };
+    function XHRFactory() { return xhr; }
+    (global as unknown as { XMLHttpRequest: unknown }).XMLHttpRequest = XHRFactory;
 
     const { getByText, getByPlaceholderText } = render(
       <CaptureSheet visible={true} onClose={mockOnClose} onCaptured={mockOnCaptured} />
@@ -117,11 +143,15 @@ describe('CaptureSheet', () => {
         '/api/learning-events/quick',
         expect.objectContaining({ description: 'Built a robot', source_type: 'realtime' })
       );
-      // Step 2: Upload via shared endpoint
+      // Step 2a: signed-upload init (per-event)
       expect(api.post).toHaveBeenCalledWith(
-        '/api/uploads/evidence',
-        expect.any(FormData),
-        expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } })
+        '/api/learning-events/evt-1/upload-init',
+        expect.objectContaining({ filename: 'photo.jpg', file_size: 2048 })
+      );
+      // Step 2b: signed-upload finalize
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/learning-events/evt-1/upload-finalize',
+        expect.objectContaining({ storage_path: 'learning-events/u/photo.jpg', bucket: 'quest-evidence' })
       );
       // Step 3: Save evidence blocks
       expect(api.post).toHaveBeenCalledWith(

@@ -26,6 +26,7 @@ from config.constants import (
     MAX_IMAGE_SIZE,
     MAX_DOCUMENT_SIZE,
     MAX_VIDEO_SIZE,
+    MAX_VIDEO_SIZE_SIGNED,
     MAX_VIDEO_DURATION_SECONDS,
     IMAGE_FORMAT_LABEL,
     DOCUMENT_FORMAT_LABEL,
@@ -35,10 +36,19 @@ from config.constants import (
 logger = get_logger(__name__)
 
 
-# Grouped constants for easy lookup
+# Grouped constants for easy lookup.
+# EVIDENCE_SIZE_LIMITS bounds legacy multipart-through-backend uploads.
+# SIGNED_EVIDENCE_SIZE_LIMITS bounds signed-upload (direct-to-Supabase) uploads,
+# where the payload never buffers on a worker and we can accept larger videos.
 EVIDENCE_SIZE_LIMITS = {
     'image': MAX_IMAGE_SIZE,
     'video': MAX_VIDEO_SIZE,
+    'document': MAX_DOCUMENT_SIZE,
+}
+
+SIGNED_EVIDENCE_SIZE_LIMITS = {
+    'image': MAX_IMAGE_SIZE,
+    'video': MAX_VIDEO_SIZE_SIGNED,
     'document': MAX_DOCUMENT_SIZE,
 }
 
@@ -103,6 +113,25 @@ class MediaUploadResult:
 
     def to_dict(self):
         """Convert to dict, omitting None values."""
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+
+@dataclass
+class UploadSession:
+    """Pre-signed upload session for direct-to-Supabase uploads."""
+    success: bool
+    signed_url: Optional[str] = None
+    token: Optional[str] = None
+    storage_path: Optional[str] = None
+    bucket: Optional[str] = None
+    final_url: Optional[str] = None
+    media_type: Optional[str] = None
+    max_size: Optional[int] = None
+    expires_in: int = 7200
+    error_message: Optional[str] = None
+    error_code: Optional[str] = None
+
+    def to_dict(self):
         return {k: v for k, v in asdict(self).items() if v is not None}
 
 
@@ -306,17 +335,19 @@ class MediaUploadService:
                 sub_id=sub_id,
             )
 
-            # Upload from temp file to Supabase storage (reads in memory only for upload)
+            # Upload directly from temp file handle to Supabase storage.
+            # Passing the handle (not a bytes copy) avoids buffering the whole payload
+            # in memory during the upload. storage3 accepts BufferedReader; httpx
+            # streams it as the multipart body. Large videos previously caused ~2-3x
+            # in-memory copies (file bytes + httpx multipart buffer) -> Render OOMs.
             try:
-                with open(tmp_path, 'rb') as f:
-                    file_content = f.read()
                 supabase = self._get_client()
-                supabase.storage.from_(bucket).upload(
-                    path=storage_path,
-                    file=file_content,
-                    file_options={"content-type": content_type}
-                )
-                del file_content  # Free memory immediately after upload
+                with open(tmp_path, 'rb') as f:
+                    supabase.storage.from_(bucket).upload(
+                        path=storage_path,
+                        file=f,
+                        file_options={"content-type": content_type},
+                    )
                 public_url = fix_storage_url(
                     supabase.storage.from_(bucket).get_public_url(storage_path)
                 )
@@ -353,6 +384,333 @@ class MediaUploadService:
             sha256_hash=sha256_hash,
             **video_metadata,
         )
+
+    def create_upload_session(
+        self,
+        *,
+        user_id: str,
+        context_type: str,
+        context_id: str,
+        filename: str,
+        file_size: int,
+        content_type: Optional[str] = None,
+        block_type: Optional[str] = None,
+        bucket: Optional[str] = None,
+        sub_id: Optional[str] = None,
+    ) -> UploadSession:
+        """
+        Create a pre-signed upload session. The caller PUTs the file directly to
+        `signed_url`, then calls :meth:`finalize_upload` to trigger post-processing
+        (HEAD verification, video thumbnail/duration/transcode).
+
+        This path avoids routing large payloads through the backend (OOM on
+        Render for >50MB payloads), and frees a Gunicorn worker from holding
+        the connection during a slow client upload.
+        """
+        bucket = bucket or DEFAULT_BUCKETS.get(context_type, 'quest-evidence')
+
+        if not filename:
+            return UploadSession(
+                success=False,
+                error_message='Filename required',
+                error_code='NO_FILENAME',
+            )
+
+        safe_name = secure_filename(filename)
+        ext = safe_name.rsplit('.', 1)[1].lower() if '.' in safe_name else ''
+
+        if not block_type:
+            block_type = self._detect_media_type(ext)
+
+        allowed_exts = EVIDENCE_ALLOWED_EXTENSIONS.get(block_type)
+        if not allowed_exts or ext not in allowed_exts:
+            label = EVIDENCE_FORMAT_LABELS.get(block_type, 'supported files')
+            return UploadSession(
+                success=False,
+                error_message=f'"{filename}" is not a supported {block_type} format. Supported: {label}',
+                error_code='INVALID_TYPE',
+            )
+
+        max_size = SIGNED_EVIDENCE_SIZE_LIMITS.get(block_type, MAX_IMAGE_SIZE)
+        if file_size <= 0:
+            return UploadSession(
+                success=False,
+                error_message='File size is required',
+                error_code='INVALID_SIZE',
+            )
+        if file_size > max_size:
+            max_mb = max_size // (1024 * 1024)
+            file_mb = file_size / (1024 * 1024)
+            return UploadSession(
+                success=False,
+                error_message=f'File is too large ({file_mb:.1f}MB). Maximum for {block_type}s is {max_mb}MB.',
+                error_code='FILE_TOO_LARGE',
+            )
+
+        storage_path = self._generate_storage_path(
+            context_type=context_type,
+            context_id=context_id,
+            user_id=user_id,
+            filename=safe_name,
+            ext=ext,
+            sub_id=sub_id,
+        )
+
+        try:
+            supabase = self._get_client()
+            signed = supabase.storage.from_(bucket).create_signed_upload_url(storage_path)
+        except Exception as e:
+            logger.error(f"[MediaUpload] Failed to create signed upload URL for {bucket}/{storage_path}: {e}")
+            return UploadSession(
+                success=False,
+                error_message='Failed to create upload session',
+                error_code='SIGN_FAILED',
+            )
+
+        try:
+            final_url = fix_storage_url(
+                supabase.storage.from_(bucket).get_public_url(storage_path)
+            )
+        except Exception as e:
+            logger.error(f"[MediaUpload] Failed to compute public URL for {bucket}/{storage_path}: {e}")
+            final_url = None
+
+        return UploadSession(
+            success=True,
+            signed_url=signed.get('signed_url') or signed.get('signedUrl'),
+            token=signed.get('token'),
+            storage_path=storage_path,
+            bucket=bucket,
+            final_url=final_url,
+            media_type=block_type,
+            max_size=max_size,
+        )
+
+    def finalize_upload(
+        self,
+        *,
+        user_id: str,
+        storage_path: str,
+        bucket: str,
+        context_type: str,
+        context_id: str,
+        block_type: Optional[str] = None,
+        sub_id: Optional[str] = None,
+        notify_user_id: Optional[str] = None,
+    ) -> MediaUploadResult:
+        """
+        Finalize a signed upload: verify the file landed in storage, enforce
+        per-context size limits (defense against client-declared-size lies),
+        run video post-processing, and return the same MediaUploadResult shape
+        as :meth:`upload_evidence_file`.
+        """
+        notify_user_id = notify_user_id or user_id
+        supabase = self._get_client()
+
+        # Defense: storage path templates include the user_id; reject finalize
+        # calls where the authenticated user doesn't match the path owner. This
+        # prevents one user from finalizing another user's upload.
+        if f'/{user_id}/' not in f'/{storage_path}/':
+            logger.warning(
+                f"[MediaUpload] finalize_upload path ownership mismatch: "
+                f"user_id={user_id} path={storage_path}"
+            )
+            return MediaUploadResult(
+                success=False,
+                error_message='Upload path does not belong to this user',
+                error_code='PATH_MISMATCH',
+            )
+
+        filename = storage_path.rsplit('/', 1)[-1]
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if not block_type:
+            block_type = self._detect_media_type(ext)
+
+        # Verify the file exists in storage and pull size/mimetype metadata.
+        try:
+            parent_path = storage_path.rsplit('/', 1)[0] if '/' in storage_path else ''
+            listing = supabase.storage.from_(bucket).list(
+                parent_path,
+                {'limit': 100, 'search': filename},
+            )
+            match = next((f for f in (listing or []) if f.get('name') == filename), None)
+            if not match:
+                return MediaUploadResult(
+                    success=False,
+                    error_message='Uploaded file not found in storage',
+                    error_code='FILE_NOT_FOUND',
+                )
+            meta = match.get('metadata') or {}
+            file_size = int(meta.get('size') or 0)
+            actual_content_type = meta.get('mimetype')
+        except Exception as e:
+            logger.error(f"[MediaUpload] Failed to verify uploaded file {bucket}/{storage_path}: {e}")
+            return MediaUploadResult(
+                success=False,
+                error_message='Failed to verify uploaded file',
+                error_code='VERIFY_FAILED',
+            )
+
+        # Enforce per-context size limit again, now against actual bytes stored.
+        # Supabase's bucket-level limit is the outermost cap; this is the
+        # per-media-type cap (e.g. document uploaded as .mp4 extension).
+        max_size = SIGNED_EVIDENCE_SIZE_LIMITS.get(block_type, MAX_IMAGE_SIZE)
+        if file_size > max_size:
+            try:
+                supabase.storage.from_(bucket).remove([storage_path])
+            except Exception:
+                logger.debug("failed to clean up oversized upload", exc_info=True)
+            max_mb = max_size // (1024 * 1024)
+            file_mb = file_size / (1024 * 1024)
+            return MediaUploadResult(
+                success=False,
+                error_message=f'File is too large ({file_mb:.1f}MB). Maximum for {block_type}s is {max_mb}MB.',
+                error_code='FILE_TOO_LARGE',
+            )
+
+        content_type = actual_content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+        public_url = fix_storage_url(
+            supabase.storage.from_(bucket).get_public_url(storage_path)
+        )
+
+        video_metadata = {}
+        if block_type == 'video':
+            video_metadata = self._process_finalized_video(
+                public_url=public_url,
+                storage_path=storage_path,
+                bucket=bucket,
+                ext=ext,
+                user_id=user_id,
+                context_type=context_type,
+                context_id=context_id,
+                sub_id=sub_id,
+                notify_user_id=notify_user_id,
+            )
+            if video_metadata.get('_error'):
+                return MediaUploadResult(
+                    success=False,
+                    error_message=video_metadata['_error'],
+                    error_code=video_metadata.get('_error_code', 'VIDEO_PROCESSING_FAILED'),
+                )
+
+        logger.info(f"[MediaUpload] Finalized {block_type} ({file_size} bytes) at {bucket}/{storage_path}")
+
+        return MediaUploadResult(
+            success=True,
+            file_url=public_url,
+            filename=filename,
+            file_size=file_size,
+            content_type=content_type,
+            media_type=block_type,
+            **{k: v for k, v in video_metadata.items() if not k.startswith('_')},
+        )
+
+    def _process_finalized_video(
+        self,
+        *,
+        public_url: str,
+        storage_path: str,
+        bucket: str,
+        ext: str,
+        user_id: str,
+        context_type: str,
+        context_id: str,
+        sub_id: Optional[str],
+        notify_user_id: str,
+    ) -> dict:
+        """
+        Video post-processing for a finalized signed upload. Streams the video
+        to a temp file (no memory buffering), validates duration, generates a
+        thumbnail, and kicks off background transcoding.
+
+        Returns a metadata dict. If duration validation fails, returns
+        {'_error': ..., '_error_code': ...} and the uploaded file is deleted
+        from storage.
+        """
+        import requests
+
+        from services.video_processing_service import video_processing_service
+
+        supabase = self._get_client()
+        tmp_path = None
+        video_metadata: dict = {}
+
+        try:
+            suffix = f'.{ext}' if ext else ''
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp_path = tmp.name
+                with requests.get(public_url, stream=True, timeout=300) as r:
+                    r.raise_for_status()
+                    for chunk in r.iter_content(chunk_size=64 * 1024):
+                        if chunk:
+                            tmp.write(chunk)
+
+            duration_ok, duration = video_processing_service.validate_duration_from_path(tmp_path)
+            if not duration_ok:
+                try:
+                    supabase.storage.from_(bucket).remove([storage_path])
+                except Exception:
+                    logger.debug("failed to clean up too-long video", exc_info=True)
+                return {
+                    '_error': (
+                        f'Video is too long ({duration:.0f}s). '
+                        f'Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
+                    ),
+                    '_error_code': 'VIDEO_TOO_LONG',
+                }
+
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            file_uuid = str(uuid.uuid4())
+
+            def upload_thumbnail(thumb_bytes, thumb_name):
+                thumb_template = THUMBNAIL_PATH_TEMPLATES.get(context_type)
+                if not thumb_template:
+                    return None
+                thumb_path = thumb_template.format(
+                    user_id=user_id,
+                    context_id=context_id,
+                    sub_id=sub_id or '',
+                    timestamp=timestamp,
+                    file_uuid=file_uuid,
+                    thumb_name=thumb_name,
+                )
+                supabase.storage.from_(bucket).upload(
+                    path=thumb_path,
+                    file=thumb_bytes,
+                    file_options={"content-type": "image/jpeg"},
+                )
+                return fix_storage_url(supabase.storage.from_(bucket).get_public_url(thumb_path))
+
+            meta = video_processing_service.process_video_from_path(
+                tmp_path, storage_upload_fn=upload_thumbnail
+            )
+            video_metadata = {
+                'thumbnail_url': meta.thumbnail_url,
+                'duration_seconds': meta.duration_seconds,
+                'width': meta.width,
+                'height': meta.height,
+            }
+        except Exception as e:
+            logger.error(f"[MediaUpload] Video finalize failed for {bucket}/{storage_path}: {e}")
+            # Thumbnail/metadata is nice-to-have; don't fail the upload over it.
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    logger.debug("failed to unlink video temp file", exc_info=True)
+
+        try:
+            video_processing_service.process_video_background(
+                public_url=public_url,
+                storage_path=storage_path,
+                bucket_name=bucket,
+                user_id=notify_user_id,
+            )
+        except Exception as e:
+            logger.error(f"[MediaUpload] Failed to kick off background transcode: {e}")
+
+        return video_metadata
 
     def validate_file(
         self,

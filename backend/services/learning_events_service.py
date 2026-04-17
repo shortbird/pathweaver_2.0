@@ -228,6 +228,53 @@ class LearningEventsService(BaseService):
         return events
 
     @staticmethod
+    def _enrich_events_with_attached_task(supabase, events: List[Dict]) -> List[Dict]:
+        """Attach `attached_task` = {id, title, pillar, xp_value, quest_id, quest_title}
+        to each event that has attached_task_id set."""
+        if not events:
+            return events
+        task_ids = list({e['attached_task_id'] for e in events if e.get('attached_task_id')})
+        if not task_ids:
+            for event in events:
+                event['attached_task'] = None
+            return events
+        try:
+            tasks_resp = supabase.table('user_quest_tasks') \
+                .select('id, title, pillar, xp_value, quest_id') \
+                .in_('id', task_ids) \
+                .execute()
+            tasks_by_id = {t['id']: t for t in (tasks_resp.data or [])}
+
+            quest_ids = list({t['quest_id'] for t in tasks_by_id.values() if t.get('quest_id')})
+            quest_titles = {}
+            if quest_ids:
+                quests_resp = supabase.table('quests') \
+                    .select('id, title') \
+                    .in_('id', quest_ids) \
+                    .execute()
+                quest_titles = {q['id']: q['title'] for q in (quests_resp.data or [])}
+
+            for event in events:
+                tid = event.get('attached_task_id')
+                task = tasks_by_id.get(tid) if tid else None
+                if task:
+                    event['attached_task'] = {
+                        'id': task['id'],
+                        'title': task['title'],
+                        'pillar': task['pillar'],
+                        'xp_value': task.get('xp_value') or 0,
+                        'quest_id': task.get('quest_id'),
+                        'quest_title': quest_titles.get(task.get('quest_id')),
+                    }
+                else:
+                    event['attached_task'] = None
+        except Exception as e:
+            logger.warning(f"Failed to enrich events with attached task: {e}")
+            for event in events:
+                event.setdefault('attached_task', None)
+        return events
+
+    @staticmethod
     def create_quick_moment(
         user_id: str,
         description: str,
@@ -309,6 +356,7 @@ class LearningEventsService(BaseService):
 
             # Enrich with topics from junction table
             events = LearningEventsService._enrich_events_with_topics(supabase, events)
+            events = LearningEventsService._enrich_events_with_attached_task(supabase, events)
 
             return {
                 'success': True,
@@ -369,6 +417,7 @@ class LearningEventsService(BaseService):
 
             # Enrich with topics from junction table
             LearningEventsService._enrich_events_with_topics(supabase, [event_data])
+            LearningEventsService._enrich_events_with_attached_task(supabase, [event_data])
 
             return {
                 'success': True,
