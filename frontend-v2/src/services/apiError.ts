@@ -35,7 +35,12 @@ const SAFE_FALLBACK = 'Something went wrong. Please try again.';
 export function isAxiosError(err: unknown): err is AxiosErrorLike & { response?: { status: number; data: ApiErrorBody } } {
   if (!err || typeof err !== 'object') return false;
   const e = err as AxiosErrorLike;
-  return e.isAxiosError === true || e.__isAxios === true;
+  if (e.isAxiosError === true || e.__isAxios === true) return true;
+  // Duck-type: anything thrown with response.data looks like an axios error.
+  // authStore tests (and older call sites) mock rejections as plain objects
+  // without the isAxiosError flag, so rely on shape rather than branding.
+  if (e.response && typeof e.response === 'object' && 'data' in e.response) return true;
+  return false;
 }
 
 /** Map any thrown value to a sanitized ApiError the UI can render. */
