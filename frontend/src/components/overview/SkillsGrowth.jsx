@@ -9,12 +9,19 @@ import {
 } from '../../utils/creditRequirements';
 
 // Subject progress row with full name
-const SubjectProgressRow = ({ credit }) => {
+const SubjectProgressRow = ({ credit, pendingCredits = 0 }) => {
+  const earnedPct = Math.min(credit.progressPercentage, 100);
+  const totalPct = Math.min(
+    ((credit.creditsEarned + pendingCredits) / credit.creditsRequired) * 100,
+    100
+  );
+  const hasPending = pendingCredits > 0;
+
   return (
     <div className="flex items-center gap-3">
       {/* Status indicator */}
       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-        credit.isComplete ? 'bg-green-500' : credit.creditsEarned > 0 ? 'bg-optio-purple' : 'bg-gray-300'
+        credit.isComplete ? 'bg-green-500' : credit.creditsEarned > 0 ? 'bg-optio-purple' : hasPending ? 'bg-amber-400' : 'bg-gray-300'
       }`} />
 
       {/* Subject name */}
@@ -23,18 +30,27 @@ const SubjectProgressRow = ({ credit }) => {
       </span>
 
       {/* Progress bar */}
-      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden relative">
+        {hasPending && (
+          <div
+            className="absolute inset-y-0 left-0 bg-amber-300 rounded-full"
+            style={{ width: `${totalPct}%` }}
+          />
+        )}
         <div
-          className={`h-full rounded-full transition-all duration-500 ${
+          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
             credit.isComplete ? 'bg-green-500' : 'bg-optio-purple'
           }`}
-          style={{ width: `${Math.min(credit.progressPercentage, 100)}%` }}
+          style={{ width: `${earnedPct}%` }}
         />
       </div>
 
       {/* Credits */}
-      <span className="text-xs text-gray-500 w-12 text-right flex-shrink-0">
+      <span className="text-xs text-gray-500 w-16 text-right flex-shrink-0 whitespace-nowrap">
         {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
+        {hasPending && (
+          <span className="text-amber-600 ml-1">+{pendingCredits.toFixed(1)}</span>
+        )}
       </span>
     </div>
   );
@@ -51,6 +67,13 @@ const SkillsGrowth = ({
   const totalCreditsEarned = calculateTotalCredits(subjectXp);
   const meetsRequirements = meetsGraduationRequirements(subjectXp);
   const creditProgress = getAllCreditProgress(subjectXp);
+  const pendingCreditProgress = getAllCreditProgress(pendingSubjectXp);
+  const totalPendingCredits = calculateTotalCredits(pendingSubjectXp);
+  const hasPendingCredits = totalPendingCredits > 0;
+  const pendingBySubject = pendingCreditProgress.reduce((acc, p) => {
+    acc[p.subject] = p.creditsEarned;
+    return acc;
+  }, {});
 
   const content = (
     <div className={`grid grid-cols-1 ${showDiplomaCredits ? 'lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x' : ''} divide-gray-100`}>
@@ -106,9 +129,17 @@ const SkillsGrowth = ({
                   {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
+                {hasPendingCredits && (
+                  <div
+                    className="absolute inset-y-0 left-0 bg-amber-300 rounded-full"
+                    style={{
+                      width: `${Math.min(((totalCreditsEarned + totalPendingCredits) / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
+                    }}
+                  ></div>
+                )}
                 <div
-                  className={`h-2 rounded-full transition-all duration-500 ${
+                  className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
                     meetsRequirements
                       ? 'bg-gradient-to-r from-green-400 to-green-600'
                       : 'bg-gradient-to-r from-optio-purple to-optio-pink'
@@ -118,6 +149,16 @@ const SkillsGrowth = ({
                   }}
                 ></div>
               </div>
+              {hasPendingCredits && (
+                <div className="mt-2 flex items-center gap-1 text-amber-600">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-xs font-medium">
+                    +{totalPendingCredits.toFixed(1)} pending finalization
+                  </span>
+                </div>
+              )}
               {meetsRequirements && (
                 <div className="mt-2 flex items-center gap-1 text-green-700">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -131,7 +172,11 @@ const SkillsGrowth = ({
             {/* Subject Progress List */}
             <div className="space-y-2.5">
               {creditProgress.map((credit) => (
-                <SubjectProgressRow key={credit.subject} credit={credit} />
+                <SubjectProgressRow
+                  key={credit.subject}
+                  credit={credit}
+                  pendingCredits={pendingBySubject[credit.subject] || 0}
+                />
               ))}
             </div>
           </div>
