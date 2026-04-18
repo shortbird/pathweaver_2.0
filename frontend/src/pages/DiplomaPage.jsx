@@ -1030,6 +1030,7 @@ const DiplomaPage = () => {
               <CompactSidebar
                 totalXP={totalXP}
                 subjectXP={subjectXP}
+                pendingSubjectXP={pendingSubjectXP}
                 totalXPCount={totalXPCount}
                 isOwner={isOwner}
                 studentName={getStudentFirstName()}

@@ -12,6 +12,7 @@ import {
 const CompactSidebar = ({
   totalXP,
   subjectXP,
+  pendingSubjectXP = {},
   // earnedBadges prop removed (January 2026 - Microschool client feedback)
   totalXPCount,
   isOwner,
@@ -27,6 +28,13 @@ const CompactSidebar = ({
   const totalCreditsEarned = calculateTotalCredits(subjectXP);
   const meetsRequirements = meetsGraduationRequirements(subjectXP);
   const creditProgress = getAllCreditProgress(subjectXP);
+  const pendingCreditProgress = getAllCreditProgress(pendingSubjectXP);
+  const totalPendingCredits = calculateTotalCredits(pendingSubjectXP);
+  const hasPendingCredits = totalPendingCredits > 0;
+  const pendingBySubject = pendingCreditProgress.reduce((acc, p) => {
+    acc[p.subject] = p.creditsEarned;
+    return acc;
+  }, {});
 
   return (
     <>
@@ -153,9 +161,17 @@ const CompactSidebar = ({
                   {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
+                {hasPendingCredits && (
+                  <div
+                    className="absolute h-2 rounded-full bg-amber-300"
+                    style={{
+                      width: `${Math.min(((totalCreditsEarned + totalPendingCredits) / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
+                    }}
+                  ></div>
+                )}
                 <div
-                  className={`h-2 rounded-full transition-all duration-500 ${
+                  className={`relative h-2 rounded-full transition-all duration-500 ${
                     meetsRequirements
                       ? 'bg-gradient-to-r from-green-400 to-green-600'
                       : 'bg-gradient-to-r from-optio-purple to-optio-pink'
@@ -165,6 +181,11 @@ const CompactSidebar = ({
                   }}
                 ></div>
               </div>
+              {hasPendingCredits && (
+                <div className="mt-2 text-xs text-amber-600 font-medium">
+                  +{totalPendingCredits.toFixed(1)} pending finalization
+                </div>
+              )}
               {meetsRequirements && (
                 <div className="mt-2 flex items-center gap-1 text-green-700">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -180,18 +201,29 @@ const CompactSidebar = ({
               <div className="mt-4 space-y-2">
                 <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Top Subjects</p>
                 {creditProgress
-                  .filter(c => c.creditsEarned > 0)
+                  .filter(c => c.creditsEarned > 0 || (pendingBySubject[c.subject] || 0) > 0)
+                  .sort((a, b) => {
+                    const aTotal = a.creditsEarned + (pendingBySubject[a.subject] || 0);
+                    const bTotal = b.creditsEarned + (pendingBySubject[b.subject] || 0);
+                    return bTotal - aTotal;
+                  })
                   .slice(0, 3)
-                  .map(credit => (
-                    <div key={credit.subject} className="flex items-center justify-between text-xs">
-                      <span className="text-gray-700 font-medium truncate flex-1">
-                        {credit.displayName}
-                      </span>
-                      <span className="text-gray-500 ml-2">
-                        {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
-                      </span>
-                    </div>
-                  ))}
+                  .map(credit => {
+                    const pending = pendingBySubject[credit.subject] || 0;
+                    return (
+                      <div key={credit.subject} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-700 font-medium truncate flex-1">
+                          {credit.displayName}
+                        </span>
+                        <span className="text-gray-500 ml-2 whitespace-nowrap">
+                          {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
+                          {pending > 0 && (
+                            <span className="text-amber-600 ml-1">+{pending.toFixed(1)}</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             )}
 
@@ -218,6 +250,7 @@ const CompactSidebar = ({
 CompactSidebar.propTypes = {
   totalXP: PropTypes.object.isRequired,
   subjectXP: PropTypes.object.isRequired,
+  pendingSubjectXP: PropTypes.object,
   // earnedBadges prop removed (January 2026 - Microschool client feedback)
   totalXPCount: PropTypes.number,
   isOwner: PropTypes.bool,
