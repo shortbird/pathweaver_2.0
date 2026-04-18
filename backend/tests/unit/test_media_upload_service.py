@@ -639,19 +639,80 @@ def _make_list_entry(name: str, size: int, mimetype: str = "image/png"):
     return {"name": name, "metadata": {"size": size, "mimetype": mimetype}}
 
 
-def test_finalize_upload_rejects_path_without_user_id():
-    """A user must not be able to finalize a path owned by someone else."""
+def test_finalize_upload_rejects_path_that_doesnt_match_context():
+    """A client must not be able to finalize a storage path from a different context.
+
+    The route handler authorizes the caller for a specific context_id; the
+    defense-in-depth check in the service must reject paths that don't match
+    that context.
+    """
     svc, *_ = _make_service_with_stub_client()
     result = svc.finalize_upload(
-        user_id="attacker",
-        storage_path="evidence-tasks/victim/task-99_2026_photo.png",
+        user_id="user-1",
+        storage_path="evidence-tasks/user-1/some-other-task_2026_photo.png",
         bucket="quest-evidence",
         context_type="task",
-        context_id="task-99",
+        context_id="task-99",  # path has a different task id
         block_type="image",
     )
     assert result.success is False
     assert result.error_code == "PATH_MISMATCH"
+
+
+def test_finalize_upload_accepts_parent_moment_path_with_child_context():
+    """Parent uploading a learning-moment file for their child: the storage
+    path template `learning_moments/{context_id}/...` has the CHILD's id, not
+    the parent's. The service's own path check must not reject this — the
+    route handler has already verified the parent->child relationship.
+    """
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [
+        _make_list_entry("uuid.png", 2048, "image/png")
+    ]
+
+    result = svc.finalize_upload(
+        user_id="parent-user-id",
+        storage_path="learning_moments/child-user-id/uuid.png",
+        bucket="user-uploads",
+        context_type="moment",
+        context_id="child-user-id",
+        block_type="image",
+    )
+    assert result.success is True
+
+
+def test_finalize_upload_accepts_parent_moment_block_path_with_child_context():
+    """Same check for moment_block uploads (parent attaching a file to a
+    specific moment they captured for their child).
+    """
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("uuid.mp4", 50_000_000, "video/mp4")]
+
+    fake_response = MagicMock()
+    fake_response.__enter__ = MagicMock(return_value=fake_response)
+    fake_response.__exit__ = MagicMock(return_value=False)
+    fake_response.raise_for_status = MagicMock()
+    fake_response.iter_content = MagicMock(return_value=iter([b"MP4DATA"]))
+
+    with patch("requests.get", return_value=fake_response), patch(
+        "services.video_processing_service.video_processing_service"
+    ) as mock_vps:
+        mock_vps.validate_duration_from_path.return_value = (True, 42.0)
+        mock_vps.process_video_from_path.return_value = MagicMock(
+            thumbnail_url=None, duration_seconds=42.0, width=None, height=None
+        )
+        mock_vps.process_video_background = MagicMock()
+
+        result = svc.finalize_upload(
+            user_id="parent-user-id",
+            storage_path="learning_moments/child-user-id/moment-abc/uuid.mp4",
+            bucket="user-uploads",
+            context_type="moment_block",
+            context_id="child-user-id",
+            sub_id="moment-abc",
+            block_type="video",
+        )
+    assert result.success is True
 
 
 def test_finalize_upload_rejects_missing_file():
@@ -720,7 +781,7 @@ def test_finalize_upload_video_runs_post_processing():
     from services.video_processing_service import VideoMetadata
 
     svc, client, bucket = _make_service_with_stub_client()
-    bucket.list.return_value = [_make_list_entry("moment_2026_clip.mp4", 50_000_000, "video/mp4")]
+    bucket.list.return_value = [_make_list_entry("task-99_2026_clip.mp4", 50_000_000, "video/mp4")]
 
     meta = VideoMetadata(
         thumbnail_url="https://example.invalid/thumb.jpg",
@@ -744,7 +805,7 @@ def test_finalize_upload_video_runs_post_processing():
 
         result = svc.finalize_upload(
             user_id="user-1",
-            storage_path="evidence-tasks/user-1/moment_2026_clip.mp4",
+            storage_path="evidence-tasks/user-1/task-99_2026_clip.mp4",
             bucket="quest-evidence",
             context_type="task",
             context_id="task-99",
@@ -761,7 +822,7 @@ def test_finalize_upload_video_runs_post_processing():
 
 def test_finalize_upload_video_rejects_when_too_long_and_deletes():
     svc, client, bucket = _make_service_with_stub_client()
-    bucket.list.return_value = [_make_list_entry("clip.mp4", 50_000_000, "video/mp4")]
+    bucket.list.return_value = [_make_list_entry("task-99_clip.mp4", 50_000_000, "video/mp4")]
 
     fake_response = MagicMock()
     fake_response.__enter__ = MagicMock(return_value=fake_response)
@@ -776,7 +837,7 @@ def test_finalize_upload_video_rejects_when_too_long_and_deletes():
 
         result = svc.finalize_upload(
             user_id="user-1",
-            storage_path="evidence-tasks/user-1/clip.mp4",
+            storage_path="evidence-tasks/user-1/task-99_clip.mp4",
             bucket="quest-evidence",
             context_type="task",
             context_id="task-99",

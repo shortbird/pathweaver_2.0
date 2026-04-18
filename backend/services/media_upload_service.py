@@ -507,19 +507,32 @@ class MediaUploadService:
         notify_user_id = notify_user_id or user_id
         supabase = self._get_client()
 
-        # Defense: storage path templates include the user_id; reject finalize
-        # calls where the authenticated user doesn't match the path owner. This
-        # prevents one user from finalizing another user's upload.
-        if f'/{user_id}/' not in f'/{storage_path}/':
-            logger.warning(
-                f"[MediaUpload] finalize_upload path ownership mismatch: "
-                f"user_id={user_id} path={storage_path}"
+        # Defense-in-depth: confirm the storage path belongs to the context
+        # the caller just passed in. The route handler has already authorized
+        # the caller for this context_id (task ownership, verify_parent_access,
+        # verify_advisor_access, event ownership, etc.), so tying the path to
+        # context_id is what prevents a client from finalizing someone else's
+        # upload.
+        #
+        # All templates in STORAGE_PATH_TEMPLATES embed the context_id either
+        # as a full path segment (`learning_moments/{context_id}/...`) or as a
+        # prefix on the leaf filename (`evidence-tasks/{user_id}/{context_id}_...`),
+        # so checking both forms is sufficient.
+        if context_id:
+            parts = storage_path.split('/')
+            context_in_path = context_id in parts or any(
+                p.startswith(f'{context_id}_') for p in parts
             )
-            return MediaUploadResult(
-                success=False,
-                error_message='Upload path does not belong to this user',
-                error_code='PATH_MISMATCH',
-            )
+            if not context_in_path:
+                logger.warning(
+                    f"[MediaUpload] finalize_upload context mismatch: "
+                    f"user_id={user_id} context_id={context_id} path={storage_path}"
+                )
+                return MediaUploadResult(
+                    success=False,
+                    error_message='Upload path does not match this context',
+                    error_code='PATH_MISMATCH',
+                )
 
         filename = storage_path.rsplit('/', 1)[-1]
         ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
