@@ -245,8 +245,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
-  // Credit Review link for org_admins (they review their org's student credit requests)
-  if (userHasRole('org_admin')) {
+  // Credit Review link — org_admins review their org's student credit
+  // requests; superadmins also use it as part of the Optio review step.
+  if (userHasRole('org_admin') || user?.role === 'superadmin') {
     navItems.push({
       name: 'Credit Review',
       path: '/credit-dashboard',

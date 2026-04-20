@@ -11,9 +11,11 @@ import BulkActionBar from '../components/credit-dashboard/BulkActionBar'
 import MergeModal from '../components/credit-dashboard/MergeModal'
 import ShortcutHelp from '../components/credit-dashboard/ShortcutHelp'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
+import useIsMobile from '../hooks/useIsMobile'
 
 const CreditReviewDashboardPage = () => {
   const { user, effectiveRole, logout } = useAuth()
+  const isMobile = useIsMobile()
   const [viewMode, setViewMode] = useState('split') // 'split' or 'table'
   const [items, setItems] = useState([])
   const [selectedItem, setSelectedItem] = useState(null)
@@ -301,67 +303,86 @@ const CreditReviewDashboardPage = () => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-semibold text-gray-900">Credit Review Dashboard</h1>
+      <div className="flex items-center justify-between px-3 md:px-6 py-3 border-b border-gray-200 bg-white gap-3">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <h1 className="text-lg md:text-xl font-semibold text-gray-900 shrink-0">
+            {isMobile ? 'Credit Review' : 'Credit Review Dashboard'}
+          </h1>
           {stats && (
-            <div className="flex gap-2 text-sm">
+            <div className="flex gap-2 text-sm overflow-x-auto no-scrollbar">
               {stats.pending_org_approval > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                <span className="shrink-0 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
                   {stats.pending_org_approval} pending org
                 </span>
               )}
               {stats.pending_optio_approval > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                <span className="shrink-0 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
                   {stats.pending_optio_approval} pending optio
                 </span>
               )}
               {stats.pending_advisor > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                <span className="shrink-0 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
                   {stats.pending_advisor} pending advisor
                 </span>
               )}
               {stats.pending_accreditor > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                <span className="shrink-0 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
                   {stats.pending_accreditor} pending accreditor
                 </span>
               )}
               {stats.flagged > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-800">
+                <span className="shrink-0 px-2 py-0.5 rounded-full bg-orange-100 text-orange-800">
                   {stats.flagged} flagged
                 </span>
               )}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setViewMode(v => v === 'split' ? 'table' : 'split')}
-            className="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
-          >
-            {viewMode === 'split' ? 'Table View' : 'Split View'}
-          </button>
-          <button
-            onClick={() => setShowShortcuts(true)}
-            className="px-2 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-500"
-            title="Keyboard shortcuts (?)"
-          >
-            ?
-          </button>
-          {isAccreditor && (
+        {/* Desktop-only chrome: view toggle, keyboard shortcuts. On mobile
+            the split view is forced and keyboard shortcuts are irrelevant. */}
+        {!isMobile && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={logout}
-              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-600"
+              onClick={() => setViewMode(v => v === 'split' ? 'table' : 'split')}
+              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
             >
-              Log out
+              {viewMode === 'split' ? 'Table View' : 'Split View'}
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => setShowShortcuts(true)}
+              className="px-2 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-500"
+              title="Keyboard shortcuts (?)"
+            >
+              ?
+            </button>
+            {isAccreditor && (
+              <button
+                onClick={logout}
+                className="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-600"
+              >
+                Log out
+              </button>
+            )}
+          </div>
+        )}
+        {isMobile && isAccreditor && (
+          <button
+            onClick={logout}
+            className="shrink-0 px-3 py-2 text-sm rounded-md border border-gray-300 text-gray-600 min-h-[44px] touch-manipulation"
+          >
+            Log out
+          </button>
+        )}
       </div>
 
-      {/* Main content */}
-      {viewMode === 'split' ? (
-        <DashboardLayout>
+      {/* Main content. On mobile we force the split layout (the table view
+          and bulk-select workflow assume a trackpad + keyboard). */}
+      {viewMode === 'split' || isMobile ? (
+        <DashboardLayout
+          isMobile={isMobile}
+          hasSelection={!!selectedItem}
+          onBackToList={() => setSelectedItem(null)}
+        >
           <ItemList
             items={items}
             selectedItem={selectedItem}
@@ -387,7 +408,12 @@ const CreditReviewDashboardPage = () => {
             onFeedbackChange={(fb) => { feedbackRef.current = fb }}
             feedbackTextareaRef={feedbackTextareaRef}
           />
-          <StudentContext context={studentContext} loading={detailLoading} />
+          {/* Student context sidebar is desktop-only — on a phone it would
+              push the detail pane off-screen, and tapping an item already
+              reveals enough context in the detail view. */}
+          {!isMobile && (
+            <StudentContext context={studentContext} loading={detailLoading} />
+          )}
         </DashboardLayout>
       ) : (
         <CreditDataTable
@@ -406,8 +432,9 @@ const CreditReviewDashboardPage = () => {
         />
       )}
 
-      {/* Bulk action bar */}
-      {selectedItems.length > 0 && (
+      {/* Bulk action bar — desktop only. Mobile users review one item at
+          a time via the single-panel layout above. */}
+      {!isMobile && selectedItems.length > 0 && (
         <BulkActionBar
           selectedCount={selectedItems.length}
           items={items}

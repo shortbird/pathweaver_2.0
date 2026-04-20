@@ -104,7 +104,23 @@ def org_approve_credit(user_id: str, completion_id: str):
                 'subject_xp_distribution': override_subjects
             }).eq('id', completion.data['user_quest_task_id']).execute()
 
-        # Update the latest review round with org_admin action
+        # Detect whether the reviewer is a superadmin. A superadmin is both
+        # the org approver AND the Optio approver, so forcing them through
+        # two stages (pending_org_approval → pending_optio_approval → approved)
+        # only duplicates their click. Collapse to one action.
+        reviewer_role_check = admin_supabase.table('users') \
+            .select('role') \
+            .eq('id', user_id) \
+            .single() \
+            .execute()
+        is_superadmin = (
+            bool(reviewer_role_check.data)
+            and reviewer_role_check.data.get('role') == 'superadmin'
+        )
+
+        # Update the latest review round. For superadmins we also record the
+        # Optio-side action in the same row so the audit trail shows both
+        # stages were authorized by the reviewer.
         latest_round = admin_supabase.table('diploma_review_rounds') \
             .select('id') \
             .eq('completion_id', completion_id) \
@@ -113,14 +129,109 @@ def org_approve_credit(user_id: str, completion_id: str):
             .execute()
 
         if latest_round.data:
-            admin_supabase.table('diploma_review_rounds').update({
+            round_update = {
                 'org_reviewer_id': user_id,
                 'org_reviewer_action': 'approved',
                 'org_reviewer_feedback': feedback if feedback else None,
-                'org_reviewed_at': now
-            }).eq('id', latest_round.data[0]['id']).execute()
+                'org_reviewed_at': now,
+            }
+            if is_superadmin:
+                # Same reviewer is acting in the Optio/advisor seat too.
+                round_update.update({
+                    'reviewer_id': user_id,
+                    'reviewer_action': 'approved',
+                    'reviewer_feedback': feedback if feedback else None,
+                    'reviewed_at': now,
+                })
+            admin_supabase.table('diploma_review_rounds').update(
+                round_update
+            ).eq('id', latest_round.data[0]['id']).execute()
 
-        # Update completion status to pending Optio approval
+        if is_superadmin:
+            # Finalize XP (move from pending to finalized) and jump straight
+            # to approved + pending_accreditor in one atomic write.
+            from routes.tasks import (
+                finalize_subject_xp,
+                get_subject_xp_distribution,
+                remove_pending_subject_xp,
+            )
+
+            task_result = admin_supabase.table('user_quest_tasks') \
+                .select('title, diploma_subjects, subject_xp_distribution, xp_value') \
+                .eq('id', completion.data['user_quest_task_id']) \
+                .single() \
+                .execute()
+            task_data = task_result.data or {}
+            xp_value = task_data.get('xp_value', 0)
+
+            approved_subjects = (
+                override_subjects
+                if override_subjects and isinstance(override_subjects, dict)
+                else get_subject_xp_distribution(task_data, xp_value)
+            )
+            original_subjects = get_subject_xp_distribution(task_data, xp_value)
+            try:
+                remove_pending_subject_xp(
+                    admin_supabase, completion.data['user_id'], original_subjects,
+                )
+            except Exception as xp_err:
+                logger.warning(f"Could not remove pending XP before collapsed finalize: {xp_err}")
+            total_xp_finalized = finalize_subject_xp(
+                admin_supabase, completion.data['user_id'], approved_subjects,
+            )
+
+            admin_supabase.table('quest_task_completions').update({
+                'diploma_status': 'approved',
+                'org_reviewer_id': user_id,
+                'credit_reviewer_id': user_id,
+                'finalized_at': now,
+                'accreditor_status': 'pending_accreditor',
+            }).eq('id', completion_id).execute()
+
+            if completion.data.get('user_quest_task_id'):
+                admin_supabase.table('user_quest_tasks').update({
+                    'latest_feedback': feedback if feedback else 'Diploma credit approved!',
+                    'feedback_at': now,
+                }).eq('id', completion.data['user_quest_task_id']).execute()
+
+            # Notify the student, not other reviewers — this IS the final step.
+            try:
+                from services.notification_service import NotificationService
+                notification_service = NotificationService()
+                quest_id = completion.data.get('quest_id', '')
+                task_id_for_link = completion.data.get('user_quest_task_id', '')
+                notification_link = (
+                    f'/quests/{quest_id}?task={task_id_for_link}' if quest_id else '/dashboard'
+                )
+                notification_service.create_notification(
+                    user_id=completion.data['user_id'],
+                    notification_type='diploma_credit_approved',
+                    title='Diploma Credit Approved',
+                    message=f'Your diploma credit for "{task_data.get("title", "a task")}" has been approved! {total_xp_finalized} subject XP earned.',
+                    link=notification_link,
+                    metadata={
+                        'task_id': completion.data.get('user_quest_task_id'),
+                        'completion_id': completion_id,
+                        'xp_finalized': total_xp_finalized,
+                    },
+                )
+            except Exception as notify_err:
+                logger.warning(f"Failed to notify student of collapsed approval: {notify_err}")
+
+            logger.info(
+                f"Superadmin {user_id[:8]} collapsed org+Optio approval for "
+                f"credit {completion_id[:8]}, {total_xp_finalized} XP finalized"
+            )
+            return success_response(data={
+                'completion_id': completion_id,
+                'diploma_status': 'approved',
+                'accreditor_status': 'pending_accreditor',
+                'approved_subjects': approved_subjects,
+                'xp_finalized': total_xp_finalized,
+                'collapsed': True,
+            })
+
+        # Update completion status to pending Optio approval (non-superadmin path)
         admin_supabase.table('quest_task_completions').update({
             'diploma_status': 'pending_optio_approval',
             'org_reviewer_id': user_id

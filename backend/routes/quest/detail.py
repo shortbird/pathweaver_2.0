@@ -261,6 +261,14 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             moment_tasks = []
             for m in quest_moments:
+                # get_quest_moments() returns a combined list of raw moments
+                # AND completed-task rows (item_type='completed_task'). Only
+                # the raw moments should be injected as virtual tasks here —
+                # the completed tasks are already in quest_data['quest_tasks']
+                # via the user_quest_tasks + quest_task_completions join above.
+                # Without this filter, every completed task would appear twice.
+                if m.get('item_type') != 'moment':
+                    continue
                 moment_id = f"moment-{m['id']}"
                 if moment_id in existing_task_ids:
                     continue

@@ -59,6 +59,39 @@ export const resetUser = () => {
 }
 
 /**
+ * Tag subsequent PostHog events as occurring during an admin masquerade
+ * session. Uses super-properties, so every captured event (pageviews,
+ * web_vitals, captureEvent calls) carries the flag until cleared.
+ *
+ * Filter by `is_masquerade != true` in dashboards to see real user activity
+ * only; filter by `is_masquerade = true` to audit what admins did while
+ * impersonating.
+ */
+export const setMasqueradeSuperProperties = ({ adminId, targetUserId }) => {
+  if (!POSTHOG_KEY) return
+
+  posthog.register({
+    is_masquerade: true,
+    masquerading_admin_id: adminId || null,
+    masquerade_target_user_id: targetUserId || null,
+  })
+}
+
+/**
+ * Clear masquerade super-properties. PostHog persists `register()` values
+ * across page loads, so call this on every masquerade-status check that
+ * comes back false — not just on explicit exit — to self-heal any stuck
+ * flag from a prior session.
+ */
+export const clearMasqueradeSuperProperties = () => {
+  if (!POSTHOG_KEY) return
+
+  posthog.unregister('is_masquerade')
+  posthog.unregister('masquerading_admin_id')
+  posthog.unregister('masquerade_target_user_id')
+}
+
+/**
  * Capture a custom business event in PostHog.
  * COPPA: Only pass IDs and predefined enums as properties -- no free-text.
  */

@@ -9,7 +9,13 @@ Endpoints:
 """
 
 from flask import request
-from database import get_supabase_admin_singleton
+# Use per-request admin client (not singleton): the credit dashboard does
+# many chained .execute() calls in one handler, and a shared httpx pool
+# will periodically surface WinError 10035 on Windows local dev when a
+# keepalive socket goes stale. The per-request factory caches a fresh
+# client in Flask's g context for the duration of one request. (Singleton
+# is reserved for background tasks per its docstring.)
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
 from utils.api_response_v1 import success_response, error_response
 from utils.roles import get_effective_role
@@ -38,7 +44,7 @@ def resolve_user_name(user_data):
 def get_dashboard_items(user_id: str):
     """Get credit review items filtered by role and query params."""
     try:
-        admin_supabase = get_supabase_admin_singleton()
+        admin_supabase = get_supabase_admin_client()
 
         # Determine user's role for scoping
         user_result = admin_supabase.table('users') \
@@ -231,7 +237,7 @@ def get_dashboard_items(user_id: str):
 def get_dashboard_item_detail(user_id: str, completion_id: str):
     """Get full detail for a credit review item including evidence and review history."""
     try:
-        admin_supabase = get_supabase_admin_singleton()
+        admin_supabase = get_supabase_admin_client()
 
         # Get completion
         completion = admin_supabase.table('quest_task_completions') \
@@ -361,7 +367,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
 def get_dashboard_stats(user_id: str):
     """Get aggregate counts for dashboard overview."""
     try:
-        admin_supabase = get_supabase_admin_singleton()
+        admin_supabase = get_supabase_admin_client()
 
         # Check role for scoping
         user_result = admin_supabase.table('users') \
@@ -450,7 +456,7 @@ def get_dashboard_stats(user_id: str):
 def get_student_context(user_id: str, student_id: str):
     """Get student's diploma progress and pending items for context panel."""
     try:
-        admin_supabase = get_supabase_admin_singleton()
+        admin_supabase = get_supabase_admin_client()
 
         # Student info
         student = admin_supabase.table('users') \
