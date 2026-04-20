@@ -21,7 +21,7 @@ import logger from './utils/logger'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
 import InstallPrompt from './components/common/InstallPrompt'
-import { initPostHog, captureErrorToast } from './services/posthog'
+import { initPostHog, captureErrorToast, setMasqueradeSuperProperties, clearMasqueradeSuperProperties } from './services/posthog'
 import { toast } from 'react-hot-toast'
 
 // Always-loaded components (critical for initial render)
@@ -178,12 +178,19 @@ function AppContent() {
           };
           localStorage.setItem('masquerade_state', JSON.stringify(next));
           setMasqueradeState(next);
+          // Flag every subsequent PostHog event so admin masquerade activity
+          // can be filtered out of real-user analytics.
+          setMasqueradeSuperProperties({
+            adminId: backendStatus.admin_id || null,
+            targetUserId: backendStatus.target_user?.id || null,
+          });
         } else {
           // Not masquerading server-side — purge any stale local cache.
           if (getMasqueradeState()) {
             localStorage.removeItem('masquerade_state');
           }
           setMasqueradeState(null);
+          clearMasqueradeSuperProperties();
         }
       } catch (error) {
         // 401/network blip: don't flap the banner. After repeated failures, clear.
