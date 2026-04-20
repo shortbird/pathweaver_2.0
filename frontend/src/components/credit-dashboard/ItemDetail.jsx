@@ -76,9 +76,14 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
   const accreditorReviews = detail?.accreditor_reviews || []
   const suggestedSubjects = detail?.suggested_subjects || {}
 
-  const isOrgAdmin = effectiveRole === 'org_admin'
-  const isAdvisor = effectiveRole === 'advisor' || effectiveRole === 'superadmin'
-  const isAccreditor = effectiveRole === 'accreditor' || effectiveRole === 'superadmin'
+  const isSuperadmin = effectiveRole === 'superadmin'
+  // Superadmins are simultaneously the org approver AND the Optio approver,
+  // so we let them act at the pending_org_approval stage. The /org-approve
+  // endpoint collapses both stages into a single finalize for superadmins
+  // (see backend/routes/credit_dashboard/org_admin_actions.py).
+  const isOrgAdmin = effectiveRole === 'org_admin' || isSuperadmin
+  const isAdvisor = effectiveRole === 'advisor' || isSuperadmin
+  const isAccreditor = effectiveRole === 'accreditor' || isSuperadmin
   const isOrgStudent = detail?.is_org_student || item?.is_org_student || false
   const canOrgAdminAct = isOrgAdmin && completion.diploma_status === 'pending_org_approval'
   const canAdvisorAct = isAdvisor && ['pending_review', 'pending_optio_approval'].includes(completion.diploma_status)
@@ -196,7 +201,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-2">
@@ -452,18 +457,22 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
             rows={3}
             className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col md:flex-row gap-2">
             <button
               onClick={handleOrgApprove}
               disabled={actionLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
-              {actionLoading ? 'Processing...' : 'Approve for Optio Review (a)'}
+              {actionLoading
+                ? 'Processing...'
+                : isSuperadmin
+                  ? 'Approve (a)'
+                  : 'Approve for Optio Review (a)'}
             </button>
             <button
               onClick={handleOrgGrowThis}
               disabled={actionLoading || !feedback.trim()}
-              className="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50"
+              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
               Grow This (g)
             </button>
@@ -485,18 +494,18 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
             rows={3}
             className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col md:flex-row gap-2">
             <button
               onClick={handleApprove}
               disabled={actionLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
               {actionLoading ? 'Processing...' : 'Approve (a)'}
             </button>
             <button
               onClick={handleGrowThis}
               disabled={actionLoading || !feedback.trim()}
-              className="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50"
+              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
               Grow This (g)
             </button>
@@ -517,18 +526,18 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
             rows={3}
             className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col md:flex-row gap-2">
             <button
               onClick={handleConfirm}
               disabled={actionLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
               Approve (a)
             </button>
             <button
               onClick={handleReturnToAdvisor}
               disabled={actionLoading || !feedback.trim()}
-              className="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50"
+              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
               Return to Advisor (g)
             </button>

@@ -62,7 +62,13 @@ def is_retryable_error(error: Exception) -> bool:
         'network',
         'could not connect',
         'connection reset',
-        'broken pipe'
+        'broken pipe',
+        # WinError 10035 — WSAEWOULDBLOCK, surfaces as "a non-blocking
+        # socket operation could not be completed immediately" on Windows
+        # local dev when httpx's keepalive socket is caught mid-handshake.
+        # Always transient; retrying once or twice clears it.
+        'non-blocking socket',
+        'winerror 10035',
     ]
     
     return any(pattern in error_message for pattern in retryable_patterns)
