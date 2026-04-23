@@ -35,6 +35,27 @@ class VideoMetadata:
     height: Optional[int] = None
 
 
+@dataclass
+class VideoProbe:
+    """Single-probe result used to decide whether a video needs background processing.
+
+    Built by `probe_from_path`. The `needs_processing` property is the contract
+    callers use to skip the download+transcode round-trip entirely when the
+    uploaded video is already H.264 under the compression threshold -- which is
+    the common case for mobile uploads and is what was driving Render OOMs.
+    """
+    duration_seconds: Optional[float] = None
+    codec: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    needs_transcode: bool = False
+    needs_compression: bool = False
+
+    @property
+    def needs_processing(self) -> bool:
+        return self.needs_transcode or self.needs_compression
+
+
 class VideoProcessingService:
     """Processes uploaded videos: validates duration, extracts metadata, generates thumbnails."""
 
@@ -105,153 +126,220 @@ class VideoProcessingService:
         # H.264 is universally supported -- everything else may not be
         return codec_name != 'h264'
 
-    def ensure_h264(self, file_content: bytes) -> bytes:
-        """
-        Transcode video to H.264 if needed and compress large files.
+    def probe_from_path(self, path: str, file_size: int) -> VideoProbe:
+        """Probe a video file on disk to decide whether it needs backend processing.
 
-        - Non-H.264 codecs (HEVC, VP9, etc.) are transcoded to H.264.
-        - Files over 50MB are compressed (capped at 720p, higher CRF).
-        - Already-H.264 files under 50MB pass through unchanged.
+        Combines codec detection (`needs_transcode`) and size check
+        (`needs_compression`) into a single ffprobe call so callers can skip
+        the background transcode round-trip entirely when neither is required.
+
+        If ffprobe is unavailable or fails, returns a probe with
+        `needs_processing == False`: we can't transcode anyway, so the caller
+        should skip the background job.
+        """
+        probe_data = self._probe_video(path) if self._ffmpeg_available else None
+        codec = self._get_video_codec(probe_data) if probe_data else None
+
+        duration = None
+        width = None
+        height = None
+        if probe_data:
+            try:
+                duration = float(probe_data.get('format', {}).get('duration', 0)) or None
+            except (TypeError, ValueError):
+                duration = None
+            for stream in probe_data.get('streams', []) or []:
+                if stream.get('codec_type') == 'video':
+                    width = stream.get('width')
+                    height = stream.get('height')
+                    break
+
+        return VideoProbe(
+            duration_seconds=duration,
+            codec=codec,
+            width=width,
+            height=height,
+            needs_transcode=self._needs_transcoding(codec) if self._ffmpeg_available else False,
+            needs_compression=self._ffmpeg_available and file_size > MAX_VIDEO_COMPRESSION_THRESHOLD,
+        )
+
+    def ensure_h264_from_path(self, input_path: str, file_size: int) -> Optional[str]:
+        """Transcode/compress a video on disk. Returns a new tmp path the caller
+        must delete when done, or ``None`` if no processing was needed (or
+        failed -- caller should keep the original).
+
+        Unlike the old bytes-based ``ensure_h264``, this never loads the full
+        video into Python memory: ffmpeg reads/writes files directly, and the
+        caller uploads the output via a streamed file handle. With
+        ``MAX_VIDEO_SIZE_SIGNED = 500MB`` a single upload previously allocated
+        >1GB of heap (original ``bytes`` + transcoded ``bytes``) and OOM-killed
+        the 512Mi Render starter worker.
+
+        Does NOT delete ``input_path`` -- that's the caller's responsibility.
         """
         if not self._ffmpeg_available:
-            return file_content
+            return None
 
-        tmp_input = None
-        tmp_output = None
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
-                tmp.write(file_content)
-                tmp_input = tmp.name
+        probe = self._probe_video(input_path)
+        codec = self._get_video_codec(probe)
+        needs_transcode = self._needs_transcoding(codec)
+        needs_compression = file_size > MAX_VIDEO_COMPRESSION_THRESHOLD
 
-            probe = self._probe_video(tmp_input)
-            codec = self._get_video_codec(probe)
-            needs_transcode = self._needs_transcoding(codec)
-            needs_compression = len(file_content) > MAX_VIDEO_COMPRESSION_THRESHOLD
-
-            if not needs_transcode and not needs_compression:
-                logger.info(f"[VideoProcessing] Video is {codec or 'unknown'}, {len(file_content) / (1024*1024):.1f}MB -- no processing needed")
-                return file_content
-
-            reason = []
-            if needs_transcode:
-                reason.append(f"codec {codec} -> H.264")
-            if needs_compression:
-                reason.append(f"compress {len(file_content) / (1024*1024):.1f}MB -> <=50MB")
-            logger.info(f"[VideoProcessing] Processing video: {', '.join(reason)}")
-
-            tmp_output = tmp_input + '_h264.mp4'
-
-            args = [
-                self._ffmpeg_path, '-y',
-                '-i', tmp_input,
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',  # Force 8-bit (10-bit H.264 not supported by Firefox/WMF)
-                '-c:a', 'aac',
-                '-movflags', '+faststart',
-            ]
-
-            if needs_compression:
-                # Compress: cap resolution at 720p and use higher CRF
-                args.extend(['-preset', 'fast', '-crf', '28'])
-                args.extend(['-vf', 'scale=-2:min(ih\\,720)'])
-            else:
-                # Just transcode codec, preserve quality
-                args.extend(['-preset', 'veryfast', '-crf', '23'])
-
-            args.append(tmp_output)
-
-            result = subprocess.run(
-                args,
-                capture_output=True,
-                timeout=300,
+        if not needs_transcode and not needs_compression:
+            logger.info(
+                f"[VideoProcessing] Video is {codec or 'unknown'}, "
+                f"{file_size / (1024 * 1024):.1f}MB -- no processing needed"
             )
+            return None
 
-            if result.returncode == 0 and os.path.exists(tmp_output):
-                with open(tmp_output, 'rb') as f:
-                    transcoded = f.read()
-                original_size = len(file_content) / (1024 * 1024)
-                new_size = len(transcoded) / (1024 * 1024)
-                logger.info(
-                    f"[VideoProcessing] Done: "
-                    f"({original_size:.1f}MB -> {new_size:.1f}MB)"
-                )
-                return transcoded
-            else:
-                logger.warning(f"[VideoProcessing] Processing failed: {result.stderr[-500:]}")
-                return file_content
+        reason = []
+        if needs_transcode:
+            reason.append(f"codec {codec} -> H.264")
+        if needs_compression:
+            reason.append(f"compress {file_size / (1024 * 1024):.1f}MB -> <=50MB")
+        logger.info(f"[VideoProcessing] Processing video: {', '.join(reason)}")
 
+        tmp_output = input_path + '_h264.mp4'
+
+        args = [
+            self._ffmpeg_path, '-y',
+            '-i', input_path,
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',  # Force 8-bit (10-bit H.264 not supported by Firefox/WMF)
+            '-c:a', 'aac',
+            '-movflags', '+faststart',
+        ]
+
+        if needs_compression:
+            args.extend(['-preset', 'fast', '-crf', '28'])
+            args.extend(['-vf', 'scale=-2:min(ih\\,720)'])
+        else:
+            args.extend(['-preset', 'veryfast', '-crf', '23'])
+
+        args.append(tmp_output)
+
+        try:
+            result = subprocess.run(args, capture_output=True, timeout=300)
         except subprocess.TimeoutExpired:
             logger.warning("[VideoProcessing] Processing timed out, using original file")
-            return file_content
+            self._safe_unlink(tmp_output)
+            return None
         except Exception as e:
             logger.error(f"[VideoProcessing] Processing error: {e}")
-            return file_content
-        finally:
-            if tmp_input and os.path.exists(tmp_input):
-                os.unlink(tmp_input)
-            if tmp_output and os.path.exists(tmp_output):
-                os.unlink(tmp_output)
+            self._safe_unlink(tmp_output)
+            return None
 
-    def process_video_background(self, public_url, storage_path, bucket_name, user_id):
-        """
-        Process a video in a background thread after it has already been uploaded.
+        if result.returncode == 0 and os.path.exists(tmp_output):
+            original_mb = file_size / (1024 * 1024)
+            new_mb = os.path.getsize(tmp_output) / (1024 * 1024)
+            logger.info(f"[VideoProcessing] Done: ({original_mb:.1f}MB -> {new_mb:.1f}MB)")
+            return tmp_output
 
-        Downloads the raw video from Supabase, transcodes/compresses as needed,
-        then re-uploads the processed version to the same path.
+        logger.warning(f"[VideoProcessing] Processing failed: {result.stderr[-500:]!r}")
+        self._safe_unlink(tmp_output)
+        return None
+
+    def _safe_unlink(self, path: Optional[str]) -> None:
+        if path and os.path.exists(path):
+            try:
+                os.unlink(path)
+            except Exception:
+                logger.debug("failed to unlink tmp file", exc_info=True)
+
+    def process_video_background(
+        self,
+        public_url,
+        storage_path,
+        bucket_name,
+        user_id,
+        local_video_path: Optional[str] = None,
+        file_size: Optional[int] = None,
+    ):
+        """Process a video in a background thread after it has already been uploaded.
+
+        If ``local_video_path`` is provided, the background thread takes
+        ownership of that file (unlinks it on completion) and skips the
+        download step -- avoiding a second round-trip through Render memory
+        when the caller already has the video on disk from duration/thumbnail
+        extraction.
+
+        Otherwise the thread streams the video from ``public_url`` to a new
+        tmp file in 64 KB chunks. Either way, the full video never sits in
+        Python ``bytes`` in the web worker's heap -- only ffmpeg's (small,
+        streamed) process memory and supabase-py's upload buffer.
+
         Sends a notification to the user if processing fails.
         """
         if not self._ffmpeg_available:
+            # No ffmpeg means no transcoding is possible anyway. Still need to
+            # clean up the caller's tmp file if they handed it over.
+            if local_video_path:
+                self._safe_unlink(local_video_path)
             return
 
         def _process():
+            tmp_input = local_video_path
+            owns_input = local_video_path is not None  # thread is now responsible for cleanup
+            tmp_output = None
             try:
                 logger.info(f"[VideoProcessing:BG] Starting background processing for {storage_path}")
 
-                # Download the raw video from Supabase
-                response = requests.get(public_url, timeout=120)
-                if response.status_code != 200:
-                    logger.error(f"[VideoProcessing:BG] Failed to download video: HTTP {response.status_code}")
-                    self._notify_failure(user_id, "Could not download video for processing")
-                    return
+                if tmp_input is None:
+                    # Stream the raw video from Supabase to disk without buffering
+                    # the whole payload as Python bytes.
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
+                        tmp_input = tmp.name
+                        with requests.get(public_url, stream=True, timeout=300) as r:
+                            if r.status_code != 200:
+                                logger.error(f"[VideoProcessing:BG] Failed to download video: HTTP {r.status_code}")
+                                self._notify_failure(user_id, "Could not download video for processing")
+                                return
+                            for chunk in r.iter_content(chunk_size=64 * 1024):
+                                if chunk:
+                                    tmp.write(chunk)
+                    owns_input = True
 
-                file_content = response.content
-                original_size = len(file_content)
+                size = file_size if file_size is not None else os.path.getsize(tmp_input)
 
-                # Process (transcode + compress if needed)
-                processed = self.ensure_h264(file_content)
-
-                # If nothing changed, no need to re-upload
-                if processed is file_content:
+                # Transcode/compress via ffmpeg (path in, path out). Returns
+                # None if no processing was needed or ffmpeg failed.
+                tmp_output = self.ensure_h264_from_path(tmp_input, size)
+                if tmp_output is None:
                     logger.info(f"[VideoProcessing:BG] No processing needed for {storage_path}")
                     return
 
-                # Re-upload the processed version (overwrite original)
-                # Create client directly (background thread has no Flask app context)
+                # Re-upload the processed version via a streamed file handle.
+                # Background thread has no Flask app context, so build a fresh client.
                 from supabase import create_client
                 from app_config import Config
                 supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
 
-                # Delete old file first, then upload new one (Supabase doesn't support overwrite)
+                # Delete old file first (Supabase doesn't support overwrite).
                 try:
                     supabase.storage.from_(bucket_name).remove([storage_path])
                 except Exception:
-                    logger.debug("intentional swallow", exc_info=True)  # File may already be gone
+                    logger.debug("intentional swallow", exc_info=True)
 
-                supabase.storage.from_(bucket_name).upload(
-                    path=storage_path,
-                    file=processed,
-                    file_options={"content-type": "video/mp4"}
-                )
+                with open(tmp_output, 'rb') as f:
+                    supabase.storage.from_(bucket_name).upload(
+                        path=storage_path,
+                        file=f,
+                        file_options={"content-type": "video/mp4"},
+                    )
 
-                new_size = len(processed)
+                original_mb = size / (1024 * 1024)
+                new_mb = os.path.getsize(tmp_output) / (1024 * 1024)
                 logger.info(
-                    f"[VideoProcessing:BG] Done: {storage_path} "
-                    f"({original_size / (1024*1024):.1f}MB -> {new_size / (1024*1024):.1f}MB)"
+                    f"[VideoProcessing:BG] Done: {storage_path} ({original_mb:.1f}MB -> {new_mb:.1f}MB)"
                 )
 
             except Exception as e:
                 logger.error(f"[VideoProcessing:BG] Failed for {storage_path}: {e}", exc_info=True)
-                self._notify_failure(user_id, f"Video processing failed. The original video was kept.")
+                self._notify_failure(user_id, "Video processing failed. The original video was kept.")
+            finally:
+                if owns_input:
+                    self._safe_unlink(tmp_input)
+                self._safe_unlink(tmp_output)
 
         thread = threading.Thread(target=_process, daemon=True)
         thread.start()

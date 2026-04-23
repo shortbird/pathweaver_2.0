@@ -312,36 +312,29 @@ def test_upload_custom_bucket_override():
 
 def test_upload_video_rejects_when_duration_exceeds_limit():
     """Video longer than MAX_VIDEO_DURATION_SECONDS must be rejected."""
+    from services.video_processing_service import VideoProbe
+
     svc, *_ = _make_service_with_stub_client()
     file = _FakeFile(b"MP4HEADER..." + b"x" * 1024, filename="clip.mp4", content_type="video/mp4")
 
-    with patch("services.media_upload_service.video_processing_service", create=True):
-        from services import media_upload_service
-
-        with patch.object(
-            media_upload_service,
-            "video_processing_service",
-            create=True,
-        ):
-            # The service imports video_processing_service inside the function,
-            # so patch the import path it actually uses.
-            with patch("services.video_processing_service.video_processing_service") as mock_vps:
-                mock_vps.validate_duration_from_path.return_value = (False, 300.0)
-                # thumbnail + processing not called because we reject first
-                result = svc.upload_evidence_file(
-                    file,
-                    user_id="u",
-                    context_type="task",
-                    context_id="t",
-                    block_type="video",
-                )
+    with patch("services.video_processing_service.video_processing_service") as mock_vps:
+        mock_vps.probe_from_path.return_value = VideoProbe(
+            duration_seconds=300.0, codec="h264", needs_transcode=False, needs_compression=False,
+        )
+        result = svc.upload_evidence_file(
+            file,
+            user_id="u",
+            context_type="task",
+            context_id="t",
+            block_type="video",
+        )
     assert result.success is False
     assert result.error_code == "VIDEO_TOO_LONG"
 
 
 def test_upload_video_happy_path_populates_metadata():
     """A valid video should return thumbnail/duration/dimensions."""
-    from services.video_processing_service import VideoMetadata
+    from services.video_processing_service import VideoMetadata, VideoProbe
 
     svc, client, bucket = _make_service_with_stub_client()
     file = _FakeFile(b"MP4HEADER...", filename="clip.mp4", content_type="video/mp4")
@@ -354,7 +347,10 @@ def test_upload_video_happy_path_populates_metadata():
     )
 
     with patch("services.video_processing_service.video_processing_service") as mock_vps:
-        mock_vps.validate_duration_from_path.return_value = (True, 42.0)
+        # HEVC codec forces background transcoding so we can assert it was kicked off.
+        mock_vps.probe_from_path.return_value = VideoProbe(
+            duration_seconds=42.0, codec="hevc", needs_transcode=True, needs_compression=False,
+        )
         mock_vps.process_video_from_path.return_value = meta
         mock_vps.process_video_background = MagicMock()
 
@@ -371,8 +367,38 @@ def test_upload_video_happy_path_populates_metadata():
     assert result.duration_seconds == 42.0
     assert result.width == 1920
     assert result.height == 1080
-    # Background transcoding must have been kicked off.
+    # Background transcoding must have been kicked off with the tmp file handed off.
     mock_vps.process_video_background.assert_called_once()
+    kwargs = mock_vps.process_video_background.call_args.kwargs
+    assert kwargs.get("local_video_path") is not None
+    assert kwargs.get("file_size") is not None
+
+
+def test_upload_video_already_h264_skips_background_processing():
+    """Already-H.264 uploads under the compression threshold must NOT re-download
+    and transcode -- that's the common case and the whole point of the memory fix."""
+    from services.video_processing_service import VideoMetadata, VideoProbe
+
+    svc, *_ = _make_service_with_stub_client()
+    file = _FakeFile(b"MP4HEADER...", filename="clip.mp4", content_type="video/mp4")
+
+    with patch("services.video_processing_service.video_processing_service") as mock_vps:
+        mock_vps.probe_from_path.return_value = VideoProbe(
+            duration_seconds=10.0, codec="h264", needs_transcode=False, needs_compression=False,
+        )
+        mock_vps.process_video_from_path.return_value = VideoMetadata(duration_seconds=10.0)
+        mock_vps.process_video_background = MagicMock()
+
+        result = svc.upload_evidence_file(
+            file,
+            user_id="u",
+            context_type="task",
+            context_id="t",
+            block_type="video",
+        )
+
+    assert result.success is True
+    mock_vps.process_video_background.assert_not_called()
 
 
 def test_security_scan_rejects_invalid_file():
@@ -688,6 +714,8 @@ def test_finalize_upload_accepts_parent_moment_block_path_with_child_context():
     svc, client, bucket = _make_service_with_stub_client()
     bucket.list.return_value = [_make_list_entry("uuid.mp4", 50_000_000, "video/mp4")]
 
+    from services.video_processing_service import VideoProbe
+
     fake_response = MagicMock()
     fake_response.__enter__ = MagicMock(return_value=fake_response)
     fake_response.__exit__ = MagicMock(return_value=False)
@@ -697,7 +725,9 @@ def test_finalize_upload_accepts_parent_moment_block_path_with_child_context():
     with patch("requests.get", return_value=fake_response), patch(
         "services.video_processing_service.video_processing_service"
     ) as mock_vps:
-        mock_vps.validate_duration_from_path.return_value = (True, 42.0)
+        mock_vps.probe_from_path.return_value = VideoProbe(
+            duration_seconds=42.0, codec="h264", needs_transcode=False, needs_compression=False,
+        )
         mock_vps.process_video_from_path.return_value = MagicMock(
             thumbnail_url=None, duration_seconds=42.0, width=None, height=None
         )
@@ -777,8 +807,8 @@ def test_finalize_upload_rejects_oversized_file_from_supabase_and_deletes():
 
 
 def test_finalize_upload_video_runs_post_processing():
-    """Videos trigger duration validation, thumbnail generation, and background transcode."""
-    from services.video_processing_service import VideoMetadata
+    """Non-H.264 videos trigger duration validation, thumbnail generation, and background transcode."""
+    from services.video_processing_service import VideoMetadata, VideoProbe
 
     svc, client, bucket = _make_service_with_stub_client()
     bucket.list.return_value = [_make_list_entry("task-99_2026_clip.mp4", 50_000_000, "video/mp4")]
@@ -799,7 +829,9 @@ def test_finalize_upload_video_runs_post_processing():
     with patch("requests.get", return_value=fake_response), patch(
         "services.video_processing_service.video_processing_service"
     ) as mock_vps:
-        mock_vps.validate_duration_from_path.return_value = (True, 42.0)
+        mock_vps.probe_from_path.return_value = VideoProbe(
+            duration_seconds=42.0, codec="hevc", needs_transcode=True, needs_compression=False,
+        )
         mock_vps.process_video_from_path.return_value = meta
         mock_vps.process_video_background = MagicMock()
 
@@ -818,9 +850,51 @@ def test_finalize_upload_video_runs_post_processing():
     assert result.width == 1920
     assert result.height == 1080
     mock_vps.process_video_background.assert_called_once()
+    # The tmp file must be handed off so the bg thread skips re-downloading.
+    kwargs = mock_vps.process_video_background.call_args.kwargs
+    assert kwargs.get("local_video_path") is not None
+    assert kwargs.get("file_size") is not None
+
+
+def test_finalize_upload_h264_video_skips_background_processing():
+    """Already-H.264 uploads under the compression threshold must NOT kick off
+    a background transcode -- that's the memory fix."""
+    from services.video_processing_service import VideoMetadata, VideoProbe
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("task-99_clip.mp4", 10_000_000, "video/mp4")]
+
+    fake_response = MagicMock()
+    fake_response.__enter__ = MagicMock(return_value=fake_response)
+    fake_response.__exit__ = MagicMock(return_value=False)
+    fake_response.raise_for_status = MagicMock()
+    fake_response.iter_content = MagicMock(return_value=iter([b"MP4DATA"]))
+
+    with patch("requests.get", return_value=fake_response), patch(
+        "services.video_processing_service.video_processing_service"
+    ) as mock_vps:
+        mock_vps.probe_from_path.return_value = VideoProbe(
+            duration_seconds=10.0, codec="h264", needs_transcode=False, needs_compression=False,
+        )
+        mock_vps.process_video_from_path.return_value = VideoMetadata(duration_seconds=10.0)
+        mock_vps.process_video_background = MagicMock()
+
+        result = svc.finalize_upload(
+            user_id="user-1",
+            storage_path="evidence-tasks/user-1/task-99_clip.mp4",
+            bucket="quest-evidence",
+            context_type="task",
+            context_id="task-99",
+            block_type="video",
+        )
+
+    assert result.success is True
+    mock_vps.process_video_background.assert_not_called()
 
 
 def test_finalize_upload_video_rejects_when_too_long_and_deletes():
+    from services.video_processing_service import VideoProbe
+
     svc, client, bucket = _make_service_with_stub_client()
     bucket.list.return_value = [_make_list_entry("task-99_clip.mp4", 50_000_000, "video/mp4")]
 
@@ -833,7 +907,9 @@ def test_finalize_upload_video_rejects_when_too_long_and_deletes():
     with patch("requests.get", return_value=fake_response), patch(
         "services.video_processing_service.video_processing_service"
     ) as mock_vps:
-        mock_vps.validate_duration_from_path.return_value = (False, 600.0)
+        mock_vps.probe_from_path.return_value = VideoProbe(
+            duration_seconds=600.0, codec="h264", needs_transcode=False, needs_compression=False,
+        )
 
         result = svc.finalize_upload(
             user_id="user-1",

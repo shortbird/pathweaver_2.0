@@ -606,10 +606,28 @@ SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
 
 **Status:** Configured (user scope)
 
+**Package:** [`@niyogi/render-mcp`](https://www.npmjs.com/package/@niyogi/render-mcp) — community Render MCP server (there is no official `@render` or `@anthropic-ai` package on npm).
+
 **Add Render MCP:**
+
+Two-step setup -- the MCP server reads its API key from `~/.render-mcp/config.json`, not from a CLI flag.
+
 ```bash
-claude mcp add -s user render -- npx -y @anthropic-ai/mcp-server-render --api-key <RENDER_API_KEY>
+# 1. Store the API key in the MCP server's config file
+npx -y @niyogi/render-mcp configure --api-key <RENDER_API_KEY>
+
+# 2. Register the server with Claude Code (user scope)
+claude mcp add -s user render -- cmd /c npx -y @niyogi/render-mcp start
 ```
+
+On macOS/Linux, drop the `cmd /c` prefix:
+```bash
+claude mcp add -s user render -- npx -y @niyogi/render-mcp start
+```
+
+Verify with `claude mcp list` -- should show `render: ... - ✓ Connected`. Restart Claude Code so the new tools load into the session.
+
+**Not working:** `@anthropic-ai/mcp-server-render` -- 404 on npm. The `claude mcp add ... --api-key ...` pattern also fails because `-y` is parsed by the Claude CLI; hence the `configure` step above.
 
 **Service IDs:**
 | Environment | Service | ID | Branch |
