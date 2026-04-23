@@ -441,9 +441,9 @@ const PromoStudentPage = () => {
                 <div className="bg-gradient-to-br from-optio-purple to-optio-pink rounded-2xl p-8 text-white shadow-xl h-full flex flex-col">
                   <div className="text-center mb-6 flex-1">
                     <p className="text-sm font-medium text-white/70 mb-3 uppercase tracking-wide">Individual Classes</p>
-                    <p className="text-4xl sm:text-5xl font-bold">$250</p>
-                    <p className="text-lg text-white/90 mt-1">per credit</p>
-                    <p className="text-white/60 text-sm mt-2">1 credit = 1 full-year class</p>
+                    <p className="text-4xl sm:text-5xl font-bold">$150</p>
+                    <p className="text-lg text-white/90 mt-1">per class</p>
+                    <p className="text-white/60 text-sm mt-2">1 class = 0.5 credit (one semester)</p>
                   </div>
                   <div className="space-y-2">
                     {[

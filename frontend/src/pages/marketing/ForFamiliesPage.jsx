@@ -256,7 +256,7 @@ const ForFamiliesPage = () => {
           </RevealSection>
           <div className="grid sm:grid-cols-3 gap-6">
             {[
-              { title: 'Individual Credits', desc: 'Turn your learning on Optio into official credit that transfers to your current school. $250 per credit.', img: 'https://images.pexels.com/photos/33780218/pexels-photo-33780218.jpeg?auto=compress&cs=tinysrgb&w=400' },
+              { title: 'Individual Classes', desc: 'Turn your learning on Optio into official credit that transfers to your current school. $150 per class (one semester, 0.5 credit).', img: 'https://images.pexels.com/photos/33780218/pexels-photo-33780218.jpeg?auto=compress&cs=tinysrgb&w=400' },
               { title: 'Full-Time Diploma', desc: 'Personalize your entire education through Optio Academy with a dedicated teacher.', img: 'https://images.pexels.com/photos/7692559/pexels-photo-7692559.jpeg?auto=compress&cs=tinysrgb&w=400' },
               { title: 'Dual Enrollment', desc: 'Earn college credit while completing high school requirements. Save thousands on tuition.', img: 'https://images.pexels.com/photos/5211472/pexels-photo-5211472.jpeg?auto=compress&cs=tinysrgb&w=400' },
             ].map((item, i) => (

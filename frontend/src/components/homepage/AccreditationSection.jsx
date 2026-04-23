@@ -70,7 +70,7 @@ const AccreditationSection = forwardRef(({ isVisible = true }, ref) => {
                 className="text-lg font-bold text-gray-900"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
-                $150 <span className="text-sm font-normal text-gray-600">per credit</span>
+                $150 <span className="text-sm font-normal text-gray-600">per class (one semester, 0.5 credit)</span>
               </p>
             </div>
           </div>

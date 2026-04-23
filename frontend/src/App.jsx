@@ -88,6 +88,10 @@ const CourseHomepage = lazy(() => import('./pages/courses/CourseHomepage'))
 const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
 const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
 const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
+// Student-curated classes (April 2026)
+const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
+const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
+const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
@@ -397,6 +401,7 @@ function App() {
                 {/* Public course pages (no auth required) */}
                 <Route path="catalog" element={<PublicCatalogPage />} />
                 <Route path="course/:slug" element={<PublicCoursePage />} />
+                <Route path="class/:slug" element={<PublicClassPage />} />
                 {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
@@ -413,6 +418,10 @@ function App() {
                 {/* Course Builder - backend enforces creator/superadmin permissions */}
                 <Route path="courses/:id/edit" element={<CourseBuilder />} />
                 <Route path="courses/new" element={<CourseBuilder />} />
+                {/* Student-curated classes (admin surfaces live under /admin/classes/* inside AdminPage) */}
+                <Route path="my-classes" element={<MyClasses />} />
+                <Route path="classes/new" element={<StudentClassForm />} />
+                <Route path="classes/:id/edit" element={<StudentClassForm />} />
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />

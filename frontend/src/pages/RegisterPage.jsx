@@ -6,6 +6,7 @@ import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
 import GoogleButton from '../components/auth/GoogleButton'
 import logger from '../utils/logger'
 import toast from 'react-hot-toast'
+import { getInvitePreview } from '../services/studentClassService'
 
 const RegisterPage = () => {
   const { register: registerField, handleSubmit, formState: { errors }, watch } = useForm()
@@ -13,16 +14,41 @@ const RegisterPage = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const invitationCode = searchParams.get('invitation')
+  const inviteToken = searchParams.get('invite_token')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isUnder13, setIsUnder13] = useState(false)
   const [googleError, setGoogleError] = useState('')
+  const [invitePreview, setInvitePreview] = useState(null)
+  const [inviteError, setInviteError] = useState(null)
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
 
   // Check if this is an observer registration
   const isObserverRegistration = !!invitationCode
+  // Check if this is a student-curated class invite-flow registration
+  const isClassInvite = !!inviteToken
+
+  // Fetch invite preview to show class context and confirm the link is still valid
+  useEffect(() => {
+    if (!inviteToken) return
+    let cancelled = false
+    getInvitePreview(inviteToken)
+      .then((preview) => {
+        if (!cancelled) setInvitePreview(preview)
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setInviteError(
+            e?.response?.data?.message || 'This invite link is not valid or has expired.'
+          )
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [inviteToken])
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -82,6 +108,20 @@ const RegisterPage = () => {
         localStorage.setItem('pendingObserverInvitation', invitationCode)
       }
 
+      // Pass class invite token (student-curated classes) + parent email
+      if (inviteToken) {
+        registrationData.invite_token = inviteToken
+        // Stash the class slug so we can land the user on it after email verification
+        if (invitePreview?.class?.slug) {
+          try {
+            localStorage.setItem(
+              'pendingClassEnrollment',
+              JSON.stringify({ slug: invitePreview.class.slug, title: invitePreview.class.title })
+            )
+          } catch { /* localStorage unavailable */ }
+        }
+      }
+
       // Let the normal registration flow handle email verification redirect
       await register(registrationData)
     } finally {
@@ -92,9 +132,33 @@ const RegisterPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
+        {isClassInvite && invitePreview?.class && (
+          <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border border-optio-purple/20">
+            <p className="text-xs uppercase tracking-wide text-optio-purple font-semibold">
+              {invitePreview.inviter_name
+                ? `${invitePreview.inviter_name} invited you`
+                : 'You were invited'}
+            </p>
+            <p className="mt-1 font-semibold text-gray-900">
+              Join: {invitePreview.class.title}
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              A parent or guardian email is required to sign up. They'll be invited to the mandatory kickoff call.
+            </p>
+          </div>
+        )}
+        {isClassInvite && inviteError && (
+          <div className="mt-4 p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+            {inviteError}
+          </div>
+        )}
         <div>
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
-            {isObserverRegistration ? 'Create your observer account' : 'Create your account'}
+            {isObserverRegistration
+              ? 'Create your observer account'
+              : isClassInvite
+                ? 'Join the class'
+                : 'Create your account'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
@@ -196,6 +260,37 @@ const RegisterPage = () => {
                 <p id="email-error" role="alert" className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
+
+            {isClassInvite && (
+              <div>
+                <label htmlFor="parent_email" className="block text-sm font-medium text-gray-700">
+                  Parent or guardian email
+                </label>
+                <input
+                  id="parent_email"
+                  {...registerField('parent_email', {
+                    required: isClassInvite ? 'A parent or guardian email is required to join a class' : false,
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: 'Invalid email address',
+                    },
+                  })}
+                  type="email"
+                  className="input-field mt-1"
+                  placeholder="parent@example.com"
+                  aria-invalid={!!errors.parent_email}
+                  aria-describedby={errors.parent_email ? 'parent-email-error' : undefined}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  They'll be invited to the kickoff video call before the class starts.
+                </p>
+                {errors.parent_email && (
+                  <p id="parent-email-error" role="alert" className="mt-1 text-sm text-red-600">
+                    {errors.parent_email.message}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700">

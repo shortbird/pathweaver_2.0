@@ -230,6 +230,7 @@ class MediaUploadService:
 
         # Stream file to a temp file to avoid holding entire upload in memory
         tmp_path = None
+        tmp_path_transferred = False  # becomes True when ownership passes to the bg thread
         try:
             suffix = f'.{ext}' if ext else ''
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -278,14 +279,20 @@ class MediaUploadService:
                     f.write(file_content)
                 del file_content  # Free memory immediately
 
-            # Video duration validation (uses temp file path, no extra memory copy)
+            # Single probe: duration validation + codec/size check so we can
+            # skip the background transcode entirely when the uploaded video
+            # is already H.264 under the compression threshold.
+            video_probe = None
             if is_video:
                 from services.video_processing_service import video_processing_service
-                duration_ok, duration = video_processing_service.validate_duration_from_path(tmp_path)
-                if not duration_ok:
+                video_probe = video_processing_service.probe_from_path(tmp_path, file_size)
+                if (
+                    video_probe.duration_seconds is not None
+                    and video_probe.duration_seconds > MAX_VIDEO_DURATION_SECONDS
+                ):
                     return MediaUploadResult(
                         success=False,
-                        error_message=f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.',
+                        error_message=f'Video is too long ({video_probe.duration_seconds:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.',
                         error_code='VIDEO_TOO_LONG',
                     )
 
@@ -359,19 +366,28 @@ class MediaUploadService:
                     error_code='STORAGE_ERROR',
                 )
 
-            # Kick off background video processing (transcode/compress)
-            if is_video:
+            # Kick off background video processing only if the probe says
+            # transcoding/compression is actually needed. Hand the tmp file
+            # off to the background thread so it doesn't re-download the
+            # video from Supabase.
+            if is_video and video_probe is not None and video_probe.needs_processing:
                 from services.video_processing_service import video_processing_service
-                video_processing_service.process_video_background(
-                    public_url=public_url,
-                    storage_path=storage_path,
-                    bucket_name=bucket,
-                    user_id=notify_user_id,
-                )
+                try:
+                    video_processing_service.process_video_background(
+                        public_url=public_url,
+                        storage_path=storage_path,
+                        bucket_name=bucket,
+                        user_id=notify_user_id,
+                        local_video_path=tmp_path,
+                        file_size=file_size,
+                    )
+                    tmp_path_transferred = True
+                except Exception as e:
+                    logger.error(f"[MediaUpload] Failed to kick off background transcode: {e}")
 
             logger.info(f"[MediaUpload] Uploaded {block_type} ({file_size} bytes) to {bucket}/{storage_path}")
         finally:
-            if tmp_path and os.path.exists(tmp_path):
+            if tmp_path and not tmp_path_transferred and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
         return MediaUploadResult(
@@ -646,7 +662,9 @@ class MediaUploadService:
 
         supabase = self._get_client()
         tmp_path = None
+        tmp_path_transferred = False  # becomes True when ownership passes to the bg thread
         video_metadata: dict = {}
+        file_size_on_disk = 0
 
         try:
             suffix = f'.{ext}' if ext else ''
@@ -657,16 +675,24 @@ class MediaUploadService:
                     for chunk in r.iter_content(chunk_size=64 * 1024):
                         if chunk:
                             tmp.write(chunk)
+            file_size_on_disk = os.path.getsize(tmp_path)
 
-            duration_ok, duration = video_processing_service.validate_duration_from_path(tmp_path)
-            if not duration_ok:
+            # Single ffprobe call gives us duration + codec + dimensions and
+            # tells us whether a background transcode is even needed. Most
+            # mobile uploads are already H.264 under the compression threshold,
+            # so we can skip the download+transcode round-trip entirely.
+            probe = video_processing_service.probe_from_path(tmp_path, file_size_on_disk)
+            if (
+                probe.duration_seconds is not None
+                and probe.duration_seconds > MAX_VIDEO_DURATION_SECONDS
+            ):
                 try:
                     supabase.storage.from_(bucket).remove([storage_path])
                 except Exception:
                     logger.debug("failed to clean up too-long video", exc_info=True)
                 return {
                     '_error': (
-                        f'Video is too long ({duration:.0f}s). '
+                        f'Video is too long ({probe.duration_seconds:.0f}s). '
                         f'Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
                     ),
                     '_error_code': 'VIDEO_TOO_LONG',
@@ -703,25 +729,32 @@ class MediaUploadService:
                 'width': meta.width,
                 'height': meta.height,
             }
+
+            # Only kick off background transcoding if the probe says it's
+            # actually needed. When we do, hand the tmp file off to the
+            # background thread so it can skip re-downloading from Supabase.
+            if probe.needs_processing:
+                try:
+                    video_processing_service.process_video_background(
+                        public_url=public_url,
+                        storage_path=storage_path,
+                        bucket_name=bucket,
+                        user_id=notify_user_id,
+                        local_video_path=tmp_path,
+                        file_size=file_size_on_disk,
+                    )
+                    tmp_path_transferred = True
+                except Exception as e:
+                    logger.error(f"[MediaUpload] Failed to kick off background transcode: {e}")
         except Exception as e:
             logger.error(f"[MediaUpload] Video finalize failed for {bucket}/{storage_path}: {e}")
             # Thumbnail/metadata is nice-to-have; don't fail the upload over it.
         finally:
-            if tmp_path and os.path.exists(tmp_path):
+            if tmp_path and not tmp_path_transferred and os.path.exists(tmp_path):
                 try:
                     os.unlink(tmp_path)
                 except Exception:
                     logger.debug("failed to unlink video temp file", exc_info=True)
-
-        try:
-            video_processing_service.process_video_background(
-                public_url=public_url,
-                storage_path=storage_path,
-                bucket_name=bucket,
-                user_id=notify_user_id,
-            )
-        except Exception as e:
-            logger.error(f"[MediaUpload] Failed to kick off background transcode: {e}")
 
         return video_metadata
 

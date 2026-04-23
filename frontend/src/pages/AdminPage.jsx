@@ -18,6 +18,7 @@ const DocsManager = lazy(() => import('../components/admin/DocsManager'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
 const PhilosophyEditor = lazy(() => import('./admin/PhilosophyEditor'))
 const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue'))
+const AdminClassesHub = lazy(() => import('./classes/AdminClassesHub'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -56,6 +57,7 @@ const AdminPage = () => {
   ]
 
   const superadminTabs = [
+    { path: 'classes', label: 'Classes' },
     { path: 'moderation', label: 'Moderation' },
     { path: 'bulk-generate', label: 'Bulk Generate' },
     { path: 'docs', label: 'Docs' },
@@ -118,19 +120,22 @@ const AdminPage = () => {
         ))}
 
         {/* Superadmin-only tabs */}
-        {isSuperadmin && superadminTabs.map(tab => (
-          <Link
-            key={tab.path}
-            to={`/admin/${tab.path}`}
-            className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${
-              currentPath === tab.path
-                ? 'border-b-2 border-optio-purple font-bold text-gray-900'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
+        {isSuperadmin && superadminTabs.map(tab => {
+          const isActive = location.pathname.startsWith(`/admin/${tab.path}`)
+          return (
+            <Link
+              key={tab.path}
+              to={`/admin/${tab.path}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${
+                isActive
+                  ? 'border-b-2 border-optio-purple font-bold text-gray-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {tab.label}
+            </Link>
+          )
+        })}
 
         {/* Quests tab - visible to advisors */}
         {isAdvisor && !isAdmin && (
@@ -163,6 +168,7 @@ const AdminPage = () => {
           <Route path="docs" element={<DocsManager />} />
           <Route path="philosophy" element={<PhilosophyEditor />} />
           <Route path="moderation" element={<ModerationQueue />} />
+          <Route path="classes/*" element={<AdminClassesHub />} />
         </Routes>
       </Suspense>
     </div>

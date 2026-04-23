@@ -104,7 +104,11 @@ def get_public_course_by_slug(slug: str):
             'id, title, description, slug, cover_image_url, intro_content, '
             'learning_outcomes, educational_value, '
             'parent_guidance, final_deliverable, target_audience, '
-            'progress_model, visibility, status, created_at, organization_id'
+            'progress_model, visibility, status, created_at, organization_id, '
+            'created_by, course_source, '
+            'teacher_of_record_id, teacher_bio, teacher_credentials, '
+            'kickoff_at, kickoff_meeting_url, '
+            'credit_subject, credit_amount, max_cohort_size'
         ).eq('slug', slug).execute()
 
         if not course_result.data:
@@ -112,9 +116,33 @@ def get_public_course_by_slug(slug: str):
 
         course = course_result.data[0]
 
-        # Verify course is public and published
+        # Verify course is public and published — BUT let the creator or a superadmin
+        # preview a draft/pending_review class by slug. This is what powers the "Preview"
+        # button on the class edit form.
         if course.get('visibility') != 'public' or course.get('status') != 'published':
-            return jsonify({'error': 'Course not found'}), 404
+            viewer_id = None
+            try:
+                from utils.session_manager import session_manager
+                viewer_id = session_manager.get_effective_user_id()
+                if not viewer_id:
+                    auth_header = request.headers.get('Authorization', '')
+                    if auth_header.startswith('Bearer '):
+                        from utils.auth.token_utils import verify_token
+                        viewer_id = verify_token(auth_header.split(' ')[1])
+            except Exception:
+                viewer_id = None
+
+            allow_preview = False
+            if viewer_id:
+                if viewer_id == course.get('created_by'):
+                    allow_preview = True
+                else:
+                    viewer = client.table('users').select('role').eq('id', viewer_id).execute()
+                    if viewer.data and viewer.data[0].get('role') == 'superadmin':
+                        allow_preview = True
+
+            if not allow_preview:
+                return jsonify({'error': 'Course not found'}), 404
 
         # Get quests (projects) for this course - only published ones
         quests_result = client.table('course_quests').select(
@@ -147,8 +175,29 @@ def get_public_course_by_slug(slug: str):
             if org_result.data:
                 course['organization_name'] = org_result.data[0].get('name')
 
+        # For student-curated classes, attach the creator's display name.
+        # Teacher-of-record info lives in platform_settings (single source, one
+        # teacher for every class) and is fetched separately by the client.
+        if course.get('course_source') == 'student_curated':
+            creator_id = course.get('created_by')
+            if creator_id:
+                creator = client.table('users').select(
+                    'first_name, last_name, display_name'
+                ).eq('id', creator_id).execute()
+                if creator.data:
+                    c = creator.data[0]
+                    course['creator_name'] = (
+                        c.get('display_name')
+                        or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
+                        or 'A student'
+                    )
+
         # Remove internal fields before returning
         course.pop('organization_id', None)
+        course.pop('created_by', None)
+        course.pop('teacher_of_record_id', None)
+        course.pop('teacher_bio', None)
+        course.pop('teacher_credentials', None)
 
         return jsonify({
             'success': True,

@@ -195,6 +195,8 @@ jest.mock('react-native-screens', () => ({
 }));
 
 // ── react-native-mmkv ──
+// Package was dropped from package.json; use { virtual: true } so Jest doesn't try
+// to resolve it on disk. Any code that still imports from the module gets this shim.
 jest.mock('react-native-mmkv', () => ({
   MMKV: jest.fn().mockImplementation(() => ({
     getString: jest.fn(),
@@ -202,7 +204,7 @@ jest.mock('react-native-mmkv', () => ({
     delete: jest.fn(),
     contains: jest.fn().mockReturnValue(false),
   })),
-}));
+}), { virtual: true });
 
 // ── Suppress noisy warnings ──
 const originalWarn = console.warn;
