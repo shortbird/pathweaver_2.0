@@ -25,11 +25,16 @@ COURSE_CREATOR_USER_IDS = {
 
 def can_create_course(user_data):
     """
-    Check if a user can create new courses.
+    Check if a user can create admin-authored courses (surfaces the Course Builder
+    "Create course" UI in catalog pages, etc.). This is kept strict.
 
     Allows:
     - superadmin
     - explicitly granted users (COURSE_CREATOR_USER_IDS)
+
+    Any authenticated user can create a *student-curated class* via the student
+    class form — that path posts to the same endpoint but the endpoint branches
+    on role (see create_course in crud.py).
     """
     effective_role = get_effective_role(user_data)
     if effective_role == 'superadmin':
@@ -37,6 +42,11 @@ def can_create_course(user_data):
     if user_data.get('id') in COURSE_CREATOR_USER_IDS:
         return True
     return False
+
+
+# `is_admin_course_creator` is a semantic alias for the strict check above, used
+# inside create_course to decide whether to branch into the student-curated path.
+is_admin_course_creator = can_create_course
 
 
 def can_manage_course(user_data, course=None):
@@ -68,6 +78,8 @@ from . import publishing
 from . import quests
 from . import enrollment
 from . import homepage
+from . import invites
+from . import kickoff
 
 
 # Register all routes
@@ -76,4 +88,6 @@ publishing.register_routes(bp)
 quests.register_routes(bp)
 enrollment.register_routes(bp)
 homepage.register_routes(bp)
+invites.register_routes(bp)
+kickoff.register_routes(bp)
 

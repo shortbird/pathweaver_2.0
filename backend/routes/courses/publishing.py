@@ -59,6 +59,15 @@ def register_routes(bp):
             if not can_manage_course(user_data, course):
                 return jsonify({'error': 'Insufficient permissions. Only the course creator or superadmin can manage courses.'}), 403
 
+            # Publishing is restricted to superadmin so that student-curated classes always
+            # get an admin review before going live. Admin-authored courses also publish here
+            # — the permission model was already effectively superadmin-only for this endpoint
+            # because non-admin course creation landed in status='draft' only.
+            if get_effective_role(user_data) != 'superadmin':
+                return jsonify({
+                    'error': 'Only an admin can publish a course. Set status to "pending_review" to submit for review.'
+                }), 403
+
             # Update course status (badges feature removed 2026-04; no badge creation)
             updates = {'status': 'published'}
 

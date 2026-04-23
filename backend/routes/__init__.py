@@ -72,6 +72,9 @@ def register_all(app):
     from routes.public import bp as public_bp
     app.register_blueprint(public_bp)
 
+    from routes.platform_settings import bp as platform_settings_bp
+    app.register_blueprint(platform_settings_bp)
+
     # ── Docs / philosophy (public + admin pairs) ──────────────────────────────
     from routes.docs import public_docs_bp, admin_docs_bp
     app.register_blueprint(public_docs_bp)

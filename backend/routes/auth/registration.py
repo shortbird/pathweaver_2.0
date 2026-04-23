@@ -130,8 +130,9 @@ def register():
         original_last_name = data['last_name'].strip()
         email = data['email'].strip().lower()  # Normalize email to lowercase
         date_of_birth = data.get('date_of_birth')  # Optional
-        parent_email = data.get('parent_email')  # Deprecated: under-13 now blocked entirely
+        parent_email = data.get('parent_email')  # Required for invite-flow signups; optional otherwise
         org_slug = data.get('org_slug')  # Optional organization slug for signup
+        invite_token = data.get('invite_token')  # Optional: student-curated class invite link
 
         # Mask email in logs
         logger.debug(f"[REGISTRATION] Processing registration for email: {mask_email(email)}")
@@ -160,6 +161,51 @@ def register():
 
         # admin client justified: pre-auth registration; calls supabase.auth.sign_up + writes users/diplomas/user_skill_xp/promo_codes; no session exists yet
         supabase = get_supabase_admin_client()
+
+        # Invite-flow signup validation: if the user is registering via a class invite
+        # link, the token must be valid AND a parent email must be supplied so we have an
+        # adult contact for the mandatory kickoff call before the account is created.
+        invite_record = None
+        invite_course_id = None
+        if invite_token:
+            if not parent_email or not parent_email.strip():
+                raise ValidationError(
+                    "A parent or guardian email is required to join a class. "
+                    "Please enter your parent's email address."
+                )
+
+            invite_lookup = supabase.table('course_invites').select(
+                'id, course_id, expires_at, max_uses, uses_count, is_active'
+            ).eq('token', invite_token).execute()
+
+            if not invite_lookup.data:
+                raise ValidationError("This invite link is not valid.")
+
+            invite_record = invite_lookup.data[0]
+
+            if not invite_record['is_active']:
+                raise ValidationError("This invite link has been revoked.")
+
+            if invite_record.get('expires_at'):
+                try:
+                    exp = datetime.fromisoformat(invite_record['expires_at'].replace('Z', '+00:00'))
+                    if datetime.now(exp.tzinfo) > exp:
+                        raise ValidationError("This invite link has expired.")
+                except (ValueError, AttributeError):
+                    pass
+
+            if invite_record.get('max_uses') is not None and \
+               invite_record['uses_count'] >= invite_record['max_uses']:
+                raise ValidationError("This invite link has reached its sign-up limit.")
+
+            # Confirm the class itself is published before we let anyone sign up through it
+            class_check = supabase.table('courses').select('id, status').eq(
+                'id', invite_record['course_id']
+            ).execute()
+            if not class_check.data or class_check.data[0]['status'] != 'published':
+                raise ValidationError("This class is not yet open for sign-ups.")
+
+            invite_course_id = invite_record['course_id']
 
         # Sign up with Supabase Auth
         from app_config import Config
@@ -253,6 +299,13 @@ def register():
                 user_data['requires_parental_consent'] = requires_parental_consent
                 if requires_parental_consent and parent_email:
                     user_data['parental_consent_email'] = parent_email.strip().lower()
+                    user_data['parental_consent_verified'] = False
+
+            # Invite-flow signups always capture the parent email (kickoff call gate),
+            # even for 13+ accounts that don't legally require COPPA consent.
+            if invite_token and parent_email:
+                user_data['parental_consent_email'] = parent_email.strip().lower()
+                if 'parental_consent_verified' not in user_data:
                     user_data['parental_consent_verified'] = False
 
             # Check for observer invitation code
@@ -357,6 +410,34 @@ def register():
 
             # Ensure diploma and skills are initialized (backup to database trigger)
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
+
+            # Invite-flow signup: enroll the new user in the class and increment the invite's uses_count
+            if invite_record and invite_course_id:
+                try:
+                    from services.course_enrollment_service import CourseEnrollmentService
+                    enrollment_service = CourseEnrollmentService(supabase)
+                    enroll_result = enrollment_service.enroll_user(
+                        auth_response.user.id,
+                        invite_course_id,
+                        invite_token_id=invite_record['id'],
+                    )
+                    if enroll_result.get('success'):
+                        supabase.table('course_invites').update({
+                            'uses_count': (invite_record.get('uses_count') or 0) + 1
+                        }).eq('id', invite_record['id']).execute()
+                        logger.info(
+                            f"[REGISTRATION] Invite enrollment ok: user={auth_response.user.id} "
+                            f"course={invite_course_id} invite={invite_record['id']}"
+                        )
+                    else:
+                        logger.warning(
+                            f"[REGISTRATION] Invite enrollment failed (continuing anyway): "
+                            f"{enroll_result.get('error')}"
+                        )
+                except Exception as enroll_err:
+                    # Don't fail registration if enrollment hits an error — the account exists
+                    # and the user can be enrolled later. Log and move on.
+                    logger.error(f"[REGISTRATION] Invite enrollment error: {enroll_err}")
 
             # Mark promo code as redeemed if one was used
             if valid_promo:

@@ -47,7 +47,7 @@ class CourseEnrollmentService(BaseService):
         self.client = supabase_client
         self.progress_service = CourseProgressService(supabase_client)
 
-    def enroll_user(self, user_id: str, course_id: str) -> Dict[str, Any]:
+    def enroll_user(self, user_id: str, course_id: str, invite_token_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Enroll a single user in a course.
 
@@ -58,6 +58,8 @@ class CourseEnrollmentService(BaseService):
         Args:
             user_id: User ID to enroll
             course_id: Course ID to enroll in
+            invite_token_id: Optional course_invites.id that sourced this enrollment
+                (for student-curated class invite flow)
 
         Returns:
             Dict with enrollment result:
@@ -125,6 +127,8 @@ class CourseEnrollmentService(BaseService):
                     'status': 'active',
                     'current_quest_id': first_quest_id
                 }
+                if invite_token_id:
+                    enrollment_data['invite_token_id'] = invite_token_id
 
                 result = self.client.table('course_enrollments').insert(enrollment_data).execute()
                 enrollment = result.data[0] if result.data else None

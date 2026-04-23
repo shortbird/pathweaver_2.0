@@ -229,13 +229,19 @@ const PricingOverviewSection = forwardRef(({ isVisible = true, onContactSales },
                   className="font-semibold text-gray-900"
                   style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                 >
-                  High School Credit
+                  High School Class
                 </p>
                 <p
                   className="text-2xl font-bold text-optio-purple"
                   style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                 >
-                  $150<span className="text-sm text-gray-500 font-normal">/credit</span>
+                  $150<span className="text-sm text-gray-500 font-normal">/class</span>
+                </p>
+                <p
+                  className="text-xs text-gray-500 mt-1"
+                  style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                >
+                  One semester (0.5 credit)
                 </p>
               </div>
               <div className="bg-white rounded-lg p-4 border border-gray-200">
