@@ -35,11 +35,17 @@ class DashboardService:
         Get user's XP by school subject for diploma credits.
         Returns both finalized (xp_amount) and pending XP for the credit review system.
 
+        ``pending_accreditation_xp`` is the slice of ``xp_amount`` that an Optio
+        advisor has approved but the accreditor has not yet confirmed
+        (``quest_task_completions.accreditor_status = 'pending_accreditor'``).
+        It is computed per request from completions because the
+        ``user_subject_xp`` table does not track the accreditor stage.
+
         Args:
             user_id: User ID
 
         Returns:
-            List of {school_subject, xp_amount, pending_xp} dicts
+            List of {school_subject, xp_amount, pending_xp, pending_accreditation_xp} dicts
         """
         # Try user_subject_xp table first
         response = self.client.table('user_subject_xp')\
@@ -58,7 +64,65 @@ class DashboardService:
         if not subject_xp:
             subject_xp = self._calculate_subject_xp_from_completions(user_id)
 
+        # Compute per-subject XP awaiting accreditation (already in xp_amount)
+        pending_accreditation_by_subject = self._calculate_pending_accreditation_xp(user_id)
+
+        # Ensure every subject with pending-accreditation XP has a row, even if
+        # no user_subject_xp row exists yet (edge case; finalize_subject_xp
+        # always creates one, but be defensive).
+        existing_subjects = {r['school_subject'] for r in subject_xp}
+        for subject, xp in pending_accreditation_by_subject.items():
+            if subject not in existing_subjects:
+                subject_xp.append({
+                    'school_subject': subject,
+                    'xp_amount': 0,
+                    'pending_xp': 0,
+                })
+
+        for record in subject_xp:
+            record['pending_accreditation_xp'] = pending_accreditation_by_subject.get(
+                record['school_subject'], 0
+            )
+
         return subject_xp
+
+    def _calculate_pending_accreditation_xp(self, user_id: str) -> Dict[str, int]:
+        """Sum subject XP for the user's completions awaiting accreditor review.
+
+        These are completions Optio has approved (their XP already moved into
+        ``user_subject_xp.xp_amount``) but the accreditor has not yet
+        confirmed. We surface this on the student's diploma credits view so
+        the green "earned" bar reflects only confirmed credits.
+        """
+        completions = self.client.table('quest_task_completions')\
+            .select('user_quest_task_id')\
+            .eq('user_id', user_id)\
+            .eq('accreditor_status', 'pending_accreditor')\
+            .execute()
+
+        rows = completions.data or []
+        task_ids = [r['user_quest_task_id'] for r in rows if r.get('user_quest_task_id')]
+        if not task_ids:
+            return {}
+
+        tasks = self.client.table('user_quest_tasks')\
+            .select('id, xp_value, diploma_subjects, subject_xp_distribution')\
+            .in_('id', task_ids)\
+            .execute()
+        tasks_map = {t['id']: t for t in (tasks.data or [])}
+
+        # Local import to avoid a route<->service import cycle at module load.
+        from routes.tasks.xp_helpers import get_subject_xp_distribution
+
+        totals: Dict[str, int] = {}
+        for row in rows:
+            task = tasks_map.get(row.get('user_quest_task_id'))
+            if not task:
+                continue
+            subjects = get_subject_xp_distribution(task, task.get('xp_value', 0) or 0)
+            for subject, xp in subjects.items():
+                totals[subject] = totals.get(subject, 0) + xp
+        return totals
 
     def _calculate_subject_xp_from_completions(
         self, user_id: str
