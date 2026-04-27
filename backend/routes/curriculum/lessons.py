@@ -37,7 +37,12 @@ logger = get_logger(__name__)
 
 
 
-from routes.curriculum import bp
+from routes.curriculum import (
+    bp,
+    _check_read_permission,
+    _check_edit_permission,
+    _check_lesson_edit_permission,
+)
 
 
 @bp.route('/<quest_id>/curriculum/lessons', methods=['POST'])
