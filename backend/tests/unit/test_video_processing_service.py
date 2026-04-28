@@ -51,7 +51,8 @@ def test_probe_from_path_returns_codec_duration_dims():
     assert probe.needs_processing is False
 
 
-def test_probe_from_path_flags_non_h264_for_transcode():
+def test_probe_from_path_does_not_transcode_non_h264():
+    """Transcoding is disabled (2026-04-28 OOM fix) — HEVC stays HEVC."""
     from services.video_processing_service import VideoProcessingService
 
     svc = VideoProcessingService.__new__(VideoProcessingService)
@@ -70,9 +71,9 @@ def test_probe_from_path_flags_non_h264_for_transcode():
         probe = svc.probe_from_path('/tmp/video.mp4', file_size=5_000_000)
 
     assert probe.codec == 'hevc'
-    assert probe.needs_transcode is True
+    assert probe.needs_transcode is False
     assert probe.needs_compression is False
-    assert probe.needs_processing is True
+    assert probe.needs_processing is False
 
 
 def test_probe_from_path_flags_oversized_for_compression():
@@ -152,7 +153,14 @@ def test_ensure_h264_from_path_returns_none_when_ffmpeg_unavailable(tmp_path):
 
 
 def test_ensure_h264_from_path_returns_output_path_on_successful_transcode(tmp_path):
+    """When compression IS triggered, ensure_h264_from_path returns the new path.
+
+    Note: _needs_transcoding is gated off (2026-04-28 OOM fix), so we drive this
+    test through the compression branch (size > MAX_VIDEO_COMPRESSION_THRESHOLD)
+    instead of via codec.
+    """
     from services.video_processing_service import VideoProcessingService
+    from config.constants import MAX_VIDEO_COMPRESSION_THRESHOLD
 
     svc = VideoProcessingService.__new__(VideoProcessingService)
     svc._ffmpeg_available = True
@@ -175,9 +183,11 @@ def test_ensure_h264_from_path_returns_output_path_on_successful_transcode(tmp_p
     with patch.object(
         svc,
         '_probe_video',
-        return_value={'streams': [{'codec_type': 'video', 'codec_name': 'hevc'}]},
+        return_value={'streams': [{'codec_type': 'video', 'codec_name': 'h264'}]},
     ), patch('services.video_processing_service.subprocess.run', side_effect=fake_run):
-        result = svc.ensure_h264_from_path(str(input_path), file_size=5_000_000)
+        result = svc.ensure_h264_from_path(
+            str(input_path), file_size=MAX_VIDEO_COMPRESSION_THRESHOLD + 1
+        )
 
     assert result is not None
     assert os.path.exists(result)
@@ -189,6 +199,7 @@ def test_ensure_h264_from_path_returns_output_path_on_successful_transcode(tmp_p
 
 def test_ensure_h264_from_path_cleans_up_on_ffmpeg_failure(tmp_path):
     from services.video_processing_service import VideoProcessingService
+    from config.constants import MAX_VIDEO_COMPRESSION_THRESHOLD
 
     svc = VideoProcessingService.__new__(VideoProcessingService)
     svc._ffmpeg_available = True
@@ -203,9 +214,11 @@ def test_ensure_h264_from_path_cleans_up_on_ffmpeg_failure(tmp_path):
     with patch.object(
         svc,
         '_probe_video',
-        return_value={'streams': [{'codec_type': 'video', 'codec_name': 'hevc'}]},
+        return_value={'streams': [{'codec_type': 'video', 'codec_name': 'h264'}]},
     ), patch('services.video_processing_service.subprocess.run', return_value=fake_result):
-        result = svc.ensure_h264_from_path(str(input_path), file_size=5_000_000)
+        result = svc.ensure_h264_from_path(
+            str(input_path), file_size=MAX_VIDEO_COMPRESSION_THRESHOLD + 1
+        )
 
     assert result is None
 

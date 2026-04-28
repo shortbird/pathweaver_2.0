@@ -120,11 +120,16 @@ class VideoProcessingService:
         return None
 
     def _needs_transcoding(self, codec_name: Optional[str]) -> bool:
-        """Check if the video codec needs transcoding to H.264."""
-        if not codec_name:
-            return False
-        # H.264 is universally supported -- everything else may not be
-        return codec_name != 'h264'
+        """Check if the video codec needs transcoding to H.264.
+
+        Disabled: in-process libx264 transcoding OOM-kills the 512Mi Render
+        worker (2026-04-28 incident — ffmpeg child-process memory pushes past
+        the container limit even with bytes off the Python heap). Modern
+        browsers (Chrome 105+, Safari, Firefox 134+) play HEVC natively, so
+        leaving uploads at their original codec is acceptable until video
+        processing is moved off the web worker.
+        """
+        return False
 
     def probe_from_path(self, path: str, file_size: int) -> VideoProbe:
         """Probe a video file on disk to decide whether it needs backend processing.
@@ -218,8 +223,18 @@ class VideoProcessingService:
 
         args.append(tmp_output)
 
+        # Discard stdout/stderr to /dev/null instead of capturing into Python
+        # memory: ffmpeg can emit MBs of progress lines on a long transcode and
+        # `capture_output=True` (== stderr=PIPE) buffers all of it on the heap
+        # for the life of the subprocess. We lose the failure detail, but the
+        # ffmpeg-runs-on-the-web-worker path is gated off anyway.
         try:
-            result = subprocess.run(args, capture_output=True, timeout=300)
+            result = subprocess.run(
+                args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=300,
+            )
         except subprocess.TimeoutExpired:
             logger.warning("[VideoProcessing] Processing timed out, using original file")
             self._safe_unlink(tmp_output)
@@ -235,7 +250,7 @@ class VideoProcessingService:
             logger.info(f"[VideoProcessing] Done: ({original_mb:.1f}MB -> {new_mb:.1f}MB)")
             return tmp_output
 
-        logger.warning(f"[VideoProcessing] Processing failed: {result.stderr[-500:]!r}")
+        logger.warning(f"[VideoProcessing] Processing failed (rc={result.returncode})")
         self._safe_unlink(tmp_output)
         return None
 

@@ -25,7 +25,11 @@ MAX_VIDEO_SIZE = 50 * 1024 * 1024  # 50MB for videos (was 100MB, caused OOM on R
 # so we can accept larger videos. Must match the bucket-level file_size_limit
 # configured in Supabase (supabase/migrations/20260417_raise_evidence_bucket_file_size_limit.sql).
 MAX_VIDEO_SIZE_SIGNED = 500 * 1024 * 1024  # 500MB for videos via signed-upload
-MAX_VIDEO_COMPRESSION_THRESHOLD = 25 * 1024 * 1024  # 25MB - compress videos above this
+# Effectively disable in-process compression: ffmpeg libx264 transcoding on the
+# 512Mi Render container reliably OOM-kills the worker (see 2026-04-28 incident).
+# Set above MAX_VIDEO_SIZE_SIGNED so the compression branch never fires until
+# transcoding is moved off the web worker.
+MAX_VIDEO_COMPRESSION_THRESHOLD = MAX_VIDEO_SIZE_SIGNED + 1
 MAX_VIDEO_DURATION_SECONDS = 180  # 3 minutes
 
 # Allowed File Extensions (by type)
