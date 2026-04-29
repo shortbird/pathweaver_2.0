@@ -13,14 +13,15 @@ import CreateTrackModal from './CreateTrackModal';
 
 const InterestTrackDetail = ({
   trackId,
+  refreshKey = 0,
   onDelete,
   onGraduate,
   studentId = null  // Optional - when parent views child's track
 }) => {
-  // Determine if this is parent view mode
   const isParentView = !!studentId;
   const [track, setTrack] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -28,22 +29,23 @@ const InterestTrackDetail = ({
     if (trackId) {
       fetchTrack();
     }
-  }, [trackId]);
+  }, [trackId, refreshKey]);
 
   const fetchTrack = async () => {
     try {
       setIsLoading(true);
-      // Use parent API when viewing child's track
+      setLoadError(null);
       const endpoint = isParentView
         ? `/api/parent/children/${studentId}/topics/${trackId}`
         : `/api/interest-tracks/${trackId}`;
       const response = await api.get(endpoint);
       if (response.data.success) {
         setTrack(response.data.track);
+      } else {
+        setLoadError(response.data.error || 'Failed to load topic');
       }
     } catch (error) {
-      console.error('Failed to fetch track:', error);
-      toast.error('Failed to load topic');
+      setLoadError(error?.response?.data?.error || 'Failed to load topic');
     } finally {
       setIsLoading(false);
     }
@@ -87,6 +89,20 @@ const InterestTrackDetail = ({
             <div key={i} className="h-24 bg-gray-100 rounded-lg" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-red-600 mb-2">{loadError}</p>
+        <button
+          onClick={fetchTrack}
+          className="px-4 py-2 text-sm font-medium text-optio-purple bg-purple-50 hover:bg-purple-100 rounded-lg"
+        >
+          Retry
+        </button>
       </div>
     );
   }

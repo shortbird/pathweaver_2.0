@@ -17,7 +17,6 @@ Endpoints:
 - POST   /api/interest-tracks/<id>/evolve  Evolve track into a quest
 - GET    /api/interest-tracks/suggestions  AI-detect potential new tracks
 - GET    /api/learning-events/unassigned   Get unassigned moments
-- POST   /api/learning-events/<id>/assign-track  Assign moment to track
 - GET    /api/topics/unified               Get combined tracks + active quests as topics
 - POST   /api/learning-events/<id>/assign-topic  Assign moment to track or quest
 - GET    /api/quests/<id>/moments          Get learning moments for a quest
@@ -360,42 +359,6 @@ def get_unassigned_moments(user_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 
-@interest_tracks_bp.route('/api/learning-events/<moment_id>/assign-track', methods=['POST'])
-@require_auth
-def assign_moment_to_track(user_id, moment_id):
-    """Assign a learning moment to a track."""
-    try:
-        data = request.get_json()
-
-        if not data:
-            return jsonify({'error': 'Request body is required'}), 400
-
-        track_id = data.get('track_id')  # Can be None to unassign
-
-        result = InterestTracksService.assign_moment_to_track(
-            user_id=user_id,
-            moment_id=moment_id,
-            track_id=track_id
-        )
-
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'moment': result.get('moment'),
-                'message': 'Moment assigned to track' if track_id else 'Moment unassigned from track'
-            }), 200
-        else:
-            status_code = 404 if 'not found' in result.get('error', '').lower() else 500
-            return jsonify({
-                'success': False,
-                'error': result.get('error', 'Failed to assign moment')
-            }), status_code
-
-    except Exception as e:
-        logger.error(f"Error in assign_moment_to_track: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>/evolve/preview', methods=['GET'])
 @require_auth
 def preview_evolved_quest(user_id, track_id):
@@ -587,7 +550,12 @@ def get_quest_moments(user_id, quest_id):
 @interest_tracks_bp.route('/api/learning-events/<moment_id>/convert-to-task', methods=['POST'])
 @require_auth
 def convert_moment_to_task(user_id, moment_id):
-    """Convert a quest-assigned learning moment into a task on that quest."""
+    """Promote a quest-assigned learning moment into a task on that quest.
+
+    Creates a pending task with ``source_moment_id`` linked back. The student
+    can adjust title / pillar / xp via ``PUT /api/tasks/<task_id>`` afterward;
+    advisor / accreditor sign-off still happens at credit-request time.
+    """
     try:
         data = request.get_json()
 
@@ -596,20 +564,20 @@ def convert_moment_to_task(user_id, moment_id):
 
         title = data.get('title')
         pillar = data.get('pillar', 'stem')
-        xp_value = data.get('xp_value', 100)
+        xp_value = data.get('xp_value', InterestTracksService.DEFAULT_PROMOTED_TASK_XP)
+        quest_id = data.get('quest_id')
 
-        # Validate pillar
         valid_pillars = ['art', 'stem', 'wellness', 'communication', 'civics']
         if pillar not in valid_pillars:
             return jsonify({'error': f'Pillar must be one of: {", ".join(valid_pillars)}'}), 400
 
-        # Validate xp_value
         if not isinstance(xp_value, int) or xp_value < 10 or xp_value > 500:
             return jsonify({'error': 'XP value must be between 10 and 500'}), 400
 
         result = InterestTracksService.convert_moment_to_task(
             user_id=user_id,
             moment_id=moment_id,
+            quest_id=quest_id,
             title=title.strip() if title else None,
             pillar=pillar,
             xp_value=xp_value

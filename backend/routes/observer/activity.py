@@ -93,7 +93,7 @@ def register_routes(bp):
 
             # Get ALL learning events for this student (journal entries, bounties, etc.)
             learning_events_query = supabase.table('learning_events') \
-                .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id, track_id, is_confidential') \
+                .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id, is_confidential') \
                 .eq('user_id', student_id) \
                 .order('created_at', desc=True) \
                 .limit(limit + 1)
@@ -126,15 +126,31 @@ def register_routes(bp):
                     .execute()
                 quests_map = {q['id']: q for q in quests.data}
 
-            # Get track names for learning events
-            track_ids = list(set([e['track_id'] for e in (learning_events.data or []) if e.get('track_id')]))
-            tracks_map = {}
-            if track_ids:
-                tracks = supabase.table('interest_tracks') \
-                    .select('id, name') \
-                    .in_('id', track_ids) \
+            # Pull a primary topic name per learning event from the junction.
+            # Used as a display label only — first topic per event wins.
+            event_ids_for_topics = [e['id'] for e in (learning_events.data or [])]
+            event_track_label = {}
+            if event_ids_for_topics:
+                junction = supabase.table('learning_event_topics') \
+                    .select('learning_event_id, topic_id, topic_type') \
+                    .in_('learning_event_id', event_ids_for_topics) \
+                    .eq('topic_type', 'topic') \
                     .execute()
-                tracks_map = {t['id']: t['name'] for t in tracks.data}
+                track_ids = list({r['topic_id'] for r in (junction.data or [])})
+                track_name_by_id = {}
+                if track_ids:
+                    tracks = supabase.table('interest_tracks') \
+                        .select('id, name') \
+                        .in_('id', track_ids) \
+                        .execute()
+                    track_name_by_id = {t['id']: t['name'] for t in (tracks.data or [])}
+                for row in (junction.data or []):
+                    eid = row['learning_event_id']
+                    if eid in event_track_label:
+                        continue
+                    name = track_name_by_id.get(row['topic_id'])
+                    if name:
+                        event_track_label[eid] = name
 
             # Get evidence document blocks for multi-format evidence
             evidence_docs_data = []
@@ -341,7 +357,7 @@ def register_routes(bp):
                         'event_title': event.get('title') or 'Learning Moment',
                         'event_description': description,
                         'event_pillars': event.get('pillars', []),
-                        'topic_name': tracks_map.get(event.get('track_id')),
+                        'topic_name': event_track_label.get(event['id']),
                         'source_type': event.get('source_type', 'realtime'),
                         'captured_by_user_id': event.get('captured_by_user_id'),
                         'evidence_type': primary_evidence['type'] if primary_evidence else ('text' if description else None),

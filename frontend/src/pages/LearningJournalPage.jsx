@@ -65,15 +65,8 @@ const LearningJournalPage = () => {
       const response = await api.get(endpoint);
 
       if (isParentView) {
-        // Parent API returns all moments, filter unassigned ones
-        // Use topics array from junction table (preferred), fall back to legacy columns
         const moments = response.data.moments || [];
-        const unassigned = moments.filter(m => {
-          if (m.topics && Array.isArray(m.topics)) {
-            return m.topics.length === 0;
-          }
-          return !m.track_id && !m.quest_id;
-        });
+        const unassigned = moments.filter((m) => (m.topics || []).length === 0);
         setUnassignedMoments(unassigned);
       } else if (response.data.success) {
         setUnassignedMoments(response.data.moments);
@@ -111,7 +104,6 @@ const LearningJournalPage = () => {
   };
 
   const handleSelectQuest = (questId) => {
-    console.log('[LearningJournalPage] handleSelectQuest called with:', questId);
     setSelectedQuestId(questId);
     setSelectedTrackId(null);
     setShowUnassigned(false);
@@ -144,17 +136,13 @@ const LearningJournalPage = () => {
     navigate(`/quests/${questId}`);
   };
 
-  const handleCaptureSuccess = (event) => {
-    // Refresh the appropriate view
+  const handleCaptureSuccess = () => {
+    // Bump the tracks refresh key — the list, the open track panel, and the
+    // open quest panel all subscribe to it, so they all refetch together.
     if (showUnassigned) {
       fetchUnassignedMoments();
-    } else if (selectedTrackId) {
-      // The InterestTrackDetail will need to refresh
-    } else if (selectedQuestId) {
-      // QuestMomentsDetail will refresh on its own
     }
-    // Also refresh tracks list to update moment counts
-    setTracksRefreshKey(prev => prev + 1);
+    setTracksRefreshKey((prev) => prev + 1);
   };
 
   // Handler for when a moment is assigned to a track
@@ -285,13 +273,13 @@ const LearningJournalPage = () => {
                   </button>
                 </div>
 
-                {/* AI suggestion for organizing */}
-                {unassignedMoments.length >= 5 && (
+                {unassignedMoments.length > 0 && (
                   <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-                    <div className="flex items-center gap-2 text-sm text-purple-700">
-                      <SparklesIcon className="w-4 h-4" />
+                    <div className="flex items-start gap-2 text-sm text-purple-700">
+                      <SparklesIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
                       <span>
-                        You have {unassignedMoments.length} unassigned moments. Consider organizing them into topics!
+                        Moments here aren't earning XP yet. Add each one to a topic
+                        or quest, then promote it into a task to earn XP.
                       </span>
                     </div>
                   </div>
@@ -320,9 +308,9 @@ const LearningJournalPage = () => {
                 ) : (
                   <div className="text-center py-12">
                     <FolderOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 mb-2">No unassigned moments</p>
+                    <p className="text-gray-500 mb-2">All caught up</p>
                     <p className="text-sm text-gray-400">
-                      All your learning moments are organized in topics
+                      Capture more moments and assign them to a topic or quest to earn XP.
                     </p>
                   </div>
                 )}
@@ -332,6 +320,7 @@ const LearningJournalPage = () => {
             // Quest Moments View
             <QuestMomentsDetail
               questId={selectedQuestId}
+              refreshKey={tracksRefreshKey}
               onMomentConverted={handleMomentConverted}
               studentId={isParentView ? childId : null}
             />
@@ -339,6 +328,7 @@ const LearningJournalPage = () => {
             // Track Detail View
             <InterestTrackDetail
               trackId={selectedTrackId}
+              refreshKey={tracksRefreshKey}
               onDelete={handleDeleteTrack}
               onGraduate={handleGraduateTrack}
               studentId={isParentView ? childId : null}

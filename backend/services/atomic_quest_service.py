@@ -221,6 +221,16 @@ class AtomicQuestService(BaseService):
             completion_bonus_pillar = None
             total_quest_xp = sum(task['xp_amount'] for task in all_tasks)
 
+            # If this quest came from a Canvas LTI launch, enqueue a grade
+            # sync. The helper is a no-op for non-Canvas quests, so importing
+            # it here doesn't pull LTI machinery into every completion path.
+            try:
+                from services.lti_grade_sync_service import enqueue_for_quest_completion
+                enqueue_for_quest_completion(user_id, quest_id)
+            except Exception as lti_err:
+                # Never let an LTI failure block quest completion — log it.
+                logger.warning(f"LTI grade sync enqueue failed: {lti_err}")
+
             return {
                 'quest_completed': quest_completed,
                 'completion_bonus_awarded': completion_bonus_awarded,

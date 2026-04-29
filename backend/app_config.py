@@ -193,6 +193,19 @@ class Config:
     SPARK_SSO_SECRET = os.getenv('SPARK_SSO_SECRET')
     SPARK_WEBHOOK_SECRET = os.getenv('SPARK_WEBHOOK_SECRET')
 
+    # Canvas LTI 1.3 Tool keys.
+    # CANVAS_LTI_PRIVATE_KEY_PEM: PEM-encoded RSA private key used to sign
+    #   id_tokens for Deep Linking responses and to authenticate AGS service
+    #   token requests (client_credentials grant). Generate with:
+    #     openssl genrsa -out private.pem 2048
+    #     openssl rsa -in private.pem -pubout -out public.pem
+    # CANVAS_LTI_PUBLIC_KID: a stable identifier (any string) for the public
+    #   key entry in our JWKS — Canvas caches our JWKS by kid.
+    # Both unset → /.well-known/jwks.json returns an empty key set and the
+    # tool refuses to perform AGS / Deep Linking operations.
+    CANVAS_LTI_PRIVATE_KEY_PEM = os.getenv('CANVAS_LTI_PRIVATE_KEY_PEM')
+    CANVAS_LTI_PUBLIC_KID = os.getenv('CANVAS_LTI_PUBLIC_KID')
+
     # File upload paths (M5) — UPLOAD_FOLDER below is the global default;
     # this is the evidence-specific subfolder used by routes/evidence_documents.
     EVIDENCE_UPLOAD_FOLDER = os.getenv('EVIDENCE_UPLOAD_FOLDER', 'uploads/evidence')

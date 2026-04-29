@@ -121,6 +121,11 @@ const BountyBoardPage = lazy(() => import('./pages/BountyBoardPage'))
 const BountyDetailPage = lazy(() => import('./pages/BountyDetailPage'))
 const BountyCreatePage = lazy(() => import('./pages/BountyCreatePage'))
 const BuddyPage = lazy(() => import('./pages/BuddyPage'))
+// Canvas LTI iframe pages (April 2026) — no Layout, no sidebar; for Canvas embed only
+const LtiLaunchPage = lazy(() => import('./pages/lti/LtiLaunchPage'))
+const LtiDeepLinkPage = lazy(() => import('./pages/lti/LtiDeepLinkPage'))
+const LtiQuestPage = lazy(() => import('./pages/lti/LtiQuestPage'))
+const LtiErrorPage = lazy(() => import('./pages/lti/LtiErrorPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -382,6 +387,18 @@ function App() {
               <Route path="for-schools" element={<ForSchoolsPage />} />
               <Route path="how-it-works" element={<HowItWorksPage />} />
               <Route path="philosophy" element={<PhilosophyPage />} />
+
+              {/* Canvas LTI iframe routes (no Layout, no auth chrome). The
+                  AuthContext skips session checks on these paths so the
+                  one-time-code → Bearer-token handoff isn't fought by /me.
+                  All routes use a `lti-` prefix (hyphen) so they don't
+                  collide with the Vite `/lti` proxy that forwards LTI
+                  protocol endpoints (login, launch, token, jwks, deep-link
+                  submit/context) to the backend. */}
+              <Route path="lti-launch" element={<LtiLaunchPage />} />
+              <Route path="lti-deep-link" element={<LtiDeepLinkPage />} />
+              <Route path="lti-quest/:id" element={<LtiQuestPage />} />
+              <Route path="lti-error" element={<LtiErrorPage />} />
 
               <Route path="/" element={<Layout />}>
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />

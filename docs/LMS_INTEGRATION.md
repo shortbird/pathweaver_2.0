@@ -2,78 +2,90 @@
 
 ## Overview
 
-Optio supports integration with Learning Management Systems (LMS) through industry-standard protocols:
-- **LTI 1.3** (Learning Tools Interoperability) for Canvas, Moodle
-- **OAuth 2.0** API integration for Google Classroom, Schoology
+Optio supports integration with Learning Management Systems (LMS) through several patterns:
+- **LTI 1.3 Advantage** (Learning Tools Interoperability) — Canvas (Phase 1: launch + Deep Linking + AGS shipped, pending real-world Canvas test). Moodle / Brightspace inherit the same code path but have not been verified against those platforms.
+- **JWT-SSO + HMAC webhooks** — Spark LMS only. Hand-rolled, predates LTI implementation. Not LTI-compatible.
+- **OneRoster CSV import** — Manual roster ingest via the admin dashboard. Used for Google Classroom and any platform without an OIDC integration.
 
 ## Supported Platforms
 
-| Platform | Auth Method | Grade Passback | Deep Linking | Roster Sync |
-|----------|-------------|----------------|--------------|-------------|
-| Canvas LMS | LTI 1.3 | ✅ | ✅ | ✅ |
-| Google Classroom | OAuth 2.0 | ❌ | ❌ | ✅ |
-| Schoology | OAuth 2.0 | ✅ | ❌ | ✅ |
-| Moodle | LTI 1.3 | ✅ | ✅ | ✅ |
+| Platform | Auth Method | Grade Passback | Deep Linking | Roster Sync | Status |
+|----------|-------------|----------------|--------------|-------------|--------|
+| Canvas LMS | LTI 1.3 | ✅ AGS Score + submission | ✅ Always-blank quest | ❌ NRPS deferred | **Code complete, needs Canvas test instance to verify end-to-end** |
+| Spark LMS | JWT-SSO + HMAC | ✅ via webhook | ❌ | ✅ via webhook | Shipped, in production |
+| Google Classroom | OneRoster CSV | ❌ | ❌ | ✅ Manual | Roster only |
+| Moodle | LTI 1.3 (untested) | ✅ AGS code path shared with Canvas | ✅ shared | ❌ | **Code likely works, not verified** |
+| Schoology | None | ❌ | ❌ | ❌ | Not implemented |
 
 ---
 
-## Canvas LMS Integration
+## Canvas LMS Integration (LTI 1.3 Advantage)
+
+### Architecture
+
+- **Tool key pair**: RSA 2048, loaded from `CANVAS_LTI_PRIVATE_KEY_PEM` env var. Public JWK published at `/.well-known/jwks.json` and `/lti/jwks`.
+- **Tool config**: served at `/lti/config.json` — Canvas admins paste this URL into a Developer Key (LTI Key → Method: Enter URL) to import the full configuration.
+- **OIDC auth endpoint**: pointed at `sso.canvaslms.com` per the 2024 Canvas migration.
+- **Iframe session**: post-launch we issue a one-time auth code (`lti_auth_codes` table) and the frontend exchanges it via `POST /lti/token` for Bearer access/refresh tokens stored in `tokenStore` (memory-only on web). No third-party cookies required.
+- **Quests**: Deep Linking always creates a blank "personalize-your-own" quest (`quest_type='lti_canvas'`). Each student runs the AI personalization wizard inside the iframe to invent their own task list.
+- **Grade passback**: Quest completion enqueues an `lms_grade_sync` row. The grade-sync service POSTs an AGS Score with the Canvas-namespaced submission claim — Canvas SpeedGrader shows the linked Optio evidence URL alongside the score.
 
 ### Prerequisites
 
 - Canvas administrator access
-- Optio admin account
+- Optio superadmin
+- An Optio organization for the school (provisioned manually in Optio admin)
 
-### Step 1: Register Optio as External App
-
-1. Navigate to **Canvas Admin** → **Developer Keys**
-2. Click **+ Developer Key** → **+ LTI Key**
-3. Configure with these settings:
-
-#### Basic Configuration
-- **Key Name:** `Optio Education`
-- **Owner Email:** Your admin email
-- **Redirect URIs:** `https://www.optioeducation.com/lti/launch`
-- **Method:** Manual Entry
-
-#### LTI Configuration
-- **Title:** `Optio Education`
-- **Description:** `Self-validated learning platform`
-- **Target Link URI:** `https://www.optioeducation.com/lti/launch`
-- **OpenID Connect Initiation Url:** `https://www.optioeducation.com/lti/login`
-- **JWK Method:** Public JWK URL
-- **JWK URL:** `https://www.optioeducation.com/.well-known/jwks.json`
-
-#### LTI Advantage Services
-Enable these scopes:
-- ✅ Can retrieve user data associated with the context the tool is installed in
-- ✅ Can create and view assignment data in the gradebook associated with the tool
-- ✅ Can view submission data for assignments associated with the tool
-- ✅ Can view course content
-
-### Step 2: Configure Environment Variables
-
-Add to your Render environment (Backend service):
+### Step 1: Generate the tool key pair
 
 ```bash
-CANVAS_CLIENT_ID=your_developer_key_id
-CANVAS_PLATFORM_URL=https://your-institution.instructure.com
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
 ```
 
-### Step 3: Deploy to Courses
+Set on the Optio backend env (Render dashboard for prod):
 
-1. In each Canvas course, go to **Settings** → **Apps**
-2. Click **+ App**
-3. Select **By Client ID**
-4. Enter your Developer Key ID
-5. Click **Submit**
-6. Configure placement as **Course Navigation**
+```bash
+CANVAS_LTI_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+CANVAS_LTI_PUBLIC_KID="optio-canvas-2026"   # any stable string; Canvas caches by kid
+```
 
-### Testing
+### Step 2: Register Optio in Canvas
 
-1. Click the Optio app link in your Canvas course navigation
-2. You should be automatically signed in to Optio
-3. Your Canvas user info should be synced to Optio
+1. **Canvas Admin** → **Developer Keys** → **+ Developer Key** → **+ LTI Key**.
+2. Method: **Enter URL**, paste `https://api.optioeducation.com/lti/config.json`.
+3. Save. Canvas records: `client_id`, `deployment_id` (visible after install).
+
+### Step 3: Register the institution in Optio
+
+In Optio admin (superadmin only): **LTI Registrations** → **+ New**, fill in:
+
+- `issuer` (Canvas's issuer URL — `https://canvas.instructure.com` or institution-specific)
+- `client_id` (from Canvas Developer Key)
+- `deployment_id` (from Canvas tool install)
+- `organization_id` (which Optio org this Canvas install belongs to)
+- `auth_login_url` — typically `https://sso.canvaslms.com/api/lti/authorize_redirect`
+- `auth_token_url` — typically `https://sso.canvaslms.com/login/oauth2/token`
+- `public_jwks_url` — typically `https://sso.canvaslms.com/api/lti/security/jwks`
+
+Or via API:
+```bash
+POST /api/admin/lti-registrations
+```
+
+### Step 4: Deploy to courses
+
+1. In a Canvas course: **Settings** → **Apps** → **+ App** → **By Client ID** → paste the Developer Key client_id.
+2. Optio appears in course nav. Teachers can also add Optio assignments via **Modules → + → External Tool → Optio**.
+
+### Testing checklist
+
+- [ ] `/lti/config.json` returns 200 with the right scopes + placements
+- [ ] `/.well-known/jwks.json` returns a non-empty `keys` array
+- [ ] Click Optio in Canvas course nav → iframe loads stripped Optio layout, student signed in
+- [ ] Add Optio assignment via **+ External Tool** → title/description form renders → assignment created in Canvas with `submission_type=external_tool`
+- [ ] Student opens the assignment, runs personalization, completes tasks → AGS score with submission URL shows in Canvas SpeedGrader within 5 minutes
+- [ ] Replay a captured launch JWT → 401 nonce-already-used
 
 ---
 
@@ -394,19 +406,20 @@ For LMS integration support:
 
 ## Changelog
 
-### Version 1.0 (January 2025)
+### April 2026 — Canvas LTI 1.3 implementation landed
 
-- ✅ Canvas LMS integration (LTI 1.3)
-- ✅ Google Classroom integration (OAuth 2.0)
-- ✅ Schoology integration (OAuth 2.0)
-- ✅ Moodle integration (LTI 1.3)
-- ✅ OneRoster CSV roster sync
-- ✅ Grade passback via LTI AGS
-- ✅ Assignment import
+- ✅ Tool key pair + JWKS publishing
+- ✅ Tool config JSON for Developer Key import
+- ✅ OIDC login init + JWS launch verification (PyJWT 2.x's PyJWKClient against `sso.canvaslms.com`)
+- ✅ Replay protection via `lti_nonces`
+- ✅ User provisioning with email-merge (mirrors Spark pattern)
+- ✅ Deep Linking 2.0 — always-blank "personalize-your-own" quest creation
+- ✅ AGS Score posting with the Canvas-namespaced submission claim
+- ✅ Auth-code → Bearer token exchange for the iframe (no third-party cookies)
+- ⏳ End-to-end verification against Canvas's hosted test instance — pending superadmin setup of a Developer Key
+- ⏳ NRPS roster sync (deferred from v1)
+- ⏳ Real Platform Storage usage for OIDC state (current implementation signs state as a self-contained JWT — equivalent security posture, no `lti_storage_target` round-trip)
 
-### Planned Features
+### Earlier (claimed but not actually implemented prior to April 2026)
 
-- 🔄 Brightspace D2L integration (Q2 2025)
-- 🔄 Blackboard Learn integration (Q2 2025)
-- 🔄 Real-time grade sync (Q3 2025)
-- 🔄 Two-way assignment sync (Q3 2025)
+The pre-April 2026 version of this doc described Canvas / Moodle / Schoology / Google Classroom LTI integrations as shipped. Those claims were aspirational — only the Spark JWT-SSO and OneRoster CSV import were real. The Canvas LTI implementation now backs the Canvas claims; the others remain unimplemented.

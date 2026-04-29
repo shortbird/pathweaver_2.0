@@ -50,6 +50,14 @@ export const AuthProvider = ({ children }) => {
         return
       }
 
+      // Skip session check on LTI iframe pages — those mint Bearer tokens
+      // via /lti/token from a one-time auth code; running /api/auth/me here
+      // races the token store and clears the brand-new tokens.
+      if (window.location.pathname.startsWith('/lti-')) {
+        setLoading(false)
+        return
+      }
+
       try {
         // C2: Purge any legacy persisted tokens/user/encryption-key.
         tokenStore.init()

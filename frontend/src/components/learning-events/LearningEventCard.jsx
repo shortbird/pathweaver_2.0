@@ -1,24 +1,36 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
+  AcademicCapIcon,
+  ArrowTopRightOnSquareIcon,
   CalendarIcon,
-  LinkIcon,
-  DocumentIcon,
-  FolderPlusIcon,
-  PlusIcon,
-  XMarkIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  DocumentIcon,
   FlagIcon,
-  AcademicCapIcon
+  FolderPlusIcon,
+  LinkIcon,
+  PlusIcon,
+  SparklesIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import LearningEventDetailModal from './LearningEventDetailModal';
+import PromoteToTaskModal from './PromoteToTaskModal';
+import RequestXpModal from './RequestXpModal';
+import EvolveTopicModal from '../interest-tracks/EvolveTopicModal';
 import { getPillarData } from '../../utils/pillarMappings';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
-const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, studentId = null }) => {
+const filterQuests = (topics) => (topics || []).filter((t) => t.type === 'quest');
+const filterTopics = (topics) => (topics || []).filter((t) => t.type === 'topic');
+
+const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAssigned, studentId = null }) => {
+  const navigate = useNavigate();
   const [localEvent, setLocalEvent] = useState(event);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Topic-assignment dropdown state
   const [showTopicDropdown, setShowTopicDropdown] = useState(false);
   const [topics, setTopics] = useState({ tracks: [], quests: [], courses: [] });
   const [expandedCourses, setExpandedCourses] = useState({});
@@ -29,14 +41,34 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
 
+  // XP-flow modal state
+  const [promoteModalOpen, setPromoteModalOpen] = useState(false);
+  const [promoteEvent, setPromoteEvent] = useState(null);
+  const [promotePresetQuestId, setPromotePresetQuestId] = useState(null);
+  const [requestXpOpen, setRequestXpOpen] = useState(false);
+  const [evolveOpen, setEvolveOpen] = useState(false);
+  const [evolveTrack, setEvolveTrack] = useState(null);
+
   const isParentView = !!studentId;
 
-  // Sync local event with prop when parent provides new data
   useEffect(() => {
     setLocalEvent(event);
   }, [event]);
 
-  // Handle event updates from edit modal
+  // The student themselves is the only one who can take XP-related actions.
+  // Parent and observer views see the moment but not the action surface.
+  const canRequestXp = !isParentView;
+
+  const questAssignments = useMemo(() => filterQuests(localEvent.topics), [localEvent.topics]);
+  const topicAssignments = useMemo(() => filterTopics(localEvent.topics), [localEvent.topics]);
+
+  const xpState = useMemo(() => {
+    if (localEvent.promoted_task && localEvent.promoted_task.id) return 'promoted';
+    if (questAssignments.length > 0) return 'has-quest';
+    if (topicAssignments.length > 0) return 'topic-only';
+    return 'unassigned';
+  }, [localEvent.promoted_task, questAssignments.length, topicAssignments.length]);
+
   const handleEventUpdate = (updatedEvent) => {
     if (updatedEvent) {
       setLocalEvent(updatedEvent);
@@ -45,7 +77,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
     else if (onTrackAssigned) onTrackAssigned(updatedEvent);
   };
 
-  // Close dropdown when clicking outside
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -58,7 +90,6 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Focus input when creating
   useEffect(() => {
     if (isCreating && inputRef.current) {
       inputRef.current.focus();
@@ -75,10 +106,8 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
   };
 
   const displayDate = localEvent.event_date || localEvent.created_at;
-
   const hasEvidence = localEvent.evidence_blocks && localEvent.evidence_blocks.length > 0;
 
-  // Fetch topics when dropdown opens (always refresh)
   const fetchTopics = async () => {
     try {
       setIsLoadingTopics(true);
@@ -89,13 +118,13 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
       if (response.data.success) {
         const allTopics = response.data.topics || [];
         setTopics({
-          tracks: allTopics.filter(t => t.type === 'track'),
-          quests: allTopics.filter(t => t.type === 'quest'),
+          tracks: allTopics.filter((t) => t.type === 'track'),
+          quests: allTopics.filter((t) => t.type === 'quest'),
           courses: response.data.course_topics || []
         });
       }
     } catch (error) {
-      console.error('Failed to fetch topics:', error);
+      // Loading failure is shown via the toast on assign attempt; don't disrupt the card.
     } finally {
       setIsLoadingTopics(false);
     }
@@ -109,29 +138,21 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
 
   const toggleCourseExpanded = (e, courseId) => {
     e.stopPropagation();
-    setExpandedCourses(prev => ({
-      ...prev,
-      [courseId]: !prev[courseId]
-    }));
+    setExpandedCourses((prev) => ({ ...prev, [courseId]: !prev[courseId] }));
   };
 
   const handleAssignToTopic = async (type, topicId) => {
     try {
       setIsAssigning(true);
-
-      // Use the assign-topic endpoint with action:'add' for additive assignment
       const endpoint = isParentView
         ? `/api/parent/children/${studentId}/learning-events/${localEvent.id}/assign-topic`
         : `/api/learning-events/${localEvent.id}/assign-topic`;
-
       const payload = {
         type: type === 'project' ? 'quest' : type,
         topic_id: topicId,
         action: 'add'
       };
-
       const response = await api.post(endpoint, payload);
-
       if (response.data.success) {
         toast.success('Moment assigned to topic');
         setShowTopicDropdown(false);
@@ -140,7 +161,6 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
         }
       }
     } catch (error) {
-      console.error('Failed to assign topic:', error);
       toast.error('Failed to assign to topic');
     } finally {
       setIsAssigning(false);
@@ -149,31 +169,26 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
 
   const handleCreateTrack = async () => {
     if (!newTrackName.trim()) return;
-
     try {
       setIsAssigning(true);
       const endpoint = isParentView
         ? `/api/parent/children/${studentId}/topics`
         : '/api/interest-tracks';
-
       const response = await api.post(endpoint, {
         name: newTrackName.trim(),
         moment_ids: [localEvent.id]
       });
-
       if (response.data.success) {
         toast.success(`Created "${newTrackName}" and added moment`);
         setShowTopicDropdown(false);
         setIsCreating(false);
         setNewTrackName('');
-        // Clear cached topics so next fetch gets fresh data
         setTopics({ tracks: [], quests: [], courses: [] });
         if (onTrackAssigned) {
           onTrackAssigned(response.data.track || localEvent);
         }
       }
     } catch (error) {
-      console.error('Failed to create track:', error);
       toast.error('Failed to create topic');
     } finally {
       setIsAssigning(false);
@@ -191,18 +206,68 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
     }
   };
 
-  // Render evidence preview
+  // ─── XP-flow handlers ─────────────────────────────────────────────────────
+
+  const openPromoteForCurrent = () => {
+    setPromoteEvent(localEvent);
+    setPromotePresetQuestId(null);
+    setPromoteModalOpen(true);
+  };
+
+  const handleAttachAndPromote = ({ questId, questName }) => {
+    // RequestXpModal already attached the quest. Reflect the new attachment
+    // locally so the Promote modal sees a single quest assignment.
+    const updatedTopics = [
+      ...(localEvent.topics || []),
+      { type: 'quest', id: questId, name: questName || 'Quest' }
+    ];
+    const updatedEvent = { ...localEvent, topics: updatedTopics };
+    setLocalEvent(updatedEvent);
+    if (onTrackAssigned) onTrackAssigned(updatedEvent);
+
+    setPromoteEvent(updatedEvent);
+    setPromotePresetQuestId(questId);
+    setPromoteModalOpen(true);
+  };
+
+  const handleEvolveTopic = (track) => {
+    setEvolveTrack(track);
+    setEvolveOpen(true);
+  };
+
+  const handlePromoteSuccess = (task) => {
+    // Reflect the promotion locally so the card flips to "View in quest"
+    // without waiting on a refetch from the parent.
+    const promotedQuest = (localEvent.topics || []).find(
+      (t) => t.type === 'quest' && t.id === task?.quest_id
+    );
+    const promotedTask = task
+      ? {
+          id: task.id,
+          title: task.title,
+          quest_id: task.quest_id,
+          quest_title: promotedQuest?.name,
+        }
+      : null;
+    const updated = { ...localEvent, promoted_task: promotedTask };
+    setLocalEvent(updated);
+    if (onTrackAssigned) onTrackAssigned(updated);
+  };
+
+  const handleEvolveSuccess = (questId) => {
+    if (onTrackAssigned) onTrackAssigned({ ...localEvent, _evolved_quest_id: questId });
+  };
+
   const renderEvidencePreview = () => {
     if (!hasEvidence) return null;
 
-    const images = localEvent.evidence_blocks.filter(b => b.block_type === 'image' && b.content?.url);
-    const videos = localEvent.evidence_blocks.filter(b => b.block_type === 'video' && b.content?.url);
-    const links = localEvent.evidence_blocks.filter(b => b.block_type === 'link' && b.content?.url);
-    const documents = localEvent.evidence_blocks.filter(b => b.block_type === 'document');
+    const images = localEvent.evidence_blocks.filter((b) => b.block_type === 'image' && b.content?.url);
+    const videos = localEvent.evidence_blocks.filter((b) => b.block_type === 'video' && b.content?.url);
+    const links = localEvent.evidence_blocks.filter((b) => b.block_type === 'link' && b.content?.url);
+    const documents = localEvent.evidence_blocks.filter((b) => b.block_type === 'document');
 
     return (
       <div className="space-y-2">
-        {/* Images - large and prominent */}
         {images.length > 0 && (
           <div className={`grid gap-2 ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {images.slice(0, 4).map((block, idx) => (
@@ -222,7 +287,6 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
           </div>
         )}
 
-        {/* Videos - inline player */}
         {videos.length > 0 && (
           <div className="space-y-2">
             {videos.slice(0, 2).map((block, idx) => (
@@ -241,7 +305,6 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
           </div>
         )}
 
-        {/* Links and Documents - compact row */}
         {(links.length > 0 || documents.length > 0) && (
           <div className="flex flex-wrap gap-2">
             {links.slice(0, 2).map((block, idx) => (
@@ -278,21 +341,69 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
     );
   };
 
+  const renderXpButton = () => {
+    if (!canRequestXp) return null;
+    if (xpState === 'promoted') {
+      const promotedQuestId = localEvent.promoted_task?.quest_id;
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (promotedQuestId) {
+              navigate(`/quests/${promotedQuestId}`);
+            }
+          }}
+          disabled={!promotedQuestId}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+          <span>View in quest</span>
+        </button>
+      );
+    }
+    if (xpState === 'has-quest') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            openPromoteForCurrent();
+          }}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:shadow-md transition-all"
+        >
+          <SparklesIcon className="w-4 h-4" />
+          <span>Promote to task</span>
+        </button>
+      );
+    }
+    if (xpState === 'topic-only') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setRequestXpOpen(true);
+          }}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+        >
+          <SparklesIcon className="w-4 h-4" />
+          <span>Request XP</span>
+        </button>
+      );
+    }
+    return null;
+  };
+
   return (
     <>
       <div className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200">
         {/* Clickable content area */}
         <div onClick={() => setShowDetailModal(true)} className="cursor-pointer">
-          {/* Evidence Preview - at top, full width */}
           {hasEvidence && (
             <div className="p-3 pb-0">
               {renderEvidencePreview()}
             </div>
           )}
 
-          {/* Content */}
           <div className="p-4">
-            {/* Date and Pillars row */}
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-1.5 text-gray-400 text-xs">
                 <CalendarIcon className="w-3.5 h-3.5" />
@@ -319,7 +430,6 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
               )}
             </div>
 
-            {/* Topic chips */}
             {localEvent.topics && localEvent.topics.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-1.5">
                 {localEvent.topics.map((t) => (
@@ -335,39 +445,51 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                         style={{ backgroundColor: t.color || '#9333ea' }}
                       />
                     )}
-                    <span className="truncate max-w-[100px]">{t.name || (t.type === 'quest' ? 'Quest' : 'Topic')}</span>
+                    <span className="truncate max-w-[100px]">
+                      {t.name || (t.type === 'quest' ? 'Quest' : 'Topic')}
+                    </span>
                   </span>
                 ))}
               </div>
             )}
 
-            {/* Description */}
             <p className="text-gray-800 text-sm leading-relaxed line-clamp-2">
               {localEvent.description}
             </p>
           </div>
         </div>
 
-        {/* Add to Topic Button */}
+        {/* Action row */}
         {showTrackAssign && (
           <div className="px-4 pb-4 relative" ref={dropdownRef}>
-            <button
-              onClick={handleOpenDropdown}
-              disabled={isAssigning}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-optio-purple bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <FolderPlusIcon className="w-4 h-4" />
-              <span>Add to Topic</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleOpenDropdown}
+                disabled={isAssigning}
+                className={`
+                  inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50
+                  ${xpState === 'unassigned'
+                    ? 'flex-1 text-optio-purple bg-purple-50 hover:bg-purple-100'
+                    : 'text-gray-600 bg-gray-50 hover:bg-gray-100'}
+                `}
+                title={xpState === 'unassigned' ? 'Add to topic' : 'Add another topic or quest'}
+              >
+                <FolderPlusIcon className="w-4 h-4" />
+                {xpState === 'unassigned' && <span>Add to Topic</span>}
+              </button>
 
-            {/* Topic Dropdown */}
+              {renderXpButton()}
+            </div>
+
             {showTopicDropdown && (
-              <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto" style={{ zIndex: 100 }}>
+              <div
+                className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+                style={{ zIndex: 100 }}
+              >
                 {isLoadingTopics ? (
                   <div className="p-3 text-center text-sm text-gray-500">Loading...</div>
                 ) : (
                   <>
-                    {/* Create new track input */}
                     {isCreating ? (
                       <div className="p-2 border-b border-gray-100">
                         <div className="flex items-center gap-2">
@@ -384,7 +506,10 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                           />
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); handleCreateTrack(); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCreateTrack();
+                            }}
                             disabled={!newTrackName.trim() || isAssigning}
                             className="px-3 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -398,6 +523,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                               setNewTrackName('');
                             }}
                             className="p-2 text-gray-400 hover:text-gray-600"
+                            aria-label="Cancel"
                           >
                             <XMarkIcon className="w-4 h-4" />
                           </button>
@@ -406,7 +532,10 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                     ) : (
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsCreating(true);
+                        }}
                         className="w-full flex items-center gap-2 px-3 py-2.5 text-left border-b border-gray-100 hover:bg-gray-50 text-optio-purple transition-colors"
                       >
                         <PlusIcon className="w-4 h-4" />
@@ -414,13 +543,12 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                       </button>
                     )}
 
-                    {/* Courses Section */}
                     {topics.courses.length > 0 && (
                       <>
                         <div className="px-3 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100">
                           <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Courses</span>
                         </div>
-                        {topics.courses.map(course => {
+                        {topics.courses.map((course) => {
                           const isExpanded = expandedCourses[course.id];
                           return (
                             <div key={course.id}>
@@ -438,11 +566,14 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                                 <span className="text-sm font-medium text-gray-900 truncate flex-1">{course.name}</span>
                                 <span className="text-xs text-gray-400">{course.projects?.length || 0}</span>
                               </button>
-                              {isExpanded && course.projects?.map(project => (
+                              {isExpanded && course.projects?.map((project) => (
                                 <button
                                   key={project.id}
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); handleAssignToTopic('project', project.id); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAssignToTopic('project', project.id);
+                                  }}
                                   disabled={isAssigning}
                                   className="w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-purple-50 transition-colors disabled:opacity-50"
                                 >
@@ -456,17 +587,19 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                       </>
                     )}
 
-                    {/* Standalone Quests Section */}
                     {topics.quests.length > 0 && (
                       <>
                         <div className="px-3 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-y border-purple-100">
                           <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Standalone Quests</span>
                         </div>
-                        {topics.quests.map(quest => (
+                        {topics.quests.map((quest) => (
                           <button
                             key={quest.id}
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); handleAssignToTopic('quest', quest.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignToTopic('quest', quest.id);
+                            }}
                             disabled={isAssigning}
                             className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors disabled:opacity-50"
                           >
@@ -478,17 +611,19 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                       </>
                     )}
 
-                    {/* Interest Tracks Section */}
                     {topics.tracks.length > 0 && (
                       <>
                         <div className="px-3 py-2 bg-gray-50 border-y border-gray-100">
                           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Topics of Interest</span>
                         </div>
-                        {topics.tracks.map(track => (
+                        {topics.tracks.map((track) => (
                           <button
                             key={track.id}
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); handleAssignToTopic('track', track.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignToTopic('track', track.id);
+                            }}
                             disabled={isAssigning}
                             className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
                           >
@@ -522,6 +657,36 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
         onClose={() => setShowDetailModal(false)}
         onUpdate={handleEventUpdate}
         studentId={studentId}
+      />
+
+      <PromoteToTaskModal
+        isOpen={promoteModalOpen}
+        onClose={() => {
+          setPromoteModalOpen(false);
+          setPromoteEvent(null);
+          setPromotePresetQuestId(null);
+        }}
+        moment={promoteEvent}
+        presetQuestId={promotePresetQuestId}
+        onSuccess={handlePromoteSuccess}
+      />
+
+      <RequestXpModal
+        isOpen={requestXpOpen}
+        onClose={() => setRequestXpOpen(false)}
+        moment={localEvent}
+        onAttachAndPromote={handleAttachAndPromote}
+        onEvolveTopic={handleEvolveTopic}
+      />
+
+      <EvolveTopicModal
+        isOpen={evolveOpen}
+        onClose={() => {
+          setEvolveOpen(false);
+          setEvolveTrack(null);
+        }}
+        track={evolveTrack}
+        onSuccess={handleEvolveSuccess}
       />
     </>
   );
