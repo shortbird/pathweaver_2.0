@@ -105,6 +105,41 @@ def update_task(user_id: str, task_id: str):
                 'error': 'Request body is required'
             }), 400
 
+        # Block edits while a credit request is in flight: pending_xp / xp_amount
+        # were calculated against the task's current values, and changing
+        # title/pillar/xp mid-review desyncs the reviewer's view from what the
+        # student sees. Owner-as-student can edit again once the request is
+        # returned (grow_this) or fully accredited. Non-owner roles
+        # (superadmin / org_admin / advisor) are not gated -- they edit
+        # in-flight tasks all the time as part of credit review.
+        is_owner_only = user_role not in ('superadmin', 'org_admin', 'advisor')
+        if is_owner_only:
+            try:
+                completion = supabase.table('quest_task_completions') \
+                    .select('diploma_status, accreditor_status') \
+                    .eq('user_id', user_id) \
+                    .eq('user_quest_task_id', task_id) \
+                    .order('created_at', desc=True) \
+                    .limit(1) \
+                    .execute()
+                if completion.data:
+                    diploma_status = completion.data[0].get('diploma_status')
+                    accreditor_status = completion.data[0].get('accreditor_status')
+                    in_flight_diploma = diploma_status in (
+                        'pending_review', 'pending_org_approval', 'pending_optio_approval'
+                    )
+                    in_flight_accreditor = (
+                        diploma_status == 'approved'
+                        and accreditor_status not in ('confirmed', None, 'not_reviewed')
+                    )
+                    if in_flight_diploma or in_flight_accreditor:
+                        return jsonify({
+                            'success': False,
+                            'error': "This task has a credit request in review. Wait for it to be returned or accredited before editing."
+                        }), 409
+            except Exception as gate_err:
+                logger.warning(f"crud: in-flight check failed for task {task_id}: {gate_err}")
+
         # Build update payload with only allowed fields
         update_payload = {}
 
@@ -132,17 +167,45 @@ def update_task(user_id: str, task_id: str):
         if 'xp_value' in data:
             try:
                 xp_value = int(data['xp_value'])
-                if xp_value < 1 or xp_value > 1000:
-                    return jsonify({
-                        'success': False,
-                        'error': 'XP value must be between 1 and 1000'
-                    }), 400
-                update_payload['xp_value'] = xp_value
             except (ValueError, TypeError):
                 return jsonify({
                     'success': False,
                     'error': 'XP value must be a valid number'
                 }), 400
+            # Owner edits are capped at 200 XP per task. Privileged roles can
+            # still set higher values during quest authoring / credit review.
+            max_xp = 200 if is_owner_only else 1000
+            if xp_value < 1 or xp_value > max_xp:
+                return jsonify({
+                    'success': False,
+                    'error': f'XP value must be between 1 and {max_xp}'
+                }), 400
+            update_payload['xp_value'] = xp_value
+
+            # Rescale subject_xp_distribution so per-subject totals stay in
+            # proportion with the new xp_value. Without this, a student who
+            # bumps a 100 XP task to 200 keeps a {math: 100} distribution that
+            # downstream code (get_subject_xp_distribution) would patch by
+            # dumping the entire delta into the largest subject.
+            existing_dist = task_data.get('subject_xp_distribution') or {}
+            old_xp = task_data.get('xp_value') or 0
+            if existing_dist and old_xp and old_xp != xp_value:
+                try:
+                    scale = xp_value / old_xp
+                    rescaled = {
+                        s: max(5, 5 * round((v * scale) / 5))
+                        for s, v in existing_dist.items()
+                        if isinstance(v, (int, float))
+                    }
+                    if rescaled:
+                        # Adjust the largest entry so the total matches xp_value exactly.
+                        diff = xp_value - sum(rescaled.values())
+                        if diff != 0:
+                            largest = max(rescaled.items(), key=lambda kv: kv[1])[0]
+                            rescaled[largest] += diff
+                        update_payload['subject_xp_distribution'] = rescaled
+                except Exception as rescale_err:
+                    logger.warning(f"crud: failed to rescale subject_xp_distribution for task {task_id}: {rescale_err}")
 
         if 'is_required' in data:
             update_payload['is_required'] = bool(data['is_required'])

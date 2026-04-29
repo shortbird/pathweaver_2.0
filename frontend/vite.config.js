@@ -46,11 +46,26 @@ export default defineConfig(({ mode }) => {
   ],
   server: {
     port: 3000,
+    // Allow the cloudflared tunnel host so Canvas can iframe the dev server
+    // during LTI testing. `.trycloudflare.com` covers any quick-tunnel URL.
+    // Remove these entries after the LTI rollout is done.
+    allowedHosts: ['.trycloudflare.com', 'localhost'],
     proxy: {
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
-      }
+      },
+      // Backend LTI protocol endpoints. Use a regex anchored to `/lti/` (with
+      // trailing slash) so it matches `/lti/login`, `/lti/launch`, etc., but
+      // NOT the iframe React routes `/lti-launch`, `/lti-deep-link`, etc.
+      '^/lti/.*': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+      },
+      '/.well-known': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+      },
     }
   },
   build: {

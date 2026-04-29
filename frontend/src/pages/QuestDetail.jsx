@@ -264,6 +264,20 @@ const QuestDetail = () => {
     handleEndQuest();
   };
 
+  const handleTaskUpdate = (updatedTask) => {
+    if (!updatedTask?.id) return;
+    setSelectedTask(prev => (prev && prev.id === updatedTask.id ? { ...prev, ...updatedTask } : prev));
+    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+      if (!oldData?.quest_tasks) return oldData;
+      return {
+        ...oldData,
+        quest_tasks: oldData.quest_tasks.map(t =>
+          t.id === updatedTask.id ? { ...t, ...updatedTask } : t
+        ),
+      };
+    });
+  };
+
   const handleTaskCompletion = async (completionData) => {
     logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER START ==========');
     logger.debug('[QUEST_DETAIL] completionData:', completionData);
@@ -544,6 +558,7 @@ const QuestDetail = () => {
                 onTaskSelect={handleTaskSelect}
                 onTaskReorder={handleTaskReorder}
                 onTaskComplete={handleTaskCompletion}
+                onTaskUpdate={handleTaskUpdate}
                 onAddTask={() => setShowPersonalizationWizard(true)}
                 onRemoveTask={handleDropTask}
                 onClose={() => setSelectedTask(null)}

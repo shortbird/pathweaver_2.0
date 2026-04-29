@@ -108,6 +108,7 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
+      <Stack.Screen name="(lti)" />
       <Stack.Screen name="auth/callback" />
       <Stack.Screen name="invite/[code]" />
       <Stack.Screen name="terms" />

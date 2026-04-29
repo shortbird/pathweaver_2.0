@@ -108,6 +108,14 @@ def health_check():
     logger.error(f"[HEALTH] DB ping failed: {err}")
     return jsonify({'status': 'unhealthy', 'db': 'unreachable'}), 503
 
+@app.route('/.well-known/jwks.json', methods=['GET'])
+def well_known_jwks():
+    """LTI 1.3 spec lets the platform discover the JWKS URL from tool config,
+    but many integrations also probe /.well-known/jwks.json by convention."""
+    from utils.lti_keys import get_public_jwks
+    return jsonify(get_public_jwks()), 200
+
+
 @app.route('/csrf-token', methods=['GET'])
 def get_csrf():
     """Get a CSRF token for the session.

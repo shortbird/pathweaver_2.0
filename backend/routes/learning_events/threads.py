@@ -1,29 +1,10 @@
-"""Threaded moments: chain, user threads, related, detect, narrative.
-
-Split from routes/learning_events.py on 2026-04-14 (Q1).
-"""
-
-"""
-REPOSITORY MIGRATION: NO MIGRATION NEEDED
-- Uses LearningEventsService exclusively (service layer pattern)
-- Only 1 direct database call for file upload verification (line 293-304, acceptable)
-- Service layer properly encapsulates all CRUD operations
-- File upload endpoint uses get_user_client for RLS enforcement (correct pattern)
-
-Learning Events Routes
-API endpoints for spontaneous learning moment capture
-"""
-from flask import Blueprint, request, jsonify
+"""Threaded moments: chain, user threads, related, detect, narrative."""
+from flask import jsonify
 from utils.auth.decorators import require_auth
-from services.learning_events_service import LearningEventsService
-import logging
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-logger = logging.getLogger(__name__)
-
 
 
 from routes.learning_events import learning_events_bp

@@ -68,6 +68,13 @@ def init_csrf(app):
         'health_check',  # Health check is public
         # Webhook endpoints (if any) that use signature verification
         'subscriptions.stripe_webhook',  # Stripe webhook uses signature verification
+        # LTI 1.3 endpoints — Canvas authenticates via signed id_token (JWS).
+        # /lti/launch is a cross-origin POST from Canvas; /lti/login and
+        # /lti/token are also cross-origin and pre-session.
+        'lti.oidc_login_init',
+        'lti.lti_launch',
+        'lti.exchange_auth_code',
+        'lti.deep_link_submit',
     ]
 
     for endpoint in exempt_endpoints:

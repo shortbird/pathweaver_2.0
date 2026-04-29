@@ -23,7 +23,8 @@ import EvidenceDisplay from '../evidence/EvidenceDisplay';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import SubjectBadges from '../common/SubjectBadges';
 import TaskStepsModal from './TaskStepsModal';
-import { SparklesIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
+import StudentTaskEditModal from './StudentTaskEditModal';
+import { SparklesIcon, AcademicCapIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import api from '../../services/api';
 
@@ -155,6 +156,7 @@ const TaskWorkspace = ({
   onTaskSelect,
   onTaskReorder,
   onTaskComplete,
+  onTaskUpdate,
   onAddTask,
   onRemoveTask,
   onClose
@@ -166,6 +168,7 @@ const TaskWorkspace = ({
   const [evidenceBlocks, setEvidenceBlocks] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStepsModalOpen, setIsStepsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isTaskListOpen, setIsTaskListOpen] = useState(true);
   const [editingBlock, setEditingBlock] = useState(null);
@@ -635,6 +638,16 @@ const TaskWorkspace = ({
     }
   };
 
+  const handleSaveTaskEdit = async ({ pillar, xp_value }) => {
+    if (!task?.id) return;
+    const response = await api.put(`/api/tasks/${task.id}`, { pillar, xp_value });
+    const updated = response?.data?.task;
+    if (updated && onTaskUpdate) {
+      onTaskUpdate(updated);
+    }
+    toast.success('Task updated');
+  };
+
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -831,17 +844,28 @@ const TaskWorkspace = ({
                       </span>
                     )}
                   </div>
-                  {/* Break into Steps button - right aligned */}
-                  {canUseTaskGeneration && !task.is_completed && (
+                  {/* Action buttons - right aligned */}
+                  <div className="flex-shrink-0 flex items-center gap-2">
                     <button
-                      onClick={() => setIsStepsModalOpen(true)}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors"
+                      onClick={() => setIsEditModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                       style={{ fontFamily: 'Poppins' }}
+                      title="Edit pillar and XP"
                     >
-                      <SparklesIcon className="w-4 h-4" />
-                      Steps
+                      <PencilSquareIcon className="w-4 h-4" />
+                      Edit
                     </button>
-                  )}
+                    {canUseTaskGeneration && !task.is_completed && (
+                      <button
+                        onClick={() => setIsStepsModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors"
+                        style={{ fontFamily: 'Poppins' }}
+                      >
+                        <SparklesIcon className="w-4 h-4" />
+                        Steps
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Description - expandable on tap */}
@@ -1077,6 +1101,15 @@ const TaskWorkspace = ({
         taskTitle={task?.title}
         isTaskCompleted={task?.is_completed}
       />
+
+      {/* Student edit modal — pillar + XP only */}
+      {isEditModalOpen && task && (
+        <StudentTaskEditModal
+          task={task}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={handleSaveTaskEdit}
+        />
+      )}
     </div>
   );
 };

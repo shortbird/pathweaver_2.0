@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowPathIcon,
-  FlagIcon,
-  SparklesIcon,
   ArrowTopRightOnSquareIcon,
-  XMarkIcon
+  FlagIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import LearningEventCard from '../learning-events/LearningEventCard';
+import PromoteToTaskModal from '../learning-events/PromoteToTaskModal';
 
 const PILLAR_CONFIG = {
   art: { label: 'Art', color: 'bg-purple-600', light: 'bg-purple-50 text-purple-700 border-purple-200' },
@@ -19,200 +19,48 @@ const PILLAR_CONFIG = {
   civics: { label: 'Civics', color: 'bg-red-600', light: 'bg-red-50 text-red-700 border-red-200' }
 };
 
-const ConvertToTaskModal = ({ isOpen, onClose, moment, onSuccess }) => {
-  const [title, setTitle] = useState('');
-  const [pillar, setPillar] = useState('stem');
-  const [xpValue, setXpValue] = useState(100);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && moment) {
-      setTitle(moment.title || moment.ai_generated_title || '');
-      setPillar(moment.pillars?.[0] || 'stem');
-      setXpValue(100);
-    }
-  }, [isOpen, moment]);
-
-  const handleSubmit = async () => {
-    try {
-      setIsSubmitting(true);
-      const response = await api.post(`/api/learning-events/${moment.id}/convert-to-task`, {
-        title: title.trim() || null,
-        pillar,
-        xp_value: xpValue
-      });
-
-      if (response.data.success) {
-        toast.success(response.data.message);
-        onSuccess?.(response.data.task);
-        onClose();
-      } else {
-        toast.error(response.data.error || 'Failed to create task');
-      }
-    } catch (error) {
-      console.error('Failed to convert moment to task:', error);
-      toast.error(error.response?.data?.error || 'Failed to create task');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-5 rounded-t-xl">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-bold mb-1">Convert to Task</h2>
-              <p className="text-white/90 text-sm">Turn this learning moment into a quest task</p>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-white/80 hover:text-white transition-colors"
-            >
-              <XMarkIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-5 space-y-4">
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-              Task Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter task title..."
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-sm"
-            />
-          </div>
-
-          {/* Pillar Selection */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-              Learning Pillar
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(PILLAR_CONFIG).map(([key, config]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setPillar(key)}
-                  className={`
-                    px-3 py-1.5 rounded-lg border text-sm font-medium transition-all
-                    ${pillar === key
-                      ? `${config.color} text-white border-transparent`
-                      : `${config.light} hover:border-gray-300`}
-                  `}
-                >
-                  {config.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* XP Value */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-              XP Value
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min="10"
-                max="500"
-                step="10"
-                value={xpValue}
-                onChange={(e) => setXpValue(parseInt(e.target.value))}
-                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-optio-purple"
-              />
-              <span className="text-sm font-bold text-gray-900 w-16 text-right">{xpValue} XP</span>
-            </div>
-            <p className="text-xs text-gray-400 mt-1">10 - 500 XP</p>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="p-5 pt-0 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl hover:shadow-lg disabled:opacity-50 transition-all font-medium text-sm flex items-center justify-center gap-2"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <SparklesIcon className="w-4 h-4" />
-                Create Task
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) => {
+const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studentId = null }) => {
   const [quest, setQuest] = useState(null);
   const [moments, setMoments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [convertModalOpen, setConvertModalOpen] = useState(false);
-  const [momentToConvert, setMomentToConvert] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [promoteModalOpen, setPromoteModalOpen] = useState(false);
+  const [momentToPromote, setMomentToPromote] = useState(null);
 
   useEffect(() => {
-    console.log('[QuestMomentsDetail] questId changed:', questId);
     if (questId) {
       fetchQuestMoments();
     }
-  }, [questId]);
+  }, [questId, refreshKey]);
 
   const fetchQuestMoments = async () => {
-    console.log('[QuestMomentsDetail] Fetching moments for quest:', questId);
     try {
       setIsLoading(true);
+      setLoadError(null);
       const response = await api.get(`/api/quests/${questId}/moments`);
-      console.log('[QuestMomentsDetail] API response:', response.data);
       if (response.data.success) {
         setQuest(response.data.quest);
         setMoments(response.data.moments || []);
-        console.log('[QuestMomentsDetail] Set moments:', response.data.moments?.length || 0);
       } else {
-        console.error('[QuestMomentsDetail] API returned success=false:', response.data.error);
-        toast.error(response.data.error || 'Failed to load quest moments');
+        const message = response.data.error || 'Failed to load quest moments';
+        setLoadError(message);
+        toast.error(message);
       }
     } catch (error) {
-      console.error('[QuestMomentsDetail] Failed to fetch quest moments:', error);
-      toast.error('Failed to load quest moments');
+      const message = error?.response?.data?.error || 'Failed to load quest moments';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleConvertToTask = (moment) => {
-    setMomentToConvert(moment);
-    setConvertModalOpen(true);
+  const handlePromote = (moment) => {
+    setMomentToPromote(moment);
+    setPromoteModalOpen(true);
   };
 
-  const handleConvertSuccess = (task) => {
-    // Refresh moments to show the task badge
+  const handlePromoteSuccess = (task) => {
     fetchQuestMoments();
     onMomentConverted?.(task);
   };
@@ -228,10 +76,27 @@ const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) =>
         </div>
         <div className="flex-1 p-6">
           <div className="animate-pulse space-y-4">
-            {[1, 2, 3].map(i => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="h-24 bg-gray-100 rounded-lg" />
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="text-center">
+          <FlagIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-red-600 mb-3">{loadError}</p>
+          <button
+            onClick={fetchQuestMoments}
+            className="px-4 py-2 text-sm font-medium text-optio-purple bg-purple-50 hover:bg-purple-100 rounded-lg"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -281,11 +146,9 @@ const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) =>
           <p className="mt-3 text-sm text-gray-600 line-clamp-2">{quest.description}</p>
         )}
 
-        {/* Help text */}
         <div className="mt-4 p-3 bg-white/70 rounded-lg border border-purple-200">
           <p className="text-xs text-purple-700">
-            <span className="font-medium">Tip:</span> Assign learning moments to this quest to track related discoveries.
-            Convert moments into tasks to earn XP!
+            <span className="font-medium">Tip:</span> Promote a moment into a task to earn XP. Default 50 XP — adjust on the quest page after.
           </p>
         </div>
       </div>
@@ -294,10 +157,9 @@ const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) =>
       <div className="flex-1 overflow-y-auto p-6">
         {moments.length > 0 ? (
           <div className="space-y-4">
-            {moments.map(item => (
+            {moments.map((item) => (
               <div key={item.id} className="relative">
                 {item.item_type === 'completed_task' ? (
-                  // Completed Task Card
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -318,7 +180,6 @@ const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) =>
                         </div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-2">{item.title}</h3>
 
-                        {/* Evidence Blocks */}
                         {item.evidence_blocks && item.evidence_blocks.length > 0 ? (
                           <div className="space-y-2">
                             {item.evidence_blocks.map((block, idx) => (
@@ -380,28 +241,36 @@ const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) =>
                     </p>
                   </div>
                 ) : (
-                  // Learning Moment Card
                   <>
                     <LearningEventCard
                       event={item}
                       showTrackAssign={false}
                       studentId={studentId}
                     />
-                    {/* Convert to Task Button - overlaid */}
-                    {!item.has_task && item.item_type === 'moment' && (
-                      <button
-                        onClick={() => handleConvertToTask(item)}
-                        className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-medium rounded-lg shadow-sm hover:shadow-md transition-all"
-                      >
-                        <SparklesIcon className="w-3.5 h-3.5" />
-                        Create Task
-                      </button>
-                    )}
-                    {item.has_task && (
-                      <div className="absolute top-3 right-3 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-lg">
-                        Task Created
-                      </div>
-                    )}
+                    {(() => {
+                      // A moment counts as "already promoted" once a quest
+                      // task has been created from it, regardless of whether
+                      // that task is still pending or already completed.
+                      const isPromoted = !!item.promoted_task || !!item.has_task;
+                      if (item.item_type !== 'moment') return null;
+                      if (isPromoted) {
+                        return (
+                          <div className="absolute top-3 right-3 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-lg">
+                            Task Created
+                          </div>
+                        );
+                      }
+                      if (studentId) return null;
+                      return (
+                        <button
+                          onClick={() => handlePromote(item)}
+                          className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-medium rounded-lg shadow-sm hover:shadow-md transition-all"
+                        >
+                          <SparklesIcon className="w-3.5 h-3.5" />
+                          Promote to task
+                        </button>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -418,15 +287,15 @@ const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) =>
         )}
       </div>
 
-      {/* Convert to Task Modal */}
-      <ConvertToTaskModal
-        isOpen={convertModalOpen}
+      <PromoteToTaskModal
+        isOpen={promoteModalOpen}
         onClose={() => {
-          setConvertModalOpen(false);
-          setMomentToConvert(null);
+          setPromoteModalOpen(false);
+          setMomentToPromote(null);
         }}
-        moment={momentToConvert}
-        onSuccess={handleConvertSuccess}
+        moment={momentToPromote}
+        presetQuestId={questId}
+        onSuccess={handlePromoteSuccess}
       />
     </div>
   );

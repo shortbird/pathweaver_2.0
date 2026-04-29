@@ -109,15 +109,7 @@ const LearningEventModal = ({
             order_index: block.order_index ?? index
           }))
         );
-        // Populate topics from new API field, fallback to legacy columns
-        if (editEvent.topics && Array.isArray(editEvent.topics) && editEvent.topics.length > 0) {
-          setTopics(editEvent.topics);
-        } else {
-          const legacyTopics = [];
-          if (editEvent.track_id) legacyTopics.push({ type: 'topic', id: editEvent.track_id });
-          if (editEvent.quest_id) legacyTopics.push({ type: 'quest', id: editEvent.quest_id });
-          setTopics(legacyTopics);
-        }
+        setTopics(Array.isArray(editEvent.topics) ? editEvent.topics : []);
         setParentMomentId(editEvent.parent_moment_id || null);
         setShowAdvanced(true); // Always show advanced in edit mode
         setAiSuggestions(null);

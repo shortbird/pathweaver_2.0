@@ -84,9 +84,13 @@ class SecurityMiddleware:
     
     def after_request(self, response):
         """Add security headers to response"""
-        # Core security headers
+        # Core security headers. /lti/* responses skip X-Frame-Options
+        # because Canvas needs to embed our LTI launches in iframes; the
+        # LTI blueprint's after_request hook sets a frame-ancestors CSP
+        # that whitelists *.instructure.com instead.
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'DENY'
+        if not (request.path or '').startswith('/lti/'):
+            response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
 

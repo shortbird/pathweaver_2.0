@@ -199,6 +199,13 @@ def register_all(app):
     from routes import spark_integration
     app.register_blueprint(spark_integration.bp)
 
+    # ── Canvas LTI 1.3 (separate from Spark — uses OIDC + JWS, not HMAC) ──
+    from routes import lti as lti_routes
+    app.register_blueprint(lti_routes.bp)
+
+    from routes.admin import lti_registrations as admin_lti_registrations
+    app.register_blueprint(admin_lti_registrations.bp)
+
     from routes import observer
     app.register_blueprint(observer.bp)
 
@@ -250,15 +257,12 @@ def register_all(app):
     from routes import student_ai_assistance
     app.register_blueprint(student_ai_assistance.student_ai_bp, url_prefix='/api/student-ai')
 
-    # ── Learning events / interest tracks / quest conversion ──────────────────
+    # ── Learning events / interest tracks ─────────────────────────────────────
     from routes.learning_events import learning_events_bp
     app.register_blueprint(learning_events_bp)
 
     from routes.interest_tracks import interest_tracks_bp
     app.register_blueprint(interest_tracks_bp)
-
-    from routes.quest_conversion import quest_conversion_bp
-    app.register_blueprint(quest_conversion_bp)
 
     # ── Parent dashboard + linking + dependents ───────────────────────────────
     from routes import parent_linking, dependents
