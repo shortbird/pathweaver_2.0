@@ -150,6 +150,13 @@ def get_child_overview(user_id, student_id):
             total_tasks = len(tasks_map.get(quest_id, []))
             completed_tasks = len(completions_map.get(quest_id, []))
 
+            # Mirror the student dashboard's classification: a quest with all
+            # tasks done sits in the student's "Completed" bucket until they
+            # explicitly mark the quest complete, so the parent overview should
+            # hide it from the active list as well.
+            if total_tasks > 0 and completed_tasks >= total_tasks:
+                continue
+
             active_quests.append({
                 'quest_id': quest_id,
                 'title': quest['title'],

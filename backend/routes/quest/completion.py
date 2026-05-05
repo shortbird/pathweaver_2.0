@@ -482,6 +482,41 @@ def end_quest(user_id: str, quest_id: str):
         data = request.get_json(silent=True) or {}
         force_complete = data.get('force', False)
 
+        # LTI / optio quests with xp_threshold set: enforce the threshold
+        # before allowing /end. The teacher set "earn 500 XP for credit" via
+        # Deep Linking; we don't let a student short-circuit by pressing
+        # Submit early. Course-type quests use the older eligibility check
+        # below — this is the simpler path for lms_platform='canvas' optio quests.
+        if not force_complete:
+            quest_meta = supabase.table('quests')\
+                .select('xp_threshold, lms_platform')\
+                .eq('id', quest_id)\
+                .single()\
+                .execute()
+            xp_threshold = (quest_meta.data or {}).get('xp_threshold')
+            if xp_threshold and xp_threshold > 0:
+                # Sum XP from completed tasks for this user/quest
+                completed = supabase.table('quest_task_completions')\
+                    .select('user_quest_task_id, user_quest_tasks!inner(xp_value)')\
+                    .eq('user_id', user_id)\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+                earned_xp = sum(
+                    (c.get('user_quest_tasks', {}) or {}).get('xp_value', 0)
+                    for c in (completed.data or [])
+                )
+                if earned_xp < xp_threshold:
+                    return jsonify({
+                        'success': False,
+                        'error': 'XP goal not reached',
+                        'reason': 'XP_THRESHOLD_NOT_MET',
+                        'message': f'You need {xp_threshold} XP to submit (you have {earned_xp}).',
+                        'requirements': {
+                            'earned_xp': earned_xp,
+                            'required_xp': xp_threshold,
+                        }
+                    }), 400
+
         if not force_complete:
             progress_service = CourseProgressService(supabase)
             eligibility = progress_service.check_quest_completion_eligibility(user_id, quest_id)
@@ -568,6 +603,17 @@ def end_quest(user_id: str, quest_id: str):
             # Don't fail quest completion if webhook fails
             logger.warning(f"Failed to emit quest.completed webhook: {str(webhook_error)}")
 
+        # If this quest came from a Canvas LTI launch, enqueue a grade sync.
+        # Mirrors the hook in atomic_quest_service.check_and_complete_quest —
+        # /end is the explicit-button completion path students take when they
+        # decide they're done; atomic is the auto-complete path. Both should
+        # post to AGS.
+        try:
+            from services.lti_grade_sync_service import enqueue_for_quest_completion
+            enqueue_for_quest_completion(user_id, quest_id)
+        except Exception as lti_err:
+            logger.warning(f"LTI grade sync enqueue failed: {lti_err}")
+
         return jsonify({
             'success': True,
             'message': f'Quest ended successfully. You completed {task_count} tasks and earned {total_xp} XP.',
@@ -584,6 +630,68 @@ def end_quest(user_id: str, quest_id: str):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@bp.route('/<quest_id>/reopen', methods=['POST'])
+@require_auth
+def reopen_quest(user_id: str, quest_id: str):
+    """Re-activate a previously-ended quest enrollment.
+
+    Used by the LTI flow when a student wants to revise after submitting
+    (e.g., teacher returned the work in Canvas, or the student noticed a
+    mistake before the teacher graded). Sets is_active=true and clears
+    completed_at on the most-recent enrollment so the student can keep
+    editing tasks and resubmit.
+
+    For now, this is student-initiated only — Canvas grade polling will add
+    automatic reopen triggers (when teacher's score signals "needs revision")
+    in a follow-up.
+    """
+    try:
+        # admin client justified: quest reopen flips user_quests.is_active for the caller (self) under @require_auth; cross-table reads of quests.lms_platform need admin to bypass RLS for the LMS-quest case
+        supabase = get_supabase_admin_client()
+
+        # Only allow reopen for LMS-tied quests in v1 — re-opening a regular
+        # Optio quest after End Quest has different UX implications we
+        # haven't designed yet. Restrict scope explicitly.
+        quest_meta = supabase.table('quests')\
+            .select('lms_platform')\
+            .eq('id', quest_id)\
+            .single()\
+            .execute()
+        if not quest_meta.data or quest_meta.data.get('lms_platform') != 'canvas':
+            return jsonify({
+                'success': False,
+                'error': 'Reopen is only supported for Canvas LTI quests in v1',
+            }), 400
+
+        enrollment = supabase.table('user_quests')\
+            .select('id, is_active, completed_at')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .order('created_at', desc=True)\
+            .execute()
+        if not enrollment.data:
+            return jsonify({'success': False, 'error': 'Not enrolled'}), 404
+
+        # If there's already an active enrollment, no-op (idempotent).
+        active = next((e for e in enrollment.data if e.get('is_active')), None)
+        if active:
+            return jsonify({'success': True, 'message': 'Quest is already open', 'already_active': True})
+
+        # Reactivate the most-recent (completed) enrollment.
+        target = enrollment.data[0]
+        supabase.table('user_quests')\
+            .update({'is_active': True, 'completed_at': None})\
+            .eq('id', target['id'])\
+            .execute()
+
+        logger.info(f"[LTI reopen] User {user_id[:8]} reopened quest {quest_id[:8]}")
+
+        return jsonify({'success': True, 'message': 'Quest reopened'}), 200
+    except Exception as e:
+        logger.error(f"Error reopening quest: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/<quest_id>/tasks/reorder', methods=['PUT'])

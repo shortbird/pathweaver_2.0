@@ -34,7 +34,14 @@
       "Bash(powershell.exe -Command \"Get-NetTCPConnection -LocalPort 5001 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }\")",
       "Bash(powershell.exe -Command \"Get-NetTCPConnection -LocalPort 8081 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }\")",
       "Bash(powershell.exe -Command \"Start-Process -FilePath ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\venv\\\\Scripts\\\\python.exe'' -ArgumentList ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\backend\\\\app.py'' -WorkingDirectory ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2'' -RedirectStandardOutput ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\backend_stdout.log'' -RedirectStandardError ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\backend_stderr.log'' -WindowStyle Hidden\")",
-      "mcp__supabase__apply_migration"
+      "mcp__supabase__apply_migration",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(docker info *)",
+      "Bash(powershell.exe -Command \"wsl --status\")",
+      "Bash(powershell.exe -Command 'Get-PSDrive C | Select-Object @{N='\\\\''FreeGB'\\\\'';E={[math]::Round\\($_.Free/1GB,1\\)}},@{N='\\\\''UsedGB'\\\\'';E={[math]::Round\\($_.Used/1GB,1\\)}}')",
+      "Read(//c/Users/tanne/Desktop/**)",
+      "Read(//c/Users/tanne/**)"
     ]
   }
 }

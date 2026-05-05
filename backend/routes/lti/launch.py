@@ -112,16 +112,11 @@ def oidc_login_init():
     state = issue_state(registration, login_hint)
     nonce = secrets.token_urlsafe(24)
 
-    # We can't use Flask session to persist the nonce (third-party cookies are
-    # blocked in the iframe). Instead we record it pre-emptively in
-    # lti_nonces; on launch we verify the id_token nonce matches a row we put
-    # there. NOTE: nonce uniqueness is enforced at the DB level so this
-    # also doubles as replay protection.
-    try:
-        remember_nonce(nonce, registration.issuer)
-    except LtiError as e:
-        logger.error(f"[LTI login] Failed to record nonce: {e}")
-        return jsonify({"error": "LTI internal error"}), 500
+    # The platform echoes our nonce back in the id_token unchanged (OIDC).
+    # /lti/launch records it in lti_nonces on arrival; if the same id_token
+    # is replayed, the second insert hits the PK constraint and we reject.
+    # We do NOT pre-record here — that would make the first legitimate
+    # launch arrive with an "already used" nonce.
 
     auth_params = {
         "scope": "openid",
@@ -226,11 +221,14 @@ def lti_launch():
 
     if message_type == "LtiDeepLinkingRequest":
         # Deep Link flow — render the teacher form on the frontend, passing
-        # along the deep-link settings + a one-time code.
+        # along the deep-link settings + a one-time code. 10-min TTL so the
+        # teacher has time to fill in the form (same code stashes the
+        # platform's deep_linking_settings blob).
         deep_link_settings = claims.get(DEEP_LINK_CLAIM, {})
         code = issue_auth_code(
             user_id=user_id,
             target_path="/lti-deep-link",
+            expires_in_seconds=600,
         )
         # Persist the deep-link settings in a short-lived cache so the form
         # submission can echo them back without a round-trip to Canvas.
@@ -356,12 +354,15 @@ def _provision_lti_user(claims: Dict[str, Any], registration) -> str:
         ).execute()
         logger.info(f"[LTI launch] Created new user {user_id} from Canvas SSO")
 
-    # 4. Record the LMS link
+    # 4. Record the LMS link. organization_id is NOT NULL on lms_integrations
+    # since the H1 audit; tie the integration to the org the registration is
+    # mapped to so cross-org lookups don't bleed.
     supabase.table("lms_integrations").insert(
         {
             "user_id": user_id,
             "lms_platform": "canvas",
             "lms_user_id": canvas_user_id,
+            "organization_id": registration.organization_id,
             "sync_enabled": True,
             "sync_status": "active",
         }

@@ -11,7 +11,7 @@
  * iframe is a single-purpose surface.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api, { tokenStore } from '../../services/api'
 
@@ -19,6 +19,10 @@ export default function LtiLaunchPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [error, setError] = useState(null)
+  // Guard the code exchange against React.StrictMode's double-invoke in dev.
+  // /lti/token is one-time use — a second call always returns "expired" and
+  // tears down the just-established session.
+  const exchangeStarted = useRef(false)
 
   useEffect(() => {
     const code = searchParams.get('code')
@@ -27,12 +31,17 @@ export default function LtiLaunchPage() {
       setError('Missing launch code.')
       return
     }
+    if (exchangeStarted.current) return
+    exchangeStarted.current = true
 
-    let cancelled = false
+    // No cancelled-on-cleanup flag here. /lti/token is one-shot; the ref
+    // above guarantees we only fire once even under React.StrictMode's
+    // double-mount. Setting cancelled=true on cleanup would skip the
+    // navigation when StrictMode tears down the first effect instance,
+    // leaving the spinner running forever.
     ;(async () => {
       try {
         const { data } = await api.post('/lti/token', { code })
-        if (cancelled) return
         if (!data?.access_token || !data?.refresh_token) {
           setError('Launch token exchange failed.')
           return
@@ -49,15 +58,14 @@ export default function LtiLaunchPage() {
         }
         navigate('/lti-error?reason=no_target', { replace: true })
       } catch (e) {
-        if (cancelled) return
-        const msg = e?.response?.data?.error || e?.message || 'Launch failed'
+        const raw = e?.response?.data?.error
+        const msg =
+          typeof raw === 'string'
+            ? raw
+            : raw?.message || e?.message || 'Launch failed'
         setError(msg)
       }
     })()
-
-    return () => {
-      cancelled = true
-    }
   }, [searchParams, navigate])
 
   if (error) {

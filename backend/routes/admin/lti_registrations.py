@@ -116,3 +116,31 @@ def delete_registration(user_id: str, registration_id: str):
     supabase = get_supabase_admin_client()
     supabase.table("lti_registrations").delete().eq("id", registration_id).execute()
     return jsonify({"ok": True}), 200
+
+
+# ---------------------------------------------------------------------------
+# Canvas grade polling — manual trigger
+# ---------------------------------------------------------------------------
+
+@bp.route("/poll-canvas-grades", methods=["POST"])
+@require_superadmin
+def poll_canvas_grades(user_id: str):
+    """Trigger a Canvas-grade poll cycle.
+
+    Reads completed LTI quests last polled >max_age_hours ago and pulls
+    their AGS results. Stores the latest score state on user_quests for
+    each (no automatic XP changes — see canvas_grade_poller.py header).
+
+    Body (optional JSON):
+        limit:           max user_quests to poll this cycle (default 25)
+        max_age_hours:   ignore rows polled within this window (default 1)
+    """
+    from services.canvas_grade_poller import poll_recent_completed
+
+    data = request.get_json(silent=True) or {}
+    limit = int(data.get("limit") or 25)
+    max_age_hours = int(data.get("max_age_hours") or 1)
+
+    tally = poll_recent_completed(limit=limit, max_age_hours=max_age_hours)
+    logger.info(f"[admin LTI] poll-canvas-grades tally: {tally}")
+    return jsonify({"ok": True, "tally": tally}), 200

@@ -37,7 +37,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             .select('''
                 id, title, description, big_idea, header_image_url, image_url,
                 quest_type, approach_examples, is_active, organization_id,
-                lms_course_id, created_at,
+                lms_course_id, lms_platform, xp_threshold, created_at,
                 course_quests(course_id, courses(id, cover_image_url))
             ''')\
             .eq('id', quest_id)\

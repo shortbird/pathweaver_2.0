@@ -170,15 +170,6 @@ def upload_evidence_for_student(user_id):
         if not user_quest.get('is_active') or user_quest.get('completed_at'):
             raise ValidationError("Quest is not active or already completed")
 
-        # Check if task is already completed
-        # Note: Using direct query for completion check (simple query)
-        completion_check = supabase.table('quest_task_completions').select('id').eq(
-            'user_id', student_id
-        ).eq('task_id', task_id).execute()
-
-        if completion_check.data:
-            raise ValidationError("Task is already completed")
-
         # Get or create evidence document using repository
         document_id = get_or_create_evidence_document(student_id, task_id, quest_id)
 
