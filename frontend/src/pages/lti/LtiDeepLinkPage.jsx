@@ -9,9 +9,19 @@
  * hidden form — Canvas creates the assignment and closes the modal.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
+
+// Backend's standard error envelope wraps `error` as an object
+// `{code, message, debug, request_id, timestamp}`. Older code paths return
+// `{error: "string"}`. Pull a renderable string out of either shape.
+function extractErrorMessage(err, fallback) {
+  const raw = err?.response?.data?.error
+  if (typeof raw === 'string') return raw
+  if (raw && typeof raw === 'object') return raw.message || JSON.stringify(raw)
+  return err?.message || fallback
+}
 
 export default function LtiDeepLinkPage() {
   const [searchParams] = useSearchParams()
@@ -21,37 +31,37 @@ export default function LtiDeepLinkPage() {
   const [contextError, setContextError] = useState(null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  // XP target for credit. Optional — empty string means "no threshold".
+  // Backend stores null in that case; the LtiQuestPage hides the progress
+  // bar and the Submit button is enabled as soon as ≥1 task is complete.
+  const [xpThreshold, setXpThreshold] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
+  // StrictMode guard — the GET is idempotent but it's good hygiene.
+  const fetchedRef = useRef(false)
 
   useEffect(() => {
     if (!code) {
       setContextError('Missing launch code.')
       return
     }
-    let cancelled = false
+    if (fetchedRef.current) return
+    fetchedRef.current = true
     ;(async () => {
       try {
         const { data } = await api.get('/lti/deep-link/context', { params: { code } })
-        if (!cancelled) setContext(data)
+        setContext(data)
       } catch (e) {
-        if (!cancelled) {
-          setContextError(
-            e?.response?.data?.error || e?.message || 'Could not load deep link context',
-          )
-        }
+        setContextError(extractErrorMessage(e, 'Could not load deep link context'))
       }
     })()
-    return () => {
-      cancelled = true
-    }
   }, [code])
 
   async function onSubmit(e) {
     e.preventDefault()
     setSubmitError(null)
     if (!title.trim()) {
-      setSubmitError('Give the assignment a title.')
+      setSubmitError('Give the quest a title.')
       return
     }
     setSubmitting(true)
@@ -60,6 +70,9 @@ export default function LtiDeepLinkPage() {
         code,
         title: title.trim(),
         description: description.trim(),
+        // Send only when set; empty string sends nothing so backend treats
+        // it as "no threshold" (legacy behavior).
+        ...(xpThreshold !== '' ? { xp_threshold: parseInt(xpThreshold, 10) } : {}),
       })
 
       // Auto-submit a real HTML form so the browser navigates to Canvas's
@@ -79,7 +92,7 @@ export default function LtiDeepLinkPage() {
       document.body.appendChild(form)
       form.submit()
     } catch (e) {
-      setSubmitError(e?.response?.data?.error || e?.message || 'Failed to create assignment')
+      setSubmitError(extractErrorMessage(e, 'Failed to create quest'))
       setSubmitting(false)
     }
   }
@@ -102,7 +115,7 @@ export default function LtiDeepLinkPage() {
   return (
     <div className="flex min-h-screen items-start justify-center px-6 py-10">
       <div className="w-full max-w-xl bg-white rounded-xl shadow-md p-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Add an Optio assignment</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Add an Optio Quest</h1>
         <p className="mt-2 text-sm text-gray-600">
           Give it a title and a short prompt. Each student will see an AI
           wizard inside Canvas that helps them invent their own approach.
@@ -130,6 +143,25 @@ export default function LtiDeepLinkPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              XP target (optional)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="50"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              placeholder="e.g. 500"
+              value={xpThreshold}
+              onChange={(e) => setXpThreshold(e.target.value.replace(/[^0-9]/g, ''))}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Students must earn at least this many XP from their tasks before
+              they can submit for grading. Leave blank to allow submission as
+              soon as the student finishes one task.
+            </p>
           </div>
           {submitError && <p className="text-sm text-red-600">{submitError}</p>}
           <div className="flex justify-end pt-2">

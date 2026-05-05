@@ -46,10 +46,10 @@ export default defineConfig(({ mode }) => {
   ],
   server: {
     port: 3000,
-    // Allow the cloudflared tunnel host so Canvas can iframe the dev server
-    // during LTI testing. `.trycloudflare.com` covers any quick-tunnel URL.
-    // Remove these entries after the LTI rollout is done.
-    allowedHosts: ['.trycloudflare.com', 'localhost'],
+    // Tunnel hosts allowed during LTI testing. ngrok-free.dev is our stable
+    // dev URL; trycloudflare.com is the legacy quick-tunnel fallback. Remove
+    // these entries after the LTI rollout is done.
+    allowedHosts: ['.ngrok-free.dev', '.ngrok-free.app', '.trycloudflare.com', 'localhost'],
     proxy: {
       '/api': {
         target: 'http://localhost:5001',

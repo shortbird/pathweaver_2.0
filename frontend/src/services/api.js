@@ -164,8 +164,16 @@ api.interceptors.response.use(
     // Chrome users rely on httpOnly cookies, and IndexedDB token restore can fail. The backend
     // will determine if valid refresh_token cookies exist. For truly unauthenticated users,
     // the refresh will fail and redirect to login (same result, one extra fast request).
+    // LTI 1.3 endpoints (/lti/token, /lti/deep-link/*) live in their own
+    // auth domain — auth comes from a one-time code or a fresh Bearer
+    // token, not from the Optio session/refresh cookie. A 401 here means
+    // the LTI handshake failed; running the refresh-and-redirect dance
+    // would just bounce the iframe to /login.
+    const isLtiRequest = originalRequest.url?.startsWith('/lti/')
+
     if (error.response?.status === 401 &&
         !originalRequest._retry &&
+        !isLtiRequest &&
         !originalRequest.url?.includes('/auth/refresh') &&
         !originalRequest.url?.includes('/auth/login')) {
       originalRequest._retry = true
@@ -234,8 +242,11 @@ api.interceptors.response.use(
         const isPublicTranscript = currentPath.startsWith('/public/transcript/')
         const isPromoPage = currentPath.startsWith('/for-students')
         const isMarketingPage = currentPath === '/philosophy' || currentPath === '/for-families' || currentPath === '/for-schools'
+        // Canvas LTI iframe pages — a refresh failure here should never
+        // navigate to /login; the iframe lives in someone else's chrome.
+        const isLtiPage = currentPath.startsWith('/lti-')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage) {
           window.location.href = '/login'
         }
 

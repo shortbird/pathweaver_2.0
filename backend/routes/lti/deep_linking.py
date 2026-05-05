@@ -125,8 +125,20 @@ def deep_link_submit(user_id: str):
     code = data.get("code")
     title = (data.get("title") or "").strip()
     description = (data.get("description") or "").strip()
+    xp_threshold_raw = data.get("xp_threshold")
     if not code or not title:
         return jsonify({"error": "Missing code or title"}), 400
+
+    # XP threshold is optional. Teachers who want a target ("earn 500 XP")
+    # set it; otherwise null (legacy: complete when student presses submit).
+    xp_threshold = None
+    if xp_threshold_raw not in (None, ""):
+        try:
+            xp_threshold = int(xp_threshold_raw)
+            if xp_threshold < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return jsonify({"error": "xp_threshold must be a non-negative integer"}), 400
 
     state = _load_deep_link_state(code)
     if not state:
@@ -146,26 +158,27 @@ def deep_link_submit(user_id: str):
     registration = LtiRegistration.from_row(registration_row.data[0])
 
     # Create the quest. Per locked decision, every LTI quest is a blank
-    # personalize-your-own — students will run AI personalization to get
-    # their own task list.
-    quest_row = (
-        supabase.table("quests")
-        .insert(
-            {
-                "title": title,
-                "description": description,
-                "quest_type": "lti_canvas",
-                "lms_platform": "canvas",
-                "lms_course_id": state.get("context_id"),
-                "lti_registration_id": registration.id,
-                "organization_id": registration.organization_id,
-                "is_active": True,
-                "is_public": False,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-        .execute()
-    )
+    # personalize-your-own — students run AI personalization to get their
+    # own task list. quest_type='optio' (the personalize-your-own kind);
+    # the LTI provenance lives in lms_platform + lti_registration_id +
+    # lms_course_id. The check_quest_type constraint only allows 'optio'
+    # or 'course'.
+    quest_payload = {
+        "title": title,
+        "description": description,
+        "quest_type": "optio",
+        "lms_platform": "canvas",
+        "lms_course_id": state.get("context_id"),
+        "lti_registration_id": registration.id,
+        "organization_id": registration.organization_id,
+        "is_active": True,
+        "is_public": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if xp_threshold is not None:
+        quest_payload["xp_threshold"] = xp_threshold
+
+    quest_row = supabase.table("quests").insert(quest_payload).execute()
     if not quest_row.data:
         logger.error("[LTI deep link] Failed to create quest")
         return jsonify({"error": "Could not create quest"}), 500

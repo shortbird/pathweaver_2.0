@@ -406,8 +406,9 @@ For LMS integration support:
 
 ## Changelog
 
-### April 2026 — Canvas LTI 1.3 implementation landed
+### April–May 2026 — Canvas LTI 1.3 implementation
 
+**Phase 1 — protocol** (verified end-to-end against IMS saLTIre):
 - ✅ Tool key pair + JWKS publishing
 - ✅ Tool config JSON for Developer Key import
 - ✅ OIDC login init + JWS launch verification (PyJWT 2.x's PyJWKClient against `sso.canvaslms.com`)
@@ -416,9 +417,21 @@ For LMS integration support:
 - ✅ Deep Linking 2.0 — always-blank "personalize-your-own" quest creation
 - ✅ AGS Score posting with the Canvas-namespaced submission claim
 - ✅ Auth-code → Bearer token exchange for the iframe (no third-party cookies)
-- ⏳ End-to-end verification against Canvas's hosted test instance — pending superadmin setup of a Developer Key
-- ⏳ NRPS roster sync (deferred from v1)
-- ⏳ Real Platform Storage usage for OIDC state (current implementation signs state as a self-contained JWT — equivalent security posture, no `lti_storage_target` round-trip)
+
+**Phase 2 — classroom flow** (code complete, mocked tests passing):
+- ✅ `quests.xp_threshold` (optional teacher-set XP target). Deep-link form input + LtiQuestPage progress bar + `/api/quests/:id/end` enforcement.
+- ✅ Student "Submit for grading" button repurposes existing /end endpoint and triggers AGS grade-sync hook (also wired into atomic auto-completion path).
+- ✅ Student-initiated reopen via `/api/quests/:id/reopen` so a student can revise after submitting.
+- ✅ Canvas-grade poller service: reads AGS Results, caches latest score / grading_progress on `user_quests.lti_canvas_*`. No automatic XP changes yet — Phase 3 will act on the polled state. Triggered manually via `POST /api/admin/lti-registrations/poll-canvas-grades` (superadmin); cron wiring deferred.
+- ✅ `QuestPersonalizationWizard` reused as the single source of truth for personalization. New `hideLibraryOption` and `hideDiplomaSubjects` props let the LTI iframe suppress Optio-platform-specific framing without forking the component.
+
+**Deferred (Phase 3+):**
+- ⏳ Per-task teacher feedback — MVP uses one whole-quest grade in Canvas SpeedGrader; per-task review will come via a teacher-launched LTI variant of the quest page.
+- ⏳ Automatic actions on polled Canvas grades (revoke XP on returned, reopen on score below threshold, etc.).
+- ⏳ Cron job for the Canvas grade poller.
+- ⏳ Canvas course-content fetching for AI personalization context (memory `project_lti_canvas_context_followup.md`).
+- ⏳ NRPS roster sync.
+- ⏳ Real Platform Storage usage for OIDC state (current self-signed JWT state has equivalent security; Platform Storage adds a postMessage round-trip to the parent frame).
 
 ### Earlier (claimed but not actually implemented prior to April 2026)
 

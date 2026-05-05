@@ -66,7 +66,12 @@ class SecurityMiddleware:
             # Skip JSON validation for file uploads, task completions, logout, refresh, collaboration endpoints, and quest end
             skip_endpoints = ['upload', 'complete', 'auth.logout', 'auth.refresh', 'collaborations.accept_invitation', 'collaborations.decline_invitation', 'quests_v3.end_quest']
             should_skip = request.endpoint and any(endpoint in request.endpoint for endpoint in skip_endpoints)
-            
+            # LTI 1.3 launches arrive as application/x-www-form-urlencoded
+            # POSTs from the platform (Canvas / saLTIre / Moodle). The id_token
+            # IS the auth + payload — there's no JSON body to enforce.
+            if (request.path or '').startswith('/lti/'):
+                should_skip = True
+
             if not should_skip:
                 # Also skip if it's multipart/form-data (file upload)
                 if request.content_type and 'multipart/form-data' in request.content_type:

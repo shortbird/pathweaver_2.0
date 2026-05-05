@@ -50,7 +50,24 @@ const DIPLOMA_SUBJECTS = [
   { id: 'electives', label: 'Electives', icon: '✨' }
 ];
 
-export default function QuestPersonalizationWizard({ questId, questTitle, onComplete, onCancel }) {
+/**
+ * @param hideLibraryOption     When true, hide the "Add from Task Library"
+ *   section. Library navigates to /quests/:id/library which lives in the
+ *   v1 Layout (sidebar + chrome) — wrong UX inside a Canvas LTI iframe.
+ * @param hideDiplomaSubjects   When true, hide Optio-platform-specific
+ *   framing that doesn't translate to a Canvas-graded assignment:
+ *     • the "Diploma Credits" picker on the interests step
+ *     • the pillar badge + diploma-credits row on the review step
+ *   The "Any specific ideas?" textarea stays visible regardless.
+ */
+export default function QuestPersonalizationWizard({
+  questId,
+  questTitle,
+  onComplete,
+  onCancel,
+  hideLibraryOption = false,
+  hideDiplomaSubjects = false,
+}) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -368,33 +385,39 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             </button>
           </div>
 
-          {/* OR Divider */}
-          <div className="flex items-center gap-4 max-w-3xl mx-auto mb-6">
-            <div className="flex-1 h-px bg-gray-300"></div>
-            <span className="text-gray-500 font-semibold" style={{ fontFamily: 'Poppins' }}>OR</span>
-            <div className="flex-1 h-px bg-gray-300"></div>
-          </div>
-
-          {/* Add from Task Library Button */}
-          <div className="max-w-md mx-auto mb-6">
-            <button
-              onClick={() => navigate(`/quests/${questId}/library`)}
-              disabled={loading}
-              className="w-full p-4 sm:p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-xl transition-all text-left disabled:opacity-50 group min-h-[44px]"
-            >
-              <div className="flex items-center gap-4">
-                <BookOpenIcon className="w-8 h-8 sm:w-10 sm:h-10 text-blue-500 group-hover:scale-110 transition-transform flex-shrink-0" />
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold mb-1 group-hover:text-blue-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
-                    Add from Task Library
-                  </h3>
-                  <p className="text-gray-600 text-xs sm:text-sm" style={{ fontFamily: 'Poppins' }}>
-                    Browse tasks created by other students and add them to your quest
-                  </p>
-                </div>
+          {/* Library option — suppressed inside LTI iframes (would navigate
+              to /quests/:id/library which lives in the v1 Layout chrome). */}
+          {!hideLibraryOption && (
+            <>
+              {/* OR Divider */}
+              <div className="flex items-center gap-4 max-w-3xl mx-auto mb-6">
+                <div className="flex-1 h-px bg-gray-300"></div>
+                <span className="text-gray-500 font-semibold" style={{ fontFamily: 'Poppins' }}>OR</span>
+                <div className="flex-1 h-px bg-gray-300"></div>
               </div>
-            </button>
-          </div>
+
+              {/* Add from Task Library Button */}
+              <div className="max-w-md mx-auto mb-6">
+                <button
+                  onClick={() => navigate(`/quests/${questId}/library`)}
+                  disabled={loading}
+                  className="w-full p-4 sm:p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-xl transition-all text-left disabled:opacity-50 group min-h-[44px]"
+                >
+                  <div className="flex items-center gap-4">
+                    <BookOpenIcon className="w-8 h-8 sm:w-10 sm:h-10 text-blue-500 group-hover:scale-110 transition-transform flex-shrink-0" />
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-bold mb-1 group-hover:text-blue-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
+                        Add from Task Library
+                      </h3>
+                      <p className="text-gray-600 text-xs sm:text-sm" style={{ fontFamily: 'Poppins' }}>
+                        Browse tasks created by other students and add them to your quest
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
 
           {loading && (
             <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
@@ -411,7 +434,9 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             Personalize Your Tasks
           </h2>
           <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>
-            Select interests or diploma subjects to generate personalized tasks
+            {hideDiplomaSubjects
+              ? 'Pick interests and add any specific ideas to generate tasks'
+              : 'Select interests or diploma subjects to generate personalized tasks'}
           </p>
 
           {/* Interests */}
@@ -438,7 +463,11 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             </div>
           </div>
 
-          {/* Diploma Subjects with Circular Progress */}
+          {/* Diploma Subjects with Circular Progress.
+              Suppressed for LTI/Canvas iframe consumers — diploma credits
+              are an Optio-platform concept that doesn't translate to a
+              Canvas-graded assignment. */}
+          {!hideDiplomaSubjects && (
           <div className="mb-8">
             <h3 className="font-semibold text-lg mb-1" style={{ fontFamily: 'Poppins' }}>
               Diploma Credits (Optional)
@@ -536,6 +565,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               })}
             </div>
           </div>
+          )}
 
           {/* Additional Feedback */}
           <div className="mb-8">
@@ -630,6 +660,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               </p>
             </div>
 
+            {!hideDiplomaSubjects && (
             <div className="flex flex-col gap-3 pl-10 sm:pl-12">
               {/* Pillar Badge */}
               <div className="flex items-center gap-2">
@@ -659,6 +690,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* Action Buttons - 2 Column Layout */}

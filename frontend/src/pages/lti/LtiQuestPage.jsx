@@ -3,21 +3,30 @@
  *
  * Reached after a student clicks an Optio assignment in Canvas. The launch
  * handler resolves the quest_id, mints tokens, and redirects here. We
- * auto-enroll the student if not enrolled, surface the AI personalization
- * CTA until they have at least one task, then show tasks with simple
- * text-evidence inputs.
+ * auto-enroll the student if not enrolled, then open the SAME
+ * `QuestPersonalizationWizard` v1's QuestDetail page uses (single source of
+ * truth — see frontend/src/components/quests/QuestPersonalizationWizard.jsx).
  *
- * Quest auto-completes when all required tasks are done — at that point
- * the backend's atomic_quest_service triggers AGS grade sync to Canvas
- * and the student sees a "submitted to your teacher" state.
- *
- * Deliberately compact — the full QuestDetail page is too dense to embed
- * in a Canvas iframe and depends on Layout chrome we don't have here.
+ * Quest auto-completes when all required tasks are done — the backend's
+ * atomic_quest_service triggers AGS grade sync to Canvas at that point.
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../services/api'
+
+// Reuse v1's wizard. Lazy-loaded so the iframe payload stays small.
+const QuestPersonalizationWizard = lazy(() =>
+  import('../../components/quests/QuestPersonalizationWizard'),
+)
+
+function Spinner() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
+    </div>
+  )
+}
 
 export default function LtiQuestPage() {
   const { id: questId } = useParams()
@@ -25,6 +34,13 @@ export default function LtiQuestPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [enrollAttempted, setEnrollAttempted] = useState(false)
+  const [showWizard, setShowWizard] = useState(false)
+  // One-shot: only auto-open the wizard on the very first quest load.
+  // Without this, the auto-open useEffect re-fires when the wizard closes
+  // (because `showWizard` flipped to false but the refetched quest hasn't
+  // arrived yet, so hasTasks looks false), bouncing the user back to a
+  // fresh step 1.
+  const autoOpenedRef = useRef(false)
 
   const fetchQuest = useCallback(async () => {
     if (!questId) return
@@ -34,7 +50,10 @@ export default function LtiQuestPage() {
       setQuest(data.quest || data)
       setError(null)
     } catch (e) {
-      setError(e?.response?.data?.error || e?.message || 'Failed to load quest')
+      const raw = e?.response?.data?.error
+      const msg =
+        typeof raw === 'string' ? raw : raw?.message || e?.message || 'Failed to load quest'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -49,7 +68,8 @@ export default function LtiQuestPage() {
     if (!quest || enrollAttempted) return
     setEnrollAttempted(true)
     if (!quest.user_enrollment) {
-      api.post(`/api/quests/${questId}/enroll`, {})
+      api
+        .post(`/api/quests/${questId}/enroll`, {})
         .then(() => fetchQuest())
         .catch(() => {
           // Surfaces in error state on next fetch attempt
@@ -57,27 +77,27 @@ export default function LtiQuestPage() {
     }
   }, [quest, enrollAttempted, questId, fetchQuest])
 
-  const generateInitialTasks = async (interest) => {
-    // Start a personalization session, generate tasks, accept the first 3.
-    const session = await api.post(`/api/quests/${questId}/start-personalization`, {})
-    const sessionId = session.data?.session_id
-    if (!sessionId) throw new Error('Could not start personalization')
-
-    const generated = await api.post(`/api/quests/${questId}/generate-tasks`, {
-      session_id: sessionId,
-      approach: 'hybrid',
-      interests: interest ? [interest] : [],
-      cross_curricular_subjects: [],
-      exclude_tasks: [],
-    })
-    const tasks = generated.data?.tasks || generated.data?.generated_tasks || []
-    for (const task of tasks.slice(0, 3)) {
-      await api.post(`/api/quests/${questId}/personalization/accept-task`, {
-        session_id: sessionId,
-        task,
-      })
+  // Auto-open the personalization wizard the first time a student lands on
+  // an enrolled-but-empty quest. Mirrors v1 QuestDetail's first-run UX.
+  // Guarded by autoOpenedRef so closing the wizard never re-triggers it.
+  useEffect(() => {
+    if (!quest || autoOpenedRef.current) return
+    const hasTasks = (quest.quest_tasks || []).length > 0
+    const enrolled = !!quest.user_enrollment
+    const personalized = quest.user_enrollment?.personalization_completed
+    if (enrolled && !hasTasks && !personalized) {
+      autoOpenedRef.current = true
+      setShowWizard(true)
     }
+  }, [quest])
+
+  const handlePersonalizationComplete = async () => {
+    setShowWizard(false)
     await fetchQuest()
+  }
+
+  const handlePersonalizationCancel = () => {
+    setShowWizard(false)
   }
 
   const completeTaskWithText = async (taskId, evidenceText) => {
@@ -88,13 +108,58 @@ export default function LtiQuestPage() {
     await fetchQuest()
   }
 
-  if (loading || !quest) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-      </div>
-    )
+  const removeTask = async (taskId) => {
+    // Same endpoint v1's wizard uses (useQuestDetail.deleteTask). Removing
+    // a completed task also drops its XP from the threshold calculation,
+    // which is intentional — students can prune AI suggestions they don't
+    // want without keeping artificial XP credit.
+    await api.delete(`/api/tasks/${taskId}`)
+    await fetchQuest()
   }
+
+  const [submittingForGrade, setSubmittingForGrade] = useState(false)
+  const [submitGradeError, setSubmitGradeError] = useState(null)
+  const submitForGrading = async () => {
+    setSubmitGradeError(null)
+    setSubmittingForGrade(true)
+    try {
+      // /end is the canonical "I'm done with this quest" endpoint v1 also
+      // uses. Marks user_quests.completed_at + is_active=false, fires the
+      // LTI grade-sync hook which posts an AGS Score to Canvas/saLTIre.
+      await api.post(`/api/quests/${questId}/end`, {})
+      await fetchQuest()
+    } catch (e) {
+      const raw = e?.response?.data?.error
+      setSubmitGradeError(
+        typeof raw === 'string' ? raw : raw?.message || e?.message || 'Could not submit',
+      )
+    } finally {
+      setSubmittingForGrade(false)
+    }
+  }
+
+  const [reopening, setReopening] = useState(false)
+  const [reopenError, setReopenError] = useState(null)
+  const reopenQuest = async () => {
+    setReopenError(null)
+    setReopening(true)
+    try {
+      await api.post(`/api/quests/${questId}/reopen`, {})
+      await fetchQuest()
+    } catch (e) {
+      const raw = e?.response?.data?.error
+      setReopenError(
+        typeof raw === 'string' ? raw : raw?.message || e?.message || 'Could not reopen',
+      )
+    } finally {
+      setReopening(false)
+    }
+  }
+
+  // Only render the spinner on the very first load (when quest is still
+  // null). Subsequent refetches (after completing a task) keep the existing
+  // quest data on screen so the user doesn't see a full-page flash.
+  if (!quest) return <Spinner />
 
   if (error) {
     return (
@@ -107,7 +172,22 @@ export default function LtiQuestPage() {
   const tasks = quest.quest_tasks || []
   const completedCount = tasks.filter((t) => t.is_completed).length
   const allDone = tasks.length > 0 && completedCount === tasks.length
-  const submitted = !!quest.completed_enrollment && !quest.user_enrollment
+
+  // XP threshold + earned XP. xp_threshold is null when the teacher didn't
+  // set a target — in that case the submit button is gated only by "≥1 task
+  // complete". Otherwise the student has to clear the threshold to submit.
+  const xpThreshold = quest.xp_threshold || 0
+  const earnedXp = tasks
+    .filter((t) => t.is_completed)
+    .reduce((sum, t) => sum + (t.xp_value || t.xp_amount || 0), 0)
+  const xpMet = xpThreshold > 0 ? earnedXp >= xpThreshold : completedCount > 0
+  const xpPct = xpThreshold > 0 ? Math.min(100, (earnedXp / xpThreshold) * 100) : 0
+  const canSubmit = xpMet
+
+  // The API sets BOTH user_enrollment AND completed_enrollment when the quest
+  // has no active enrollment (back-compat for v1). So `completed_enrollment`
+  // alone is the signal that the student has submitted/finished.
+  const submitted = !!quest.completed_enrollment
 
   return (
     <div className="min-h-screen bg-gray-50 px-6 py-10">
@@ -120,15 +200,47 @@ export default function LtiQuestPage() {
         </div>
 
         {submitted ? (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="font-semibold text-gray-900">Submitted to your teacher</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Your teacher will see your evidence in Canvas SpeedGrader.
-              You can keep adding to your portfolio in Optio anytime.
-            </p>
+          <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+            <div>
+              <h2 className="font-semibold text-gray-900">Submitted to your teacher</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Your teacher will see your evidence in Canvas. You can keep
+                adding to your portfolio in Optio anytime.
+              </p>
+            </div>
+            {/* Reopen — for now student-initiated. The polling worker will
+                eventually flip this to "your teacher returned this; reopen
+                to revise" once Canvas-grade-state polling is wired into the
+                UI. */}
+            {reopenError && <p className="text-sm text-red-600">{reopenError}</p>}
+            <div className="flex justify-end">
+              <button
+                onClick={reopenQuest}
+                disabled={reopening}
+                className="text-sm px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {reopening ? 'Reopening…' : 'Reopen to revise'}
+              </button>
+            </div>
           </div>
         ) : tasks.length === 0 ? (
-          <PersonalizeCta onGenerate={generateInitialTasks} />
+          <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+            <div>
+              <h2 className="font-semibold text-gray-900">Plan your approach</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Optio's wizard will help you generate tasks tailored to your
+                interests.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowWizard(true)}
+                className="px-4 py-2 rounded-md bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium"
+              >
+                Open the wizard
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             {tasks.map((task) => (
@@ -136,102 +248,153 @@ export default function LtiQuestPage() {
                 key={task.id}
                 task={task}
                 onComplete={(text) => completeTaskWithText(task.id, text)}
+                onRemove={() => removeTask(task.id)}
               />
             ))}
-            {allDone && !submitted && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <p className="text-sm text-gray-600">
-                  All tasks complete — your submission is on its way to Canvas.
-                </p>
+            {(canSubmit || xpThreshold > 0) && !submitted && (
+              <div className="bg-white rounded-xl shadow-md p-6 space-y-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">
+                    {canSubmit ? 'Ready to submit?' : 'Keep going'}
+                  </h2>
+                  {xpThreshold > 0 ? (
+                    <>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Earn {xpThreshold} XP from your tasks to submit. Right
+                        now you have <strong>{earnedXp} / {xpThreshold} XP</strong>.
+                      </p>
+                      <div className="mt-3 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-optio-purple to-optio-pink transition-all"
+                          style={{ width: `${xpPct}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-sm text-gray-600">
+                      You've completed at least one task. Submit when you're
+                      ready — your teacher will review your evidence in Canvas.
+                    </p>
+                  )}
+                </div>
+                {submitGradeError && (
+                  <p className="text-sm text-red-600">{submitGradeError}</p>
+                )}
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  {/* Generate-more lives next to Submit so it's always visible
+                      when the student hasn't submitted yet — useful both for
+                      "I don't have enough XP" (threshold not met) and "I
+                      want to keep going" (threshold cleared but more interest). */}
+                  <button
+                    onClick={() => setShowWizard(true)}
+                    className="text-sm px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50"
+                  >
+                    Generate more tasks
+                  </button>
+                  <button
+                    onClick={submitForGrading}
+                    disabled={submittingForGrade || !canSubmit}
+                    className="px-4 py-2 rounded-md bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium disabled:opacity-50"
+                  >
+                    {submittingForGrade ? 'Submitting…' : 'Submit for grading'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
         )}
       </div>
+
+      {showWizard && (
+        <Suspense fallback={<Spinner />}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+              <QuestPersonalizationWizard
+                questId={quest.id}
+                questTitle={quest.title}
+                onComplete={handlePersonalizationComplete}
+                onCancel={handlePersonalizationCancel}
+                hideLibraryOption
+                hideDiplomaSubjects
+              />
+            </div>
+          </div>
+        </Suspense>
+      )}
     </div>
   )
 }
 
-function PersonalizeCta({ onGenerate }) {
-  const [interest, setInterest] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
-
-  const handle = async () => {
-    setErr(null)
-    setBusy(true)
-    try {
-      await onGenerate(interest.trim())
-    } catch (e) {
-      setErr(e?.response?.data?.error || e?.message || 'Could not generate tasks')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-      <div>
-        <h2 className="font-semibold text-gray-900">Plan your approach</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Tell Optio what you're into — sports, music, video games, code,
-          cooking, anything — and we'll generate tasks that connect this
-          assignment to it.
-        </p>
-      </div>
-      <input
-        type="text"
-        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-optio-purple"
-        placeholder="e.g. skateboarding, robotics, baking"
-        value={interest}
-        onChange={(e) => setInterest(e.target.value)}
-      />
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      <div className="flex justify-end">
-        <button
-          onClick={handle}
-          disabled={busy}
-          className="px-4 py-2 rounded-md bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium disabled:opacity-50"
-        >
-          {busy ? 'Generating…' : 'Generate tasks'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function TaskRow({ task, onComplete }) {
+function TaskRow({ task, onComplete, onRemove }) {
   const [evidence, setEvidence] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [err, setErr] = useState(null)
+  const [removing, setRemoving] = useState(false)
+
+  const handleRemove = async () => {
+    const warn = task.is_completed
+      ? `Remove "${task.title}"? You'll lose the ${task.xp_value} XP it earned.`
+      : `Remove "${task.title}"?`
+    if (!window.confirm(warn)) return
+    setRemoving(true)
+    try {
+      await onRemove()
+    } catch (e) {
+      const raw = e?.response?.data?.error
+      setErr(
+        typeof raw === 'string' ? raw : raw?.message || e?.message || 'Could not remove task',
+      )
+    } finally {
+      setRemoving(false)
+    }
+  }
 
   if (task.is_completed) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium text-gray-900">{task.title}</h3>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-            Completed
-          </span>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-medium text-gray-900 flex-1 min-w-0">{task.title}</h3>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+              Completed
+            </span>
+            <button
+              onClick={handleRemove}
+              disabled={removing}
+              title="Remove task"
+              className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
         </div>
         {task.description && (
           <p className="mt-1 text-sm text-gray-600">{task.description}</p>
         )}
+        {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
       </div>
     )
   }
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium text-gray-900">{task.title}</h3>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
-          {task.xp_value} XP
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-medium text-gray-900 flex-1 min-w-0">{task.title}</h3>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+            {task.xp_value} XP
+          </span>
+          <button
+            onClick={handleRemove}
+            disabled={removing}
+            title="Remove task"
+            className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50"
+          >
+            Remove
+          </button>
+        </div>
       </div>
-      {task.description && (
-        <p className="text-sm text-gray-600">{task.description}</p>
-      )}
+      {task.description && <p className="text-sm text-gray-600">{task.description}</p>}
       <textarea
         className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-optio-purple"
         rows={3}
@@ -249,7 +412,12 @@ function TaskRow({ task, onComplete }) {
             try {
               await onComplete(evidence.trim())
             } catch (e) {
-              setErr(e?.response?.data?.error || e?.message || 'Could not mark complete')
+              const raw = e?.response?.data?.error
+              setErr(
+                typeof raw === 'string'
+                  ? raw
+                  : raw?.message || e?.message || 'Could not mark complete',
+              )
             } finally {
               setSubmitting(false)
             }

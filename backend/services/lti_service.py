@@ -406,6 +406,53 @@ def request_service_token(registration: LtiRegistration, scopes: List[str]) -> s
     return token
 
 
+def get_ags_results(
+    registration: LtiRegistration,
+    line_item_url: str,
+    user_sub: Optional[str] = None,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """GET the AGS Results for a line item.
+
+    Per AGS spec: results are derived from the latest Score for each user.
+    Filtering by `user_id` returns 0..1 result for that specific user. Use
+    this when you need "what's the current Canvas-side score for this
+    student?" — that's the source of truth for Optio's XP credit gating.
+
+    Returns the list of result objects (each has userId, resultScore,
+    resultMaximum, scoreOf, etc.). Empty list if the student has no score
+    yet (teacher hasn't graded). Raises LtiError on transport failures.
+    """
+    token = request_service_token(
+        registration,
+        ["https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"],
+    )
+    results_url = line_item_url.rstrip("/") + "/results"
+    params = {"limit": limit}
+    if user_sub:
+        params["user_id"] = user_sub
+
+    response = requests.get(
+        results_url,
+        params=params,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.ims.lis.v2.resultcontainer+json",
+        },
+        timeout=15,
+    )
+    if not response.ok:
+        raise LtiError(
+            f"AGS results GET failed: {response.status_code} {response.text[:200]}"
+        )
+    body = response.json()
+    # AGS spec returns either a JSON array or {results: [...]} depending on
+    # platform. Normalize.
+    if isinstance(body, list):
+        return body
+    return body.get("results", []) or []
+
+
 def post_ags_score(
     registration: LtiRegistration,
     line_item_url: str,
@@ -471,10 +518,17 @@ def issue_auth_code(
     user_id: str,
     quest_id: Optional[str] = None,
     target_path: Optional[str] = None,
+    expires_in_seconds: int = 60,
 ) -> str:
-    """Mint a 60-second one-time code the iframe exchanges for Bearer tokens."""
+    """Mint a one-time code the iframe exchanges for Bearer tokens.
+
+    Default 60s TTL is enough for the immediate token exchange. Deep Linking
+    flows pass `expires_in_seconds=600` because the same row also stashes
+    the platform's deep-link settings — the teacher needs time to fill in
+    the form before /lti/deep-link/submit reads them back.
+    """
     code = secrets.token_urlsafe(32)
-    expires = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+    expires = (datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)).isoformat()
     # admin client justified: LTI handler runs pre-session — Canvas-signed id_token is the auth, not an Optio session, so RLS-bound user client isn't usable yet
     supabase = get_supabase_admin_client()
     supabase.table("lti_auth_codes").insert(
