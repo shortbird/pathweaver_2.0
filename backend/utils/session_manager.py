@@ -29,7 +29,7 @@ class SessionManager:
         self.token_version = Config.TOKEN_VERSION
 
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
-        self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
+        self.refresh_token_expiry = timedelta(days=Config.REFRESH_TOKEN_EXPIRY_DAYS)
         self.masquerade_token_expiry = timedelta(hours=1)  # Masquerade sessions expire faster
         self.acting_as_token_expiry = timedelta(hours=24)  # Acting as dependent sessions (longer for parents)
 

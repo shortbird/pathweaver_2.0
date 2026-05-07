@@ -181,7 +181,16 @@ class Config:
     # by bumping this string.
     TOKEN_VERSION = os.getenv('TOKEN_VERSION', 'v1')
     # Session lifetime for app-issued access tokens (in hours).
-    SESSION_TIMEOUT_HOURS = int(os.getenv('SESSION_TIMEOUT_HOURS', '24'))
+    # Sliding: refreshing a token re-stamps `iat`, so an active user's clock
+    # restarts on every refresh. The cap only bites when a user is gone for
+    # this long without opening the app. Bumped from 24h -> 30d so users
+    # (especially iOS, where Safari ITP is harsher on long-tail returners)
+    # don't get bounced through full Google/2FA SSO when they come back.
+    SESSION_TIMEOUT_HOURS = int(os.getenv('SESSION_TIMEOUT_HOURS', '720'))
+    # Refresh-token cookie lifetime (days). Drives both the JWT `exp` and the
+    # Set-Cookie `Max-Age`. Must be <= SESSION_TIMEOUT_HOURS / 24 or the
+    # session-timeout check will reject the cookie before it expires.
+    REFRESH_TOKEN_EXPIRY_DAYS = int(os.getenv('REFRESH_TOKEN_EXPIRY_DAYS', '30'))
     # Optional override for absolute backend URL (used when constructing
     # callback links from a worker context with no request).
     BACKEND_URL = os.getenv('BACKEND_URL', '')

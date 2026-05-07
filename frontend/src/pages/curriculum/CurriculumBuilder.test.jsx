@@ -39,7 +39,6 @@ vi.mock('@heroicons/react/24/outline', () => ({
   EyeIcon: (props) => <svg data-testid="eye-icon" {...props} />,
   CheckCircleIcon: (props) => <svg data-testid="check-icon" {...props} />,
   ExclamationCircleIcon: (props) => <svg data-testid="exclamation-icon" {...props} />,
-  ChevronLeftIcon: (props) => <svg data-testid="chevron-left" {...props} />,
   DocumentTextIcon: (props) => <svg data-testid="doc-icon" {...props} />,
   GlobeAltIcon: (props) => <svg data-testid="globe-icon" {...props} />,
   EyeSlashIcon: (props) => <svg data-testid="eye-slash-icon" {...props} />
@@ -150,13 +149,6 @@ describe('CurriculumBuilder', () => {
       renderBuilder()
       await waitFor(() => {
         expect(screen.getByText('Editing: Getting Started')).toBeInTheDocument()
-      })
-    })
-
-    it('renders back button', async () => {
-      renderBuilder()
-      await waitFor(() => {
-        expect(screen.getByLabelText('Go back')).toBeInTheDocument()
       })
     })
 

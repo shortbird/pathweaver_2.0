@@ -7,7 +7,6 @@ import ActivityTimeline from '../../components/parent/ActivityTimeline';
 import toast from 'react-hot-toast';
 import {
   ArrowDownTrayIcon,
-  ArrowLeftIcon,
   CalendarIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -129,12 +128,6 @@ export default function DependentProgressReport() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate(-1)}
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-              >
-                <ArrowLeftIcon className="h-6 w-6" />
-              </button>
               <div>
                 <h1 className="text-3xl font-bold">
                   {`${student?.first_name || ''} ${student?.last_name || ''}`.trim() || student?.display_name || 'Student'}'s Progress Report

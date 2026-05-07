@@ -3,7 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { observerAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { FeedCard } from '../components/observer';
+import { FeedCard, ObserverTipsModal } from '../components/observer';
 import {
   UsersIcon,
   SparklesIcon,
@@ -25,11 +25,17 @@ export default function ObserverFeedPage() {
   const [feedLoading, setFeedLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [nextCursor, setNextCursor] = useState(null);
+  const [tipsOpen, setTipsOpen] = useState(false);
+  const isObserverRole = user?.role === 'observer';
 
   const observerRef = useRef(null);
   const loadMoreRef = useRef(null);
+  // Survives React.StrictMode's double-effect on mount so we don't double-fetch.
+  const didInitRef = useRef(false);
 
   useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
     // If coming from a fresh invitation, add initial delay to allow DB commit to complete
     if (freshInvitation) {
       console.log('[ObserverFeedPage] Fresh invitation detected, delaying initial fetch');
@@ -169,15 +175,14 @@ export default function ObserverFeedPage() {
     }
   }, [selectedStudentId, hasMore, nextCursor]);
 
-  // Track if this is the initial mount to avoid double-fetching
-  const isInitialMountRef = useRef(true);
+  // Track the last studentId we actually fetched for. Compare-by-value so
+  // React.StrictMode's effect replay (same selectedStudentId) doesn't refetch.
+  const lastFetchedStudentIdRef = useRef(null);
 
-  // Reset feed when student filter changes (skip initial mount - handled by fetchMyStudents)
+  // Reset feed when student filter changes (initial load is handled by fetchMyStudents)
   useEffect(() => {
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      return;
-    }
+    if (lastFetchedStudentIdRef.current === selectedStudentId) return;
+    lastFetchedStudentIdRef.current = selectedStudentId;
     setFeedItems([]);
     setNextCursor(null);
     setHasMore(true);
@@ -219,18 +224,30 @@ export default function ObserverFeedPage() {
 
   if (students.length === 0) {
     return (
-      <div className="flex items-center justify-center p-4 mt-8 sm:mt-16">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-5 sm:p-8 text-center">
-          <UsersIcon className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-3 sm:mb-4" />
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Students Linked Yet</h2>
-          <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-            You haven't been linked to any students yet. Ask a student or their parent to share an observer invitation link with you so you can follow their learning journey.
-          </p>
-          <p className="text-xs sm:text-sm text-gray-500">
-            Once connected, you'll see student activity and achievements here.
-          </p>
+      <>
+        <div className="flex items-center justify-center p-4 mt-8 sm:mt-16">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-5 sm:p-8 text-center">
+            <UsersIcon className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-3 sm:mb-4" />
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Students Linked Yet</h2>
+            <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
+              You haven't been linked to any students yet. Ask a student or their parent to share an observer invitation link with you so you can follow their learning journey.
+            </p>
+            <p className="text-xs sm:text-sm text-gray-500 mb-4 sm:mb-6">
+              Once connected, you'll see student activity and achievements here.
+            </p>
+            {isObserverRole && (
+              <button
+                onClick={() => setTipsOpen(true)}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-optio-purple hover:text-optio-pink transition-colors"
+              >
+                <SparklesIcon className="w-4 h-4" />
+                Tips for observers
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+        <ObserverTipsModal isOpen={tipsOpen} onClose={() => setTipsOpen(false)} />
+      </>
     );
   }
 
@@ -265,17 +282,29 @@ export default function ObserverFeedPage() {
             <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
           </div>
 
-          <div>
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-              {selectedStudentId
-                ? `${`${selectedStudent?.student?.first_name || ''} ${selectedStudent?.student?.last_name || ''}`.trim() || selectedStudent?.student?.display_name || 'Student'}'s Activity`
-                : 'Recent Activity'}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {selectedStudentId
-                ? 'Tasks completed and learning moments captured'
-                : `Activity from all ${students.length} linked students`}
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+                {selectedStudentId
+                  ? `${`${selectedStudent?.student?.first_name || ''} ${selectedStudent?.student?.last_name || ''}`.trim() || selectedStudent?.student?.display_name || 'Student'}'s Activity`
+                  : 'Recent Activity'}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {selectedStudentId
+                  ? 'Tasks completed and learning moments captured'
+                  : `Activity from all ${students.length} linked students`}
+              </p>
+            </div>
+            {isObserverRole && (
+              <button
+                onClick={() => setTipsOpen(true)}
+                className="flex-shrink-0 inline-flex items-center gap-1 text-sm font-medium text-optio-purple hover:text-optio-pink transition-colors"
+                aria-label="Open tips for observers"
+              >
+                <SparklesIcon className="w-4 h-4" />
+                Tips
+              </button>
+            )}
           </div>
         </div>
 
@@ -319,6 +348,7 @@ export default function ObserverFeedPage() {
           )}
         </div>
       </div>
+      <ObserverTipsModal isOpen={tipsOpen} onClose={() => setTipsOpen(false)} />
     </div>
   );
 }

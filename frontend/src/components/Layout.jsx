@@ -50,8 +50,9 @@ const Layout = () => {
     }
   }
 
-  // Show sidebar for all authenticated users (removed hub page restriction)
-  const shouldShowSidebar = isAuthenticated
+  // Show sidebar for all authenticated users except observers
+  // (observers only need /observer/feed; other nav items confuse them)
+  const shouldShowSidebar = isAuthenticated && effectiveRole !== 'observer'
 
   // Accreditors get a bare layout -- no sidebar, navbar, or footer
   if (effectiveRole === 'accreditor') {
