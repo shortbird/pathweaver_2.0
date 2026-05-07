@@ -179,32 +179,18 @@ export default function ObserverWelcomePage() {
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
           <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">What You Can Do</h2>
 
-          <div className="grid grid-cols-2 gap-2 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
             <div className="bg-purple-50 rounded-lg p-3 sm:p-4">
-              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">Leave Comments</h3>
+              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">View Feed</h3>
               <p className="text-gray-700 text-xs sm:text-sm">
-                Share encouraging words and celebrate their work
+                See their recent completions and learning moments
               </p>
             </div>
 
             <div className="bg-pink-50 rounded-lg p-3 sm:p-4">
-              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">React</h3>
+              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">Leave Comments</h3>
               <p className="text-gray-700 text-xs sm:text-sm">
-                Use emoji reactions to show you're following along
-              </p>
-            </div>
-
-            <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
-              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">View Feed</h3>
-              <p className="text-gray-700 text-xs sm:text-sm">
-                See their recent completions and milestones
-              </p>
-            </div>
-
-            <div className="bg-green-50 rounded-lg p-3 sm:p-4">
-              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">Stay Updated</h3>
-              <p className="text-gray-700 text-xs sm:text-sm">
-                Get email digests of their progress
+                Share encouraging words and celebrate their work
               </p>
             </div>
           </div>

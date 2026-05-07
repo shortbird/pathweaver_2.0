@@ -4,43 +4,33 @@ import SkillsRadarChart from '../diploma/SkillsRadarChart';
 import {
   getAllCreditProgress,
   calculateTotalCredits,
-  TOTAL_CREDITS_REQUIRED,
-  meetsGraduationRequirements
+  TOTAL_CREDITS_REQUIRED
 } from '../../utils/creditRequirements';
 
 // Subject progress row with full name.
 //
-// "Pending accreditation" credits are Optio-approved but not yet confirmed by
-// the accreditor; we render them as a yellow band that sits between the
-// confirmed (green/purple) and pending-Optio-review (amber) segments. They
-// are NOT counted toward `creditsEarned` so the green bar reflects only
-// fully-accredited credits.
-const SubjectProgressRow = ({ credit, pendingCredits = 0, pendingAccreditationCredits = 0 }) => {
+// Two student-facing states:
+//   - Approved (purple): fully reviewed and officially on the diploma
+//   - Pending Approval (yellow): requested but not yet fully approved.
+//     This rolls up both internal admin states (awaiting Optio review and
+//     awaiting accreditor confirmation), since neither is on the diploma yet.
+const SubjectProgressRow = ({ credit, pendingCredits = 0 }) => {
   const earnedPct = Math.min(credit.progressPercentage, 100);
-  const earnedPlusAccPct = Math.min(
-    ((credit.creditsEarned + pendingAccreditationCredits) / credit.creditsRequired) * 100,
-    100
-  );
   const totalPct = Math.min(
-    ((credit.creditsEarned + pendingAccreditationCredits + pendingCredits) / credit.creditsRequired) * 100,
+    ((credit.creditsEarned + pendingCredits) / credit.creditsRequired) * 100,
     100
   );
-  const hasPendingAccreditation = pendingAccreditationCredits > 0;
   const hasPending = pendingCredits > 0;
 
   return (
     <div className="flex items-center gap-3">
       {/* Status indicator */}
       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-        credit.isComplete
-          ? 'bg-green-500'
-          : credit.creditsEarned > 0
-            ? 'bg-optio-purple'
-            : hasPendingAccreditation
-              ? 'bg-yellow-400'
-              : hasPending
-                ? 'bg-amber-400'
-                : 'bg-gray-300'
+        credit.creditsEarned > 0
+          ? 'bg-optio-purple'
+          : hasPending
+            ? 'bg-yellow-400'
+            : 'bg-gray-300'
       }`} />
 
       {/* Subject name */}
@@ -48,24 +38,16 @@ const SubjectProgressRow = ({ credit, pendingCredits = 0, pendingAccreditationCr
         {credit.displayName}
       </span>
 
-      {/* Progress bar — back-to-front: amber (pending Optio) → yellow (pending accreditation) → green/purple (confirmed) */}
+      {/* Progress bar — back-to-front: yellow (pending) → purple (approved) */}
       <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden relative">
         {hasPending && (
           <div
-            className="absolute inset-y-0 left-0 bg-amber-300 rounded-full"
+            className="absolute inset-y-0 left-0 bg-yellow-400 rounded-full"
             style={{ width: `${totalPct}%` }}
           />
         )}
-        {hasPendingAccreditation && (
-          <div
-            className="absolute inset-y-0 left-0 bg-yellow-400 rounded-full"
-            style={{ width: `${earnedPlusAccPct}%` }}
-          />
-        )}
         <div
-          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
-            credit.isComplete ? 'bg-green-500' : 'bg-optio-purple'
-          }`}
+          className="absolute inset-y-0 left-0 rounded-full bg-optio-purple transition-all duration-500"
           style={{ width: `${earnedPct}%` }}
         />
       </div>
@@ -73,11 +55,8 @@ const SubjectProgressRow = ({ credit, pendingCredits = 0, pendingAccreditationCr
       {/* Credits */}
       <span className="text-xs text-gray-500 w-16 text-right flex-shrink-0 whitespace-nowrap">
         {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
-        {hasPendingAccreditation && (
-          <span className="text-yellow-600 ml-1">+{pendingAccreditationCredits.toFixed(1)}</span>
-        )}
         {hasPending && (
-          <span className="text-amber-600 ml-1">+{pendingCredits.toFixed(1)}</span>
+          <span className="text-yellow-600 ml-1">+{pendingCredits.toFixed(1)}</span>
         )}
       </span>
     </div>
@@ -95,7 +74,8 @@ const SkillsGrowth = ({
 }) => {
   // `subjectXp` from the API includes XP that Optio approved but the
   // accreditor has not yet confirmed (it's already in user_subject_xp.xp_amount).
-  // Subtract that out so the green/verified bar reflects only confirmed credits.
+  // Subtract that out so the approved (purple) bar reflects only credits that
+  // are officially on the diploma.
   const confirmedSubjectXp = Object.keys(subjectXp).reduce((acc, key) => {
     const verified = subjectXp[key] || 0;
     const pendingAcc = pendingAccreditationSubjectXp[key] || 0;
@@ -103,22 +83,21 @@ const SkillsGrowth = ({
     return acc;
   }, {});
 
-  const totalCreditsEarned = calculateTotalCredits(confirmedSubjectXp);
-  const meetsRequirements = meetsGraduationRequirements(confirmedSubjectXp);
-  const creditProgress = getAllCreditProgress(confirmedSubjectXp);
-
-  const pendingCreditProgress = getAllCreditProgress(pendingSubjectXp);
-  const totalPendingCredits = calculateTotalCredits(pendingSubjectXp);
-  const hasPendingCredits = totalPendingCredits > 0;
-  const pendingBySubject = pendingCreditProgress.reduce((acc, p) => {
-    acc[p.subject] = p.creditsEarned;
+  // Roll up both internal pending states (awaiting Optio review + awaiting
+  // accreditor confirmation) into a single "Pending Approval" bucket — the
+  // student doesn't need to see backend admin queue states.
+  const pendingApprovalSubjectXp = Object.keys({ ...pendingSubjectXp, ...pendingAccreditationSubjectXp }).reduce((acc, key) => {
+    acc[key] = (pendingSubjectXp[key] || 0) + (pendingAccreditationSubjectXp[key] || 0);
     return acc;
   }, {});
 
-  const pendingAccreditationCreditProgress = getAllCreditProgress(pendingAccreditationSubjectXp);
-  const totalPendingAccreditationCredits = calculateTotalCredits(pendingAccreditationSubjectXp);
-  const hasPendingAccreditationCredits = totalPendingAccreditationCredits > 0;
-  const pendingAccreditationBySubject = pendingAccreditationCreditProgress.reduce((acc, p) => {
+  const totalCreditsEarned = calculateTotalCredits(confirmedSubjectXp);
+  const creditProgress = getAllCreditProgress(confirmedSubjectXp);
+
+  const pendingCreditProgress = getAllCreditProgress(pendingApprovalSubjectXp);
+  const totalPendingCredits = calculateTotalCredits(pendingApprovalSubjectXp);
+  const hasPendingCredits = totalPendingCredits > 0;
+  const pendingBySubject = pendingCreditProgress.reduce((acc, p) => {
     acc[p.subject] = p.creditsEarned;
     return acc;
   }, {});
@@ -162,75 +141,39 @@ const SkillsGrowth = ({
             <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-4">Diploma Credits</h3>
 
             {/* Overall Progress Bar */}
-            <div className={`p-4 rounded-lg mb-4 ${
-              meetsRequirements
-                ? 'bg-green-50 border border-green-200'
-                : 'bg-blue-50 border border-blue-200'
-            }`}>
+            <div className="p-4 rounded-lg mb-4 bg-blue-50 border border-blue-200">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-semibold text-gray-800">
                   {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
                 </span>
-                <span className={`text-xs font-medium ${
-                  meetsRequirements ? 'text-green-600' : 'text-blue-600'
-                }`}>
+                <span className="text-xs font-medium text-blue-600">
                   {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}%
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
                 {hasPendingCredits && (
                   <div
-                    className="absolute inset-y-0 left-0 bg-amber-300 rounded-full"
-                    style={{
-                      width: `${Math.min(((totalCreditsEarned + totalPendingAccreditationCredits + totalPendingCredits) / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
-                    }}
-                  ></div>
-                )}
-                {hasPendingAccreditationCredits && (
-                  <div
                     className="absolute inset-y-0 left-0 bg-yellow-400 rounded-full"
                     style={{
-                      width: `${Math.min(((totalCreditsEarned + totalPendingAccreditationCredits) / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
+                      width: `${Math.min(((totalCreditsEarned + totalPendingCredits) / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
                     }}
                   ></div>
                 )}
                 <div
-                  className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
-                    meetsRequirements
-                      ? 'bg-gradient-to-r from-green-400 to-green-600'
-                      : 'bg-gradient-to-r from-optio-purple to-optio-pink'
-                  }`}
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink transition-all duration-500"
                   style={{
                     width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
                   }}
                 ></div>
               </div>
-              {hasPendingAccreditationCredits && (
-                <div className="mt-2 flex items-center gap-1 text-yellow-700">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-xs font-medium">
-                    +{totalPendingAccreditationCredits.toFixed(1)} awaiting accreditation
-                  </span>
-                </div>
-              )}
               {hasPendingCredits && (
-                <div className="mt-2 flex items-center gap-1 text-amber-600">
+                <div className="mt-2 flex items-center gap-1 text-yellow-700">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span className="text-xs font-medium">
-                    +{totalPendingCredits.toFixed(1)} pending finalization
+                    +{totalPendingCredits.toFixed(1)} pending approval
                   </span>
-                </div>
-              )}
-              {meetsRequirements && (
-                <div className="mt-2 flex items-center gap-1 text-green-700">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs font-medium">Meets graduation requirements</span>
                 </div>
               )}
             </div>
@@ -242,7 +185,6 @@ const SkillsGrowth = ({
                   key={credit.subject}
                   credit={credit}
                   pendingCredits={pendingBySubject[credit.subject] || 0}
-                  pendingAccreditationCredits={pendingAccreditationBySubject[credit.subject] || 0}
                 />
               ))}
             </div>

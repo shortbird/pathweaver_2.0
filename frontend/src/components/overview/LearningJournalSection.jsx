@@ -110,6 +110,9 @@ const LearningJournalSection = ({
         if (viewMode === 'parent' && studentId) {
           response = await api.get(`/api/parent/children/${studentId}/learning-moments?limit=${limit}`);
           setMoments(response.data.moments || []);
+        } else if (viewMode === 'observer' && studentId) {
+          response = await api.get(`/api/observers/student/${studentId}/learning-moments?limit=${limit}`);
+          setMoments(response.data.moments || []);
         } else {
           response = await api.get(`/api/learning-events?limit=${limit}`);
           setMoments(response.data.events || []);

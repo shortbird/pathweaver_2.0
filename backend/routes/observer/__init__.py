@@ -39,6 +39,7 @@ from . import social
 from . import family
 from . import pending
 from . import sharing
+from . import learning_moments
 
 # Register all routes
 student_invitations.register_routes(bp)
@@ -52,3 +53,4 @@ social.register_routes(bp)
 family.register_routes(bp)
 pending.register_routes(bp)
 sharing.register_routes(bp)
+learning_moments.register_routes(bp)

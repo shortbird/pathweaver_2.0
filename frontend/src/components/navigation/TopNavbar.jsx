@@ -4,13 +4,14 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
 import NotificationBell from '../notifications/NotificationBell'
+import BackButton from './BackButton'
 // import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const navRef = useRef(null)
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout, isAuthenticated } = useAuth()
+  const { user, logout, isAuthenticated, effectiveRole } = useAuth()
   const { organization } = useOrganization()
   const { actingAsDependent, parentName } = useActingAs()
 
@@ -76,6 +77,11 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 </svg>
               </button>
             )}
+
+            {/* Back Button — hidden on tab-root pages, visible on every leaf
+                route. Helps iOS users who don't have Safari chrome (PWA) and
+                find edge-swipe unintuitive. */}
+            <BackButton />
 
             {/* Logo - Shows both Organization and Optio */}
             <Link to="/" className="flex items-center gap-3">
@@ -145,7 +151,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
 
                 {/* User Name - Show dependent's name when acting as them */}
                 <Link
-                  to="/overview"
+                  to={effectiveRole === 'observer' ? '/observer/feed' : '/overview'}
                   className="hidden sm:block text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
                 >
                   {actingAsDependent ? (`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name) : `${user?.first_name} ${user?.last_name}`}
