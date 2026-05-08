@@ -94,7 +94,11 @@ const LoginPage = () => {
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
     const displayName = user.first_name || user.display_name || user.email || 'User'
     const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+    // Marketing accounts (can_view_showcase=true and not actively a student/parent/etc.)
+    // get bounced straight to the showcase page on login.
+    const showcaseOnly = user.can_view_showcase === true && user.role === 'student' && !user.has_dependents && !user.has_linked_students
     const defaultPath = user.role === 'superadmin' ? '/parent/dashboard'
+      : showcaseOnly ? '/showcase'
       : user.role === 'parent' ? '/parent/dashboard'
       : user.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
       : '/dashboard'
