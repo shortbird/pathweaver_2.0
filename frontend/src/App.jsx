@@ -33,6 +33,7 @@ import OrgLoginPage from './pages/auth/OrgLoginPage'
 import RegisterPage from './pages/RegisterPage'
 import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
+import ShowcaseRoute from './components/ShowcaseRoute'
 
 // Lazy-loaded pages for code splitting
 // Auth-related pages (less frequently accessed)
@@ -62,6 +63,7 @@ const StudentOverviewPage = lazy(() => import('./pages/StudentOverviewPage'))
 const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
 // Admin & Special Pages
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const ShowcasePage = lazy(() => import('./pages/ShowcasePage'))
 const MobileDemoPage = lazy(() => import('./pages/MobileDemoPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
@@ -475,6 +477,11 @@ function App() {
                 <Route path="admin/*" element={<AdminPage />} />
                 <Route path="course-plan" element={<CoursePlanMode />} />
                 <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
+              </Route>
+
+              {/* Marketing showcase: superadmin or users.can_view_showcase=true */}
+              <Route element={<ShowcaseRoute />}>
+                <Route path="showcase" element={<ShowcasePage />} />
               </Route>
 
               {/* Organization Management - accessible to org admins and platform admins */}

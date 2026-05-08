@@ -25,6 +25,7 @@ import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureB
 import QuestForm from '../components/admin/QuestForm';
 import FamilyQuestChildSelector from '../components/parent/FamilyQuestChildSelector';
 import FamilyQuestIdeaGenerator from '../components/parent/FamilyQuestIdeaGenerator';
+import ShowcaseFamilySection from '../components/parent/ShowcaseFamilySection';
 
 const ParentDashboardPage = () => {
   const { user, refreshUser } = useAuth();
@@ -598,6 +599,13 @@ const ParentDashboardPage = () => {
             setShowChildSelector(true);
           }}
         />
+      )}
+
+      {/* Optio Showcase — full-width section at the bottom (May 2026) */}
+      {(children.length > 0 || dependents.length > 0) && (
+        <div className="mt-8">
+          <ShowcaseFamilySection students={[...children, ...dependents]} />
+        </div>
       )}
 
       <FamilyQuestChildSelector

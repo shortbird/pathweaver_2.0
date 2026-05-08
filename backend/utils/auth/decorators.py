@@ -449,6 +449,50 @@ def require_superadmin(f):
     return decorated_function
 
 
+def require_showcase_access(f):
+    """
+    Decorator for the marketing-showcase surface.
+
+    Allows access if the user is superadmin OR has users.can_view_showcase=true.
+    Looks up the actual admin identity (not masquerade target) so masquerading
+    cannot grant showcase access.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return ('', 200)
+
+        user_id = session_manager.get_actual_admin_id()
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+
+        request.user_id = user_id
+
+        from database import get_supabase_admin_client
+        # admin client justified: auth utility — reads user identity/permissions to make the access-control decision itself
+        supabase = get_supabase_admin_client()
+
+        try:
+            user = supabase.table('users').select('role, can_view_showcase').eq('id', user_id).execute()
+
+            if not user.data or len(user.data) == 0:
+                raise AuthorizationError('User not found')
+
+            row = user.data[0]
+            if row.get('role') == 'superadmin' or row.get('can_view_showcase') is True:
+                return f(user_id, *args, **kwargs)
+
+            raise AuthorizationError('Showcase access required')
+
+        except (AuthenticationError, AuthorizationError):
+            raise
+        except Exception as e:
+            logger.error(f"Error verifying showcase access: {str(e)}")
+            raise AuthorizationError('Failed to verify showcase access')
+
+    return decorated_function
+
+
 def require_school_admin(f):
     """
     Decorator to require org_admin or superadmin access for routes.

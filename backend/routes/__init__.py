@@ -309,4 +309,11 @@ def register_all(app):
     from routes.evidence_reports import bp as evidence_reports_bp
     app.register_blueprint(evidence_reports_bp)
 
+    # ── Marketing showcase ────────────────────────────────────────────────────
+    from routes import showcase as showcase_routes
+    app.register_blueprint(showcase_routes.bp)
+
+    from routes.admin import showcase_consent as admin_showcase_consent
+    app.register_blueprint(admin_showcase_consent.bp)
+
     logger.info("All route blueprints registered")
