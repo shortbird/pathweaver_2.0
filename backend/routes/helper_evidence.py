@@ -290,6 +290,91 @@ def _create_helper_learning_event(supabase, student_id, uploader_id, uploader_ro
     logger.info(f"Created learning event {event_id} for helper evidence (quest={quest_id}, student={student_id})")
 
 
+@bp.route('/blocks/<block_id>', methods=['DELETE'])
+@require_auth
+def delete_helper_evidence_block(user_id, block_id):
+    """
+    Parent removes an evidence block they previously uploaded for a student.
+
+    Authorization: caller must be the original uploader (uploaded_by_user_id == user_id)
+    AND the block must have been uploaded as a parent (uploaded_by_role == 'parent').
+    Parent->student relationship is re-verified to defend against stale links.
+
+    Cleans up associated storage files and the parent document if it becomes empty.
+    """
+    try:
+        # admin client justified: cross-user delete on student's evidence document; gated by uploader-identity check + parent->child relationship verification
+        supabase = get_supabase_admin_client()
+
+        block_result = supabase.table('evidence_document_blocks') \
+            .select('id, document_id, content, block_type, uploaded_by_user_id, uploaded_by_role') \
+            .eq('id', block_id) \
+            .execute()
+
+        if not block_result.data:
+            raise NotFoundError("Evidence block not found")
+
+        block = block_result.data[0]
+
+        if block.get('uploaded_by_role') != 'parent' or block.get('uploaded_by_user_id') != user_id:
+            raise AuthorizationError("You can only remove evidence you uploaded")
+
+        document_id = block['document_id']
+
+        doc_result = supabase.table('user_task_evidence_documents') \
+            .select('id, user_id') \
+            .eq('id', document_id) \
+            .execute()
+
+        if not doc_result.data:
+            raise NotFoundError("Evidence document not found")
+
+        student_id = doc_result.data[0]['user_id']
+
+        # Re-verify parent role + parent->student link (defense in depth)
+        verify_parent_access(user_id, student_id)
+
+        # Best-effort storage cleanup; reuse helpers from evidence_documents to avoid drift
+        from routes.evidence_documents import _collect_file_urls_from_content, _delete_storage_file
+        for url in _collect_file_urls_from_content(block.get('content') or {}):
+            _delete_storage_file(supabase, url)
+
+        supabase.table('evidence_document_blocks') \
+            .delete() \
+            .eq('id', block_id) \
+            .execute()
+
+        remaining = supabase.table('evidence_document_blocks') \
+            .select('id') \
+            .eq('document_id', document_id) \
+            .limit(1) \
+            .execute()
+
+        document_empty = not remaining.data
+        if document_empty:
+            supabase.table('user_task_evidence_documents') \
+                .delete() \
+                .eq('id', document_id) \
+                .execute()
+
+        logger.info(f"Parent {user_id} removed evidence block {block_id} for student {student_id}")
+
+        return jsonify({
+            'success': True,
+            'document_empty': document_empty
+        }), 200
+
+    except ValidationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except NotFoundError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error deleting helper evidence block: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to remove evidence'}), 500
+
+
 @bp.route('/student-tasks/<student_id>', methods=['GET'])
 @require_auth
 def get_student_tasks_for_evidence(user_id, student_id):
