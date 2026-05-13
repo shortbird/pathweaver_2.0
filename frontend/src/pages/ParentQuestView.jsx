@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { parentAPI } from '../services/api';
+import { parentAPI, helperEvidenceAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import {
   ArrowLeftIcon,
@@ -19,12 +20,14 @@ import { submitHelperEvidence } from '../components/evidence/helperEvidenceUtils
 const ParentQuestView = () => {
   const { studentId, questId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [questData, setQuestData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
   const [evidenceModalTaskId, setEvidenceModalTaskId] = useState(null);
+  const [deletingBlockId, setDeletingBlockId] = useState(null);
 
   const loadQuestData = async () => {
     try {
@@ -48,6 +51,28 @@ const ParentQuestView = () => {
   const handleOpenEvidenceModal = (taskId) => {
     setEvidenceModalTaskId(taskId);
     setEvidenceModalOpen(true);
+  };
+
+  const canDeleteBlock = (block) =>
+    !!user?.id &&
+    block?.uploaded_by_role === 'parent' &&
+    block?.uploaded_by_user_id === user.id;
+
+  const handleDeleteBlock = async (block) => {
+    if (!block?.id || deletingBlockId) return;
+    if (!window.confirm('Remove this evidence? This cannot be undone.')) return;
+
+    try {
+      setDeletingBlockId(block.id);
+      await helperEvidenceAPI.deleteBlock(block.id);
+      toast.success('Evidence removed');
+      await loadQuestData();
+    } catch (err) {
+      console.error('Error removing evidence:', err);
+      toast.error(err.response?.data?.error || 'Failed to remove evidence');
+    } finally {
+      setDeletingBlockId(null);
+    }
   };
 
   const handleSaveHelperEvidence = async (newItems) => {
@@ -203,10 +228,15 @@ const ParentQuestView = () => {
 
                         {hasEvidence && !isExpanded && (
                           <div className="flex items-center gap-2 mt-2">
-                            <span className="inline-flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedTaskId(task.id)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded-full transition-colors"
+                              style={{ fontFamily: 'Poppins, sans-serif' }}
+                            >
                               <PhotoIcon className="w-3 h-3" />
-                              Evidence attached
-                            </span>
+                              View evidence
+                            </button>
                           </div>
                         )}
                       </div>
@@ -221,7 +251,7 @@ const ParentQuestView = () => {
                         }`}
                         style={{ fontFamily: 'Poppins, sans-serif' }}
                       >
-                        {isExpanded ? 'Close' : '+ Add Evidence'}
+                        {isExpanded ? 'Close' : hasEvidence ? 'View / Add Evidence' : '+ Add Evidence'}
                       </button>
                     </div>
                   </div>
@@ -243,6 +273,8 @@ const ParentQuestView = () => {
                               evidence_url: task.evidence_url
                             }}
                             displayMode="full"
+                            canDeleteBlock={canDeleteBlock}
+                            onDeleteBlock={handleDeleteBlock}
                           />
                         </div>
                       )}

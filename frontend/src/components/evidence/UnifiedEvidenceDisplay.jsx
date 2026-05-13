@@ -29,7 +29,9 @@ const UnifiedEvidenceDisplay = ({
   displayMode = 'full',
   showMetadata = false,
   allowPrivateBlocks = false,
-  viewerUserId = null
+  viewerUserId = null,
+  canDeleteBlock = null,
+  onDeleteBlock = null
 }) => {
   const [expandedBlocks, setExpandedBlocks] = useState(new Set());
   const [studentName, setStudentName] = useState('This student');
@@ -140,12 +142,31 @@ const UnifiedEvidenceDisplay = ({
             const key = block.id || `block-${index}`;
 
             // Uploader badge component (shown for non-student uploads)
-            const uploaderBadge = block.uploaded_by_role && block.uploaded_by_role !== 'student' && block.uploaded_by_name && (
-              <div className="mb-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Added by {block.uploaded_by_name} ({block.uploaded_by_role === 'advisor' ? 'Advisor' : 'Parent'})
+            const showUploader = block.uploaded_by_role && block.uploaded_by_role !== 'student' && block.uploaded_by_name;
+            const showDelete = !!(onDeleteBlock && canDeleteBlock && canDeleteBlock(block));
+            const uploaderBadge = (showUploader || showDelete) && (
+              <div className="mb-2 flex items-center gap-2 flex-wrap">
+                {showUploader && (
+                  <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Added by {block.uploaded_by_name} ({block.uploaded_by_role === 'advisor' ? 'Advisor' : 'Parent'})
+                  </div>
+                )}
+                {showDelete && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteBlock(block)}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                    title="Remove this evidence"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                    </svg>
+                    Remove
+                  </button>
+                )}
               </div>
             );
 
@@ -302,7 +323,9 @@ UnifiedEvidenceDisplay.propTypes = {
   displayMode: PropTypes.oneOf(['full', 'compact', 'preview']),
   showMetadata: PropTypes.bool,
   allowPrivateBlocks: PropTypes.bool,
-  viewerUserId: PropTypes.string
+  viewerUserId: PropTypes.string,
+  canDeleteBlock: PropTypes.func,
+  onDeleteBlock: PropTypes.func
 };
 
 export default UnifiedEvidenceDisplay;

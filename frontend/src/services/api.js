@@ -651,6 +651,9 @@ export const helperEvidenceAPI = {
 
   // Get student's active tasks (for evidence upload)
   getStudentTasks: (studentId) => api.get(`/api/evidence/helper/student-tasks/${studentId}`),
+
+  // Remove an evidence block the caller previously uploaded
+  deleteBlock: (blockId) => api.delete(`/api/evidence/helper/blocks/${blockId}`),
 }
 
 /**
