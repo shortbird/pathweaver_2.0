@@ -13,7 +13,6 @@ export {
   ALLOWED_DOCUMENT_MIME_TYPES,
   ALLOWED_VIDEO_EXTENSIONS,
   ALLOWED_VIDEO_MIME_TYPES,
-  MAX_VIDEO_DURATION_SECONDS,
   IMAGE_ACCEPT_STRING,
   DOCUMENT_ACCEPT_STRING,
   VIDEO_ACCEPT_STRING,
@@ -21,7 +20,6 @@ export {
   DOCUMENT_FORMAT_LABEL,
   VIDEO_FORMAT_LABEL,
   validateFileType,
-  validateVideoDuration,
 } from '../components/evidence/EvidenceMediaHandlers';
 
 /**

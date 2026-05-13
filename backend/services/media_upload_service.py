@@ -27,7 +27,7 @@ from config.constants import (
     MAX_DOCUMENT_SIZE,
     MAX_VIDEO_SIZE,
     MAX_VIDEO_SIZE_SIGNED,
-    MAX_VIDEO_DURATION_SECONDS,
+    MAX_VIDEO_INLINE_PROCESSING_BYTES,
     IMAGE_FORMAT_LABEL,
     DOCUMENT_FORMAT_LABEL,
     VIDEO_FORMAT_LABEL,
@@ -279,22 +279,13 @@ class MediaUploadService:
                     f.write(file_content)
                 del file_content  # Free memory immediately
 
-            # Single probe: duration validation + codec/size check so we can
-            # skip the background transcode entirely when the uploaded video
-            # is already H.264 under the compression threshold.
+            # Single probe: codec/size check so we can skip the background
+            # transcode entirely when the uploaded video is already H.264 under
+            # the compression threshold.
             video_probe = None
             if is_video:
                 from services.video_processing_service import video_processing_service
                 video_probe = video_processing_service.probe_from_path(tmp_path, file_size)
-                if (
-                    video_probe.duration_seconds is not None
-                    and video_probe.duration_seconds > MAX_VIDEO_DURATION_SECONDS
-                ):
-                    return MediaUploadResult(
-                        success=False,
-                        error_message=f'Video is too long ({video_probe.duration_seconds:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.',
-                        error_code='VIDEO_TOO_LONG',
-                    )
 
             # Video thumbnail and metadata extraction (synchronous, fast)
             video_metadata = {}
@@ -609,18 +600,13 @@ class MediaUploadService:
                 storage_path=storage_path,
                 bucket=bucket,
                 ext=ext,
+                file_size=file_size,
                 user_id=user_id,
                 context_type=context_type,
                 context_id=context_id,
                 sub_id=sub_id,
                 notify_user_id=notify_user_id,
             )
-            if video_metadata.get('_error'):
-                return MediaUploadResult(
-                    success=False,
-                    error_message=video_metadata['_error'],
-                    error_code=video_metadata.get('_error_code', 'VIDEO_PROCESSING_FAILED'),
-                )
 
         logger.info(f"[MediaUpload] Finalized {block_type} ({file_size} bytes) at {bucket}/{storage_path}")
 
@@ -641,6 +627,7 @@ class MediaUploadService:
         storage_path: str,
         bucket: str,
         ext: str,
+        file_size: int,
         user_id: str,
         context_type: str,
         context_id: str,
@@ -649,13 +636,26 @@ class MediaUploadService:
     ) -> dict:
         """
         Video post-processing for a finalized signed upload. Streams the video
-        to a temp file (no memory buffering), validates duration, generates a
-        thumbnail, and kicks off background transcoding.
+        to a temp file (no Python-heap buffering), generates a thumbnail, and
+        kicks off background transcoding.
 
-        Returns a metadata dict. If duration validation fails, returns
-        {'_error': ..., '_error_code': ...} and the uploaded file is deleted
-        from storage.
+        Above MAX_VIDEO_INLINE_PROCESSING_BYTES, this becomes a no-op: even
+        though the download streams to disk, pulling a 500MB object back to
+        the web worker plus the inherited rlimit on the ffmpeg child still
+        OOMs the 512Mi Render container under concurrency (Apr 2026 incidents
+        4642c562 / 3bce34fe / e04e023b). Large videos play without a server-
+        generated poster -- the <video> first frame is the fallback.
+
+        Returns a metadata dict (empty if processing was skipped or failed).
         """
+        if file_size > MAX_VIDEO_INLINE_PROCESSING_BYTES:
+            logger.info(
+                f"[MediaUpload] Skipping inline post-processing for {bucket}/{storage_path}: "
+                f"{file_size / (1024 * 1024):.1f}MB exceeds "
+                f"{MAX_VIDEO_INLINE_PROCESSING_BYTES / (1024 * 1024):.0f}MB inline threshold"
+            )
+            return {}
+
         import requests
 
         from services.video_processing_service import video_processing_service
@@ -677,26 +677,11 @@ class MediaUploadService:
                             tmp.write(chunk)
             file_size_on_disk = os.path.getsize(tmp_path)
 
-            # Single ffprobe call gives us duration + codec + dimensions and
-            # tells us whether a background transcode is even needed. Most
-            # mobile uploads are already H.264 under the compression threshold,
-            # so we can skip the download+transcode round-trip entirely.
+            # Single ffprobe call gives us codec + dimensions and tells us
+            # whether a background transcode is even needed. Most mobile
+            # uploads are already H.264 under the compression threshold, so we
+            # can skip the transcode round-trip entirely.
             probe = video_processing_service.probe_from_path(tmp_path, file_size_on_disk)
-            if (
-                probe.duration_seconds is not None
-                and probe.duration_seconds > MAX_VIDEO_DURATION_SECONDS
-            ):
-                try:
-                    supabase.storage.from_(bucket).remove([storage_path])
-                except Exception:
-                    logger.debug("failed to clean up too-long video", exc_info=True)
-                return {
-                    '_error': (
-                        f'Video is too long ({probe.duration_seconds:.0f}s). '
-                        f'Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
-                    ),
-                    '_error_code': 'VIDEO_TOO_LONG',
-                }
 
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
             file_uuid = str(uuid.uuid4())

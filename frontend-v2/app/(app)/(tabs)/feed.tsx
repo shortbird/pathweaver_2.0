@@ -9,11 +9,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
 import { useAuthStore } from '@/src/stores/authStore';
+import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
+import { useObserverStudents } from '@/src/hooks/useObserverStudents';
 import { FeedCard } from '@/src/components/feed/FeedCard';
-import { VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider } from '@/src/components/ui';
+import {
+  VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
+  Avatar, AvatarFallbackText, AvatarImage, Skeleton,
+} from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 const DESKTOP_BREAKPOINT = 768;
@@ -24,9 +30,102 @@ const OPTIO_ICON_URI =
 
 function useIsObserver() {
   const user = useAuthStore((s) => s.user);
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  if (user?.role === 'superadmin' && previewRole) return previewRole === 'observer';
   if (!user) return false;
   const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
   return role === 'observer';
+}
+
+function relativeTime(iso?: string | null): string {
+  if (!iso) return 'No activity yet';
+  const d = new Date(iso);
+  const ms = Date.now() - d.getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+type FeedSegment = 'feed' | 'students';
+
+function StudentsList({ isDesktop }: { isDesktop: boolean }) {
+  const { students, loading } = useObserverStudents(true);
+
+  if (loading) {
+    return (
+      <VStack space="sm" className={`px-5 md:px-0 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+      </VStack>
+    );
+  }
+
+  if (students.length === 0) {
+    return (
+      <View className={`px-5 md:px-0 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+        <Card variant="filled" size="lg" className="items-center py-10">
+          <Ionicons name="people-outline" size={40} color="#9CA3AF" />
+          <Heading size="sm" className="text-typo-500 mt-3">No students linked</Heading>
+          <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
+            Once a student or their parent invites you, they'll show up here.
+          </UIText>
+        </Card>
+      </View>
+    );
+  }
+
+  return (
+    <VStack space="sm" className={`px-5 md:px-0 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+      {students.map((s) => {
+        const initials = `${s.first_name?.[0] || ''}${s.last_name?.[0] || ''}`.toUpperCase()
+          || (s.display_name?.[0] || '?').toUpperCase();
+        const name = s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student';
+        const hasPending = (s.pending_count || 0) > 0;
+        return (
+          <Pressable
+            key={s.id}
+            onPress={() => router.push(`/(app)/observers/student/${s.id}` as any)}
+          >
+            <Card variant="outline" size="md">
+              <HStack className="items-center gap-3">
+                <View>
+                  <Avatar size="md">
+                    {s.avatar_url ? (
+                      <AvatarImage source={{ uri: s.avatar_url }} />
+                    ) : (
+                      <AvatarFallbackText>{initials}</AvatarFallbackText>
+                    )}
+                  </Avatar>
+                  {hasPending && (
+                    <View style={{
+                      position: 'absolute', top: -2, right: -2,
+                      width: 12, height: 12, borderRadius: 6,
+                      backgroundColor: '#EF597B',
+                      borderWidth: 2, borderColor: '#FFFFFF',
+                    }} />
+                  )}
+                </View>
+                <VStack className="flex-1 min-w-0">
+                  <UIText size="md" style={{ fontFamily: 'Poppins_600SemiBold' }} numberOfLines={1}>
+                    {name}
+                  </UIText>
+                  <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+                    {s.last_active_at ? `Active ${relativeTime(s.last_active_at)}` : 'No activity yet'}
+                    {hasPending ? ` · ${s.pending_count} new` : ''}
+                  </UIText>
+                </VStack>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </HStack>
+            </Card>
+          </Pressable>
+        );
+      })}
+    </VStack>
+  );
 }
 
 function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -155,6 +254,7 @@ export default function FeedScreen() {
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const isObserver = useIsObserver();
   const [welcomeVisible, setWelcomeVisible] = useState(false);
+  const [segment, setSegment] = useState<FeedSegment>('feed');
 
   // Auto-show on first visit for observers
   useEffect(() => {
@@ -185,9 +285,9 @@ export default function FeedScreen() {
       <View className={`pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
         <HStack className="items-center justify-between">
           <VStack>
-            {isDesktop && <Heading size="xl">Feed</Heading>}
+            {isDesktop && <Heading size="xl">{isObserver ? 'Activity' : 'Feed'}</Heading>}
             <UIText size="sm" className="text-typo-500 mt-1">
-              Recent completions and learning moments
+              {isObserver ? 'Stay close to the students you observe' : 'Recent completions and learning moments'}
             </UIText>
           </VStack>
           {isObserver && (
@@ -201,6 +301,26 @@ export default function FeedScreen() {
           )}
         </HStack>
       </View>
+      {isObserver && (
+        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+          <HStack className="bg-surface-100 rounded-xl p-1">
+            {(['feed', 'students'] as FeedSegment[]).map((s) => {
+              const active = segment === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => setSegment(s)}
+                  className={`flex-1 py-2.5 rounded-lg items-center ${active ? 'bg-white shadow-sm' : ''}`}
+                >
+                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+                    {s === 'feed' ? 'Feed' : 'Students'}
+                  </UIText>
+                </Pressable>
+              );
+            })}
+          </HStack>
+        </View>
+      )}
     </>
   );
 
@@ -249,27 +369,38 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
-      <PageHeader title="Feed" />
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmpty}
-        ListFooterComponent={renderFooter}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-        ItemSeparatorComponent={() => <View className="h-3" />}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.3}
-        refreshing={false}
-        onRefresh={refetch}
-        showsVerticalScrollIndicator={false}
-        windowSize={3}
-        maxToRenderPerBatch={3}
-        removeClippedSubviews={Platform.OS !== 'web'}
-        initialNumToRender={4}
-        updateCellsBatchingPeriod={100}
-      />
+      <PageHeader title={isObserver ? 'Activity' : 'Feed'} />
+      {isObserver && segment === 'students' ? (
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderHeader()}
+          <StudentsList isDesktop={isDesktop} />
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmpty}
+          ListFooterComponent={renderFooter}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+          ItemSeparatorComponent={() => <View className="h-3" />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.3}
+          refreshing={false}
+          onRefresh={refetch}
+          showsVerticalScrollIndicator={false}
+          windowSize={3}
+          maxToRenderPerBatch={3}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          initialNumToRender={4}
+          updateCellsBatchingPeriod={100}
+        />
+      )}
       <ObserverWelcomeModal visible={welcomeVisible} onClose={dismissWelcome} />
     </SafeAreaView>
   );

@@ -13,8 +13,6 @@ import {
   IMAGE_FORMAT_LABEL,
   DOCUMENT_FORMAT_LABEL,
   VIDEO_FORMAT_LABEL,
-  MAX_VIDEO_DURATION_SECONDS,
-  validateVideoDuration,
 } from './EvidenceMediaHandlers';
 
 const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescription = '', onTypeChange }) => {
@@ -99,7 +97,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     ],
     camera: [
       { tip: 'Photos up to 10MB', icon: '📷' },
-      { tip: 'Videos up to 50MB, max 3 min', icon: '🎬' },
+      { tip: 'Videos up to 50MB', icon: '🎬' },
       { tip: 'Show your work in action', icon: '🎯' },
       { tip: 'Good lighting and framing', icon: '💡' }
     ],
@@ -217,15 +215,6 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     if (file.size > maxSize) {
       alert(`File too large. Maximum size: ${maxSize / (1024 * 1024)}MB`);
       return;
-    }
-
-    // Client-side duration check for videos
-    if (isVideoFile) {
-      const durationCheck = await validateVideoDuration(file);
-      if (!durationCheck.valid) {
-        alert(durationCheck.message);
-        return;
-      }
     }
 
     setSelectedFile(file);
@@ -496,7 +485,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
               {isDragging ? 'Drop your file here!' : 'Click to upload or drag and drop'}
             </p>
             <p className="text-xs text-gray-500">
-              {evidenceType === 'camera' && 'Photos up to 10MB, videos (MP4/MOV) up to 50MB, max 3 min'}
+              {evidenceType === 'camera' && 'Photos up to 10MB, videos (MP4/MOV) up to 50MB'}
               {evidenceType === 'document' && `${DOCUMENT_FORMAT_LABEL} up to 25MB`}
             </p>
             

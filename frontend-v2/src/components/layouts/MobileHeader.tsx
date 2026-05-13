@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
+import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { VStack, UIText, Heading } from '../ui';
 
@@ -24,12 +25,28 @@ interface MenuItem {
 
 function AvatarMenu() {
   const { user, logout } = useAuthStore();
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const isSuperadmin = user?.role === 'superadmin';
   const isParent = user?.role === 'parent' || user?.role === 'superadmin' ||
     user?.org_role === 'parent' ||
     (user as any)?.has_dependents || (user as any)?.has_linked_students;
+
+  const handlePreviewSelect = (role: PreviewRole | null) => {
+    setMenuOpen(false);
+    setPreviewRole(role);
+    // Navigate to a sensible default for the new shell
+    const target =
+      role === 'parent' ? '/(app)/(tabs)/family'
+      : role === 'observer' ? '/(app)/(tabs)/feed'
+      : role === 'student' ? '/(app)/(tabs)/feed'
+      : isParent ? '/(app)/(tabs)/family' // null → fall back to user's real shell
+      : '/(app)/(tabs)/feed';
+    router.replace(target as any);
+  };
 
   const menuItems: MenuItem[] = [
     {
@@ -51,6 +68,12 @@ function AvatarMenu() {
       color: '#EF4444',
       onPress: () => { setMenuOpen(false); logout(); },
     },
+  ];
+
+  const previewOptions: { role: PreviewRole; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { role: 'parent', label: 'Preview as Parent', icon: 'people-outline' },
+    { role: 'student', label: 'Preview as Student', icon: 'school-outline' },
+    { role: 'observer', label: 'Preview as Observer', icon: 'eye-outline' },
   ];
 
   return (
@@ -99,7 +122,69 @@ function AvatarMenu() {
                 {user?.email}
               </UIText>
             </View>
-            {menuItems.map((item) => (
+            {/* Items above the logout (profile, family dashboard) */}
+            {menuItems.slice(0, -1).map((item) => (
+              <Pressable
+                key={item.key}
+                onPress={item.onPress}
+                style={{ paddingHorizontal: 16, paddingVertical: 12 }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Ionicons name={item.icon} size={18} color={item.color || '#6B6280'} />
+                  <UIText size="sm" style={{ color: item.color || '#1F2937' }} className="font-poppins-medium">
+                    {item.label}
+                  </UIText>
+                </View>
+              </Pressable>
+            ))}
+
+            {/* Superadmin role preview controls */}
+            {isSuperadmin && (
+              <>
+                <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                  <UIText size="xs" style={{ color: '#9CA3AF', fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                    Preview as
+                  </UIText>
+                </View>
+                {previewOptions.map((opt) => {
+                  const active = previewRole === opt.role;
+                  return (
+                    <Pressable
+                      key={`preview-${opt.role}`}
+                      onPress={() => handlePreviewSelect(opt.role)}
+                      style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: active ? '#6D469B0F' : 'transparent' }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <Ionicons name={opt.icon} size={18} color={active ? '#6D469B' : '#6B6280'} />
+                        <UIText size="sm" style={{ color: active ? '#6D469B' : '#1F2937', fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
+                          {opt.label}
+                        </UIText>
+                        {active && (
+                          <Ionicons name="checkmark" size={16} color="#6D469B" style={{ marginLeft: 'auto' }} />
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+                {previewRole && (
+                  <Pressable
+                    onPress={() => handlePreviewSelect(null)}
+                    style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Ionicons name="close-circle-outline" size={18} color="#6B6280" />
+                      <UIText size="sm" style={{ color: '#1F2937' }} className="font-poppins-medium">
+                        Exit preview
+                      </UIText>
+                    </View>
+                  </Pressable>
+                )}
+                <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4 }} />
+              </>
+            )}
+
+            {/* Logout */}
+            {menuItems.slice(-1).map((item) => (
               <Pressable
                 key={item.key}
                 onPress={item.onPress}

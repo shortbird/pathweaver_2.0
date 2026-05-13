@@ -17,59 +17,163 @@ import { FeedCard } from '@/src/components/feed/FeedCard';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import api from '@/src/services/api';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
+import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Divider, Avatar, AvatarFallbackText, AvatarImage, Skeleton,
-  Badge, BadgeText,
+  Badge, BadgeText, BottomSheet,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 const DESKTOP_BREAKPOINT = 768;
 
-// ── Child Selector (tabs on desktop, horizontal scroll on mobile) ──
+function calculateAge(dateOfBirth: string | null | undefined): number | null {
+  if (!dateOfBirth) return null;
+  const today = new Date();
+  const birthDate = new Date(dateOfBirth);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+}
 
-function ChildSelector({ children, selectedId, onSelect }: {
+// ── Child Header (avatar + name + chevron, opens bottom sheet for switching) ──
+
+function ChildHeader({ children, selectedId, onSelect, attentionByChildId, onAddChild }: {
   children: any[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  attentionByChildId?: Record<string, boolean>;
+  onAddChild?: () => void;
 }) {
-  if (children.length <= 1) return null;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const selected = children.find((c) => c.id === selectedId);
+  if (!selected) return null;
+
+  const hasMultiple = children.length > 1;
+  const selectedInitials = `${selected.first_name?.[0] || ''}${selected.last_name?.[0] || ''}`.toUpperCase();
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}>
-      {children.map((child: any) => {
-        const active = child.id === selectedId;
-        const initials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase();
-        return (
-          <Pressable
-            key={child.id}
-            onPress={() => onSelect(child.id)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: active ? '#6D469B' : '#F3F4F6',
-            }}
-          >
-            <Avatar size="xs" className={active ? 'border border-white' : ''}>
-              {child.avatar_url ? (
-                <AvatarImage source={{ uri: child.avatar_url }} />
-              ) : (
-                <AvatarFallbackText>{initials}</AvatarFallbackText>
-              )}
-            </Avatar>
-            <UIText size="sm" style={{ color: active ? '#fff' : '#6B7280', fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
-              {child.first_name}
-            </UIText>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+    <>
+      <Pressable
+        onPress={hasMultiple ? () => setSheetOpen(true) : undefined}
+        disabled={!hasMultiple}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          paddingVertical: 4,
+        }}
+      >
+        <Avatar size="md">
+          {selected.avatar_url ? (
+            <AvatarImage source={{ uri: selected.avatar_url }} />
+          ) : (
+            <AvatarFallbackText>{selectedInitials}</AvatarFallbackText>
+          )}
+        </Avatar>
+        <UIText size="lg" style={{ fontFamily: 'Poppins_600SemiBold', flex: 1 }} numberOfLines={1}>
+          {selected.first_name} {selected.last_name}
+        </UIText>
+        {hasMultiple && <Ionicons name="chevron-down" size={20} color="#6B7280" />}
+      </Pressable>
+
+      <BottomSheet visible={sheetOpen} onClose={() => setSheetOpen(false)}>
+        <VStack space="md">
+          <HStack className="items-center justify-between">
+            <Heading size="lg">My family</Heading>
+            <Pressable onPress={() => setSheetOpen(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+              <Ionicons name="close" size={18} color="#6B7280" />
+            </Pressable>
+          </HStack>
+          <VStack space="xs">
+            {children.map((child) => {
+              const age = calculateAge(child.date_of_birth);
+              const isUnder13 = age !== null && age < 13;
+              const childInitials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase();
+              const isSelected = child.id === selectedId;
+              const needsAttention = attentionByChildId?.[child.id] === true;
+              return (
+                <Pressable
+                  key={child.id}
+                  onPress={() => { onSelect(child.id); setSheetOpen(false); }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    paddingHorizontal: 8,
+                    paddingVertical: 10,
+                    backgroundColor: isSelected ? '#6D469B0F' : 'transparent',
+                    borderRadius: 12,
+                  }}
+                >
+                  <View>
+                    <Avatar size="md">
+                      {child.avatar_url ? (
+                        <AvatarImage source={{ uri: child.avatar_url }} />
+                      ) : (
+                        <AvatarFallbackText>{childInitials}</AvatarFallbackText>
+                      )}
+                    </Avatar>
+                    {needsAttention && (
+                      <View style={{
+                        position: 'absolute', top: -2, right: -2,
+                        width: 12, height: 12, borderRadius: 6,
+                        backgroundColor: '#EF597B',
+                        borderWidth: 2, borderColor: '#FFFFFF',
+                      }} />
+                    )}
+                  </View>
+                  <VStack className="flex-1 min-w-0">
+                    <HStack className="items-center gap-2">
+                      <UIText size="md" style={{ fontFamily: 'Poppins_600SemiBold' }} numberOfLines={1}>
+                        {child.first_name} {child.last_name}
+                      </UIText>
+                      {isUnder13 && (
+                        <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
+                          <UIText size="xs" style={{ color: '#1D4ED8', fontFamily: 'Poppins_600SemiBold' }}>
+                            Under 13
+                          </UIText>
+                        </View>
+                      )}
+                    </HStack>
+                  </VStack>
+                  {isSelected && <Ionicons name="checkmark" size={18} color="#6D469B" />}
+                </Pressable>
+              );
+            })}
+          </VStack>
+
+          {onAddChild && (
+            <Pressable
+              onPress={() => { setSheetOpen(false); onAddChild(); }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                paddingHorizontal: 8,
+                paddingVertical: 12,
+                borderTopWidth: 1,
+                borderTopColor: '#F1EDF5',
+                marginTop: 4,
+              }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="add" size={20} color="#6D469B" />
+              </View>
+              <UIText size="md" style={{ color: '#6D469B', fontFamily: 'Poppins_600SemiBold' }}>
+                Add a child
+              </UIText>
+            </Pressable>
+          )}
+        </VStack>
+      </BottomSheet>
+    </>
   );
 }
 
@@ -177,6 +281,7 @@ export default function ParentDashboardPage() {
   const { data: dashboard, loading: dashboardLoading, refetch } = useChildDashboard(selectedId);
   const { data: engagement } = useChildEngagement(selectedId);
   const { items: feedItems, loading: feedLoading } = useFeed({ studentId: selectedId || undefined });
+  const { count: ferpaCount } = useFerpaApprovals();
 
   // ── Parent action state ──
   const [captureVisible, setCaptureVisible] = useState(false);
@@ -236,18 +341,6 @@ export default function ParentDashboardPage() {
         },
       },
     ]);
-  };
-
-  const handleToggleAI = async () => {
-    if (!selectedId) return;
-    const current = (selectedChild as any)?.ai_enabled !== false;
-    try {
-      await api.put(`/api/dependents/${selectedId}/settings`, { ai_enabled: !current });
-      Alert.alert('Updated', `AI features ${!current ? 'enabled' : 'disabled'}.`);
-      refetch();
-    } catch {
-      Alert.alert('Error', 'Failed to update settings');
-    }
   };
 
   const handleViewAsChild = async () => {
@@ -379,8 +472,38 @@ export default function ParentDashboardPage() {
         <PageHeader title="Family" />
         <VStack className="max-w-5xl w-full md:mx-auto px-5 md:px-8" space="lg">
 
-          {/* Child selector */}
-          <ChildSelector children={children} selectedId={selectedId} onSelect={setSelectedId} />
+          {/* Child header (avatar + name + chevron, opens bottom sheet to switch) */}
+          <ChildHeader
+            children={children}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onAddChild={() => Alert.alert(
+              'Add a child',
+              'Adding a new dependent or connecting to an existing student is currently available on the web app. Visit your Family Settings on web to add a child.',
+            )}
+          />
+
+          {/* FERPA visibility approvals banner */}
+          {ferpaCount > 0 && (
+            <Pressable onPress={() => router.push('/(app)/approvals' as any)}>
+              <Card variant="outline" size="md" className="bg-amber-50 border-amber-200">
+                <HStack className="items-center gap-3">
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="shield-checkmark-outline" size={20} color="#B45309" />
+                  </View>
+                  <VStack className="flex-1 min-w-0">
+                    <UIText size="sm" style={{ color: '#92400E', fontFamily: 'Poppins_600SemiBold' }} numberOfLines={1}>
+                      {ferpaCount} portfolio visibility {ferpaCount === 1 ? 'request' : 'requests'}
+                    </UIText>
+                    <UIText size="xs" style={{ color: '#B45309' }} numberOfLines={1}>
+                      Review and approve before your child's portfolio goes public.
+                    </UIText>
+                  </VStack>
+                  <Ionicons name="chevron-forward" size={18} color="#B45309" />
+                </HStack>
+              </Card>
+            </Pressable>
+          )}
 
           {/* Loading child data */}
           {dashboardLoading && !dashboard ? (
@@ -419,10 +542,6 @@ export default function ParentDashboardPage() {
                   <Pressable onPress={() => setInviteObserverVisible(true)} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
                     <Ionicons name="person-add-outline" size={22} color="#6D469B" />
                     <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Add Observer</UIText>
-                  </Pressable>
-                  <Pressable onPress={handleToggleAI} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
-                    <Ionicons name="sparkles-outline" size={22} color="#6D469B" />
-                    <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">AI Settings</UIText>
                   </Pressable>
                   <Pressable onPress={handleUploadAvatar} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
                     <Ionicons name="image-outline" size={22} color="#6D469B" />

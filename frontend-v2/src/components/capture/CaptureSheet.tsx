@@ -5,14 +5,16 @@
  * Creates moment via JSON, then uploads files individually.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, TextInput, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { useMyChildren } from '@/src/hooks/useParent';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet, PillarBadge,
+  Avatar, AvatarFallbackText, AvatarImage,
 } from '../ui';
 import {
   TaskPickerSheet, attachMomentToTask,
@@ -35,21 +37,44 @@ interface CaptureSheetProps {
   visible: boolean;
   onClose: () => void;
   onCaptured?: () => void;
-  /** When set, captures moment for specific student(s) (parent flow) */
+  /** When set, captures moment for specific student(s) (parent flow with pre-selected kids) */
   studentIds?: string[];
+  /** When true, fetches the parent's children and renders a multi-select kid picker
+   *  at the top of the sheet. Used by the parent center-capture tab. */
+  pickStudents?: boolean;
 }
 
-export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: CaptureSheetProps) {
+export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStudents = false }: CaptureSheetProps) {
   const [description, setDescription] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<{ task: AttachableTask; questTitle: string } | null>(null);
 
+  // Parent flow: fetch children when pickStudents is on. The hook short-circuits
+  // gracefully for non-parent users (empty list, no error toast).
+  const { children: parentChildren } = useMyChildren();
+  const eligibleChildren = pickStudents ? parentChildren : [];
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+
+  // Default to all kids selected when the sheet first opens with a non-empty list.
+  // Reset whenever the sheet closes so a fresh open starts clean.
+  useEffect(() => {
+    if (!visible) return;
+    if (pickStudents && eligibleChildren.length > 0 && selectedStudentIds.length === 0) {
+      setSelectedStudentIds(eligibleChildren.map((c: any) => c.id));
+    }
+  }, [visible, pickStudents, eligibleChildren, selectedStudentIds.length]);
+
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
   const reset = () => {
     setDescription('');
     setMedia([]);
     setSelectedTask(null);
+    setSelectedStudentIds([]);
   };
 
   const handleClose = () => {
@@ -165,13 +190,23 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
     return data.event?.id;
   };
 
+  // Resolve which student IDs to save against: explicit prop > in-sheet picker > self.
+  const effectiveStudentIds: string[] | undefined =
+    (studentIds && studentIds.length > 0)
+      ? studentIds
+      : (pickStudents ? selectedStudentIds : undefined);
+
   const handleSave = async () => {
     if (!description.trim() && media.length === 0) return;
+    if (pickStudents && (!effectiveStudentIds || effectiveStudentIds.length === 0)) {
+      Alert.alert('Pick a child', 'Select at least one child to capture this moment for.');
+      return;
+    }
 
     setSaving(true);
     try {
-      if (studentIds && studentIds.length > 0) {
-        for (const sid of studentIds) {
+      if (effectiveStudentIds && effectiveStudentIds.length > 0) {
+        for (const sid of effectiveStudentIds) {
           const eventId = await createMoment(sid);
           if (eventId && media.length > 0) {
             await uploadAndAttach(eventId, media, sid);
@@ -203,7 +238,9 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
     }
   };
 
-  const canSave = description.trim().length > 0 || media.length > 0;
+  const hasContent = description.trim().length > 0 || media.length > 0;
+  const hasStudentSelection = !pickStudents || selectedStudentIds.length > 0;
+  const canSave = hasContent && hasStudentSelection;
 
   return (
     <BottomSheet visible={visible} onClose={handleClose}>
@@ -215,6 +252,59 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
                 <Ionicons name="close" size={18} color="#6B7280" />
               </Pressable>
             </HStack>
+
+            {/* Parent kid multi-select */}
+            {pickStudents && eligibleChildren.length > 0 && (
+              <VStack space="xs">
+                <UIText size="xs" style={{ color: '#6B7280', fontFamily: 'Poppins_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Capture for
+                </UIText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {eligibleChildren.map((child: any) => {
+                    const active = selectedStudentIds.includes(child.id);
+                    const initials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase()
+                      || (child.display_name?.[0] || '?').toUpperCase();
+                    return (
+                      <Pressable
+                        key={child.id}
+                        onPress={() => toggleStudent(child.id)}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 999,
+                          backgroundColor: active ? '#6D469B' : '#F3F4F6',
+                          borderWidth: active ? 0 : 1,
+                          borderColor: '#E2DCE8',
+                        }}
+                      >
+                        <Avatar size="xs">
+                          {child.avatar_url ? (
+                            <AvatarImage source={{ uri: child.avatar_url }} />
+                          ) : (
+                            <AvatarFallbackText>{initials}</AvatarFallbackText>
+                          )}
+                        </Avatar>
+                        <UIText size="sm" style={{ color: active ? '#FFFFFF' : '#374151', fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
+                          {child.first_name || child.display_name || 'Student'}
+                        </UIText>
+                        {active && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </VStack>
+            )}
+
+            {pickStudents && eligibleChildren.length === 0 && (
+              <View style={{ backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12 }}>
+                <UIText size="sm" style={{ color: '#92400E', fontFamily: 'Poppins_500Medium' }}>
+                  Link a child first before capturing a moment for them. You can add a child from the Family tab.
+                </UIText>
+              </View>
+            )}
 
             {/* Text input */}
             <TextInput
@@ -279,7 +369,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
             </HStack>
 
             {/* Attach to task (student-only, not parent capture) */}
-            {!studentIds || studentIds.length === 0 ? (
+            {!pickStudents && (!studentIds || studentIds.length === 0) ? (
               selectedTask ? (
                 <View className="bg-optio-purple/5 rounded-xl p-3 border border-optio-purple/20">
                   <HStack className="items-start justify-between gap-2">

@@ -3,7 +3,6 @@ import {
   detectMediaType,
   validateFileSize,
   isValidUrl,
-  validateVideoDuration,
 } from '../utils/mediaUtils';
 
 /**
@@ -15,10 +14,9 @@ import {
  * endpoints per role).
  *
  * @param {Object} options
- * @param {boolean} options.validateDuration - Run client-side video duration check (default false)
  * @param {boolean} options.skipVideoSizeLimit - Skip video file size limit (for superadmin direct upload)
  */
-export default function useMediaAttachments({ validateDuration = false, skipVideoSizeLimit = false } = {}) {
+export default function useMediaAttachments({ skipVideoSizeLimit = false } = {}) {
   const [attachments, setAttachments] = useState([]);
   const [links, setLinks] = useState([]);
   const [linkInput, setLinkInput] = useState('');
@@ -59,15 +57,6 @@ export default function useMediaAttachments({ validateDuration = false, skipVide
         }
       }
 
-      // Optional duration check for video
-      if (validateDuration && mediaType === 'video') {
-        const durationResult = await validateVideoDuration(file);
-        if (!durationResult.valid) {
-          errors.push(durationResult.message);
-          continue;
-        }
-      }
-
       const hasPreview = mediaType === 'image' || mediaType === 'video';
       newAttachments.push({
         id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -87,7 +76,7 @@ export default function useMediaAttachments({ validateDuration = false, skipVide
     }
 
     return { errors };
-  }, [validateDuration]);
+  }, [skipVideoSizeLimit]);
 
   /**
    * Remove an attachment by id (revokes its blob URL).

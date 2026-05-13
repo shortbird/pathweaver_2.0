@@ -1,9 +1,24 @@
 import React from 'react';
-import { Pressable, PressableProps, Text, TextProps, ActivityIndicator } from 'react-native';
+import { Pressable, PressableProps, Text, TextProps, ActivityIndicator, Platform } from 'react-native';
 
 type ButtonVariant = 'solid' | 'outline' | 'link';
 type ButtonAction = 'primary' | 'secondary' | 'positive' | 'negative';
 type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
+
+// V1-style brand gradient on web for primary solid buttons; on native, fall back
+// to the solid optio-purple plus a soft warm shadow (no expo-linear-gradient dep).
+const brandGradientStyle = Platform.OS === 'web'
+  ? {
+      backgroundImage: 'linear-gradient(135deg, #6D469B 0%, #8058AC 50%, #EF597B 100%)',
+      boxShadow: '0 4px 12px rgba(109, 70, 155, 0.25)',
+    } as any
+  : {
+      shadowColor: '#6D469B',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.18,
+      shadowRadius: 6,
+      elevation: 3,
+    };
 
 interface ButtonProps extends PressableProps {
   className?: string;
@@ -83,16 +98,19 @@ export function Button({
   loading = false,
   disabled,
   children,
+  style,
   ...props
 }: ButtonProps) {
   const base = `flex-row items-center justify-center gap-2 ${sizeClasses[size]} ${variantActionClasses[variant][action]}`;
   const disabledClass = disabled || loading ? 'opacity-50' : '';
+  const isBrandPrimary = variant === 'solid' && action === 'primary';
 
   return (
     <ButtonContext.Provider value={{ variant, action, size }}>
       <Pressable
         className={`${base} ${disabledClass} ${className}`}
         disabled={disabled || loading}
+        style={isBrandPrimary ? [brandGradientStyle, style as any] : style}
         {...props}
       >
         {loading && <ActivityIndicator size="small" color={variant === 'solid' ? '#fff' : '#6D469B'} />}

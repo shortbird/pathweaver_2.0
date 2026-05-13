@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import api, { bountyAPI } from '@/src/services/api';
 import { createBounty, updateBounty } from '@/src/hooks/useBounties';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
+import { useAuthStore } from '@/src/stores/authStore';
+import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Input, InputField, Divider, PillarBadge,
@@ -126,6 +128,12 @@ export default function CreateBountyPage() {
   };
 
   const totalXP = rewards.filter((r) => r.type === 'xp').reduce((sum, r) => sum + r.value, 0);
+
+  const user = useAuthStore((s) => s.user);
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  const effectiveRole = (user?.role === 'superadmin' && previewRole) ? previewRole
+    : (user?.org_role && user?.role === 'org_managed' ? user.org_role : user?.role);
+  const isObserver = effectiveRole === 'observer';
 
   const toggleKid = (kidId: string) => {
     setSelectedKids((prev) => {
@@ -287,6 +295,17 @@ export default function CreateBountyPage() {
               <UIText size="xs" className={totalXP > 200 ? 'text-red-500 font-poppins-bold' : 'text-typo-400'}>
                 Total XP: {totalXP}/200
               </UIText>
+            )}
+
+            {isObserver && totalXP > 0 && (
+              <Card variant="outline" size="sm" className="bg-amber-50 border-amber-200">
+                <HStack className="items-start gap-2">
+                  <Ionicons name="information-circle-outline" size={18} color="#B45309" style={{ marginTop: 2 }} />
+                  <UIText size="xs" style={{ color: '#92400E', flex: 1 }}>
+                    XP awarded by observers requires Optio approval before counting toward official totals. Your bounty can still be claimed and completed normally; the student's XP will sit in a pending state until reviewed.
+                  </UIText>
+                </HStack>
+              </Card>
             )}
 
             {rewards.map((r, i) => (

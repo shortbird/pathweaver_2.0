@@ -30,7 +30,12 @@ MAX_VIDEO_SIZE_SIGNED = 500 * 1024 * 1024  # 500MB for videos via signed-upload
 # Set above MAX_VIDEO_SIZE_SIGNED so the compression branch never fires until
 # transcoding is moved off the web worker.
 MAX_VIDEO_COMPRESSION_THRESHOLD = MAX_VIDEO_SIZE_SIGNED + 1
-MAX_VIDEO_DURATION_SECONDS = 180  # 3 minutes
+# Above this size, finalize_upload skips server-side post-processing
+# (thumbnail/codec probe). Re-downloading larger videos to the web worker plus
+# the rlimit inherited by the ffmpeg child still OOMs the 512Mi Render
+# container under concurrency (Apr-May 2026 incidents). Large videos render
+# without a server-generated poster -- the <video> first frame is the fallback.
+MAX_VIDEO_INLINE_PROCESSING_BYTES = 50 * 1024 * 1024  # 50MB
 
 # Allowed File Extensions (by type)
 ALLOWED_FILE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.doc', '.docx', '.txt', '.webp', '.mov', '.webm', '.mp3', '.wav', '.ogg', '.heic', '.heif', '.tiff', '.tif', '.bmp', '.avif', '.jfif'}

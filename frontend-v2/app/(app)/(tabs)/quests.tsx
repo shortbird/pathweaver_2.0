@@ -1,5 +1,6 @@
 /**
- * Quest Discovery - Browse and search available quests. Web only.
+ * Quest Discovery - Browse and search available quests.
+ * Mobile: students browse, claim, view active quests. Authoring is web-only (gated by canCreateQuest).
  */
 
 import React, { useCallback, useState } from 'react';
@@ -10,6 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
 import { useAuthStore } from '@/src/stores/authStore';
 import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
+import { BountiesView } from '@/src/components/bounties/BountiesView';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon,
@@ -63,34 +66,57 @@ function QuestCard({ quest }: { quest: any }) {
   );
 }
 
+type TopSegment = 'quests' | 'bounties';
+
+const TOP_SEGMENTS: { key: TopSegment; label: string }[] = [
+  { key: 'quests', label: 'Quests' },
+  { key: 'bounties', label: 'Bounties' },
+];
+
 export default function QuestsScreen() {
   const { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, selectedSubtopic, setSelectedSubtopic, subtopics, loadMore, refetch } = useQuestDiscovery();
   const user = useAuthStore((s) => s.user);
   const canCreateQuest = (user && ['superadmin', 'advisor'].includes(user.role)) || (user?.role === 'org_managed' && ['advisor', 'org_admin'].includes(user?.org_role || ''));
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [topSegment, setTopSegment] = useState<TopSegment>('quests');
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Only paginate quest list scrolls; bounties view manages its own data.
+    if (topSegment !== 'quests') return;
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
     if (distanceFromBottom < 200) {
       loadMore();
     }
-  }, [loadMore]);
-
-  if (Platform.OS !== 'web') {
-    return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
-        <Ionicons name="desktop-outline" size={40} color="#9CA3AF" />
-        <Heading size="sm" className="text-typo-500 mt-3">Desktop Only</Heading>
-        <UIText size="sm" className="text-typo-400 mt-1">Quest management is available on desktop.</UIText>
-      </SafeAreaView>
-    );
-  }
+  }, [loadMore, topSegment]);
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
-      <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={200}>
+      <PageHeader title="Quests" />
+      <ScrollView className="flex-1" contentContainerClassName="pt-2 md:pt-6 pb-12" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={200}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
+
+          {/* Top-level segment toggle: Quests / Bounties */}
+          <View className="px-5 md:px-8">
+            <HStack className="bg-surface-100 rounded-xl p-1" space="xs">
+              {TOP_SEGMENTS.map((seg) => (
+                <Pressable
+                  key={seg.key}
+                  onPress={() => setTopSegment(seg.key)}
+                  className={`flex-1 py-2.5 rounded-lg items-center ${topSegment === seg.key ? 'bg-white shadow-sm' : ''}`}
+                >
+                  <UIText size="sm" className={topSegment === seg.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+                    {seg.label}
+                  </UIText>
+                </Pressable>
+              ))}
+            </HStack>
+          </View>
+
+          {topSegment === 'bounties' && <BountiesView />}
+
+          {topSegment === 'quests' && (
+            <VStack space="lg" className="px-5 md:px-8">
 
           {/* Hero gradient banner */}
           <View className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-2xl px-6 py-8 md:py-10">
@@ -191,6 +217,9 @@ export default function QuestsScreen() {
               <UIText size="sm" className="text-typo-400 mt-1">Try a different search or topic</UIText>
             </Card>
           )}
+            </VStack>
+          )}
+
         </VStack>
       </ScrollView>
 
