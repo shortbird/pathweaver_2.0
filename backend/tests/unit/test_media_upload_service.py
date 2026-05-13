@@ -310,28 +310,6 @@ def test_upload_custom_bucket_override():
     client.storage.from_.assert_any_call("custom-bucket")
 
 
-def test_upload_video_rejects_when_duration_exceeds_limit():
-    """Video longer than MAX_VIDEO_DURATION_SECONDS must be rejected."""
-    from services.video_processing_service import VideoProbe
-
-    svc, *_ = _make_service_with_stub_client()
-    file = _FakeFile(b"MP4HEADER..." + b"x" * 1024, filename="clip.mp4", content_type="video/mp4")
-
-    with patch("services.video_processing_service.video_processing_service") as mock_vps:
-        mock_vps.probe_from_path.return_value = VideoProbe(
-            duration_seconds=300.0, codec="h264", needs_transcode=False, needs_compression=False,
-        )
-        result = svc.upload_evidence_file(
-            file,
-            user_id="u",
-            context_type="task",
-            context_id="t",
-            block_type="video",
-        )
-    assert result.success is False
-    assert result.error_code == "VIDEO_TOO_LONG"
-
-
 def test_upload_video_happy_path_populates_metadata():
     """A valid video should return thumbnail/duration/dimensions."""
     from services.video_processing_service import VideoMetadata, VideoProbe
@@ -892,25 +870,16 @@ def test_finalize_upload_h264_video_skips_background_processing():
     mock_vps.process_video_background.assert_not_called()
 
 
-def test_finalize_upload_video_rejects_when_too_long_and_deletes():
-    from services.video_processing_service import VideoProbe
-
+def test_finalize_upload_large_video_skips_inline_post_processing():
+    """Videos above the inline-processing threshold must NOT re-download to the
+    web worker -- that's the OOM fix. No thumbnail, no probe, no bg transcode."""
     svc, client, bucket = _make_service_with_stub_client()
-    bucket.list.return_value = [_make_list_entry("task-99_clip.mp4", 50_000_000, "video/mp4")]
+    # 100MB -> above the 50MB inline threshold
+    bucket.list.return_value = [_make_list_entry("task-99_clip.mp4", 100 * 1024 * 1024, "video/mp4")]
 
-    fake_response = MagicMock()
-    fake_response.__enter__ = MagicMock(return_value=fake_response)
-    fake_response.__exit__ = MagicMock(return_value=False)
-    fake_response.raise_for_status = MagicMock()
-    fake_response.iter_content = MagicMock(return_value=iter([b"MP4DATA"]))
-
-    with patch("requests.get", return_value=fake_response), patch(
+    with patch("requests.get") as mock_get, patch(
         "services.video_processing_service.video_processing_service"
     ) as mock_vps:
-        mock_vps.probe_from_path.return_value = VideoProbe(
-            duration_seconds=600.0, codec="h264", needs_transcode=False, needs_compression=False,
-        )
-
         result = svc.finalize_upload(
             user_id="user-1",
             storage_path="evidence-tasks/user-1/task-99_clip.mp4",
@@ -920,10 +889,14 @@ def test_finalize_upload_video_rejects_when_too_long_and_deletes():
             block_type="video",
         )
 
-    assert result.success is False
-    assert result.error_code == "VIDEO_TOO_LONG"
-    # File must be removed after duration rejection.
-    bucket.remove.assert_called_once()
+    assert result.success is True
+    assert result.thumbnail_url is None
+    assert result.duration_seconds is None
+    # No download, no probe, no background transcode.
+    mock_get.assert_not_called()
+    mock_vps.probe_from_path.assert_not_called()
+    mock_vps.process_video_from_path.assert_not_called()
+    mock_vps.process_video_background.assert_not_called()
 
 
 def test_upload_session_to_dict_omits_none_values():

@@ -11,7 +11,7 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL, ALLOWED_VIDEO_EXTENSIONS, validateVideoDuration } from './EvidenceMediaHandlers';
+import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL, ALLOWED_VIDEO_EXTENSIONS } from './EvidenceMediaHandlers';
 import { detectMediaType, validateFileSize, CAMERA_ACCEPT_STRING } from '../../utils/mediaUtils';
 
 export const EVIDENCE_TYPES = [
@@ -349,15 +349,6 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         continue;
       }
 
-      // Validate video duration
-      if (isVideoFile) {
-        const durationCheck = await validateVideoDuration(file);
-        if (!durationCheck.valid) {
-          toast.error(durationCheck.message);
-          continue;
-        }
-      }
-
       newItems.push({
         url: URL.createObjectURL(file),
         file: file,
@@ -430,7 +421,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
           Click to upload photos or videos
         </p>
-        <p className="text-sm text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB, max 3 min</p>
+        <p className="text-sm text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB</p>
       </div>
 
       <input

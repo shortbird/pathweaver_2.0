@@ -348,7 +348,7 @@ export default function ProfileScreen() {
                     language_arts: { displayName: 'Language Arts', credits: 4 },
                     math: { displayName: 'Mathematics', credits: 3 },
                     science: { displayName: 'Science', credits: 3 },
-                    social_studies: { displayName: 'Social Studies', credits: 3.5 },
+                    social_studies: { displayName: 'Social Studies', credits: 4 },
                     financial_literacy: { displayName: 'Financial Literacy', credits: 0.5 },
                     health: { displayName: 'Health', credits: 0.5 },
                     pe: { displayName: 'Physical Education', credits: 2 },

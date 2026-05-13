@@ -16,7 +16,6 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = [
 ];
 export const ALLOWED_VIDEO_EXTENSIONS = ['mp4', 'mov'];
 export const ALLOWED_VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime'];
-export const MAX_VIDEO_DURATION_SECONDS = 180;
 
 export const IMAGE_ACCEPT_STRING = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.tiff,.tif,.bmp,.avif,.jfif';
 export const DOCUMENT_ACCEPT_STRING = '.pdf,.doc,.docx,.txt';
@@ -64,37 +63,6 @@ export function validateFileType(file, blockType) {
   }
 
   return { valid: true };
-}
-
-/**
- * Client-side video duration check.
- * Loads file into a <video> element and reads duration.
- * Returns a promise that resolves to { valid: true } or { valid: false, message, duration }.
- */
-export function validateVideoDuration(file) {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    const url = URL.createObjectURL(file);
-    video.src = url;
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      if (video.duration > MAX_VIDEO_DURATION_SECONDS) {
-        resolve({
-          valid: false,
-          message: `Video is too long (${Math.round(video.duration)}s). Maximum duration is ${MAX_VIDEO_DURATION_SECONDS / 60} minutes.`,
-          duration: video.duration,
-        });
-      } else {
-        resolve({ valid: true, duration: video.duration });
-      }
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      // Can't determine duration, let server validate
-      resolve({ valid: true, duration: null });
-    };
-  });
 }
 
 /**
@@ -222,17 +190,6 @@ export class EvidenceMediaHandlers {
           this.onError(typeCheck.message);
         }
         throw new Error(typeCheck.message);
-      }
-
-      // Client-side duration check for videos
-      if (blockType === 'video') {
-        const durationCheck = await validateVideoDuration(file);
-        if (!durationCheck.valid) {
-          if (this.onError) {
-            this.onError(durationCheck.message);
-          }
-          throw new Error(durationCheck.message);
-        }
       }
 
       // Validate file size

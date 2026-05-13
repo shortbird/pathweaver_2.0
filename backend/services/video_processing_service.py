@@ -17,7 +17,6 @@ from typing import Optional
 
 from utils.logger import get_logger
 from config.constants import (
-    MAX_VIDEO_DURATION_SECONDS,
     MAX_VIDEO_COMPRESSION_THRESHOLD,
     VIDEO_THUMBNAIL_WIDTH,
     VIDEO_THUMBNAIL_QUALITY,
@@ -372,43 +371,6 @@ class VideoProcessingService:
             )
         except Exception as e:
             logger.error(f"[VideoProcessing:BG] Failed to send notification: {e}")
-
-    def validate_duration(self, file_content: bytes) -> tuple[bool, Optional[float]]:
-        """
-        Validate video duration is within allowed limit.
-        Returns (is_valid, duration_seconds).
-        If FFmpeg is unavailable, returns (True, None) -- graceful skip.
-        """
-        if not self._ffmpeg_available:
-            return True, None
-
-        tmp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
-                tmp.write(file_content)
-                tmp_path = tmp.name
-
-            return self.validate_duration_from_path(tmp_path)
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-
-    def validate_duration_from_path(self, file_path: str) -> tuple[bool, Optional[float]]:
-        """
-        Validate video duration from an existing file on disk.
-        Avoids writing bytes to a temp file when caller already has one.
-        """
-        if not self._ffmpeg_available:
-            return True, None
-
-        probe = self._probe_video(file_path)
-        if not probe:
-            return True, None
-
-        duration = float(probe.get('format', {}).get('duration', 0))
-        if duration > MAX_VIDEO_DURATION_SECONDS:
-            return False, duration
-        return True, duration
 
     def process_video(self, file_content: bytes, storage_upload_fn=None) -> VideoMetadata:
         """

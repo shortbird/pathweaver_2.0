@@ -21,7 +21,7 @@ const SUBJECT_LABELS = {
 
 const XP_PER_CREDIT = 2000
 const CREDIT_REQUIREMENTS = {
-  language_arts: 4.0, math: 3.0, science: 3.0, social_studies: 3.5,
+  language_arts: 4.0, math: 3.0, science: 3.0, social_studies: 4.0,
   financial_literacy: 0.5, health: 0.5, pe: 2.0, fine_arts: 1.5,
   cte: 1.0, digital_literacy: 0.5, electives: 4.0
 }

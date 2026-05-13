@@ -24,8 +24,8 @@ export const CREDIT_REQUIREMENTS = {
   },
   'social_studies': {
     displayName: 'Social Studies',
-    credits: 3.5,
-    xpRequired: 7000,
+    credits: 4.0,
+    xpRequired: 8000,
     description: 'History, Government, Geography, and Economics'
   },
   'financial_literacy': {
@@ -86,14 +86,18 @@ export const calculateCreditsFromXP = (xp) => {
 };
 
 /**
- * Calculate total credits earned across all subjects
+ * Calculate total credits earned across all subjects, capped per-subject at
+ * each subject's requirement. Over-earning in one subject (e.g., 5 elective
+ * credits when only 4 are required) does not inflate the headline total.
  * @param {Object} subjectXP - Object with subject keys and XP values
- * @returns {number} - Total credits earned
+ * @returns {number} - Total credits earned (max = sum of all requirements)
  */
 export const calculateTotalCredits = (subjectXP) => {
   return Object.entries(subjectXP).reduce((total, [subject, xp]) => {
-    if (CREDIT_REQUIREMENTS[subject]) {
-      return total + calculateCreditsFromXP(xp);
+    const requirement = CREDIT_REQUIREMENTS[subject];
+    if (requirement) {
+      const earned = calculateCreditsFromXP(xp);
+      return total + Math.min(earned, requirement.credits);
     }
     return total;
   }, 0);
@@ -144,11 +148,15 @@ export const getAllCreditProgress = (subjectXP) => {
 };
 
 /**
- * Check if student has earned enough credits for graduation
+ * Check if student has earned enough credits for graduation. A real
+ * accredited diploma requires the per-subject minimum in EVERY subject —
+ * over-loading one subject can't substitute for unmet requirements in another.
  * @param {Object} subjectXP - Object with subject keys and XP values
  * @returns {boolean} - Whether student meets graduation requirements
  */
 export const meetsGraduationRequirements = (subjectXP) => {
-  const totalCredits = calculateTotalCredits(subjectXP);
-  return totalCredits >= TOTAL_CREDITS_REQUIRED;
+  return Object.entries(CREDIT_REQUIREMENTS).every(([subject, requirement]) => {
+    const earned = calculateCreditsFromXP(subjectXP[subject] || 0);
+    return earned >= requirement.credits;
+  });
 };

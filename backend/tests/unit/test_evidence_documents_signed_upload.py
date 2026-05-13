@@ -254,20 +254,6 @@ def test_task_upload_finalize_403_when_not_owner(client, mock_verify_token, mock
     assert resp.status_code == 403
 
 
-def test_task_upload_finalize_maps_video_too_long_to_400(client, mock_verify_token, mock_admin_supabase, mock_media_service):
-    _task_owned_by(mock_admin_supabase, "test-user-123")
-    mock_media_service.finalize_upload.return_value = _rejected_result(
-        "VIDEO_TOO_LONG", "Video is too long (300s)."
-    )
-    resp = client.post(
-        "/api/evidence/documents/task-1/upload-finalize",
-        json={"storage_path": "p", "bucket": "quest-evidence"},
-        headers={"Authorization": "Bearer t"},
-    )
-    assert resp.status_code == 400
-    assert resp.get_json()["error_code"] == "VIDEO_TOO_LONG"
-
-
 # ── block upload-init ────────────────────────────────────────────────
 
 

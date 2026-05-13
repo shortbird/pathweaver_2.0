@@ -24,7 +24,7 @@ class CreditMappingService(BaseService):
         'language_arts': 4.0,
         'math': 3.0,
         'science': 3.0,
-        'social_studies': 3.5,
+        'social_studies': 4.0,
         'financial_literacy': 0.5,
         'health': 0.5,
         'pe': 2.0,
@@ -57,10 +57,8 @@ class CreditMappingService(BaseService):
             .eq('user_id', user_id)\
             .execute()
 
-        # Aggregate by credit_type
+        # Aggregate by credit_type (uncapped — used for per-subject breakdown)
         credits_by_subject = {}
-        total_credits = 0.0
-
         for record in result.data:
             credit_type = record['credit_type']
             credits = float(record['total_credits'])
@@ -70,13 +68,21 @@ class CreditMappingService(BaseService):
             else:
                 credits_by_subject[credit_type] = credits
 
-            total_credits += credits
+        # Cap each subject at its diploma requirement when summing the total
+        # toward graduation. Over-earning in one subject (e.g., 5 elective
+        # credits) doesn't substitute for under-earning in another.
+        requirements = CreditMappingService.DIPLOMA_REQUIREMENTS
+        total_credits = sum(
+            min(credits, requirements[subject])
+            for subject, credits in credits_by_subject.items()
+            if subject in requirements
+        )
 
         return {
             'user_id': user_id,
             'total_credits': round(total_credits, 2),
             'credits_by_subject': {k: round(v, 2) for k, v in credits_by_subject.items()},
-            'diploma_progress': round(total_credits / sum(CreditMappingService.DIPLOMA_REQUIREMENTS.values()), 3)
+            'diploma_progress': round(total_credits / sum(requirements.values()), 3)
         }
 
     @staticmethod

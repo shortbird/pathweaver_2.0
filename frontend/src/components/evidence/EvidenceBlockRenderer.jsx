@@ -10,7 +10,7 @@ import {
   DocumentIcon
 } from '@heroicons/react/24/outline';
 import { useEvidenceEditor } from './EvidenceEditorContext';
-import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL, validateVideoDuration } from './EvidenceMediaHandlers';
+import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL } from './EvidenceMediaHandlers';
 import { TouchActionGroup } from '../ui/mobile/TouchActionButton';
 import { ResponsiveGrid } from '../ui/mobile/ResponsiveGrid';
 import { useIsMobile } from '../../hooks/useSwipeGesture';
@@ -221,12 +221,6 @@ export const EvidenceBlockRenderer = ({
         const isVideoFile = file.type?.startsWith('video/');
         try {
           if (isVideoFile) {
-            // Video: validate duration, then upload as video type
-            const durationCheck = await validateVideoDuration(file);
-            if (!durationCheck.valid) {
-              toast.error(durationCheck.message);
-              continue;
-            }
             if (file.size > 50 * 1024 * 1024) {
               toast.error(`"${file.name}" is too large. Videos must be under 50MB.`);
               continue;
@@ -312,7 +306,7 @@ export const EvidenceBlockRenderer = ({
           <p className="text-sm font-medium text-gray-700">
             {items.length > 0 ? 'Add more photos or videos' : 'Click to upload photos or videos'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB, max 3 min</p>
+          <p className="text-xs text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB</p>
         </div>
 
         <input
@@ -334,12 +328,6 @@ export const EvidenceBlockRenderer = ({
 
       for (const file of files) {
         try {
-          // Client-side duration validation
-          const durationCheck = await validateVideoDuration(file);
-          if (!durationCheck.valid) {
-            toast.error(durationCheck.message);
-            continue;
-          }
           const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'video');
           addItem({
             url: fileInfo.localUrl,
@@ -441,7 +429,7 @@ export const EvidenceBlockRenderer = ({
           <p className="text-sm font-medium text-gray-700">
             {items.length > 0 ? 'Add another video' : 'Click to upload a video'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">{VIDEO_FORMAT_LABEL} up to 50MB, max 3 minutes</p>
+          <p className="text-xs text-gray-500 mt-1">{VIDEO_FORMAT_LABEL} up to 50MB</p>
         </div>
 
         <input

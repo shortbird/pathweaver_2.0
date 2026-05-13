@@ -21,9 +21,8 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { key: 'dashboard', label: 'Home', icon: 'home-outline', iconActive: 'home', href: '/(app)/(tabs)/dashboard', platforms: ['web'] },
   { key: 'courses', label: 'Courses', icon: 'school-outline', iconActive: 'school', href: '/(app)/(tabs)/courses', platforms: ['web'] },
-  { key: 'quests', label: 'Quests', icon: 'rocket-outline', iconActive: 'rocket', href: '/(app)/(tabs)/quests', platforms: ['web'] },
+  { key: 'quests', label: 'Quests', icon: 'rocket-outline', iconActive: 'rocket', href: '/(app)/(tabs)/quests', platforms: ['web', 'mobile'] },
   { key: 'bounties', label: 'Bounties', icon: 'flag-outline', iconActive: 'flag', href: '/(app)/(tabs)/bounties', platforms: ['web', 'mobile'] },
-  { key: 'buddy', label: 'Buddy', icon: 'heart-outline', iconActive: 'heart', href: '/(app)/(tabs)/buddy', platforms: ['web', 'mobile'] },
   { key: 'feed', label: 'Feed', icon: 'newspaper-outline', iconActive: 'newspaper', href: '/(app)/(tabs)/feed', platforms: ['web', 'mobile'] },
   { key: 'journal', label: 'Journal', icon: 'book-outline', iconActive: 'book', href: '/(app)/(tabs)/journal', platforms: ['web', 'mobile'] },
   { key: 'family', label: 'Family', icon: 'people-outline', iconActive: 'people', href: '/(app)/(tabs)/family', platforms: ['mobile'] },
@@ -34,10 +33,17 @@ export const navItems: NavItem[] = [
 ];
 
 /**
- * Mobile tab order: Feed, Journal, [+ Capture], Buddy, Bounties
+ * Mobile tab order for the default (student) shell: Journal, Feed, [+ Capture], Quests, Messages.
  * 'capture' is a special key -- not a route, triggers a modal.
+ * The Quests tab houses both quest discovery and bounties via a top-level segmented control.
+ * Parent and observer roles override this in app/(app)/(tabs)/_layout.tsx.
  */
-export const mobileTabOrder = ['journal', 'feed', 'capture', 'bounties', 'messages'];
+export const mobileTabOrder = ['journal', 'feed', 'capture', 'quests', 'messages'];
+
+/** Mobile tab order for parents. 'capture' is the center button, handled the
+ *  same way as in the student shell — it triggers the CaptureSheet modal in
+ *  parent mode (multi-select which kid(s) the moment is for). */
+export const parentMobileTabOrder = ['family', 'feed', 'capture', 'messages'];
 
 /** Items visible in desktop sidebar */
 export const desktopNavItems = navItems.filter((n) => n.platforms.includes('web'));

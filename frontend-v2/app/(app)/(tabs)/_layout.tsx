@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, useWindowDimensions, View, Image, Pressable } from 'react-native';
@@ -6,10 +6,12 @@ import { useColorScheme } from 'nativewind';
 import { Sidebar } from '@/src/components/layouts/Sidebar';
 import { MobileHeader } from '@/src/components/layouts/MobileHeader';
 import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
+import { PreviewRoleBanner } from '@/src/components/layouts/PreviewRoleBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { useAuthStore } from '@/src/stores/authStore';
+import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { UIText } from '@/src/components/ui/text';
-import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder } from '@/src/config/navigation';
+import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
 
 const DESKTOP_BREAKPOINT = 768;
@@ -25,9 +27,25 @@ const optioIcon = require('@/assets/images/icon.png');
 
 function useIsObserver() {
   const user = useAuthStore((s) => s.user);
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  // Superadmin can preview other role shells without swapping tokens
+  if (user?.role === 'superadmin' && previewRole) return previewRole === 'observer';
   if (!user) return false;
   const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
   return role === 'observer';
+}
+
+function useIsParent() {
+  const user = useAuthStore((s) => s.user);
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  if (user?.role === 'superadmin' && previewRole) return previewRole === 'parent';
+  if (!user) return false;
+  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
+  return (
+    role === 'parent' ||
+    (user as any).has_dependents === true ||
+    (user as any).has_linked_students === true
+  );
 }
 
 /** Minimal header for observers on web — logo + sign out, no sidebar */
@@ -52,9 +70,16 @@ export default function TabsLayout() {
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const [captureVisible, setCaptureVisible] = useState(false);
   const isObserver = useIsObserver();
+  const isParent = useIsParent();
+  const restorePreviewRole = usePreviewRoleStore((s) => s.restore);
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const tabBarHidden = useUIStore((s) => s.tabBarHidden);
+
+  // Restore persisted preview role on first mount (web only)
+  useEffect(() => {
+    restorePreviewRole();
+  }, [restorePreviewRole]);
 
   // ── Observer: feed + bounties, minimal chrome ──
   const observerTabs = ['feed', 'bounties'];
@@ -63,6 +88,7 @@ export default function TabsLayout() {
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
         {isDesktop && <ObserverHeader />}
         <ActingAsBanner />
+        <PreviewRoleBanner />
         <Tabs
           initialRouteName="feed"
           screenOptions={{
@@ -71,7 +97,11 @@ export default function TabsLayout() {
             tabBarInactiveTintColor: '#9A93A8',
             tabBarLabelStyle: {
               fontFamily: 'Poppins_500Medium',
-              fontSize: 11,
+              fontSize: 10,
+              letterSpacing: -0.1,
+            },
+            tabBarItemStyle: {
+              paddingHorizontal: 2,
             },
             tabBarStyle: isDesktop
               ? { display: 'none' }
@@ -104,6 +134,7 @@ export default function TabsLayout() {
             <Tabs.Screen key={n.key} name={n.key} options={{ href: null }} />
           ))}
           <Tabs.Screen name="capture" options={{ href: null }} />
+          <Tabs.Screen name="buddy" options={{ href: null }} />
         </Tabs>
       </View>
     );
@@ -116,6 +147,7 @@ export default function TabsLayout() {
         <Sidebar />
         <View className="flex-1">
           <ActingAsBanner />
+        <PreviewRoleBanner />
           <Tabs
             screenOptions={{
               headerShown: false,
@@ -126,9 +158,107 @@ export default function TabsLayout() {
               <Tabs.Screen key={item.key} name={item.key} />
             ))}
             <Tabs.Screen name="capture" options={{ href: null }} />
+            <Tabs.Screen name="buddy" options={{ href: null }} />
           </Tabs>
         </View>
         <CaptureSheet visible={captureVisible} onClose={() => setCaptureVisible(false)} />
+      </View>
+    );
+  }
+
+  // ── Mobile parent: family + feed + center capture + messages ──
+  if (isParent) {
+    return (
+      <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
+        <ActingAsBanner />
+        <PreviewRoleBanner />
+        <Tabs
+          initialRouteName="family"
+          screenOptions={{
+            headerShown: false,
+            tabBarActiveTintColor: '#6D469B',
+            tabBarInactiveTintColor: '#9A93A8',
+            tabBarLabelStyle: {
+              fontFamily: 'Poppins_500Medium',
+              fontSize: 10,
+              letterSpacing: -0.1,
+            },
+            tabBarItemStyle: {
+              paddingHorizontal: 2,
+            },
+            tabBarStyle: tabBarHidden
+              ? { display: 'none' as const }
+              : {
+                  height: 85,
+                  paddingBottom: 20,
+                  borderTopColor: isDark ? '#3A3A52' : '#E2DCE8',
+                  backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
+                },
+          }}
+        >
+          {parentMobileTabOrder.map((key) => {
+            // Center capture button — opens CaptureSheet with kid multi-select
+            if (key === 'capture') {
+              return (
+                <Tabs.Screen
+                  key="capture"
+                  name="capture"
+                  listeners={{
+                    tabPress: (e) => {
+                      e.preventDefault();
+                      setCaptureVisible(true);
+                    },
+                  }}
+                  options={{
+                    title: '',
+                    tabBarIcon: () => (
+                      <View
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 26,
+                          marginTop: -20,
+                          boxShadow: '0 4px 8px rgba(109, 70, 155, 0.3)',
+                          elevation: 8,
+                        }}
+                      >
+                        <Image
+                          source={optioIcon}
+                          style={{ width: 52, height: 52, borderRadius: 26 }}
+                        />
+                      </View>
+                    ),
+                  }}
+                />
+              );
+            }
+
+            const item = navItems.find((n) => n.key === key);
+            if (!item) return null;
+            return (
+              <Tabs.Screen
+                key={item.key}
+                name={item.key}
+                options={{
+                  title: item.label,
+                  tabBarIcon: ({ color, size }) => (
+                    <Ionicons name={item.icon} size={size} color={color} />
+                  ),
+                }}
+              />
+            );
+          })}
+          {/* Hide all other routes */}
+          {navItems.filter((n) => !parentMobileTabOrder.includes(n.key)).map((n) => (
+            <Tabs.Screen key={n.key} name={n.key} options={{ href: null }} />
+          ))}
+          <Tabs.Screen name="buddy" options={{ href: null }} />
+        </Tabs>
+        <CaptureSheet
+          visible={captureVisible}
+          onClose={() => setCaptureVisible(false)}
+          pickStudents
+        />
       </View>
     );
   }
@@ -137,6 +267,7 @@ export default function TabsLayout() {
   return (
     <>
       <ActingAsBanner />
+      <PreviewRoleBanner />
       <Tabs
         initialRouteName="feed"
         screenOptions={{
@@ -145,7 +276,11 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: '#9A93A8',
           tabBarLabelStyle: {
             fontFamily: 'Poppins_500Medium',
-            fontSize: 11,
+            fontSize: 10,
+            letterSpacing: -0.1,
+          },
+          tabBarItemStyle: {
+            paddingHorizontal: 2,
           },
           tabBarStyle: tabBarHidden
             ? { display: 'none' as const }
@@ -214,6 +349,7 @@ export default function TabsLayout() {
         {hiddenMobileRoutes.map((key) => (
           <Tabs.Screen key={key} name={key} options={{ href: null }} />
         ))}
+        <Tabs.Screen name="buddy" options={{ href: null }} />
       </Tabs>
       <CaptureSheet visible={captureVisible} onClose={() => setCaptureVisible(false)} />
     </>
