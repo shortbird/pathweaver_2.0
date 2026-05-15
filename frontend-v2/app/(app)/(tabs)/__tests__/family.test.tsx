@@ -62,10 +62,13 @@ describe('ParentDashboardPage', () => {
     const children = [createMockChild()];
     (useMyChildren as jest.Mock).mockReturnValue({ children, loading: false });
 
-    const { getByText } = render(<ParentDashboardPage />);
+    const { getAllByText, getByText } = render(<ParentDashboardPage />);
 
+    // 'Jane Bowman' renders in multiple places (selector header, child list,
+    // hero card heading) — verify the child is rendered, not that it appears
+    // exactly once.
     await waitFor(() => {
-      expect(getByText('Jane Bowman')).toBeTruthy();
+      expect(getAllByText('Jane Bowman').length).toBeGreaterThan(0);
     });
     expect(getByText('Total XP')).toBeTruthy();
   });

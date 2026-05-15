@@ -25,17 +25,19 @@ vi.mock('react-hot-toast', () => ({
 vi.mock('../services/api', () => ({
   observerAPI: {
     getMyStudents: vi.fn(),
-    getFeed: vi.fn()
+    getFeed: vi.fn(),
+    recordViews: vi.fn().mockResolvedValue(undefined)
   }
 }))
 
-// Mock FeedCard
+// Mock FeedCard + ObserverTipsModal
 vi.mock('../components/observer', () => ({
   FeedCard: ({ item }) => (
     <div data-testid={`feed-card-${item.id}`}>
       <span>{item.title || item.type}</span>
     </div>
-  )
+  ),
+  ObserverTipsModal: ({ isOpen }) => (isOpen ? <div data-testid="observer-tips-modal" /> : null)
 }))
 
 vi.mock('@heroicons/react/24/outline', () => ({
