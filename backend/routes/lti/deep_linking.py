@@ -10,8 +10,9 @@ Flow (continuing from launch.py's LtiDeepLinkingRequest branch):
        GET /lti/deep-link/context.
     3. Teacher fills in title + description and POSTs to
        /lti/deep-link/submit. We:
-         a. Create a blank `quests` row (`quest_type='lti_canvas'`,
-            organization_id from the registration).
+         a. Create a blank `quests` row (`quest_type='optio'` —
+            check_quest_type only allows 'optio'/'course'; LTI provenance
+            lives in lms_platform + lti_registration_id + lms_course_id).
          b. Build a single LtiResourceLink content item pointing
             target_link_uri at /lti/launch with `optio_quest_id` in
             `custom`. Set submission_type=external_tool so Canvas wires it

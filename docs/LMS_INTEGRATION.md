@@ -27,7 +27,7 @@ Optio supports integration with Learning Management Systems (LMS) through severa
 - **Tool config**: served at `/lti/config.json` — Canvas admins paste this URL into a Developer Key (LTI Key → Method: Enter URL) to import the full configuration.
 - **OIDC auth endpoint**: pointed at `sso.canvaslms.com` per the 2024 Canvas migration.
 - **Iframe session**: post-launch we issue a one-time auth code (`lti_auth_codes` table) and the frontend exchanges it via `POST /lti/token` for Bearer access/refresh tokens stored in `tokenStore` (memory-only on web). No third-party cookies required.
-- **Quests**: Deep Linking always creates a blank "personalize-your-own" quest (`quest_type='lti_canvas'`). Each student runs the AI personalization wizard inside the iframe to invent their own task list.
+- **Quests**: Deep Linking always creates a blank "personalize-your-own" quest (`quest_type='optio'`; LTI provenance carried by `lms_platform='canvas'` + `lti_registration_id` + `lms_course_id`, since the `check_quest_type` constraint only permits `'optio'` and `'course'`). Each student runs the AI personalization wizard inside the iframe to invent their own task list.
 - **Grade passback**: Quest completion enqueues an `lms_grade_sync` row. The grade-sync service POSTs an AGS Score with the Canvas-namespaced submission claim — Canvas SpeedGrader shows the linked Optio evidence URL alongside the score.
 
 ### Prerequisites
