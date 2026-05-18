@@ -94,3 +94,87 @@ def test_lti_token_rejects_unknown_code(client):
     assert resp.status_code != 200
     body = resp.get_json() or {}
     assert "access_token" not in body
+
+
+# ---------------------------------------------------------------------------
+# User provisioning: Canvas "Student View" sends a missing/garbage email,
+# which Supabase Auth 400s. Regression for the prod crash where the whole
+# launch 500'd instead of synthesizing a placeholder.
+# ---------------------------------------------------------------------------
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize(
+    "value,valid",
+    [
+        ("tanner@williamsburglearning.com", True),
+        ("a.b+c@sub.example.co.uk", True),
+        ("", False),
+        ("   ", False),
+        ("not-an-email", False),
+        ("missing@domain", False),
+        ("@nolocal.com", False),
+        ("spaces in@email.com", False),
+        ("trailing@space.com ", True),  # stripped before match
+    ],
+)
+def test_is_valid_email(value, valid):
+    from routes.lti.launch import _is_valid_email
+
+    assert _is_valid_email(value) is valid
+
+
+def _chain_mock(execute_data):
+    """Build a Supabase query-builder mock whose terminal .execute() returns
+    an object with `.data == execute_data`. Every intermediate builder call
+    (.table/.select/.eq/.limit/.insert/.update) returns the same mock."""
+    from unittest.mock import MagicMock
+
+    m = MagicMock()
+    m.table.return_value = m
+    m.select.return_value = m
+    m.insert.return_value = m
+    m.update.return_value = m
+    m.eq.return_value = m
+    m.limit.return_value = m
+    m.execute.return_value = MagicMock(data=execute_data)
+    return m
+
+
+def test_provision_synthesizes_email_for_canvas_student_view(monkeypatch):
+    """Canvas Student View sends sub but a malformed email. We must NOT call
+    create_user with the bad email, NOT email-merge, and the synthetic
+    address must be deterministic + format-valid."""
+    from routes.lti import launch as launch_mod
+
+    supabase = _chain_mock([])  # no existing lms_integrations / users rows
+    created = {}
+
+    def _create_user(payload):
+        created.update(payload)
+        from unittest.mock import MagicMock
+
+        return MagicMock(user=MagicMock(id="new-user-uuid"))
+
+    supabase.auth.admin.create_user.side_effect = _create_user
+    monkeypatch.setattr(launch_mod, "get_supabase_admin_client", lambda: supabase)
+
+    registration = type("R", (), {"organization_id": "org-123"})()
+    claims = {
+        "sub": "856b18e6-ee6c-4d8f-a68e-9f64d9ceba38",
+        "email": "Test Student",  # Canvas Student View garbage value
+        "given_name": "Test",
+        "family_name": "Student",
+    }
+
+    user_id = launch_mod._provision_lti_user(claims, registration)
+
+    assert user_id == "new-user-uuid"
+    # Synthetic, deterministic, format-valid; the garbage email was discarded.
+    assert created["email"] == (
+        "canvas-856b18e6-ee6c-4d8f-a68e-9f64d9ceba38@lti.optioeducation.com"
+    )
+    from routes.lti.launch import _is_valid_email
+
+    assert _is_valid_email(created["email"]) is True

@@ -16,6 +16,7 @@ pattern (backend/routes/spark_integration/__init__.py:84).
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -268,6 +269,17 @@ def lti_launch():
 # User provisioning
 # ---------------------------------------------------------------------------
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _is_valid_email(value: str) -> bool:
+    """Conservative RFC-ish check. Supabase Auth rejects malformed addresses
+    with a 400 (which previously 500'd the whole launch), so we gate
+    create_user on this and synthesize a placeholder when a platform — e.g.
+    Canvas's "Student View" test user — sends a missing or garbage email."""
+    return bool(_EMAIL_RE.match((value or "").strip()))
+
+
 def _provision_lti_user(claims: Dict[str, Any], registration) -> str:
     """Find or create the Optio user behind this Canvas user.
 
@@ -280,14 +292,32 @@ def _provision_lti_user(claims: Dict[str, Any], registration) -> str:
     # admin client justified: LTI launch runs pre-session — Canvas-signed id_token is the auth surface; user provisioning + lms_integrations writes need to cross users
     supabase = get_supabase_admin_client()
     canvas_user_id = claims["sub"]
-    email = claims.get("email") or claims.get(
-        "https://purl.imsglobal.org/spec/lti/claim/lis", {}
-    ).get("person_sourcedid") or ""
+    raw_email = (
+        claims.get("email")
+        or claims.get("https://purl.imsglobal.org/spec/lti/claim/lis", {}).get(
+            "person_sourcedid"
+        )
+        or ""
+    ).strip()
     given = claims.get("given_name", "")
     family = claims.get("family_name", "")
     full_name = claims.get("name") or f"{given} {family}".strip()
     roles = claims.get(ROLES_CLAIM, [])
     org_role = role_to_org_role(roles)
+
+    # Canvas's "Student View" test user — and some Canvas privacy configs —
+    # send a missing or malformed email, which Supabase Auth rejects with a
+    # 400. The real identity anchor is the lms_integrations (lms_user_id=sub)
+    # link, so when the email is unusable we synthesize a deterministic,
+    # format-valid placeholder keyed off the LTI subject and skip the
+    # email-merge step below (so a synthetic test user can never collide with
+    # or merge into a real account).
+    email_is_real = _is_valid_email(raw_email)
+    email = (
+        raw_email
+        if email_is_real
+        else f"canvas-{canvas_user_id}@lti.optioeducation.com"
+    )
 
     # 1. Existing LMS link
     integration = (
@@ -305,9 +335,10 @@ def _provision_lti_user(claims: Dict[str, Any], registration) -> str:
         ).eq("id", user_id).execute()
         return user_id
 
-    # 2. Email merge
+    # 2. Email merge — only for real, platform-provided emails. Synthetic
+    # placeholders must never match an existing account.
     user_id: Optional[str] = None
-    if email:
+    if email_is_real:
         existing = (
             supabase.table("users").select("id").eq("email", email).limit(1).execute()
         )
@@ -317,12 +348,6 @@ def _provision_lti_user(claims: Dict[str, Any], registration) -> str:
 
     # 3. Create
     if not user_id:
-        if not email:
-            raise LtiError(
-                "Cannot provision new user — Canvas did not send an email claim "
-                "and no existing Optio account matches. Ask the Canvas admin "
-                "to set the tool's privacy level to 'public'."
-            )
         import secrets as _secrets
 
         temp_password = _secrets.token_urlsafe(32)
