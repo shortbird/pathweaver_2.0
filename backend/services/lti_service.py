@@ -203,6 +203,51 @@ def verify_state(state: str, registration: LtiRegistration) -> Dict[str, Any]:
     return payload
 
 
+# ---------------------------------------------------------------------------
+# Evidence access token (SpeedGrader carve-out)
+# ---------------------------------------------------------------------------
+#
+# The Canvas grading teacher views a student's evidence link unauthenticated
+# (no Optio session in the SpeedGrader iframe). We must NOT depend on the
+# diploma's public/private flag for this — a teacher grading the work they
+# assigned has a legitimate need to see it regardless, and the public/private
+# product decision is still being workshopped.
+#
+# Solution: Optio's grade-sync mints an HMAC-signed, non-expiring token
+# scoped to one (user_id, quest_id). The diploma endpoint treats a valid
+# token as authorization to bypass the public/private gate. The token is
+# unforgeable (signed with JWT_SECRET_KEY) and only ever produced by
+# grade-sync, which only runs for a genuinely-completed LTI quest in a real
+# Canvas course — so it only ever lands in that course's gradebook.
+
+
+def issue_evidence_token(user_id: str, quest_id: str) -> str:
+    """Sign a token authorizing unauthenticated view of `user_id`'s diploma
+    in the Canvas SpeedGrader context. No expiry: gradebook links must keep
+    working for late grading; scope is read-only single-student."""
+    payload = {
+        "purpose": "lti_evidence",
+        "uid": user_id,
+        "qid": quest_id,
+        "iat": int(time.time()),
+    }
+    return jwt.encode(payload, Config.JWT_SECRET_KEY, algorithm="HS256")
+
+
+def verify_evidence_token(token: str, user_id: str) -> bool:
+    """True iff `token` is a valid evidence token for exactly `user_id`."""
+    if not token:
+        return False
+    try:
+        payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=["HS256"])
+    except jwt.PyJWTError:
+        return False
+    return (
+        payload.get("purpose") == "lti_evidence"
+        and payload.get("uid") == user_id
+    )
+
+
 def remember_nonce(nonce: str, issuer: str) -> None:
     """Insert nonce into the replay-protection cache. Raises if already seen."""
     # admin client justified: LTI handler runs pre-session — Canvas-signed id_token is the auth, not an Optio session, so RLS-bound user client isn't usable yet
