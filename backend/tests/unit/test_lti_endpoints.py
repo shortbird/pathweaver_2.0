@@ -96,6 +96,19 @@ def test_lti_token_rejects_unknown_code(client):
     assert "access_token" not in body
 
 
+def test_lti_evidence_requires_token(client):
+    """The SpeedGrader evidence endpoint is unauthenticated except for the
+    signed token. No token / garbage token → 401, never a body that could
+    leak student data."""
+    r1 = client.get("/lti/evidence")
+    assert r1.status_code == 401
+
+    r2 = client.get("/lti/evidence?lti_token=not-a-real-token")
+    assert r2.status_code == 401
+    body = r2.get_json() or {}
+    assert "tasks" not in body and "student" not in body
+
+
 # ---------------------------------------------------------------------------
 # User provisioning: Canvas "Student View" sends a missing/garbage email,
 # which Supabase Auth 400s. Regression for the prod crash where the whole

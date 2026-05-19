@@ -363,3 +363,26 @@ def test_evidence_token_rejected_under_wrong_secret(monkeypatch):
 
     monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "secret-two")
     assert verify_evidence_token(tok, "user-A") is False
+
+
+def test_decode_evidence_token_returns_uid_qid(monkeypatch):
+    """The /lti/evidence endpoint reads (user, quest) from the token, never
+    a query param — decode must surface both, or None on any tampering."""
+    monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "test-secret-key")
+    from services.lti_service import issue_evidence_token, decode_evidence_token
+
+    tok = issue_evidence_token("user-A", "quest-9")
+    claims = decode_evidence_token(tok)
+    assert claims == {"uid": "user-A", "qid": "quest-9"}
+
+    assert decode_evidence_token("") is None
+    assert decode_evidence_token("not.a.jwt") is None
+
+    # A different-purpose token (OIDC state) must not be accepted as evidence.
+    import jwt as _jwt
+    state = _jwt.encode(
+        {"purpose": "lti_oidc_state", "uid": "user-A", "qid": "quest-9"},
+        "test-secret-key",
+        algorithm="HS256",
+    )
+    assert decode_evidence_token(state) is None
