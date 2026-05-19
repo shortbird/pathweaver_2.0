@@ -98,7 +98,19 @@ def get_public_diploma_by_user_id(user_id):
         viewer_user_id = session_manager.get_current_user_id()
         logger.info(f"[FERPA] Viewer check: viewer_user_id={viewer_user_id}")
 
-        result = portfolio_service.get_diploma_data(user_id, viewer_user_id)
+        # LTI SpeedGrader carve-out: a signed evidence token authorizes the
+        # (unauthenticated) grading teacher to view this student's diploma
+        # regardless of its public/private setting.
+        lti_token = request.args.get('lti_token')
+        lti_authorized = False
+        if lti_token:
+            from services.lti_service import verify_evidence_token
+            lti_authorized = verify_evidence_token(lti_token, user_id)
+            logger.info(f"[LTI] Evidence token presented; valid={lti_authorized}")
+
+        result = portfolio_service.get_diploma_data(
+            user_id, viewer_user_id, lti_authorized=lti_authorized
+        )
 
         if 'error' in result:
             error_msg = result['error']

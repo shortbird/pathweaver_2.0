@@ -946,7 +946,8 @@ class PortfolioService:
     def get_diploma_data(
         self,
         user_id: str,
-        viewer_user_id: Optional[str] = None
+        viewer_user_id: Optional[str] = None,
+        lti_authorized: bool = False
     ) -> Dict[str, Any]:
         """
         Get full diploma data for diploma page.
@@ -954,6 +955,11 @@ class PortfolioService:
         Args:
             user_id: User whose diploma to fetch
             viewer_user_id: User viewing the diploma (for access check)
+            lti_authorized: True when the caller presented a valid LTI
+                evidence token for this user (Canvas SpeedGrader carve-out).
+                Bypasses the public/private gate — a teacher grading the work
+                they assigned may view it regardless of the student's diploma
+                visibility setting. See lti_service.verify_evidence_token.
 
         Returns:
             Dict with diploma data including achievements, XP, evidence
@@ -967,7 +973,7 @@ class PortfolioService:
         diploma = self.get_diploma_by_user_id(user_id)
         is_public = diploma.get('is_public', False) if diploma else False
 
-        if not is_public and viewer_user_id != user_id:
+        if not is_public and viewer_user_id != user_id and not lti_authorized:
             return {'error': 'Portfolio not found or private'}
 
         # Fetch all data

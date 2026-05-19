@@ -315,3 +315,51 @@ def test_fetch_grade_for_user_quest_handles_no_results_yet(monkeypatch, tool_key
     assert any("lti_canvas_polled_at" in payload for payload in write_log)
     # And we should NOT have written score columns when no result exists.
     assert all("lti_canvas_score" not in payload for payload in write_log)
+
+
+# ---------------------------------------------------------------------------
+# SpeedGrader evidence URL + signed carve-out token
+# ---------------------------------------------------------------------------
+
+def test_evidence_url_uses_by_user_id_route_with_signed_token(monkeypatch):
+    """Regression: the URL must hit /public/diploma/<user_id> (resolves by
+    user_id), NOT /portfolio/<slug> (resolves by portfolio_slug -> always
+    404s on a UUID). It must also carry a valid lti_token."""
+    monkeypatch.setattr("app_config.Config.FRONTEND_URL", "https://www.optioeducation.com")
+    monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "test-secret-key")
+    from services.lti_grade_sync_service import _evidence_url_for_quest
+    from services.lti_service import verify_evidence_token
+    from urllib.parse import urlparse, parse_qs
+
+    url = _evidence_url_for_quest("user-uuid-123", "quest-uuid-456")
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query)
+
+    assert parsed.path == "/public/diploma/user-uuid-123"
+    assert qs["quest"] == ["quest-uuid-456"]
+    assert verify_evidence_token(qs["lti_token"][0], "user-uuid-123") is True
+
+
+def test_evidence_token_round_trip_and_scoping(monkeypatch):
+    monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "test-secret-key")
+    from services.lti_service import issue_evidence_token, verify_evidence_token
+
+    tok = issue_evidence_token("user-A", "quest-1")
+    # Valid only for exactly the user it was minted for.
+    assert verify_evidence_token(tok, "user-A") is True
+    assert verify_evidence_token(tok, "user-B") is False
+    # Garbage / empty / wrong-secret tokens are rejected.
+    assert verify_evidence_token("", "user-A") is False
+    assert verify_evidence_token("not.a.jwt", "user-A") is False
+
+
+def test_evidence_token_rejected_under_wrong_secret(monkeypatch):
+    """A token signed with one secret must not verify once the secret
+    rotates (issue/verify read Config.JWT_SECRET_KEY at call time)."""
+    from services.lti_service import issue_evidence_token, verify_evidence_token
+
+    monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "secret-one")
+    tok = issue_evidence_token("user-A", "quest-1")
+
+    monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "secret-two")
+    assert verify_evidence_token(tok, "user-A") is False

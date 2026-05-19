@@ -449,8 +449,15 @@ const DiplomaPage = () => {
 
   const fetchPublicDiplomaByUserId = async () => {
     try {
+      // Forward the LTI evidence token (Canvas SpeedGrader carve-out) so the
+      // unauthenticated grading teacher can view this student's work
+      // regardless of the diploma's public/private setting.
+      const ltiToken = new URLSearchParams(location.search).get('lti_token');
+      const url = ltiToken
+        ? `/api/portfolio/diploma/${userId}?lti_token=${encodeURIComponent(ltiToken)}`
+        : `/api/portfolio/diploma/${userId}`;
       // Use api service for proper CORS handling, but this is a public endpoint
-      const response = await api.get(`/api/portfolio/diploma/${userId}`);
+      const response = await api.get(url);
       const data = response.data;
 
       logger.debug('Public diploma data received:', data);

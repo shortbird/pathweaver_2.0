@@ -38,12 +38,25 @@ MAX_SYNC_ATTEMPTS = 5
 
 def _evidence_url_for_quest(user_id: str, quest_id: str) -> Optional[str]:
     """Build a public, time-stable URL for the user's quest evidence so the
-    Canvas SpeedGrader can render it. We reuse the existing public portfolio
-    page rather than minting a separate share link — it already handles
-    block-based evidence rendering and is publicly viewable."""
+    Canvas SpeedGrader can render it (the grading teacher views it
+    unauthenticated, so it must resolve without an Optio session).
+
+    Must use the by-user-id route `/public/diploma/<user_id>`, NOT
+    `/portfolio/<slug>`: the latter resolves the diploma by `portfolio_slug`
+    (a name-derived string like "jane-bowman-3"), so passing a user UUID
+    there always 404s ("Diploma not found"). The `/public/diploma/<id>`
+    route looks up by user_id. The `?quest=` param deep-links DiplomaPage to
+    that quest.
+
+    The `lti_token` is a signed carve-out so the grading teacher can view
+    the work regardless of the student's public/private diploma setting
+    (see lti_service.issue_evidence_token). Without it we'd be hostage to
+    the still-unfinalized public/private product decision."""
+    from services.lti_service import issue_evidence_token
+
     base = Config.FRONTEND_URL.rstrip("/")
-    # Existing public route lives at /portfolio/<user_id>?quest=<quest_id>.
-    return f"{base}/portfolio/{user_id}?quest={quest_id}"
+    token = issue_evidence_token(user_id, quest_id)
+    return f"{base}/public/diploma/{user_id}?quest={quest_id}&lti_token={token}"
 
 
 def enqueue_for_quest_completion(user_id: str, quest_id: str) -> None:
