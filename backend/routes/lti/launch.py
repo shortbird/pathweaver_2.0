@@ -457,4 +457,8 @@ def _stash_deep_link_settings(
 
 
 def _frontend_url() -> str:
-    return Config.FRONTEND_URL.rstrip("/")
+    # LTI-only base. Defaults to FRONTEND_URL (no-op) until the staged
+    # v2-as-LTI-host cutover flips LTI_FRONTEND_URL in prod env. The v2
+    # routes (/lti-launch, /deep-link, /quest/[id]) match these paths, so
+    # the host flip needs no code change here.
+    return (Config.LTI_FRONTEND_URL or Config.FRONTEND_URL).rstrip("/")

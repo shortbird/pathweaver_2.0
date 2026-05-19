@@ -197,3 +197,77 @@ LTI must keep working on v1 until v2 is proven in real Canvas:
 - No backend evidence-model changes (blocks API already multi-format).
 - No change to the LTI auth/launch/token model.
 - Not redesigning the broader Optio app — LTI surface only.
+
+## 11. Implementation status (2026-05-19)
+
+Phases 1–3 built, tested, merged to `main`, deployed. **No live-behaviour
+change** — `LTI_FRONTEND_URL` defaults to `FRONTEND_URL` (v1), so prod LTI
+still serves v1 and the AGS link still points at the working
+`/public/diploma` URL.
+
+| Phase | Shipped | PR |
+|---|---|---|
+| 1 — `LtiShell` + frameResize + shell-ify launch/error | ✅ | #27 |
+| 2 — `/lti/evidence` endpoint + `decode_evidence_token` + teacher page | ✅ | #28 |
+| 3 — `LtiEvidenceEditor` (multi-format) + quest/deep-link on shell | ✅ | #29 |
+| 4 — config plumbing (`LTI_FRONTEND_URL`, `_frontend_url()`) | ✅ staged | (this) |
+| 4 — **prod cutover (env flip + AGS repoint + real-Canvas E2E)** | ⛔ **USER** | — |
+
+Wording correction to §9.1: the endpoint shipped as **`/lti/evidence`**
+(not `/api/lti/evidence`) to match the existing LTI blueprint prefix
+(`/lti/launch`, `/lti/token`, …). Behaviour is exactly as decided.
+
+## 12. Phase 4 cutover runbook (USER-performed, gated on real Canvas)
+
+> Claude built/staged everything below the line; the cutover itself was
+> explicitly scoped to the user (it needs a real Canvas launch only you can
+> perform and it changes live Williamsburg behaviour). **Do not run during
+> an active Williamsburg session. Complete before August.**
+
+**Preconditions**
+- PRs #27–#29 on `main` and deployed (done).
+- frontend-v2 reachable at an HTTPS host Canvas can iframe (the v2 web
+  deploy URL). Call it `<V2_HOST>`.
+
+**Step A — verify v2 in real Canvas BEFORE flipping anything.**
+Temporarily point a *test* Canvas course's tool at `<V2_HOST>` (or set
+`LTI_FRONTEND_URL=<V2_HOST>` on the **dev** backend) and run, against the
+Williamsburg test course:
+1. Resource-link launch (course nav) → quest page renders in-iframe, no
+   clipping (frameResize working) in: course nav, assignment, SpeedGrader.
+2. Deep-link create → assignment lands in the module.
+3. Student: personalize → add **text, link, image, video, file** evidence →
+   submit for grading.
+4. Within ~5 min the Canvas gradebook shows the score; SpeedGrader opens
+   the **quest-scoped** `/lti-evidence` page (not the full portfolio),
+   renders all block types, works unauthenticated.
+5. Replay an old launch JWT → still 401 (nonce replay unaffected).
+
+**Step B — repoint AGS to the new evidence route (code, via gated PR).**
+In `backend/services/lti_grade_sync_service.py` `_evidence_url_for_quest`,
+change the return to:
+```python
+base = (Config.LTI_FRONTEND_URL or Config.FRONTEND_URL).rstrip("/")
+token = issue_evidence_token(user_id, quest_id)
+return f"{base}/lti-evidence?lti_token={token}"
+```
+(Currently it returns `{FRONTEND_URL}/public/diploma/<uid>?...&lti_token=`.)
+Ship via the normal develop→PR→green→merge flow. This is safe to merge
+**before** the env flip *only if* `<V2_HOST>` already serves `/lti-evidence`
+for everyone — otherwise sequence B after A's env flip. Recommended: do the
+env flip (Step C) first in the same maintenance window, then merge B.
+
+**Step C — flip the host.** Set `LTI_FRONTEND_URL=<V2_HOST>` in the **prod
+backend** Render env and let it redeploy. Launch/token redirects move to v2
+automatically (no code change — `_frontend_url()` already reads it).
+
+**Step D — confirm + watch.** Re-run Step A's checklist against prod. Watch
+Render LTI logs for the first real student submission. Confirm SpeedGrader
+shows the quest-scoped page.
+
+**Rollback (either direction, ~1 min):**
+- Unset/blank `LTI_FRONTEND_URL` in prod env → redeploy → LTI instantly
+  back on v1.
+- Revert the Step B PR → AGS link back to `/public/diploma` (already
+  proven working).
+Both are independent and reversible; v1 LTI stays fully intact throughout.
