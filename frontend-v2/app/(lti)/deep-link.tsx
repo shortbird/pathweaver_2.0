@@ -10,9 +10,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Platform, View, Pressable, ActivityIndicator } from 'react-native';
+import { Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { api } from '@/src/services/api';
+import { LtiShell } from '@/src/components/lti/LtiShell';
 import {
   VStack, HStack, UIText, Heading, Card, Input, InputField,
   Button, ButtonText,
@@ -112,27 +113,12 @@ export default function DeepLink() {
     }
   }
 
-  if (contextError) {
-    return (
-      <View className="flex-1 items-center justify-center px-6">
-        <UIText size="sm" className="text-error-600 text-center">
-          {contextError}
-        </UIText>
-      </View>
-    );
-  }
-
-  if (!context) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  if (contextError) return <LtiShell error={contextError} />;
+  if (!context) return <LtiShell loading />;
 
   return (
-    <View className="flex-1 items-center px-6 py-10">
-      <Card variant="elevated" size="lg" className="w-full max-w-xl">
+    <LtiShell>
+      <Card variant="elevated" size="lg" className="w-full">
         <VStack space="lg">
           <VStack space="xs">
             <Heading size="lg">Add an Optio assignment</Heading>
@@ -185,6 +171,6 @@ export default function DeepLink() {
           </HStack>
         </VStack>
       </Card>
-    </View>
+    </LtiShell>
   );
 }
