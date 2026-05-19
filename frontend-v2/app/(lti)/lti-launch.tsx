@@ -9,12 +9,11 @@
  */
 
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { api } from '@/src/services/api';
 import { tokenStore } from '@/src/services/tokenStore';
 import { useAuthStore } from '@/src/stores/authStore';
-import { VStack, UIText } from '@/src/components/ui';
+import { LtiShell } from '@/src/components/lti/LtiShell';
 
 export default function LtiLaunch() {
   const params = useLocalSearchParams<{ code?: string; mode?: string }>();
@@ -73,23 +72,8 @@ export default function LtiLaunch() {
   }, [params.code, params.mode]);
 
   if (error) {
-    return (
-      <View className="flex-1 items-center justify-center px-6">
-        <VStack space="md" className="items-center">
-          <UIText size="lg" className="font-poppins-semibold text-typo-900">
-            Could not start your Optio launch
-          </UIText>
-          <UIText size="sm" className="text-typo-500 text-center">
-            {error}
-          </UIText>
-        </VStack>
-      </View>
-    );
+    return <LtiShell error={error} />;
   }
 
-  return (
-    <View className="flex-1 items-center justify-center">
-      <ActivityIndicator size="large" />
-    </View>
-  );
+  return <LtiShell loading />;
 }
