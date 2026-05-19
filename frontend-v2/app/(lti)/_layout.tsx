@@ -23,6 +23,7 @@ export default function LtiLayout() {
         <Stack.Screen name="lti-launch" />
         <Stack.Screen name="deep-link" />
         <Stack.Screen name="quest/[id]" />
+        <Stack.Screen name="lti-evidence" />
         <Stack.Screen name="error" />
       </Stack>
     </View>

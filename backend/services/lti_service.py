@@ -234,18 +234,31 @@ def issue_evidence_token(user_id: str, quest_id: str) -> str:
     return jwt.encode(payload, Config.JWT_SECRET_KEY, algorithm="HS256")
 
 
-def verify_evidence_token(token: str, user_id: str) -> bool:
-    """True iff `token` is a valid evidence token for exactly `user_id`."""
+def decode_evidence_token(token: str) -> Optional[Dict[str, Any]]:
+    """Return `{uid, qid}` if `token` is a valid evidence token, else None.
+
+    The (user, quest) pair is read from the signed token itself — callers
+    must not trust a separately-supplied id/quest. Used by the LTI evidence
+    endpoint (which has no other auth) and by verify_evidence_token."""
     if not token:
-        return False
+        return None
     try:
         payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=["HS256"])
     except jwt.PyJWTError:
-        return False
-    return (
-        payload.get("purpose") == "lti_evidence"
-        and payload.get("uid") == user_id
-    )
+        return None
+    if payload.get("purpose") != "lti_evidence":
+        return None
+    uid = payload.get("uid")
+    qid = payload.get("qid")
+    if not uid or not qid:
+        return None
+    return {"uid": uid, "qid": qid}
+
+
+def verify_evidence_token(token: str, user_id: str) -> bool:
+    """True iff `token` is a valid evidence token for exactly `user_id`."""
+    claims = decode_evidence_token(token)
+    return bool(claims and claims["uid"] == user_id)
 
 
 def remember_nonce(nonce: str, issuer: str) -> None:
