@@ -321,23 +321,27 @@ def test_fetch_grade_for_user_quest_handles_no_results_yet(monkeypatch, tool_key
 # SpeedGrader evidence URL + signed carve-out token
 # ---------------------------------------------------------------------------
 
-def test_evidence_url_uses_by_user_id_route_with_signed_token(monkeypatch):
-    """Regression: the URL must hit /public/diploma/<user_id> (resolves by
-    user_id), NOT /portfolio/<slug> (resolves by portfolio_slug -> always
-    404s on a UUID). It must also carry a valid lti_token."""
+def test_evidence_url_hits_lti_evidence_page_with_signed_token(monkeypatch):
+    """The AGS submission URL must hit the LTI-specific quest-scoped
+    evidence page (/lti-evidence?lti_token=...), NOT the public diploma
+    page. The (user, quest) pair lives inside the signed token — the URL
+    deliberately carries nothing else."""
     monkeypatch.setattr("app_config.Config.FRONTEND_URL", "https://www.optioeducation.com")
+    monkeypatch.setattr("app_config.Config.LTI_FRONTEND_URL", None)
     monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "test-secret-key")
     from services.lti_grade_sync_service import _evidence_url_for_quest
-    from services.lti_service import verify_evidence_token
+    from services.lti_service import decode_evidence_token
     from urllib.parse import urlparse, parse_qs
 
     url = _evidence_url_for_quest("user-uuid-123", "quest-uuid-456")
     parsed = urlparse(url)
     qs = parse_qs(parsed.query)
 
-    assert parsed.path == "/public/diploma/user-uuid-123"
-    assert qs["quest"] == ["quest-uuid-456"]
-    assert verify_evidence_token(qs["lti_token"][0], "user-uuid-123") is True
+    assert parsed.path == "/lti-evidence"
+    # URL carries ONLY the token; user/quest must come from inside it.
+    assert set(qs.keys()) == {"lti_token"}
+    claims = decode_evidence_token(qs["lti_token"][0])
+    assert claims == {"uid": "user-uuid-123", "qid": "quest-uuid-456"}
 
 
 def test_evidence_token_round_trip_and_scoping(monkeypatch):

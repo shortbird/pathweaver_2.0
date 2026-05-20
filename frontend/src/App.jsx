@@ -128,6 +128,7 @@ const LtiLaunchPage = lazy(() => import('./pages/lti/LtiLaunchPage'))
 const LtiDeepLinkPage = lazy(() => import('./pages/lti/LtiDeepLinkPage'))
 const LtiQuestPage = lazy(() => import('./pages/lti/LtiQuestPage'))
 const LtiErrorPage = lazy(() => import('./pages/lti/LtiErrorPage'))
+const LtiEvidencePage = lazy(() => import('./pages/lti/LtiEvidencePage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -400,6 +401,7 @@ function App() {
               <Route path="lti-launch" element={<LtiLaunchPage />} />
               <Route path="lti-deep-link" element={<LtiDeepLinkPage />} />
               <Route path="lti-quest/:id" element={<LtiQuestPage />} />
+              <Route path="lti-evidence" element={<LtiEvidencePage />} />
               <Route path="lti-error" element={<LtiErrorPage />} />
 
               <Route path="/" element={<Layout />}>

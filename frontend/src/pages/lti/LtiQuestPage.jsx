@@ -14,19 +14,13 @@
 import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../services/api'
+import LtiShell from '../../components/lti/LtiShell'
+import LtiEvidenceEditor from '../../components/lti/LtiEvidenceEditor'
 
 // Reuse v1's wizard. Lazy-loaded so the iframe payload stays small.
 const QuestPersonalizationWizard = lazy(() =>
   import('../../components/quests/QuestPersonalizationWizard'),
 )
-
-function Spinner() {
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-    </div>
-  )
-}
 
 export default function LtiQuestPage() {
   const { id: questId } = useParams()
@@ -100,9 +94,9 @@ export default function LtiQuestPage() {
     setShowWizard(false)
   }
 
-  const completeTaskWithText = async (taskId, evidenceText) => {
+  const completeTaskWithBlocks = async (taskId, blocks) => {
     await api.post(`/api/evidence/documents/${taskId}`, {
-      blocks: [{ type: 'text', content: { text: evidenceText } }],
+      blocks,
       status: 'completed',
     })
     await fetchQuest()
@@ -156,18 +150,16 @@ export default function LtiQuestPage() {
     }
   }
 
-  // Only render the spinner on the very first load (when quest is still
-  // null). Subsequent refetches (after completing a task) keep the existing
-  // quest data on screen so the user doesn't see a full-page flash.
-  if (!quest) return <Spinner />
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-6">
-        <p className="text-sm text-red-600 text-center">{error}</p>
-      </div>
-    )
-  }
+  // Only render the shell-loading state on the very first load (when quest
+  // is still null). Subsequent refetches (after completing a task) keep the
+  // existing quest data on screen so the user doesn't see a full-page flash.
+  if (!quest) return <LtiShell loading />
+  if (error) return <LtiShell error={error} />
+  const Spinner = () => (
+    <div className="flex items-center justify-center py-10">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" />
+    </div>
+  )
 
   const tasks = quest.quest_tasks || []
   const completedCount = tasks.filter((t) => t.is_completed).length
@@ -190,15 +182,12 @@ export default function LtiQuestPage() {
   const submitted = !!quest.completed_enrollment
 
   return (
-    <div className="min-h-screen bg-gray-50 px-6 py-10">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{quest.title}</h1>
-          {quest.description && (
-            <p className="mt-2 text-base text-gray-600">{quest.description}</p>
-          )}
-        </div>
-
+    <LtiShell
+      title={quest.title}
+      subtitle={quest.description || undefined}
+      maxWidthClassName="max-w-3xl"
+    >
+      <div className="space-y-6">
         {submitted ? (
           <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
             <div>
@@ -247,7 +236,7 @@ export default function LtiQuestPage() {
               <TaskRow
                 key={task.id}
                 task={task}
-                onComplete={(text) => completeTaskWithText(task.id, text)}
+                onComplete={(blocks) => completeTaskWithBlocks(task.id, blocks)}
                 onRemove={() => removeTask(task.id)}
               />
             ))}
@@ -321,13 +310,11 @@ export default function LtiQuestPage() {
           </div>
         </Suspense>
       )}
-    </div>
+    </LtiShell>
   )
 }
 
 function TaskRow({ task, onComplete, onRemove }) {
-  const [evidence, setEvidence] = useState('')
-  const [submitting, setSubmitting] = useState(false)
   const [err, setErr] = useState(null)
   const [removing, setRemoving] = useState(false)
 
@@ -395,38 +382,24 @@ function TaskRow({ task, onComplete, onRemove }) {
         </div>
       </div>
       {task.description && <p className="text-sm text-gray-600">{task.description}</p>}
-      <textarea
-        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-optio-purple"
-        rows={3}
-        placeholder="Write what you did, learned, or made"
-        value={evidence}
-        onChange={(e) => setEvidence(e.target.value)}
-      />
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <div className="flex justify-end">
-        <button
-          disabled={submitting || !evidence.trim()}
-          onClick={async () => {
-            setErr(null)
-            setSubmitting(true)
-            try {
-              await onComplete(evidence.trim())
-            } catch (e) {
-              const raw = e?.response?.data?.error
-              setErr(
-                typeof raw === 'string'
-                  ? raw
-                  : raw?.message || e?.message || 'Could not mark complete',
-              )
-            } finally {
-              setSubmitting(false)
-            }
-          }}
-          className="px-4 py-2 rounded-md bg-optio-purple text-white font-medium disabled:opacity-50"
-        >
-          {submitting ? 'Submitting…' : 'Mark complete'}
-        </button>
-      </div>
+      <LtiEvidenceEditor
+        taskId={task.id}
+        onComplete={async (blocks) => {
+          setErr(null)
+          try {
+            await onComplete(blocks)
+          } catch (e) {
+            const raw = e?.response?.data?.error
+            setErr(
+              typeof raw === 'string'
+                ? raw
+                : raw?.message || e?.message || 'Could not mark complete',
+            )
+            throw e
+          }
+        }}
+      />
     </div>
   )
 }
