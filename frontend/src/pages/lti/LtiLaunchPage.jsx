@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api, { tokenStore } from '../../services/api'
+import LtiShell from '../../components/lti/LtiShell'
 
 export default function LtiLaunchPage() {
   const [searchParams] = useSearchParams()
@@ -68,22 +69,6 @@ export default function LtiLaunchPage() {
     })()
   }, [searchParams, navigate])
 
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-6">
-        <div className="max-w-md text-center">
-          <h1 className="text-lg font-semibold text-gray-900">
-            Could not start your Optio launch
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">{error}</p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-    </div>
-  )
+  if (error) return <LtiShell error={error} />
+  return <LtiShell loading />
 }

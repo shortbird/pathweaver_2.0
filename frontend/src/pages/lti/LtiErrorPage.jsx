@@ -5,6 +5,7 @@
  */
 
 import { useSearchParams } from 'react-router-dom'
+import LtiShell from '../../components/lti/LtiShell'
 
 const MESSAGES = {
   no_target:
@@ -17,15 +18,5 @@ export default function LtiErrorPage() {
   const [searchParams] = useSearchParams()
   const reason = searchParams.get('reason') || 'default'
   const message = MESSAGES[reason] || MESSAGES.default
-
-  return (
-    <div className="flex min-h-screen items-center justify-center px-6">
-      <div className="max-w-md text-center">
-        <h1 className="text-lg font-semibold text-gray-900">
-          We can't load this Optio assignment
-        </h1>
-        <p className="mt-2 text-sm text-gray-600">{message}</p>
-      </div>
-    </div>
-  )
+  return <LtiShell error={message} />
 }

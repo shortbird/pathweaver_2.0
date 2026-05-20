@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
+import LtiShell from '../../components/lti/LtiShell'
 
 // Backend's standard error envelope wraps `error` as an object
 // `{code, message, debug, request_id, timestamp}`. Older code paths return
@@ -97,31 +98,17 @@ export default function LtiDeepLinkPage() {
     }
   }
 
-  if (contextError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-6">
-        <p className="text-sm text-red-600">{contextError}</p>
-      </div>
-    )
-  }
-  if (!context) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-      </div>
-    )
-  }
+  if (contextError) return <LtiShell error={contextError} />
+  if (!context) return <LtiShell loading />
 
   return (
-    <div className="flex min-h-screen items-start justify-center px-6 py-10">
-      <div className="w-full max-w-xl bg-white rounded-xl shadow-md p-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Add an Optio Quest</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Give it a title and a short prompt. Each student will see an AI
-          wizard inside Canvas that helps them invent their own approach.
-        </p>
-
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+    <LtiShell
+      title="Add an Optio Quest"
+      subtitle="Give it a title and a short prompt. Each student will see an AI wizard inside Canvas that helps them invent their own approach."
+      maxWidthClassName="max-w-xl"
+    >
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
             <input
@@ -175,6 +162,6 @@ export default function LtiDeepLinkPage() {
           </div>
         </form>
       </div>
-    </div>
+    </LtiShell>
   )
 }

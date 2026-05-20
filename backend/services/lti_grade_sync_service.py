@@ -41,22 +41,20 @@ def _evidence_url_for_quest(user_id: str, quest_id: str) -> Optional[str]:
     Canvas SpeedGrader can render it (the grading teacher views it
     unauthenticated, so it must resolve without an Optio session).
 
-    Must use the by-user-id route `/public/diploma/<user_id>`, NOT
-    `/portfolio/<slug>`: the latter resolves the diploma by `portfolio_slug`
-    (a name-derived string like "jane-bowman-3"), so passing a user UUID
-    there always 404s ("Diploma not found"). The `/public/diploma/<id>`
-    route looks up by user_id. The `?quest=` param deep-links DiplomaPage to
-    that quest.
+    Routes to the LTI-specific quest-scoped evidence page (decision: keep
+    the LTI surface in v1 — see docs/LTI_FRONTEND_REDESIGN.md). The page
+    fetches GET /lti/evidence?lti_token=... which derives the (user, quest)
+    from the signed token itself, so the URL carries only the token.
 
-    The `lti_token` is a signed carve-out so the grading teacher can view
+    The signed `lti_token` is the carve-out so the grading teacher can view
     the work regardless of the student's public/private diploma setting
     (see lti_service.issue_evidence_token). Without it we'd be hostage to
     the still-unfinalized public/private product decision."""
     from services.lti_service import issue_evidence_token
 
-    base = Config.FRONTEND_URL.rstrip("/")
+    base = (Config.LTI_FRONTEND_URL or Config.FRONTEND_URL).rstrip("/")
     token = issue_evidence_token(user_id, quest_id)
-    return f"{base}/public/diploma/{user_id}?quest={quest_id}&lti_token={token}"
+    return f"{base}/lti-evidence?lti_token={token}"
 
 
 def enqueue_for_quest_completion(user_id: str, quest_id: str) -> None:
