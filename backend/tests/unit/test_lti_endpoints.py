@@ -109,6 +109,85 @@ def test_lti_evidence_requires_token(client):
     assert "tasks" not in body and "student" not in body
 
 
+def test_lti_evidence_success_path_shape(client, monkeypatch):
+    """Regression for the prod 500 from referencing
+    `quest_task_completions.xp_awarded` (column doesn't exist). The
+    endpoint must hit only real columns and assemble the documented
+    response shape: student / quest / earned_xp / tasks[]."""
+    from unittest.mock import MagicMock
+    from routes.lti import evidence as ev
+    from services.lti_service import issue_evidence_token
+
+    monkeypatch.setattr("app_config.Config.JWT_SECRET_KEY", "test-secret-key")
+    token = issue_evidence_token("user-A", "quest-1")
+
+    # Per-table mock results so we can assert which columns each call asks
+    # for AND drive the success path with realistic row shapes.
+    fixtures = {
+        "users": [
+            {"first_name": "Jane", "last_name": "Doe", "display_name": "Jane Doe"}
+        ],
+        "quests": [{"id": "quest-1", "title": "Test quest"}],
+        "user_quest_tasks": [
+            {"id": "t1", "title": "Learn the rules", "pillar": "stem", "xp_value": 100},
+            {"id": "t2", "title": "Skipped", "pillar": "art", "xp_value": 50},
+        ],
+        # Completions deliberately exclude xp_awarded; only the columns the
+        # endpoint is allowed to ask for.
+        "quest_task_completions": [
+            {"task_id": "t1", "completed_at": "2026-05-21T00:00:00Z"}
+        ],
+        "user_task_evidence_documents": [{"id": "doc-1", "task_id": "t1"}],
+        "evidence_document_blocks": [
+            {
+                "document_id": "doc-1",
+                "block_type": "text",
+                "content": {"text": "I did it"},
+                "order_index": 0,
+                "is_private": False,
+            }
+        ],
+    }
+    selected_columns: dict[str, str] = {}
+
+    def fake_client():
+        client_mock = MagicMock()
+        def table(name):
+            q = MagicMock()
+            q.select = lambda cols: (selected_columns.setdefault(name, cols), q)[1]
+            q.eq = lambda *_a, **_k: q
+            q.in_ = lambda *_a, **_k: q
+            q.order = lambda *_a, **_k: q
+            q.limit = lambda *_a, **_k: q
+            q.execute = lambda: MagicMock(data=fixtures.get(name, []))
+            return q
+        client_mock.table = table
+        return client_mock
+
+    monkeypatch.setattr(ev, "get_supabase_admin_client", fake_client)
+
+    resp = client.get(f"/lti/evidence?lti_token={token}")
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+
+    # The bug was that we asked for a column that doesn't exist. Lock the
+    # contract: the completions select MUST NOT mention xp_awarded.
+    assert "xp_awarded" not in selected_columns.get("quest_task_completions", "")
+
+    # Documented response shape.
+    assert body["student"]["display_name"] == "Jane Doe"
+    assert body["quest"]["title"] == "Test quest"
+    # 1 of 2 tasks completed → XP comes from user_quest_tasks.xp_value.
+    assert body["earned_xp"] == 100
+    titles = [t["title"] for t in body["tasks"]]
+    assert "Learn the rules" in titles and "Skipped" in titles
+    t1 = next(t for t in body["tasks"] if t["id"] == "t1")
+    assert t1["is_completed"] is True
+    assert t1["evidence_blocks"][0]["content"] == {"text": "I did it"}
+    t2 = next(t for t in body["tasks"] if t["id"] == "t2")
+    assert t2["is_completed"] is False
+
+
 # ---------------------------------------------------------------------------
 # User provisioning: Canvas "Student View" sends a missing/garbage email,
 # which Supabase Auth 400s. Regression for the prod crash where the whole

@@ -103,23 +103,17 @@ export default function LtiEvidenceEditor({ taskId, onComplete }) {
   return (
     <div className="space-y-3" data-testid="lti-evidence-editor">
       {blocks.length > 0 && (
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {blocks.map((b, i) => (
             <li
               key={i}
-              className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2"
+              className="rounded-md bg-gray-50 px-3 py-2 space-y-2"
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="inline-flex items-center rounded-full bg-optio-purple/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-optio-purple">
-                  {b.type}
-                </span>
-                {b.type === 'image' && b.file_url ? (
-                  <img
-                    src={b.file_url}
-                    alt=""
-                    className="h-8 w-8 rounded object-cover"
-                  />
-                ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="inline-flex items-center rounded-full bg-optio-purple/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-optio-purple">
+                    {b.type}
+                  </span>
                   <span className="text-xs text-gray-700 truncate">
                     {b.type === 'text'
                       ? b.content.text
@@ -127,15 +121,33 @@ export default function LtiEvidenceEditor({ taskId, onComplete }) {
                         ? b.content.url
                         : b.file_name || 'attached'}
                   </span>
-                )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeAt(i)}
+                  className="text-xs text-gray-500 hover:text-gray-800 shrink-0"
+                >
+                  Remove
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => removeAt(i)}
-                className="text-xs text-gray-500 hover:text-gray-800"
-              >
-                Remove
-              </button>
+              {/* Larger previews for visual evidence so the student can
+                  actually see what they attached — the thumbnail in the
+                  meta row above is too small to be useful. */}
+              {b.type === 'image' && b.file_url ? (
+                <img
+                  src={b.file_url}
+                  alt={b.file_name || 'image evidence'}
+                  className="block w-full max-h-64 rounded object-contain bg-white"
+                />
+              ) : null}
+              {b.type === 'video' && b.file_url ? (
+                <video
+                  src={b.file_url}
+                  controls
+                  preload="metadata"
+                  className="block w-full max-h-64 rounded bg-black"
+                />
+              ) : null}
             </li>
           ))}
         </ul>
