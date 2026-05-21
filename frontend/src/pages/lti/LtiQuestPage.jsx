@@ -337,28 +337,22 @@ function TaskRow({ task, onComplete, onRemove }) {
   }
 
   if (task.is_completed) {
+    // No Remove button for completed tasks — the API rejects deletion of
+    // a completed task with "Cannot remove completed tasks", and showing a
+    // button that always errors is worse UX than not showing it. If the
+    // student wants to revise, the quest-level "Reopen to revise" flow is
+    // the right path.
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-medium text-gray-900 flex-1 min-w-0">{task.title}</h3>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-              Completed
-            </span>
-            <button
-              onClick={handleRemove}
-              disabled={removing}
-              title="Remove task"
-              className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50"
-            >
-              Remove
-            </button>
-          </div>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">
+            Completed
+          </span>
         </div>
         {task.description && (
           <p className="mt-1 text-sm text-gray-600">{task.description}</p>
         )}
-        {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
       </div>
     )
   }
