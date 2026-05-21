@@ -76,12 +76,14 @@ def lti_quest_evidence():
     ).data or []
     task_ids = [t["id"] for t in tasks]
 
-    # Completions (source of truth for "done" + awarded XP).
+    # Completions (source of truth for "done"). XP comes from
+    # user_quest_tasks.xp_value below — the completions table doesn't carry
+    # an xp_awarded column; XP is the task's own value at completion time.
     completions_by_task: Dict[str, Dict[str, Any]] = {}
     if task_ids:
         comp = (
             supabase.table("quest_task_completions")
-            .select("task_id, xp_awarded, completed_at")
+            .select("task_id, completed_at")
             .eq("user_id", user_id)
             .eq("quest_id", quest_id)
             .execute()
@@ -126,9 +128,8 @@ def lti_quest_evidence():
     for t in tasks:
         c = completions_by_task.get(t["id"])
         is_completed = c is not None
-        awarded = (c or {}).get("xp_awarded")
         if is_completed:
-            earned_xp += int(awarded if awarded is not None else t.get("xp_value") or 0)
+            earned_xp += int(t.get("xp_value") or 0)
         out_tasks.append(
             {
                 "id": t["id"],
