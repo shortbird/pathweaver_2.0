@@ -81,14 +81,16 @@ describe('LtiEvidenceEditor', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /Mark complete \(1\)/ }))
-    await waitFor(() =>
-      expect(onComplete).toHaveBeenCalledWith([
-        expect.objectContaining({
-          type: 'image',
-          file_url: 'https://cdn/pic.jpg',
-          file_name: 'pic.jpg',
-        }),
-      ]),
-    )
+    await waitFor(() => expect(onComplete).toHaveBeenCalled())
+    // The URL must live INSIDE content — the persistence layer (backend
+    // update_document_blocks) only reads block.content. Top-level
+    // file_url is silently dropped, so without this the saved row would
+    // be `content: {}` and the teacher view can't render the image.
+    expect(onComplete).toHaveBeenCalledWith([
+      expect.objectContaining({
+        type: 'image',
+        content: expect.objectContaining({ url: 'https://cdn/pic.jpg' }),
+      }),
+    ])
   })
 })

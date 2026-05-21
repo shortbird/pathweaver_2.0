@@ -72,11 +72,17 @@ export default function LtiEvidenceEditor({ taskId, onComplete }) {
         finalizePath,
         blockType,
       })
+      const fileUrl = result.file_url || result.url
+      const fileName = result.file_name || result.filename || file.name
+      // The persistence layer (routes/evidence_documents.update_document_blocks)
+      // only reads block.content — top-level file_url is silently dropped.
+      // Put the URL INSIDE content so the saved row keeps it.
       add({
         type: blockType,
-        content: {},
-        file_url: result.file_url || result.url,
-        file_name: result.file_name || result.filename || file.name,
+        content: { url: fileUrl, file_name: fileName },
+        // Keep top-level too for components reading from there (read-side).
+        file_url: fileUrl,
+        file_name: fileName,
       })
     } catch (e) {
       setErr(e?.message || 'Upload failed')
