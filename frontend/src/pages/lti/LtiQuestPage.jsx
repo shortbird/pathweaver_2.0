@@ -314,6 +314,87 @@ export default function LtiQuestPage() {
   )
 }
 
+/**
+ * Completed task — collapsed by default, expands into the multi-format
+ * LtiEvidenceEditor pre-populated with the student's existing blocks when
+ * they click Edit. Submit replaces the document's blocks (the backend's
+ * update_document_blocks deletes + reinserts), task stays completed.
+ *
+ * The Remove button is intentionally absent — the API rejects deletion of
+ * a completed task ("Cannot remove completed tasks"). Editing covers the
+ * "I want to change my evidence" case.
+ */
+function CompletedTaskRow({ task, onComplete }) {
+  const [editing, setEditing] = useState(false)
+  const [existingBlocks, setExistingBlocks] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState(null)
+
+  const startEditing = async () => {
+    setErr(null)
+    setLoading(true)
+    try {
+      const { data } = await api.get(`/api/evidence/documents/${task.id}`)
+      setExistingBlocks(data?.blocks || [])
+      setEditing(true)
+    } catch (e) {
+      const raw = e?.response?.data?.error
+      setErr(
+        typeof raw === 'string' ? raw : raw?.message || e?.message || 'Could not load evidence',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-medium text-gray-900 flex-1 min-w-0">{task.title}</h3>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+            Completed
+          </span>
+          {!editing && (
+            <button
+              onClick={startEditing}
+              disabled={loading}
+              className="text-xs px-2 py-0.5 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {loading ? 'Loading…' : 'Edit'}
+            </button>
+          )}
+        </div>
+      </div>
+      {task.description && !editing && (
+        <p className="text-sm text-gray-600">{task.description}</p>
+      )}
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      {editing && existingBlocks !== null && (
+        <LtiEvidenceEditor
+          taskId={task.id}
+          initialBlocks={existingBlocks}
+          onCancel={() => setEditing(false)}
+          onComplete={async (blocks) => {
+            try {
+              await onComplete(blocks)
+              setEditing(false)
+            } catch (e) {
+              const raw = e?.response?.data?.error
+              setErr(
+                typeof raw === 'string'
+                  ? raw
+                  : raw?.message || e?.message || 'Could not save evidence',
+              )
+              throw e
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 function TaskRow({ task, onComplete, onRemove }) {
   const [err, setErr] = useState(null)
   const [removing, setRemoving] = useState(false)
@@ -337,24 +418,7 @@ function TaskRow({ task, onComplete, onRemove }) {
   }
 
   if (task.is_completed) {
-    // No Remove button for completed tasks — the API rejects deletion of
-    // a completed task with "Cannot remove completed tasks", and showing a
-    // button that always errors is worse UX than not showing it. If the
-    // student wants to revise, the quest-level "Reopen to revise" flow is
-    // the right path.
-    return (
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="font-medium text-gray-900 flex-1 min-w-0">{task.title}</h3>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">
-            Completed
-          </span>
-        </div>
-        {task.description && (
-          <p className="mt-1 text-sm text-gray-600">{task.description}</p>
-        )}
-      </div>
-    )
+    return <CompletedTaskRow task={task} onComplete={onComplete} />
   }
 
   return (

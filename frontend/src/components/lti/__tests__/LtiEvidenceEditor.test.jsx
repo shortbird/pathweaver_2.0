@@ -93,4 +93,66 @@ describe('LtiEvidenceEditor', () => {
       }),
     ])
   })
+
+  // ── Edit flow: pre-populate from server blocks, allow add/remove, Cancel ──
+
+  it('with initialBlocks: pre-populates editor + button reads "Save"', () => {
+    render(
+      <LtiEvidenceEditor
+        taskId="t1"
+        initialBlocks={[
+          { block_type: 'text', content: { text: 'first' } },
+          {
+            block_type: 'image',
+            content: { url: 'https://cdn/p.jpg', file_name: 'p.jpg' },
+          },
+        ]}
+        onComplete={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('first')).toBeInTheDocument()
+    expect(screen.getByText('p.jpg')).toBeInTheDocument()
+    // Image preview renders from content.url (read-side compatibility).
+    expect(
+      screen.getByRole('img', { name: /image evidence|p\.jpg/ }),
+    ).toHaveAttribute('src', 'https://cdn/p.jpg')
+    // Button text reflects edit semantics + reflects the pre-populated count.
+    expect(screen.getByRole('button', { name: /Save \(2\)/ })).toBeEnabled()
+  })
+
+  it('onCancel: Cancel button appears and invokes the handler', () => {
+    const onCancel = vi.fn()
+    render(
+      <LtiEvidenceEditor
+        taskId="t1"
+        initialBlocks={[{ block_type: 'text', content: { text: 'hi' } }]}
+        onComplete={vi.fn()}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('Edit flow: can remove a pre-populated block then save the rest', async () => {
+    const onComplete = vi.fn().mockResolvedValue(undefined)
+    render(
+      <LtiEvidenceEditor
+        taskId="t1"
+        initialBlocks={[
+          { block_type: 'text', content: { text: 'keep me' } },
+          { block_type: 'text', content: { text: 'remove me' } },
+        ]}
+        onComplete={onComplete}
+      />,
+    )
+    // Two "Remove" buttons (one per block). Click the second.
+    const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
+    fireEvent.click(removeButtons[1])
+    fireEvent.click(screen.getByRole('button', { name: /Save \(1\)/ }))
+    await waitFor(() => expect(onComplete).toHaveBeenCalled())
+    expect(onComplete).toHaveBeenCalledWith([
+      expect.objectContaining({ type: 'text', content: { text: 'keep me' } }),
+    ])
+  })
 })

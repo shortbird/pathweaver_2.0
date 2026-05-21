@@ -27,8 +27,37 @@ import { uploadViaSignedUrl } from '../../services/signedUpload'
 
 const SOFT_VIDEO_WARN_BYTES = 100 * 1024 * 1024 // 100MB — warn, never block
 
-export default function LtiEvidenceEditor({ taskId, onComplete }) {
-  const [blocks, setBlocks] = useState([])
+/**
+ * Normalize a block from the read API (block_type, content with .url) into
+ * the draft-internal shape (type, content, file_url for the preview).
+ * Used to seed the editor when editing an existing evidence document.
+ */
+function normalizeInitialBlock(b) {
+  const type = b.type || b.block_type
+  const content = b.content || {}
+  // For media/file blocks, the URL was persisted inside content.url
+  // (hotfix #2). Expose it at the top level too so the preview renders.
+  const fileUrl = content.url || b.file_url || null
+  const fileName = content.file_name || b.file_name || null
+  return {
+    type,
+    content,
+    ...(fileUrl ? { file_url: fileUrl } : {}),
+    ...(fileName ? { file_name: fileName } : {}),
+  }
+}
+
+export default function LtiEvidenceEditor({
+  taskId,
+  onComplete,
+  onCancel,
+  initialBlocks,
+  submitLabel,
+}) {
+  const isEdit = Array.isArray(initialBlocks)
+  const [blocks, setBlocks] = useState(() =>
+    isEdit ? initialBlocks.map(normalizeInitialBlock) : [],
+  )
   const [textDraft, setTextDraft] = useState('')
   const [linkDraft, setLinkDraft] = useState('')
   const [busy, setBusy] = useState(null) // null | 'image' | 'video' | 'file'
@@ -137,18 +166,19 @@ export default function LtiEvidenceEditor({ taskId, onComplete }) {
                 </button>
               </div>
               {/* Larger previews for visual evidence so the student can
-                  actually see what they attached — the thumbnail in the
-                  meta row above is too small to be useful. */}
-              {b.type === 'image' && b.file_url ? (
+                  actually see what they attached. URL lives in content.url
+                  on persisted blocks (hotfix #2) and at top-level file_url
+                  on freshly-uploaded blocks; check both. */}
+              {b.type === 'image' && (b.file_url || b.content?.url) ? (
                 <img
-                  src={b.file_url}
-                  alt={b.file_name || 'image evidence'}
+                  src={b.file_url || b.content.url}
+                  alt={b.file_name || b.content?.file_name || 'image evidence'}
                   className="block w-full max-h-64 rounded object-contain bg-white"
                 />
               ) : null}
-              {b.type === 'video' && b.file_url ? (
+              {b.type === 'video' && (b.file_url || b.content?.url) ? (
                 <video
-                  src={b.file_url}
+                  src={b.file_url || b.content.url}
                   controls
                   preload="metadata"
                   className="block w-full max-h-64 rounded bg-black"
@@ -207,7 +237,7 @@ export default function LtiEvidenceEditor({ taskId, onComplete }) {
         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-optio-purple focus:outline-none focus:ring-1 focus:ring-optio-purple"
       />
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={addLink}
@@ -216,24 +246,38 @@ export default function LtiEvidenceEditor({ taskId, onComplete }) {
         >
           Add link
         </button>
-        <button
-          type="button"
-          disabled={submitting || blocks.length === 0}
-          onClick={async () => {
-            setErr(null)
-            setSubmitting(true)
-            try {
-              await onComplete(blocks)
-            } catch (e) {
-              setErr(e?.message || 'Could not submit evidence')
-            } finally {
-              setSubmitting(false)
-            }
-          }}
-          className="text-sm px-4 py-2 rounded-md bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium disabled:opacity-50"
-        >
-          {submitting ? 'Submitting…' : `Mark complete (${blocks.length})`}
-        </button>
+        <div className="flex items-center gap-2">
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={submitting}
+              className="text-sm px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled={submitting || blocks.length === 0}
+            onClick={async () => {
+              setErr(null)
+              setSubmitting(true)
+              try {
+                await onComplete(blocks)
+              } catch (e) {
+                setErr(e?.message || 'Could not submit evidence')
+              } finally {
+                setSubmitting(false)
+              }
+            }}
+            className="text-sm px-4 py-2 rounded-md bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium disabled:opacity-50"
+          >
+            {submitting
+              ? 'Saving…'
+              : `${submitLabel || (isEdit ? 'Save' : 'Mark complete')} (${blocks.length})`}
+          </button>
+        </div>
       </div>
 
       {notice && <p className="text-xs text-amber-600">{notice}</p>}
@@ -245,4 +289,12 @@ export default function LtiEvidenceEditor({ taskId, onComplete }) {
 LtiEvidenceEditor.propTypes = {
   taskId: PropTypes.string.isRequired,
   onComplete: PropTypes.func.isRequired,
+  // When supplied, the editor opens pre-populated with these blocks (Edit
+  // flow on a completed task). Each block from the server has shape
+  // { block_type, content, ... }.
+  initialBlocks: PropTypes.array,
+  // When supplied, a Cancel button appears next to Save.
+  onCancel: PropTypes.func,
+  // Override the primary button label (default: "Mark complete" / "Save").
+  submitLabel: PropTypes.string,
 }
