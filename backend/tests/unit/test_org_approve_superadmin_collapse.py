@@ -1,13 +1,15 @@
-"""Regression guard: superadmin org-approve collapses the org+Optio steps.
+"""Regression guard: superadmin org-approve collapses the org+review steps.
 
-Product decision: when a superadmin reviews a credit request sitting at
-``pending_org_approval``, one click advances all the way to
-``diploma_status='approved'`` + ``accreditor_status='pending_accreditor'``
-and finalizes XP — skipping the ``pending_optio_approval`` intermediate.
+Product decision (May 2026): Optio is platform-accredited, so the
+superadmin is the final stamp. When a superadmin reviews a credit
+request sitting at ``pending_org_approval``, one click advances all the
+way to ``diploma_status='finalized'`` and finalizes XP — skipping the
+intermediate ``pending_review`` state.
 
-Non-superadmin org admins keep the two-step flow. Subject-XP overrides
-in the request body must apply to the task in either path so reviewers
-can edit XP-per-subject in the same click.
+Non-superadmin org admins keep the two-step flow: their approval lands
+the item at ``pending_review`` for the superadmin to finalize. Subject-XP
+overrides in the request body must apply to the task in either path so
+reviewers can edit XP-per-subject in the same click.
 """
 
 from __future__ import annotations
@@ -182,8 +184,8 @@ def _post(client, reviewer_id, body=None):
         )
 
 
-def test_org_admin_approval_still_advances_only_to_pending_optio(client):
-    """Non-superadmin path unchanged: two-step review preserved."""
+def test_org_admin_approval_advances_to_pending_review(client):
+    """Non-superadmin path: org admin approval hands off to superadmin review."""
     supabase, captures = _build_supabase(
         reviewer_role='org_managed', reviewer_id=ORG_ADMIN_ID, reviewer_org=ORG_ID,
     )
@@ -194,13 +196,13 @@ def test_org_admin_approval_still_advances_only_to_pending_optio(client):
 
     assert resp.status_code == 200, resp.get_json()
     update = captures['quest_task_completions'].get('row') or {}
-    assert update.get('diploma_status') == 'pending_optio_approval', (
-        f'expected two-step flow to leave status at pending_optio_approval; got {update!r}'
+    assert update.get('diploma_status') == 'pending_review', (
+        f'expected two-step flow to leave status at pending_review; got {update!r}'
     )
 
 
 def test_superadmin_approval_skips_pending_optio_and_finalizes(client):
-    """One click, all the way to accreditor review."""
+    """One click, all the way to finalized — superadmin is the final stamp."""
     supabase, captures = _build_supabase(
         reviewer_role='superadmin', reviewer_id=SUPERADMIN_ID,
     )
@@ -211,11 +213,11 @@ def test_superadmin_approval_skips_pending_optio_and_finalizes(client):
 
     assert resp.status_code == 200, resp.get_json()
     update = captures['quest_task_completions'].get('row') or {}
-    assert update.get('diploma_status') == 'approved', (
-        f'expected collapsed approval to land at approved; got {update!r}'
+    assert update.get('diploma_status') == 'finalized', (
+        f'expected collapsed approval to land at finalized; got {update!r}'
     )
-    assert update.get('accreditor_status') == 'pending_accreditor', (
-        'superadmin approvals must queue the item for accreditor review'
+    assert 'accreditor_status' not in update, (
+        'accreditor_status column was removed; no writes should reference it'
     )
     assert update.get('credit_reviewer_id') == SUPERADMIN_ID
     assert update.get('finalized_at') is not None
@@ -242,6 +244,6 @@ def test_superadmin_subject_override_is_applied_during_collapse(client):
     ]
     assert override in saved_distributions, (
         'reviewer-provided subject_xp_distribution must be persisted on the '
-        f'task so downstream reviewers (accreditor) see the approved split. '
+        'task so the override is what gets finalized. '
         f'writes to user_quest_tasks: {all_task_updates!r}'
     )

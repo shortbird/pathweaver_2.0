@@ -58,14 +58,6 @@ const PrivateRoute = ({ requiredRole }) => {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
-  // Accreditors can only access routes that explicitly include 'accreditor'
-  if (effectiveRole === 'accreditor') {
-    const allowedRoles = requiredRole ? (Array.isArray(requiredRole) ? requiredRole : [requiredRole]) : []
-    if (!allowedRoles.includes('accreditor')) {
-      return <Navigate to="/credit-dashboard" replace />
-    }
-  }
-
   if (requiredRole) {
     const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]
     // Superadmin has universal access
@@ -87,7 +79,6 @@ const PrivateRoute = ({ requiredRole }) => {
       // Redirect to role-appropriate dashboard
       const redirectPath = effectiveRole === 'parent' ? '/parent/dashboard'
         : effectiveRole === 'observer' ? '/observer/feed'
-        : effectiveRole === 'accreditor' ? '/credit-dashboard'
         : '/dashboard'
       return <Navigate to={redirectPath} replace />
     }

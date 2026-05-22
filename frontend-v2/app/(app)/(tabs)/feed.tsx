@@ -310,7 +310,7 @@ export default function FeedScreen() {
                 <Pressable
                   key={s}
                   onPress={() => setSegment(s)}
-                  className={`flex-1 py-2.5 rounded-lg items-center ${active ? 'bg-white shadow-sm' : ''}`}
+                  className={`flex-1 py-2.5 rounded-lg items-center ${active ? 'bg-white' : ''}`}
                 >
                   <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
                     {s === 'feed' ? 'Feed' : 'Students'}

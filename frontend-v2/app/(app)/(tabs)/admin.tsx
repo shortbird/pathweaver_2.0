@@ -203,7 +203,7 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
         {/* Sub-tabs */}
         <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
           {detailTabs.map((t) => (
-            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white shadow-sm' : ''}`}>
+            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white' : ''}`}>
               <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
             </Pressable>
           ))}
@@ -613,7 +613,7 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
             { key: 'settings' as const, label: 'Settings' },
             { key: 'actions' as const, label: 'Actions' },
           ]).map((t) => (
-            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white shadow-sm' : ''}`}>
+            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white' : ''}`}>
               <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
             </Pressable>
           ))}
@@ -966,7 +966,7 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
       {/* Sub-tabs */}
       <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
         {orgTabs.map((t) => (
-          <Pressable key={t.key} onPress={() => setOrgTab(t.key)} className={`flex-1 flex-row items-center justify-center gap-1.5 py-2.5 rounded-md ${orgTab === t.key ? 'bg-white shadow-sm' : ''}`}>
+          <Pressable key={t.key} onPress={() => setOrgTab(t.key)} className={`flex-1 flex-row items-center justify-center gap-1.5 py-2.5 rounded-md ${orgTab === t.key ? 'bg-white' : ''}`}>
             <Ionicons name={t.icon} size={14} color={orgTab === t.key ? '#6D469B' : '#9CA3AF'} />
             <UIText size="xs" className={orgTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
           </Pressable>
@@ -1350,14 +1350,14 @@ function DocsPanel() {
       <HStack className="items-center justify-between">
         <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
           <Pressable onPress={() => setActiveView('categories')}>
-            <View className={`px-4 py-2 rounded-md ${activeView === 'categories' ? 'bg-white shadow-sm' : ''}`}>
+            <View className={`px-4 py-2 rounded-md ${activeView === 'categories' ? 'bg-white' : ''}`}>
               <UIText size="sm" className={activeView === 'categories' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
                 Categories ({categories.length})
               </UIText>
             </View>
           </Pressable>
           <Pressable onPress={() => setActiveView('articles')}>
-            <View className={`px-4 py-2 rounded-md ${activeView === 'articles' ? 'bg-white shadow-sm' : ''}`}>
+            <View className={`px-4 py-2 rounded-md ${activeView === 'articles' ? 'bg-white' : ''}`}>
               <UIText size="sm" className={activeView === 'articles' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
                 Articles ({articles.length})
               </UIText>
@@ -1476,7 +1476,7 @@ export default function AdminScreen() {
             <HStack className="bg-surface-100 rounded-xl p-1" space="xs">
               {tabs.map((t) => (
                 <Pressable key={t.key} onPress={() => setActiveTab(t.key)}>
-                  <HStack className={`items-center gap-2 px-4 py-2.5 rounded-lg ${activeTab === t.key ? 'bg-white shadow-sm' : ''}`}>
+                  <HStack className={`items-center gap-2 px-4 py-2.5 rounded-lg ${activeTab === t.key ? 'bg-white' : ''}`}>
                     <Ionicons name={t.icon} size={16} color={activeTab === t.key ? '#6D469B' : '#9CA3AF'} />
                     <UIText size="sm" className={activeTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
                       {t.label}

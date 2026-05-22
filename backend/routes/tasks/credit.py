@@ -77,13 +77,13 @@ def request_diploma_credit(user_id: str, task_id: str):
 
         # Verify eligible status
         if completion_data['diploma_status'] not in ('none', 'grow_this'):
-            if completion_data['diploma_status'] in ('pending_review', 'pending_org_approval', 'pending_optio_approval'):
+            if completion_data['diploma_status'] in ('pending_review', 'pending_org_approval'):
                 return error_response(
                     code='ALREADY_PENDING',
                     message='Credit request is already pending review.',
                     status=400
                 )
-            if completion_data['diploma_status'] == 'approved':
+            if completion_data['diploma_status'] in ('approved', 'finalized'):
                 return error_response(
                     code='ALREADY_APPROVED',
                     message='Diploma credit has already been approved for this task.',

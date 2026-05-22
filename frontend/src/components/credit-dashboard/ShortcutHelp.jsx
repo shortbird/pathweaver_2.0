@@ -3,9 +3,8 @@ import React from 'react'
 const shortcuts = [
   { key: 'j', description: 'Move down in list' },
   { key: 'k', description: 'Move up in list' },
-  { key: 'a', description: 'Approve (advisor) / Confirm (accreditor)' },
-  { key: 'g', description: 'Grow This (advisor)' },
-  { key: 'f', description: 'Flag (accreditor)' },
+  { key: 'a', description: 'Approve' },
+  { key: 'g', description: 'Grow This (return with feedback)' },
   { key: 'm', description: 'Open merge modal (2+ selected)' },
   { key: 't', description: 'Toggle table/split-panel mode' },
   { key: 'Esc', description: 'Close modal / deselect' },

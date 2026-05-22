@@ -6,7 +6,6 @@ import { useColorScheme } from 'nativewind';
 import { Sidebar } from '@/src/components/layouts/Sidebar';
 import { MobileHeader } from '@/src/components/layouts/MobileHeader';
 import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
-import { PreviewRoleBanner } from '@/src/components/layouts/PreviewRoleBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
@@ -88,7 +87,6 @@ export default function TabsLayout() {
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
         {isDesktop && <ObserverHeader />}
         <ActingAsBanner />
-        <PreviewRoleBanner />
         <Tabs
           initialRouteName="feed"
           screenOptions={{
@@ -147,7 +145,6 @@ export default function TabsLayout() {
         <Sidebar />
         <View className="flex-1">
           <ActingAsBanner />
-        <PreviewRoleBanner />
           <Tabs
             screenOptions={{
               headerShown: false,
@@ -171,7 +168,6 @@ export default function TabsLayout() {
     return (
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
         <ActingAsBanner />
-        <PreviewRoleBanner />
         <Tabs
           initialRouteName="family"
           screenOptions={{
@@ -218,8 +214,7 @@ export default function TabsLayout() {
                           height: 52,
                           borderRadius: 26,
                           marginTop: -20,
-                          boxShadow: '0 4px 8px rgba(109, 70, 155, 0.3)',
-                          elevation: 8,
+                          boxShadow: '0 3px 6px rgba(109, 70, 155, 0.25)',
                         }}
                       >
                         <Image
@@ -267,7 +262,6 @@ export default function TabsLayout() {
   return (
     <>
       <ActingAsBanner />
-      <PreviewRoleBanner />
       <Tabs
         initialRouteName="feed"
         screenOptions={{
@@ -314,8 +308,7 @@ export default function TabsLayout() {
                         height: 52,
                         borderRadius: 26,
                         marginTop: -20,
-                        boxShadow: '0 4px 8px rgba(109, 70, 155, 0.3)',
-                        elevation: 8,
+                        boxShadow: '0 3px 6px rgba(109, 70, 155, 0.25)',
                       }}
                     >
                       <Image

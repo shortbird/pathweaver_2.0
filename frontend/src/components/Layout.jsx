@@ -54,15 +54,6 @@ const Layout = () => {
   // (observers only need /observer/feed; other nav items confuse them)
   const shouldShowSidebar = isAuthenticated && effectiveRole !== 'observer'
 
-  // Accreditors get a bare layout -- no sidebar, navbar, or footer
-  if (effectiveRole === 'accreditor') {
-    return (
-      <div className="min-h-screen bg-neutral-50">
-        <Outlet />
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-neutral-50">
       {/* Skip Navigation Link - Accessibility (WCAG 2.1) */}

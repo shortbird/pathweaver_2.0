@@ -554,7 +554,7 @@ def convert_moment_to_task(user_id, moment_id):
 
     Creates a pending task with ``source_moment_id`` linked back. The student
     can adjust title / pillar / xp via ``PUT /api/tasks/<task_id>`` afterward;
-    advisor / accreditor sign-off still happens at credit-request time.
+    credit review (org admin and/or superadmin) still happens at credit-request time.
     """
     try:
         data = request.get_json()

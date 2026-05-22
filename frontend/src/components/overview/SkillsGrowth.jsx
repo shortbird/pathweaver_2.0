@@ -10,10 +10,8 @@ import {
 // Subject progress row with full name.
 //
 // Two student-facing states:
-//   - Approved (purple): fully reviewed and officially on the diploma
-//   - Pending Approval (yellow): requested but not yet fully approved.
-//     This rolls up both internal admin states (awaiting Optio review and
-//     awaiting accreditor confirmation), since neither is on the diploma yet.
+//   - Approved (purple): superadmin has finalized the credit — it's on the diploma
+//   - Pending Approval (yellow): requested but not yet finalized.
 const SubjectProgressRow = ({ credit, pendingCredits = 0 }) => {
   const earnedPct = Math.min(credit.progressPercentage, 100);
   const totalPct = Math.min(
@@ -67,35 +65,15 @@ const SkillsGrowth = ({
   xpByPillar = {},
   subjectXp = {},
   pendingSubjectXp = {},
-  pendingAccreditationSubjectXp = {},
   totalXp = 0,
   hideHeader = false,
   showDiplomaCredits = true
 }) => {
-  // `subjectXp` from the API includes XP that Optio approved but the
-  // accreditor has not yet confirmed (it's already in user_subject_xp.xp_amount).
-  // Subtract that out so the approved (purple) bar reflects only credits that
-  // are officially on the diploma.
-  const confirmedSubjectXp = Object.keys(subjectXp).reduce((acc, key) => {
-    const verified = subjectXp[key] || 0;
-    const pendingAcc = pendingAccreditationSubjectXp[key] || 0;
-    acc[key] = Math.max(0, verified - pendingAcc);
-    return acc;
-  }, {});
+  const totalCreditsEarned = calculateTotalCredits(subjectXp);
+  const creditProgress = getAllCreditProgress(subjectXp);
 
-  // Roll up both internal pending states (awaiting Optio review + awaiting
-  // accreditor confirmation) into a single "Pending Approval" bucket — the
-  // student doesn't need to see backend admin queue states.
-  const pendingApprovalSubjectXp = Object.keys({ ...pendingSubjectXp, ...pendingAccreditationSubjectXp }).reduce((acc, key) => {
-    acc[key] = (pendingSubjectXp[key] || 0) + (pendingAccreditationSubjectXp[key] || 0);
-    return acc;
-  }, {});
-
-  const totalCreditsEarned = calculateTotalCredits(confirmedSubjectXp);
-  const creditProgress = getAllCreditProgress(confirmedSubjectXp);
-
-  const pendingCreditProgress = getAllCreditProgress(pendingApprovalSubjectXp);
-  const totalPendingCredits = calculateTotalCredits(pendingApprovalSubjectXp);
+  const pendingCreditProgress = getAllCreditProgress(pendingSubjectXp);
+  const totalPendingCredits = calculateTotalCredits(pendingSubjectXp);
   const hasPendingCredits = totalPendingCredits > 0;
   const pendingBySubject = pendingCreditProgress.reduce((acc, p) => {
     acc[p.subject] = p.creditsEarned;
@@ -218,7 +196,6 @@ SkillsGrowth.propTypes = {
   xpByPillar: PropTypes.object,
   subjectXp: PropTypes.object,
   pendingSubjectXp: PropTypes.object,
-  pendingAccreditationSubjectXp: PropTypes.object,
   totalXp: PropTypes.number,
   hideHeader: PropTypes.bool,
   showDiplomaCredits: PropTypes.bool

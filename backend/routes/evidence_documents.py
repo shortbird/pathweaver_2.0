@@ -959,6 +959,9 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
     Update the content blocks for a document.
     Uses delete-and-reinsert strategy to avoid unique constraint violations
     on (document_id, order_index) when reordering blocks.
+
+    After block updates land, syncs a paired learning_events row so this
+    evidence shows up in the student's journal on upload (not just on completion).
     """
     try:
         # Get existing blocks with their uploader info to preserve it
@@ -1031,9 +1034,143 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
                 .insert(blocks_to_insert)\
                 .execute()
 
+        # Sync paired learning_event for the journal (failure here must not block save)
+        try:
+            _sync_paired_learning_event(supabase, document_id)
+        except Exception as sync_err:
+            logger.warning(f"Failed to sync paired learning_event for doc {document_id}: {sync_err}")
+
     except Exception as e:
         logger.error(f"Error updating document blocks: {str(e)}")
         raise
+
+
+def _sync_paired_learning_event(supabase, document_id: str):
+    """
+    Upsert a learning_events row paired to this evidence document and mirror its
+    student-authored, non-private blocks into learning_event_evidence_blocks. This
+    makes the student's in-progress evidence appear in their journal on upload,
+    without waiting for task completion.
+
+    Helper-uploaded blocks (uploaded_by_role in ('parent','advisor')) are skipped —
+    those already create their own learning_events via the helper-evidence flow.
+    """
+    doc_result = supabase.table('user_task_evidence_documents')\
+        .select('id, user_id, task_id, quest_id, is_confidential')\
+        .eq('id', document_id)\
+        .execute()
+
+    if not doc_result.data:
+        return
+
+    doc = doc_result.data[0]
+    user_id = doc['user_id']
+    task_id = doc.get('task_id')
+    quest_id = doc.get('quest_id')
+
+    if not task_id:
+        return
+
+    # Pull current blocks for the document; we'll mirror student-authored, non-private ones.
+    blocks_result = supabase.table('evidence_document_blocks')\
+        .select('id, block_type, content, order_index, is_private, uploaded_by_role, created_at')\
+        .eq('document_id', document_id)\
+        .order('order_index')\
+        .execute()
+
+    student_blocks = [
+        b for b in (blocks_result.data or [])
+        if not b.get('is_private', False)
+        and (b.get('uploaded_by_role') or 'student') == 'student'
+    ]
+
+    # Look up the task to get a title for the learning_event description.
+    task_result = supabase.table('user_quest_tasks')\
+        .select('id, title, pillar')\
+        .eq('id', task_id)\
+        .execute()
+    task_title = (task_result.data[0]['title'] if task_result.data else None) or 'Task'
+    task_pillar = task_result.data[0].get('pillar') if task_result.data else None
+    pillars = [task_pillar] if task_pillar else []
+
+    description = f"Evidence for: {task_title}"
+
+    # Find or create the paired learning_event (user + attached_task_id is the unique key here).
+    existing_event = supabase.table('learning_events')\
+        .select('id')\
+        .eq('user_id', user_id)\
+        .eq('attached_task_id', task_id)\
+        .limit(1)\
+        .execute()
+
+    if existing_event.data:
+        event_id = existing_event.data[0]['id']
+        supabase.table('learning_events')\
+            .update({
+                'description': description,
+                'pillars': pillars,
+                'is_confidential': doc.get('is_confidential', False),
+                'updated_at': datetime.utcnow().isoformat()
+            })\
+            .eq('id', event_id)\
+            .execute()
+    else:
+        insert_result = supabase.table('learning_events').insert({
+            'user_id': user_id,
+            'description': description,
+            'pillars': pillars,
+            'source_type': 'task_evidence',
+            'attached_task_id': task_id,
+            'is_confidential': doc.get('is_confidential', False),
+            'captured_by_user_id': user_id
+        }).execute()
+        if not insert_result.data:
+            return
+        event_id = insert_result.data[0]['id']
+
+        # Link to quest topic so it appears under the quest in the journal.
+        if quest_id:
+            try:
+                supabase.table('learning_event_topics').insert({
+                    'learning_event_id': event_id,
+                    'topic_type': 'quest',
+                    'topic_id': quest_id
+                }).execute()
+            except Exception:
+                logger.debug("learning_event_topics insert non-fatal", exc_info=True)
+
+    # Mirror blocks: delete-and-reinsert to match update_document_blocks semantics.
+    supabase.table('learning_event_evidence_blocks')\
+        .delete()\
+        .eq('learning_event_id', event_id)\
+        .execute()
+
+    if not student_blocks:
+        return
+
+    mirrored = []
+    for idx, b in enumerate(student_blocks):
+        content = b.get('content') or {}
+        block_type = b['block_type']
+
+        # Extract a file URL from the content JSON (new "items" array shape or legacy "url" field).
+        items = content.get('items') if isinstance(content, dict) else None
+        first_url = items[0].get('url') if items else content.get('url') if isinstance(content, dict) else None
+        first_name = items[0].get('filename') if items else content.get('filename') if isinstance(content, dict) else None
+
+        row = {
+            'learning_event_id': event_id,
+            'block_type': block_type,
+            'content': content,
+            'order_index': idx
+        }
+        if first_url and block_type in ('image', 'video', 'document'):
+            row['file_url'] = first_url
+        if first_name and block_type in ('image', 'video', 'document'):
+            row['file_name'] = first_name
+        mirrored.append(row)
+
+    supabase.table('learning_event_evidence_blocks').insert(mirrored).execute()
 
 def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
     """

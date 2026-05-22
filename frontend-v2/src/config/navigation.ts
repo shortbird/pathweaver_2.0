@@ -33,12 +33,13 @@ export const navItems: NavItem[] = [
 ];
 
 /**
- * Mobile tab order for the default (student) shell: Journal, Feed, [+ Capture], Quests, Messages.
+ * Mobile tab order for the default (student) shell: Journal, Feed, [+ Capture], Profile, Messages.
  * 'capture' is a special key -- not a route, triggers a modal.
- * The Quests tab houses both quest discovery and bounties via a top-level segmented control.
+ * Quests + Bounties remain available as routes (and via the Bounty Board/Quests sidebar
+ * on desktop), just not exposed as a bottom tab on mobile.
  * Parent and observer roles override this in app/(app)/(tabs)/_layout.tsx.
  */
-export const mobileTabOrder = ['journal', 'feed', 'capture', 'quests', 'messages'];
+export const mobileTabOrder = ['journal', 'feed', 'capture', 'profile', 'messages'];
 
 /** Mobile tab order for parents. 'capture' is the center button, handled the
  *  same way as in the student shell — it triggers the CaptureSheet modal in

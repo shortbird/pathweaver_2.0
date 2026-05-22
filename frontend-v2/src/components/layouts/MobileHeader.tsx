@@ -10,6 +10,41 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
+
+const PREVIEW_ROLE_LABEL: Record<string, string> = {
+  parent: 'Parent',
+  student: 'Student',
+  observer: 'Observer',
+};
+
+function PreviewRolePill() {
+  const user = useAuthStore((s) => s.user);
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
+
+  if (user?.role !== 'superadmin' || !previewRole) return null;
+
+  return (
+    <Pressable
+      onPress={() => setPreviewRole(null)}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        backgroundColor: '#6D469B',
+      }}
+    >
+      <Ionicons name="eye-outline" size={12} color="#FFFFFF" />
+      <UIText size="xs" style={{ color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold' }}>
+        {PREVIEW_ROLE_LABEL[previewRole] || previewRole}
+      </UIText>
+      <Ionicons name="close" size={12} color="#FFFFFF" />
+    </Pressable>
+  );
+}
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { VStack, UIText, Heading } from '../ui';
 
@@ -49,12 +84,6 @@ function AvatarMenu() {
   };
 
   const menuItems: MenuItem[] = [
-    {
-      key: 'profile',
-      label: 'Profile',
-      icon: 'person-outline',
-      onPress: () => { setMenuOpen(false); router.push('/(app)/(tabs)/profile' as any); },
-    },
     ...(isParent ? [{
       key: 'family',
       label: 'Family Dashboard',
@@ -86,10 +115,10 @@ function AvatarMenu() {
           borderRadius: 17,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: menuOpen ? '#6D469B15' : '#F1EDF5',
+          backgroundColor: menuOpen ? '#6D469B15' : 'transparent',
         }}
       >
-        <Ionicons name="person-circle-outline" size={28} color={menuOpen ? '#6D469B' : '#6B6280'} />
+        <Ionicons name="ellipsis-vertical" size={20} color={menuOpen ? '#6D469B' : '#6B6280'} />
       </Pressable>
 
       <Modal
@@ -246,7 +275,8 @@ export function PageHeader({ title }: PageHeaderProps) {
     <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Heading size="2xl">{title}</Heading>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <PreviewRolePill />
           <NotificationBell />
           <AvatarMenu />
         </View>

@@ -131,9 +131,41 @@ def register_routes(bp):
                     return jsonify({'error': 'Access denied to this student'}), 403
                 student_ids = [student_id_filter]
 
-            # Build query for task completions
-            # Note: xp_awarded is not on quest_task_completions - get it from user_quest_tasks
-            query = supabase.table('quest_task_completions') \
+            # Evidence is surfaced on upload (block.created_at), not on task completion.
+            # Drive document-evidence items from evidence_document_blocks; quest_task_completions
+            # is only needed for legacy non-document completions and for view/comment counts.
+            evidence_docs_resp = supabase.table('user_task_evidence_documents') \
+                .select('id, user_id, task_id, quest_id, is_confidential, status') \
+                .in_('user_id', student_ids) \
+                .eq('is_confidential', False) \
+                .execute()
+            evidence_docs_by_id = {d['id']: d for d in (evidence_docs_resp.data or [])}
+            evidence_doc_ids = list(evidence_docs_by_id.keys())
+
+            evidence_block_rows = []
+            if evidence_doc_ids:
+                blocks_query = supabase.table('evidence_document_blocks') \
+                    .select('id, document_id, block_type, content, order_index, created_at, is_private') \
+                    .in_('document_id', evidence_doc_ids) \
+                    .eq('is_private', False) \
+                    .order('created_at', desc=True) \
+                    .limit(limit + 1)
+
+                if cursor:
+                    blocks_query = blocks_query.lt('created_at', cursor)
+
+                blocks_response = blocks_query.execute()
+                # Attach the parent doc onto each block in the shape expected downstream.
+                for b in (blocks_response.data or []):
+                    doc = evidence_docs_by_id.get(b['document_id'])
+                    if not doc:
+                        continue
+                    b['user_task_evidence_documents'] = doc
+                    evidence_block_rows.append(b)
+
+            # Build query for legacy task completions (evidence_text / evidence_url with no document).
+            # These predate the multi-format evidence document system.
+            completions_query = supabase.table('quest_task_completions') \
                 .select('id, user_id, quest_id, user_quest_task_id, evidence_text, evidence_url, completed_at, is_confidential') \
                 .in_('user_id', student_ids) \
                 .eq('is_confidential', False) \
@@ -141,15 +173,18 @@ def register_routes(bp):
                 .limit(limit + 1)
 
             if cursor:
-                query = query.lt('completed_at', cursor)
+                completions_query = completions_query.lt('completed_at', cursor)
 
-            completions = query.execute()
+            completions = completions_query.execute()
 
-            # Also query learning_events for learning moments
+            # Learning events for moments that aren't task evidence.
+            # Task-attached learning_events (attached_task_id IS NOT NULL) represent the
+            # same evidence already surfaced via the document-block path above — skip them.
             learning_events_query = supabase.table('learning_events') \
-                .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id') \
+                .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id, attached_task_id') \
                 .in_('user_id', student_ids) \
                 .eq('is_confidential', False) \
+                .is_('attached_task_id', 'null') \
                 .order('created_at', desc=True) \
                 .limit(limit + 1)
 
@@ -184,12 +219,25 @@ def register_routes(bp):
                     if name:
                         event_track_label[eid] = name
 
-            # If no completions AND no learning events, return empty
-            if not completions.data and not learning_events.data:
+            # If no evidence blocks AND no completions AND no learning events, return empty
+            if not evidence_block_rows and not completions.data and not learning_events.data:
                 return jsonify({'items': [], 'has_more': False}), 200
 
-            # Get task details
-            task_ids = list(set([c['user_quest_task_id'] for c in completions.data if c['user_quest_task_id']]))
+            # Collect task_ids and quest_ids referenced by both evidence blocks and completions
+            block_task_ids = {
+                (b.get('user_task_evidence_documents') or {}).get('task_id')
+                for b in evidence_block_rows
+            }
+            block_quest_ids = {
+                (b.get('user_task_evidence_documents') or {}).get('quest_id')
+                for b in evidence_block_rows
+            }
+            completion_task_ids = {c['user_quest_task_id'] for c in completions.data if c['user_quest_task_id']}
+            completion_quest_ids = {c['quest_id'] for c in completions.data if c['quest_id']}
+
+            task_ids = list({tid for tid in block_task_ids | completion_task_ids if tid})
+            quest_ids = list({qid for qid in block_quest_ids | completion_quest_ids if qid})
+
             tasks_map = {}
             if task_ids:
                 tasks = supabase.table('user_quest_tasks') \
@@ -198,8 +246,6 @@ def register_routes(bp):
                     .execute()
                 tasks_map = {t['id']: t for t in tasks.data}
 
-            # Get quest details
-            quest_ids = list(set([c['quest_id'] for c in completions.data if c['quest_id']]))
             quests_map = {}
             if quest_ids:
                 quests = supabase.table('quests') \
@@ -208,45 +254,26 @@ def register_routes(bp):
                     .execute()
                 quests_map = {q['id']: q for q in quests.data}
 
-            # Get student details
             students = supabase.table('users') \
                 .select('id, display_name, first_name, last_name, avatar_url') \
                 .in_('id', student_ids) \
                 .execute()
             students_map = {s['id']: s for s in students.data}
 
-            # Get evidence document blocks for multi-format evidence
-            # First, get evidence documents for these task IDs
-            evidence_docs = supabase.table('user_task_evidence_documents') \
-                .select('id, task_id, user_id, status') \
-                .in_('task_id', task_ids) \
-                .in_('user_id', student_ids) \
-                .eq('status', 'completed') \
-                .execute()
-
-            # Map task_id+user_id to document_id
-            doc_map = {}
-            doc_ids = []
-            for doc in evidence_docs.data:
-                key = f"{doc['task_id']}_{doc['user_id']}"
-                doc_map[key] = doc['id']
-                doc_ids.append(doc['id'])
-
-            # Get all evidence blocks for these documents (excluding private ones)
-            evidence_blocks_map = {}  # document_id -> list of blocks
-            if doc_ids:
-                blocks = supabase.table('evidence_document_blocks') \
-                    .select('id, document_id, block_type, content, order_index, created_at, is_private') \
-                    .in_('document_id', doc_ids) \
-                    .eq('is_private', False) \
-                    .order('order_index') \
-                    .execute()
-
-                for block in blocks.data:
-                    doc_id = block['document_id']
-                    if doc_id not in evidence_blocks_map:
-                        evidence_blocks_map[doc_id] = []
-                    evidence_blocks_map[doc_id].append(block)
+            # Build a (task_id, user_id) -> completion lookup so block items can attach
+            # completion_id for views/comments counts when a completion exists.
+            completion_by_task_user = {
+                (c['user_quest_task_id'], c['user_id']): c
+                for c in completions.data
+                if c.get('user_quest_task_id')
+            }
+            # Track tasks that have document-driven blocks already emitted, so the legacy
+            # completion path can skip duplicating items for the same task.
+            task_user_keys_with_blocks = {
+                ((b.get('user_task_evidence_documents') or {}).get('task_id'),
+                 (b.get('user_task_evidence_documents') or {}).get('user_id'))
+                for b in evidence_block_rows
+            }
 
             # Get evidence blocks for learning events
             learning_event_ids = [e['id'] for e in learning_events.data] if learning_events.data else []
@@ -264,125 +291,139 @@ def register_routes(bp):
                         learning_event_blocks_map[le_id] = []
                     learning_event_blocks_map[le_id].append(block)
 
-            # Build feed items - one per evidence block
+            # Helper to extract URL from block content - handles both new format (items array)
+            # and legacy format (direct url property)
+            def get_content_url(content_obj):
+                items = content_obj.get('items', [])
+                if items and len(items) > 0:
+                    return items[0].get('url')
+                return content_obj.get('url')
+
+            # Build feed items - one per evidence block.
+            # Items appear as soon as a block is uploaded; no completion record required.
             raw_feed_items = []
+            for block in evidence_block_rows:
+                doc = block.get('user_task_evidence_documents') or {}
+                doc_user_id = doc.get('user_id')
+                doc_task_id = doc.get('task_id')
+                doc_quest_id = doc.get('quest_id')
+
+                can_view = evidence_permissions.get(doc_user_id, False)
+                if not can_view:
+                    continue
+
+                student_info = students_map.get(doc_user_id, {})
+                task_info = tasks_map.get(doc_task_id, {})
+                quest_info = quests_map.get(doc_quest_id, {})
+                completion = completion_by_task_user.get((doc_task_id, doc_user_id))
+
+                content = block.get('content', {})
+                evidence_type = None
+                evidence_preview = None
+                evidence_title = None
+
+                if block['block_type'] == 'image':
+                    evidence_type = 'image'
+                    evidence_preview = get_content_url(content)
+                elif block['block_type'] == 'video':
+                    evidence_type = 'video'
+                    evidence_preview = get_content_url(content)
+                    evidence_title = content.get('title')
+                elif block['block_type'] == 'link':
+                    evidence_type = 'link'
+                    evidence_preview = get_content_url(content)
+                    evidence_title = content.get('title')
+                elif block['block_type'] == 'text':
+                    evidence_type = 'text'
+                    evidence_preview = content.get('text', '')
+                elif block['block_type'] == 'document':
+                    evidence_type = 'document'
+                    evidence_preview = get_content_url(content)
+                    evidence_title = content.get('title') or content.get('filename')
+
+                if not evidence_type:
+                    continue
+
+                student_name = student_info.get('display_name') or \
+                    f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
+
+                raw_feed_items.append({
+                    'id': f"{(completion or {}).get('id', doc.get('id'))}_{block['id']}",
+                    'completion_id': completion['id'] if completion else None,
+                    'block_id': block['id'],
+                    'timestamp': block.get('created_at'),
+                    'student_id': doc_user_id,
+                    'student_name': student_name,
+                    'student_avatar': student_info.get('avatar_url'),
+                    'task_id': doc_task_id,
+                    'task_title': task_info.get('title', 'Task'),
+                    'task_pillar': task_info.get('pillar'),
+                    'task_xp': task_info.get('xp_value', 0),
+                    'quest_id': doc_quest_id,
+                    'quest_title': quest_info.get('title', 'Quest'),
+                    'evidence_type': evidence_type,
+                    'evidence_preview': evidence_preview,
+                    'evidence_title': evidence_title
+                })
+
+            # Legacy: emit completions that have only evidence_text/evidence_url (no document).
+            # Skip any completion whose task already has document-driven block items above.
             for completion in completions.data:
+                key = (completion.get('user_quest_task_id'), completion.get('user_id'))
+                if key in task_user_keys_with_blocks:
+                    continue
+                evidence_text = completion.get('evidence_text', '') or ''
+                if 'Multi-format evidence document' in evidence_text:
+                    continue  # Document-referenced completion with no blocks found
+
                 student_info = students_map.get(completion['user_id'], {})
                 task_info = tasks_map.get(completion['user_quest_task_id'], {})
                 quest_info = quests_map.get(completion['quest_id'], {})
                 can_view = evidence_permissions.get(completion['user_id'], False)
-
                 if not can_view:
                     continue
 
-                # Check if this completion has multi-format evidence
-                doc_key = f"{completion['user_quest_task_id']}_{completion['user_id']}"
-                doc_id = doc_map.get(doc_key)
+                evidence_type = None
+                evidence_preview = None
+                if completion.get('evidence_url'):
+                    url = completion['evidence_url'].lower()
+                    if any(url.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif']):
+                        evidence_type = 'image'
+                        evidence_preview = completion['evidence_url']
+                    elif any(domain in url for domain in ['youtube.com', 'youtu.be', 'vimeo.com', 'loom.com/share', 'drive.google.com/file']):
+                        evidence_type = 'video'
+                        evidence_preview = completion['evidence_url']
+                    else:
+                        evidence_type = 'link'
+                        evidence_preview = completion['evidence_url']
+                elif evidence_text:
+                    evidence_type = 'text'
+                    evidence_preview = evidence_text
 
-                if doc_id and doc_id in evidence_blocks_map:
-                    # Create one feed item per evidence block
-                    for block in evidence_blocks_map[doc_id]:
-                        evidence_type = None
-                        evidence_preview = None
-                        evidence_title = None
-                        content = block.get('content', {})
+                if not evidence_type:
+                    continue
 
-                        # Helper to extract URL from content - handles both new format (items array)
-                        # and legacy format (direct url property)
-                        def get_content_url(content_obj):
-                            items = content_obj.get('items', [])
-                            if items and len(items) > 0:
-                                return items[0].get('url')
-                            return content_obj.get('url')
+                student_name = student_info.get('display_name') or \
+                    f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
 
-                        if block['block_type'] == 'image':
-                            evidence_type = 'image'
-                            evidence_preview = get_content_url(content)
-                        elif block['block_type'] == 'video':
-                            evidence_type = 'video'
-                            evidence_preview = get_content_url(content)
-                            evidence_title = content.get('title')
-                        elif block['block_type'] == 'link':
-                            evidence_type = 'link'
-                            evidence_preview = get_content_url(content)
-                            evidence_title = content.get('title')
-                        elif block['block_type'] == 'text':
-                            evidence_type = 'text'
-                            evidence_preview = content.get('text', '')
-                        elif block['block_type'] == 'document':
-                            evidence_type = 'document'
-                            evidence_preview = get_content_url(content)
-                            evidence_title = content.get('title') or content.get('filename')
-
-                        if evidence_type:
-                            student_name = student_info.get('display_name') or \
-                                f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
-
-                            raw_feed_items.append({
-                                'id': f"{completion['id']}_{block['id']}",
-                                'completion_id': completion['id'],
-                                'block_id': block['id'],
-                                'timestamp': block.get('created_at') or completion['completed_at'],
-                                'student_id': completion['user_id'],
-                                'student_name': student_name,
-                                'student_avatar': student_info.get('avatar_url'),
-                                'task_id': completion['user_quest_task_id'],
-                                'task_title': task_info.get('title', 'Task'),
-                                'task_pillar': task_info.get('pillar'),
-                                'task_xp': task_info.get('xp_value', 0),
-                                'quest_id': completion['quest_id'],
-                                'quest_title': quest_info.get('title', 'Quest'),
-                                'evidence_type': evidence_type,
-                                'evidence_preview': evidence_preview,
-                                'evidence_title': evidence_title
-                            })
-                else:
-                    # Fallback: legacy evidence (text/url directly on completion)
-                    # Skip if evidence_text is a document reference
-                    evidence_text = completion.get('evidence_text', '')
-                    if evidence_text and 'Multi-format evidence document' in evidence_text:
-                        continue  # Skip - no blocks found for this document
-
-                    evidence_type = None
-                    evidence_preview = None
-
-                    if completion.get('evidence_url'):
-                        url = completion['evidence_url'].lower()
-                        if any(url.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif']):
-                            evidence_type = 'image'
-                            evidence_preview = completion['evidence_url']
-                        elif any(domain in url for domain in ['youtube.com', 'youtu.be', 'vimeo.com', 'loom.com/share', 'drive.google.com/file']):
-                            evidence_type = 'video'
-                            evidence_preview = completion['evidence_url']
-                        else:
-                            evidence_type = 'link'
-                            evidence_preview = completion['evidence_url']
-                    elif evidence_text:
-                        evidence_type = 'text'
-                        evidence_preview = evidence_text
-
-                    if evidence_type:
-                        student_name = student_info.get('display_name') or \
-                            f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
-
-                        raw_feed_items.append({
-                            'id': completion['id'],
-                            'completion_id': completion['id'],
-                            'block_id': None,
-                            'timestamp': completion['completed_at'],
-                            'student_id': completion['user_id'],
-                            'student_name': student_name,
-                            'student_avatar': student_info.get('avatar_url'),
-                            'task_id': completion['user_quest_task_id'],
-                            'task_title': task_info.get('title', 'Task'),
-                            'task_pillar': task_info.get('pillar'),
-                            'task_xp': task_info.get('xp_value', 0),
-                            'quest_id': completion['quest_id'],
-                            'quest_title': quest_info.get('title', 'Quest'),
-                            'evidence_type': evidence_type,
-                            'evidence_preview': evidence_preview,
-                            'evidence_title': None  # Legacy evidence doesn't have titles
-                        })
+                raw_feed_items.append({
+                    'id': completion['id'],
+                    'completion_id': completion['id'],
+                    'block_id': None,
+                    'timestamp': completion['completed_at'],
+                    'student_id': completion['user_id'],
+                    'student_name': student_name,
+                    'student_avatar': student_info.get('avatar_url'),
+                    'task_id': completion['user_quest_task_id'],
+                    'task_title': task_info.get('title', 'Task'),
+                    'task_pillar': task_info.get('pillar'),
+                    'task_xp': task_info.get('xp_value', 0),
+                    'quest_id': completion['quest_id'],
+                    'quest_title': quest_info.get('title', 'Quest'),
+                    'evidence_type': evidence_type,
+                    'evidence_preview': evidence_preview,
+                    'evidence_title': None
+                })
 
             # Build feed items for learning moments - group all media into single items
             for event in (learning_events.data or []):

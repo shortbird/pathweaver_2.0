@@ -39,7 +39,6 @@ function renderDetail({ role, status }) {
     student: { display_name: 'Clare B' },
     evidence_blocks: [],
     review_rounds: [],
-    accreditor_reviews: [],
     suggested_subjects: { math: 100 },
     is_org_student: true,
   }
@@ -75,8 +74,9 @@ describe('ItemDetail — superadmin can review at any stage', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     const [url] = api.post.mock.calls[0]
     // One-click collapse: hit /org-approve, which the backend routes
-    // through the superadmin branch and lands the item at approved +
-    // pending_accreditor in a single action.
+    // through the superadmin branch and lands the item at 'finalized'
+    // in a single action (Optio is platform-accredited; superadmin is
+    // the final stamp).
     expect(url).toMatch(/\/api\/credit-dashboard\/items\/comp-1\/org-approve$/)
   })
 

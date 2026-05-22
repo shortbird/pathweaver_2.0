@@ -18,17 +18,12 @@ const STATUS_CONFIG = {
     color: 'bg-purple-100 text-purple-800',
     icon: ClockIcon,
   },
-  pending_optio_approval: {
-    label: 'Awaiting Optio Review',
-    color: 'bg-indigo-100 text-indigo-800',
-    icon: ClockIcon,
-  },
   pending_review: {
     label: 'Awaiting Review',
     color: 'bg-amber-100 text-amber-800',
     icon: ClockIcon,
   },
-  approved: {
+  finalized: {
     label: 'Approved',
     color: 'bg-green-100 text-green-800',
     icon: CheckCircleIcon,
@@ -43,7 +38,6 @@ const STATUS_CONFIG = {
 const FILTER_TABS = [
   { key: 'grow_this', label: 'Grow This' },
   { key: 'pending_org_approval', label: 'Awaiting Org Review' },
-  { key: 'pending_optio_approval', label: 'Awaiting Optio Review' },
   { key: 'pending_review', label: 'Awaiting Review' },
 ];
 
@@ -70,14 +64,14 @@ export default function DiplomaCreditTracker() {
       if (filter === null && requests.length > 0) {
         const growCount = requests.filter(r => r.diploma_status === 'grow_this').length;
         const pendingAnyCount = requests.filter(r =>
-          ['pending_review', 'pending_org_approval', 'pending_optio_approval'].includes(r.diploma_status)
+          ['pending_review', 'pending_org_approval'].includes(r.diploma_status)
         ).length;
         if (growCount > 0) {
           setFilter('grow_this');
         } else if (pendingAnyCount > 0) {
           // Pick the first pending tab that has items
           const firstPending = requests.find(r =>
-            ['pending_org_approval', 'pending_optio_approval', 'pending_review'].includes(r.diploma_status)
+            ['pending_org_approval', 'pending_review'].includes(r.diploma_status)
           );
           if (firstPending) setFilter(firstPending.diploma_status);
         }
@@ -96,9 +90,9 @@ export default function DiplomaCreditTracker() {
 
   const growCount = creditRequests.filter(r => r.diploma_status === 'grow_this').length;
   const pendingCount = creditRequests.filter(r =>
-    ['pending_review', 'pending_org_approval', 'pending_optio_approval'].includes(r.diploma_status)
+    ['pending_review', 'pending_org_approval'].includes(r.diploma_status)
   ).length;
-  const approvedCount = creditRequests.filter(r => r.diploma_status === 'approved').length;
+  const approvedCount = creditRequests.filter(r => r.diploma_status === 'finalized').length;
   const allCaughtUp = growCount === 0 && pendingCount === 0;
 
   if (loading) {

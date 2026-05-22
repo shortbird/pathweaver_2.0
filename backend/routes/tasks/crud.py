@@ -109,14 +109,14 @@ def update_task(user_id: str, task_id: str):
         # were calculated against the task's current values, and changing
         # title/pillar/xp mid-review desyncs the reviewer's view from what the
         # student sees. Owner-as-student can edit again once the request is
-        # returned (grow_this) or fully accredited. Non-owner roles
+        # returned (grow_this) or finalized. Non-owner roles
         # (superadmin / org_admin / advisor) are not gated -- they edit
         # in-flight tasks all the time as part of credit review.
         is_owner_only = user_role not in ('superadmin', 'org_admin', 'advisor')
         if is_owner_only:
             try:
                 completion = supabase.table('quest_task_completions') \
-                    .select('diploma_status, accreditor_status') \
+                    .select('diploma_status') \
                     .eq('user_id', user_id) \
                     .eq('user_quest_task_id', task_id) \
                     .order('created_at', desc=True) \
@@ -124,18 +124,10 @@ def update_task(user_id: str, task_id: str):
                     .execute()
                 if completion.data:
                     diploma_status = completion.data[0].get('diploma_status')
-                    accreditor_status = completion.data[0].get('accreditor_status')
-                    in_flight_diploma = diploma_status in (
-                        'pending_review', 'pending_org_approval', 'pending_optio_approval'
-                    )
-                    in_flight_accreditor = (
-                        diploma_status == 'approved'
-                        and accreditor_status not in ('confirmed', None, 'not_reviewed')
-                    )
-                    if in_flight_diploma or in_flight_accreditor:
+                    if diploma_status in ('pending_review', 'pending_org_approval'):
                         return jsonify({
                             'success': False,
-                            'error': "This task has a credit request in review. Wait for it to be returned or accredited before editing."
+                            'error': "This task has a credit request in review. Wait for it to be returned or finalized before editing."
                         }), 409
             except Exception as gate_err:
                 logger.warning(f"crud: in-flight check failed for task {task_id}: {gate_err}")

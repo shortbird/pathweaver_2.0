@@ -6,9 +6,15 @@ interface HStackProps extends ViewProps {
   space?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 }
 
-const spaceMap = { xs: 'gap-1', sm: 'gap-2', md: 'gap-4', lg: 'gap-6', xl: 'gap-8' };
+const spaceMap = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 
-export function HStack({ className = '', space, ...props }: HStackProps) {
-  const gap = space ? spaceMap[space] : '';
-  return <View className={`flex flex-row ${gap} ${className}`} {...props} />;
+export function HStack({ className = '', space, style, ...props }: HStackProps) {
+  const gap = space ? spaceMap[space] : 0;
+  return (
+    <View
+      style={[{ flexDirection: 'row', gap }, style]}
+      className={className}
+      {...props}
+    />
+  );
 }

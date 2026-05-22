@@ -120,7 +120,6 @@ const StudentOverviewSections = ({
             xpByPillar={data.xpByPillar}
             subjectXp={data.subjectXp}
             pendingSubjectXp={data.pendingSubjectXp}
-            pendingAccreditationSubjectXp={data.pendingAccreditationSubjectXp}
             totalXp={data.totalXp}
             hideHeader
             showDiplomaCredits={showDiplomaCredits}
@@ -165,7 +164,6 @@ StudentOverviewSections.propTypes = {
     xpByPillar: PropTypes.object,
     subjectXp: PropTypes.object,
     pendingSubjectXp: PropTypes.object,
-    pendingAccreditationSubjectXp: PropTypes.object,
     totalXp: PropTypes.number,
     pillarsData: PropTypes.array,
     questOrbs: PropTypes.array,

@@ -12,7 +12,7 @@ module.exports = {
     '<rootDir>/src/__tests__/setup.tsx',
   ],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(-.*)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@gluestack-ui/.*|nativewind|react-native-css-interop|react-native-reanimated|react-native-gesture-handler|react-native-screens|react-native-safe-area-context|react-native-mmkv|react-native-web|react-native-webview|react-native-worklets|posthog-react-native|@tanstack/react-query|zustand|axios)/)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(-.*)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@gluestack-ui/.*|nativewind|react-native-css-interop|react-native-reanimated|react-native-gesture-handler|react-native-screens|react-native-safe-area-context|react-native-mmkv|react-native-web|react-native-webview|react-native-worklets|react-native-qrcode-svg|react-native-svg|posthog-react-native|@tanstack/react-query|zustand|axios)/)',
   ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

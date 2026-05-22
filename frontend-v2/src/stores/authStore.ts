@@ -88,6 +88,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
+      // Optimistic restore: if we have cached user data (native), enter the app
+      // immediately so hot reloads / dev backend cold starts don't kick the user
+      // back to the login screen. Then refresh in the background.
+      const cached = await tokenStore.getCachedUser<User>();
+      if (cached) {
+        set({ user: cached, isAuthenticated: true, isLoading: false, error: null });
+      }
+
       // Fetch current user (/me returns user data directly, not wrapped).
       // E5: retry once on network error so a transient connectivity blip doesn't
       // log the user out. Real 401s (expired/invalid token) fall through and clear.
@@ -103,6 +111,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           throw err;
         }
       }
+      await tokenStore.setCachedUser(data);
       set({
         user: data as User,
         isAuthenticated: true,
@@ -115,8 +124,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // tokens so the next open tries again instead of forcing a fresh login.
       if (parsed.isAuthError || !parsed.isNetworkError) {
         await tokenStore.clearTokens();
+        set({ user: null, isAuthenticated: false, isLoading: false });
+      } else {
+        // Network error: if we already restored a cached user, leave that in place.
+        // Otherwise mark as not-loading so the auth gate can show the login screen.
+        set((s) => (s.isAuthenticated ? { isLoading: false } : { user: null, isAuthenticated: false, isLoading: false }));
       }
-      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
 

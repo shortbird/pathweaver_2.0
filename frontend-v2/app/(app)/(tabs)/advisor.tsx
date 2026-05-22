@@ -163,7 +163,7 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
       {/* Sub-tabs */}
       <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
         {tabs.map((t) => (
-          <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white shadow-sm' : ''}`}>
+          <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white' : ''}`}>
             <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
           </Pressable>
         ))}

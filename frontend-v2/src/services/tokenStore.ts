@@ -12,6 +12,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const ACCESS_KEY = 'optio_access_token';
 const REFRESH_KEY = 'optio_refresh_token';
+const USER_KEY = 'optio_cached_user';
 const LEGACY_WEB_KEYS = [ACCESS_KEY, REFRESH_KEY];
 
 // In-memory cache for synchronous access in interceptors
@@ -88,5 +89,28 @@ export const tokenStore = {
     memoryRefresh = null;
     await deleteSecure(ACCESS_KEY);
     await deleteSecure(REFRESH_KEY);
+    await deleteSecure(USER_KEY);
+  },
+
+  /** Cache user JSON for fast restore on next launch (native only) */
+  async setCachedUser(user: unknown): Promise<void> {
+    if (Platform.OS === 'web') return;
+    try {
+      await setSecure(USER_KEY, JSON.stringify(user));
+    } catch {
+      // ignore cache write failures
+    }
+  },
+
+  /** Read cached user JSON (native only) */
+  async getCachedUser<T>(): Promise<T | null> {
+    if (Platform.OS === 'web') return null;
+    const raw = await getSecure(USER_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
   },
 };

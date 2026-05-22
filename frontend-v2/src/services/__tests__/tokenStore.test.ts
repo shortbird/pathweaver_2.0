@@ -52,6 +52,7 @@ describe('tokenStore', () => {
 
     expect(tokenStore.getAccessToken()).toBeNull();
     expect(tokenStore.getRefreshToken()).toBeNull();
-    expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(2);
+    // 3 keys cleared: access token, refresh token, and cached user blob.
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(3);
   });
 });

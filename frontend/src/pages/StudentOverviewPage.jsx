@@ -56,7 +56,6 @@ const StudentOverviewPage = () => {
   const [completedQuests, setCompletedQuests] = useState([]);
   const [subjectXp, setSubjectXp] = useState({});
   const [pendingSubjectXp, setPendingSubjectXp] = useState({});
-  const [pendingAccreditationSubjectXp, setPendingAccreditationSubjectXp] = useState({});
   const [learningEvents, setLearningEvents] = useState([]);
 
   // Constellation data
@@ -151,19 +150,14 @@ const StudentOverviewPage = () => {
       if (subjectXpResult.status === 'fulfilled' && subjectXpResult.value.data?.subject_xp) {
         const subjectXpMap = {};
         const pendingMap = {};
-        const pendingAccreditationMap = {};
         subjectXpResult.value.data.subject_xp.forEach(item => {
           subjectXpMap[item.school_subject] = item.verified_xp ?? item.xp_amount;
           if (item.pending_xp) {
             pendingMap[item.school_subject] = item.pending_xp;
           }
-          if (item.pending_accreditation_xp) {
-            pendingAccreditationMap[item.school_subject] = item.pending_accreditation_xp;
-          }
         });
         setSubjectXp(subjectXpMap);
         setPendingSubjectXp(pendingMap);
-        setPendingAccreditationSubjectXp(pendingAccreditationMap);
       }
 
       // Process learning events
@@ -281,7 +275,6 @@ const StudentOverviewPage = () => {
     xpByPillar: dashboardData.xpByPillar,
     subjectXp,
     pendingSubjectXp,
-    pendingAccreditationSubjectXp,
     totalXp: dashboardData.totalXp,
     pillarsData,
     questOrbs,

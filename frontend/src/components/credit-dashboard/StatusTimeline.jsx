@@ -4,39 +4,37 @@ const ORG_STEPS = [
   { key: 'submitted', label: 'Submitted' },
   { key: 'org_review', label: 'Org Admin' },
   { key: 'optio_review', label: 'Optio' },
-  { key: 'accreditor_review', label: 'Accreditor' },
   { key: 'approved', label: 'Approved' },
 ]
 
 const PLATFORM_STEPS = [
   { key: 'submitted', label: 'Submitted' },
-  { key: 'advisor_review', label: 'Advisor' },
-  { key: 'accreditor_review', label: 'Accreditor' },
+  { key: 'review', label: 'Review' },
   { key: 'approved', label: 'Approved' },
 ]
 
-const getActiveStep = (diplomaStatus, accreditorStatus, isOrgStudent) => {
+// `orgReviewerId` is set on the completion the moment an org admin
+// approves. We use that flag to tell apart "in org admin queue" from
+// "org admin approved -> now in Optio queue" — both share
+// diploma_status='pending_review' for org students but represent
+// different stages in the UI.
+const getActiveStep = (diplomaStatus, isOrgStudent, orgReviewerId) => {
   if (isOrgStudent) {
-    // Submitted(0) -> Org Admin(1) -> Optio(2) -> Accreditor(3) -> Approved(4)
-    if (accreditorStatus === 'confirmed') return 4
-    if (['flagged', 'overridden', 'pending_accreditor'].includes(accreditorStatus)) return 3
-    if (diplomaStatus === 'approved') return 3
-    if (diplomaStatus === 'pending_optio_approval') return 2
+    // Submitted(0) -> Org Admin(1) -> Optio(2) -> Approved(3)
+    if (diplomaStatus === 'finalized') return 3
+    if (diplomaStatus === 'pending_review') return orgReviewerId ? 2 : 1
     if (diplomaStatus === 'pending_org_approval' || diplomaStatus === 'grow_this') return 1
     return 0
   }
-  // Submitted(0) -> Advisor(1) -> Accreditor(2) -> Approved(3)
-  if (accreditorStatus === 'confirmed') return 3
-  if (['flagged', 'overridden', 'pending_accreditor'].includes(accreditorStatus)) return 2
-  if (diplomaStatus === 'approved') return 2
+  // Submitted(0) -> Review(1) -> Approved(2)
+  if (diplomaStatus === 'finalized') return 2
   if (diplomaStatus === 'pending_review' || diplomaStatus === 'grow_this') return 1
   return 0
 }
 
-const StatusTimeline = ({ diplomaStatus, accreditorStatus, isOrgStudent = false }) => {
+const StatusTimeline = ({ diplomaStatus, isOrgStudent = false, orgReviewerId = null }) => {
   const steps = isOrgStudent ? ORG_STEPS : PLATFORM_STEPS
-  const activeStep = getActiveStep(diplomaStatus, accreditorStatus, isOrgStudent)
-  const isFlagged = accreditorStatus === 'flagged'
+  const activeStep = getActiveStep(diplomaStatus, isOrgStudent, orgReviewerId)
 
   return (
     <div className="flex items-center gap-1 py-2">
@@ -47,9 +45,7 @@ const StatusTimeline = ({ diplomaStatus, accreditorStatus, isOrgStudent = false 
               i < activeStep
                 ? 'bg-green-500 text-white'
                 : i === activeStep
-                  ? isFlagged && step.key === 'accreditor_review'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-optio-purple text-white'
+                  ? 'bg-optio-purple text-white'
                   : 'bg-gray-200 text-gray-400'
             }`}>
               {i < activeStep ? (
