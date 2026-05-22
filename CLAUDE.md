@@ -150,23 +150,24 @@ EOF
 ### Environments
 | Env | URL | Branch |
 |-----|-----|--------|
-| Local (v1) | http://localhost:3000 | any |
-| Local (v2 web) | http://localhost:8081 | any |
-| Local (v2 mobile) | exp://192.168.86.20:8081 | any |
+| Local (v1 web) | http://localhost:3000 | any |
+| Local (v2 mobile, web preview) | http://localhost:8081 | any |
+| Local (v2 mobile, native) | exp://192.168.86.20:8081 | any |
 | Dev | https://optio-dev-frontend.onrender.com | `develop` |
 | Prod | https://www.optioeducation.com | `main` |
 | API | https://api.optioeducation.com | `main` |
 
 ### Tech Stack
 - **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
-- **Frontend (v1)**: React 18.3 + Vite + TailwindCSS (in `frontend/`)
-- **Frontend (v2)**: Expo SDK 55 + Expo Router + NativeWind + Gluestack-style UI (in `frontend-v2/`)
-- **Mobile**: Same `frontend-v2/` project, dev builds via EAS
+- **Web (v1)**: React 18.3 + Vite + TailwindCSS (in `frontend/`) — the production web app
+- **Mobile (v2)**: Expo SDK 55 + Expo Router + NativeWind in `frontend-v2/`, dev builds via EAS — iOS/Android app
 - **AI**: Gemini `gemini-2.5-flash-lite` (always use this model)
 - **Host**: Render
 
-### Frontend V2 (Universal App)
-The `frontend-v2/` project is a universal Expo app that builds for both web and native mobile (iOS/Android). It will replace `frontend/` once the page-by-page rebuild is complete.
+> **Naming convention (as of 2026-05-22):** v1 = the web app (`frontend/`). v2 = the mobile iOS/Android app (`frontend-v2/`). The `frontend-v2/` codebase is technically a universal Expo project that also builds for web — that web target is kept for dev/testing and a future page-by-page rebuild of the web app, but day-to-day "v2 work" means mobile. Web users stay on v1 indefinitely until that rebuild happens.
+
+### Frontend V2 (Mobile App)
+The `frontend-v2/` project is the iOS/Android mobile app, built with Expo. It is a universal codebase that also compiles to web (used in local dev and reserved for an eventual web rebuild), but the active product surface is mobile.
 
 **Key files:**
 - `src/config/navigation.ts` - Single source of truth for all nav items (sidebar + tabs)
@@ -474,12 +475,12 @@ cd frontend && npm run test:run    # Must be 95%+ pass rate
 npm run test:coverage              # Must be 60%+ coverage
 ```
 
-**Current stats (frontend v1):** 353 tests, 100% pass rate, ~43% CI line coverage. (The 60.61% figure quoted pre-2026-04-14 came from a local run; CI coverage on a `pull_request` event was never verified until the first gated PR. See the coverage baseline note in `.github/workflows/frontend-tests.yml`.)
-**Current stats (frontend v2):** 276 tests, 100% pass rate.
+**Current stats (v1 web — `frontend/`):** 353 tests, 100% pass rate, ~43% CI line coverage. (The 60.61% figure quoted pre-2026-04-14 came from a local run; CI coverage on a `pull_request` event was never verified until the first gated PR. See the coverage baseline note in `.github/workflows/frontend-tests.yml`.)
+**Current stats (v2 mobile — `frontend-v2/`):** 276 tests, 100% pass rate.
 
 **CI gates (enforced by [.github/workflows/](.github/workflows/) + GitHub ruleset + Render):**
-- `Frontend (v1) Tests` (`Vitest + coverage gate` check) — 95%+ pass + 40%+ line coverage on PRs to main. Ratchet the coverage floor up over time; never down.
-- `Frontend V2 Tests` (`Jest Integration Tests` check) — 95%+ pass rate.
+- `Web (v1) Tests` (`Vitest + coverage gate` check) — 95%+ pass + 40%+ line coverage on PRs to main. Ratchet the coverage floor up over time; never down.
+- `Mobile (v2) Tests` (`Jest Integration Tests` check) — 95%+ pass rate.
 - `Backend Tests` (`test` check).
 - A GitHub ruleset on `main` makes all three required before merge.
 - Prod Render services use "Deploy after CI checks pass", so only green merge commits deploy. Dev services remain on "On commit" for fast iteration on `develop`.
@@ -516,12 +517,12 @@ backend/
 ├── services/         # Business logic (22 services)
 └── middleware/       # CSRF, rate limiting
 
-frontend/src/           # V1 frontend (React + Vite, being replaced)
+frontend/src/           # V1: web app (React + Vite) — the production web surface
 ├── pages/              # Route components
 ├── components/         # UI components
 └── services/           # API + auth
 
-frontend-v2/            # V2 universal frontend (Expo, web + mobile)
+frontend-v2/            # V2: mobile iOS/Android app (Expo). Universal codebase — also builds for web (dev + future rebuild), but the active product is mobile.
 ├── app/                # Expo Router pages (file-based routing)
 │   ├── (auth)/         #   Login, register
 │   └── (app)/(tabs)/   #   Dashboard, quests, journal, bounties, buddy, profile
@@ -695,6 +696,6 @@ claude mcp add -s user posthog -- npx -y mcp-remote@latest https://mcp.posthog.c
 - **Repository Pattern**: [backend/docs/REPOSITORY_PATTERN.md](backend/docs/REPOSITORY_PATTERN.md)
 - **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
 - **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
-- **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md) — why v1/v2 web/v2 native each use a different strategy
+- **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md) — why v1 web, v2 web preview, and v2 native each use a different strategy
 - **Audit Implementation Plan**: [AUDIT_IMPLEMENTATION_PLAN.md](AUDIT_IMPLEMENTATION_PLAN.md) — historical record of the C/H/M/L/A audit items and their fixes (2026-04)
 - **Branch Test Data**: [supabase/seed.sql](supabase/seed.sql)

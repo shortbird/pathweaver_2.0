@@ -15,6 +15,10 @@ jest.mock('@/src/services/tokenStore', () => ({
     clearTokens: jest.fn().mockResolvedValue(undefined),
     getAccessToken: jest.fn(),
     getRefreshToken: jest.fn(),
+    // loadUser does an optimistic restore from cached user data before /me.
+    // These tests don't exercise the cache, so we stub both methods to no-op.
+    getCachedUser: jest.fn().mockResolvedValue(null),
+    setCachedUser: jest.fn().mockResolvedValue(undefined),
   },
 }));
 jest.mock('@/src/stores/actingAsStore', () => ({
