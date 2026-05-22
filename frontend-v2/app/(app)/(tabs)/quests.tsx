@@ -97,13 +97,13 @@ export default function QuestsScreen() {
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
           {/* Top-level segment toggle: Quests / Bounties */}
-          <View className="px-5 md:px-8">
-            <HStack className="bg-surface-100 rounded-xl p-1" space="xs">
+          <View style={{ paddingHorizontal: 20 }}>
+            <HStack space="xs">
               {TOP_SEGMENTS.map((seg) => (
                 <Pressable
                   key={seg.key}
                   onPress={() => setTopSegment(seg.key)}
-                  className={`flex-1 py-2.5 rounded-lg items-center ${topSegment === seg.key ? 'bg-white shadow-sm' : ''}`}
+                  className={`flex-1 py-2.5 rounded-lg items-center ${topSegment === seg.key ? 'bg-white' : ''}`}
                 >
                   <UIText size="sm" className={topSegment === seg.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
                     {seg.label}

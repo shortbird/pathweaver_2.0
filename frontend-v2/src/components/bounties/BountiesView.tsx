@@ -201,7 +201,7 @@ export function BountiesView() {
             <Pressable
               key={t.key}
               onPress={() => setTab(t.key)}
-              className={`flex-1 py-2.5 rounded-lg items-center ${tab === t.key ? 'bg-white shadow-sm' : ''}`}
+              className={`flex-1 py-2.5 rounded-lg items-center ${tab === t.key ? 'bg-white' : ''}`}
             >
               <HStack className="items-center gap-1">
                 <UIText size="sm" className={tab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>

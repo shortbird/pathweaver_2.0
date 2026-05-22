@@ -15,7 +15,6 @@ import { useProfile, Viewer } from '@/src/hooks/useProfile';
 import api from '@/src/services/api';
 import { useGlobalEngagement } from '@/src/hooks/useDashboard';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
-import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -229,12 +228,6 @@ export default function ProfileScreen() {
                   <UIText size="xs" className="text-typo-400">Pillars</UIText>
                 </VStack>
               </HStack>
-              {engagement?.rhythm && (
-                <>
-                  <Divider className="w-full" />
-                  <RhythmBadge rhythm={engagement.rhythm} compact />
-                </>
-              )}
             </VStack>
           </Card>
 

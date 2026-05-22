@@ -350,9 +350,28 @@ def register_routes(bp):
                                 logger.warning(f"No parents found for student {student_id} - skipping parent email notification")
                                 continue
 
-                            # Send email notification to each parent
+                            # Send in-app + email notification to each parent
                             for parent_id in parent_ids_to_notify:
-                                # Get parent info
+                                # In-app notification (also fans out to mobile push if user has token)
+                                try:
+                                    notification_service.create_notification(
+                                        user_id=parent_id,
+                                        notification_type='observer_accepted',
+                                        title='Observer joined',
+                                        message=f"{observer_name} accepted the invitation and is now following {student_name}'s learning.",
+                                        link=f'/(app)/(tabs)/family?student={student_id}',
+                                        metadata={
+                                            'observer_id': observer_id,
+                                            'observer_name': observer_name,
+                                            'student_id': student_id,
+                                            'student_name': student_name,
+                                        },
+                                        organization_id=student_org_id,
+                                    )
+                                except Exception as e:
+                                    logger.error(f"Failed to send observer_accepted in-app notification to parent {parent_id}: {e}", exc_info=True)
+
+                                # Get parent info for email
                                 parent_info = supabase.table('users') \
                                     .select('first_name, last_name, display_name, email') \
                                     .eq('id', parent_id) \

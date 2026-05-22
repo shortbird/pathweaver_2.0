@@ -2,17 +2,19 @@
  * BottomSheet - Shared bottom-sheet drawer used by capture, feed menus,
  * evidence upload, and any other modal-from-bottom UI.
  *
- * Fixes the "dim backdrop slides up with the sheet" bug that happens with
- * React Native's Modal `animationType="slide"`: we disable that animation
- * and render the backdrop as a separate flex-1 Pressable outside the sheet,
- * so only the sheet itself animates in. The dim stays fixed.
+ * Custom animation (not Modal's built-in slide, which moves the backdrop
+ * with the sheet): backdrop fades while the sheet springs up from below.
+ * `mounted` state keeps the Modal rendered through the close animation
+ * before unmounting.
  *
- * Also wraps the content in a KeyboardAvoidingView so sheets with text
- * inputs (capture, evidence upload) don't get covered by the soft keyboard.
+ * Wraps content in KeyboardAvoidingView so sheets with text inputs
+ * (capture, evidence upload) don't get covered by the soft keyboard.
  */
 
-import React from 'react';
-import { View, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Modal, Pressable, KeyboardAvoidingView, Platform, Animated, Dimensions, Easing } from 'react-native';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export interface BottomSheetProps {
   visible: boolean;
@@ -28,23 +30,74 @@ export function BottomSheet({
   children,
   dismissOnBackdropPress = true,
 }: BottomSheetProps) {
+  const [mounted, setMounted] = useState(visible);
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 22,
+          stiffness: 240,
+          mass: 0.9,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 220,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (mounted) {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: SCREEN_HEIGHT,
+          duration: 240,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 0,
+          duration: 200,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
+    }
+  }, [visible]);
+
+  if (!mounted) return null;
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-    >
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.45)',
+          opacity: backdropOpacity,
+        }}
+      >
+        <Pressable
+          style={{ flex: 1 }}
+          onPress={dismissOnBackdropPress ? onClose : undefined}
+        />
+      </Animated.View>
       <KeyboardAvoidingView
         className="flex-1 justify-end"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        pointerEvents="box-none"
       >
-        <Pressable
-          className="flex-1"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-          onPress={dismissOnBackdropPress ? onClose : undefined}
-        />
-        <View
+        <Animated.View
           style={{
             backgroundColor: '#FFFFFF',
             borderTopLeftRadius: 24,
@@ -52,11 +105,16 @@ export function BottomSheet({
             paddingHorizontal: 24,
             paddingTop: 16,
             paddingBottom: 32,
+            transform: [{ translateY }],
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 16,
+            elevation: 16,
           }}
         >
-          <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
           {children}
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );

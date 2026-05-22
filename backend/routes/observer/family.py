@@ -29,7 +29,6 @@ def register_routes(bp):
 
         Body:
             student_ids: List of UUIDs of children to include
-            relationship: Type of relationship (grandparent, aunt_uncle, family_friend, mentor, coach, other)
 
         Returns:
             200: Invitation created with shareable_link
@@ -45,7 +44,6 @@ def register_routes(bp):
             return jsonify({'error': 'student_ids is required and must be a non-empty array'}), 400
 
         student_ids = data['student_ids']
-        relationship = data.get('relationship', 'other')
 
         try:
             # admin client justified: parent-side observer mgmt; verifies parent role + parent->child ownership (managed_by_parent_id / parent_student_links) before writing observer_invitations / observer_invitation_students / observer_student_links
@@ -109,7 +107,7 @@ def register_routes(bp):
             invitation = supabase.table('observer_invitations').insert({
                 'student_id': None,  # Family invite - no single student
                 'observer_email': placeholder_email,
-                'observer_name': f'{relationship.replace("_", " ").title()} Observer',
+                'observer_name': 'Pending Observer',
                 'invitation_code': invitation_code,
                 'expires_at': expires_at.isoformat(),
                 'invited_by_user_id': parent_id,
@@ -139,7 +137,6 @@ def register_routes(bp):
                 'expires_at': expires_at.isoformat(),
                 'student_names': student_names,
                 'student_count': len(authorized_student_ids),
-                'relationship': relationship
             }), 200
 
         except Exception as e:
@@ -323,28 +320,17 @@ def register_routes(bp):
 
             # Check existing link
             existing_link = supabase.table('observer_student_links') \
-                .select('id, relationship') \
+                .select('id') \
                 .eq('observer_id', observer_id) \
                 .eq('student_id', student_id) \
                 .execute()
 
             if enabled:
                 if not existing_link.data:
-                    # Get relationship from any existing link this observer has (invited by this parent)
-                    other_link = supabase.table('observer_student_links') \
-                        .select('relationship') \
-                        .eq('observer_id', observer_id) \
-                        .eq('invited_by_parent_id', parent_id) \
-                        .limit(1) \
-                        .execute()
-
-                    relationship = other_link.data[0]['relationship'] if other_link.data else 'other'
-
                     # Create new link
                     supabase.table('observer_student_links').insert({
                         'observer_id': observer_id,
                         'student_id': student_id,
-                        'relationship': relationship,
                         'invited_by_parent_id': parent_id,
                         'can_comment': True,
                         'can_view_evidence': True,
@@ -444,3 +430,107 @@ def register_routes(bp):
         except Exception as e:
             logger.error(f"Failed to remove family observer: {str(e)}", exc_info=True)
             return jsonify({'error': 'Failed to remove observer'}), 500
+
+
+    @bp.route('/api/observers/family-pending-invites', methods=['GET'])
+    @require_auth
+    def get_pending_family_invites(user_id):
+        """
+        Parent views their pending (unaccepted, unexpired) observer invitations
+        with the children they cover.
+        """
+        parent_id = user_id
+
+        try:
+            supabase = get_supabase_admin_client()
+            parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
+            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+                return jsonify({'error': 'Only parents can use this endpoint'}), 403
+
+            now_iso = datetime.utcnow().isoformat()
+            invites = supabase.table('observer_invitations') \
+                .select('id, invitation_code, created_at, expires_at, status') \
+                .eq('invited_by_user_id', parent_id) \
+                .eq('invited_by_role', 'parent') \
+                .eq('status', 'pending') \
+                .gt('expires_at', now_iso) \
+                .order('created_at', desc=True) \
+                .execute()
+
+            if not invites.data:
+                return jsonify({'invites': []}), 200
+
+            invitation_ids = [inv['id'] for inv in invites.data]
+            student_links = supabase.table('observer_invitation_students') \
+                .select('invitation_id, student_id') \
+                .in_('invitation_id', invitation_ids) \
+                .execute()
+
+            student_ids = list({l['student_id'] for l in student_links.data})
+            students = supabase.table('users') \
+                .select('id, display_name, first_name, last_name, avatar_url') \
+                .in_('id', student_ids) \
+                .execute() if student_ids else type('R', (), {'data': []})()
+            student_map = {s['id']: s for s in (students.data or [])}
+
+            frontend_url = get_frontend_url()
+            result = []
+            for inv in invites.data:
+                child_links = [l for l in student_links.data if l['invitation_id'] == inv['id']]
+                kids = []
+                for link in child_links:
+                    student = student_map.get(link['student_id'])
+                    if student:
+                        kids.append({
+                            'id': student['id'],
+                            'name': student.get('display_name') or f"{student.get('first_name','')} {student.get('last_name','')}".strip(),
+                            'avatar_url': student.get('avatar_url'),
+                        })
+                result.append({
+                    'id': inv['id'],
+                    'shareable_link': f"{frontend_url}/observer/accept/{inv['invitation_code']}",
+                    'created_at': inv['created_at'],
+                    'expires_at': inv['expires_at'],
+                    'children': kids,
+                })
+
+            return jsonify({'invites': result}), 200
+
+        except Exception as e:
+            logger.error(f"Failed to list pending family invites: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to load pending invites'}), 500
+
+
+    @bp.route('/api/observers/family-pending-invites/<invitation_id>', methods=['DELETE'])
+    @require_auth
+    @validate_uuid_param('invitation_id')
+    def revoke_pending_family_invite(user_id, invitation_id):
+        """Parent revokes a pending invitation they sent."""
+        parent_id = user_id
+
+        try:
+            supabase = get_supabase_admin_client()
+            invite = supabase.table('observer_invitations') \
+                .select('id, invited_by_user_id, status') \
+                .eq('id', invitation_id) \
+                .single() \
+                .execute()
+
+            if not invite.data:
+                return jsonify({'error': 'Invitation not found'}), 404
+            if invite.data['invited_by_user_id'] != parent_id:
+                return jsonify({'error': 'Not authorized to revoke this invitation'}), 403
+            if invite.data['status'] != 'pending':
+                return jsonify({'error': 'Invitation is not pending'}), 400
+
+            supabase.table('observer_invitations') \
+                .update({'status': 'cancelled'}) \
+                .eq('id', invitation_id) \
+                .execute()
+
+            logger.info(f"Family invite revoked: invitation={invitation_id}, by_parent={parent_id}")
+            return jsonify({'status': 'success'}), 200
+
+        except Exception as e:
+            logger.error(f"Failed to revoke family invite: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to revoke invitation'}), 500

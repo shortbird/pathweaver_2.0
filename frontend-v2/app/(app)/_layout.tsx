@@ -83,7 +83,6 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="quests/[id]" />
-      <Stack.Screen name="courses/[id]" />
       <Stack.Screen name="bounties/[id]" />
       <Stack.Screen name="bounties/create" />
       <Stack.Screen name="bounties/review/[id]" />

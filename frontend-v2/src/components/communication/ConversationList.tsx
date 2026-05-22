@@ -6,6 +6,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { View, Pressable, ScrollView, TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading, Avatar, AvatarFallbackText, AvatarImage } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
@@ -125,12 +126,13 @@ export function ConversationList({
     );
   }
 
-  const containerStyle = isMobile
-    ? 'flex-1 bg-white'
-    : 'flex-1 bg-white border-r border-surface-200';
+  const Container: any = isMobile ? SafeAreaView : View;
+  const containerProps: any = isMobile
+    ? { className: 'flex-1 bg-white', edges: ['top'] }
+    : { className: 'flex-1 bg-white border-r border-surface-200', style: { minWidth: 320, maxWidth: 380 } };
 
   return (
-    <View className={containerStyle} style={isMobile ? undefined : { minWidth: 320, maxWidth: 380 }}>
+    <Container {...containerProps}>
       {/* Header */}
       {isMobile ? (
         <PageHeader title="Messages" />
@@ -316,6 +318,6 @@ export function ConversationList({
           )}
         </View>
       </ScrollView>
-    </View>
+    </Container>
   );
 }
