@@ -1593,7 +1593,7 @@ class InterestTracksService(BaseService):
             xp_value: XP value for the new task. Defaults to
                 ``DEFAULT_PROMOTED_TASK_XP`` (50). The student can edit this
                 via ``PUT /api/tasks/<task_id>`` once the task is created;
-                advisor / accreditor still review at credit time.
+                credit review still happens at credit-request time.
         """
         try:
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)

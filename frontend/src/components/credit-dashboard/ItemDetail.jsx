@@ -33,12 +33,34 @@ const formatSubject = (s) => {
 
 const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance, onGrowThis, onFeedbackChange, feedbackTextareaRef }) => {
   const [feedback, setFeedback] = useState('')
-  const [flagReason, setFlagReason] = useState('')
-  const [overrideJustification, setOverrideJustification] = useState('')
-  const [overrideXp, setOverrideXp] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
-  const [showOverrideForm, setShowOverrideForm] = useState(false)
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false)
   const [editedSubjects, setEditedSubjects] = useState({})
+
+  const handleAiSuggest = async () => {
+    if (!item) return
+    if (feedback.trim() && !window.confirm('Replace your current feedback with an AI draft?')) {
+      return
+    }
+    setAiSuggestLoading(true)
+    try {
+      const res = await api.post(
+        `/api/credit-dashboard/items/${item.completion_id}/suggest-feedback`,
+        {}
+      )
+      const draft = res.data?.data?.suggested_feedback || res.data?.suggested_feedback
+      if (draft) {
+        setFeedback(draft)
+        if (onFeedbackChange) onFeedbackChange(draft)
+      } else {
+        toast.error('No suggestion returned')
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'AI suggestion failed')
+    } finally {
+      setAiSuggestLoading(false)
+    }
+  }
 
   // Sync editedSubjects when detail changes
   useEffect(() => {
@@ -73,8 +95,6 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
   const student = detail?.student || {}
   const evidenceBlocks = detail?.evidence_blocks || []
   const reviewRounds = detail?.review_rounds || []
-  const accreditorReviews = detail?.accreditor_reviews || []
-  const suggestedSubjects = detail?.suggested_subjects || {}
 
   const isSuperadmin = effectiveRole === 'superadmin'
   // Superadmins are simultaneously the org approver AND the Optio approver,
@@ -83,11 +103,9 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
   // (see backend/routes/credit_dashboard/org_admin_actions.py).
   const isOrgAdmin = effectiveRole === 'org_admin' || isSuperadmin
   const isAdvisor = effectiveRole === 'advisor' || isSuperadmin
-  const isAccreditor = effectiveRole === 'accreditor' || isSuperadmin
   const isOrgStudent = detail?.is_org_student || item?.is_org_student || false
   const canOrgAdminAct = isOrgAdmin && completion.diploma_status === 'pending_org_approval'
-  const canAdvisorAct = isAdvisor && ['pending_review', 'pending_optio_approval'].includes(completion.diploma_status)
-  const canAccreditorAct = isAccreditor && completion.diploma_status === 'approved'
+  const canAdvisorAct = isAdvisor && completion.diploma_status === 'pending_review'
   const canEditSubjects = canAdvisorAct || canOrgAdminAct
 
   const handleOrgApprove = async () => {
@@ -142,7 +160,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
     setFeedback('')
     if (onAdvance) onAdvance(completionId)
     try {
-      await api.post(`/api/advisor/credit-queue/${completionId}/approve`, {
+      await api.post(`/api/credit-dashboard/items/${completionId}/approve`, {
         feedback: savedFeedback || undefined,
         subjects: Object.keys(savedSubjects).length > 0 ? savedSubjects : undefined
       })
@@ -168,47 +186,19 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
     }
   }
 
-  const handleConfirm = async () => {
-    const completionId = item.completion_id
-    if (onAdvance) onAdvance(completionId)
-    try {
-      await api.post(`/api/credit-dashboard/items/${completionId}/confirm`, {})
-      toast.success('Credit confirmed')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to confirm')
-      onRefresh()
-    }
-  }
-
-  const handleReturnToAdvisor = async () => {
-    if (!feedback.trim()) {
-      toast.error('Feedback is required when returning to advisor')
-      return
-    }
-    const completionId = item.completion_id
-    const savedFeedback = feedback
-    setFeedback('')
-    if (onAdvance) onAdvance(completionId)
-    try {
-      await api.post(`/api/credit-dashboard/items/${completionId}/return-to-advisor`, {
-        feedback: savedFeedback
-      })
-      toast.success('Returned to advisor')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to return')
-      onRefresh()
-    }
-  }
-
   return (
-    <div className="p-3 md:p-6 space-y-6">
+    // Leave room at the bottom on mobile for the sticky action bar so the
+    // last bit of content (review history, evidence) isn't covered.
+    <div className="p-3 md:p-6 space-y-6 pb-32 md:pb-6">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-3 mb-2">
-          <h2 className="text-lg font-semibold text-gray-900">{task.title || 'Unknown Task'}</h2>
-          <span className="text-sm text-gray-500">{item.xp_value} XP</span>
+        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 mb-2">
+          <h2 className="text-base md:text-lg font-semibold text-gray-900 leading-snug break-words">
+            {task.title || 'Unknown Task'}
+          </h2>
+          <span className="text-sm text-gray-500 shrink-0">{item.xp_value} XP</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div className="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
           <span>{`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}</span>
           <span>in</span>
           <span className="font-medium">{quest.title || 'Unknown Quest'}</span>
@@ -221,19 +211,9 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
       {/* Status Timeline */}
       <StatusTimeline
         diplomaStatus={completion.diploma_status}
-        accreditorStatus={completion.accreditor_status}
         isOrgStudent={isOrgStudent}
+        orgReviewerId={completion.org_reviewer_id}
       />
-
-      {/* Accreditor decision banner (for accreditor view) */}
-      {isAccreditor && completion.diploma_status === 'approved' && completion.credit_reviewer_id && (
-        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-          <p className="text-sm font-medium text-blue-800">Advisor Decision</p>
-          <p className="text-xs text-blue-600 mt-1">
-            Approved by advisor. Review evidence and subject distribution below.
-          </p>
-        </div>
-      )}
 
       {/* Subject Distribution */}
       {(Object.keys(editedSubjects).length > 0 || canEditSubjects) && (
@@ -247,7 +227,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
             )}
           </div>
           {canEditSubjects ? (
-            <div className="space-y-2 max-w-sm">
+            <div className="space-y-2 md:max-w-sm">
               {Object.entries(editedSubjects).map(([subject, xp]) => (
                 <div key={subject} className="flex items-center gap-2">
                   <select
@@ -273,7 +253,8 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                         })
                       }
                     }}
-                    className="flex-1 text-sm rounded border-gray-300 focus:ring-optio-purple focus:border-optio-purple capitalize py-1"
+                    // 16px on mobile to avoid iOS auto-zoom on focus.
+                    className="flex-1 min-w-0 text-base md:text-sm rounded border-gray-300 focus:ring-optio-purple focus:border-optio-purple capitalize py-2 md:py-1"
                   >
                     {ALL_SUBJECTS.map(s => (
                       <option key={s} value={s} className="capitalize">{formatSubject(s)}</option>
@@ -283,21 +264,23 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                     type="number"
                     min="0"
                     step="50"
+                    inputMode="numeric"
                     value={xp}
                     onChange={(e) => setEditedSubjects(prev => ({ ...prev, [subject]: parseInt(e.target.value, 10) || 0 }))}
-                    className="w-24 text-sm text-right rounded border-gray-300 focus:ring-optio-purple focus:border-optio-purple py-1"
+                    className="w-20 md:w-24 text-base md:text-sm text-right rounded border-gray-300 focus:ring-optio-purple focus:border-optio-purple py-2 md:py-1"
                   />
-                  <span className="text-xs text-gray-400 w-6">XP</span>
+                  <span className="text-xs text-gray-400 w-6 shrink-0">XP</span>
                   <button
                     onClick={() => setEditedSubjects(prev => {
                       const next = { ...prev }
                       delete next[subject]
                       return next
                     })}
-                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    className="p-2 md:p-1 -mr-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded touch-manipulation"
                     title="Remove subject"
+                    aria-label={`Remove ${subject}`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -310,9 +293,9 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                     const unused = ALL_SUBJECTS.find(s => editedSubjects[s] === undefined)
                     if (unused) setEditedSubjects(prev => ({ ...prev, [unused]: 0 }))
                   }}
-                  className="flex items-center gap-1 text-xs text-optio-purple hover:text-optio-pink mt-1"
+                  className="flex items-center gap-1 text-sm md:text-xs text-optio-purple hover:text-optio-pink mt-2 md:mt-1 min-h-[36px] md:min-h-0 touch-manipulation"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 md:w-3.5 md:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Add subject
@@ -350,12 +333,16 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                   <div className="space-y-2">
                     {getBlockItems(block.content, 'image').map((item, j) => (
                       <div key={j}>
-                        <img
-                          src={item.url}
-                          alt={item.alt || 'Evidence'}
-                          className="max-w-full rounded border"
-                          loading="lazy"
-                        />
+                        {/* Cap image height on mobile so a single photo doesn't
+                            push everything else off-screen. Tapping opens full size. */}
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+                          <img
+                            src={item.url}
+                            alt={item.alt || 'Evidence'}
+                            className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
+                            loading="lazy"
+                          />
+                        </a>
                         {item.caption && (
                           <p className="text-xs text-gray-500 mt-1">{item.caption}</p>
                         )}
@@ -411,7 +398,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
       </div>
 
       {/* Review History */}
-      {(reviewRounds.length > 0 || accreditorReviews.length > 0) && (
+      {reviewRounds.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-700 mb-2">Review History</h3>
           <div className="space-y-2">
@@ -426,26 +413,31 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                 )}
               </div>
             ))}
-            {accreditorReviews.map((review, i) => (
-              <div key={review.id || i} className={`text-xs p-2 rounded ${
-                review.status === 'confirmed' ? 'bg-emerald-50' :
-                review.status === 'flagged' ? 'bg-orange-50' : 'bg-red-50'
-              }`}>
-                <div className="flex justify-between">
-                  <span className="font-medium capitalize">Accreditor: {review.status}</span>
-                  <span className="text-gray-400">{review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : ''}</span>
-                </div>
-                {review.flag_reason && <p className="text-gray-600 mt-1">{review.flag_reason}</p>}
-                {review.notes && <p className="text-gray-600 mt-1">{review.notes}</p>}
-              </div>
-            ))}
           </div>
         </div>
       )}
 
-      {/* Action Buttons - Org Admin */}
+      {/* Action panel. On mobile this sticks to the bottom of the scrolling
+          detail panel so the reviewer can always reach Approve / Grow This
+          without scrolling back up past the evidence. Negative margins +
+          padding break out of the parent's p-3 so the white background spans
+          the full panel width on mobile. */}
       {canOrgAdminAct && (
-        <div className="border-t border-gray-200 pt-4 space-y-3">
+        <div className="md:static sticky bottom-0 z-10 bg-white border-t border-gray-200 pt-3 pb-3 md:pb-0 space-y-3 -mx-3 px-3 md:mx-0 md:px-0">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-gray-600">
+              Feedback for student
+            </label>
+            <button
+              type="button"
+              onClick={handleAiSuggest}
+              disabled={aiSuggestLoading || actionLoading}
+              className="text-sm md:text-xs text-optio-purple hover:text-optio-pink disabled:opacity-50 disabled:cursor-not-allowed py-1 px-1 touch-manipulation"
+              title="Draft Grow This feedback with AI based on the student's submission"
+            >
+              {aiSuggestLoading ? 'Drafting…' : 'Suggest with AI'}
+            </button>
+          </div>
           <textarea
             ref={feedbackTextareaRef}
             value={feedback}
@@ -453,9 +445,9 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
               setFeedback(e.target.value)
               if (onFeedbackChange) onFeedbackChange(e.target.value)
             }}
-            placeholder="Feedback for student (required for Grow This, press g)..."
+            placeholder="Feedback for student (required for Grow This)..."
             rows={3}
-            className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
+            className="w-full text-base md:text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
           />
           <div className="flex flex-col md:flex-row gap-2">
             <button
@@ -466,23 +458,36 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
               {actionLoading
                 ? 'Processing...'
                 : isSuperadmin
-                  ? 'Approve (a)'
-                  : 'Approve for Optio Review (a)'}
+                  ? 'Approve'
+                  : 'Approve for Optio Review'}
             </button>
             <button
               onClick={handleOrgGrowThis}
               disabled={actionLoading || !feedback.trim()}
               className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
-              Grow This (g)
+              Grow This
             </button>
           </div>
         </div>
       )}
 
-      {/* Action Buttons - Advisor */}
       {canAdvisorAct && (
-        <div className="border-t border-gray-200 pt-4 space-y-3">
+        <div className="md:static sticky bottom-0 z-10 bg-white border-t border-gray-200 pt-3 pb-3 md:pb-0 space-y-3 -mx-3 px-3 md:mx-0 md:px-0">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-gray-600">
+              Feedback for student
+            </label>
+            <button
+              type="button"
+              onClick={handleAiSuggest}
+              disabled={aiSuggestLoading || actionLoading}
+              className="text-sm md:text-xs text-optio-purple hover:text-optio-pink disabled:opacity-50 disabled:cursor-not-allowed py-1 px-1 touch-manipulation"
+              title="Draft Grow This feedback with AI based on the student's submission"
+            >
+              {aiSuggestLoading ? 'Drafting…' : 'Suggest with AI'}
+            </button>
+          </div>
           <textarea
             ref={feedbackTextareaRef}
             value={feedback}
@@ -490,9 +495,9 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
               setFeedback(e.target.value)
               if (onFeedbackChange) onFeedbackChange(e.target.value)
             }}
-            placeholder="Feedback for student (required for Grow This, press g)..."
+            placeholder="Feedback for student (required for Grow This)..."
             rows={3}
-            className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
+            className="w-full text-base md:text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
           />
           <div className="flex flex-col md:flex-row gap-2">
             <button
@@ -500,50 +505,19 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
               disabled={actionLoading}
               className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
-              {actionLoading ? 'Processing...' : 'Approve (a)'}
+              {actionLoading ? 'Processing...' : 'Approve'}
             </button>
             <button
               onClick={handleGrowThis}
               disabled={actionLoading || !feedback.trim()}
               className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
-              Grow This (g)
+              Grow This
             </button>
           </div>
         </div>
       )}
 
-      {/* Action Buttons - Accreditor */}
-      {canAccreditorAct && (
-        <div className="border-t border-gray-200 pt-4 space-y-3">
-          <textarea
-            value={feedback}
-            onChange={e => {
-              setFeedback(e.target.value)
-              if (onFeedbackChange) onFeedbackChange(e.target.value)
-            }}
-            placeholder="Feedback for advisor (required for return)..."
-            rows={3}
-            className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
-          />
-          <div className="flex flex-col md:flex-row gap-2">
-            <button
-              onClick={handleConfirm}
-              disabled={actionLoading}
-              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 min-h-[44px] touch-manipulation"
-            >
-              Approve (a)
-            </button>
-            <button
-              onClick={handleReturnToAdvisor}
-              disabled={actionLoading || !feedback.trim()}
-              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
-            >
-              Return to Advisor (g)
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -1026,13 +1026,7 @@ const TaskWorkspace = ({
                             <span className="hidden sm:inline">Awaiting Org Review</span>
                           </span>
                         )}
-                        {creditStatus === 'pending_optio_approval' && (
-                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg">
-                            <AcademicCapIcon className="w-4 h-4" />
-                            <span className="hidden sm:inline">Awaiting Optio Review</span>
-                          </span>
-                        )}
-                        {creditStatus === 'approved' && (
+                        {creditStatus === 'finalized' && (
                           <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg">
                             <AcademicCapIcon className="w-4 h-4" />
                             <span className="hidden sm:inline">Credit Approved</span>

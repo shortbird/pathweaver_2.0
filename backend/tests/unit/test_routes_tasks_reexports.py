@@ -45,8 +45,7 @@ def test_routes_tasks_reexports_helpers():
 CALLERS_WITH_FUNCTION_SCOPED_IMPORTS = [
     'routes.credit_dashboard.items',
     'routes.credit_dashboard.org_admin_actions',
-    'routes.credit_dashboard.accreditor_actions',
-    'routes.advisor.credit_review',
+    'routes.credit_dashboard.superadmin_actions',
 ]
 
 

@@ -17,8 +17,8 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
         if (effectiveRole === 'org_admin' && item.diploma_status === 'pending_org_approval') {
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
           approvedCount++
-        } else if (['pending_review', 'pending_optio_approval'].includes(item.diploma_status)) {
-          await api.post(`/api/advisor/credit-queue/${item.completion_id}/approve`, {})
+        } else if (item.diploma_status === 'pending_review') {
+          await api.post(`/api/credit-dashboard/items/${item.completion_id}/approve`, {})
           approvedCount++
         }
       }
@@ -27,23 +27,6 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
       onRefresh()
     } catch (err) {
       toast.error('Bulk approve failed')
-    } finally {
-      setBulkLoading(false)
-    }
-  }
-
-  const handleBulkConfirm = async () => {
-    try {
-      setBulkLoading(true)
-      const approvedItems = selectedItems.filter(i => i.diploma_status === 'approved')
-      for (const item of approvedItems) {
-        await api.post(`/api/credit-dashboard/items/${item.completion_id}/confirm`, {})
-      }
-      toast.success(`Confirmed ${approvedItems.length} items`)
-      onDeselectAll()
-      onRefresh()
-    } catch (err) {
-      toast.error('Bulk confirm failed')
     } finally {
       setBulkLoading(false)
     }
@@ -60,16 +43,6 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
           className="px-3 py-1.5 text-sm bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
         >
           Approve All
-        </button>
-      )}
-
-      {(effectiveRole === 'accreditor' || effectiveRole === 'superadmin') && (
-        <button
-          onClick={handleBulkConfirm}
-          disabled={bulkLoading}
-          className="px-3 py-1.5 text-sm bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-        >
-          Confirm All
         </button>
       )}
 

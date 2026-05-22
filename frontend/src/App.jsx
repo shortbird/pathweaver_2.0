@@ -116,7 +116,7 @@ const EvidenceReportBuilder = lazy(() => import('./pages/EvidenceReportBuilder')
 const PublicEvidenceReport = lazy(() => import('./pages/PublicEvidenceReport'))
 const PublicTranscriptPage = lazy(() => import('./pages/PublicTranscriptPage'))
 const SharedFeedPostPage = lazy(() => import('./pages/SharedFeedPostPage'))
-// Credit Review Dashboard (March 2026 - Unified credit review for advisors/accreditors)
+// Credit Review Dashboard (March 2026 - Unified credit review for org admins + superadmin)
 const CreditReviewDashboardPage = lazy(() => import('./pages/CreditReviewDashboardPage'))
 // Bounty Board & Buddy (March 2026 - Integrated from mobile app plan)
 const BountyBoardPage = lazy(() => import('./pages/BountyBoardPage'))
@@ -512,8 +512,8 @@ function App() {
                 <Route path="quests/:questId/curriculum/edit" element={<CurriculumBuilder />} />
               </Route>
 
-              {/* Credit Review Dashboard - superadmin, org_admin, accreditor */}
-              <Route element={<PrivateRoute requiredRole={["superadmin", "org_admin", "accreditor"]} />}>
+              {/* Credit Review Dashboard - superadmin, org_admin */}
+              <Route element={<PrivateRoute requiredRole={["superadmin", "org_admin"]} />}>
                 <Route path="credit-dashboard" element={<CreditReviewDashboardPage />} />
               </Route>
 

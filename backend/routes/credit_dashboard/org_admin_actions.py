@@ -105,8 +105,8 @@ def org_approve_credit(user_id: str, completion_id: str):
             }).eq('id', completion.data['user_quest_task_id']).execute()
 
         # Detect whether the reviewer is a superadmin. A superadmin is both
-        # the org approver AND the Optio approver, so forcing them through
-        # two stages (pending_org_approval → pending_optio_approval → approved)
+        # the org approver AND the final reviewer, so forcing them through
+        # two stages (pending_org_approval → pending_review → finalized)
         # only duplicates their click. Collapse to one action.
         reviewer_role_check = admin_supabase.table('users') \
             .select('role') \
@@ -148,8 +148,9 @@ def org_approve_credit(user_id: str, completion_id: str):
             ).eq('id', latest_round.data[0]['id']).execute()
 
         if is_superadmin:
-            # Finalize XP (move from pending to finalized) and jump straight
-            # to approved + pending_accreditor in one atomic write.
+            # Superadmin approval is the final stamp -- Optio is platform
+            # accredited, so we finalize the credit directly here (no
+            # separate accreditor confirmation step).
             from routes.tasks import (
                 finalize_subject_xp,
                 get_subject_xp_distribution,
@@ -181,11 +182,10 @@ def org_approve_credit(user_id: str, completion_id: str):
             )
 
             admin_supabase.table('quest_task_completions').update({
-                'diploma_status': 'approved',
+                'diploma_status': 'finalized',
                 'org_reviewer_id': user_id,
                 'credit_reviewer_id': user_id,
                 'finalized_at': now,
-                'accreditor_status': 'pending_accreditor',
             }).eq('id', completion_id).execute()
 
             if completion.data.get('user_quest_task_id'):
@@ -194,7 +194,7 @@ def org_approve_credit(user_id: str, completion_id: str):
                     'feedback_at': now,
                 }).eq('id', completion.data['user_quest_task_id']).execute()
 
-            # Notify the student, not other reviewers — this IS the final step.
+            # Notify the student — this IS the final step.
             try:
                 from services.notification_service import NotificationService
                 notification_service = NotificationService()
@@ -219,21 +219,20 @@ def org_approve_credit(user_id: str, completion_id: str):
                 logger.warning(f"Failed to notify student of collapsed approval: {notify_err}")
 
             logger.info(
-                f"Superadmin {user_id[:8]} collapsed org+Optio approval for "
-                f"credit {completion_id[:8]}, {total_xp_finalized} XP finalized"
+                f"Superadmin {user_id[:8]} finalized credit {completion_id[:8]} "
+                f"in one click, {total_xp_finalized} XP finalized"
             )
             return success_response(data={
                 'completion_id': completion_id,
-                'diploma_status': 'approved',
-                'accreditor_status': 'pending_accreditor',
+                'diploma_status': 'finalized',
                 'approved_subjects': approved_subjects,
                 'xp_finalized': total_xp_finalized,
                 'collapsed': True,
             })
 
-        # Update completion status to pending Optio approval (non-superadmin path)
+        # Hand off to superadmin review (non-superadmin path).
         admin_supabase.table('quest_task_completions').update({
-            'diploma_status': 'pending_optio_approval',
+            'diploma_status': 'pending_review',
             'org_reviewer_id': user_id
         }).eq('id', completion_id).execute()
 
@@ -293,7 +292,7 @@ def org_approve_credit(user_id: str, completion_id: str):
 
         return success_response(data={
             'completion_id': completion_id,
-            'diploma_status': 'pending_optio_approval'
+            'diploma_status': 'pending_review'
         })
 
     except Exception as e:

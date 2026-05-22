@@ -3,17 +3,10 @@ import FilterBar from './FilterBar'
 
 const statusColors = {
   pending_org_approval: 'bg-purple-100 text-purple-800',
-  pending_optio_approval: 'bg-indigo-100 text-indigo-800',
   pending_review: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
   grow_this: 'bg-orange-100 text-orange-800',
-  finalized: 'bg-blue-100 text-blue-800',
+  finalized: 'bg-emerald-100 text-emerald-800',
   merged: 'bg-gray-100 text-gray-500',
-  confirmed: 'bg-emerald-100 text-emerald-800',
-  flagged: 'bg-red-100 text-red-800',
-  not_reviewed: 'bg-gray-100 text-gray-500',
-  pending_accreditor: 'bg-blue-100 text-blue-700',
-  overridden: 'bg-red-100 text-red-700',
 }
 
 const CreditDataTable = ({
@@ -82,21 +75,20 @@ const CreditDataTable = ({
               <SortHeader label="Quest" sortField="quest_title" />
               <SortHeader label="Subjects" sortField="pillar" />
               <SortHeader label="XP" sortField="xp_value" />
-              <SortHeader label="Advisor Status" sortField="diploma_status" />
-              <SortHeader label="Accreditor" sortField="accreditor_status" />
+              <SortHeader label="Status" sortField="diploma_status" />
               <SortHeader label="Date" sortField="submitted_at" />
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={9} className="text-center py-12">
+                <td colSpan={8} className="text-center py-12">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple mx-auto" />
                 </td>
               </tr>
             ) : sorted.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center py-12 text-gray-500 text-sm">
+                <td colSpan={8} className="text-center py-12 text-gray-500 text-sm">
                   No items found
                 </td>
               </tr>
@@ -126,13 +118,6 @@ const CreditDataTable = ({
                     statusColors[item.diploma_status] || 'bg-gray-100'
                   }`}>
                     {(item.diploma_status || '').replace(/_/g, ' ')}
-                  </span>
-                </td>
-                <td className="px-3 py-2">
-                  <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${
-                    statusColors[item.accreditor_status] || 'bg-gray-100'
-                  }`}>
-                    {(item.accreditor_status || '').replace(/_/g, ' ')}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-xs text-gray-400">

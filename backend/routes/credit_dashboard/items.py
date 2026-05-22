@@ -40,10 +40,11 @@ def resolve_user_name(user_data):
 
 
 @bp.route('/items', methods=['GET'])
-@require_role('accreditor', 'superadmin', 'org_admin')
+@require_role('superadmin', 'org_admin')
 def get_dashboard_items(user_id: str):
     """Get credit review items filtered by role and query params."""
     try:
+        # admin client justified: dashboard handler runs cross-org queries (org+student scoping enforced by @require_role and per-row checks below); RLS would block these reads.
         admin_supabase = get_supabase_admin_client()
 
         # Determine user's role for scoping
@@ -58,7 +59,6 @@ def get_dashboard_items(user_id: str):
 
         # Parse query params
         status_filter = request.args.get('status')
-        accreditor_status_filter = request.args.get('accreditor_status')
         student_id_filter = request.args.get('student_id')
         subject_filter = request.args.get('subject')
         date_from = request.args.get('date_from')
@@ -91,24 +91,17 @@ def get_dashboard_items(user_id: str):
             student_ids = [a['student_id'] for a in (assignments.data or [])]
             if not student_ids:
                 return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
-        elif effective_role == 'accreditor':
-            # Accreditors see all students but only approved+ items
-            if not status_filter:
-                status_filter = 'approved'
 
         # Build query
         query = admin_supabase.table('quest_task_completions') \
-            .select('id, user_id, quest_id, diploma_status, accreditor_status, revision_number, user_quest_task_id, credit_requested_at, merged_into, finalized_at, credit_reviewer_id', count='exact')
+            .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id, credit_requested_at, merged_into, finalized_at, credit_reviewer_id, org_reviewer_id', count='exact')
 
         # Apply filters
         if status_filter:
             query = query.eq('diploma_status', status_filter)
         else:
             # Default: show actionable items (not none/draft/merged)
-            query = query.in_('diploma_status', ['pending_review', 'pending_org_approval', 'pending_optio_approval', 'approved', 'grow_this', 'finalized'])
-
-        if accreditor_status_filter:
-            query = query.eq('accreditor_status', accreditor_status_filter)
+            query = query.in_('diploma_status', ['pending_review', 'pending_org_approval', 'grow_this', 'finalized'])
 
         if student_ids is not None:
             query = query.in_('user_id', student_ids)
@@ -211,7 +204,6 @@ def get_dashboard_items(user_id: str):
                 'xp_value': xp_value,
                 'suggested_subjects': subjects,
                 'diploma_status': c.get('diploma_status'),
-                'accreditor_status': c.get('accreditor_status', 'not_reviewed'),
                 'revision_number': c.get('revision_number', 1),
                 'submitted_at': c.get('credit_requested_at'),
                 'finalized_at': c.get('finalized_at'),
@@ -233,15 +225,16 @@ def get_dashboard_items(user_id: str):
 
 
 @bp.route('/items/<completion_id>', methods=['GET'])
-@require_role('accreditor', 'superadmin', 'org_admin')
+@require_role('superadmin', 'org_admin')
 def get_dashboard_item_detail(user_id: str, completion_id: str):
     """Get full detail for a credit review item including evidence and review history."""
     try:
+        # admin client justified: dashboard handler runs cross-org queries (org+student scoping enforced by @require_role and per-row checks below); RLS would block these reads.
         admin_supabase = get_supabase_admin_client()
 
         # Get completion
         completion = admin_supabase.table('quest_task_completions') \
-            .select('id, user_id, quest_id, diploma_status, accreditor_status, revision_number, user_quest_task_id, credit_requested_at, merged_into, finalized_at, credit_reviewer_id') \
+            .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id, credit_requested_at, merged_into, finalized_at, credit_reviewer_id, org_reviewer_id') \
             .eq('id', completion_id) \
             .single() \
             .execute()
@@ -319,16 +312,6 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             .order('round_number') \
             .execute()
 
-        # Get accreditor reviews (table may not exist yet)
-        try:
-            accreditor_reviews = admin_supabase.table('accreditor_reviews') \
-                .select('*, users!reviewer_id(display_name)') \
-                .eq('completion_id', completion_id) \
-                .order('created_at') \
-                .execute()
-        except Exception:
-            accreditor_reviews = type('obj', (object,), {'data': []})()
-
         # Get subject XP distribution
         from routes.tasks import get_subject_xp_distribution
         xp_value = task_data.get('xp_value', 0)
@@ -351,7 +334,6 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             'student': student_data,
             'evidence_blocks': evidence_blocks_data,
             'review_rounds': rounds.data or [],
-            'accreditor_reviews': accreditor_reviews.data or [],
             'suggested_subjects': subjects,
             'student_subject_xp': student_subject_xp.data or [],
             'is_org_student': bool(student_data.get('organization_id'))
@@ -363,10 +345,11 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
 
 
 @bp.route('/stats', methods=['GET'])
-@require_role('accreditor', 'superadmin', 'org_admin')
+@require_role('superadmin', 'org_admin')
 def get_dashboard_stats(user_id: str):
     """Get aggregate counts for dashboard overview."""
     try:
+        # admin client justified: dashboard handler runs cross-org queries (org+student scoping enforced by @require_role and per-row checks below); RLS would block these reads.
         admin_supabase = get_supabase_admin_client()
 
         # Check role for scoping
@@ -389,9 +372,10 @@ def get_dashboard_stats(user_id: str):
                 student_ids = [s['id'] for s in (org_students.data or [])]
             if not student_ids:
                 return success_response(data={
-                    'pending_org_approval': 0, 'pending_advisor': 0,
-                    'pending_accreditor': 0, 'confirmed': 0,
-                    'flagged': 0, 'merged_this_week': 0
+                    'pending_org_approval': 0,
+                    'pending_review': 0,
+                    'finalized': 0,
+                    'merged_this_week': 0
                 })
         elif effective_role == 'advisor':
             assignments = admin_supabase.table('advisor_student_assignments') \
@@ -402,19 +386,18 @@ def get_dashboard_stats(user_id: str):
             student_ids = [a['student_id'] for a in (assignments.data or [])]
             if not student_ids:
                 return success_response(data={
-                    'pending_org_approval': 0, 'pending_advisor': 0,
-                    'pending_accreditor': 0, 'confirmed': 0,
-                    'flagged': 0, 'merged_this_week': 0
+                    'pending_org_approval': 0,
+                    'pending_review': 0,
+                    'finalized': 0,
+                    'merged_this_week': 0
                 })
 
         # Count by status
-        def count_status(diploma_status=None, accreditor_status=None):
+        def count_status(diploma_status=None):
             q = admin_supabase.table('quest_task_completions') \
                 .select('id', count='exact')
             if diploma_status:
                 q = q.eq('diploma_status', diploma_status)
-            if accreditor_status:
-                q = q.eq('accreditor_status', accreditor_status)
             if student_ids is not None:
                 q = q.in_('user_id', student_ids)
             result = q.execute()
@@ -422,11 +405,8 @@ def get_dashboard_stats(user_id: str):
 
         stats = {
             'pending_org_approval': count_status(diploma_status='pending_org_approval'),
-            'pending_optio_approval': count_status(diploma_status='pending_optio_approval'),
-            'pending_advisor': count_status(diploma_status='pending_review'),
-            'pending_accreditor': count_status(accreditor_status='pending_accreditor'),
-            'confirmed': count_status(accreditor_status='confirmed'),
-            'flagged': count_status(accreditor_status='flagged'),
+            'pending_review': count_status(diploma_status='pending_review'),
+            'finalized': count_status(diploma_status='finalized'),
             'merged_this_week': 0
         }
 
@@ -452,10 +432,11 @@ def get_dashboard_stats(user_id: str):
 
 
 @bp.route('/student-context/<student_id>', methods=['GET'])
-@require_role('accreditor', 'superadmin', 'org_admin')
+@require_role('superadmin', 'org_admin')
 def get_student_context(user_id: str, student_id: str):
     """Get student's diploma progress and pending items for context panel."""
     try:
+        # admin client justified: dashboard handler runs cross-org queries (org+student scoping enforced by @require_role and per-row checks below); RLS would block these reads.
         admin_supabase = get_supabase_admin_client()
 
         # Student info
@@ -477,11 +458,11 @@ def get_student_context(user_id: str, student_id: str):
             .eq('user_id', student_id) \
             .execute()
 
-        # Pending/approved completions for this student
+        # Pending completions for this student
         pending_items = admin_supabase.table('quest_task_completions') \
-            .select('id, diploma_status, accreditor_status, user_quest_task_id') \
+            .select('id, diploma_status, user_quest_task_id') \
             .eq('user_id', student_id) \
-            .in_('diploma_status', ['pending_org_approval', 'pending_optio_approval', 'pending_review', 'approved', 'grow_this']) \
+            .in_('diploma_status', ['pending_org_approval', 'pending_review', 'grow_this']) \
             .order('credit_requested_at', desc=True) \
             .limit(20) \
             .execute()
@@ -503,8 +484,7 @@ def get_student_context(user_id: str, student_id: str):
                 'completion_id': p['id'],
                 'task_title': task.get('title', 'Unknown'),
                 'xp_value': task.get('xp_value', 0),
-                'diploma_status': p['diploma_status'],
-                'accreditor_status': p.get('accreditor_status', 'not_reviewed')
+                'diploma_status': p['diploma_status']
             })
 
         # Recent merges for this student (table may not exist yet)
@@ -520,26 +500,11 @@ def get_student_context(user_id: str, student_id: str):
         except Exception:
             logger.debug("intentional swallow", exc_info=True)
 
-        # Recent flags (table may not exist yet)
-        student_flags = []
-        try:
-            recent_flags = admin_supabase.table('accreditor_reviews') \
-                .select('id, completion_id, status, flag_reason, created_at') \
-                .eq('status', 'flagged') \
-                .order('created_at', desc=True) \
-                .limit(5) \
-                .execute()
-            student_completion_ids = [p['id'] for p in (pending_items.data or [])]
-            student_flags = [f for f in (recent_flags.data or []) if f['completion_id'] in student_completion_ids]
-        except Exception:
-            logger.debug("intentional swallow", exc_info=True)
-
         return success_response(data={
             'student': student.data,
             'subject_xp': subject_xp.data or [],
             'pending_items': pending_list,
-            'recent_merges': recent_merges_data,
-            'recent_flags': student_flags
+            'recent_merges': recent_merges_data
         })
 
     except Exception as e:

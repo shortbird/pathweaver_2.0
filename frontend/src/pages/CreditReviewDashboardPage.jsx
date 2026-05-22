@@ -14,7 +14,7 @@ import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 import useIsMobile from '../hooks/useIsMobile'
 
 const CreditReviewDashboardPage = () => {
-  const { user, effectiveRole, logout } = useAuth()
+  const { effectiveRole } = useAuth()
   const isMobile = useIsMobile()
   const [viewMode, setViewMode] = useState('split') // 'split' or 'table'
   const [items, setItems] = useState([])
@@ -27,7 +27,6 @@ const CreditReviewDashboardPage = () => {
   const [detailLoading, setDetailLoading] = useState(false)
   const [filters, setFilters] = useState(() => ({
     status: '',
-    accreditor_status: '',
     student_id: '',
     subject: '',
     date_from: '',
@@ -38,9 +37,7 @@ const CreditReviewDashboardPage = () => {
   // Set default filters based on role
   useEffect(() => {
     if (!effectiveRole || filtersInitialized) return
-    if (effectiveRole === 'accreditor') {
-      setFilters(f => ({ ...f, status: 'approved', accreditor_status: 'pending_accreditor' }))
-    } else if (effectiveRole === 'org_admin') {
+    if (effectiveRole === 'org_admin') {
       // Show all actionable items from org students (no status filter)
       setFilters(f => ({ ...f, status: '' }))
     } else {
@@ -56,8 +53,11 @@ const CreditReviewDashboardPage = () => {
 
   const perPage = 50
 
-  // Fetch items
+  // Fetch items. Bails until the role-based filter default has been applied
+  // (filtersInitialized = true) so we don't fire a no-filter request on
+  // initial render and overwrite the filtered results with everything.
   const fetchItems = useCallback(async () => {
+    if (!filtersInitialized) return
     try {
       setLoading(true)
       const params = { page, per_page: perPage }
@@ -73,17 +73,17 @@ const CreditReviewDashboardPage = () => {
     } finally {
       setLoading(false)
     }
-  }, [filters, page])
+  }, [filters, page, filtersInitialized])
 
-  // Fetch stats
   const fetchStats = useCallback(async () => {
+    if (!filtersInitialized) return
     try {
       const res = await api.get('/api/credit-dashboard/stats')
       setStats(res.data?.data || res.data)
     } catch (err) {
       console.error('Failed to fetch stats:', err)
     }
-  }, [])
+  }, [filtersInitialized])
 
   useEffect(() => {
     fetchItems()
@@ -165,12 +165,10 @@ const CreditReviewDashboardPage = () => {
       }
 
       try {
-        if (effectiveRole === 'accreditor') {
-          await api.post(`/api/credit-dashboard/items/${item.completion_id}/confirm`, {})
-        } else if (effectiveRole === 'org_admin') {
+        if (effectiveRole === 'org_admin') {
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
         } else {
-          await api.post(`/api/advisor/credit-queue/${item.completion_id}/approve`, {})
+          await api.post(`/api/credit-dashboard/items/${item.completion_id}/approve`, {})
         }
         fetchStats()
       } catch (err) {
@@ -203,18 +201,13 @@ const CreditReviewDashboardPage = () => {
         setStudentContext(null)
       }
       try {
-        if (effectiveRole === 'accreditor') {
-          await api.post(`/api/credit-dashboard/items/${item.completion_id}/return-to-advisor`, {
-            feedback: fb
-          })
-          toast.success('Returned to advisor')
-        } else if (effectiveRole === 'org_admin') {
+        if (effectiveRole === 'org_admin') {
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-grow-this`, {
             feedback: fb
           })
           toast.success('Returned to student')
         } else {
-          await api.post(`/api/advisor/credit-queue/${item.completion_id}/grow-this`, {
+          await api.post(`/api/credit-dashboard/items/${item.completion_id}/grow-this`, {
             feedback: fb
           })
           toast.success('Returned with feedback')
@@ -267,7 +260,7 @@ const CreditReviewDashboardPage = () => {
   const handleGrowThis = useCallback(async (completionId, feedbackText) => {
     const prevItems = optimisticRemove(completionId)
     try {
-      await api.post(`/api/advisor/credit-queue/${completionId}/grow-this`, {
+      await api.post(`/api/credit-dashboard/items/${completionId}/grow-this`, {
         feedback: feedbackText
       })
       toast.success('Returned with feedback')
@@ -287,21 +280,8 @@ const CreditReviewDashboardPage = () => {
     )
   }, [])
 
-  const isAccreditor = effectiveRole === 'accreditor'
-
   return (
-    <div className={`${isAccreditor ? 'h-screen' : 'h-[calc(100vh-4rem)]'} flex flex-col`}>
-      {/* Logo bar for accreditors */}
-      {isAccreditor && (
-        <div className="flex items-center justify-center py-3 border-b border-gray-200 bg-white">
-          <img
-            src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
-            alt="Optio"
-            className="h-8 w-auto"
-          />
-        </div>
-      )}
-
+    <div className="h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-3 md:px-6 py-3 border-b border-gray-200 bg-white gap-3">
         <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -315,24 +295,9 @@ const CreditReviewDashboardPage = () => {
                   {stats.pending_org_approval} pending org
                 </span>
               )}
-              {stats.pending_optio_approval > 0 && (
-                <span className="shrink-0 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
-                  {stats.pending_optio_approval} pending optio
-                </span>
-              )}
-              {stats.pending_advisor > 0 && (
+              {stats.pending_review > 0 && (
                 <span className="shrink-0 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
-                  {stats.pending_advisor} pending advisor
-                </span>
-              )}
-              {stats.pending_accreditor > 0 && (
-                <span className="shrink-0 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                  {stats.pending_accreditor} pending accreditor
-                </span>
-              )}
-              {stats.flagged > 0 && (
-                <span className="shrink-0 px-2 py-0.5 rounded-full bg-orange-100 text-orange-800">
-                  {stats.flagged} flagged
+                  {stats.pending_review} pending review
                 </span>
               )}
             </div>
@@ -355,23 +320,7 @@ const CreditReviewDashboardPage = () => {
             >
               ?
             </button>
-            {isAccreditor && (
-              <button
-                onClick={logout}
-                className="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-600"
-              >
-                Log out
-              </button>
-            )}
           </div>
-        )}
-        {isMobile && isAccreditor && (
-          <button
-            onClick={logout}
-            className="shrink-0 px-3 py-2 text-sm rounded-md border border-gray-300 text-gray-600 min-h-[44px] touch-manipulation"
-          >
-            Log out
-          </button>
         )}
       </div>
 

@@ -373,7 +373,7 @@ class PortfolioService:
                 order_index,
                 is_private
             )
-        ''').eq('user_id', user_id).eq('status', 'completed').execute()
+        ''').eq('user_id', user_id).execute()
         return result.data or []
 
     def build_evidence_map(
