@@ -464,6 +464,26 @@ emails:
     closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
     signature: "tanner"
 
+  academy_inquiry_confirmation:
+    subject: "Thanks for Your Interest in Optio Academy"
+    title: "Thanks for Reaching Out!"
+    salutation: "Hi {{ name }},"
+    paragraphs:
+      - "Thank you for your interest in Optio Academy. We're excited to learn more about your student and talk through whether Optio is the right fit."
+      - "Optio Academy is a fully online private school with daily contact between students and a dedicated teacher. The rest of the day is theirs to dive deep into projects that earn real high school credit toward a diploma."
+    highlight_box:
+      title: "What to Expect Next"
+      bullet_points:
+        - "I'll personally reply within 1 – 2 business days"
+        - "We'll set up a short discovery call with you and your student"
+        - "We'll talk through enrollment, the school year, and how to get started"
+    closing_paragraphs:
+      - "In the meantime, feel free to reply with any questions about the program or the schedule. I read every message personally."
+    cta:
+      text: "Read More About Optio Academy"
+      url: "https://www.optioeducation.com/academy"
+    signature: "tanner"
+
   family_inquiry_confirmation:
     subject: "Welcome to Optio! Let's Talk About Your Family"
     title: "Welcome to Optio!"

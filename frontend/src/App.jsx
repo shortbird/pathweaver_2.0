@@ -100,6 +100,7 @@ const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
 const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
 const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))
 const PhilosophyPage = lazy(() => import('./pages/marketing/PhilosophyPage'))
+const AcademyPage = lazy(() => import('./pages/marketing/AcademyPage'))
 // Help Center / Docs pages (February 2026)
 const DocsLandingPage = lazy(() => import('./pages/docs/DocsLandingPage'))
 const DocsCategoryPage = lazy(() => import('./pages/docs/DocsCategoryPage'))
@@ -390,6 +391,7 @@ function App() {
               <Route path="for-schools" element={<ForSchoolsPage />} />
               <Route path="how-it-works" element={<HowItWorksPage />} />
               <Route path="philosophy" element={<PhilosophyPage />} />
+              <Route path="academy" element={<AcademyPage />} />
 
               {/* Canvas LTI iframe routes (no Layout, no auth chrome). The
                   AuthContext skips session checks on these paths so the

@@ -9,7 +9,7 @@ const TermsOfService = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Terms of Service</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: January 27, 2025</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: May 22, 2026</p>
 
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">1. Acceptance of Terms</h2>
@@ -36,8 +36,8 @@ const TermsOfService = () => {
                 <li>Community features for connecting with other learners</li>
               </ul>
               <p className="mb-4">
-                Optio is available as both a digital-only platform and as part of our in-person program,
-                Optio Academy. In-person participants must also agree to the{' '}
+                Optio is available as both a digital-only platform and as part of our fully online
+                private school, Optio Academy. Academy participants must also agree to the{' '}
                 <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
                   Optio Academy Agreement
                 </Link>.
@@ -121,35 +121,23 @@ const TermsOfService = () => {
                 Subscription details and pricing are subject to change with notice.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Optio Academy In-Person Program</h3>
+              <h3 className="text-xl font-semibold mb-3">Optio Academy</h3>
               <p className="mb-4">
-                Optio Academy is our in-person program that runs on the Optio digital platform at our
-                Provo, Utah location. The program costs $300 per month and provides one full day per week
-                of in-person learning, mentorship, and facility access.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Utah Education Fits All (UEFA) Scholarship</h3>
-              <p className="mb-4">
-                Optio is an approved provider for the Utah Education Fits All scholarship program.
-                Eligible Utah students may use their UEFA scholarship funds to pay for Optio Academy enrollment.
+                Optio Academy is our fully online private school for grades 9 – 12, delivered through the
+                Optio digital platform with daily contact between students and a dedicated teacher.
+                Annual tuition is $8,000 per student, billed on the schedule agreed at enrollment, and
+                covers all instruction, curriculum materials, and the Optio platform.
               </p>
 
               <h3 className="text-xl font-semibold mb-3">Payment Terms</h3>
               <ul className="list-disc ml-6 mb-4">
-                <li>All subscriptions are month-to-month with no long-term contract required</li>
-                <li>Subscription fees are billed in advance on a recurring monthly basis</li>
-                <li>You may cancel your subscription at any time with written notice</li>
-                <li>Cancellations take effect at the end of the current billing period</li>
-                <li>All fees are non-refundable unless otherwise stated or required by law</li>
-                <li>We reserve the right to modify pricing with 30 days' advance notice</li>
+                <li>Digital-platform subscriptions are month-to-month with no long-term contract required</li>
+                <li>Optio Academy tuition is billed on the schedule agreed at enrollment (annual or installment)</li>
+                <li>You may cancel a digital-platform subscription at any time with written notice; cancellations take effect at the end of the current billing period</li>
+                <li>If an Optio Academy student withdraws before the end of the school year, tuition is refunded prorated by the number of months attended</li>
+                <li>Where tuition is funded by a scholarship or other third-party program, refunds flow back through that program rather than to the family directly</li>
+                <li>We reserve the right to modify pricing with 30 days' advance notice; pricing changes do not affect tuition for the current school year</li>
               </ul>
-
-              <h3 className="text-xl font-semibold mb-3">Sponsor-Subsidized Model</h3>
-              <p className="mb-4">
-                Optio Academy operates through a combination of participant fees and sponsor support.
-                Monthly fees are partially subsidized by generous sponsors who support our mission.
-                Participants and families are encouraged to help identify potential sponsors for the program.
-              </p>
             </section>
 
             <section className="mb-8">
@@ -269,8 +257,8 @@ const TermsOfService = () => {
                 but not limited to loss of data, loss of profits, or loss of educational opportunities.
               </p>
               <p className="mb-4">
-                For Optio Academy in-person participants, additional liability limitations and assumptions
-                of risk are outlined in the{' '}
+                For Optio Academy participants, additional terms specific to enrollment in the school
+                are outlined in the{' '}
                 <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
                   Optio Academy Agreement
                 </Link>.

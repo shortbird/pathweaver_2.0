@@ -56,7 +56,7 @@ def submit_contact():
         contact_type = data.get('type', 'general').strip()
 
         # Validate contact type
-        valid_types = ['demo', 'sales', 'general', 'families', 'philosophy']
+        valid_types = ['demo', 'sales', 'general', 'families', 'philosophy', 'academy']
         if contact_type not in valid_types:
             contact_type = 'general'
 
@@ -116,6 +116,21 @@ def submit_contact():
                     logger.warning(f"Failed to send family inquiry confirmation email to {email}")
             except Exception as e:
                 logger.warning(f"Failed to send family inquiry confirmation email: {e}")
+
+        # Send confirmation email for Optio Academy inquiries
+        if contact_type == 'academy':
+            try:
+                email_sent = email_service.send_academy_inquiry_confirmation(
+                    user_name=name,
+                    user_email=email,
+                    message=message
+                )
+                if email_sent:
+                    logger.info(f"Academy inquiry confirmation email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send Academy inquiry confirmation email to {email}")
+            except Exception as e:
+                logger.warning(f"Failed to send Academy inquiry confirmation email: {e}")
 
         # Send confirmation email for sales inquiries
         if contact_type == 'sales':
