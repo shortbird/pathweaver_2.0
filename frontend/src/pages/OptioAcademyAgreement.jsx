@@ -6,23 +6,24 @@ const OptioAcademyAgreement = () => {
     <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white shadow-lg rounded-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant & Parent Agreement</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant &amp; Parent Agreement</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: January 27, 2025</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: May 22, 2026</p>
 
             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8">
               <p className="font-semibold text-blue-900">Important Notice</p>
               <p className="text-sm text-blue-800 mt-2">
-                This Agreement is required for all participants in the Optio Academy in-person program.
-                Digital-only users of the Optio platform do not need to sign this Agreement.
+                This Agreement is required for every student enrolling in Optio Academy, our fully online
+                private school. Digital-only users of the Optio platform who are not enrolled in Optio
+                Academy do not need to sign this Agreement.
               </p>
             </div>
 
             <section className="mb-8">
               <p className="mb-4">
-                This Participant & Parent Agreement ("Agreement") is a legally binding contract entered into
-                by and between:
+                This Participant &amp; Parent Agreement ("Agreement") is a legally binding contract entered
+                into by and between:
               </p>
 
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
@@ -38,7 +39,7 @@ const OptioAcademyAgreement = () => {
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <p className="mb-2"><strong>The Participant:</strong></p>
                 <p className="ml-4">
-                  K-12 Student enrolling in Optio Academy<br />
+                  Student enrolling in Optio Academy (grades 9 – 12)<br />
                   (Hereinafter referred to as "the Participant" or "Student")
                 </p>
               </div>
@@ -53,18 +54,18 @@ const OptioAcademyAgreement = () => {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">1. Introduction and Core Philosophy</h2>
+              <h2 className="text-2xl font-semibold mb-4">1. Introduction and Educational Philosophy</h2>
               <p className="mb-4">
-                This Agreement governs the Participant's enrollment in Optio Academy, our in-person educational
-                program located in Provo, Utah. Its purpose is to create a clear understanding of the Academy's
-                unique model, mutual responsibilities, financial commitments, and operational policies.
+                This Agreement governs the Participant's enrollment in Optio Academy, a fully online
+                private school. Optio Academy is the Participant's primary school, where the Participant
+                receives the majority of academic instruction. The Academy serves students in grades 9 – 12
+                and offers a high school diploma pathway.
               </p>
               <p className="mb-4">
-                Optio Academy operates on the philosophy of a "liberated environment with firm boundaries."
-                We provide access to facilities, mentorship, the Optio digital learning platform, and a
-                framework for entrepreneurial development. We do not provide direct supervision or assume
-                custodial care. The Participant is expected to be self-motivated and take primary responsibility
-                for their success.
+                Optio Academy operates on the educational philosophy that "The Process Is The Goal."
+                Learning is valued for its intrinsic worth and for the growth it creates in the present
+                moment. The Academy combines daily 1-on-1 contact with a dedicated teacher and project-based
+                learning across five skill pillars (STEM, Communication, Civics, Wellness, and Art).
               </p>
               <p className="mb-4">
                 This Agreement incorporates the{' '}
@@ -77,328 +78,286 @@ const OptioAcademyAgreement = () => {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">2. The "Open Campus" Model and Acknowledgment of No Supervision</h2>
-              <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4">
-                <p className="font-semibold text-yellow-900">CRITICAL SECTION - Please Read Carefully</p>
-                <p className="text-sm text-yellow-800 mt-2">
-                  This section is essential to understanding the Academy's operating model and your responsibilities.
-                </p>
-              </div>
+              <h2 className="text-2xl font-semibold mb-4">2. Program Description</h2>
 
+              <h3 className="text-xl font-semibold mb-3">Mode of Instruction</h3>
               <p className="mb-4">
-                By signing this Agreement, you explicitly acknowledge and agree to the following terms:
+                Optio Academy is delivered fully online. Instruction occurs through the Optio digital
+                platform combined with daily 1-on-1 video sessions between the Participant and a dedicated
+                teacher. There is no physical campus and no in-person instructional component.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Innovation Center Model</h3>
+              <h3 className="text-xl font-semibold mb-3">Academic Calendar</h3>
               <p className="mb-4">
-                The Academy is structured similarly to a recreational or innovation center. The Participant
-                is paying for access to the facilities, resources, digital learning platform, and the opportunity
-                to interact with staff and mentors.
+                The Optio Academy school year begins on September 1 and runs through late May, providing
+                full-time, year-long enrollment. Specific instructional days, holidays, and breaks are
+                published in the Handbook and updated annually.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">No Supervision or Custodial Care</h3>
+              <h3 className="text-xl font-semibold mb-3">Curriculum</h3>
               <p className="mb-4">
-                Optio Academy DOES NOT provide childcare, babysitting, or custodial supervision for any
-                Participant, regardless of age. Staff and mentors are present to provide educational and
-                entrepreneurial guidance through the Optio platform and in-person mentorship, not to monitor
-                or supervise Participants.
+                The Participant's curriculum is personalized in collaboration with the Participant's
+                dedicated teacher, mapped to the five skill pillars, and aligned with Utah core standards
+                for high school. The Participant earns credit toward an Optio Academy diploma by
+                completing quests, documenting evidence of learning, and demonstrating mastery to the
+                teacher.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Freedom of Movement - Open Campus</h3>
+              <h3 className="text-xl font-semibold mb-3">Accreditation Status</h3>
               <p className="mb-4">
-                The Academy operates as an OPEN CAMPUS. Participants are free to arrive, depart, and move
-                about the premises and surrounding areas at will during program hours.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">No Monitoring of Arrival or Departure</h3>
-              <p className="mb-4">
-                Academy staff DO NOT monitor when Participants arrive or leave the facility. We are not
-                responsible for ensuring a Participant's attendance on any given day. Participants are
-                expected to manage their own time and attendance.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Parental Responsibility for Transportation</h3>
-              <p className="mb-4">
-                Parents are solely responsible for the Participant's transportation to and from the facility.
-                The Academy DOES NOT verify the identity of the person picking up a Participant. It is the
-                Parent's responsibility to coordinate safe transportation and communicate authorized persons
-                directly with their child.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Actions Outside the Academy</h3>
-              <p className="mb-4">
-                The Academy is not responsible for the Participant's actions or safety when they are off-site,
-                even if they leave during normal operating hours. Students have the freedom to leave the
-                premises as part of the open campus model.
+                Optio Academy is actively pursuing institutional accreditation for the 2026 – 2027 school
+                year. The Academy will publish its accrediting body and effective accreditation date on
+                the{' '}
+                <Link to="/academy" className="text-primary hover:text-optio-purple underline">
+                  Optio Academy
+                </Link>{' '}
+                website page once accreditation is final. Until accreditation is finalized, the Academy
+                makes no representation that it is currently accredited.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">3. Program Description and Educational Model</h2>
-
-              <h3 className="text-xl font-semibold mb-3">Program Structure</h3>
+              <h2 className="text-2xl font-semibold mb-4">3. Nondiscrimination</h2>
               <p className="mb-4">
-                Optio Academy combines in-person mentorship with our digital learning platform. The program:
+                Optio Academy admits students of any race, color, and national origin to all the rights,
+                privileges, programs, and activities generally accorded or made available to students at
+                the school. Optio Academy does not discriminate on the basis of race, color, or national
+                origin in administration of its educational policies, admissions policies, scholarship and
+                loan programs, or other school-administered programs.
               </p>
-              <ul className="list-disc ml-6 mb-4">
-                <li>Meets one full day per week at our Provo, Utah location</li>
-                <li>Uses the Optio digital platform for quest-based learning with personalized tasks</li>
-                <li>Focuses on project-based learning across five skill pillars (STEM, Wellness, Communication, Civics, Art)</li>
-                <li>Emphasizes business venture creation and entrepreneurial development</li>
-                <li>Provides access to makerspace equipment and professional tools</li>
-                <li>Includes mentor guidance and community events like Showcase Nights</li>
-              </ul>
-
-              <h3 className="text-xl font-semibold mb-3">Accredited Program</h3>
-              <p className="mb-4">
-                Optio Academy is an accredited program that offers pathways for students to earn recognized
-                educational credentials. Students work through quests and document their learning to build
-                portfolios and earn badges toward their diploma.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Educational Philosophy: "The Process Is The Goal"</h3>
-              <p className="mb-4">
-                Optio Academy embraces the philosophy that learning is valued for its intrinsic worth and
-                the growth it creates in the present moment. Students are encouraged to focus on their
-                learning journey, creativity, and personal development rather than solely on external outcomes.
+              <p className="mb-4 text-sm text-gray-600">
+                Optio Academy complies with the antidiscrimination provisions of Title VI of the Civil
+                Rights Act of 1964, 42 U.S.C. §2000d.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">4. Program Fee, Payment, and Scholarship Information</h2>
+              <h2 className="text-2xl font-semibold mb-4">4. Tuition, Fees, and Refund Policy</h2>
 
-              <h3 className="text-xl font-semibold mb-3">Monthly Program Fee</h3>
+              <h3 className="text-xl font-semibold mb-3">Annual Tuition</h3>
               <p className="mb-4">
-                The monthly fee for Optio Academy is $300 per month, which includes:
-              </p>
-              <ul className="list-disc ml-6 mb-4">
-                <li>One full day per week of in-person learning at the Provo facility</li>
-                <li>Access to the Optio digital learning platform</li>
-                <li>Mentorship and educational guidance</li>
-                <li>Use of makerspace equipment and resources (with safety training)</li>
-                <li>Participation in Showcase Nights and community events</li>
-                <li>Access to accredited curriculum and diploma pathway</li>
-              </ul>
-
-              <h3 className="text-xl font-semibold mb-3">Utah Education Fits All (UEFA) Scholarship</h3>
-              <p className="mb-4">
-                Optio Academy is an approved provider for the Utah Education Fits All scholarship program.
-                Eligible Utah students may use their UEFA scholarship funds to pay for program enrollment.
-                Parents should apply directly through the Utah State Board of Education's UEFA program.
+                Annual tuition for Optio Academy is $8,000 per Participant per school year. Tuition
+                includes daily 1-on-1 mentor sessions, all curriculum materials, access to the Optio
+                digital platform, the Participant's transcript, and the diploma pathway.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Sponsor-Subsidized Model</h3>
+              <h3 className="text-xl font-semibold mb-3">No Additional Required Fees</h3>
               <p className="mb-4">
-                Optio Academy operates through a combination of participant fees and sponsor support. The
-                $300 monthly fee is partially subsidized by generous sponsors who believe in our mission.
-                This model only works if we can demonstrate value to our sponsors.
-              </p>
-              <p className="mb-4">
-                Participants and families share responsibility for the Academy's sustainability:
-              </p>
-              <ul className="list-disc ml-6 mb-4">
-                <li><strong>Professionalism:</strong> Your conduct directly reflects on the Academy and its viability</li>
-                <li><strong>Quality of Work:</strong> Your projects are our primary results and justify sponsor investment</li>
-                <li><strong>Sponsor Sourcing:</strong> Participants are encouraged to help identify potential sponsors as part of learning entrepreneurship</li>
-              </ul>
-
-              <h3 className="text-xl font-semibold mb-3">Payment Terms</h3>
-              <ul className="list-disc ml-6 mb-4">
-                <li>Enrollment is month-to-month with no long-term contract required</li>
-                <li>Fees are billed in advance on a recurring monthly basis</li>
-                <li>Payment is processed through Stripe payment processing</li>
-                <li>Cancellation may be made at any time with written notice</li>
-                <li>Cancellations take effect at the end of the current billing period</li>
-                <li>All fees are non-refundable unless otherwise stated or required by law</li>
-              </ul>
-
-              <h3 className="text-xl font-semibold mb-3">No Guarantee of Outcomes</h3>
-              <p className="mb-4">
-                The Academy provides tools, mentorship, and a framework to support student entrepreneurs
-                and learners. However, the Academy makes no warranty or guarantee of any specific business
-                outcome, educational result, or future success, notwithstanding any optimism or assurances
-                that the Participant or Parent receives from any Academy mentor or staff.
-              </p>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">5. Participant's Business Entity (Optional)</h2>
-
-              <h3 className="text-xl font-semibold mb-3">Business Entity Formation</h3>
-              <p className="mb-4">
-                Should the Participant choose to formalize their business venture into a legal entity
-                (LLC, corporation, etc.), the Parent and Participant acknowledge that they are solely
-                responsible for the process, cost, and administration of formation and maintenance.
-                The Academy does not require formation of a business entity for program participation.
+                There are no required additional fees during the school year. No enrollment fee, no
+                materials fee, no technology fee, no testing fee.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Academy is Not a Partner</h3>
+              <h3 className="text-xl font-semibold mb-3">Tuition Parity</h3>
               <p className="mb-4">
-                The Academy is an educational service provider and is not a partner, owner, investor, or
-                fiduciary of the Participant or Participant's business. All intellectual property created
-                by the Participant belongs to the Participant (see Section 7).
+                Tuition, fees, and refund terms for Participants whose tuition is funded by a scholarship
+                or other third-party program are identical to those for Participants paying tuition
+                directly. The Academy does not charge scholarship-funded Participants more than
+                non-scholarship Participants for the same program.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Business Liabilities</h3>
+              <h3 className="text-xl font-semibold mb-3">Refund Policy</h3>
               <p className="mb-4">
-                Should a business be formed, the Parent and Participant are solely responsible for all
-                its legal, financial, tax, and operational liabilities. The Academy provides educational
-                guidance only and is not a legal, tax, or financial advisor. Participants are encouraged
-                to seek independent professional advice.
+                If the Participant withdraws from Optio Academy before the end of the school year, tuition
+                is refunded prorated by the number of months the Participant attended. Months in which the
+                Participant was enrolled for any part of the month count as a full attended month for
+                purposes of this calculation.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">Refunds for Scholarship-Funded Tuition</h3>
+              <p className="mb-4">
+                If a Participant's tuition was funded in whole or in part by the Utah Fits All Scholarship
+                Program or any other government or third-party scholarship program, any refund owed under
+                this policy is remitted directly to the program manager or financial administrator of
+                that program for redeposit into the Participant's scholarship account, in accordance with
+                that program's rules. Refunds are not remitted to the Parent or Participant in such cases,
+                except where the program's own rules require otherwise.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">No Rebates or Pass-Throughs</h3>
+              <p className="mb-4">
+                The Academy does not refund, rebate, or otherwise share scholarship funds with the Parent
+                or Participant outside the financial-administrator channel established by the applicable
+                scholarship program. The Academy does not pay commissions, kickbacks, or other inducements
+                to families in exchange for enrollment.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">Payment Processing</h3>
+              <p className="mb-4">
+                Tuition payments are processed through Stripe or, where applicable, through the financial
+                administrator of the scholarship program funding the Participant's tuition. Payment plans
+                are available; specific terms are agreed at enrollment.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">6. Health, Safety, and Emergency Procedures</h2>
-
-              <h3 className="text-xl font-semibold mb-3">Health Information</h3>
+              <h2 className="text-2xl font-semibold mb-4">5. Pre-Enrollment Disclosure</h2>
               <p className="mb-4">
-                The Parent agrees to provide complete and accurate Participant health information during
-                enrollment and to update the Academy immediately of any changes that may affect the
-                Participant's safety or ability to participate.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Emergency Medical Authorization</h3>
-              <p className="mb-4">
-                In the event of a medical emergency where the Parent cannot be reached after reasonable
-                attempts, the Parent grants the Academy permission to seek and obtain emergency medical
-                treatment for the Participant. The Parent agrees to assume full financial responsibility
-                for any and all costs of emergency medical care and transportation.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Makerspace Safety</h3>
-              <p className="mb-4">
-                The Academy facility includes a makerspace with professional-grade equipment including
-                but not limited to:
+                Before enrollment is finalized, the Academy provides the Parent and Participant with a
+                written pre-enrollment disclosure that includes:
               </p>
               <ul className="list-disc ml-6 mb-4">
-                <li>3D printers</li>
-                <li>Plasma cutter</li>
-                <li>Cricut machines</li>
-                <li>Other fabrication and creation tools</li>
+                <li>The educational services offered and their cost (the annual tuition described in Section 4)</li>
+                <li>All additional fees, if any, required during the school year (none, as of the Effective Date)</li>
+                <li>The skill or grade level of the curriculum offered to the Participant</li>
+                <li>The refund and reimbursement policy described in Section 4</li>
+                <li>The Participant's right to transfer described in Section 6</li>
               </ul>
               <p className="mb-4">
-                Participants must complete mandatory safety training for each piece of equipment before
-                they are authorized to use it. Participants agree to follow all safety protocols and
-                use equipment only as trained.
+                The Parent and Participant acknowledge receipt of the pre-enrollment disclosure before
+                signing this Agreement.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">7. Media Release, Intellectual Property, and Technology Consent</h2>
+              <h2 className="text-2xl font-semibold mb-4">6. Right to Transfer; Withdrawal Procedure</h2>
+
+              <h3 className="text-xl font-semibold mb-3">No Waiver of Right to Transfer</h3>
+              <p className="mb-4">
+                Nothing in this Agreement waives, restricts, or penalizes the Participant's right to
+                withdraw from Optio Academy and transfer to another qualifying provider or school during
+                the school year. The Academy does not require any Participant to sign a contract,
+                addendum, or other document that limits this right.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">How to Withdraw</h3>
+              <p className="mb-4">
+                The Parent may withdraw the Participant at any time by providing written notice to{' '}
+                <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                  tanner@optioeducation.com
+                </a>{' '}
+                or{' '}
+                <a href="mailto:support@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                  support@optioeducation.com
+                </a>. The withdrawal takes effect on the date stated in the notice or, if no date is
+                stated, on the date the notice is received.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">Reporting to Scholarship Programs</h3>
+              <p className="mb-4">
+                For Participants whose tuition is funded by the Utah Fits All Scholarship Program or any
+                other scholarship program that requires withdrawal reporting, the Academy reports the
+                withdrawal to the program manager within 5 business days of the effective date of
+                withdrawal.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-2xl font-semibold mb-4">7. Educational Records (FERPA)</h2>
+              <p className="mb-4">
+                The Participant's educational records are protected under the Family Educational Rights
+                and Privacy Act ("FERPA"), 20 U.S.C. §1232g and 34 C.F.R. Part 99. The Academy will not
+                disclose personally identifiable information from a Participant's educational records
+                without the prior written consent of the Parent (or the Participant, if the Participant
+                is 18 or older), except as permitted by FERPA.
+              </p>
+              <p className="mb-4">
+                The Parent (and, for Participants 18 or older, the Participant) has the right to:
+              </p>
+              <ul className="list-disc ml-6 mb-4">
+                <li>Inspect and review the Participant's educational records</li>
+                <li>Request the amendment of records the Parent believes are inaccurate or misleading</li>
+                <li>Consent in writing to disclosures of personally identifiable information, except where FERPA permits disclosure without consent</li>
+                <li>File a complaint with the U.S. Department of Education concerning alleged failures by the Academy to comply with FERPA</li>
+              </ul>
+              <p className="mb-4">
+                Further details about how the Academy handles educational records and student data are
+                set forth in the{' '}
+                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
+                  Privacy Policy
+                </Link>.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-2xl font-semibold mb-4">8. Health, Safety, and Mandatory Reporting</h2>
+
+              <h3 className="text-xl font-semibold mb-3">Background Checks for Staff</h3>
+              <p className="mb-4">
+                As a condition of employment or appointment, Optio Academy requires every employee who
+                does not hold a current Utah educator license (or current educator license from the
+                educator's home state) and every contract employee to undergo nationwide, fingerprint-based
+                criminal background checks and ongoing rap-back monitoring before working with students.
+              </p>
+              <p className="mb-4 text-sm text-gray-600">
+                Background checks are conducted in accordance with Utah Code §53G-11-402 and the Adam
+                Walsh Child Protection and Safety Act of 2006, Pub. L. 109-248.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">Mandatory Reporting</h3>
+              <p className="mb-4">
+                All Optio Academy staff, teachers, and mentors are mandatory reporters of suspected child
+                abuse or neglect. Staff are trained to recognize warning signs and are required by law to
+                report suspected abuse or neglect to the Utah Department of Child and Family Services
+                and, where applicable, to local law enforcement.
+              </p>
+              <p className="mb-4 text-sm text-gray-600">
+                Mandatory reporting is conducted in accordance with Utah Code §62A-4a-403 and §80-2-602.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">Emergency Contact Information</h3>
+              <p className="mb-4">
+                The Parent agrees to provide complete and accurate emergency contact information at
+                enrollment and to update the Academy immediately of any changes.
+              </p>
+
+              <h3 className="text-xl font-semibold mb-3">Online Safety</h3>
+              <p className="mb-4">
+                The Optio platform uses encrypted connections, secure authentication, and content
+                filtering for student-facing AI features. The Parent has full visibility into the
+                Participant's account, including AI tutor conversations, through the Parent Dashboard.
+                Additional safeguards are described in the{' '}
+                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
+                  Privacy Policy
+                </Link>.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-2xl font-semibold mb-4">9. Media Release and Intellectual Property</h2>
 
               <h3 className="text-xl font-semibold mb-3">Media Release</h3>
               <p className="mb-4">
                 The Parent and Participant grant the Academy permission to use the Participant's image,
-                voice, work, and projects in promotional and educational materials without compensation.
-                This includes but is not limited to:
-              </p>
-              <ul className="list-disc ml-6 mb-4">
-                <li>Website and social media content</li>
-                <li>Marketing and promotional materials</li>
-                <li>Showcase Night presentations and recordings</li>
-                <li>Educational case studies and examples</li>
-                <li>Sponsor reports and presentations</li>
-              </ul>
-              <p className="mb-4">
-                All such use will be for non-commercial educational purposes. You may opt out by contacting
-                support@optioeducation.com.
+                voice, work, and projects in promotional and educational materials. This includes website
+                and social media content, marketing materials, online showcases (which may be recorded),
+                and educational case studies. All such use will be for non-commercial educational and
+                promotional purposes. The Parent may opt out at any time by contacting{' '}
+                <a href="mailto:tanner@optioeducation.com" className="text-primary hover:text-optio-purple underline">
+                  tanner@optioeducation.com
+                </a>.
               </p>
 
               <h3 className="text-xl font-semibold mb-3">Intellectual Property</h3>
               <p className="mb-4">
-                The intellectual property of the Participant's business, projects, and creations belongs
-                to the Participant or their business entity. The Participant grants the Academy a non-exclusive,
-                royalty-free license to showcase the Participant's work for non-commercial, educational,
+                The intellectual property of the Participant's projects, creations, and any business
+                ventures the Participant pursues belongs to the Participant (or, if applicable, the
+                Participant's legal entity). The Participant grants the Academy a non-exclusive,
+                royalty-free license to display the Participant's work for non-commercial educational
                 and promotional purposes only.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Third-Party Technology and Digital Platform</h3>
+              <h3 className="text-xl font-semibold mb-3">Third-Party Technology</h3>
               <p className="mb-4">
                 The Parent authorizes the Academy to:
               </p>
               <ul className="list-disc ml-6 mb-4">
-                <li>Provide access to the Optio digital learning platform</li>
-                <li>Use approved third-party educational and business software/platforms as needed for the program</li>
-                <li>Create accounts on behalf of Participants under 13 (with parental consent per COPPA)</li>
-                <li>Share Participant work and progress through the digital platform</li>
+                <li>Provide the Participant access to the Optio digital learning platform</li>
+                <li>Use approved third-party educational software as needed for the program</li>
+                <li>Create accounts on behalf of Participants under 13 with parental consent under COPPA</li>
               </ul>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">8. Assumption of Risk, Waiver, and Indemnification</h2>
-
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
-                <p className="font-semibold text-red-900">Important Legal Notice</p>
-                <p className="text-sm text-red-800 mt-2">
-                  This section contains important information about assumption of risk and liability.
-                  Please read carefully.
-                </p>
-              </div>
-
-              <h3 className="text-xl font-semibold mb-3">Acknowledgment and Assumption of Inherent Risks</h3>
+              <h2 className="text-2xl font-semibold mb-4">10. Code of Conduct</h2>
               <p className="mb-4">
-                The Parent and Participant acknowledge that participation in Optio Academy carries inherent
-                risks. These risks include, but are not limited to, those arising from:
-              </p>
-              <ul className="list-disc ml-6 mb-4">
-                <li>The unsupervised, open campus environment</li>
-                <li>Use of makerspace tools and equipment (3D printers, plasma cutter, Cricut machines, etc.)</li>
-                <li>Interaction with other participants and members of the public</li>
-                <li>Transportation to and from the facility</li>
-                <li>The freedom of the Participant to leave the premises at any time</li>
-                <li>Working on business ventures and entrepreneurial projects</li>
-                <li>Use of digital technology and online platforms</li>
-              </ul>
-              <p className="mb-4">
-                The Parent and Participant knowingly and voluntarily assume all such inherent risks,
-                both known and unknown.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Parental Waiver of Liability (Limited Scope)</h3>
-              <p className="mb-4">
-                On behalf of themselves (the Parent), their heirs, and their estate, the Parent releases,
-                waives, and agrees not to sue the Academy, its officers, employees, mentors, and agents
-                for any loss, damage, or injury arising from the inherent risks of participation.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Utah Law Regarding Minors</h3>
-              <p className="mb-4">
-                The Parent explicitly acknowledges and understands that, in accordance with Utah public
-                policy and law, this agreement DOES NOT AND CANNOT waive or release any legal claim the
-                Participant (minor) may have against the Academy for injuries caused by the Academy's
-                own NEGLIGENCE.
+                Optio Academy is a respectful, safe, and professional learning environment. Bullying,
+                harassment, and discrimination of any kind are not tolerated, including but not limited
+                to discrimination based on race, color, national origin, religion, sex, gender identity,
+                sexual orientation, disability, or any other protected characteristic. Violations may
+                result in disciplinary action up to and including termination of enrollment.
               </p>
               <p className="mb-4">
-                This waiver does not protect the Academy from liability for its gross negligence, reckless
-                misconduct, or intentional wrongdoing.
-              </p>
-
-              <h3 className="text-xl font-semibold mb-3">Parental Indemnification</h3>
-              <p className="mb-4">
-                The Parent agrees to indemnify, defend, and hold harmless the Academy from any and all
-                claims, lawsuits, and expenses (including attorney's fees) brought by or on behalf of the
-                Participant against the Academy related to their participation, except for claims resulting
-                from the Academy's own gross negligence or willful misconduct.
-              </p>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">9. Code of Conduct and Community Standards</h2>
-              <p className="mb-4">
-                Participants are expected to maintain the Academy as a professional and safe learning
-                environment. The following standards apply:
-              </p>
-              <ul className="list-disc ml-6 mb-4">
-                <li><strong>Professional Conduct:</strong> Act with maturity and respect the shared workspace</li>
-                <li><strong>Self-Direction:</strong> Take ownership of your learning and project work</li>
-                <li><strong>Respect for All:</strong> The Academy must be safe and welcoming; bullying, harassment, and discrimination are not tolerated</li>
-                <li><strong>Equipment Care:</strong> Respect and properly use all Academy resources and equipment</li>
-                <li><strong>Contribution:</strong> Actively work on quest goals and business ventures</li>
-                <li><strong>Community Support:</strong> Help maintain a positive and productive environment for all</li>
-              </ul>
-              <p className="mb-4">
-                Detailed behavioral expectations are outlined in the{' '}
+                Detailed behavioral expectations are set forth in the{' '}
                 <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
                   Academy Handbook
                 </Link>.
@@ -406,72 +365,100 @@ const OptioAcademyAgreement = () => {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">10. Showcase Nights and Community Events</h2>
+              <h2 className="text-2xl font-semibold mb-4">11. Online Showcases</h2>
               <p className="mb-4">
-                Several times per year, the Academy hosts Showcase Nights where Participants present
-                their work to the community, receive feedback, and mark their progress. These events:
+                Several times per year, the Academy hosts online showcases where Participants present
+                their work to the community, mentors, and family members. Participation is strongly
+                encouraged but not required for academic credit. Showcases may be recorded for
+                educational and promotional purposes.
               </p>
-              <ul className="list-disc ml-6 mb-4">
-                <li>Are opportunities to share learning journeys and business ventures</li>
-                <li>Build presentation and communication skills</li>
-                <li>Connect Participants with community members and potential sponsors</li>
-                <li>Celebrate the learning process and growth</li>
-                <li>May be recorded for educational and promotional purposes</li>
-              </ul>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">11. Dispute Resolution</h2>
+              <h2 className="text-2xl font-semibold mb-4">12. Disclaimers and Limitations of Liability</h2>
               <p className="mb-4">
-                Any dispute arising from this Agreement will first be addressed through good-faith informal
-                discussion between the parties. If the dispute cannot be resolved informally, it shall be
-                submitted to mediation in Utah County, Utah.
+                The Academy provides a personalized educational program and mentorship; it does not
+                guarantee specific academic outcomes, college admission, employment, or any other future
+                result. Continued enrollment requires good-faith engagement by the Participant.
+              </p>
+              <p className="mb-4">
+                On behalf of themselves and their estate, the Parent releases and agrees not to sue the
+                Academy, its officers, employees, mentors, contractors, or agents for any loss or damage
+                arising from the Participant's participation in Optio Academy, except for loss or damage
+                caused by the Academy's gross negligence, reckless misconduct, or intentional wrongdoing.
+              </p>
+              <p className="mb-4">
+                The Parent expressly acknowledges and understands that, in accordance with Utah public
+                policy, this Agreement does not and cannot waive or release any legal claim the
+                Participant (as a minor) may have against the Academy for injuries caused by the
+                Academy's own negligence.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-2xl font-semibold mb-4">13. Indemnification</h2>
+              <p className="mb-4">
+                The Parent agrees to indemnify, defend, and hold harmless the Academy from any claims,
+                lawsuits, damages, and expenses (including reasonable attorneys' fees) arising from the
+                Participant's violation of this Agreement, the Participant's violation of any law, or the
+                Participant's User Content submitted to the Service, except for claims caused by the
+                Academy's gross negligence or willful misconduct.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-2xl font-semibold mb-4">14. Dispute Resolution</h2>
+              <p className="mb-4">
+                Any dispute arising from this Agreement will first be addressed through good-faith
+                informal discussion between the parties. If the dispute cannot be resolved informally,
+                it shall be submitted to mediation in Utah County, Utah.
               </p>
               <p className="mb-4">
                 If mediation fails to resolve the dispute, it will be resolved through individual, final,
                 and binding arbitration in Utah County, Utah, under the rules of the American Arbitration
-                Association. By signing this Agreement, you waive the right to a jury trial and the right
-                to participate in a class-action lawsuit.
+                Association. By signing this Agreement, the Parent waives the right to a jury trial and
+                the right to participate in a class-action lawsuit.
               </p>
               <p className="mb-4">
-                This dispute resolution provision does not limit any rights provided by law to parents
-                or guardians of minor students.
+                This dispute resolution provision does not limit any rights provided by law to parents or
+                guardians of minor students, including the right of the minor Participant to bring claims
+                for injuries caused by the Academy's negligence.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">12. Modification of Agreement</h2>
+              <h2 className="text-2xl font-semibold mb-4">15. Modification of Agreement</h2>
               <p className="mb-4">
                 The Academy reserves the right to amend or modify this Agreement and the incorporated
-                Handbook at any time in its sole discretion. The Academy will provide notice of any
-                material changes to the Parent's primary email address on file. Continued participation
-                in the program after such notice will constitute acceptance of the modified terms.
+                Handbook at any time. The Academy will provide notice of any material change to the
+                Parent's primary email address on file. Continued participation in the program after
+                such notice constitutes acceptance of the modified terms. Tuition and refund terms for
+                the current school year may not be changed retroactively.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">13. Termination of Participation</h2>
+              <h2 className="text-2xl font-semibold mb-4">16. Termination</h2>
               <p className="mb-4">
-                The Academy reserves the right to terminate a Participant's enrollment in the program
-                at any time, for any reason, at its sole discretion. Such termination may occur without
-                prior notice and may be for reasons including, but not limited to:
+                The Academy may terminate the Participant's enrollment for cause, including but not
+                limited to:
               </p>
               <ul className="list-disc ml-6 mb-4">
-                <li>Violations of the Handbook or this Agreement</li>
-                <li>Disruptive behavior or conduct violations</li>
-                <li>Non-payment of fees</li>
-                <li>Lack of engagement or active participation</li>
+                <li>Material violation of this Agreement or the Handbook</li>
+                <li>Bullying, harassment, discrimination, or other Code of Conduct breach</li>
+                <li>Non-payment of tuition where tuition is paid directly</li>
+                <li>Sustained lack of engagement after written notice and opportunity to remedy</li>
                 <li>Safety concerns</li>
-                <li>Determination that the program is no longer a suitable fit for the Participant</li>
+                <li>A good-faith determination by the Academy that continued enrollment is no longer a suitable fit</li>
               </ul>
               <p className="mb-4">
-                Parents may terminate enrollment at any time by providing written notice to
-                support@optioeducation.com. Termination takes effect at the end of the current billing period.
+                The Parent may withdraw the Participant at any time as described in Section 6. Tuition
+                refunds upon termination are governed by Section 4.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">14. Entire Agreement and Severability</h2>
+              <h2 className="text-2xl font-semibold mb-4">17. Entire Agreement and Severability</h2>
               <p className="mb-4">
                 This written Agreement, together with the{' '}
                 <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
@@ -482,58 +469,61 @@ const OptioAcademyAgreement = () => {
                 </Link>, and{' '}
                 <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
                   Privacy Policy
-                </Link>, constitutes the entire agreement between the Parties on the subject matter hereof.
-                All prior verbal promises of whatsoever kind or nature are merged herein.
+                </Link>, constitutes the entire agreement between the parties on the subject matter
+                hereof. All prior verbal promises of whatever kind are merged herein.
               </p>
               <p className="mb-4">
-                If any provision of this Agreement is found to be unenforceable or invalid, that provision
-                will be limited or eliminated to the minimum extent necessary so that this Agreement will
-                otherwise remain in full force and effect.
+                If any provision of this Agreement is found unenforceable or invalid, that provision will
+                be limited or eliminated to the minimum extent necessary so that the remainder of this
+                Agreement remains in full force and effect.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">15. Acknowledgment of Critical Sections</h2>
+              <h2 className="text-2xl font-semibold mb-4">18. Acknowledgment</h2>
               <p className="mb-4">
                 By enrolling in Optio Academy, the undersigned Participant and Parent(s)/Legal Guardian(s)
-                affirm that they have read this entire Agreement, have had the opportunity to ask questions,
-                and agree to be legally bound by all its terms.
+                affirm that they have read this entire Agreement, have had the opportunity to ask
+                questions, and agree to be legally bound by all its terms.
               </p>
               <p className="mb-4 font-semibold">
                 The parties specifically acknowledge that they have read, understood, and agreed to the
-                following critical sections:
+                following sections:
               </p>
               <ul className="list-disc ml-6 mb-4">
-                <li><strong>Section 2:</strong> The "Open Campus" Model and Acknowledgment of No Supervision</li>
-                <li><strong>Section 4:</strong> Program Fee, Payment, and Scholarship Information</li>
-                <li><strong>Section 5:</strong> Participant's Business Entity (Optional)</li>
-                <li><strong>Section 8:</strong> Assumption of Risk, Waiver, and Indemnification</li>
-                <li><strong>Section 11:</strong> Dispute Resolution</li>
-                <li><strong>Section 13:</strong> Termination of Participation</li>
+                <li><strong>Section 4:</strong> Tuition, Fees, and Refund Policy</li>
+                <li><strong>Section 6:</strong> Right to Transfer; Withdrawal Procedure</li>
+                <li><strong>Section 8:</strong> Health, Safety, and Mandatory Reporting</li>
+                <li><strong>Section 12:</strong> Disclaimers and Limitations of Liability</li>
+                <li><strong>Section 14:</strong> Dispute Resolution</li>
+                <li><strong>Section 16:</strong> Termination</li>
               </ul>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold mb-4">16. Contact Information</h2>
+              <h2 className="text-2xl font-semibold mb-4">19. Contact</h2>
               <p className="mb-4">
-                If you have any questions about this Agreement, please contact us at:
+                If you have any questions about this Agreement, please contact:
               </p>
               <p className="mb-4">
                 <strong>Optio Academy</strong><br />
+                Dr. Tanner Bowman, Head of School<br />
                 Optio, LLC<br />
                 1555 Freedom Blvd 200 W<br />
                 Provo, UT 84604<br />
                 <br />
-                <strong>Email:</strong> support@optioeducation.com<br />
-                <strong>Website:</strong> https://optioeducation.com
+                <strong>Email:</strong> tanner@optioeducation.com<br />
+                <strong>General support:</strong> support@optioeducation.com<br />
+                <strong>Website:</strong> https://www.optioeducation.com
               </p>
             </section>
 
             <div className="bg-gray-100 p-6 rounded-lg mt-8">
               <p className="text-sm text-gray-700 mb-4">
-                <strong>Note:</strong> This Agreement must be signed electronically or in person before
-                participating in Optio Academy. Digital platform users who do not attend the in-person
-                program are not required to sign this Agreement but must agree to the{' '}
+                <strong>Note:</strong> This Agreement must be signed electronically before the
+                Participant begins enrollment in Optio Academy. Users of the Optio digital platform who
+                are not enrolled in Optio Academy are not required to sign this Agreement but must agree
+                to the{' '}
                 <Link to="/terms" className="text-primary hover:text-optio-purple underline">
                   Terms of Service
                 </Link>{' '}

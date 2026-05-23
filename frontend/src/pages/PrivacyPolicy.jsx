@@ -9,7 +9,7 @@ const PrivacyPolicy = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Privacy Policy</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: January 27, 2025</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: May 22, 2026</p>
 
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">1. Introduction</h2>
@@ -17,7 +17,7 @@ const PrivacyPolicy = () => {
                 Optio, LLC ("we," "our," or "us") is committed to protecting the privacy of students,
                 parents, and all users of our educational platform. This Privacy Policy explains how we
                 collect, use, disclose, and safeguard your information when you use the Optio platform
-                and, for some users, participate in the Optio Academy in-person program.
+                and, for some users, enroll in our fully online private school, Optio Academy.
               </p>
               <p className="mb-4">
                 We are committed to complying with the Children's Online Privacy Protection Act (COPPA),
@@ -51,7 +51,6 @@ const PrivacyPolicy = () => {
                 <li>XP (experience points) and achievement data</li>
                 <li>Badge progress and earned badges</li>
                 <li>Skill pillar data (STEM, Wellness, Communication, Civics, Art)</li>
-                <li>Learning calendar and scheduled tasks</li>
                 <li>Academic transcript data</li>
                 <li>Custom quest submissions</li>
               </ul>
@@ -85,17 +84,14 @@ const PrivacyPolicy = () => {
                 <li>Portfolio sharing settings</li>
               </ul>
 
-              <h3 className="text-xl font-semibold mb-3">Optio Academy In-Person Program Data</h3>
-              <p className="mb-4">For students participating in Optio Academy at our physical location, we additionally collect:</p>
+              <h3 className="text-xl font-semibold mb-3">Optio Academy Program Data</h3>
+              <p className="mb-4">For students enrolled in Optio Academy, we additionally collect:</p>
               <ul className="list-disc ml-6 mb-4">
                 <li>Emergency contact information</li>
-                <li>Health and medical information (as needed for safety)</li>
-                <li>Transportation arrangements</li>
                 <li>Program enrollment and attendance records</li>
-                <li>Showcase Night participation and presentations</li>
-                <li>Business venture details (for students launching businesses)</li>
-                <li>Sponsor sourcing activities</li>
-                <li>Photo and video recordings from in-person sessions</li>
+                <li>Daily mentor session notes and progress reviews</li>
+                <li>Showcase event participation and presentations</li>
+                <li>Recordings of mentor sessions and online showcases (with consent)</li>
               </ul>
 
               <h3 className="text-xl font-semibold mb-3">Usage Information</h3>
@@ -142,7 +138,6 @@ const PrivacyPolicy = () => {
                 <li>Subscription tier and status</li>
                 <li>Payment history and invoices</li>
                 <li>Stripe customer ID (for linking to payment processor)</li>
-                <li>Utah Education Fits All (UEFA) scholarship status (if applicable)</li>
               </ul>
             </section>
 
@@ -159,7 +154,7 @@ const PrivacyPolicy = () => {
                 <li>Provide AI Tutor assistance with safety monitoring</li>
                 <li>Enable parent dashboard access and monitoring</li>
                 <li>Facilitate connections between students</li>
-                <li>Manage Optio Academy in-person program operations</li>
+                <li>Manage Optio Academy enrollment and instruction</li>
                 <li>Monitor and analyze usage patterns to improve the Service</li>
                 <li>Personalize learning experiences and recommendations</li>
               </ul>
@@ -431,8 +426,8 @@ const PrivacyPolicy = () => {
 
               <h3 className="text-xl font-semibold mb-3">Utah Privacy Rights</h3>
               <p className="mb-4">
-                Optio is based in Utah and serves many Utah students through the Utah Education Fits All
-                (UEFA) scholarship program. Utah residents have rights under the Utah Consumer Privacy Act.
+                Optio is based in Utah and serves Utah students and families. Utah residents have rights
+                under the Utah Consumer Privacy Act.
               </p>
             </section>
 

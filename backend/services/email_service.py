@@ -827,6 +827,23 @@ class EmailService(BaseService):
             }
         )
 
+    def send_academy_inquiry_confirmation(
+        self,
+        user_name: str,
+        user_email: str,
+        message: str = None
+    ) -> bool:
+        """Send Academy inquiry confirmation email from the /academy page."""
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Thanks for Your Interest in Optio Academy",
+            template_name='academy_inquiry_confirmation',
+            context={
+                'name': user_name,
+                'message': message or ''
+            }
+        )
+
     def send_promo_code_email(
         self,
         to_email: str,
