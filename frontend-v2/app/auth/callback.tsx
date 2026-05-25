@@ -10,7 +10,6 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { supabase } from '@/src/services/supabaseClient';
 import { UIText } from '@/src/components/ui';
-import { hasSeenOnboarding } from '@/src/stores/onboardingStore';
 
 export default function AuthCallbackScreen() {
   const { handleGoogleCallback, handleAppleCallback } = useAuthStore();
@@ -81,11 +80,7 @@ export default function AuthCallbackScreen() {
           await handleGoogleCallback(accessToken, refreshToken || '');
         }
 
-        // Decide destination here so there's no race with (app)/_layout.
-        // If the user hasn't seen onboarding, go there directly; otherwise feed.
-        const userId = useAuthStore.getState().user?.id;
-        const seen = userId ? await hasSeenOnboarding(userId) : true;
-        router.replace(seen ? '/(app)/(tabs)/feed' : '/(app)/onboarding');
+        router.replace('/(app)/(tabs)/feed');
       } catch (err: any) {
         console.error('[AuthCallback] OAuth failed:', err);
         setError(err.message || 'Authentication failed');

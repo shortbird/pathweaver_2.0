@@ -1,48 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Redirect, Stack, router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
-import { View, ActivityIndicator } from 'react-native';
 import {
   registerForPushNotifications,
   configurePushNotifications,
   addNotificationResponseListener,
 } from '@/src/services/pushNotifications';
 import { resolveDeepLink } from '@/src/services/deepLinkRouter';
-import { hasSeenOnboarding } from '@/src/stores/onboardingStore';
+import { View, ActivityIndicator } from 'react-native';
 
 // Configure notification display once at module load
 configurePushNotifications();
 
 export default function AppLayout() {
   const { isAuthenticated, isLoading, user } = useAuthStore();
-  // Block rendering of any (app) route until we've decided whether to send the
-  // user into onboarding. Without this, callback.tsx navigates to /feed right
-  // after auth, feed renders briefly, and the onboarding redirect arrives
-  // too late to feel like first-run flow.
-  const [onboardingDecision, setOnboardingDecision] = useState<
-    'pending' | 'send' | 'allow'
-  >('pending');
 
+  // Once the user is authenticated, ask the OS for notification permission and
+  // (on capable platforms) register an Expo push token. The native permission
+  // prompt only ever fires once — subsequent app loads no-op.
   useEffect(() => {
-    if (!isAuthenticated || !user?.id) {
-      setOnboardingDecision('pending');
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const seen = await hasSeenOnboarding(user.id);
-      if (cancelled) return;
-      if (!seen) {
-        setOnboardingDecision('send');
-        router.replace('/(app)/onboarding' as any);
-      } else {
-        setOnboardingDecision('allow');
-        registerForPushNotifications();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (!isAuthenticated || !user?.id) return;
+    registerForPushNotifications();
   }, [isAuthenticated, user?.id]);
 
   // Handle notification taps (navigate to link)
@@ -66,7 +44,7 @@ export default function AppLayout() {
     return () => cleanup?.();
   }, []);
 
-  if (isLoading || (isAuthenticated && onboardingDecision === 'pending')) {
+  if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-50">
         <ActivityIndicator size="large" color="#6D469B" />
@@ -88,7 +66,6 @@ export default function AppLayout() {
       <Stack.Screen name="bounties/review/[id]" />
       <Stack.Screen name="observers/accept" />
       <Stack.Screen name="view-on-web" />
-      <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
     </Stack>
   );
 }

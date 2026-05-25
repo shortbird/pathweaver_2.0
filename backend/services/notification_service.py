@@ -16,13 +16,24 @@ logger = get_logger(__name__)
 # Notification types that should trigger web push notifications
 WEB_PUSH_NOTIFICATION_TYPES = {'message_received'}
 
-# Notification types that should trigger mobile push notifications (broader set)
+# Notification types that should trigger mobile push notifications.
+# Keep this in lockstep with notifications.type CHECK constraint (the
+# 20260522_widen_notifications_type_check migration is the source of
+# truth for what's valid; this set is the subset we consider "worth
+# pinging the user's device about").
 MOBILE_PUSH_NOTIFICATION_TYPES = {
-    'message_received', 'quest_invitation', 'task_approved',
-    'task_revision_requested', 'announcement',
-    'observer_comment', 'observer_added',
-    'parent_approval_required',
+    # Social / inbound
+    'message_received', 'quest_invitation', 'announcement',
+    'observer_comment', 'observer_added', 'observer_accepted',
+    # Student-facing work events
+    'task_approved', 'task_revision_requested',
+    'diploma_credit_approved', 'diploma_credit_grow_this',
+    # Bounty lifecycle
     'bounty_posted', 'bounty_claimed', 'bounty_submission',
+    # Reviewer / approver inboxes
+    'parent_approval_required',
+    'diploma_credit_requested', 'org_approved_credit',
+    'class_submitted_for_review',
 }
 
 

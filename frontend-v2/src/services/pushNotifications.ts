@@ -32,14 +32,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
-  // Must be a physical device (not simulator)
-  if (!Device.isDevice) {
-    console.debug('[Push] Not a physical device, skipping registration');
-    return null;
-  }
-
   try {
-    // Check/request permission
+    // 1. Request notification permission ALWAYS, even on iOS sim. The
+    //    permission grant is what lets the OS display banners — including
+    //    locally-injected `xcrun simctl push` payloads we use for dev. If we
+    //    bail before this, the user never sees the system prompt and every
+    //    simulator push is silently dropped.
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -53,10 +51,19 @@ export async function registerForPushNotifications(): Promise<string | null> {
       return null;
     }
 
-    // Get Expo push token
-    // S3: read projectId only from Expo runtime config. A hardcoded fallback
-    // would mask configuration bugs and quietly send push tokens to a stale
-    // project if app.json ever changes.
+    // 2. Skip the actual token GET + backend POST on iOS Simulator: Apple's
+    //    APNs doesn't deliver to sims, so an Expo token from here is useless
+    //    in the DB. Android emulators *do* get real FCM tokens and should
+    //    register normally. Physical iOS / Android devices also register.
+    if (!Device.isDevice && Platform.OS === 'ios') {
+      console.debug('[Push] iOS simulator: permission granted, skipping Expo token registration');
+      return null;
+    }
+
+    // 3. Get Expo push token.
+    //    S3: read projectId only from Expo runtime config. A hardcoded fallback
+    //    would mask configuration bugs and quietly send push tokens to a stale
+    //    project if app.json ever changes.
     const projectId = Constants.default?.expoConfig?.extra?.eas?.projectId
       || Constants.default?.easConfig?.projectId;
     if (!projectId) {
@@ -67,7 +74,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenData.data;
 
-    // Send token to backend
+    // 4. Send token to backend.
     await api.post('/api/push/expo-token', {
       token,
       platform: Platform.OS, // 'ios' or 'android'
