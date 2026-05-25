@@ -16,7 +16,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.optioeducation.optio",
       "bitcode": false,
       "usesAppleSignIn": true,
@@ -90,6 +90,7 @@
     },
     "android": {
       "package": "com.optioeducation.optio",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

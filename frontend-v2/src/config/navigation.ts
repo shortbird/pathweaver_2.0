@@ -44,7 +44,7 @@ export const mobileTabOrder = ['journal', 'feed', 'capture', 'profile', 'message
 /** Mobile tab order for parents. 'capture' is the center button, handled the
  *  same way as in the student shell — it triggers the CaptureSheet modal in
  *  parent mode (multi-select which kid(s) the moment is for). */
-export const parentMobileTabOrder = ['family', 'feed', 'capture', 'messages'];
+export const parentMobileTabOrder = ['family', 'feed', 'capture', 'bounties', 'messages'];
 
 /** Items visible in desktop sidebar */
 export const desktopNavItems = navItems.filter((n) => n.platforms.includes('web'));

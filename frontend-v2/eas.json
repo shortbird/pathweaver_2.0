@@ -30,8 +30,15 @@
   },
   "submit": {
     "production": {
+      "ios": {
+        "appleId": "tanner@optioeducation.com",
+        "ascAppId": "6773061928",
+        "appleTeamId": "6H8SBLXV7J"
+      },
       "android": {
-        "track": "internal"
+        "track": "internal",
+        "serviceAccountKeyPath": "../optio-play-sa.json",
+        "releaseStatus": "draft"
       }
     }
   }

@@ -163,7 +163,7 @@ export default function TabsLayout() {
     );
   }
 
-  // ── Mobile parent: family + feed + center capture + messages ──
+  // ── Mobile parent: family + feed + center capture + bounties + messages ──
   if (isParent) {
     return (
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">

@@ -2,19 +2,21 @@
 # Designed for 512MB memory limit on Render Starter plan
 # ALL settings configurable via environment variables
 
+import logging
 import multiprocessing
 import os
 
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
+# Use stdlib logging here: gunicorn parses this config in the master process
+# before the Flask app loads, so importing utils.logger (which pulls in flask
+# and the auth stack) would slow startup and risk import-order surprises.
+logger = logging.getLogger(__name__)
 
 # Basic settings
 bind = f"0.0.0.0:{os.getenv('PORT', '5001')}"
 backlog = int(os.getenv('GUNICORN_BACKLOG', '128'))
 
 # Worker configuration - CONFIGURABLE
-workers = int(os.getenv('GUNICORN_WORKERS', '1'))
+workers = int(os.getenv('GUNICORN_WORKERS', '2'))
 worker_class = os.getenv('GUNICORN_WORKER_CLASS', 'sync')
 worker_connections = int(os.getenv('GUNICORN_WORKER_CONNECTIONS', '100'))
 threads = int(os.getenv('GUNICORN_THREADS', '2'))
@@ -27,8 +29,16 @@ keepalive = int(os.getenv('GUNICORN_KEEPALIVE', '2'))
 graceful_timeout = int(os.getenv('GUNICORN_GRACEFUL_TIMEOUT', '30'))
 
 # Memory management - CONFIGURABLE
-worker_tmp_dir = os.getenv('GUNICORN_WORKER_TMP_DIR', '/dev/shm')
-worker_rlimit_as = int(os.getenv('GUNICORN_WORKER_MEMORY_LIMIT', str(400 * 1024 * 1024)))
+# Prefer /dev/shm (tmpfs) on Linux to avoid disk wear from the heartbeat file;
+# fall back to the system default on platforms where it doesn't exist (macOS).
+_default_tmp_dir = '/dev/shm' if os.path.isdir('/dev/shm') else None
+worker_tmp_dir = os.getenv('GUNICORN_WORKER_TMP_DIR') or _default_tmp_dir
+
+# NOTE: worker_rlimit_as (RLIMIT_AS / virtual address space) is intentionally
+# unset. Python + Flask + Pillow + supabase libs have VSZ well above their RSS,
+# so capping VSZ at e.g. 400MB causes workers to crash on startup. Render's
+# 512Mi container limit applies to RSS, and max_requests below recycles
+# workers before any single worker drifts close to it.
 
 # Logging - CONFIGURABLE
 loglevel = os.getenv('GUNICORN_LOG_LEVEL', 'info')
@@ -37,7 +47,13 @@ errorlog = os.getenv('GUNICORN_ERROR_LOG', '-')
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
 # Server mechanics
-preload_app = os.getenv('GUNICORN_PRELOAD_APP', 'true').lower() == 'true'
+# preload_app defaults to False: middleware/activity_tracker.py instantiates a
+# module-level ThreadPoolExecutor at import time, which is not fork-safe. With
+# preload, the master imports once and forks workers, inheriting broken thread
+# state. With preload off, each worker imports independently (higher per-worker
+# RSS, but stable). Override via GUNICORN_PRELOAD_APP=true if the offending
+# import-time thread pools are removed later.
+preload_app = os.getenv('GUNICORN_PRELOAD_APP', 'false').lower() == 'true'
 daemon = False  # Don't daemonize (Render needs foreground process)
 
 # Process naming
