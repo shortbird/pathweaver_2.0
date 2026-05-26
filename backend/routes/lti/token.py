@@ -6,18 +6,29 @@ code and redirects the iframe to the frontend. The frontend POSTs that code
 here to receive Optio access + refresh tokens, which it stores in
 `tokenStore` (the same Bearer-mode pattern the mobile app uses).
 
+For student-role Resource Link launches, the auth code references a
+`lti_pending_launches` row rather than a `users` row — the Optio user is
+NOT materialized until this exchange runs (which only happens after the
+student clicks "Enter Optio" on the iframe landing page). This prevents
+passive Canvas-side launches from spawning empty user accounts.
+
 This route is intentionally NOT cookie-dependent — third-party cookies are
 blocked in the iframe context, so we deliver tokens in the response body.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Dict
 
 from flask import jsonify, request
 
 from middleware.rate_limiter import rate_limit
 from routes.lti import bp
-from services.lti_service import consume_auth_code
+from services.lti_service import (
+    LtiRegistration,
+    consume_auth_code,
+    consume_pending_launch,
+    provision_lti_user,
+)
+from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.session_manager import session_manager
 
@@ -45,7 +56,42 @@ def exchange_auth_code():
         logger.warning(f"[LTI token] Invalid or expired code: {str(code)[:8]}...")
         return jsonify({"error": "Invalid or expired code"}), 401
 
-    user_id = record["user_id"]
+    user_id = record.get("user_id")
+    pending_launch_id = record.get("pending_launch_id")
+
+    # Deferred student flow: the auth code was minted without a user row.
+    # The student has now clicked "Enter Optio" — materialize them.
+    if not user_id and pending_launch_id:
+        pending = consume_pending_launch(pending_launch_id)
+        if not pending:
+            logger.warning(
+                f"[LTI token] Pending launch {pending_launch_id[:8]} missing or expired"
+            )
+            return jsonify({"error": "Launch expired — please re-open from Canvas"}), 401
+
+        registration = _load_registration(pending["registration_id"])
+        if not registration:
+            logger.error(
+                f"[LTI token] Pending launch references unknown registration "
+                f"{pending['registration_id']}"
+            )
+            return jsonify({"error": "LTI registration no longer active"}), 500
+
+        try:
+            user_id = provision_lti_user(pending["claims"], registration)
+        except Exception as e:  # noqa: BLE001 — provisioning errors are best surfaced verbatim
+            logger.exception(f"[LTI token] Failed to materialize pending user: {e}")
+            return jsonify({"error": "Failed to create Optio account"}), 500
+        logger.info(
+            f"[LTI token] Materialized deferred student user={user_id[:8]} "
+            f"from pending={pending_launch_id[:8]}"
+        )
+
+    if not user_id:
+        # CHECK constraint should make this unreachable, but guard anyway.
+        logger.error(f"[LTI token] Auth code {str(code)[:8]} has no subject")
+        return jsonify({"error": "Malformed launch code"}), 500
+
     access_token = session_manager.generate_access_token(user_id)
     refresh_token = session_manager.generate_refresh_token(user_id)
 
@@ -67,3 +113,19 @@ def exchange_auth_code():
 
     logger.info(f"[LTI token] Issued tokens for user {user_id[:8]}...")
     return jsonify(payload), 200
+
+
+def _load_registration(registration_id: str):
+    """Re-hydrate the LtiRegistration that owned a pending launch."""
+    # admin client justified: LTI handler runs pre-session — Canvas-signed id_token is the auth, not an Optio session, so RLS-bound user client isn't usable yet
+    supabase = get_supabase_admin_client()
+    rows = (
+        supabase.table("lti_registrations")
+        .select("*")
+        .eq("id", registration_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows.data:
+        return None
+    return LtiRegistration.from_row(rows.data[0])

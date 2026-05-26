@@ -276,6 +276,20 @@ def get_parent_dashboard(user_id, student_id):
                         'completed_at': comp['completed_at']
                     })
 
+        # Counts for the parent dashboard hero card (FE expects `stats`).
+        completed_quests_response = supabase.table('user_quests') \
+            .select('id', count='exact') \
+            .eq('user_id', student_id) \
+            .not_.is_('completed_at', 'null') \
+            .execute()
+        completed_quests_count = completed_quests_response.count or 0
+
+        completed_tasks_response = supabase.table('quest_task_completions') \
+            .select('id', count='exact') \
+            .eq('user_id', student_id) \
+            .execute()
+        completed_tasks_count = completed_tasks_response.count or 0
+
         return jsonify({
             'student': {
                 'id': student['id'],
@@ -294,6 +308,12 @@ def get_parent_dashboard(user_id, student_id):
                 'overdue_task_count': rhythm_data['overdue_task_count']
             },
             'active_quests': active_quests,
+            'stats': {
+                'total_xp': student.get('total_xp', 0),
+                'active_quests_count': len(active_quests),
+                'completed_quests_count': completed_quests_count,
+                'completed_tasks_count': completed_tasks_count,
+            },
             'weekly_wins': weekly_wins[:10],  # Limit to 10 most recent
             'recent_completions': recent_completions
         }), 200

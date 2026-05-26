@@ -511,19 +511,50 @@ def register_routes(bp):
                 # Create lookup map
                 student_map = {student['id']: student for student in students.data}
 
+                # Per-student last-activity timestamp — max(created_at) from
+                # learning_events + max(completed_at) from task completions.
+                # The Students tab subhead reads this; without it every kid
+                # shows "No activity yet" regardless of real activity.
+                last_active_by_student: dict[str, str] = {}
+                try:
+                    le = supabase.table('learning_events') \
+                        .select('user_id, created_at') \
+                        .in_('user_id', all_student_ids) \
+                        .order('created_at', desc=True) \
+                        .execute()
+                    for row in le.data or []:
+                        uid = row['user_id']
+                        if uid not in last_active_by_student:
+                            last_active_by_student[uid] = row['created_at']
+
+                    qc = supabase.table('quest_task_completions') \
+                        .select('user_id, completed_at') \
+                        .in_('user_id', all_student_ids) \
+                        .order('completed_at', desc=True) \
+                        .execute()
+                    for row in qc.data or []:
+                        uid = row['user_id']
+                        prev = last_active_by_student.get(uid)
+                        if not prev or (row['completed_at'] and row['completed_at'] > prev):
+                            last_active_by_student[uid] = row['completed_at']
+                except Exception as e:
+                    logger.warning(f"Failed to compute last_active_at: {e}")
+
+                def with_last_active(student_info: dict, sid: str) -> dict:
+                    return {**student_info, 'last_active_at': last_active_by_student.get(sid)}
+
                 # Merge link data with student details for observer links
                 for link in links.data:
-                    student_info = student_map.get(link['student_id'], {})
+                    sid = link['student_id']
                     students_data.append({
                         **link,
-                        'student': student_info
+                        'student': with_last_active(student_map.get(sid, {}), sid),
                     })
 
                 # Add advisor-linked students that aren't already in observer links
                 existing_student_ids = set(student_ids)
                 for advisor_student_id in advisor_student_ids:
                     if advisor_student_id not in existing_student_ids:
-                        student_info = student_map.get(advisor_student_id, {})
                         students_data.append({
                             'student_id': advisor_student_id,
                             'observer_id': user_id,
@@ -531,14 +562,13 @@ def register_routes(bp):
                             'can_comment': True,
                             'can_view_evidence': True,
                             'notifications_enabled': False,
-                            'student': student_info
+                            'student': with_last_active(student_map.get(advisor_student_id, {}), advisor_student_id),
                         })
                         existing_student_ids.add(advisor_student_id)
 
                 # Add parent's children that aren't already in observer links
                 for child_id in parent_child_ids:
                     if child_id not in existing_student_ids:
-                        student_info = student_map.get(child_id, {})
                         students_data.append({
                             'student_id': child_id,
                             'observer_id': user_id,
@@ -546,7 +576,7 @@ def register_routes(bp):
                             'can_comment': True,
                             'can_view_evidence': True,
                             'notifications_enabled': True,
-                            'student': student_info
+                            'student': with_last_active(student_map.get(child_id, {}), child_id),
                         })
                         existing_student_ids.add(child_id)
 

@@ -7,9 +7,18 @@
 
 import { create } from 'zustand';
 import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { api } from '../services/api';
 import { tokenStore } from '../services/tokenStore';
+
+// authStore imports actingAsStore for logout, so we can't do a static import
+// here without creating a circular dependency that leaves the store uninitialized.
+// Use a lazy require at call sites instead.
+function refetchAuthUser() {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  return require('./authStore').useAuthStore.getState().loadUser();
+}
 
 /**
  * Force a full page reload to flush all cached hook/store data.
@@ -54,7 +63,7 @@ interface ActingAsState {
   /** Stop admin masquerade */
   stopMasquerade: () => Promise<void>;
   /** Restore state from storage on app init */
-  restore: () => void;
+  restore: () => void | Promise<void>;
   /** Clear everything (for logout) */
   clear: () => void;
 }
@@ -63,9 +72,14 @@ const STORAGE_KEY = 'optio_acting_as';
 const PARENT_ACCESS_KEY = 'optio_parent_access';
 const PARENT_REFRESH_KEY = 'optio_parent_refresh';
 
+// Web uses sessionStorage; native uses SecureStore.
+// The state we persist is small (target + mode) and non-secret on its own —
+// SecureStore is just a convenient already-installed key-value store.
 function saveToStorage(key: string, value: string) {
   if (Platform.OS === 'web') {
     try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
+  } else {
+    SecureStore.setItemAsync(key, value).catch(() => { /* ignore */ });
   }
 }
 
@@ -76,9 +90,16 @@ function getFromStorage(key: string): string | null {
   return null;
 }
 
+async function getFromStorageAsync(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') return getFromStorage(key);
+  try { return await SecureStore.getItemAsync(key); } catch { return null; }
+}
+
 function removeFromStorage(key: string) {
   if (Platform.OS === 'web') {
     try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+  } else {
+    SecureStore.deleteItemAsync(key).catch(() => { /* ignore */ });
   }
 }
 
@@ -116,6 +137,10 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
         mode: 'dependent',
         switching: false,
       });
+
+      if (Platform.OS !== 'web') {
+        await refetchAuthUser();
+      }
 
       // Full page reload to flush all cached data from parent session
       forceReload('/dashboard');
@@ -156,6 +181,10 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
 
     set({ target: null, isActive: false, mode: null, switching: false });
 
+    if (Platform.OS !== 'web') {
+      await refetchAuthUser();
+    }
+
     // Full page reload to flush cached dependent data
     forceReload('/family');
   },
@@ -186,6 +215,14 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
       saveToStorage(STORAGE_KEY, JSON.stringify({ target, mode: 'masquerade' }));
 
       set({ target, isActive: true, mode: 'masquerade', switching: false });
+
+      // Mobile: forceReload uses router.replace which doesn't re-fetch
+      // authStore.user, so the profile page would keep showing the admin's
+      // info. Pull the masqueraded user explicitly. Web reloads the page
+      // and reruns loadUser on its own.
+      if (Platform.OS !== 'web') {
+        await refetchAuthUser();
+      }
 
       // Full page reload to flush admin session cache
       const role = target_user.org_role && target_user.role === 'org_managed'
@@ -220,20 +257,50 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
 
     set({ target: null, isActive: false, mode: null, switching: false });
 
+    // Same reasoning as startMasquerade: mobile router.replace skips loadUser.
+    if (Platform.OS !== 'web') {
+      await refetchAuthUser();
+    }
+
     // Full page reload to flush masquerade data
     forceReload('/admin');
   },
 
-  restore: () => {
-    const stored = getFromStorage(STORAGE_KEY);
-    if (!stored) return;
+  restore: async () => {
+    const stored = await getFromStorageAsync(STORAGE_KEY);
+    if (stored) {
+      try {
+        const { target, mode } = JSON.parse(stored);
+        if (target && mode) {
+          set({ target, isActive: true, mode });
+          return;
+        }
+      } catch {
+        removeFromStorage(STORAGE_KEY);
+      }
+    }
+
+    // Fallback: if there's no local state but the access token is a
+    // masquerade token (e.g. after a Metro reload, app restart, or upgrade
+    // path where we hadn't yet persisted state), ask the server.
+    // Tokens may still be on disk only — pull them into memory first or the
+    // interceptor sends the request unauthenticated and we silently bail.
     try {
-      const { target, mode } = JSON.parse(stored);
-      if (target && mode) {
-        set({ target, isActive: true, mode });
+      await tokenStore.restore();
+      if (!tokenStore.getAccessToken()) return;
+      const { data } = await api.get('/api/admin/masquerade/status');
+      if (data?.is_masquerading && data.target_user?.id) {
+        const target: ActingAsTarget = {
+          id: data.target_user.id,
+          display_name: data.target_user.display_name,
+          avatar_url: data.target_user.avatar_url,
+          role: data.target_user.role,
+        };
+        saveToStorage(STORAGE_KEY, JSON.stringify({ target, mode: 'masquerade' }));
+        set({ target, isActive: true, mode: 'masquerade' });
       }
     } catch {
-      removeFromStorage(STORAGE_KEY);
+      /* unauthenticated or endpoint down — leave inactive */
     }
   },
 

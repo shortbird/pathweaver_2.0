@@ -22,6 +22,7 @@ Design notes:
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
 import uuid
@@ -569,22 +570,219 @@ def post_ags_score(
 
 
 # ---------------------------------------------------------------------------
+# Deferred user provisioning (student "click to enter" flow)
+# ---------------------------------------------------------------------------
+#
+# Student-role Resource Link launches no longer create an Optio `users` row
+# on the launch itself. Instead we stash the verified id_token claims in
+# `lti_pending_launches` and only materialize the user when the student
+# explicitly clicks "Enter Optio" on the iframe landing page — which is
+# what triggers `/lti/token`. Teachers, advisors, and Deep Linking flows
+# still provision immediately (see provision_lti_user usage in launch.py).
+
+PENDING_LAUNCH_TTL_SECONDS = 3600  # 1h — matches the click-to-enter UX window
+
+
+def issue_pending_launch(
+    registration_id: str, claims: Dict[str, Any]
+) -> str:
+    """Persist LTI claims for a not-yet-materialized launch. Returns the row id."""
+    # admin client justified: LTI handler runs pre-session — Canvas-signed id_token is the auth, not an Optio session, so RLS-bound user client isn't usable yet
+    supabase = get_supabase_admin_client()
+    expires = (
+        datetime.now(timezone.utc)
+        + timedelta(seconds=PENDING_LAUNCH_TTL_SECONDS)
+    ).isoformat()
+    row = (
+        supabase.table("lti_pending_launches")
+        .insert(
+            {
+                "registration_id": registration_id,
+                "claims": claims,
+                "expires_at": expires,
+            }
+        )
+        .execute()
+    )
+    return row.data[0]["id"]
+
+
+def consume_pending_launch(pending_id: str) -> Optional[Dict[str, Any]]:
+    """Read + delete a pending launch row. Returns the row or None if missing/expired."""
+    # admin client justified: LTI handler runs pre-session — Canvas-signed id_token is the auth, not an Optio session, so RLS-bound user client isn't usable yet
+    supabase = get_supabase_admin_client()
+    record = (
+        supabase.table("lti_pending_launches")
+        .select("*")
+        .eq("id", pending_id)
+        .limit(1)
+        .execute()
+    )
+    if not record.data:
+        return None
+    row = record.data[0]
+    expires_at = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(expires_at.tzinfo) > expires_at:
+        supabase.table("lti_pending_launches").delete().eq("id", pending_id).execute()
+        return None
+    supabase.table("lti_pending_launches").delete().eq("id", pending_id).execute()
+    return row
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _is_valid_email(value: str) -> bool:
+    """Conservative RFC-ish check. Supabase Auth rejects malformed addresses
+    with a 400 (which previously 500'd the whole launch), so we gate
+    create_user on this and synthesize a placeholder when a platform — e.g.
+    Canvas's "Student View" test user — sends a missing or garbage email."""
+    return bool(_EMAIL_RE.match((value or "").strip()))
+
+
+def provision_lti_user(claims: Dict[str, Any], registration: LtiRegistration) -> str:
+    """Find or create the Optio user behind this Canvas user.
+
+    Linking strategy mirrors `create_or_update_spark_user`:
+        1. lms_integrations row with (lms_platform='canvas', lms_user_id=sub)
+        2. fall back to email match
+        3. else create a fresh org_managed user inside the registration's
+           organization, mark them with org_role from their LIS roles.
+    """
+    # admin client justified: LTI launch runs pre-session — Canvas-signed id_token is the auth surface; user provisioning + lms_integrations writes need to cross users
+    supabase = get_supabase_admin_client()
+    canvas_user_id = claims["sub"]
+    raw_email = (
+        claims.get("email")
+        or claims.get("https://purl.imsglobal.org/spec/lti/claim/lis", {}).get(
+            "person_sourcedid"
+        )
+        or ""
+    ).strip()
+    given = claims.get("given_name", "")
+    family = claims.get("family_name", "")
+    full_name = claims.get("name") or f"{given} {family}".strip()
+    roles = claims.get(ROLES_CLAIM, [])
+    org_role = role_to_org_role(roles)
+
+    # Canvas's "Student View" test user — and some Canvas privacy configs —
+    # send a missing or malformed email, which Supabase Auth rejects with a
+    # 400. The real identity anchor is the lms_integrations (lms_user_id=sub)
+    # link, so when the email is unusable we synthesize a deterministic,
+    # format-valid placeholder keyed off the LTI subject and skip the
+    # email-merge step below (so a synthetic test user can never collide with
+    # or merge into a real account).
+    email_is_real = _is_valid_email(raw_email)
+    email = (
+        raw_email
+        if email_is_real
+        else f"canvas-{canvas_user_id}@lti.optioeducation.com"
+    )
+
+    # 1. Existing LMS link
+    integration = (
+        supabase.table("lms_integrations")
+        .select("user_id")
+        .eq("lms_platform", "canvas")
+        .eq("lms_user_id", canvas_user_id)
+        .execute()
+    )
+    if integration.data:
+        user_id = integration.data[0]["user_id"]
+        # Keep org_role fresh in case the teacher promoted/demoted them.
+        supabase.table("users").update(
+            {"org_role": org_role}
+        ).eq("id", user_id).execute()
+        return user_id
+
+    # 2. Email merge — only for real, platform-provided emails. Synthetic
+    # placeholders must never match an existing account.
+    user_id: Optional[str] = None
+    if email_is_real:
+        existing = (
+            supabase.table("users").select("id").eq("email", email).limit(1).execute()
+        )
+        if existing.data:
+            user_id = existing.data[0]["id"]
+            logger.info(f"[LTI provision] Linking existing user {user_id} to Canvas")
+
+    # 3. Create
+    if not user_id:
+        temp_password = secrets.token_urlsafe(32)
+        auth_user = supabase.auth.admin.create_user(
+            {
+                "email": email,
+                "password": temp_password,
+                "email_confirm": True,
+                "user_metadata": {
+                    "first_name": given,
+                    "last_name": family,
+                    "display_name": full_name,
+                    "sso_provider": "canvas_lti",
+                },
+            }
+        )
+        user_id = auth_user.user.id
+        supabase.table("users").insert(
+            {
+                "id": user_id,
+                "email": email,
+                "first_name": given,
+                "last_name": family,
+                "display_name": full_name,
+                "role": "org_managed",
+                "org_role": org_role,
+                "organization_id": registration.organization_id,
+            }
+        ).execute()
+        logger.info(f"[LTI provision] Created new user {user_id} from Canvas SSO")
+
+    # 4. Record the LMS link. organization_id is NOT NULL on lms_integrations
+    # since the H1 audit; tie the integration to the org the registration is
+    # mapped to so cross-org lookups don't bleed.
+    supabase.table("lms_integrations").insert(
+        {
+            "user_id": user_id,
+            "lms_platform": "canvas",
+            "lms_user_id": canvas_user_id,
+            "organization_id": registration.organization_id,
+            "sync_enabled": True,
+            "sync_status": "active",
+        }
+    ).execute()
+
+    return user_id
+
+
+# ---------------------------------------------------------------------------
 # One-time auth code (post-launch handoff to the iframe)
 # ---------------------------------------------------------------------------
 
 def issue_auth_code(
-    user_id: str,
+    user_id: Optional[str] = None,
     quest_id: Optional[str] = None,
     target_path: Optional[str] = None,
     expires_in_seconds: int = 60,
+    pending_launch_id: Optional[str] = None,
 ) -> str:
     """Mint a one-time code the iframe exchanges for Bearer tokens.
+
+    Exactly one of `user_id` (teacher / Deep Link / already-provisioned user)
+    or `pending_launch_id` (deferred student flow — user not yet created)
+    must be set. The DB enforces this via the lti_auth_codes_subject_present
+    CHECK constraint.
 
     Default 60s TTL is enough for the immediate token exchange. Deep Linking
     flows pass `expires_in_seconds=600` because the same row also stashes
     the platform's deep-link settings — the teacher needs time to fill in
-    the form before /lti/deep-link/submit reads them back.
+    the form before /lti/deep-link/submit reads them back. The pending
+    student flow uses 600 as well so the click-to-enter window matches the
+    pending_launches row's TTL ceiling.
     """
+    if (user_id is None) == (pending_launch_id is None):
+        raise ValueError(
+            "issue_auth_code requires exactly one of user_id or pending_launch_id"
+        )
     code = secrets.token_urlsafe(32)
     expires = (datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)).isoformat()
     # admin client justified: LTI handler runs pre-session — Canvas-signed id_token is the auth, not an Optio session, so RLS-bound user client isn't usable yet
@@ -593,6 +791,7 @@ def issue_auth_code(
         {
             "code": code,
             "user_id": user_id,
+            "pending_launch_id": pending_launch_id,
             "quest_id": quest_id,
             "target_path": target_path,
             "expires_at": expires,
@@ -603,7 +802,12 @@ def issue_auth_code(
 
 
 def consume_auth_code(code: str) -> Optional[Dict[str, Any]]:
-    """Look up + invalidate a one-time code. Returns the row or None."""
+    """Look up + invalidate a one-time code. Returns the row or None.
+
+    Returned row may have `user_id` set (existing user) OR `pending_launch_id`
+    set (deferred student — caller is responsible for materializing the user
+    via `provision_lti_user` + `consume_pending_launch`).
+    """
     # admin client justified: LTI handler runs pre-session — Canvas-signed id_token is the auth, not an Optio session, so RLS-bound user client isn't usable yet
     supabase = get_supabase_admin_client()
     record = (

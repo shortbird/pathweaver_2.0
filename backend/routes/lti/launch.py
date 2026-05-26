@@ -16,11 +16,8 @@ pattern (backend/routes/spark_integration/__init__.py:84).
 
 from __future__ import annotations
 
-import re
 import secrets
-import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 from urllib.parse import urlencode
 
 from flask import jsonify, redirect, request
@@ -42,7 +39,9 @@ from services.lti_service import (
     LtiRegistrationNotFound,
     find_registration,
     issue_auth_code,
+    issue_pending_launch,
     issue_state,
+    provision_lti_user,
     remember_nonce,
     require_registration,
     role_to_org_role,
@@ -215,16 +214,13 @@ def lti_launch():
         return jsonify({"error": "LTI internal error"}), 500
 
     message_type = claims.get(MESSAGE_TYPE_CLAIM)
-
-    # User provisioning is shared between Resource Link launches and Deep
-    # Linking launches; only the redirect target differs.
-    user_id = _provision_lti_user(claims, registration)
+    frontend_url = _frontend_url()
 
     if message_type == "LtiDeepLinkingRequest":
-        # Deep Link flow — render the teacher form on the frontend, passing
-        # along the deep-link settings + a one-time code. 10-min TTL so the
-        # teacher has time to fill in the form (same code stashes the
-        # platform's deep_linking_settings blob).
+        # Deep Link flow — teacher is setting up an assignment. Always
+        # provision immediately: they're going to actively use the platform
+        # to pick a quest, and there is no "shadow teacher" concern.
+        user_id = provision_lti_user(claims, registration)
         deep_link_settings = claims.get(DEEP_LINK_CLAIM, {})
         code = issue_auth_code(
             user_id=user_id,
@@ -234,166 +230,62 @@ def lti_launch():
         # Persist the deep-link settings in a short-lived cache so the form
         # submission can echo them back without a round-trip to Canvas.
         _stash_deep_link_settings(code, deep_link_settings, registration.id, claims)
-        frontend_url = _frontend_url()
         return redirect(
             f"{frontend_url}/lti-launch?code={code}&mode=deep_link",
             code=302,
         )
 
-    # Default: LtiResourceLinkRequest — student is launching an existing
-    # assignment. Pull the quest_id we encoded in custom claims when the
-    # assignment was created via Deep Linking; if missing, this is a brand
-    # new launch from Canvas course nav (no quest yet) and we'll just send
-    # them to the standard dashboard.
+    # Default: LtiResourceLinkRequest — student (or teacher previewing) is
+    # launching an existing assignment. Pull the quest_id we encoded in
+    # custom claims when the assignment was created via Deep Linking; if
+    # missing, this is a launch from Canvas course nav (no quest yet) and
+    # we'll just send them to the standard dashboard.
     custom = claims.get(CUSTOM_CLAIM, {}) or {}
     quest_id = custom.get("optio_quest_id")
 
-    # Capture the AGS line item URL on first launch so we can post grades
-    # later without a second token round-trip.
+    # AGS line-item URL is keyed by quest, not user, so capture it eagerly
+    # on every launch regardless of whether we provision the user now.
     if quest_id:
         _capture_ags_lineitem(quest_id, claims)
 
+    target_path = f"/lti-quest/{quest_id}" if quest_id else "/dashboard"
+
+    # Student-role Resource Link launches DEFER user creation until the
+    # student explicitly clicks "Enter Optio" on the iframe landing page
+    # (which is what fires /lti/token). This prevents Canvas-side passive
+    # launches (e.g. the course-nav tile auto-loading the iframe) from
+    # spawning empty `users` rows for students who never actually engage.
+    # Teachers/advisors still provision immediately so their preview /
+    # SpeedGrader / assignment-setup flows work the same as today.
+    roles = claims.get(ROLES_CLAIM, [])
+    if role_to_org_role(roles) == "student":
+        pending_id = issue_pending_launch(registration.id, claims)
+        code = issue_auth_code(
+            pending_launch_id=pending_id,
+            quest_id=quest_id,
+            target_path=target_path,
+            expires_in_seconds=600,
+        )
+        logger.info(
+            f"[LTI launch] Deferred student provisioning — pending={pending_id[:8]} "
+            f"quest={quest_id} sub={claims.get('sub')[:8] if claims.get('sub') else '?'}"
+        )
+        return redirect(
+            f"{frontend_url}/lti-launch?code={code}&mode=pending",
+            code=302,
+        )
+
+    # Teacher / advisor preview of an existing assignment — same as today.
+    user_id = provision_lti_user(claims, registration)
     code = issue_auth_code(
         user_id=user_id,
         quest_id=quest_id,
-        target_path=f"/lti-quest/{quest_id}" if quest_id else "/dashboard",
+        target_path=target_path,
     )
-    frontend_url = _frontend_url()
     return redirect(
         f"{frontend_url}/lti-launch?code={code}",
         code=302,
     )
-
-
-# ---------------------------------------------------------------------------
-# User provisioning
-# ---------------------------------------------------------------------------
-
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-
-def _is_valid_email(value: str) -> bool:
-    """Conservative RFC-ish check. Supabase Auth rejects malformed addresses
-    with a 400 (which previously 500'd the whole launch), so we gate
-    create_user on this and synthesize a placeholder when a platform — e.g.
-    Canvas's "Student View" test user — sends a missing or garbage email."""
-    return bool(_EMAIL_RE.match((value or "").strip()))
-
-
-def _provision_lti_user(claims: Dict[str, Any], registration) -> str:
-    """Find or create the Optio user behind this Canvas user.
-
-    Linking strategy mirrors `create_or_update_spark_user`:
-        1. lms_integrations row with (lms_platform='canvas', lms_user_id=sub)
-        2. fall back to email match
-        3. else create a fresh org_managed user inside the registration's
-           organization, mark them with org_role from their LIS roles.
-    """
-    # admin client justified: LTI launch runs pre-session — Canvas-signed id_token is the auth surface; user provisioning + lms_integrations writes need to cross users
-    supabase = get_supabase_admin_client()
-    canvas_user_id = claims["sub"]
-    raw_email = (
-        claims.get("email")
-        or claims.get("https://purl.imsglobal.org/spec/lti/claim/lis", {}).get(
-            "person_sourcedid"
-        )
-        or ""
-    ).strip()
-    given = claims.get("given_name", "")
-    family = claims.get("family_name", "")
-    full_name = claims.get("name") or f"{given} {family}".strip()
-    roles = claims.get(ROLES_CLAIM, [])
-    org_role = role_to_org_role(roles)
-
-    # Canvas's "Student View" test user — and some Canvas privacy configs —
-    # send a missing or malformed email, which Supabase Auth rejects with a
-    # 400. The real identity anchor is the lms_integrations (lms_user_id=sub)
-    # link, so when the email is unusable we synthesize a deterministic,
-    # format-valid placeholder keyed off the LTI subject and skip the
-    # email-merge step below (so a synthetic test user can never collide with
-    # or merge into a real account).
-    email_is_real = _is_valid_email(raw_email)
-    email = (
-        raw_email
-        if email_is_real
-        else f"canvas-{canvas_user_id}@lti.optioeducation.com"
-    )
-
-    # 1. Existing LMS link
-    integration = (
-        supabase.table("lms_integrations")
-        .select("user_id")
-        .eq("lms_platform", "canvas")
-        .eq("lms_user_id", canvas_user_id)
-        .execute()
-    )
-    if integration.data:
-        user_id = integration.data[0]["user_id"]
-        # Keep org_role fresh in case the teacher promoted/demoted them.
-        supabase.table("users").update(
-            {"org_role": org_role}
-        ).eq("id", user_id).execute()
-        return user_id
-
-    # 2. Email merge — only for real, platform-provided emails. Synthetic
-    # placeholders must never match an existing account.
-    user_id: Optional[str] = None
-    if email_is_real:
-        existing = (
-            supabase.table("users").select("id").eq("email", email).limit(1).execute()
-        )
-        if existing.data:
-            user_id = existing.data[0]["id"]
-            logger.info(f"[LTI launch] Linking existing user {user_id} to Canvas")
-
-    # 3. Create
-    if not user_id:
-        import secrets as _secrets
-
-        temp_password = _secrets.token_urlsafe(32)
-        auth_user = supabase.auth.admin.create_user(
-            {
-                "email": email,
-                "password": temp_password,
-                "email_confirm": True,
-                "user_metadata": {
-                    "first_name": given,
-                    "last_name": family,
-                    "display_name": full_name,
-                    "sso_provider": "canvas_lti",
-                },
-            }
-        )
-        user_id = auth_user.user.id
-        supabase.table("users").insert(
-            {
-                "id": user_id,
-                "email": email,
-                "first_name": given,
-                "last_name": family,
-                "display_name": full_name,
-                "role": "org_managed",
-                "org_role": org_role,
-                "organization_id": registration.organization_id,
-            }
-        ).execute()
-        logger.info(f"[LTI launch] Created new user {user_id} from Canvas SSO")
-
-    # 4. Record the LMS link. organization_id is NOT NULL on lms_integrations
-    # since the H1 audit; tie the integration to the org the registration is
-    # mapped to so cross-org lookups don't bleed.
-    supabase.table("lms_integrations").insert(
-        {
-            "user_id": user_id,
-            "lms_platform": "canvas",
-            "lms_user_id": canvas_user_id,
-            "organization_id": registration.organization_id,
-            "sync_enabled": True,
-            "sync_status": "active",
-        }
-    ).execute()
-
-    return user_id
 
 
 # ---------------------------------------------------------------------------

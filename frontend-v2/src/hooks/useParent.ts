@@ -34,23 +34,31 @@ export interface ParentDashboardData {
 
 export function useMyChildren() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  // Key on user id so masquerade swaps (superadmin → demo parent → back)
+  // trigger a refetch; otherwise the list stays frozen to whichever account
+  // was active on mount.
+  const userId = useAuthStore((s) => s.user?.id);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const { data } = await api.get('/api/dependents/my-dependents');
+        if (cancelled) return;
         const deps = data.dependents || data || [];
         setChildren(deps);
       } catch {
-        setChildren([]);
+        if (!cancelled) setChildren([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [isAuthenticated]);
+    return () => { cancelled = true; };
+  }, [isAuthenticated, userId]);
 
   return { children, loading };
 }

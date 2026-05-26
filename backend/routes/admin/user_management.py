@@ -581,33 +581,27 @@ def upload_user_avatar(user_id, target_user_id):
         file_extension = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else 'jpg'
         unique_filename = f"avatars/{target_user_id}/{uuid.uuid4()}.{file_extension}"
 
-        # Create avatars bucket if it doesn't exist
-        try:
-            supabase.storage.create_bucket('avatars', {'public': True})
-        except Exception:
-            logger.debug("avatars bucket create skipped (likely exists)", exc_info=True)
-
         # Delete old avatar if exists
         user_result = supabase.table('users').select('avatar_url').eq('id', target_user_id).single().execute()
         if user_result.data and user_result.data.get('avatar_url'):
             old_url = user_result.data['avatar_url']
             # Extract path from URL if it's a Supabase storage URL
-            if '/storage/v1/object/public/avatars/' in old_url:
-                old_path = old_url.split('/storage/v1/object/public/avatars/')[1]
+            if '/storage/v1/object/public/user-uploads/' in old_url:
+                old_path = old_url.split('/storage/v1/object/public/user-uploads/')[1]
                 try:
-                    supabase.storage.from_('avatars').remove([old_path])
+                    supabase.storage.from_('user-uploads').remove([old_path])
                 except Exception:
                     logger.debug("avatar old file delete failed (non-fatal)", exc_info=True)
 
         # Upload new avatar
-        upload_response = supabase.storage.from_('avatars').upload(
+        upload_response = supabase.storage.from_('user-uploads').upload(
             path=unique_filename,
             file=file_content,
             file_options={"content-type": mime_type}
         )
 
         # Get public URL
-        avatar_url = supabase.storage.from_('avatars').get_public_url(unique_filename)
+        avatar_url = supabase.storage.from_('user-uploads').get_public_url(unique_filename)
 
         # Update user's avatar_url
         update_result = supabase.table('users').update({

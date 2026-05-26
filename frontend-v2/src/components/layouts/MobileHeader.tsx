@@ -4,13 +4,12 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, Platform, useWindowDimensions, Modal, ActivityIndicator, Image } from 'react-native';
+import { View, Pressable, Platform, useWindowDimensions, Modal, ActivityIndicator, Image, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
-import { useDemoModeStore } from '@/src/stores/demoModeStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { api } from '@/src/services/api';
 
@@ -34,10 +33,9 @@ function PreviewRolePill() {
   const user = useAuthStore((s) => s.user);
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
-  const demoMode = useDemoModeStore((s) => s.demoMode);
 
-  // Hide in demo mode — this pill is superadmin-only debug chrome.
-  if (demoMode) return null;
+  // Only superadmin sees the pill — and when masquerading the user.role is
+  // the target's role, so it hides automatically without needing a flag.
   if (user?.role !== 'superadmin' || !previewRole) return null;
 
   return (
@@ -78,8 +76,6 @@ function AvatarMenu() {
   const { user, logout } = useAuthStore();
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
-  const demoMode = useDemoModeStore((s) => s.demoMode);
-  const setDemoMode = useDemoModeStore((s) => s.setDemoMode);
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -90,14 +86,24 @@ function AvatarMenu() {
 
   const startMasquerade = useActingAsStore((s) => s.startMasquerade);
   const stopMasquerade = useActingAsStore((s) => s.stopMasquerade);
+  const restoreActingAs = useActingAsStore((s) => s.restore);
   const actingMode = useActingAsStore((s) => s.mode);
   const actingActive = useActingAsStore((s) => s.isActive);
   const [demoAccounts, setDemoAccounts] = useState<DemoAccount[] | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
 
-  // Fetch demo accounts when picker becomes relevant (superadmin + demoMode + menu open).
+  // When the menu opens, recheck masquerade state. Native zustand stores
+  // reset on Metro reload / app restart, so this is the cheapest place to
+  // re-hydrate from the masquerade-status endpoint if state was lost.
   useEffect(() => {
-    if (!isSuperadmin || !demoMode || !menuOpen) return;
+    if (menuOpen) {
+      Promise.resolve(restoreActingAs()).catch(() => { /* no-op */ });
+    }
+  }, [menuOpen, restoreActingAs]);
+
+  // Fetch demo accounts when the picker becomes relevant (superadmin + menu open).
+  useEffect(() => {
+    if (!isSuperadmin || !menuOpen) return;
     if (demoAccounts !== null) return;
     let cancelled = false;
     setDemoLoading(true);
@@ -112,7 +118,7 @@ function AvatarMenu() {
         if (!cancelled) setDemoLoading(false);
       });
     return () => { cancelled = true; };
-  }, [isSuperadmin, demoMode, menuOpen, demoAccounts]);
+  }, [isSuperadmin, menuOpen, demoAccounts]);
 
   const handlePickDemo = async (accountId: string) => {
     setMenuOpen(false);
@@ -142,6 +148,17 @@ function AvatarMenu() {
       label: 'Family Dashboard',
       icon: 'people-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => { setMenuOpen(false); router.push('/(app)/(tabs)/family' as any); },
+    }, {
+      key: 'add-child',
+      label: 'Add a child',
+      icon: 'person-add-outline' as keyof typeof Ionicons.glyphMap,
+      onPress: () => {
+        setMenuOpen(false);
+        Alert.alert(
+          'Add a child',
+          'Adding a new dependent or connecting to an existing student is currently available on the web app. Visit your Family Settings on web to add a child.',
+        );
+      },
     }] : []),
     {
       key: 'logout',
@@ -262,41 +279,16 @@ function AvatarMenu() {
                   </Pressable>
                 )}
 
-                {/* Demo mode toggle (superadmin only). Hides admin/debug chrome
-                    so screenshots for the App Store / Play Store reflect what
-                    a real user sees. See src/stores/demoModeStore.ts. */}
+                {/* Demo-account picker. Superadmin always sees this; tapping
+                    a row masquerades as that account. Once masqueraded the
+                    user is no longer superadmin so this whole section hides
+                    automatically (clean for screenshots). */}
                 <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
                   <UIText size="xs" style={{ color: '#9CA3AF', fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                    Screenshot tools
+                    Demo accounts
                   </UIText>
                 </View>
-                <Pressable
-                  onPress={() => setDemoMode(!demoMode)}
-                  style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: demoMode ? '#6D469B0F' : 'transparent' }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <Ionicons name="camera-outline" size={18} color={demoMode ? '#6D469B' : '#6B6280'} />
-                    <UIText size="sm" style={{ color: demoMode ? '#6D469B' : '#1F2937', fontFamily: demoMode ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
-                      Demo mode {demoMode ? 'on' : 'off'}
-                    </UIText>
-                    {demoMode && (
-                      <Ionicons name="checkmark" size={16} color="#6D469B" style={{ marginLeft: 'auto' }} />
-                    )}
-                  </View>
-                </Pressable>
-
-                {/* Demo-account picker: view-as a seeded demo user via masquerade.
-                    Only visible to superadmin while demo mode is on; once masqueraded,
-                    isSuperadmin becomes false so all chrome (this picker, demo toggle,
-                    preview pill, acting-as banner) disappears for screenshots. */}
-                {demoMode && (
-                  <>
-                    <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 2 }}>
-                      <UIText size="xs" style={{ color: '#9CA3AF', fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                        View as demo account
-                      </UIText>
-                    </View>
-                    {demoLoading && (
+                {demoLoading && (
                       <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                         <ActivityIndicator size="small" color="#6D469B" />
                         <UIText size="sm" style={{ color: '#6B6280' }}>Loading…</UIText>
@@ -349,16 +341,16 @@ function AvatarMenu() {
                         </Pressable>
                       );
                     })}
-                  </>
-                )}
 
                 <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4 }} />
               </>
             )}
 
-            {/* While masquerading in demo mode, the acting-as banner is hidden
-                (no chrome in screenshots), so surface an exit path here. */}
-            {actingActive && actingMode === 'masquerade' && demoMode && (
+            {/* Sole exit path while masquerading — the acting-as banner is
+                hidden in this mode (it would clutter screenshots), and once
+                the user is viewing as the demo account they're no longer
+                superadmin, so the demo toggle is gone too. */}
+            {actingActive && actingMode === 'masquerade' && (
               <Pressable
                 onPress={async () => {
                   setMenuOpen(false);

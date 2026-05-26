@@ -177,6 +177,12 @@ def delete_existing_demo(sb: Client) -> None:
     # advisor_student_assignments
     sb.table("advisor_student_assignments").delete().in_("advisor_id", ids).execute()
     sb.table("advisor_student_assignments").delete().in_("student_id", ids).execute()
+    # parent_student_links (sarah → kids)
+    sb.table("parent_student_links").delete().in_("parent_user_id", ids).execute()
+    sb.table("parent_student_links").delete().in_("student_user_id", ids).execute()
+    # observer_student_links (linda → kids)
+    sb.table("observer_student_links").delete().in_("observer_id", ids).execute()
+    sb.table("observer_student_links").delete().in_("student_id", ids).execute()
     # public.users gets removed via auth.admin.delete_user cascade in next step
     # but we also remove manually as a safety net.
     sb.table("users").delete().in_("id", ids).execute()
@@ -232,6 +238,32 @@ def link_observer(sb: Client, advisor_id: str, student_id: str) -> None:
     }).execute()
 
 
+def link_parent_student(sb: Client, parent_id: str, student_id: str) -> None:
+    """Wire a parent → independent-student link so the Family tab sees the kid."""
+    sb.table("parent_student_links").insert({
+        "parent_user_id": parent_id,
+        "student_user_id": student_id,
+        "status": "approved",
+        "admin_verified": True,
+    }).execute()
+
+
+def link_observer_student(sb: Client, observer_id: str, student_id: str, invited_by_parent_id: str | None = None) -> None:
+    """Wire an observer (role='observer') → student link so the observer feed populates.
+
+    Note: advisor_student_assignments is for advisors/superadmins; observers
+    must be in observer_student_links instead (the feed endpoint pulls each
+    role from its own table).
+    """
+    payload = {
+        "observer_id": observer_id,
+        "student_id": student_id,
+    }
+    if invited_by_parent_id:
+        payload["invited_by_parent_id"] = invited_by_parent_id
+    sb.table("observer_student_links").insert(payload).execute()
+
+
 # ── Quest / task / completion seeding ─────────────────────────────────────────
 
 def start_quest(sb: Client, user_id: str, quest_id: str, days_ago: int, completed: bool = False) -> str:
@@ -281,7 +313,7 @@ def add_task(sb: Client, user_id: str, quest_id: str, user_quest_id: str,
         "quest_id": quest_id,
         "task_id": task_id,
         "user_quest_task_id": task_id,
-        "evidence_text": f"Wrapped up {title.lower()}. Notes in the journal.",
+        "evidence_text": f"Wrapped up {title.lower()}.",
         "completed_at": completed_at.isoformat(),
         "diploma_status": "finalized",
         "finalized_at": completed_at.isoformat(),
@@ -292,21 +324,36 @@ def add_task(sb: Client, user_id: str, quest_id: str, user_quest_id: str,
 # ── Learning moments (engagement-calendar fill) ───────────────────────────────
 
 MOMENT_TEMPLATES = [
-    ("Started a new sketchbook", ["art"], "art"),
-    ("Built a paper-circuit greeting card", ["stem", "art"], "art"),
-    ("Hiked Mt Pico with the family", ["wellness", "civics"], "nature"),
-    ("Tried a new pasta recipe", ["wellness"], "cooking"),
-    ("Finished chapter 4 of Ender's Game", ["communication"], "reading"),
-    ("Wrote a journal entry about the field trip", ["communication"], "writing"),
-    ("Debugged my first React Native app", ["stem"], "coding"),
-    ("Volunteered at the food drive", ["civics"], "civics"),
-    ("Sketched the bug we found in the garden", ["art", "stem"], "art"),
-    ("Practiced piano scales for 20 min", ["art", "wellness"], "music"),
-    ("Watched a documentary on coral reefs", ["stem"], "nature"),
-    ("Cooked dinner for the family", ["wellness", "communication"], "cooking"),
-    ("Ran 2 miles", ["wellness"], "sports"),
-    ("Read a section of the Federalist Papers", ["civics", "communication"], "reading"),
-    ("Built a small lego bridge that held 3 books", ["stem"], "science"),
+    ("Started a new sketchbook", ["art"], "art",
+     "Bought a fresh sketchbook today. The blank pages feel intimidating but exciting."),
+    ("Built a paper-circuit greeting card", ["stem", "art"], "art",
+     "Made a card with an LED that lights up when you open it. Took three tries to get the copper tape lined up right."),
+    ("Hiked Mt Pico with the family", ["wellness", "civics"], "nature",
+     "Made it to the top in just under two hours. The view of the lake was worth the burning calves."),
+    ("Tried a new pasta recipe", ["wellness"], "cooking",
+     "Tried the lemon-garlic pasta from the cookbook Mom got me. Way easier than I thought."),
+    ("Finished chapter 4 of Ender's Game", ["communication"], "reading",
+     "Battle School training scenes are intense. Card writes the kids like adults and somehow it works."),
+    ("Wrote a journal entry about the field trip", ["communication"], "writing",
+     "Wrote about the museum visit. Tried to capture how the planetarium felt without using cheesy words."),
+    ("Debugged my first React Native app", ["stem"], "coding",
+     "Found a typo that had been breaking the build for an hour. Felt amazing once it ran."),
+    ("Volunteered at the food drive", ["civics"], "civics",
+     "Sorted canned goods at the church for three hours. More families came through than I expected."),
+    ("Sketched the bug we found in the garden", ["art", "stem"], "art",
+     "Drew the praying mantis from the tomato plant. Spent extra time on the wing veins."),
+    ("Practiced piano scales for 20 min", ["art", "wellness"], "music",
+     "Worked on C minor harmonic. Fingering still feels weird going down but I'm getting smoother."),
+    ("Watched a documentary on coral reefs", ["stem"], "nature",
+     "The bleaching footage was hard to watch but the recovery research gave me a little hope."),
+    ("Cooked dinner for the family", ["wellness", "communication"], "cooking",
+     "Made stir-fry from scratch. Burned the garlic a little but everyone ate seconds."),
+    ("Ran 2 miles", ["wellness"], "sports",
+     "Pushed through the third hill without walking for the first time. Slow, but I didn't stop."),
+    ("Read a section of the Federalist Papers", ["civics", "communication"], "reading",
+     "Started number 10 today. Madison's writing is dense but it clicks once I slow down."),
+    ("Built a small lego bridge that held 3 books", ["stem"], "science",
+     "Tested arch vs truss designs. The truss held more weight by a lot."),
 ]
 
 
@@ -320,13 +367,13 @@ def seed_moments(sb: Client, user_id: str, count: int = 25) -> None:
         if days_back in dates_used:
             continue
         dates_used.add(days_back)
-        title, pillars, image_key = random.choice(MOMENT_TEMPLATES)
+        title, pillars, image_key, reflection = random.choice(MOMENT_TEMPLATES)
         event_date = now - timedelta(days=days_back)
 
         r = sb.table("learning_events").insert({
             "user_id": user_id,
             "title": title,
-            "description": f"{title}. A small moment worth saving.",
+            "description": reflection,
             "pillars": pillars,
             "source_type": "realtime",
             "event_date": event_date.date().isoformat(),
@@ -437,11 +484,17 @@ def main() -> None:
         ids[spec["key"]] = create_user(sb, spec)
 
     print("\n[3/6] Setting up observer relationships…")
-    link_observer(sb, ids["sarah"], ids["maya"])
-    link_observer(sb, ids["sarah"], ids["jacob"])
-    link_observer(sb, ids["sarah"], ids["emma"])
-    link_observer(sb, ids["linda"], ids["jacob"])
-    link_observer(sb, ids["linda"], ids["emma"])
+    # Family tab on Sarah's parent view reads from parent_student_links
+    # (independent students linked to a parent), NOT from advisor_student_assignments.
+    link_parent_student(sb, ids["sarah"], ids["maya"])
+    link_parent_student(sb, ids["sarah"], ids["jacob"])
+    link_parent_student(sb, ids["sarah"], ids["emma"])
+
+    # Linda is the grandma (role='observer') — her observer feed reads from
+    # observer_student_links. Connect her to all 3 kids.
+    link_observer_student(sb, ids["linda"], ids["maya"],  ids["sarah"])
+    link_observer_student(sb, ids["linda"], ids["jacob"], ids["sarah"])
+    link_observer_student(sb, ids["linda"], ids["emma"],  ids["sarah"])
     print("  ✔ Sarah observes Maya, Jacob, Emma")
     print("  ✔ Linda observes Jacob, Emma")
 
