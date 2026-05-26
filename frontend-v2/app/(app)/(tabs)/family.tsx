@@ -43,137 +43,77 @@ function calculateAge(dateOfBirth: string | null | undefined): number | null {
   return age;
 }
 
-// ── Child Header (avatar + name + chevron, opens bottom sheet for switching) ──
+// ── Child Header (horizontal avatar row, tap to switch) ──
 
-function ChildHeader({ children, selectedId, onSelect, attentionByChildId, onAddChild }: {
+function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
   children: any[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   attentionByChildId?: Record<string, boolean>;
-  onAddChild?: () => void;
 }) {
-  const [sheetOpen, setSheetOpen] = useState(false);
   const selected = children.find((c) => c.id === selectedId);
   if (!selected) return null;
-
-  const hasMultiple = children.length > 1;
-  const selectedInitials = `${selected.first_name?.[0] || ''}${selected.last_name?.[0] || ''}`.toUpperCase();
+  // Single-kid families don't need the switcher.
+  if (children.length < 2) return null;
 
   return (
     <>
-      <Pressable
-        onPress={hasMultiple ? () => setSheetOpen(true) : undefined}
-        disabled={!hasMultiple}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          paddingVertical: 4,
-        }}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingVertical: 6, gap: 14 }}
       >
-        <Avatar size="md">
-          {selected.avatar_url ? (
-            <AvatarImage source={{ uri: selected.avatar_url }} />
-          ) : (
-            <AvatarFallbackText>{selectedInitials}</AvatarFallbackText>
-          )}
-        </Avatar>
-        <UIText size="lg" style={{ fontFamily: 'Poppins_600SemiBold', flex: 1 }} numberOfLines={1}>
-          {selected.first_name} {selected.last_name}
-        </UIText>
-        {hasMultiple && <Ionicons name="chevron-down" size={20} color="#6B7280" />}
-      </Pressable>
-
-      <BottomSheet visible={sheetOpen} onClose={() => setSheetOpen(false)}>
-        <VStack space="md">
-          <HStack className="items-center justify-between">
-            <Heading size="lg">My family</Heading>
-            <Pressable onPress={() => setSheetOpen(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-              <Ionicons name="close" size={18} color="#6B7280" />
-            </Pressable>
-          </HStack>
-          <VStack space="xs">
-            {children.map((child) => {
-              const age = calculateAge(child.date_of_birth);
-              const isUnder13 = age !== null && age < 13;
-              const childInitials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase();
-              const isSelected = child.id === selectedId;
-              const needsAttention = attentionByChildId?.[child.id] === true;
-              return (
-                <Pressable
-                  key={child.id}
-                  onPress={() => { onSelect(child.id); setSheetOpen(false); }}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    paddingHorizontal: 8,
-                    paddingVertical: 10,
-                    backgroundColor: isSelected ? '#6D469B0F' : 'transparent',
-                    borderRadius: 12,
-                  }}
-                >
-                  <View>
-                    <Avatar size="md">
-                      {child.avatar_url ? (
-                        <AvatarImage source={{ uri: child.avatar_url }} />
-                      ) : (
-                        <AvatarFallbackText>{childInitials}</AvatarFallbackText>
-                      )}
-                    </Avatar>
-                    {needsAttention && (
-                      <View style={{
-                        position: 'absolute', top: -2, right: -2,
-                        width: 12, height: 12, borderRadius: 6,
-                        backgroundColor: '#EF597B',
-                        borderWidth: 2, borderColor: '#FFFFFF',
-                      }} />
-                    )}
-                  </View>
-                  <VStack className="flex-1 min-w-0">
-                    <HStack className="items-center gap-2">
-                      <UIText size="md" style={{ fontFamily: 'Poppins_600SemiBold' }} numberOfLines={1}>
-                        {child.first_name} {child.last_name}
-                      </UIText>
-                      {isUnder13 && (
-                        <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
-                          <UIText size="xs" style={{ color: '#1D4ED8', fontFamily: 'Poppins_600SemiBold' }}>
-                            Under 13
-                          </UIText>
-                        </View>
-                      )}
-                    </HStack>
-                  </VStack>
-                  {isSelected && <Ionicons name="checkmark" size={18} color="#6D469B" />}
-                </Pressable>
-              );
-            })}
-          </VStack>
-
-          {onAddChild && (
+        {children.map((child) => {
+          const isSelected = child.id === selectedId;
+          const needsAttention = attentionByChildId?.[child.id] === true;
+          const childInitials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase();
+          return (
             <Pressable
-              onPress={() => { setSheetOpen(false); onAddChild(); }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
-                paddingHorizontal: 8,
-                paddingVertical: 12,
-                borderTopWidth: 1,
-                borderTopColor: '#F1EDF5',
-                marginTop: 4,
-              }}
+              key={child.id}
+              onPress={() => onSelect(child.id)}
+              style={{ alignItems: 'center', width: 64 }}
             >
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="add" size={20} color="#6D469B" />
+              <View
+                style={{
+                  padding: 2,
+                  borderRadius: 999,
+                  borderWidth: 2,
+                  borderColor: isSelected ? '#6D469B' : 'transparent',
+                }}
+              >
+                <Avatar size="md">
+                  {child.avatar_url ? (
+                    <AvatarImage source={{ uri: child.avatar_url }} />
+                  ) : (
+                    <AvatarFallbackText>{childInitials}</AvatarFallbackText>
+                  )}
+                </Avatar>
+                {needsAttention && (
+                  <View
+                    style={{
+                      position: 'absolute', top: 0, right: 0,
+                      width: 12, height: 12, borderRadius: 6,
+                      backgroundColor: '#EF597B',
+                      borderWidth: 2, borderColor: '#FFFFFF',
+                    }}
+                  />
+                )}
               </View>
-              <UIText size="md" style={{ color: '#6D469B', fontFamily: 'Poppins_600SemiBold' }}>
-                Add a child
+              <UIText
+                size="xs"
+                style={{
+                  marginTop: 4,
+                  color: isSelected ? '#6D469B' : '#1F2937',
+                  fontFamily: isSelected ? 'Poppins_600SemiBold' : 'Poppins_500Medium',
+                }}
+                numberOfLines={1}
+              >
+                {child.first_name}
               </UIText>
             </Pressable>
-          )}
-        </VStack>
-      </BottomSheet>
+          );
+        })}
+      </ScrollView>
     </>
   );
 }
@@ -277,9 +217,13 @@ export default function ParentDashboardPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Auto-select first child
+  // Auto-select first child. Also reset if the current selectedId no longer
+  // matches any child — happens after a masquerade swap when the kids list
+  // changes under us, otherwise selectedChild stays null and the page hangs.
   useEffect(() => {
-    if (children.length > 0 && !selectedId) {
+    if (children.length === 0) return;
+    const stillValid = !!selectedId && children.some((c) => c.id === selectedId);
+    if (!stillValid) {
       setSelectedId(children[0].id);
     }
   }, [children, selectedId]);
@@ -573,10 +517,6 @@ export default function ParentDashboardPage() {
             children={children}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onAddChild={() => Alert.alert(
-              'Add a child',
-              'Adding a new dependent or connecting to an existing student is currently available on the web app. Visit your Family Settings on web to add a child.',
-            )}
           />
 
           {/* FERPA visibility approvals banner */}

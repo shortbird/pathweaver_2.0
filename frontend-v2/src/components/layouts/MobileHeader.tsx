@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, Platform, useWindowDimensions, Modal, ActivityIndicator, Image } from 'react-native';
+import { View, Pressable, Platform, useWindowDimensions, Modal, ActivityIndicator, Image, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -90,10 +90,20 @@ function AvatarMenu() {
 
   const startMasquerade = useActingAsStore((s) => s.startMasquerade);
   const stopMasquerade = useActingAsStore((s) => s.stopMasquerade);
+  const restoreActingAs = useActingAsStore((s) => s.restore);
   const actingMode = useActingAsStore((s) => s.mode);
   const actingActive = useActingAsStore((s) => s.isActive);
   const [demoAccounts, setDemoAccounts] = useState<DemoAccount[] | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
+
+  // When the menu opens, recheck masquerade state. Native zustand stores
+  // reset on Metro reload / app restart, so this is the cheapest place to
+  // re-hydrate from the masquerade-status endpoint if state was lost.
+  useEffect(() => {
+    if (menuOpen) {
+      Promise.resolve(restoreActingAs()).catch(() => { /* no-op */ });
+    }
+  }, [menuOpen, restoreActingAs]);
 
   // Fetch demo accounts when picker becomes relevant (superadmin + demoMode + menu open).
   useEffect(() => {
@@ -142,6 +152,17 @@ function AvatarMenu() {
       label: 'Family Dashboard',
       icon: 'people-outline' as keyof typeof Ionicons.glyphMap,
       onPress: () => { setMenuOpen(false); router.push('/(app)/(tabs)/family' as any); },
+    }, {
+      key: 'add-child',
+      label: 'Add a child',
+      icon: 'person-add-outline' as keyof typeof Ionicons.glyphMap,
+      onPress: () => {
+        setMenuOpen(false);
+        Alert.alert(
+          'Add a child',
+          'Adding a new dependent or connecting to an existing student is currently available on the web app. Visit your Family Settings on web to add a child.',
+        );
+      },
     }] : []),
     {
       key: 'logout',
@@ -271,7 +292,17 @@ function AvatarMenu() {
                   </UIText>
                 </View>
                 <Pressable
-                  onPress={() => setDemoMode(!demoMode)}
+                  onPress={async () => {
+                    const next = !demoMode;
+                    setDemoMode(next);
+                    // Turning demo mode OFF while masquerading should clean up
+                    // the masquerade too — otherwise the user is left logged
+                    // in as the demo account with no obvious exit path.
+                    if (!next && actingActive && actingMode === 'masquerade') {
+                      setMenuOpen(false);
+                      try { await stopMasquerade(); } catch { /* no-op */ }
+                    }
+                  }}
                   style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: demoMode ? '#6D469B0F' : 'transparent' }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -356,9 +387,11 @@ function AvatarMenu() {
               </>
             )}
 
-            {/* While masquerading in demo mode, the acting-as banner is hidden
-                (no chrome in screenshots), so surface an exit path here. */}
-            {actingActive && actingMode === 'masquerade' && demoMode && (
+            {/* Sole exit path while masquerading — the acting-as banner is
+                hidden in this mode (it would clutter screenshots), and once
+                the user is viewing as the demo account they're no longer
+                superadmin, so the demo toggle is gone too. */}
+            {actingActive && actingMode === 'masquerade' && (
               <Pressable
                 onPress={async () => {
                   setMenuOpen(false);
