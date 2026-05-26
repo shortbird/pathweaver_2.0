@@ -83,6 +83,11 @@ def create_quest_v3_clean(user_id):
     try:
         data = request.json
         logger.info(f"Received quest data: {json.dumps(data, indent=2)}")
+        # Explicit material_link trace — there's a recurring report of this field
+        # going missing on save. Logging the raw payload value (not the trimmed
+        # one) makes it easy to distinguish "client never sent it" from
+        # "server normalized it away."
+        logger.info(f"CREATE QUEST material_link payload: {data.get('material_link')!r} (type={type(data.get('material_link')).__name__})")
 
         # Validate required fields
         if not data.get('title'):
