@@ -12,22 +12,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { useAuthStore } from '@/src/stores/authStore';
-import { useDemoModeStore } from '@/src/stores/demoModeStore';
 import { UIText } from '../ui/text';
 
 export function ActingAsBanner() {
   const { target, isActive, mode, switching, stopActingAs, stopMasquerade } = useActingAsStore();
   const user = useAuthStore((s) => s.user);
-  const demoMode = useDemoModeStore((s) => s.demoMode);
   const insets = useSafeAreaInsets();
 
   if (!isActive || !target) return null;
   // Banner is hidden during masquerade entirely — superadmin uses the avatar
-  // menu's demo controls (and "Exit demo view") to switch back, so the red
-  // bar would only clutter screenshots without adding a useful exit path.
-  // We still show it for legit parent → dependent acting-as.
+  // menu's "Exit demo view" item to switch back, so the red bar would only
+  // clutter screenshots without adding a useful exit path. We still show it
+  // for legit parent → dependent acting-as.
   if (mode === 'masquerade') return null;
-  if (demoMode) return null;
 
   // Prefer target store data, fall back to authStore user (populated after page reload)
   const displayName =

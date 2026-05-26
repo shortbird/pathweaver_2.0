@@ -180,6 +180,9 @@ def delete_existing_demo(sb: Client) -> None:
     # parent_student_links (sarah → kids)
     sb.table("parent_student_links").delete().in_("parent_user_id", ids).execute()
     sb.table("parent_student_links").delete().in_("student_user_id", ids).execute()
+    # observer_student_links (linda → kids)
+    sb.table("observer_student_links").delete().in_("observer_id", ids).execute()
+    sb.table("observer_student_links").delete().in_("student_id", ids).execute()
     # public.users gets removed via auth.admin.delete_user cascade in next step
     # but we also remove manually as a safety net.
     sb.table("users").delete().in_("id", ids).execute()
@@ -243,6 +246,22 @@ def link_parent_student(sb: Client, parent_id: str, student_id: str) -> None:
         "status": "approved",
         "admin_verified": True,
     }).execute()
+
+
+def link_observer_student(sb: Client, observer_id: str, student_id: str, invited_by_parent_id: str | None = None) -> None:
+    """Wire an observer (role='observer') → student link so the observer feed populates.
+
+    Note: advisor_student_assignments is for advisors/superadmins; observers
+    must be in observer_student_links instead (the feed endpoint pulls each
+    role from its own table).
+    """
+    payload = {
+        "observer_id": observer_id,
+        "student_id": student_id,
+    }
+    if invited_by_parent_id:
+        payload["invited_by_parent_id"] = invited_by_parent_id
+    sb.table("observer_student_links").insert(payload).execute()
 
 
 # ── Quest / task / completion seeding ─────────────────────────────────────────
@@ -465,17 +484,17 @@ def main() -> None:
         ids[spec["key"]] = create_user(sb, spec)
 
     print("\n[3/6] Setting up observer relationships…")
-    link_observer(sb, ids["sarah"], ids["maya"])
-    link_observer(sb, ids["sarah"], ids["jacob"])
-    link_observer(sb, ids["sarah"], ids["emma"])
-    link_observer(sb, ids["linda"], ids["jacob"])
-    link_observer(sb, ids["linda"], ids["emma"])
-
     # Family tab on Sarah's parent view reads from parent_student_links
     # (independent students linked to a parent), NOT from advisor_student_assignments.
     link_parent_student(sb, ids["sarah"], ids["maya"])
     link_parent_student(sb, ids["sarah"], ids["jacob"])
     link_parent_student(sb, ids["sarah"], ids["emma"])
+
+    # Linda is the grandma (role='observer') — her observer feed reads from
+    # observer_student_links. Connect her to all 3 kids.
+    link_observer_student(sb, ids["linda"], ids["maya"],  ids["sarah"])
+    link_observer_student(sb, ids["linda"], ids["jacob"], ids["sarah"])
+    link_observer_student(sb, ids["linda"], ids["emma"],  ids["sarah"])
     print("  ✔ Sarah observes Maya, Jacob, Emma")
     print("  ✔ Linda observes Jacob, Emma")
 
