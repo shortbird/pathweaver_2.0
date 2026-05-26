@@ -212,7 +212,7 @@ import pytest as _pytest
     ],
 )
 def test_is_valid_email(value, valid):
-    from routes.lti.launch import _is_valid_email
+    from services.lti_service import _is_valid_email
 
     assert _is_valid_email(value) is valid
 
@@ -220,7 +220,7 @@ def test_is_valid_email(value, valid):
 def _chain_mock(execute_data):
     """Build a Supabase query-builder mock whose terminal .execute() returns
     an object with `.data == execute_data`. Every intermediate builder call
-    (.table/.select/.eq/.limit/.insert/.update) returns the same mock."""
+    (.table/.select/.eq/.limit/.insert/.update/.delete) returns the same mock."""
     from unittest.mock import MagicMock
 
     m = MagicMock()
@@ -228,6 +228,7 @@ def _chain_mock(execute_data):
     m.select.return_value = m
     m.insert.return_value = m
     m.update.return_value = m
+    m.delete.return_value = m
     m.eq.return_value = m
     m.limit.return_value = m
     m.execute.return_value = MagicMock(data=execute_data)
@@ -238,7 +239,7 @@ def test_provision_synthesizes_email_for_canvas_student_view(monkeypatch):
     """Canvas Student View sends sub but a malformed email. We must NOT call
     create_user with the bad email, NOT email-merge, and the synthetic
     address must be deterministic + format-valid."""
-    from routes.lti import launch as launch_mod
+    from services import lti_service
 
     supabase = _chain_mock([])  # no existing lms_integrations / users rows
     created = {}
@@ -250,7 +251,7 @@ def test_provision_synthesizes_email_for_canvas_student_view(monkeypatch):
         return MagicMock(user=MagicMock(id="new-user-uuid"))
 
     supabase.auth.admin.create_user.side_effect = _create_user
-    monkeypatch.setattr(launch_mod, "get_supabase_admin_client", lambda: supabase)
+    monkeypatch.setattr(lti_service, "get_supabase_admin_client", lambda: supabase)
 
     registration = type("R", (), {"organization_id": "org-123"})()
     claims = {
@@ -260,13 +261,158 @@ def test_provision_synthesizes_email_for_canvas_student_view(monkeypatch):
         "family_name": "Student",
     }
 
-    user_id = launch_mod._provision_lti_user(claims, registration)
+    user_id = lti_service.provision_lti_user(claims, registration)
 
     assert user_id == "new-user-uuid"
     # Synthetic, deterministic, format-valid; the garbage email was discarded.
     assert created["email"] == (
         "canvas-856b18e6-ee6c-4d8f-a68e-9f64d9ceba38@lti.optioeducation.com"
     )
-    from routes.lti.launch import _is_valid_email
+    from services.lti_service import _is_valid_email
 
     assert _is_valid_email(created["email"]) is True
+
+
+# ---------------------------------------------------------------------------
+# Deferred-creation flow: student-role Resource Link launches must not
+# create a `users` row until the student clicks "Enter Optio" (which is
+# what triggers /lti/token). This prevents shadow accounts from accumulating
+# when Canvas auto-loads the iframe (e.g. course-nav tile).
+# ---------------------------------------------------------------------------
+
+
+def test_issue_auth_code_requires_exactly_one_subject(monkeypatch):
+    """The DB has a CHECK constraint, but we also guard at the API level so
+    callers get a clear ValueError instead of a Postgres 5xx."""
+    from services import lti_service
+
+    monkeypatch.setattr(
+        lti_service, "get_supabase_admin_client", lambda: _chain_mock([])
+    )
+
+    with _pytest.raises(ValueError):
+        lti_service.issue_auth_code()  # neither
+    with _pytest.raises(ValueError):
+        lti_service.issue_auth_code(user_id="u-1", pending_launch_id="p-1")  # both
+
+
+def test_token_exchange_materializes_user_from_pending_launch(client, monkeypatch):
+    """Hitting /lti/token with a code that references a pending launch
+    (NOT a user) must:
+      1. Consume the pending row.
+      2. Call provision_lti_user with the stored claims.
+      3. Return Optio Bearer tokens for the freshly-materialized user.
+    Regression for the shadow-account bug: before this change, the user was
+    created at /lti/launch time, so any Canvas-side passive launch left an
+    empty row behind."""
+    from routes.lti import token as token_mod
+    from services import lti_service
+
+    pending_id = "pending-row-uuid"
+    auth_code = "test-auth-code-xyz"
+    claims = {
+        "sub": "canvas-sub-123",
+        "email": "deferred.student@example.com",
+        "given_name": "Deferred",
+        "family_name": "Student",
+    }
+
+    consumed_pending = {"id": pending_id, "registration_id": "reg-1", "claims": claims}
+    provisioned = {}
+
+    def fake_consume_auth_code(code):
+        assert code == auth_code
+        return {
+            "code": code,
+            "user_id": None,
+            "pending_launch_id": pending_id,
+            "quest_id": "quest-42",
+            "target_path": "/lti-quest/quest-42",
+            "used": False,
+        }
+
+    def fake_consume_pending_launch(pid):
+        assert pid == pending_id
+        return consumed_pending
+
+    fake_registration = type(
+        "R",
+        (),
+        {
+            "id": "reg-1",
+            "issuer": "https://canvas.example",
+            "client_id": "cid",
+            "deployment_id": "dep",
+            "organization_id": "org-1",
+            "auth_login_url": "x",
+            "auth_token_url": "x",
+            "public_jwks_url": "x",
+            "is_active": True,
+        },
+    )()
+
+    def fake_load_registration(rid):
+        assert rid == "reg-1"
+        return fake_registration
+
+    def fake_provision_lti_user(c, reg):
+        provisioned["claims"] = c
+        provisioned["registration"] = reg
+        return "materialized-user-uuid"
+
+    monkeypatch.setattr(token_mod, "consume_auth_code", fake_consume_auth_code)
+    monkeypatch.setattr(token_mod, "consume_pending_launch", fake_consume_pending_launch)
+    monkeypatch.setattr(token_mod, "_load_registration", fake_load_registration)
+    monkeypatch.setattr(token_mod, "provision_lti_user", fake_provision_lti_user)
+    # session_manager generates a real signed JWT — that's fine for this test
+    # but we don't want it to actually hit any backing store. The default
+    # implementation is pure JWT mint, so leave it as-is.
+
+    resp = client.post(
+        "/lti/token",
+        data=json.dumps({"code": auth_code}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert body["user_id"] == "materialized-user-uuid"
+    assert body["access_token"]
+    assert body["refresh_token"]
+    assert body["quest_id"] == "quest-42"
+    assert body["target_path"] == "/lti-quest/quest-42"
+    # provision_lti_user was called with the pending claims, not whatever
+    # the request body contained.
+    assert provisioned["claims"]["sub"] == "canvas-sub-123"
+    assert provisioned["registration"].id == "reg-1"
+
+
+def test_token_exchange_rejects_expired_pending_launch(client, monkeypatch):
+    """If the pending row expired between launch and click, /lti/token must
+    return an error and NOT create a user."""
+    from routes.lti import token as token_mod
+
+    monkeypatch.setattr(
+        token_mod,
+        "consume_auth_code",
+        lambda code: {
+            "code": code,
+            "user_id": None,
+            "pending_launch_id": "gone",
+            "target_path": "/dashboard",
+        },
+    )
+    monkeypatch.setattr(token_mod, "consume_pending_launch", lambda pid: None)
+
+    def _must_not_provision(*_a, **_k):
+        raise AssertionError("provision_lti_user must not run when pending is expired")
+
+    monkeypatch.setattr(token_mod, "provision_lti_user", _must_not_provision)
+
+    resp = client.post(
+        "/lti/token",
+        data=json.dumps({"code": "any"}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 401
+    body = resp.get_json() or {}
+    assert "access_token" not in body
