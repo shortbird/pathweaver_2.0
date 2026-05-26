@@ -3,13 +3,26 @@
  * Used at the top of every mobile page. Hidden on desktop (sidebar handles nav).
  */
 
-import React, { useState } from 'react';
-import { View, Pressable, Platform, useWindowDimensions, Modal } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Pressable, Platform, useWindowDimensions, Modal, ActivityIndicator, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
+import { useDemoModeStore } from '@/src/stores/demoModeStore';
+import { useActingAsStore } from '@/src/stores/actingAsStore';
+import { api } from '@/src/services/api';
+
+interface DemoAccount {
+  id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  display_name?: string;
+  role?: string;
+  avatar_url?: string | null;
+}
 
 const PREVIEW_ROLE_LABEL: Record<string, string> = {
   parent: 'Parent',
@@ -21,7 +34,10 @@ function PreviewRolePill() {
   const user = useAuthStore((s) => s.user);
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
+  const demoMode = useDemoModeStore((s) => s.demoMode);
 
+  // Hide in demo mode — this pill is superadmin-only debug chrome.
+  if (demoMode) return null;
   if (user?.role !== 'superadmin' || !previewRole) return null;
 
   return (
@@ -62,6 +78,8 @@ function AvatarMenu() {
   const { user, logout } = useAuthStore();
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
+  const demoMode = useDemoModeStore((s) => s.demoMode);
+  const setDemoMode = useDemoModeStore((s) => s.setDemoMode);
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -69,6 +87,41 @@ function AvatarMenu() {
   const isParent = user?.role === 'parent' || user?.role === 'superadmin' ||
     user?.org_role === 'parent' ||
     (user as any)?.has_dependents || (user as any)?.has_linked_students;
+
+  const startMasquerade = useActingAsStore((s) => s.startMasquerade);
+  const stopMasquerade = useActingAsStore((s) => s.stopMasquerade);
+  const actingMode = useActingAsStore((s) => s.mode);
+  const actingActive = useActingAsStore((s) => s.isActive);
+  const [demoAccounts, setDemoAccounts] = useState<DemoAccount[] | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  // Fetch demo accounts when picker becomes relevant (superadmin + demoMode + menu open).
+  useEffect(() => {
+    if (!isSuperadmin || !demoMode || !menuOpen) return;
+    if (demoAccounts !== null) return;
+    let cancelled = false;
+    setDemoLoading(true);
+    api.get('/api/admin/masquerade/demo-accounts')
+      .then(({ data }) => {
+        if (!cancelled) setDemoAccounts(data.accounts || []);
+      })
+      .catch(() => {
+        if (!cancelled) setDemoAccounts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDemoLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [isSuperadmin, demoMode, menuOpen, demoAccounts]);
+
+  const handlePickDemo = async (accountId: string) => {
+    setMenuOpen(false);
+    try {
+      await startMasquerade(accountId);
+    } catch (err) {
+      console.warn('Failed to view as demo account', err);
+    }
+  };
 
   const handlePreviewSelect = (role: PreviewRole | null) => {
     setMenuOpen(false);
@@ -208,8 +261,118 @@ function AvatarMenu() {
                     </View>
                   </Pressable>
                 )}
+
+                {/* Demo mode toggle (superadmin only). Hides admin/debug chrome
+                    so screenshots for the App Store / Play Store reflect what
+                    a real user sees. See src/stores/demoModeStore.ts. */}
+                <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                  <UIText size="xs" style={{ color: '#9CA3AF', fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                    Screenshot tools
+                  </UIText>
+                </View>
+                <Pressable
+                  onPress={() => setDemoMode(!demoMode)}
+                  style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: demoMode ? '#6D469B0F' : 'transparent' }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Ionicons name="camera-outline" size={18} color={demoMode ? '#6D469B' : '#6B6280'} />
+                    <UIText size="sm" style={{ color: demoMode ? '#6D469B' : '#1F2937', fontFamily: demoMode ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
+                      Demo mode {demoMode ? 'on' : 'off'}
+                    </UIText>
+                    {demoMode && (
+                      <Ionicons name="checkmark" size={16} color="#6D469B" style={{ marginLeft: 'auto' }} />
+                    )}
+                  </View>
+                </Pressable>
+
+                {/* Demo-account picker: view-as a seeded demo user via masquerade.
+                    Only visible to superadmin while demo mode is on; once masqueraded,
+                    isSuperadmin becomes false so all chrome (this picker, demo toggle,
+                    preview pill, acting-as banner) disappears for screenshots. */}
+                {demoMode && (
+                  <>
+                    <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 2 }}>
+                      <UIText size="xs" style={{ color: '#9CA3AF', fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                        View as demo account
+                      </UIText>
+                    </View>
+                    {demoLoading && (
+                      <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <ActivityIndicator size="small" color="#6D469B" />
+                        <UIText size="sm" style={{ color: '#6B6280' }}>Loading…</UIText>
+                      </View>
+                    )}
+                    {!demoLoading && demoAccounts && demoAccounts.length === 0 && (
+                      <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+                        <UIText size="xs" style={{ color: '#9CA3AF' }}>
+                          No demo accounts found. Run scripts/seed_demo_family.py.
+                        </UIText>
+                      </View>
+                    )}
+                    {!demoLoading && demoAccounts && demoAccounts.map((acct) => {
+                      const name = acct.display_name
+                        || `${acct.first_name || ''} ${acct.last_name || ''}`.trim()
+                        || acct.email;
+                      const subtitle = acct.role === 'parent' ? 'Parent'
+                        : acct.role === 'observer' ? 'Observer'
+                        : acct.role === 'student' ? 'Student'
+                        : acct.role || '';
+                      return (
+                        <Pressable
+                          key={acct.id}
+                          onPress={() => handlePickDemo(acct.id)}
+                          style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            {acct.avatar_url ? (
+                              <Image
+                                source={{ uri: acct.avatar_url }}
+                                style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#F1EDF5' }}
+                              />
+                            ) : (
+                              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#F1EDF5', alignItems: 'center', justifyContent: 'center' }}>
+                                <Ionicons name="person" size={14} color="#9A93A8" />
+                              </View>
+                            )}
+                            <View style={{ flex: 1 }}>
+                              <UIText size="sm" style={{ color: '#1F2937' }} className="font-poppins-medium" numberOfLines={1}>
+                                {name}
+                              </UIText>
+                              {subtitle ? (
+                                <UIText size="xs" style={{ color: '#9CA3AF' }} numberOfLines={1}>
+                                  {subtitle}
+                                </UIText>
+                              ) : null}
+                            </View>
+                            <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </>
+                )}
+
                 <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4 }} />
               </>
+            )}
+
+            {/* While masquerading in demo mode, the acting-as banner is hidden
+                (no chrome in screenshots), so surface an exit path here. */}
+            {actingActive && actingMode === 'masquerade' && demoMode && (
+              <Pressable
+                onPress={async () => {
+                  setMenuOpen(false);
+                  try { await stopMasquerade(); } catch { /* no-op */ }
+                }}
+                style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1EDF5' }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Ionicons name="arrow-back" size={18} color="#6D469B" />
+                  <UIText size="sm" style={{ color: '#6D469B' }} className="font-poppins-semibold">
+                    Exit demo view
+                  </UIText>
+                </View>
+              </Pressable>
             )}
 
             {/* Logout */}

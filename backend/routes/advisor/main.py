@@ -283,6 +283,7 @@ def assign_students_to_quest(user_id):
 
         from database import get_supabase_admin_client
         from datetime import datetime
+        from routes.quest_types import get_template_tasks
         # admin client justified: @require_role('advisor', 'org_admin', 'superadmin') gate above; advisor writing user_quests rows for OTHER students requires cross-user write
         admin = get_supabase_admin_client()
 
@@ -294,6 +295,11 @@ def assign_students_to_quest(user_id):
             raise NotFoundError(f"Quest {quest_id} not found")
 
         quest_title = quest.data[0].get('title', 'Quest')
+
+        # Fetch quest template tasks once — copied into user_quest_tasks for each
+        # newly-enrolled student so they see the same tasks the normal enrollment
+        # flow gives self-enrolled students (see routes/quest/enrollment.py).
+        template_tasks = get_template_tasks(quest_id, filter_type='all') or []
 
         # Get existing enrollments to skip duplicates
         existing = admin.table('user_quests')\
@@ -312,7 +318,7 @@ def assign_students_to_quest(user_id):
             if student_id in already_enrolled:
                 continue
 
-            admin.table('user_quests').insert({
+            insert_result = admin.table('user_quests').insert({
                 'user_id': student_id,
                 'quest_id': quest_id,
                 'status': 'picked_up',
@@ -323,7 +329,35 @@ def assign_students_to_quest(user_id):
             }).execute()
             enrolled += 1
 
-        logger.info(f"Advisor {user_id} assigned {enrolled} students to quest {quest_id} (skipped {skipped} already enrolled)")
+            if template_tasks and insert_result.data:
+                user_quest_id = insert_result.data[0]['id']
+                tasks_to_insert = [{
+                    'user_id': student_id,
+                    'quest_id': quest_id,
+                    'user_quest_id': user_quest_id,
+                    'title': t['title'],
+                    'description': t.get('description', ''),
+                    'pillar': t['pillar'],
+                    'xp_value': t.get('xp_value', 100),
+                    'order_index': t.get('order_index', 0),
+                    'is_required': t.get('is_required', False),
+                    'is_manual': False,
+                    'approval_status': 'approved',
+                    'diploma_subjects': t.get('diploma_subjects', ['Electives']),
+                    'subject_xp_distribution': t.get('subject_xp_distribution'),
+                    'source_template_task_id': t.get('id'),
+                    'source_task_id': t.get('id'),
+                } for t in template_tasks]
+
+                try:
+                    admin.table('user_quest_tasks').insert(tasks_to_insert).execute()
+                except Exception as task_err:
+                    logger.error(
+                        f"Error copying template tasks for student {student_id} on quest {quest_id}: {task_err}",
+                        exc_info=True,
+                    )
+
+        logger.info(f"Advisor {user_id} assigned {enrolled} students to quest {quest_id} (skipped {skipped} already enrolled, {len(template_tasks)} template tasks per student)")
 
         return jsonify({
             'success': True,

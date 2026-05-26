@@ -135,7 +135,9 @@
         {
           "photosPermission": "Optio needs access to your photos so you can attach them to learning moments and tasks."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

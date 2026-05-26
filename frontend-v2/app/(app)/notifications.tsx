@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useDemoModeStore } from '@/src/stores/demoModeStore';
 import { useNotifications } from '@/src/hooks/useNotifications';
 import api from '@/src/services/api';
 import {
@@ -159,7 +160,10 @@ export default function NotificationsScreen() {
   const [broadcasting, setBroadcasting] = useState(false);
 
   const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role;
-  const canBroadcast = ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole || '');
+  const demoMode = useDemoModeStore((s) => s.demoMode);
+  // Hide the broadcast (admin/superadmin chrome) button in demo mode so
+  // screenshots show only what a regular user sees.
+  const canBroadcast = !demoMode && ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole || '');
 
   const filtered = filter === 'unread'
     ? notifications.filter(n => !n.is_read)

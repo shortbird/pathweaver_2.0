@@ -9,6 +9,7 @@ import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
+import { useDemoModeStore } from '@/src/stores/demoModeStore';
 import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
@@ -71,14 +72,16 @@ export default function TabsLayout() {
   const isObserver = useIsObserver();
   const isParent = useIsParent();
   const restorePreviewRole = usePreviewRoleStore((s) => s.restore);
+  const restoreDemoMode = useDemoModeStore((s) => s.restore);
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const tabBarHidden = useUIStore((s) => s.tabBarHidden);
 
-  // Restore persisted preview role on first mount (web only)
+  // Restore persisted preview/demo state on first mount (web only)
   useEffect(() => {
     restorePreviewRole();
-  }, [restorePreviewRole]);
+    restoreDemoMode();
+  }, [restorePreviewRole, restoreDemoMode]);
 
   // ── Observer: feed + bounties, minimal chrome ──
   const observerTabs = ['feed', 'bounties'];

@@ -10,7 +10,7 @@ Admin masquerade routes - Allow admins to view platform as other users
 """
 from flask import Blueprint, jsonify, request, make_response
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_admin
+from utils.auth.decorators import require_admin, require_superadmin
 from utils.session_manager import session_manager
 from utils.logger import get_logger
 from middleware.rate_limiter import get_real_ip
@@ -237,6 +237,27 @@ def get_masquerade_history(admin_id):
     except Exception as e:
         logger.error(f"[Masquerade] Error fetching history: {str(e)}")
         return jsonify({'error': 'Failed to fetch masquerade history'}), 500
+
+
+@masquerade_bp.route('/demo-accounts', methods=['GET'])
+@require_superadmin
+def list_demo_accounts(user_id):
+    """
+    List seeded demo accounts (emails matching @optio-demo.example).
+    Superadmin-only — used by the avatar menu demo picker so screenshots
+    can be taken without signing in as each account.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        res = supabase.table('users') \
+            .select('id, email, first_name, last_name, display_name, role, avatar_url') \
+            .like('email', '%@optio-demo.example') \
+            .order('first_name') \
+            .execute()
+        return jsonify({'accounts': res.data or []}), 200
+    except Exception as e:
+        logger.error(f"[Masquerade] Error listing demo accounts: {str(e)}")
+        return jsonify({'error': 'Failed to list demo accounts'}), 500
 
 
 @masquerade_bp.route('/status', methods=['GET'])

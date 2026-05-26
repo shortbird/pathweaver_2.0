@@ -11,13 +11,20 @@ import { View, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useDemoModeStore } from '@/src/stores/demoModeStore';
 import { UIText } from '../ui/text';
 
 export function ActingAsBanner() {
   const { target, isActive, mode, switching, stopActingAs, stopMasquerade } = useActingAsStore();
   const user = useAuthStore((s) => s.user);
+  const demoMode = useDemoModeStore((s) => s.demoMode);
 
   if (!isActive || !target) return null;
+  // Hide the "Acting as" banner in demo mode — when a superadmin is screen-
+  // shotting via masquerade, this banner would expose the chrome we want to
+  // hide. Real users only ever see this when they're a parent acting as
+  // their own kid, which is not a chrome concern.
+  if (demoMode) return null;
 
   // Prefer target store data, fall back to authStore user (populated after page reload)
   const displayName =

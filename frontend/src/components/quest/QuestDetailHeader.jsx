@@ -47,6 +47,10 @@ const QuestDetailHeader = ({
   const [showJourney, setShowJourney] = useState(false);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+
+  const descriptionText = stripHtml(quest?.big_idea || quest?.description);
+  const isDescriptionLong = descriptionText.length > 140;
 
   // Fetch engagement/rhythm data for enrolled users
   const { data: engagement } = useQuestEngagement(
@@ -212,13 +216,25 @@ const QuestDetailHeader = ({
               {quest?.title}
             </h1>
 
-            {(quest?.big_idea || quest?.description) && (
-              <p
-                className="text-xs sm:text-sm text-gray-700 mt-1 leading-relaxed line-clamp-2"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                {stripHtml(quest?.big_idea || quest?.description)}
-              </p>
+            {descriptionText && (
+              <>
+                <p
+                  className={`text-xs sm:text-sm text-gray-700 mt-1 leading-relaxed ${descriptionExpanded ? '' : 'line-clamp-2'}`}
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  {descriptionText}
+                </p>
+                {isDescriptionLong && (
+                  <button
+                    type="button"
+                    onClick={() => setDescriptionExpanded((prev) => !prev)}
+                    className="mt-1 text-xs font-semibold text-optio-purple hover:text-optio-pink transition-colors"
+                    style={{ fontFamily: 'Poppins' }}
+                  >
+                    {descriptionExpanded ? 'Show less' : 'Show more'}
+                  </button>
+                )}
+              </>
             )}
 
             {/* Engagement/Rhythm Section - inline in hero */}

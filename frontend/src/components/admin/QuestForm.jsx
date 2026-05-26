@@ -21,6 +21,22 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Diploma subjects for credit tracking (11 subjects).
+// Keys match backend/utils/school_subjects.py SCHOOL_SUBJECTS exactly.
+const DIPLOMA_SUBJECTS = [
+  { id: 'language_arts', label: 'Language Arts' },
+  { id: 'math', label: 'Math' },
+  { id: 'science', label: 'Science' },
+  { id: 'social_studies', label: 'Social Studies' },
+  { id: 'financial_literacy', label: 'Financial Literacy' },
+  { id: 'health', label: 'Health' },
+  { id: 'pe', label: 'PE' },
+  { id: 'fine_arts', label: 'Fine Arts' },
+  { id: 'cte', label: 'CTE' },
+  { id: 'digital_literacy', label: 'Digital Literacy' },
+  { id: 'electives', label: 'Electives' }
+];
+
 // Sortable Task Row Component
 const SortableTaskRow = ({
   task,
@@ -186,7 +202,7 @@ const SortableTaskRow = ({
             />
           </div>
 
-          {/* Row: Pillar, XP, Required Toggle */}
+          {/* Row: Pillar + Pillar XP + Required Toggle */}
           <div className="flex flex-wrap gap-4 items-end">
             {/* Pillar Dropdown */}
             <div className="flex-1 min-w-[140px]">
@@ -203,14 +219,14 @@ const SortableTaskRow = ({
                   const pd = getPillarData(p);
                   return (
                     <option key={p} value={p}>
-                      {pd.icon} {pd.name}
+                      {pd.name}
                     </option>
                   );
                 })}
               </select>
             </div>
 
-            {/* XP Value */}
+            {/* Pillar XP */}
             <div className="w-24">
               <label htmlFor={`task-${index}-xp`} className="block text-sm font-medium text-gray-700 mb-1">
                 XP
@@ -219,10 +235,16 @@ const SortableTaskRow = ({
                 type="number"
                 id={`task-${index}-xp`}
                 value={task.xp_value}
-                onChange={(e) => onUpdateTask(index, 'xp_value', e.target.value)}
+                onChange={(e) =>
+                  onUpdateTask(
+                    index,
+                    'xp_value',
+                    e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0
+                  )
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                min="10"
-                max="500"
+                min="0"
+                step="10"
               />
             </div>
 
@@ -239,6 +261,137 @@ const SortableTaskRow = ({
                 <span className="ms-2 text-sm font-medium text-gray-700">Required</span>
               </label>
             </div>
+          </div>
+
+          {/* Diploma Subjects + per-subject XP (optional, separate from pillar XP) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Diploma Subjects &amp; XP (optional)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              Add diploma subjects this task should also award credit to, and the XP awarded to each subject. Pillar XP above is awarded regardless.
+            </p>
+            {(() => {
+              const distribution = task.subject_xp_distribution || {};
+              const addedSubjectIds = task.diploma_subjects || [];
+              const remainingSubjects = DIPLOMA_SUBJECTS.filter(
+                (s) => !addedSubjectIds.includes(s.id)
+              );
+              const pillarXp = parseInt(task.xp_value, 10) || 0;
+              const subjectSum = addedSubjectIds.reduce(
+                (sum, id) => sum + (parseInt(distribution[id], 10) || 0),
+                0
+              );
+              const balanceMismatch =
+                addedSubjectIds.length > 0 && subjectSum !== pillarXp;
+
+              return (
+                <>
+                  {addedSubjectIds.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                      {addedSubjectIds.map((subjectId) => {
+                        const subject = DIPLOMA_SUBJECTS.find((s) => s.id === subjectId);
+                        if (!subject) return null;
+                        const subjectXp = distribution[subjectId] ?? 0;
+                        return (
+                          <div
+                            key={subjectId}
+                            className="flex items-center gap-3 px-3 py-2 text-sm"
+                          >
+                            <span className="text-gray-700 flex-1">{subject.label}</span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="0"
+                                step="10"
+                                value={subjectXp}
+                                onChange={(e) => {
+                                  const value =
+                                    e.target.value === ''
+                                      ? 0
+                                      : parseInt(e.target.value, 10) || 0;
+                                  onUpdateTask(index, 'subject_xp_distribution', {
+                                    ...distribution,
+                                    [subjectId]: value,
+                                  });
+                                }}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-right"
+                                placeholder="0"
+                              />
+                              <span className="text-xs text-gray-500 w-6">XP</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateTask(
+                                  index,
+                                  'diploma_subjects',
+                                  addedSubjectIds.filter((s) => s !== subjectId)
+                                );
+                                const next = { ...distribution };
+                                delete next[subjectId];
+                                onUpdateTask(index, 'subject_xp_distribution', next);
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                              title="Remove subject"
+                            >
+                              <XMarkIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {remainingSubjects.length > 0 && (
+                    <div className="mt-2">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const subjectId = e.target.value;
+                          if (!subjectId) return;
+                          onUpdateTask(index, 'diploma_subjects', [
+                            ...addedSubjectIds,
+                            subjectId,
+                          ]);
+                          onUpdateTask(index, 'subject_xp_distribution', {
+                            ...distribution,
+                            [subjectId]: 0,
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-optio-purple bg-white"
+                      >
+                        <option value="">+ Add diploma subject</option>
+                        {remainingSubjects.map((subject) => (
+                          <option key={subject.id} value={subject.id}>
+                            {subject.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {addedSubjectIds.length > 0 && (
+                    <div
+                      className={`mt-2 flex items-center justify-between text-sm ${
+                        balanceMismatch ? 'text-red-600' : 'text-gray-600'
+                      }`}
+                    >
+                      <span>Diploma XP allocated</span>
+                      <span className="font-semibold">
+                        {subjectSum} / {pillarXp}
+                      </span>
+                    </div>
+                  )}
+                  {errors[`task_${index}_subjects`] && (
+                    <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
+                      <ExclamationCircleIcon className="w-3 h-3" />
+                      {errors[`task_${index}_subjects`]}
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -297,6 +450,66 @@ const QuestForm = ({
 
   // Load existing tasks when in edit mode
   useEffect(() => {
+    // Legacy rows may store diploma_subjects as ['Electives'] (capitalized) or
+    // as an object {electives: 100}, and may have an empty
+    // subject_xp_distribution alongside a non-zero xp_value. Normalize all of
+    // that into the canonical shape the editor uses: lowercase id list +
+    // {id: xp} distribution that sums to xp_value.
+    const normalizeTask = (task, index, defaultRequired) => {
+      const validIds = new Set(DIPLOMA_SUBJECTS.map((s) => s.id));
+
+      const rawSubjects = task.diploma_subjects;
+      let subjects = [];
+      if (Array.isArray(rawSubjects)) {
+        subjects = rawSubjects
+          .map((s) => String(s).toLowerCase())
+          .filter((s) => validIds.has(s));
+      } else if (rawSubjects && typeof rawSubjects === 'object') {
+        subjects = Object.keys(rawSubjects)
+          .map((s) => String(s).toLowerCase())
+          .filter((s) => validIds.has(s));
+      }
+
+      const distribution = {};
+      const rawDist = task.subject_xp_distribution;
+      if (rawDist && typeof rawDist === 'object' && Object.keys(rawDist).length > 0) {
+        Object.entries(rawDist).forEach(([k, v]) => {
+          const key = String(k).toLowerCase();
+          if (validIds.has(key)) distribution[key] = parseInt(v, 10) || 0;
+        });
+      } else if (subjects.length > 0 && (task.xp_value || 0) > 0) {
+        // No per-subject XP set yet — evenly split the existing total across
+        // the listed subjects so the row's Total XP stays accurate on first
+        // load.
+        const total = parseInt(task.xp_value, 10) || 0;
+        const per = Math.floor(total / subjects.length);
+        const remainder = total - per * subjects.length;
+        subjects.forEach((s, i) => {
+          distribution[s] = per + (i === 0 ? remainder : 0);
+        });
+      }
+
+      const finalSubjects = Object.keys(distribution).length > 0
+        ? Object.keys(distribution)
+        : subjects;
+
+      // Pillar XP is the source of truth; whatever's stored on the task wins.
+      // Subject XP must add up to it (validated on submit), but we don't
+      // mutate xp_value here.
+      return {
+        id: task.id || `task-${index}`,
+        title: task.title || '',
+        description: task.description || '',
+        pillar: task.pillar || 'stem',
+        xp_value: parseInt(task.xp_value, 10) || 100,
+        is_required:
+          task.is_required !== undefined ? task.is_required : defaultRequired,
+        diploma_subjects: finalSubjects,
+        subject_xp_distribution: distribution,
+        order_index: index,
+      };
+    };
+
     const loadTasks = async () => {
       if (mode === 'edit' && quest?.id) {
         try {
@@ -306,15 +519,9 @@ const QuestForm = ({
           if (response.data.tasks && response.data.tasks.length > 0) {
             setFormData(prev => ({
               ...prev,
-              tasks: response.data.tasks.map((task, index) => ({
-                id: task.id || `task-${index}`,
-                title: task.title || '',
-                description: task.description || '',
-                pillar: task.pillar || 'stem',
-                xp_value: task.xp_value || 100,
-                is_required: task.is_required || false,
-                order_index: index
-              }))
+              tasks: response.data.tasks.map((task, index) =>
+                normalizeTask(task, index, false)
+              )
             }));
             setShowTaskEditor(true);
           }
@@ -326,15 +533,9 @@ const QuestForm = ({
             if (legacyResponse.data.tasks && legacyResponse.data.tasks.length > 0) {
               setFormData(prev => ({
                 ...prev,
-                tasks: legacyResponse.data.tasks.map((task, index) => ({
-                  id: task.id || `task-${index}`,
-                  title: task.title || '',
-                  description: task.description || '',
-                  pillar: task.pillar || 'stem',
-                  xp_value: task.xp_value || 100,
-                  is_required: task.is_required !== undefined ? task.is_required : true,
-                  order_index: index
-                }))
+                tasks: legacyResponse.data.tasks.map((task, index) =>
+                  normalizeTask(task, index, true)
+                )
               }));
               setShowTaskEditor(true);
             }
@@ -365,6 +566,22 @@ const QuestForm = ({
         if (!task.title.trim()) {
           newErrors[`task_${index}_title`] = 'Task title is required';
         }
+
+        // Diploma XP must sum to pillar XP when any diploma subjects are set.
+        // Empty diploma subjects = pillar XP only, which is allowed.
+        const subjects = task.diploma_subjects || [];
+        if (subjects.length > 0) {
+          const distribution = task.subject_xp_distribution || {};
+          const subjectSum = subjects.reduce(
+            (sum, id) => sum + (parseInt(distribution[id], 10) || 0),
+            0
+          );
+          const pillarXp = parseInt(task.xp_value, 10) || 0;
+          if (subjectSum !== pillarXp) {
+            newErrors[`task_${index}_subjects`] =
+              `Diploma subject XP (${subjectSum}) must equal pillar XP (${pillarXp})`;
+          }
+        }
       });
     }
 
@@ -377,9 +594,13 @@ const QuestForm = ({
 
     if (!validateForm()) {
       toast.error('Please fix all errors before submitting');
-      // Expand tasks with errors
+      // Expand tasks with errors (title OR diploma-XP balance)
       const tasksWithErrors = formData.tasks
-        .map((_, index) => errors[`task_${index}_title`] ? index : null)
+        .map((_, index) =>
+          errors[`task_${index}_title`] || errors[`task_${index}_subjects`]
+            ? index
+            : null
+        )
         .filter(index => index !== null);
       if (tasksWithErrors.length > 0) {
         setExpandedTasks(new Set(tasksWithErrors));
@@ -415,16 +636,21 @@ const QuestForm = ({
       // Save template tasks if any
       if (formData.tasks.length > 0 && questId) {
         const tasksPayload = {
-          tasks: formData.tasks.map((task, index) => ({
-            title: task.title.trim(),
-            description: task.description.trim(),
-            pillar: task.pillar,
-            xp_value: parseInt(task.xp_value) || 100,
-            order_index: index,
-            is_required: task.is_required || false,
-            diploma_subjects: ['Electives'],
-            subject_xp_distribution: {}
-          }))
+          tasks: formData.tasks.map((task, index) => {
+            const distribution = task.subject_xp_distribution || {};
+            const subjects = task.diploma_subjects || [];
+
+            return {
+              title: task.title.trim(),
+              description: task.description.trim(),
+              pillar: task.pillar,
+              xp_value: parseInt(task.xp_value, 10) || 0,
+              order_index: index,
+              is_required: task.is_required || false,
+              diploma_subjects: subjects,
+              subject_xp_distribution: distribution
+            };
+          })
         };
 
         const templateUrl = templateTasksEndpoint
@@ -504,6 +730,8 @@ const QuestForm = ({
           pillar: 'stem',
           xp_value: 100,
           is_required: isRequired,
+          diploma_subjects: [],
+          subject_xp_distribution: {},
           order_index: newIndex
         }
       ]
@@ -536,6 +764,12 @@ const QuestForm = ({
     const errorKey = `task_${index}_${field}`;
     if (errors[errorKey]) {
       setErrors({ ...errors, [errorKey]: '' });
+    }
+    // Editing pillar XP or the subject distribution can flip the diploma-XP
+    // balance check, so clear any stale balance error too.
+    if ((field === 'xp_value' || field === 'subject_xp_distribution') &&
+        errors[`task_${index}_subjects`]) {
+      setErrors((prev) => ({ ...prev, [`task_${index}_subjects`]: '' }));
     }
   };
 
