@@ -47,6 +47,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const LearningJournalPage = lazy(() => import('./pages/LearningJournalPage'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const SupportPage = lazy(() => import('./pages/SupportPage'))
 const OptioAcademyAgreement = lazy(() => import('./pages/OptioAcademyAgreement'))
 const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 // Quest Pages
@@ -418,6 +419,7 @@ function App() {
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />
                 <Route path="privacy" element={<PrivacyPolicy />} />
+                <Route path="support" element={<SupportPage />} />
                 <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
                 <Route path="parental-consent" element={<ParentalConsentUploadPage />} />
