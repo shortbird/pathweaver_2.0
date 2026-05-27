@@ -56,7 +56,7 @@ def submit_contact():
         contact_type = data.get('type', 'general').strip()
 
         # Validate contact type
-        valid_types = ['demo', 'sales', 'general', 'families', 'philosophy', 'academy']
+        valid_types = ['demo', 'sales', 'general', 'families', 'philosophy', 'academy', 'claim_free_class']
         if contact_type not in valid_types:
             contact_type = 'general'
 

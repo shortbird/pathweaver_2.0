@@ -132,13 +132,13 @@ function AvatarMenu() {
   const handlePreviewSelect = (role: PreviewRole | null) => {
     setMenuOpen(false);
     setPreviewRole(role);
-    // Navigate to a sensible default for the new shell
+    // Navigate to the sensible Home for each shell.
     const target =
       role === 'parent' ? '/(app)/(tabs)/family'
-      : role === 'observer' ? '/(app)/(tabs)/feed'
-      : role === 'student' ? '/(app)/(tabs)/feed'
+      : role === 'observer' ? '/(app)/(tabs)/feed' // observers don't have a Home tab
+      : role === 'student' ? '/(app)/(tabs)/dashboard'
       : isParent ? '/(app)/(tabs)/family' // null → fall back to user's real shell
-      : '/(app)/(tabs)/feed';
+      : '/(app)/(tabs)/dashboard';
     router.replace(target as any);
   };
 

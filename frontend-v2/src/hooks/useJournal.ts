@@ -60,23 +60,33 @@ export interface UnifiedTopic {
   children?: UnifiedTopic[];
 }
 
+// Module-level cache so the Journal feels instant when re-entered. The hook
+// rehydrates from this cache on mount and only flips `loading` to true when
+// there's nothing to show yet — subsequent refetches happen silently in the
+// background while the previous tiles remain on screen.
+let _topicsCache: UnifiedTopic[] | null = null;
+
 export function useUnifiedTopics() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [topics, setTopics] = useState<UnifiedTopic[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [topics, setTopics] = useState<UnifiedTopic[]>(_topicsCache || []);
+  const [loading, setLoading] = useState(_topicsCache === null);
 
   const fetchTopics = useCallback(async () => {
     if (!isAuthenticated) return;
+    // Only show the loading state when we have nothing on screen yet —
+    // otherwise refetching after e.g. creating a topic would briefly blank
+    // out the grid.
+    if (_topicsCache === null) setLoading(true);
     try {
-      setLoading(true);
       const { data } = await api.get('/api/topics/unified');
       const allTopics = [
         ...(data.topics || []),
         ...(data.course_topics || []).map((c: any) => ({ ...c, type: 'course' })),
       ];
+      _topicsCache = allTopics;
       setTopics(allTopics);
     } catch {
-      // Non-critical
+      // Non-critical — keep whatever cached tiles are on screen.
     } finally {
       setLoading(false);
     }
@@ -87,19 +97,30 @@ export function useUnifiedTopics() {
   return { topics, loading, refetch: fetchTopics };
 }
 
+/** Call after logout / role-switch so a new user doesn't see the prior cache. */
+export function clearUnifiedTopicsCache() {
+  _topicsCache = null;
+}
+
+// Same cache pattern as useUnifiedTopics — the unassigned count drives the
+// Journal's first tile, so we want it to render instantly on re-entry.
+let _unassignedCache: LearningEvent[] | null = null;
+
 export function useUnassignedMoments() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [moments, setMoments] = useState<LearningEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [moments, setMoments] = useState<LearningEvent[]>(_unassignedCache || []);
+  const [loading, setLoading] = useState(_unassignedCache === null);
 
   const fetchMoments = useCallback(async () => {
     if (!isAuthenticated) return;
+    if (_unassignedCache === null) setLoading(true);
     try {
-      setLoading(true);
       const { data } = await api.get('/api/learning-events/unassigned');
-      setMoments(data.moments || data.learning_events || data || []);
+      const next = data.moments || data.learning_events || data || [];
+      _unassignedCache = next;
+      setMoments(next);
     } catch {
-      // Non-critical
+      // Non-critical — keep cached list on screen.
     } finally {
       setLoading(false);
     }
@@ -108,6 +129,10 @@ export function useUnassignedMoments() {
   useEffect(() => { fetchMoments(); }, [fetchMoments]);
 
   return { moments, loading, refetch: fetchMoments };
+}
+
+export function clearUnassignedMomentsCache() {
+  _unassignedCache = null;
 }
 
 export function useTrackMoments(trackId: string | null) {

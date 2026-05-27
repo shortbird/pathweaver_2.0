@@ -20,6 +20,7 @@ const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   video: 'videocam-outline',
   link: 'link-outline',
   document: 'attach-outline',
+  audio: 'mic-outline',
 };
 
 interface LearningEventCardProps {

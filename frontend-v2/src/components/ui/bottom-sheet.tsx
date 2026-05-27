@@ -12,9 +12,14 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Modal, Pressable, KeyboardAvoidingView, Platform, Animated, Dimensions, Easing } from 'react-native';
+import { View, Modal, Pressable, KeyboardAvoidingView, Platform, Animated, Dimensions, Easing, ScrollView } from 'react-native';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+// Sheet content is bounded to this fraction of the screen and becomes
+// scrollable beyond — without this, a sheet that grows (e.g. the capture
+// sheet with the inline quest picker expanded) overflows offscreen and the
+// user can't reach the bottom.
+const MAX_CONTENT_HEIGHT = SCREEN_HEIGHT * 0.82;
 
 export interface BottomSheetProps {
   visible: boolean;
@@ -102,10 +107,8 @@ export function BottomSheet({
             backgroundColor: '#FFFFFF',
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
-            paddingHorizontal: 24,
-            paddingTop: 16,
-            paddingBottom: 32,
             transform: [{ translateY }],
+            maxHeight: MAX_CONTENT_HEIGHT,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: -4 },
             shadowOpacity: 0.12,
@@ -113,7 +116,17 @@ export function BottomSheet({
             elevation: 16,
           }}
         >
-          {children}
+          <ScrollView
+            contentContainerStyle={{
+              paddingHorizontal: 24,
+              paddingTop: 16,
+              paddingBottom: 32,
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>

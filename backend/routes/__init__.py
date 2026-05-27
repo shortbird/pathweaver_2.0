@@ -95,6 +95,9 @@ def register_all(app):
     from routes.admin import task_approval
     app.register_blueprint(task_approval.bp)
 
+    from routes.admin import class_reviews as admin_class_reviews
+    app.register_blueprint(admin_class_reviews.bp)
+
     # Quest routes (refactored from quests.py mega-file into 4 modules)
     from routes.quest import register_quest_blueprints
     register_quest_blueprints(app)

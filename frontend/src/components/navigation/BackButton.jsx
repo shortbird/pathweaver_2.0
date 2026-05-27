@@ -17,6 +17,7 @@ const TAB_ROOTS = new Set([
   '/transcript',
   '/my-classes',
   '/classes',
+  '/org-classes',
   '/communication',
   '/constellation',
   '/bounties',

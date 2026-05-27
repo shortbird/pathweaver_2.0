@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Redirect, Stack, router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Redirect, Stack, router, usePathname } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import {
   registerForPushNotifications,
@@ -7,6 +7,7 @@ import {
   addNotificationResponseListener,
 } from '@/src/services/pushNotifications';
 import { resolveDeepLink } from '@/src/services/deepLinkRouter';
+import { getFlag, PrefsKeys } from '@/src/stores/prefsStore';
 import { View, ActivityIndicator } from 'react-native';
 
 // Configure notification display once at module load
@@ -14,6 +15,8 @@ configurePushNotifications();
 
 export default function AppLayout() {
   const { isAuthenticated, isLoading, user } = useAuthStore();
+  const pathname = usePathname();
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Once the user is authenticated, ask the OS for notification permission and
   // (on capable platforms) register an Expo push token. The native permission
@@ -22,6 +25,22 @@ export default function AppLayout() {
     if (!isAuthenticated || !user?.id) return;
     registerForPushNotifications();
   }, [isAuthenticated, user?.id]);
+
+  // First-run onboarding: route students to the welcome carousel once.
+  // Skip for observers and parents — their first view is already role-specific.
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    if (onboardingChecked) return;
+    const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
+    const isStudent = role === 'student' || role === 'superadmin';
+    if (!isStudent) { setOnboardingChecked(true); return; }
+    getFlag(PrefsKeys.OnboardingSeen).then((seen) => {
+      setOnboardingChecked(true);
+      if (!seen && pathname && !pathname.startsWith('/onboarding')) {
+        router.replace('/(app)/onboarding' as any);
+      }
+    });
+  }, [isAuthenticated, user?.id, user?.role, user?.org_role, onboardingChecked, pathname]);
 
   // Handle notification taps (navigate to link)
   useEffect(() => {
@@ -59,6 +78,7 @@ export default function AppLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="quests/[id]" />
       <Stack.Screen name="bounties/[id]" />

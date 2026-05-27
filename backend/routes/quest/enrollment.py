@@ -467,30 +467,48 @@ def create_user_quest(user_id: str):
                 status=400
             )
 
-        if not data.get('description') and not data.get('big_idea'):
-            return error_response(
-                code='DESCRIPTION_REQUIRED',
-                message='Description is required',
-                status=400
-            )
+        # Description is optional — when blank, we leave both columns empty.
+        # Downstream display code already handles missing descriptions.
+        title_text = data['title'].strip()
+        description_text = (data.get('big_idea') or '').strip() or (data.get('description') or '').strip()
 
-        # Auto-fetch image if not provided
+        # Class-quest fields. When quest_type='class', a transcript_subject is required.
+        from utils.school_subjects import SCHOOL_SUBJECTS
+        requested_quest_type = (data.get('quest_type') or 'optio').strip()
+        transcript_subject = (data.get('transcript_subject') or '').strip() or None
+        if requested_quest_type == 'class':
+            if not transcript_subject:
+                return error_response(
+                    code='SUBJECT_REQUIRED',
+                    message='transcript_subject is required when creating a class',
+                    status=400
+                )
+            if transcript_subject not in SCHOOL_SUBJECTS:
+                return error_response(
+                    code='INVALID_SUBJECT',
+                    message=f'Invalid transcript_subject. Must be one of: {", ".join(SCHOOL_SUBJECTS)}',
+                    status=400
+                )
+        else:
+            transcript_subject = None  # Only classes carry a subject on the quest itself
+
+        # Auto-fetch image if not provided. The image search query uses the
+        # description when present; otherwise it falls back to just the title.
         image_url = data.get('header_image_url')
         if not image_url:
-            # Try to fetch image based on quest title and description
-            quest_desc = data.get('big_idea', '').strip() or data.get('description', '').strip()
-            image_url = search_quest_image(data['title'].strip(), quest_desc)
-            logger.info(f"Auto-fetched image for quest '{data['title']}': {image_url}")
+            image_url = search_quest_image(title_text, description_text or title_text)
+            logger.info(f"Auto-fetched image for quest '{title_text}': {image_url}")
 
         # Create quest record (private by default, inactive until admin approves)
         quest_data = {
-            'title': data['title'].strip(),
-            'big_idea': data.get('big_idea', '').strip() or data.get('description', '').strip(),
-            'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
+            'title': title_text,
+            'big_idea': description_text,
+            'description': description_text,
             'is_v3': True,
             'is_active': True,  # Active so user can use it immediately
             'is_public': False,  # Private by default - only visible to creator
-            'quest_type': 'optio',  # User-created Optio quest
+            'quest_type': requested_quest_type if requested_quest_type in ('optio', 'class') else 'optio',
+            'transcript_subject': transcript_subject,
             'header_image_url': image_url,
             'image_url': image_url,
             'material_link': data.get('material_link', '').strip() if data.get('material_link') else None,

@@ -5,7 +5,7 @@ import { captureEvent } from '../../services/posthog'
 const LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png'
 
 const NAV_LINKS = [
-  { label: 'For Students', path: '/for-students' },
+  { label: 'Classes', path: '/classes' },
   { label: 'For Families', path: '/for-families' },
   { label: 'For Schools', path: '/for-schools' },
   { label: 'Academy', path: '/academy' },

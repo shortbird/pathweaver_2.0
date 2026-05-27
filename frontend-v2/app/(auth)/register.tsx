@@ -12,8 +12,10 @@ import {
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
 
+// PNG, not SVG — RN <Image> can't decode SVG URIs natively. Google's developer
+// guidelines bless this PNG for sign-in / sign-up buttons.
 const GOOGLE_ICON_URI =
-  'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
+  'https://developers.google.com/identity/images/g-logo.png';
 
 const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
@@ -33,9 +35,9 @@ function getRedirectForRole(user: User): string {
   switch (role) {
     case 'parent': return '/(app)/(tabs)/family';
     case 'advisor':
-    case 'org_admin': return Platform.OS === 'web' ? '/(app)/(tabs)/advisor' : '/(app)/(tabs)/feed';
+    case 'org_admin': return Platform.OS === 'web' ? '/(app)/(tabs)/advisor' : '/(app)/(tabs)/dashboard';
     case 'observer': return '/(app)/(tabs)/feed';
-    default: return Platform.OS === 'web' ? '/(app)/(tabs)/dashboard' : '/(app)/(tabs)/feed';
+    default: return '/(app)/(tabs)/dashboard';
   }
 }
 
@@ -51,8 +53,9 @@ function calculateAge(dob: string): number {
 }
 
 export default function RegisterScreen() {
-  const { register, googleLogin, isLoading, error, clearError } = useAuthStore();
+  const { register, googleLogin, appleLoginWeb, appleLoginNative, isLoading, error, clearError } = useAuthStore();
   const isWeb = Platform.OS === 'web';
+  const isIos = Platform.OS === 'ios';
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -119,7 +122,7 @@ export default function RegisterScreen() {
       });
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
-        const destination = state.user ? getRedirectForRole(state.user) : '/(app)/(tabs)/feed';
+        const destination = state.user ? getRedirectForRole(state.user) : '/(app)/(tabs)/dashboard';
         router.replace(destination as any);
       } else {
         setVerificationSent(true);
@@ -375,26 +378,39 @@ export default function RegisterScreen() {
                   <ButtonText>Already have an account? Sign In</ButtonText>
                 </Button>
 
-                {isWeb && (
-                  <>
-                    <View className="flex-row items-center my-1">
-                      <View className="flex-1 h-px bg-surface-200" />
-                      <UIText size="sm" className="px-3 text-typo-400">Or</UIText>
-                      <View className="flex-1 h-px bg-surface-200" />
-                    </View>
+                {/* Social register — same matrix as login:
+                    Google everywhere, Apple on iOS + web only. */}
+                <View className="flex-row items-center my-1">
+                  <View className="flex-1 h-px bg-surface-200" />
+                  <UIText size="sm" className="px-3 text-typo-400">Or</UIText>
+                  <View className="flex-1 h-px bg-surface-200" />
+                </View>
 
-                    <Pressable
-                      onPress={googleLogin}
-                      disabled={isLoading}
-                      className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white active:bg-surface-50"
-                      style={{ opacity: isLoading ? 0.5 : 1 }}
-                    >
-                      <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
-                      <UIText className="font-poppins-medium text-typo">
-                        Sign up with Google
-                      </UIText>
-                    </Pressable>
-                  </>
+                <Pressable
+                  onPress={googleLogin}
+                  disabled={isLoading}
+                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white active:bg-surface-50"
+                  style={{ opacity: isLoading ? 0.5 : 1 }}
+                >
+                  <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
+                  <UIText className="font-poppins-medium text-typo">
+                    Sign up with Google
+                  </UIText>
+                </Pressable>
+
+                {(isWeb || isIos) && (
+                  <Pressable
+                    onPress={isIos ? appleLoginNative : appleLoginWeb}
+                    disabled={isLoading}
+                    className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black active:opacity-80"
+                    style={{ opacity: isLoading ? 0.5 : 1 }}
+                    accessibilityLabel="Sign up with Apple"
+                  >
+                    <Ionicons name="logo-apple" size={20} color="#FFFFFF" style={{ marginTop: -2 }} />
+                    <UIText className="font-poppins-medium text-white">
+                      Sign up with Apple
+                    </UIText>
+                  </Pressable>
                 )}
               </VStack>
             </Card>

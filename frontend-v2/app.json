@@ -136,6 +136,12 @@
           "photosPermission": "Optio needs access to your photos so you can attach them to learning moments and tasks."
         }
       ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Optio uses the microphone so you can record voice notes as learning moments."
+        }
+      ],
       "expo-secure-store",
       "expo-web-browser"
     ],

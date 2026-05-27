@@ -6,7 +6,7 @@
  * Infinite scroll with cursor-based pagination.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -21,9 +21,10 @@ import {
   Avatar, AvatarFallbackText, AvatarImage, Skeleton,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
+import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
+import { getFlag, setFlag, PrefsKeys } from '@/src/stores/prefsStore';
 
 const DESKTOP_BREAKPOINT = 768;
-const WELCOME_KEY = 'optio_observer_welcome_seen';
 
 const OPTIO_ICON_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
@@ -255,23 +256,23 @@ export default function FeedScreen() {
   const isObserver = useIsObserver();
   const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [segment, setSegment] = useState<FeedSegment>('feed');
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const listRef = useRef<FlatList<any>>(null);
+  const studentsScrollRef = useRef<ScrollView>(null);
 
-  // Auto-show on first visit for observers
+  // Auto-show on first visit for observers (cross-platform via prefsStore)
   useEffect(() => {
     if (!isObserver) return;
-    try {
-      const seen = Platform.OS === 'web'
-        ? localStorage.getItem(WELCOME_KEY)
-        : null; // AsyncStorage would go here for native
-      if (!seen) setWelcomeVisible(true);
-    } catch { /* ignore */ }
+    let cancelled = false;
+    getFlag(PrefsKeys.ObserverWelcomeSeen).then((seen) => {
+      if (!cancelled && !seen) setWelcomeVisible(true);
+    });
+    return () => { cancelled = true; };
   }, [isObserver]);
 
   const dismissWelcome = () => {
     setWelcomeVisible(false);
-    try {
-      if (Platform.OS === 'web') localStorage.setItem(WELCOME_KEY, 'true');
-    } catch { /* ignore */ }
+    setFlag(PrefsKeys.ObserverWelcomeSeen).catch(() => { /* ignore */ });
   };
 
   const renderItem = ({ item }: { item: any }) => (
@@ -372,15 +373,19 @@ export default function FeedScreen() {
       <PageHeader title={isObserver ? 'Activity' : 'Feed'} />
       {isObserver && segment === 'students' ? (
         <ScrollView
+          ref={studentsScrollRef}
           className="flex-1"
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
+          onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
+          scrollEventThrottle={64}
         >
           {renderHeader()}
           <StudentsList isDesktop={isDesktop} />
         </ScrollView>
       ) : (
         <FlatList
+          ref={listRef}
           data={items}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
@@ -399,8 +404,20 @@ export default function FeedScreen() {
           removeClippedSubviews={Platform.OS !== 'web'}
           initialNumToRender={4}
           updateCellsBatchingPeriod={100}
+          onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
+          scrollEventThrottle={64}
         />
       )}
+      <ScrollToTopFab
+        visible={showScrollTop}
+        onPress={() => {
+          if (isObserver && segment === 'students') {
+            studentsScrollRef.current?.scrollTo({ y: 0, animated: true });
+          } else {
+            listRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }
+        }}
+      />
       <ObserverWelcomeModal visible={welcomeVisible} onClose={dismissWelcome} />
     </SafeAreaView>
   );

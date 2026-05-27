@@ -19,9 +19,9 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { key: 'dashboard', label: 'Home', icon: 'home-outline', iconActive: 'home', href: '/(app)/(tabs)/dashboard', platforms: ['web'] },
+  { key: 'dashboard', label: 'Home', icon: 'home-outline', iconActive: 'home', href: '/(app)/(tabs)/dashboard', platforms: ['web', 'mobile'] },
   { key: 'courses', label: 'Courses', icon: 'school-outline', iconActive: 'school', href: '/(app)/(tabs)/courses', platforms: ['web'] },
-  { key: 'quests', label: 'Quests', icon: 'rocket-outline', iconActive: 'rocket', href: '/(app)/(tabs)/quests', platforms: ['web', 'mobile'] },
+  { key: 'quests', label: 'Quests', icon: 'rocket-outline', iconActive: 'rocket', href: '/(app)/(tabs)/quests', platforms: ['web'] },
   { key: 'bounties', label: 'Bounties', icon: 'flag-outline', iconActive: 'flag', href: '/(app)/(tabs)/bounties', platforms: ['web', 'mobile'] },
   { key: 'feed', label: 'Feed', icon: 'newspaper-outline', iconActive: 'newspaper', href: '/(app)/(tabs)/feed', platforms: ['web', 'mobile'] },
   { key: 'journal', label: 'Journal', icon: 'book-outline', iconActive: 'book', href: '/(app)/(tabs)/journal', platforms: ['web', 'mobile'] },
@@ -33,13 +33,19 @@ export const navItems: NavItem[] = [
 ];
 
 /**
- * Mobile tab order for the default (student) shell: Journal, Feed, [+ Capture], Profile, Messages.
- * 'capture' is a special key -- not a route, triggers a modal.
- * Quests + Bounties remain available as routes (and via the Bounty Board/Quests sidebar
- * on desktop), just not exposed as a bottom tab on mobile.
+ * Mobile tab order for the default (student) shell: Home, Journal, [+ Capture], Feed, Messages.
+ * - 'capture' is a special key (not a route — triggers the CaptureSheet modal)
+ * - Home replaces Feed-as-landing: active quests, next-up tasks, learning rhythm
+ * - Journal subsumes Quests on mobile (quest discovery + creation lives inside Journal now)
+ * - Feed lives in the tab bar because it's a daily/social surface
+ * - Profile is reached by tapping the avatar in the Home welcome header
+ *   (standard mobile pattern); it stays a registered route for deep links.
+ * - Quests + Bounties remain as routes (deep-link from Home / Journal); they're
+ *   not bottom tabs because the journal+quest merger gives students a single
+ *   surface for both browsing and capturing.
  * Parent and observer roles override this in app/(app)/(tabs)/_layout.tsx.
  */
-export const mobileTabOrder = ['journal', 'feed', 'capture', 'profile', 'messages'];
+export const mobileTabOrder = ['dashboard', 'journal', 'capture', 'feed', 'messages'];
 
 /** Mobile tab order for parents. 'capture' is the center button, handled the
  *  same way as in the student shell — it triggers the CaptureSheet modal in

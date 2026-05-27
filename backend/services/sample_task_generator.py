@@ -28,7 +28,12 @@ from services.ai_gen import generate_with_timeout
 
 logger = get_logger(__name__)
 
-def generate_sample_tasks(quest_title: str, quest_description: str, count: int = 20) -> List[Dict]:
+def generate_sample_tasks(
+    quest_title: str,
+    quest_description: str,
+    count: int = 20,
+    transcript_subject: Optional[str] = None,
+) -> List[Dict]:
     """
     Generate diverse sample tasks for an Optio quest using Gemini AI.
 
@@ -36,6 +41,9 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
         quest_title: The quest title
         quest_description: The quest big idea/description
         count: Number of sample tasks to generate (default 20)
+        transcript_subject: When set (a school_subjects key like 'math'),
+            biases tasks so their evidence credibly counts toward that
+            transcript subject. Used by the "Start a Class" wizard.
 
     Returns:
         List of task dictionaries with title, description, pillar, xp_value
@@ -46,7 +54,7 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
     # Get singleton Gemini model from BaseAIService
     model = get_gemini_model()
 
-    prompt = _build_prompt(quest_title, quest_description, count)
+    prompt = _build_prompt(quest_title, quest_description, count, transcript_subject)
 
     try:
         logger.info(f"Generating {count} sample tasks for quest: {quest_title}")
@@ -89,11 +97,40 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
         raise
 
 
-def _build_prompt(quest_title: str, quest_description: str, count: int) -> str:
+def _build_prompt(
+    quest_title: str,
+    quest_description: str,
+    count: int,
+    transcript_subject: Optional[str] = None,
+) -> str:
     """
     Build the Gemini prompt for sample task generation.
     Uses shared components from prompts.components.
     """
+
+    class_context = ""
+    if transcript_subject:
+        try:
+            from utils.school_subjects import get_display_name, get_description
+            subject_display = get_display_name(transcript_subject)
+            subject_blurb = get_description(transcript_subject)
+            class_context = f"""
+CLASS CONTEXT (IMPORTANT):
+This quest is part of a "{subject_display}" class on the student's high school transcript.
+Subject scope: {subject_blurb}
+Every task you generate must produce evidence that an Optio reviewer could
+credibly count toward {subject_display} credit. The evidence should look like
+real {subject_display} work — not generic activity. Bias diploma_subjects
+heavily toward "{transcript_subject}"; secondary subjects are fine but
+{subject_display} must be primary.
+
+For each task, also include a "diploma_subjects" field — a list of 1–3
+school_subject keys from this set: language_arts, math, science,
+social_studies, financial_literacy, health, pe, fine_arts, cte,
+digital_literacy, electives. The first entry MUST be "{transcript_subject}".
+"""
+        except Exception:
+            class_context = ""
 
     return f"""You are creating sample tasks for a self-directed learning quest in the Optio platform.
 
@@ -106,7 +143,7 @@ def _build_prompt(quest_title: str, quest_description: str, count: int) -> str:
 QUEST DETAILS:
 Title: {quest_title}
 Description: {quest_description}
-
+{class_context}
 Generate exactly {count} diverse sample tasks that:
 1. Cover all 5 pillars (STEM, Wellness, Communication, Civics, Art) with flexible distribution based on quest content
 2. Focus EXCLUSIVELY on REAL-WORLD APPLICATION (sports, hobbies, interests, creative projects, daily life)
@@ -144,6 +181,7 @@ For each task, provide:
 - description: 1-2 sentences using simple words
 - pillar: Must be one of: "stem", "wellness", "communication", "civics", "art"
 - xp_value: Integer between 50-200 (most should be 100-150, complex tasks can be 150-200)
+- diploma_subjects: (only when CLASS CONTEXT is given above) list of 1-3 school_subject keys, with the class subject first
 
 {JSON_OUTPUT_INSTRUCTIONS}
 
@@ -204,12 +242,24 @@ def _validate_task(task: Dict) -> Optional[Dict]:
     if not isinstance(description, str):
         description = ''
 
-    return {
+    # diploma_subjects is optional; when present (class context), pass through
+    # the first 3 valid entries. Validation against the canonical subject list
+    # happens downstream when the task is persisted.
+    diploma_subjects = task.get('diploma_subjects')
+    if isinstance(diploma_subjects, list):
+        diploma_subjects = [s for s in diploma_subjects if isinstance(s, str)][:3]
+    else:
+        diploma_subjects = None
+
+    result = {
         'title': task['title'].strip(),
         'description': description.strip(),
         'pillar': pillar,
-        'xp_value': xp_value
+        'xp_value': xp_value,
     }
+    if diploma_subjects:
+        result['diploma_subjects'] = diploma_subjects
+    return result
 
 
 def validate_sample_tasks_quality(tasks: List[Dict]) -> Dict:

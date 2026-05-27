@@ -11,6 +11,7 @@ import { PILLARS } from '@/src/hooks/useQuestDetail';
 import {
   VStack, HStack, Heading, UIText, Button, ButtonText, Divider,
 } from '@/src/components/ui';
+import { getSubject } from '@/src/components/class/SUBJECTS';
 
 const pillarColors: Record<string, { bg: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', text: 'text-pillar-stem' },
@@ -36,7 +37,28 @@ interface TaskCreationWizardProps {
   onAcceptTask: (task: any) => Promise<void>;
   /** Optional suggested/template tasks to browse. When provided, a third "Browse Suggestions" option appears. */
   suggestedTasks?: any[];
+  /** When true, the AI step shows an interest-chip multi-select (matching v1 web)
+   *  instead of free-text + pillar focus. The class subject is auto-applied
+   *  server-side, so we skip the pillar selector entirely. */
+  isClassQuest?: boolean;
+  /** The class's transcript_subject key (e.g. "fine_arts"). Required for the
+   *  AI-review step to render the subject badge in place of the pillar badge. */
+  classSubject?: string | null;
 }
+
+// Mirrors INTEREST_OPTIONS in frontend/src/components/quests/QuestPersonalizationWizard.jsx
+const INTEREST_CHIPS = [
+  { id: 'sports', label: 'Sports & Athletics', icon: '⚽' },
+  { id: 'music', label: 'Music & Performance', icon: '🎵' },
+  { id: 'art', label: 'Visual Arts', icon: '🎨' },
+  { id: 'gaming', label: 'Gaming & Esports', icon: '🎮' },
+  { id: 'business', label: 'Business & Entrepreneurship', icon: '💼' },
+  { id: 'technology', label: 'Technology & Coding', icon: '💻' },
+  { id: 'nature', label: 'Nature & Environment', icon: '🌿' },
+  { id: 'cooking', label: 'Cooking & Food', icon: '🍳' },
+  { id: 'writing', label: 'Creative Writing', icon: '✍️' },
+  { id: 'social', label: 'Social Impact', icon: '🤝' },
+];
 
 export function TaskCreationWizard({
   questId,
@@ -46,7 +68,10 @@ export function TaskCreationWizard({
   onGenerate,
   onAcceptTask,
   suggestedTasks,
+  isClassQuest = false,
+  classSubject = null,
 }: TaskCreationWizardProps) {
+  const classSubjectMeta = isClassQuest ? getSubject(classSubject) : null;
   const [step, setStep] = useState<'choose' | 'manual' | 'ai-personalize' | 'ai-review' | 'browse'>('choose');
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +90,9 @@ export function TaskCreationWizard({
   // AI fields
   const [interests, setInterests] = useState('');
   const [selectedPillar, setSelectedPillar] = useState<string | null>(null);
+  // Class-quest mode: chip multi-select of interest categories (v1-style)
+  const [selectedInterestChips, setSelectedInterestChips] = useState<Set<string>>(new Set());
+  const [extraIdeas, setExtraIdeas] = useState('');
   const [generating, setGenerating] = useState(false);
 
   // AI review
@@ -85,6 +113,8 @@ export function TaskCreationWizard({
     setManualAdded(0);
     setInterests('');
     setSelectedPillar(null);
+    setSelectedInterestChips(new Set());
+    setExtraIdeas('');
     setSuggestions([]);
     setReviewIndex(0);
     setAcceptedCount(0);
@@ -123,7 +153,26 @@ export function TaskCreationWizard({
     setGenerating(true);
     setError(null);
     try {
-      const tasks = await onGenerate(interests || undefined, selectedPillar || undefined, undefined);
+      let interestsArg: string | undefined;
+      let pillarArg: string | undefined;
+      if (isClassQuest) {
+        // Class mode: combine chip labels + freeform extras into one comma-separated
+        // string the bridge can split. Pillar is suppressed; the class's
+        // transcript_subject is applied server-side.
+        const chipLabels = Array.from(selectedInterestChips)
+          .map((id) => INTEREST_CHIPS.find((c) => c.id === id)?.label)
+          .filter(Boolean) as string[];
+        const combined = [...chipLabels, extraIdeas.trim()].filter(Boolean).join(', ');
+        if (!combined) {
+          setError('Pick at least one interest to get started.');
+          return;
+        }
+        interestsArg = combined;
+      } else {
+        interestsArg = interests || undefined;
+        pillarArg = selectedPillar || undefined;
+      }
+      const tasks = await onGenerate(interestsArg, pillarArg, undefined);
       if (!tasks || tasks.length === 0) {
         setError('No tasks generated. Try different interests.');
         return;
@@ -424,37 +473,90 @@ export function TaskCreationWizard({
               {/* Step: AI Personalize */}
               {step === 'ai-personalize' && (
                 <VStack space="md">
-                  <VStack space="xs">
-                    <UIText size="sm" className="font-poppins-medium">What are you interested in?</UIText>
-                    <TextInput
-                      value={interests}
-                      onChangeText={setInterests}
-                      placeholder='e.g. "photography, cooking, robotics"'
-                      placeholderTextColor="#9CA3AF"
-                      className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm"
-                      style={{ fontFamily: 'Poppins_400Regular' }}
-                    />
-                  </VStack>
+                  {isClassQuest ? (
+                    <>
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">
+                          What are you interested in?
+                        </UIText>
+                        <UIText size="xs" className="text-typo-400">
+                          Pick a few — we'll generate tasks that connect your interests to this class.
+                        </UIText>
+                        <HStack className="flex-wrap gap-2 pt-1">
+                          {INTEREST_CHIPS.map((chip) => {
+                            const selected = selectedInterestChips.has(chip.id);
+                            return (
+                              <Pressable
+                                key={chip.id}
+                                onPress={() => {
+                                  setSelectedInterestChips((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(chip.id)) next.delete(chip.id);
+                                    else next.add(chip.id);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <View className={`flex-row items-center gap-1.5 px-3 py-2 rounded-full border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white border-surface-300'}`}>
+                                  <UIText size="sm">{chip.icon}</UIText>
+                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-600'}`}>
+                                    {chip.label}
+                                  </UIText>
+                                </View>
+                              </Pressable>
+                            );
+                          })}
+                        </HStack>
+                      </VStack>
 
-                  <VStack space="xs">
-                    <UIText size="sm" className="font-poppins-medium">Focus on a pillar (optional)</UIText>
-                    <HStack className="flex-wrap gap-2">
-                      <Pressable onPress={() => setSelectedPillar(null)}>
-                        <View className={`px-3 py-1.5 rounded-full ${!selectedPillar ? 'bg-optio-purple' : 'bg-surface-100'}`}>
-                          <UIText size="xs" className={`font-poppins-medium ${!selectedPillar ? 'text-white' : 'text-typo-500'}`}>Any</UIText>
-                        </View>
-                      </Pressable>
-                      {PILLARS.map((p) => (
-                        <Pressable key={p.key} onPress={() => setSelectedPillar(p.key)}>
-                          <View className={`px-3 py-1.5 rounded-full ${selectedPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100'}`}>
-                            <UIText size="xs" className={`font-poppins-medium ${selectedPillar === p.key ? 'text-white' : 'text-typo-500'}`}>
-                              {p.label}
-                            </UIText>
-                          </View>
-                        </Pressable>
-                      ))}
-                    </HStack>
-                  </VStack>
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">Any specific ideas? (optional)</UIText>
+                        <TextInput
+                          value={extraIdeas}
+                          onChangeText={setExtraIdeas}
+                          placeholder='e.g. "I play varsity basketball and want to track stats"'
+                          placeholderTextColor="#9CA3AF"
+                          className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm"
+                          style={{ fontFamily: 'Poppins_400Regular' }}
+                          multiline
+                        />
+                      </VStack>
+                    </>
+                  ) : (
+                    <>
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">What are you interested in?</UIText>
+                        <TextInput
+                          value={interests}
+                          onChangeText={setInterests}
+                          placeholder='e.g. "photography, cooking, robotics"'
+                          placeholderTextColor="#9CA3AF"
+                          className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm"
+                          style={{ fontFamily: 'Poppins_400Regular' }}
+                        />
+                      </VStack>
+
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">Focus on a pillar (optional)</UIText>
+                        <HStack className="flex-wrap gap-2">
+                          <Pressable onPress={() => setSelectedPillar(null)}>
+                            <View className={`px-3 py-1.5 rounded-full ${!selectedPillar ? 'bg-optio-purple' : 'bg-surface-100'}`}>
+                              <UIText size="xs" className={`font-poppins-medium ${!selectedPillar ? 'text-white' : 'text-typo-500'}`}>Any</UIText>
+                            </View>
+                          </Pressable>
+                          {PILLARS.map((p) => (
+                            <Pressable key={p.key} onPress={() => setSelectedPillar(p.key)}>
+                              <View className={`px-3 py-1.5 rounded-full ${selectedPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100'}`}>
+                                <UIText size="xs" className={`font-poppins-medium ${selectedPillar === p.key ? 'text-white' : 'text-typo-500'}`}>
+                                  {p.label}
+                                </UIText>
+                              </View>
+                            </Pressable>
+                          ))}
+                        </HStack>
+                      </VStack>
+                    </>
+                  )}
 
                   <Divider />
 
@@ -462,7 +564,12 @@ export function TaskCreationWizard({
                     <Button variant="outline" size="md" onPress={() => setStep('choose')}>
                       <ButtonText>Back</ButtonText>
                     </Button>
-                    <Button size="md" onPress={handleGenerate} loading={generating} disabled={generating}>
+                    <Button
+                      size="md"
+                      onPress={handleGenerate}
+                      loading={generating}
+                      disabled={generating || (isClassQuest && selectedInterestChips.size === 0 && !extraIdeas.trim())}
+                    >
                       <ButtonText>{generating ? 'Generating...' : 'Generate Tasks'}</ButtonText>
                     </Button>
                   </HStack>
@@ -479,11 +586,23 @@ export function TaskCreationWizard({
                   <View className="border border-surface-200 rounded-xl p-5 bg-surface-50">
                     <VStack space="sm">
                       <HStack className="items-center justify-between">
-                        <View className={`px-3 py-1 rounded-full ${(pillarColors[currentTask.pillar] || pillarColors.stem).bg}`}>
-                          <UIText size="sm" className={`font-poppins-semibold ${(pillarColors[currentTask.pillar] || pillarColors.stem).text}`}>
-                            {currentTask.pillar === 'stem' ? 'STEM' : currentTask.pillar?.charAt(0).toUpperCase() + currentTask.pillar?.slice(1)}
-                          </UIText>
-                        </View>
+                        {classSubjectMeta ? (
+                          <View
+                            style={{ backgroundColor: `${classSubjectMeta.accent}1A` }}
+                            className="flex-row items-center gap-1.5 px-3 py-1 rounded-full"
+                          >
+                            <Ionicons name={classSubjectMeta.icon} size={13} color={classSubjectMeta.accent} />
+                            <UIText size="sm" style={{ color: classSubjectMeta.accent }} className="font-poppins-semibold">
+                              {classSubjectMeta.name}
+                            </UIText>
+                          </View>
+                        ) : (
+                          <View className={`px-3 py-1 rounded-full ${(pillarColors[currentTask.pillar] || pillarColors.stem).bg}`}>
+                            <UIText size="sm" className={`font-poppins-semibold ${(pillarColors[currentTask.pillar] || pillarColors.stem).text}`}>
+                              {currentTask.pillar === 'stem' ? 'STEM' : currentTask.pillar?.charAt(0).toUpperCase() + currentTask.pillar?.slice(1)}
+                            </UIText>
+                          </View>
+                        )}
                         <View className="bg-green-50 px-3 py-1 rounded-full">
                           <UIText size="sm" className="font-poppins-bold text-green-700">{currentTask.xp_value || 50} XP</UIText>
                         </View>

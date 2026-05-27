@@ -61,7 +61,7 @@ export default function StudentClassesView() {
       <StudentClassDetail
         classData={selectedClass}
         orgId={selectedClass.organization_id || user?.organization_id}
-        onBack={() => navigate('/classes')}
+        onBack={() => navigate('/org-classes')}
       />
     )
   }
@@ -72,7 +72,7 @@ export default function StudentClassesView() {
       <StudentClassDetail
         classId={classId}
         orgId={user?.organization_id}
-        onBack={() => navigate('/classes')}
+        onBack={() => navigate('/org-classes')}
       />
     )
   }

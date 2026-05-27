@@ -29,9 +29,15 @@ export interface QuestDetail {
   id: string;
   title: string;
   description: string;
+  /** Rich marketing-style description. Curated quests fill this; user-created
+   *  quests duplicate `description` into it. Render `big_idea || description`. */
+  big_idea?: string;
   header_image_url: string | null;
   image_url: string | null;
   quest_type: string;
+  /** Set when quest_type='class' — one of the 11 school_subject keys. */
+  transcript_subject?: string | null;
+  class_review_status?: 'submitted_for_review' | 'credit_awarded' | 'rejected' | null;
   approach_examples: any;
   allow_custom_tasks: boolean;
   is_active: boolean;
@@ -116,10 +122,15 @@ export function useQuestDetail(questId: string | null) {
     const sessionId = await ensureSession();
     // Pass existing task titles so AI avoids suggesting duplicates
     const existingTitles = (quest?.quest_tasks || []).map((t) => t.title);
+    // Split comma-separated interests into a proper list so the AI sees them
+    // as distinct items (matches v1 web behavior).
+    const interestList = interests
+      ? interests.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
     const { data } = await api.post(`/api/quests/${questId}/generate-tasks`, {
       session_id: sessionId,
       approach: 'hybrid',
-      interests: interests ? [interests] : [],
+      interests: interestList,
       cross_curricular_subjects: subject ? [subject] : [],
       exclude_tasks: existingTitles,
     });
