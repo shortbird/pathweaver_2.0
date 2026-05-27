@@ -92,6 +92,29 @@ jest.mock('expo-camera', () => ({
   useCameraPermissions: jest.fn().mockReturnValue([{ granted: true }, jest.fn()]),
 }));
 
+// ── expo-audio (VoiceRecorder pulls this in; native module unavailable in Jest) ──
+jest.mock('expo-audio', () => ({
+  AudioModule: { requestRecordingPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }) },
+  RecordingPresets: { HIGH_QUALITY: {} },
+  useAudioRecorder: () => ({
+    prepareToRecordAsync: jest.fn(),
+    record: jest.fn(),
+    stop: jest.fn(),
+    uri: null,
+  }),
+  useAudioPlayer: () => ({ play: jest.fn(), pause: jest.fn(), seekTo: jest.fn() }),
+  useAudioRecorderState: () => ({ isRecording: false, durationMillis: 0 }),
+  setAudioModeAsync: jest.fn(),
+}));
+
+// ── expo-web-browser (used by Supabase OAuth helper imported via authStore.web) ──
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn().mockResolvedValue({ type: 'cancel' }),
+  maybeCompleteAuthSession: jest.fn(),
+  dismissAuthSession: jest.fn(),
+  WebBrowserResultType: { CANCEL: 'cancel', SUCCESS: 'success' },
+}));
+
 // ── expo-video ──
 jest.mock('expo-video', () => ({
   VideoView: 'VideoView',

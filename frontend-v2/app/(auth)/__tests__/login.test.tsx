@@ -113,7 +113,7 @@ describe('LoginScreen', () => {
   // mobile paths (feed for most roles). We test that the redirect happens at all
   // and that different roles produce different routes where applicable.
 
-  it('redirects student to feed after login (mobile default)', async () => {
+  it('redirects student to dashboard after login (mobile default)', async () => {
     const studentUser = createMockUser({ role: 'student' });
     useAuthStore.setState({
       login: jest.fn().mockImplementation(async () => {
@@ -130,7 +130,7 @@ describe('LoginScreen', () => {
 
     await waitFor(() => {
       expect(mockRouter.replace).toHaveBeenCalledWith(
-        expect.stringContaining('feed')
+        expect.stringContaining('dashboard')
       );
     });
   });

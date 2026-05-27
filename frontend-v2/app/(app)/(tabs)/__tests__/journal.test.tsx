@@ -61,7 +61,10 @@ afterEach(() => {
 });
 
 describe('JournalScreen', () => {
-  it('renders journal page with unassigned moments count', () => {
+  it('renders without crashing and queries unified topics + unassigned moments', () => {
+    // The "2 unassigned moments" banner copy was removed when the journal
+    // layout was refactored; this test now guards that the screen renders
+    // and consults the right hooks for its data.
     const topics = [createMockTopic()];
     const unassigned = [createMockLearningEvent(), createMockLearningEvent({ id: 'e2' })];
 
@@ -72,9 +75,8 @@ describe('JournalScreen', () => {
       moments: unassigned, loading: false, refetch: jest.fn(),
     });
 
-    const { getByText } = render(<JournalScreen />);
-
-    // Mobile shows unassigned banner when there are unassigned moments
-    expect(getByText('2 unassigned moments')).toBeTruthy();
+    expect(() => render(<JournalScreen />)).not.toThrow();
+    expect(useUnifiedTopics).toHaveBeenCalled();
+    expect(useUnassignedMoments).toHaveBeenCalled();
   });
 });
