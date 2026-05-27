@@ -18,6 +18,7 @@ from .detail import bp as detail_bp
 from .enrollment import bp as enrollment_bp
 from .completion import bp as completion_bp
 from .engagement import bp as engagement_bp
+from .classes import bp as classes_bp
 
 
 def register_quest_blueprints(app: Flask):
@@ -27,3 +28,4 @@ def register_quest_blueprints(app: Flask):
     app.register_blueprint(enrollment_bp)
     app.register_blueprint(completion_bp)
     app.register_blueprint(engagement_bp)
+    app.register_blueprint(classes_bp)

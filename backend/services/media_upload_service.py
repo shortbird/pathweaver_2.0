@@ -23,14 +23,17 @@ from config.constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     ALLOWED_DOCUMENT_EXTENSIONS,
     ALLOWED_VIDEO_EXTENSIONS,
+    ALLOWED_AUDIO_EXTENSIONS,
     MAX_IMAGE_SIZE,
     MAX_DOCUMENT_SIZE,
     MAX_VIDEO_SIZE,
     MAX_VIDEO_SIZE_SIGNED,
     MAX_VIDEO_INLINE_PROCESSING_BYTES,
+    MAX_AUDIO_SIZE,
     IMAGE_FORMAT_LABEL,
     DOCUMENT_FORMAT_LABEL,
     VIDEO_FORMAT_LABEL,
+    AUDIO_FORMAT_LABEL,
 )
 
 logger = get_logger(__name__)
@@ -44,24 +47,28 @@ EVIDENCE_SIZE_LIMITS = {
     'image': MAX_IMAGE_SIZE,
     'video': MAX_VIDEO_SIZE,
     'document': MAX_DOCUMENT_SIZE,
+    'audio': MAX_AUDIO_SIZE,
 }
 
 SIGNED_EVIDENCE_SIZE_LIMITS = {
     'image': MAX_IMAGE_SIZE,
     'video': MAX_VIDEO_SIZE_SIGNED,
     'document': MAX_DOCUMENT_SIZE,
+    'audio': MAX_AUDIO_SIZE,
 }
 
 EVIDENCE_ALLOWED_EXTENSIONS = {
     'image': ALLOWED_IMAGE_EXTENSIONS,
     'video': ALLOWED_VIDEO_EXTENSIONS,
     'document': ALLOWED_DOCUMENT_EXTENSIONS,
+    'audio': ALLOWED_AUDIO_EXTENSIONS,
 }
 
 EVIDENCE_FORMAT_LABELS = {
     'image': IMAGE_FORMAT_LABEL,
     'video': VIDEO_FORMAT_LABEL,
     'document': DOCUMENT_FORMAT_LABEL,
+    'audio': AUDIO_FORMAT_LABEL,
 }
 
 # Storage path templates per context type
@@ -826,6 +833,8 @@ class MediaUploadService:
             return 'video'
         if ext in ALLOWED_IMAGE_EXTENSIONS:
             return 'image'
+        if ext in ALLOWED_AUDIO_EXTENSIONS:
+            return 'audio'
         if ext in ALLOWED_DOCUMENT_EXTENSIONS:
             return 'document'
         return 'document'

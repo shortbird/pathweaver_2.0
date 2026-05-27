@@ -1,18 +1,18 @@
 /**
- * Quest Discovery - Browse and search available quests.
- * Mobile: students browse, claim, view active quests. Authoring is web-only (gated by canCreateQuest).
+ * Quest Discovery - Browse, search, and create quests.
+ * Single canonical destination: Home's "Browse All" routes here.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, Image, Platform, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
-import { useAuthStore } from '@/src/stores/authStore';
-import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { BountiesView } from '@/src/components/bounties/BountiesView';
+import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
+import { CreateQuestSheet } from '@/src/components/journal/CreateQuestSheet';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon,
@@ -26,8 +26,11 @@ const pillarColors: Record<string, string> = {
 function QuestCard({ quest }: { quest: any }) {
   const imageUrl = quest.header_image_url || quest.image_url;
 
+  // No h-full / flex-1 here — on mobile (single column, no parent height) those
+  // caused each card to stretch to viewport height, so only one card was
+  // visible and pagination never fired. Cards size to content instead.
   return (
-    <Card variant="elevated" size="sm" className="overflow-hidden h-full">
+    <Card variant="elevated" size="sm" className="overflow-hidden">
       {imageUrl ? (
         <View className="-mx-3 -mt-3 mb-3">
           <Image source={{ uri: imageUrl }} className="w-full h-36 rounded-t-xl" resizeMode="cover" />
@@ -37,11 +40,13 @@ function QuestCard({ quest }: { quest: any }) {
           <Ionicons name="rocket-outline" size={40} color="#6D469B" />
         </View>
       )}
-      <VStack space="sm" className="flex-1">
+      <VStack space="sm">
         <Heading size="sm" numberOfLines={2}>{quest.title}</Heading>
-        <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={2}>
-          {quest.description}
-        </UIText>
+        {quest.description ? (
+          <UIText size="xs" className="text-typo-500" numberOfLines={2}>
+            {quest.description}
+          </UIText>
+        ) : null}
         <HStack className="items-center justify-between">
           <HStack className="items-center gap-2">
             {quest.pillar && (
@@ -75,15 +80,17 @@ const TOP_SEGMENTS: { key: TopSegment; label: string }[] = [
 
 export default function QuestsScreen() {
   const { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, selectedSubtopic, setSelectedSubtopic, subtopics, loadMore, refetch } = useQuestDiscovery();
-  const user = useAuthStore((s) => s.user);
-  const canCreateQuest = (user && ['superadmin', 'advisor'].includes(user.role)) || (user?.role === 'org_managed' && ['advisor', 'org_admin'].includes(user?.org_role || ''));
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [topSegment, setTopSegment] = useState<TopSegment>('quests');
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [createVisible, setCreateVisible] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    // Show the scroll-to-top FAB once the user is past ~600px in.
+    setShowScrollTop(contentOffset.y > 600);
     // Only paginate quest list scrolls; bounties view manages its own data.
     if (topSegment !== 'quests') return;
-    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
     if (distanceFromBottom < 200) {
       loadMore();
@@ -93,7 +100,7 @@ export default function QuestsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
       <PageHeader title="Quests" />
-      <ScrollView className="flex-1" contentContainerClassName="pt-2 md:pt-6 pb-12" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={200}>
+      <ScrollView ref={scrollRef} className="flex-1" contentContainerClassName="pt-2 md:pt-6 pb-12" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={64}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
           {/* Top-level segment toggle: Quests / Bounties */}
@@ -118,22 +125,41 @@ export default function QuestsScreen() {
           {topSegment === 'quests' && (
             <VStack space="lg" className="px-5 md:px-8">
 
-          {/* Hero gradient banner */}
-          <View className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-2xl px-6 py-8 md:py-10">
-            <HStack className="items-center justify-between">
-              <VStack space="sm">
-                <Heading size="2xl" className="text-white">Discover Quests</Heading>
-                <UIText className="text-white/80">Find your next learning adventure</UIText>
+          {/* Hero banner — Tailwind's bg-gradient-* classes don't render in
+              NativeWind, so we use a solid purple background everywhere and
+              paint a gradient via raw CSS on web only (matches BrandHeader). */}
+          <View
+            className="rounded-2xl px-6 py-8 md:py-10"
+            style={{
+              backgroundColor: '#6D469B',
+              ...(Platform.OS === 'web'
+                ? { backgroundImage: 'linear-gradient(90deg, #6D469B 0%, #EF597B 100%)' }
+                : {}),
+            }}
+          >
+            <HStack className="items-center justify-between gap-3">
+              <VStack space="sm" className="flex-1 min-w-0">
+                <Heading size="2xl" style={{ color: '#FFFFFF' }}>Discover Quests</Heading>
+                <UIText style={{ color: 'rgba(255,255,255,0.85)' }}>Browse the library or build your own</UIText>
               </VStack>
-            {canCreateQuest ? (
               <Pressable
-                onPress={() => setShowCreateModal(true)}
-                className="flex-row items-center gap-1.5 bg-white/20 px-4 py-2 rounded-lg"
+                onPress={() => setCreateVisible(true)}
+                accessibilityLabel="Create a new quest"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: 'rgba(255,255,255,0.22)',
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                }}
               >
-                <Ionicons name="add" size={16} color="white" />
-                <UIText size="sm" className="text-white font-poppins-medium">Create Quest</UIText>
+                <Ionicons name="add" size={16} color="#FFFFFF" />
+                <UIText size="sm" style={{ color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold' }}>
+                  New quest
+                </UIText>
               </Pressable>
-            ) : null}
             </HStack>
           </View>
 
@@ -223,10 +249,15 @@ export default function QuestsScreen() {
         </VStack>
       </ScrollView>
 
-      <CreateQuestModal
-        visible={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreated={refetch}
+      <CreateQuestSheet
+        visible={createVisible}
+        onClose={() => setCreateVisible(false)}
+        onCreated={() => { setCreateVisible(false); refetch(); }}
+      />
+
+      <ScrollToTopFab
+        visible={showScrollTop}
+        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
       />
     </SafeAreaView>
   );

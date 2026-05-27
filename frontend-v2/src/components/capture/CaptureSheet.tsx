@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Pressable, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Pressable, TextInput, Alert, ScrollView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
@@ -17,20 +17,25 @@ import {
   Avatar, AvatarFallbackText, AvatarImage,
 } from '../ui';
 import {
-  TaskPickerSheet, attachMomentToTask,
+  attachMomentToTask,
   type AttachableTask, type AttachableQuest,
 } from '../journal/TaskPickerSheet';
+import { InlineQuestTaskPicker } from './InlineQuestTaskPicker';
+import { VoiceRecorder, AudioClipPreview, type RecordedClip } from './VoiceRecorder';
 
 // File size limits (must match backend constants).
 // Signed-upload path: videos go direct-to-Supabase and can be up to 500MB.
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB (signed-upload)
+const MAX_AUDIO_SIZE = 25 * 1024 * 1024;  // 25MB (matches backend MAX_AUDIO_SIZE)
 
 interface MediaItem {
   uri: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'audio';
   name: string;
   fileSize?: number;
+  /** Audio only: duration in ms, for the playback chip. */
+  durationMs?: number;
 }
 
 interface CaptureSheetProps {
@@ -42,14 +47,20 @@ interface CaptureSheetProps {
   /** When true, fetches the parent's children and renders a multi-select kid picker
    *  at the top of the sheet. Used by the parent center-capture tab. */
   pickStudents?: boolean;
+  /** When set, the task picker opens pre-scoped to this quest (only its tasks shown)
+   *  and the sheet header reflects that we're capturing for this quest. */
+  questContext?: { questId: string; questTitle: string };
 }
 
-export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStudents = false }: CaptureSheetProps) {
+export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStudents = false, questContext }: CaptureSheetProps) {
   const [description, setDescription] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [pickerVisible, setPickerVisible] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<{ task: AttachableTask; questTitle: string } | null>(null);
+  // "Add as new task in <quest>" intent — mutually exclusive with selectedTask.
+  const [pendingNewTask, setPendingNewTask] = useState<AttachableQuest | null>(null);
+  const [recording, setRecording] = useState(false);
 
   // Parent flow: fetch children when pickStudents is on. The hook short-circuits
   // gracefully for non-parent users (empty list, no error toast).
@@ -74,7 +85,10 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setDescription('');
     setMedia([]);
     setSelectedTask(null);
+    setPendingNewTask(null);
+    setAttachOpen(false);
     setSelectedStudentIds([]);
+    setRecording(false);
   };
 
   const handleClose = () => {
@@ -146,11 +160,19 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-finalize`
       : `/api/learning-events/${eventId}/upload-finalize`;
 
+    const mimeForType = (t: MediaItem['type']): string => {
+      if (t === 'video') return 'video/mp4';
+      if (t === 'audio') return 'audio/m4a';
+      return 'image/jpeg';
+    };
+    const fallbackExt = (t: MediaItem['type']): string =>
+      t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : 'm4a';
+
     const uploadedFiles = (
       await Promise.all(
         items.map(async (item) => {
-          const filename = item.name || item.uri.split('/').pop() || `capture.${item.type === 'image' ? 'jpg' : 'mp4'}`;
-          const mimeType = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
+          const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
+          const mimeType = mimeForType(item.type);
           try {
             const result = await uploadViaSignedUrl({
               file: { uri: item.uri, name: filename, type: mimeType, size: item.fileSize ?? 0 },
@@ -160,7 +182,9 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             });
             return {
               block_type: item.type,
-              content: {},
+              content: item.type === 'audio' && item.durationMs
+                ? { duration_ms: item.durationMs }
+                : {},
               file_url: (result.file_url || result.url) as string,
               file_name: (result.filename || result.file_name || filename) as string,
             };
@@ -169,7 +193,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
           }
         }),
       )
-    ).filter((x): x is { block_type: 'image' | 'video'; content: Record<string, never>; file_url: string; file_name: string } => Boolean(x));
+    ).filter((x): x is { block_type: 'image' | 'video' | 'audio'; content: Record<string, unknown>; file_url: string; file_name: string } => Boolean(x));
 
     if (uploadedFiles.length > 0) {
       const blocks = uploadedFiles.map((f, i) => ({
@@ -224,6 +248,18 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             // Non-fatal: moment saved, attach failed — surface softly
             Alert.alert('Heads up', 'Moment saved but could not attach to task. You can attach it from the journal.');
           }
+        } else if (eventId && pendingNewTask) {
+          // Spin up a new pending task on the chosen quest, pointing back at
+          // this moment via source_moment_id. Backend default pillar / xp
+          // applies; the student can refine title + values from the quest
+          // detail screen.
+          try {
+            await api.post(`/api/learning-events/${eventId}/convert-to-task`, {
+              quest_id: pendingNewTask.id,
+            });
+          } catch {
+            Alert.alert('Heads up', 'Moment saved but could not add as a new task. You can do that from the journal.');
+          }
         }
       }
 
@@ -247,8 +283,22 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       <VStack space="md">
             {/* Header */}
             <HStack className="items-center justify-between">
-              <Heading size="lg">Capture a Moment</Heading>
-              <Pressable onPress={handleClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+              <VStack className="flex-1 min-w-0">
+                <Heading size="lg">Capture a Moment</Heading>
+                {questContext && (
+                  <HStack className="items-center gap-1.5 mt-0.5">
+                    <Ionicons name="rocket" size={12} color="#6D469B" />
+                    <UIText size="xs" className="text-optio-purple font-poppins-medium" numberOfLines={1}>
+                      For: {questContext.questTitle}
+                    </UIText>
+                  </HStack>
+                )}
+              </VStack>
+              <Pressable
+                onPress={handleClose}
+                className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+                hitSlop={8}
+              >
                 <Ionicons name="close" size={18} color="#6B7280" />
               </Pressable>
             </HStack>
@@ -318,30 +368,90 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               style={{ textAlignVertical: 'top' }}
             />
 
-            {/* Media previews */}
+            {/* Media previews — real thumbnails / audio playback chips */}
             {media.length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <HStack className="gap-2">
-                  {media.map((item, index) => (
-                    <View
-                      key={index}
-                      className="flex-row items-center gap-2 bg-optio-purple/5 px-3 py-2 rounded-xl border border-optio-purple/20"
-                    >
-                      <Ionicons
-                        name={item.type === 'video' ? 'videocam' : 'image'}
-                        size={16}
-                        color="#6D469B"
-                      />
-                      <UIText size="xs" className="text-optio-purple font-poppins-medium" numberOfLines={1} style={{ maxWidth: 100 }}>
-                        {item.name}
-                      </UIText>
-                      <Pressable onPress={() => removeMedia(index)}>
-                        <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-                      </Pressable>
-                    </View>
-                  ))}
+                <HStack className="gap-2 items-center">
+                  {media.map((item, index) => {
+                    if (item.type === 'audio') {
+                      return (
+                        <AudioClipPreview
+                          key={index}
+                          clip={{
+                            uri: item.uri,
+                            name: item.name,
+                            fileSize: item.fileSize ?? 0,
+                            durationMs: item.durationMs ?? 0,
+                          }}
+                          onRemove={() => removeMedia(index)}
+                        />
+                      );
+                    }
+                    return (
+                      <View key={index} style={{ width: 96, height: 96 }}>
+                        {item.type === 'image' ? (
+                          <Image
+                            source={{ uri: item.uri }}
+                            style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: '#F3F4F6' }}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: 96, height: 96, borderRadius: 12,
+                              backgroundColor: '#1F1F2E',
+                              alignItems: 'center', justifyContent: 'center',
+                            }}
+                          >
+                            <Ionicons name="play-circle" size={36} color="#FFFFFF" />
+                            <UIText size="xs" className="text-white font-poppins-medium mt-1">Video</UIText>
+                          </View>
+                        )}
+                        <Pressable
+                          onPress={() => removeMedia(index)}
+                          hitSlop={6}
+                          style={{
+                            position: 'absolute', top: -6, right: -6,
+                            width: 24, height: 24, borderRadius: 12,
+                            backgroundColor: '#FFFFFF',
+                            alignItems: 'center', justifyContent: 'center',
+                            shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
+                            elevation: 2,
+                          }}
+                        >
+                          <Ionicons name="close-circle" size={22} color="#6B7280" />
+                        </Pressable>
+                      </View>
+                    );
+                  })}
                 </HStack>
               </ScrollView>
+            )}
+
+            {/* Voice recorder — appears between previews and the attach button row when active. */}
+            {recording && (
+              <VoiceRecorder
+                active={recording}
+                onCancel={() => setRecording(false)}
+                onRecorded={(clip) => {
+                  if (clip.fileSize > MAX_AUDIO_SIZE) {
+                    const mb = (clip.fileSize / (1024 * 1024)).toFixed(1);
+                    Alert.alert('Recording too long', `That clip is ${mb}MB. Voice notes are limited to ${MAX_AUDIO_SIZE / (1024 * 1024)}MB — try a shorter recording.`);
+                  } else {
+                    setMedia((prev) => [
+                      ...prev,
+                      {
+                        uri: clip.uri,
+                        type: 'audio',
+                        name: clip.name,
+                        fileSize: clip.fileSize,
+                        durationMs: clip.durationMs,
+                      },
+                    ]);
+                  }
+                  setRecording(false);
+                }}
+              />
             )}
 
             {/* Attach buttons */}
@@ -349,64 +459,108 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               <Pressable
                 onPress={openCamera}
                 className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+                style={{ minHeight: 44 }}
               >
                 <Ionicons name="camera-outline" size={26} color="#6D469B" />
                 <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Camera</UIText>
               </Pressable>
               <Pressable
-                className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100 opacity-40"
+                onPress={() => {
+                  if (Platform.OS === 'web') {
+                    Alert.alert(
+                      'Voice notes',
+                      'Voice recording works in the mobile app — try it on iOS or Android.',
+                    );
+                    return;
+                  }
+                  setRecording(true);
+                }}
+                disabled={recording}
+                className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+                style={{ minHeight: 44, opacity: recording ? 0.4 : 1 }}
               >
-                <Ionicons name="mic-outline" size={26} color="#6D469B" />
+                <Ionicons name={recording ? 'mic' : 'mic-outline'} size={26} color="#6D469B" />
                 <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Voice</UIText>
               </Pressable>
               <Pressable
                 onPress={pickFiles}
                 className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+                style={{ minHeight: 44 }}
               >
                 <Ionicons name="images-outline" size={26} color="#6D469B" />
                 <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Files</UIText>
               </Pressable>
             </HStack>
 
-            {/* Attach to task (student-only, not parent capture) */}
-            {!pickStudents && (!studentIds || studentIds.length === 0) ? (
-              selectedTask ? (
-                <View className="bg-optio-purple/5 rounded-xl p-3 border border-optio-purple/20">
-                  <HStack className="items-start justify-between gap-2">
-                    <VStack className="flex-1 min-w-0">
-                      <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider mb-1">
-                        Attaching to
-                      </UIText>
-                      <UIText size="sm" className="font-poppins-medium" numberOfLines={2}>
-                        {selectedTask.task.title}
-                      </UIText>
-                      <HStack className="items-center gap-2 mt-1">
-                        <PillarBadge pillar={selectedTask.task.pillar} size="sm" />
-                        <UIText size="xs" className="text-typo-500" numberOfLines={1}>
-                          {selectedTask.questTitle}
+            {/* Attach to quest — inline (no extra drawer). Tapping the header
+                expands a list of the student's active quests; each quest
+                expands to show its pending tasks plus an "Add as new task"
+                tile. Parent capture skips this entirely. */}
+            {!pickStudents && (!studentIds || studentIds.length === 0) && (
+              <VStack space="xs">
+                <Pressable
+                  onPress={() => setAttachOpen((v) => !v)}
+                  className="flex-row items-center justify-between gap-2 py-3 px-3 rounded-xl border border-dashed border-surface-300 active:bg-surface-50"
+                  style={{ minHeight: 44 }}
+                >
+                  <HStack className="items-center gap-2 flex-1 min-w-0">
+                    <Ionicons name="flag-outline" size={16} color="#6D469B" />
+                    {selectedTask ? (
+                      <VStack className="flex-1 min-w-0">
+                        <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">
+                          Attaching to
                         </UIText>
-                      </HStack>
-                    </VStack>
+                        <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                          {selectedTask.task.title}
+                        </UIText>
+                      </VStack>
+                    ) : pendingNewTask ? (
+                      <VStack className="flex-1 min-w-0">
+                        <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">
+                          New task in
+                        </UIText>
+                        <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                          {pendingNewTask.title}
+                        </UIText>
+                      </VStack>
+                    ) : (
+                      <UIText size="sm" className="text-optio-purple font-poppins-medium">
+                        {questContext ? 'Attach to a task in this quest' : 'Attach to a quest task'}
+                      </UIText>
+                    )}
+                  </HStack>
+                  {(selectedTask || pendingNewTask) && (
                     <Pressable
-                      onPress={() => setSelectedTask(null)}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        setSelectedTask(null);
+                        setPendingNewTask(null);
+                      }}
+                      hitSlop={8}
                       className="w-7 h-7 rounded-full bg-white items-center justify-center"
                     >
                       <Ionicons name="close" size={14} color="#6B7280" />
                     </Pressable>
-                  </HStack>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => setPickerVisible(true)}
-                  className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-surface-300 active:bg-surface-50"
-                >
-                  <Ionicons name="flag-outline" size={16} color="#6D469B" />
-                  <UIText size="sm" className="text-optio-purple font-poppins-medium">
-                    Attach to a quest task
-                  </UIText>
+                  )}
+                  <Ionicons name={attachOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#9CA3AF" />
                 </Pressable>
-              )
-            ) : null}
+
+                <InlineQuestTaskPicker
+                  visible={attachOpen}
+                  questIdFilter={questContext?.questId}
+                  selectedTaskId={selectedTask?.task.id || null}
+                  selectedNewTaskQuestId={pendingNewTask?.id || null}
+                  onPickTask={(task, quest) => {
+                    setSelectedTask({ task, questTitle: quest.title });
+                    setPendingNewTask(null);
+                  }}
+                  onPickNewTask={(quest) => {
+                    setPendingNewTask(quest);
+                    setSelectedTask(null);
+                  }}
+                />
+              </VStack>
+            )}
 
             {/* Save button */}
             <Button
@@ -420,14 +574,6 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             </Button>
           </VStack>
 
-          <TaskPickerSheet
-            visible={pickerVisible}
-            onClose={() => setPickerVisible(false)}
-            onPicked={(task, quest) => {
-              setSelectedTask({ task, questTitle: quest.title });
-              setPickerVisible(false);
-            }}
-          />
     </BottomSheet>
   );
 }

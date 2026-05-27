@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import { Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { authAPI, api } from '../services/api';
 import { tokenStore } from '../services/tokenStore';
 import { supabase } from '../services/supabaseClient';
@@ -172,23 +173,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   googleLogin: async () => {
-    if (Platform.OS !== 'web') return;
+    // Web: full-page redirect to Supabase OAuth, then /auth/callback handles it.
+    if (Platform.OS === 'web') {
+      set({ isLoading: true, error: null });
+      try {
+        const redirectTo = `${window.location.origin}/auth/callback`;
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo,
+            queryParams: { access_type: 'offline', prompt: 'consent' },
+          },
+        });
+        if (error) set({ isLoading: false, error: error.message });
+      } catch {
+        set({ isLoading: false, error: 'Failed to initiate Google sign-in' });
+      }
+      return;
+    }
+
+    // Native (iOS / Android): open the Supabase OAuth URL in an in-app browser
+    // (ASWebAuthenticationSession / Custom Tab) and wait for it to redirect
+    // back to our deep-link scheme `optio://auth/callback`. We then pull the
+    // access + refresh tokens off the URL fragment and finalize through the
+    // existing handleGoogleCallback (same backend path web uses).
     set({ isLoading: true, error: null });
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      const { error } = await supabase.auth.signInWithOAuth({
+      const redirectTo = 'optio://auth/callback';
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
+          skipBrowserRedirect: true,
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
-      if (error) {
-        set({ isLoading: false, error: error.message });
+      if (error || !data?.url) {
+        set({ isLoading: false, error: error?.message || 'Could not start Google sign-in' });
+        return;
       }
-      // User will be redirected to Google, then back to /auth/callback
-    } catch {
-      set({ isLoading: false, error: 'Failed to initiate Google sign-in' });
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== 'success' || !result.url) {
+        // User dismissed the browser or auth was cancelled — silent recovery.
+        set({ isLoading: false });
+        return;
+      }
+
+      // Supabase puts tokens in the URL fragment (#access_token=...&refresh_token=...).
+      const fragment = result.url.split('#')[1] || '';
+      const params = new URLSearchParams(fragment);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token') || '';
+      if (!accessToken) {
+        set({ isLoading: false, error: 'Google sign-in completed but no token was returned' });
+        return;
+      }
+      // handleGoogleCallback flips isLoading off + sets user on success.
+      await get().handleGoogleCallback(accessToken, refreshToken);
+    } catch (err: any) {
+      set({ isLoading: false, error: err?.message || 'Google sign-in failed' });
     }
   },
 

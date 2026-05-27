@@ -1,22 +1,27 @@
 /**
- * Quest Detail - Notion-style document layout.
+ * Quest Detail - Hero image → description → progress → task list.
  *
- * Hero image → description → metadata → task list (expandable inline).
- * Inline task creation with optional AI generation.
- * Web only.
+ * Works on web and native. Tasks expand inline; the personalization wizard
+ * (manual / AI / browse-suggestions) is the same on every platform.
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Image, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Image, Pressable, Alert, Linking, Platform } from 'react-native';
 import api from '@/src/services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDetail, PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestDetail';
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
+import { useCaptureContextStore } from '@/src/stores/captureContextStore';
+import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
+import { AudioClipPreview } from '@/src/components/capture/VoiceRecorder';
+import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
+import { ClassDetailHeader } from '@/src/components/class/ClassDetailHeader';
+import { getSubject } from '@/src/components/class/SUBJECTS';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Input, InputField,
@@ -52,53 +57,89 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
 
   if (blockType === 'image' && content.url) {
     return (
-      <View className="rounded-lg overflow-hidden">
-        <Image source={{ uri: content.url }} className="w-full h-40" resizeMode="cover" />
-        {content.caption && <UIText size="xs" className="text-typo-400 mt-1">{content.caption}</UIText>}
+      <View className="rounded-xl overflow-hidden bg-surface-100">
+        <Image source={{ uri: content.url }} style={{ width: '100%', height: 200 }} resizeMode="cover" />
+        {content.caption && (
+          <UIText size="xs" className="text-typo-400 px-2 py-1.5">{content.caption}</UIText>
+        )}
       </View>
     );
   }
 
   if (blockType === 'video' && content.url) {
     return (
-      <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
-        <Ionicons name="videocam" size={20} color="#6D469B" />
-        <VStack className="flex-1">
-          <UIText size="xs" className="font-poppins-medium">Video</UIText>
-          <UIText size="xs" className="text-typo-400" numberOfLines={1}>{content.url}</UIText>
-        </VStack>
-      </HStack>
+      <Pressable onPress={() => Linking.openURL(content.url).catch(() => {})}>
+        <View
+          className="rounded-xl overflow-hidden items-center justify-center"
+          style={{ height: 160, backgroundColor: '#1F1F2E' }}
+        >
+          <Ionicons name="play-circle" size={56} color="#FFFFFF" />
+          <UIText size="xs" className="text-white font-poppins-medium mt-2">Tap to play video</UIText>
+        </View>
+      </Pressable>
     );
   }
 
   if (blockType === 'link' && (content.url || content.value)) {
+    const url = content.url || content.value;
     return (
-      <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
-        <Ionicons name="link" size={18} color="#2469D1" />
-        <VStack className="flex-1">
-          {content.title && <UIText size="xs" className="font-poppins-medium">{content.title}</UIText>}
-          <UIText size="xs" className="text-pillar-stem" numberOfLines={1}>{content.url || content.value}</UIText>
-        </VStack>
-      </HStack>
+      <Pressable
+        onPress={() => Linking.openURL(url).catch(() => {})}
+        className="active:opacity-70"
+      >
+        <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
+          <Ionicons name="link" size={18} color="#2469D1" />
+          <VStack className="flex-1 min-w-0">
+            {content.title && content.title !== url && (
+              <UIText size="xs" className="font-poppins-medium" numberOfLines={1}>{content.title}</UIText>
+            )}
+            <UIText size="xs" className="text-pillar-stem" numberOfLines={1}>{url}</UIText>
+          </VStack>
+          <Ionicons name="open-outline" size={14} color="#9A93A8" />
+        </HStack>
+      </Pressable>
     );
   }
 
   if (blockType === 'text') {
     return (
-      <View className="p-3 bg-surface-50 rounded-lg">
-        <UIText size="xs" className="text-typo-500">{content.text || content.value || ''}</UIText>
+      <View className="p-3 bg-surface-50 rounded-lg border border-surface-200">
+        <UIText size="sm" className="text-typo-500" style={{ lineHeight: 20 }}>
+          {content.text || content.value || ''}
+        </UIText>
       </View>
     );
   }
 
   if (blockType === 'document' && content.url) {
     return (
-      <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
-        <Ionicons name="document-attach" size={18} color="#6B7280" />
-        <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={1}>
-          {content.filename || content.title || 'Document'}
-        </UIText>
-      </HStack>
+      <Pressable
+        onPress={() => Linking.openURL(content.url).catch(() => {})}
+        className="active:opacity-70"
+      >
+        <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
+          <Ionicons name="document-attach" size={18} color="#6B7280" />
+          <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={1}>
+            {content.filename || content.title || 'Document'}
+          </UIText>
+          <Ionicons name="open-outline" size={14} color="#9A93A8" />
+        </HStack>
+      </Pressable>
+    );
+  }
+
+  if (blockType === 'audio' && content.url) {
+    // Use the same playback chip we use in capture previews — gives the student
+    // a real Play/Pause + scrubber so they can confirm what was recorded.
+    return (
+      <AudioClipPreview
+        clip={{
+          uri: content.url,
+          name: content.filename || 'voice-note',
+          fileSize: 0,
+          durationMs: content.duration_ms || 0,
+        }}
+      />
     );
   }
 
@@ -109,19 +150,39 @@ function TaskItem({
   task,
   onComplete,
   onDelete,
+  classSubject,
 }: {
   task: any;
   onComplete: (taskId: string) => void;  // just update local state, no API call
   onDelete: (taskId: string) => void;
+  /** When set, this task belongs to a class quest — render the transcript
+   *  subject + attributed credit XP in place of the pillar badge. */
+  classSubject?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [evidenceBlocks, setEvidenceBlocks] = useState<any[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [textEvidence, setTextEvidence] = useState('');
-  const [showTextInput, setShowTextInput] = useState(false);
-  const colors = pillarColors[task.pillar] || pillarColors.stem;
+  const [evidenceSheetVisible, setEvidenceSheetVisible] = useState(false);
+  const pillar = pillarColors[task.pillar] || pillarColors.stem;
+  const subjectMeta = classSubject ? getSubject(classSubject) : null;
+  const isClassTask = !!subjectMeta;
+  // Subject XP attributed to this class's transcript subject (the diploma
+  // credit this task pays). Falls back to the task's full xp_value if no
+  // explicit distribution is on the task.
+  const creditXp = isClassTask
+    ? (task.subject_xp_distribution?.[classSubject!] ?? task.xp_value ?? task.xp_amount ?? 0)
+    : null;
+
+  const refetchEvidence = async () => {
+    if (task.is_moment) return;
+    try {
+      const { data } = await api.get(`/api/evidence/documents/${task.id}`);
+      setEvidenceBlocks(data.blocks || []);
+    } catch {
+      // No evidence yet
+    }
+  };
 
   // Fetch evidence on mount (for count indicator) and when expanded (for full display)
   // Moment-tasks carry their evidence inline from the backend — skip the API call
@@ -148,18 +209,11 @@ function TaskItem({
   const handleComplete = async () => {
     setCompleting(true);
     try {
-      // Save any pending text evidence + complete
-      const blocks = [...evidenceBlocks];
-      if (textEvidence.trim()) {
-        blocks.push({ type: 'text', content: { text: textEvidence.trim() }, order_index: blocks.length });
-      }
       await api.post(`/api/evidence/documents/${task.id}`, {
-        blocks: blocks.map(normalizeBlockForSave),
+        blocks: evidenceBlocks.map(normalizeBlockForSave),
         status: 'completed',
       });
       onComplete(task.id);
-      setTextEvidence('');
-      setShowTextInput(false);
     } catch {
       // Error
     } finally {
@@ -167,107 +221,22 @@ function TaskItem({
     }
   };
 
-  const handleFileUpload = async () => {
-    // Web: use file input
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*,video/*,.pdf,.doc,.docx';
-    input.onchange = async (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const isVideo = file.type.startsWith('video/');
-      const isImage = file.type.startsWith('image/');
-      const maxSize = isVideo ? 50 * 1024 * 1024 : isImage ? 10 * 1024 * 1024 : 25 * 1024 * 1024;
-      if (file.size > maxSize) {
-        const maxMB = maxSize / (1024 * 1024);
-        const fileMB = (file.size / (1024 * 1024)).toFixed(1);
-        const fileType = isVideo ? 'videos' : isImage ? 'images' : 'documents';
-        alert(`File too large (${fileMB}MB). Maximum for ${fileType} is ${maxMB}MB.`);
-        return;
-      }
-      setUploading(true);
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const { data } = await api.post(`/api/evidence/documents/${task.id}/upload`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+  // All evidence add flows live in TaskEvidenceSheet (photo/video/voice/text/link
+  // in one bottom sheet). No more inline buttons.
 
-        // Determine block type from file
-        const isImage = file.type.startsWith('image/');
-        const isVideo = file.type.startsWith('video/');
-        const blockType = isImage ? 'image' : isVideo ? 'video' : 'document';
-
-        const newBlock = {
-          type: blockType,
-          content: {
-            url: data.url,
-            filename: data.filename || file.name,
-            title: file.name,
-          },
-          order_index: evidenceBlocks.length,
-        };
-
-        // Save the block
-        const updatedBlocks = [...evidenceBlocks, newBlock];
-        await api.post(`/api/evidence/documents/${task.id}`, {
-          blocks: updatedBlocks.map(normalizeBlockForSave),
-          status: 'draft',
-        });
-        setEvidenceBlocks(updatedBlocks);
-      } catch {
-        // Upload error
-      } finally {
-        setUploading(false);
-      }
-    };
-    input.click();
-  };
-
-  const handleAddText = async () => {
-    if (!textEvidence.trim()) return;
-    const newBlock = {
-      type: 'text',
-      content: { text: textEvidence.trim() },
-      order_index: evidenceBlocks.length,
-    };
-    const updatedBlocks = [...evidenceBlocks, newBlock];
-    try {
-      await api.post(`/api/evidence/documents/${task.id}`, {
-        blocks: updatedBlocks.map(normalizeBlockForSave),
-        status: 'draft',
-      });
-      setEvidenceBlocks(updatedBlocks);
-      setTextEvidence('');
-      setShowTextInput(false);
-    } catch {
-      // Error
-    }
-  };
-
-  const handleAddLink = async () => {
-    const url = prompt('Enter a URL:');
-    if (!url) return;
-    const newBlock = {
-      type: 'link',
-      content: { url, title: url },
-      order_index: evidenceBlocks.length,
-    };
-    const updatedBlocks = [...evidenceBlocks, newBlock];
-    try {
-      await api.post(`/api/evidence/documents/${task.id}`, {
-        blocks: updatedBlocks.map(normalizeBlockForSave),
-        status: 'draft',
-      });
-      setEvidenceBlocks(updatedBlocks);
-    } catch {
-      // Error
-    }
-  };
+  // Left border: pillar color for regular quest tasks, subject accent for class tasks.
+  const borderStyle = isClassTask && subjectMeta
+    ? { borderLeftColor: subjectMeta.accent, borderLeftWidth: 4 }
+    : undefined;
 
   return (
     <Pressable onPress={() => setExpanded(!expanded)}>
-      <Card variant={expanded ? 'elevated' : 'outline'} size="sm" className={`border-l-4 ${colors.bar}`}>
+      <Card
+        variant={expanded ? 'elevated' : 'outline'}
+        size="sm"
+        className={isClassTask ? '' : `border-l-4 ${pillar.bar}`}
+        style={borderStyle}
+      >
         <VStack space="sm">
           {/* Header row */}
           <HStack className="items-center gap-3">
@@ -295,12 +264,26 @@ function TaskItem({
                 {task.title}
               </UIText>
               <HStack className="items-center gap-2">
-                <View className={`px-1.5 py-0.5 rounded ${colors.bg}`}>
-                  <UIText size="xs" className={colors.text}>
-                    {task.pillar === 'stem' ? 'STEM' : task.pillar?.charAt(0).toUpperCase() + task.pillar?.slice(1)}
-                  </UIText>
-                </View>
-                <UIText size="xs" className="text-typo-400">{task.xp_value || task.xp_amount || 0} XP</UIText>
+                {isClassTask && subjectMeta ? (
+                  <View
+                    style={{ backgroundColor: `${subjectMeta.accent}1A` }}
+                    className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
+                  >
+                    <Ionicons name={subjectMeta.icon} size={11} color={subjectMeta.accent} />
+                    <UIText size="xs" style={{ color: subjectMeta.accent }} className="font-poppins-medium">
+                      {subjectMeta.name} · {creditXp} XP
+                    </UIText>
+                  </View>
+                ) : (
+                  <>
+                    <View className={`px-1.5 py-0.5 rounded ${pillar.bg}`}>
+                      <UIText size="xs" className={pillar.text}>
+                        {task.pillar === 'stem' ? 'STEM' : task.pillar?.charAt(0).toUpperCase() + task.pillar?.slice(1)}
+                      </UIText>
+                    </View>
+                    <UIText size="xs" className="text-typo-400">{task.xp_value || task.xp_amount || 0} XP</UIText>
+                  </>
+                )}
                 {task.is_moment && (
                   <View className="px-1.5 py-0.5 rounded bg-optio-purple/10">
                     <UIText size="xs" className="text-optio-purple" style={{ fontSize: 10 }}>From Journal</UIText>
@@ -348,58 +331,19 @@ function TaskItem({
                 </VStack>
               )}
 
-              {/* Evidence upload (not completed) */}
+              {/* Single Add Evidence button — opens the bottom sheet that handles
+                  photo/video/voice/text/link in one flow. */}
               {!task.is_completed && (
-                <VStack space="sm">
-                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Add Evidence</UIText>
-                  <HStack className="gap-2 flex-wrap">
-                    <Pressable
-                      onPress={handleFileUpload}
-                      className="flex-row items-center gap-1.5 px-3 py-2 bg-surface-100 rounded-lg active:bg-surface-200"
-                    >
-                      <Ionicons name="image-outline" size={16} color="#6B7280" />
-                      <UIText size="xs" className="text-typo-500">
-                        {uploading ? 'Uploading...' : 'Photo/File'}
-                      </UIText>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => setShowTextInput(!showTextInput)}
-                      className="flex-row items-center gap-1.5 px-3 py-2 bg-surface-100 rounded-lg active:bg-surface-200"
-                    >
-                      <Ionicons name="document-text-outline" size={16} color="#6B7280" />
-                      <UIText size="xs" className="text-typo-500">Text</UIText>
-                    </Pressable>
-                    <Pressable
-                      onPress={handleAddLink}
-                      className="flex-row items-center gap-1.5 px-3 py-2 bg-surface-100 rounded-lg active:bg-surface-200"
-                    >
-                      <Ionicons name="link-outline" size={16} color="#6B7280" />
-                      <UIText size="xs" className="text-typo-500">Link</UIText>
-                    </Pressable>
-                  </HStack>
-
-                  {showTextInput && (
-                    <VStack space="xs">
-                      <TextInput
-                        className="border border-surface-200 rounded-lg p-3 text-sm min-h-[80px] font-poppins"
-                        placeholder="Describe what you did, what you learned..."
-                        value={textEvidence}
-                        onChangeText={setTextEvidence}
-                        multiline
-                        textAlignVertical="top"
-                        placeholderTextColor="#9CA3AF"
-                      />
-                      <HStack className="gap-2">
-                        <Button size="xs" onPress={handleAddText} disabled={!textEvidence.trim()}>
-                          <ButtonText>Save Text</ButtonText>
-                        </Button>
-                        <Button size="xs" variant="link" onPress={() => { setShowTextInput(false); setTextEvidence(''); }}>
-                          <ButtonText className="text-typo-400">Cancel</ButtonText>
-                        </Button>
-                      </HStack>
-                    </VStack>
-                  )}
-                </VStack>
+                <Pressable
+                  onPress={(e) => { e.stopPropagation(); setEvidenceSheetVisible(true); }}
+                  className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-optio-purple/10 active:bg-optio-purple/20"
+                  style={{ minHeight: 44 }}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color="#6D469B" />
+                  <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+                    {evidenceBlocks.length > 0 ? 'Add more evidence' : 'Add evidence'}
+                  </UIText>
+                </Pressable>
               )}
 
               {/* Completed status */}
@@ -409,23 +353,59 @@ function TaskItem({
                 </UIText>
               )}
 
-              {/* Action buttons */}
+              {/* Primary action: full-width Complete. Remove is demoted to a
+                  muted text link with a confirmation dialog. */}
               {!task.is_completed && (
-                <HStack className="gap-2">
-                  <Button size="xs" onPress={handleComplete} loading={completing}>
-                    <ButtonText>Complete Task</ButtonText>
+                <VStack space="sm" className="mt-2">
+                  <Button size="lg" className="w-full" onPress={handleComplete} loading={completing}>
+                    <ButtonText>
+                      <HStack className="items-center gap-2">
+                        <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                        <UIText className="text-white font-poppins-semibold">Complete task</UIText>
+                      </HStack>
+                    </ButtonText>
                   </Button>
                   {!task.is_required && (
-                    <Button size="xs" variant="outline" action="negative" onPress={() => onDelete(task.id)}>
-                      <ButtonText>Remove</ButtonText>
-                    </Button>
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        if (Platform.OS === 'web') {
+                          if (window.confirm(`Remove "${task.title}" from this quest?`)) {
+                            onDelete(task.id);
+                          }
+                          return;
+                        }
+                        Alert.alert(
+                          'Remove task?',
+                          `"${task.title}" will be removed from this quest. Any evidence you've added to it will be lost.`,
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Remove', style: 'destructive', onPress: () => onDelete(task.id) },
+                          ],
+                        );
+                      }}
+                      hitSlop={8}
+                      style={{ minHeight: 36, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <UIText size="xs" className="text-typo-400">Remove from quest</UIText>
+                    </Pressable>
                   )}
-                </HStack>
+                </VStack>
               )}
             </VStack>
           )}
         </VStack>
       </Card>
+
+      {/* Bottom sheet: photo/video/voice/text/link in a single Add Evidence flow */}
+      <TaskEvidenceSheet
+        visible={evidenceSheetVisible}
+        taskId={task.id}
+        taskTitle={task.title}
+        existingBlocks={evidenceBlocks}
+        onClose={() => setEvidenceSheetVisible(false)}
+        onSaved={refetchEvidence}
+      />
     </Pressable>
   );
 }
@@ -443,6 +423,23 @@ export default function QuestDetailScreen() {
   const [enrolling, setEnrolling] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [restartModalVisible, setRestartModalVisible] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollRef = React.useRef<ScrollView>(null);
+
+  // Publish quest context to the global Capture button while this screen is
+  // focused, so the center "+" knows to scope the task picker to this quest.
+  // Clear it on unfocus, otherwise the next Capture would still target this
+  // quest from another screen.
+  const setQuestCtx = useCaptureContextStore((s) => s.setQuest);
+  const clearQuestCtx = useCaptureContextStore((s) => s.clear);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (quest?.id && quest?.title && !!quest?.user_enrollment) {
+        setQuestCtx({ questId: quest.id, questTitle: quest.title });
+      }
+      return () => clearQuestCtx();
+    }, [quest?.id, quest?.title, quest?.user_enrollment, setQuestCtx, clearQuestCtx]),
+  );
 
   const handleEnroll = async () => {
     setEnrolling(true);
@@ -542,7 +539,13 @@ export default function QuestDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
+        scrollEventThrottle={64}
+      >
 
         {/* Full-bleed hero image */}
         {imageUrl ? (
@@ -582,10 +585,22 @@ export default function QuestDetailScreen() {
               )}
             </VStack>
 
-            {/* Description */}
-            <UIText testID="quest-description" className="text-typo-500 leading-6">
-              {quest.description}
-            </UIText>
+            {/* Class header (only for class-type quests) */}
+            {quest.quest_type === 'class' && isEnrolled && (
+              <ClassDetailHeader
+                questId={quest.id}
+                transcriptSubject={quest.transcript_subject || null}
+                refreshKey={`${tasks.length}-${completedCount}`}
+              />
+            )}
+
+            {/* Description — prefer big_idea (richer copy used on web v1) and
+                fall back to description. Many curated quests only fill one. */}
+            {(quest.big_idea || quest.description) ? (
+              <UIText testID="quest-description" className="text-typo-500 leading-6">
+                {quest.big_idea || quest.description}
+              </UIText>
+            ) : null}
 
             {/* Enrollment CTA (not enrolled) */}
             {!isEnrolled && (
@@ -603,8 +618,9 @@ export default function QuestDetailScreen() {
               </Card>
             )}
 
-            {/* Quest Progress (enrolled) */}
-            {isEnrolled && tasks.length > 0 && (
+            {/* Quest Progress (enrolled) — hidden for classes, which track progress
+                in the ClassDetailHeader's transcript-credit bar instead. */}
+            {isEnrolled && tasks.length > 0 && quest.quest_type !== 'class' && (
               <Card variant="elevated" size="md">
                 <VStack space="sm">
                   <HStack className="items-center justify-between">
@@ -681,6 +697,7 @@ export default function QuestDetailScreen() {
                       <TaskItem
                         key={task.id}
                         task={task}
+                        classSubject={quest.quest_type === 'class' ? (quest.transcript_subject || null) : null}
                         onComplete={(taskId) => {
                           // TaskItem.handleComplete already POSTed to the API.
                           // Just update local state here -- no second API call.
@@ -705,17 +722,31 @@ export default function QuestDetailScreen() {
                   onClose={() => setAddTaskOpen(false)}
                   onGenerate={generateTasks}
                   onAcceptTask={acceptTask}
+                  isClassQuest={quest.quest_type === 'class'}
+                  classSubject={quest.quest_type === 'class' ? (quest.transcript_subject || null) : null}
                 />
 
                 {/* Leave Quest */}
                 <Divider className="mt-4" />
                 <Pressable
                   onPress={() => {
-                    if (typeof window !== 'undefined' && window.confirm('Leave this quest? Your completed tasks will be preserved.')) {
-                      handleLeaveQuest();
+                    if (Platform.OS === 'web') {
+                      if (window.confirm('Leave this quest? Your completed tasks will be preserved.')) {
+                        handleLeaveQuest();
+                      }
+                      return;
                     }
+                    Alert.alert(
+                      'Leave Quest?',
+                      'Your completed tasks will be preserved. You can re-enroll later.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Leave', style: 'destructive', onPress: handleLeaveQuest },
+                      ],
+                    );
                   }}
                   className="py-3 items-center"
+                  style={{ minHeight: 44, justifyContent: 'center' }}
                 >
                   <UIText size="sm" className="text-red-400">Leave Quest</UIText>
                 </Pressable>
@@ -725,6 +756,17 @@ export default function QuestDetailScreen() {
           </VStack>
         </VStack>
       </ScrollView>
+
+      {/* No quest-scoped FAB here — the global center Capture button reads
+          captureContextStore.quest while this screen is focused, so it
+          already opens the sheet scoped to this quest. */}
+
+      <ScrollToTopFab
+        visible={showScrollTop}
+        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+        bottomOffset={24}
+      />
+
       {/* Restart Quest Modal */}
       {restartModalVisible && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 50 }}>

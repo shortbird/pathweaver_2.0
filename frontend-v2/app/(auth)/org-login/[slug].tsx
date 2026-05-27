@@ -22,10 +22,10 @@ function getRedirectForRole(user: User): string {
   switch (role) {
     case 'parent': return '/(app)/(tabs)/family';
     case 'advisor':
-    case 'org_admin': return Platform.OS === 'web' ? '/(app)/(tabs)/advisor' : '/(app)/(tabs)/feed';
-    case 'superadmin': return Platform.OS === 'web' ? '/(app)/(tabs)/dashboard' : '/(app)/(tabs)/feed';
+    case 'org_admin': return Platform.OS === 'web' ? '/(app)/(tabs)/advisor' : '/(app)/(tabs)/dashboard';
+    case 'superadmin': return '/(app)/(tabs)/dashboard';
     case 'observer': return '/(app)/(tabs)/feed';
-    default: return Platform.OS === 'web' ? '/(app)/(tabs)/dashboard' : '/(app)/(tabs)/feed';
+    default: return '/(app)/(tabs)/dashboard';
   }
 }
 

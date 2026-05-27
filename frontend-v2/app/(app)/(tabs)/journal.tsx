@@ -5,7 +5,7 @@
  * Mobile: toggle between topics list and moment detail view.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, ScrollView, useWindowDimensions, Platform, Pressable, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +20,7 @@ import { LearningEventCard } from '@/src/components/journal/LearningEventCard';
 import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { QuestTasksSection } from '@/src/components/journal/QuestTasksSection';
 import { GenerateTasksModal } from '@/src/components/journal/GenerateTasksModal';
+import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import {
   useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
   deleteInterestTrack, updateInterestTrack, evolveTrackToQuest,
@@ -146,6 +147,8 @@ export default function JournalScreen() {
 
   const [editingTopicName, setEditingTopicName] = useState(false);
   const [editTopicValue, setEditTopicValue] = useState('');
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const contentScrollRef = useRef<ScrollView>(null);
 
   const handleStartEditTopic = () => {
     if (track) {
@@ -204,7 +207,13 @@ export default function JournalScreen() {
 
   // ── Content panel ──
   const ContentPanel = () => (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <ScrollView
+      ref={contentScrollRef}
+      className="flex-1"
+      showsVerticalScrollIndicator={false}
+      onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
+      scrollEventThrottle={64}
+    >
       <VStack className="px-5 md:px-6 pt-4 pb-12" space="md">
         {/* Header */}
         <VStack>
@@ -236,12 +245,22 @@ export default function JournalScreen() {
           {/* Topic actions (edit / delete) */}
           {(selectedType === 'topic' || selectedType === 'track') && track && (
             <HStack className="gap-2 mt-2">
-              <Pressable onPress={handleStartEditTopic} className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg">
-                <Ionicons name="create-outline" size={14} color="#6D469B" />
+              <Pressable
+                onPress={handleStartEditTopic}
+                hitSlop={8}
+                style={{ minHeight: 36 }}
+                className="flex-row items-center gap-1.5 px-3 py-2 bg-surface-100 rounded-lg active:bg-surface-200"
+              >
+                <Ionicons name="create-outline" size={16} color="#6D469B" />
                 <UIText size="xs" className="text-optio-purple font-poppins-medium">Rename</UIText>
               </Pressable>
-              <Pressable onPress={handleDeleteTopic} className="flex-row items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-lg">
-                <Ionicons name="trash-outline" size={14} color="#EF4444" />
+              <Pressable
+                onPress={handleDeleteTopic}
+                hitSlop={8}
+                style={{ minHeight: 36 }}
+                className="flex-row items-center gap-1.5 px-3 py-2 bg-red-50 rounded-lg active:bg-red-100"
+              >
+                <Ionicons name="trash-outline" size={16} color="#EF4444" />
                 <UIText size="xs" className="text-red-500 font-poppins-medium">Delete</UIText>
               </Pressable>
             </HStack>
@@ -357,12 +376,12 @@ export default function JournalScreen() {
               color="#9CA3AF"
             />
             <Heading size="sm" className="text-typo-500 mt-3">
-              {selectedType === 'unassigned' ? 'All organized!' : 'No moments yet'}
+              {selectedType === 'unassigned' ? 'Nothing to organize' : 'Capture your first moment'}
             </Heading>
             <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
               {selectedType === 'unassigned'
-                ? 'All your learning moments have been assigned to topics.'
-                : 'Capture a learning moment and assign it to this topic.'}
+                ? 'Every moment is tied to a topic or quest. Capture something new with the + button.'
+                : 'Tap the + button to save what you just learned — even a few words count.'}
             </UIText>
           </Card>
         )}
@@ -387,12 +406,6 @@ export default function JournalScreen() {
                   <Ionicons name="refresh-outline" size={16} color="#6B7280" />
                 </Pressable>
                 <Pressable
-                  onPress={() => setNewTopicVisible(true)}
-                  className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
-                >
-                  <Ionicons name="folder-open-outline" size={16} color="#6D469B" />
-                </Pressable>
-                <Pressable
                   onPress={() => setCaptureVisible(true)}
                   className="w-8 h-8 rounded-full bg-optio-purple items-center justify-center"
                 >
@@ -400,6 +413,8 @@ export default function JournalScreen() {
                 </Pressable>
               </HStack>
             </HStack>
+            {/* Quest entry points removed from the Journal — Discover lives on
+                Home (Browse All) and New Quest lives inside the Discover sheet. */}
             <TopicsSidebar
               topics={topics}
               selectedId={selectedId}
@@ -407,6 +422,8 @@ export default function JournalScreen() {
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
+              onNewTopic={() => setNewTopicVisible(true)}
+              loading={topicsLoading}
             />
           </View>
 
@@ -504,6 +521,12 @@ export default function JournalScreen() {
           onGenerate={generateTasks}
           onAcceptTask={acceptTask}
         />
+
+        <ScrollToTopFab
+          visible={showScrollTop}
+          onPress={() => contentScrollRef.current?.scrollTo({ y: 0, animated: true })}
+          bottomOffset={24}
+        />
       </SafeAreaView>
     );
   }
@@ -515,34 +538,12 @@ export default function JournalScreen() {
         <VStack className="flex-1">
           <PageHeader title="Journal" />
 
-          {/* Unassigned banner */}
-          {unassigned.length > 0 && (
-            <Pressable onPress={handleSelectUnassigned} className="mx-5 mb-3">
-              <Card variant="filled" size="sm">
-                <HStack className="items-center gap-3">
-                  <View className="w-8 h-8 rounded-full bg-amber-100 items-center justify-center">
-                    <Ionicons name="albums-outline" size={16} color="#B45309" />
-                  </View>
-                  <VStack className="flex-1">
-                    <UIText size="sm" className="font-poppins-medium">
-                      {unassigned.length} unassigned moment{unassigned.length !== 1 ? 's' : ''}
-                    </UIText>
-                    <UIText size="xs" className="text-typo-400">Tap to organize</UIText>
-                  </VStack>
-                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-                </HStack>
-              </Card>
-            </Pressable>
-          )}
+          {/* Unassigned now lives as the first tile inside the Topics grid
+              (see TopicsSidebar.UnassignedTile) — no separate banner needed. */}
 
           <View className="flex-1 px-5">
-            <Pressable
-              onPress={() => setNewTopicVisible(true)}
-              className="flex-row items-center gap-2 mb-3 px-3 py-2.5 bg-optio-purple/10 rounded-xl"
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
-              <UIText size="sm" className="text-optio-purple font-poppins-medium">New Topic</UIText>
-            </Pressable>
+            {/* Quest entry points removed from the Journal — Discover lives on
+                Home (Browse All) and New Quest lives inside the Discover sheet. */}
             <TopicsSidebar
               topics={topics}
               selectedId={selectedId}
@@ -550,6 +551,8 @@ export default function JournalScreen() {
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
+              onNewTopic={() => setNewTopicVisible(true)}
+              loading={topicsLoading}
             />
           </View>
         </VStack>
@@ -651,6 +654,15 @@ export default function JournalScreen() {
         onGenerate={generateTasks}
         onAcceptTask={acceptTask}
       />
+
+      {/* Only show the scroll-top FAB when we're on the moments detail view —
+          the topics list is short and doesn't need it. */}
+      {mobileTab === 'detail' && (
+        <ScrollToTopFab
+          visible={showScrollTop}
+          onPress={() => contentScrollRef.current?.scrollTo({ y: 0, animated: true })}
+        />
+      )}
     </SafeAreaView>
   );
 }

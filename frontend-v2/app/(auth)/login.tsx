@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Image, KeyboardAvoidingView, Platform, Pressable, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import {
   VStack, HStack, Heading, UIText, Button, ButtonText,
@@ -11,8 +12,11 @@ import {
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
 
+// Use the PNG, not the SVG — React Native's <Image> doesn't render SVG URIs on
+// iOS or Android, so the SVG version showed a blank space on native. Google's
+// developer guidelines explicitly bless this PNG for sign-in buttons.
 const GOOGLE_ICON_URI =
-  'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
+  'https://developers.google.com/identity/images/g-logo.png';
 
 const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
@@ -25,14 +29,14 @@ function getRedirectForRole(user: User): string {
       return '/(app)/(tabs)/family';
     case 'advisor':
     case 'org_admin':
-      return Platform.OS === 'web' ? '/(app)/(tabs)/advisor' : '/(app)/(tabs)/feed';
+      return Platform.OS === 'web' ? '/(app)/(tabs)/advisor' : '/(app)/(tabs)/dashboard';
     case 'superadmin':
-      return Platform.OS === 'web' ? '/(app)/(tabs)/dashboard' : '/(app)/(tabs)/feed';
+      return '/(app)/(tabs)/dashboard';
     case 'observer':
       return '/(app)/(tabs)/feed';
     default:
       // student and anything else
-      return Platform.OS === 'web' ? '/(app)/(tabs)/dashboard' : '/(app)/(tabs)/feed';
+      return '/(app)/(tabs)/dashboard';
   }
 }
 
@@ -98,7 +102,7 @@ export default function LoginScreen() {
         }
       }
 
-      const destination = user ? getRedirectForRole(user) : '/(app)/(tabs)/feed';
+      const destination = user ? getRedirectForRole(user) : '/(app)/(tabs)/dashboard';
       router.replace(destination as any);
     } catch {
       // Error set in store
@@ -215,41 +219,44 @@ export default function LoginScreen() {
                   <ButtonText>Don't have an account? Sign Up</ButtonText>
                 </Button>
 
+                {/* Social sign-in:
+                    - Google: every platform (web, iOS, Android)
+                    - Apple: web + iOS only (Apple guidelines disallow Sign in
+                      with Apple on Android in apps that ship on the App Store) */}
+                <View className="flex-row items-center my-1">
+                  <View className="flex-1 h-px bg-surface-200" />
+                  <UIText size="sm" className="px-3 text-typo-400">Or continue with</UIText>
+                  <View className="flex-1 h-px bg-surface-200" />
+                </View>
+
+                <Pressable
+                  onPress={googleLogin}
+                  disabled={isLoading}
+                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white active:bg-surface-50"
+                  style={{ opacity: isLoading ? 0.5 : 1 }}
+                >
+                  <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
+                  <UIText className="font-poppins-medium text-typo">
+                    Sign in with Google
+                  </UIText>
+                </Pressable>
+
                 {(isWeb || isIos) && (
-                  <>
-                    <View className="flex-row items-center my-1">
-                      <View className="flex-1 h-px bg-surface-200" />
-                      <UIText size="sm" className="px-3 text-typo-400">Or continue with</UIText>
-                      <View className="flex-1 h-px bg-surface-200" />
-                    </View>
-
-                    {isWeb && (
-                      <Pressable
-                        onPress={googleLogin}
-                        disabled={isLoading}
-                        className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white active:bg-surface-50"
-                        style={{ opacity: isLoading ? 0.5 : 1 }}
-                      >
-                        <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
-                        <UIText className="font-poppins-medium text-typo">
-                          Sign in with Google
-                        </UIText>
-                      </Pressable>
-                    )}
-
-                    <Pressable
-                      onPress={isIos ? appleLoginNative : appleLoginWeb}
-                      disabled={isLoading}
-                      className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black active:opacity-80"
-                      style={{ opacity: isLoading ? 0.5 : 1 }}
-                      accessibilityLabel="Sign in with Apple"
-                    >
-                      <UIText className="text-white text-[18px]" style={{ fontFamily: Platform.OS === 'web' ? '-apple-system, BlinkMacSystemFont, "San Francisco"' : undefined }}></UIText>
-                      <UIText className="font-poppins-medium text-white">
-                        Sign in with Apple
-                      </UIText>
-                    </Pressable>
-                  </>
+                  <Pressable
+                    onPress={isIos ? appleLoginNative : appleLoginWeb}
+                    disabled={isLoading}
+                    className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black active:opacity-80"
+                    style={{ opacity: isLoading ? 0.5 : 1 }}
+                    accessibilityLabel="Sign in with Apple"
+                  >
+                    {/* Ionicons logo-apple renders identically on web/iOS/Android.
+                        The earlier "" Unicode trick only worked on Apple-system
+                        fonts and showed as a blank box on Android + most browsers. */}
+                    <Ionicons name="logo-apple" size={20} color="#FFFFFF" style={{ marginTop: -2 }} />
+                    <UIText className="font-poppins-medium text-white">
+                      Sign in with Apple
+                    </UIText>
+                  </Pressable>
                 )}
               </VStack>
             </Card>

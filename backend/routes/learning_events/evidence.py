@@ -27,7 +27,7 @@ def save_evidence_blocks(user_id, event_id):
             return jsonify({'error': 'Blocks must be an array'}), 400
 
         # Validate block types
-        valid_block_types = ['text', 'image', 'video', 'link', 'document']
+        valid_block_types = ['text', 'image', 'video', 'link', 'document', 'audio']
         for block in blocks:
             block_type = block.get('block_type') or block.get('type')
             if not block_type:

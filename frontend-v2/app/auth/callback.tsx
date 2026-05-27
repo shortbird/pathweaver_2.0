@@ -80,7 +80,9 @@ export default function AuthCallbackScreen() {
           await handleGoogleCallback(accessToken, refreshToken || '');
         }
 
-        router.replace('/(app)/(tabs)/feed');
+        // Land on the universal Home (dashboard). Role-specific routing (e.g.
+        // observer → feed) is handled by their own layout shell.
+        router.replace('/(app)/(tabs)/dashboard');
       } catch (err: any) {
         console.error('[AuthCallback] OAuth failed:', err);
         setError(err.message || 'Authentication failed');

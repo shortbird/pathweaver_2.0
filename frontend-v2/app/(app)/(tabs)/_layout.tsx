@@ -9,6 +9,7 @@ import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
+import { useCaptureContextStore } from '@/src/stores/captureContextStore';
 import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
@@ -74,6 +75,9 @@ export default function TabsLayout() {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const tabBarHidden = useUIStore((s) => s.tabBarHidden);
+  // Quest detail screens publish their quest into this store while focused, so
+  // the global Capture button can open the sheet pre-scoped to that quest.
+  const questCaptureContext = useCaptureContextStore((s) => s.quest);
 
   // Restore persisted preview state on first mount (web only)
   useEffect(() => {
@@ -158,7 +162,11 @@ export default function TabsLayout() {
             <Tabs.Screen name="buddy" options={{ href: null }} />
           </Tabs>
         </View>
-        <CaptureSheet visible={captureVisible} onClose={() => setCaptureVisible(false)} />
+        <CaptureSheet
+          visible={captureVisible}
+          onClose={() => setCaptureVisible(false)}
+          questContext={questCaptureContext || undefined}
+        />
       </View>
     );
   }
@@ -263,7 +271,7 @@ export default function TabsLayout() {
     <>
       <ActingAsBanner />
       <Tabs
-        initialRouteName="feed"
+        initialRouteName="dashboard"
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#6D469B',
@@ -344,7 +352,11 @@ export default function TabsLayout() {
         ))}
         <Tabs.Screen name="buddy" options={{ href: null }} />
       </Tabs>
-      <CaptureSheet visible={captureVisible} onClose={() => setCaptureVisible(false)} />
+      <CaptureSheet
+        visible={captureVisible}
+        onClose={() => setCaptureVisible(false)}
+        questContext={questCaptureContext || undefined}
+      />
     </>
   );
 }

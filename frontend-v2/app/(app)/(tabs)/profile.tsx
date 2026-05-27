@@ -2,7 +2,7 @@
  * Profile - Student overview with XP breakdown, achievements, engagement, and settings.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -25,6 +25,7 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 import { NotificationPreferences } from '@/src/components/profile/NotificationPreferences';
+import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -33,6 +34,26 @@ const pillarColors: Record<string, { bg: string; bar: string; text: string }> = 
   civics: { bg: 'bg-pillar-civics/15', bar: 'bg-pillar-civics', text: 'text-pillar-civics' },
   wellness: { bg: 'bg-pillar-wellness/15', bar: 'bg-pillar-wellness', text: 'text-pillar-wellness' },
 };
+
+// Subject credit donut geometry — hoisted so we don't recompute trig per render per subject.
+const SUBJECT_XP_PER_CREDIT = 2000;
+const SUBJECT_CREDIT_REQUIREMENTS: Record<string, { displayName: string; credits: number }> = {
+  language_arts: { displayName: 'Language Arts', credits: 4 },
+  math: { displayName: 'Mathematics', credits: 3 },
+  science: { displayName: 'Science', credits: 3 },
+  social_studies: { displayName: 'Social Studies', credits: 4 },
+  financial_literacy: { displayName: 'Financial Literacy', credits: 0.5 },
+  health: { displayName: 'Health', credits: 0.5 },
+  pe: { displayName: 'Physical Education', credits: 2 },
+  fine_arts: { displayName: 'Fine Arts', credits: 1.5 },
+  cte: { displayName: 'Career & Tech', credits: 1 },
+  digital_literacy: { displayName: 'Digital Literacy', credits: 0.5 },
+  electives: { displayName: 'Electives', credits: 4 },
+};
+const DONUT_SIZE = 80;
+const DONUT_STROKE = 7;
+const DONUT_RADIUS = (DONUT_SIZE - DONUT_STROKE) / 2;
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS;
 
 function CollapsibleSection({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -68,6 +89,8 @@ export default function ProfileScreen() {
   const [makingPublic, setMakingPublic] = useState(false);
   const [showFerpaConsent, setShowFerpaConsent] = useState(false);
   const [ferpaChecked, setFerpaChecked] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
   const portfolioPublic = hookPortfolioPublic;
   const setPortfolioPublic = setHookPortfolioPublic;
 
@@ -187,7 +210,14 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface">
-      <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pb-12" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        className="flex-1"
+        contentContainerClassName="px-5 md:px-8 pb-12"
+        showsVerticalScrollIndicator={false}
+        onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
+        scrollEventThrottle={64}
+      >
         <PageHeader title="Profile" />
         <VStack space="lg" className="max-w-3xl w-full md:mx-auto">
 
@@ -336,69 +366,49 @@ export default function ProfileScreen() {
             <CollapsibleSection title="Subject Credits" defaultOpen={false}>
               <View className="flex-row flex-wrap">
                 {subjectXP.map((s: any, idx: number) => {
-                  const XP_PER_CREDIT = 2000;
-                  const CREDIT_REQUIREMENTS: Record<string, { displayName: string; credits: number }> = {
-                    language_arts: { displayName: 'Language Arts', credits: 4 },
-                    math: { displayName: 'Mathematics', credits: 3 },
-                    science: { displayName: 'Science', credits: 3 },
-                    social_studies: { displayName: 'Social Studies', credits: 4 },
-                    financial_literacy: { displayName: 'Financial Literacy', credits: 0.5 },
-                    health: { displayName: 'Health', credits: 0.5 },
-                    pe: { displayName: 'Physical Education', credits: 2 },
-                    fine_arts: { displayName: 'Fine Arts', credits: 1.5 },
-                    cte: { displayName: 'Career & Tech', credits: 1 },
-                    digital_literacy: { displayName: 'Digital Literacy', credits: 0.5 },
-                    electives: { displayName: 'Electives', credits: 4 },
-                  };
                   const subject = s.school_subject || '';
-                  const req = CREDIT_REQUIREMENTS[subject];
+                  const req = SUBJECT_CREDIT_REQUIREMENTS[subject];
                   const displayName = req?.displayName || subject.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()).replace(/\b(Cte|Pe)\b/g, (m: string) => m.toUpperCase());
-                  const xpRequired = (req?.credits || 1) * XP_PER_CREDIT;
+                  const xpRequired = (req?.credits || 1) * SUBJECT_XP_PER_CREDIT;
                   const earned = s.xp_amount || 0;
                   const pending = s.pending_xp || 0;
                   const earnedPct = Math.min((earned / xpRequired) * 100, 100);
                   const pendingPct = Math.min((pending / xpRequired) * 100, 100);
                   const totalPct = Math.min(earnedPct + pendingPct, 100);
                   const displayPct = Math.round(totalPct);
-
-                  // SVG donut ring
-                  const size = 80;
-                  const strokeWidth = 7;
-                  const radius = (size - strokeWidth) / 2;
-                  const circumference = 2 * Math.PI * radius;
-                  const earnedOffset = circumference - (earnedPct / 100) * circumference;
-                  const pendingOffset = circumference - (totalPct / 100) * circumference;
+                  const earnedOffset = DONUT_CIRCUMFERENCE - (earnedPct / 100) * DONUT_CIRCUMFERENCE;
+                  const pendingOffset = DONUT_CIRCUMFERENCE - (totalPct / 100) * DONUT_CIRCUMFERENCE;
 
                   return (
                     <View key={subject || `subject-${idx}`} className="w-1/2 items-center p-2 mb-2">
                       <Card variant="elevated" size="sm" className="w-full items-center py-3 px-2">
-                        <View style={{ width: size, height: size }} className="items-center justify-center">
-                          <Svg width={size} height={size}>
+                        <View style={{ width: DONUT_SIZE, height: DONUT_SIZE }} className="items-center justify-center">
+                          <Svg width={DONUT_SIZE} height={DONUT_SIZE}>
                             {/* Background track */}
                             <SvgCircle
-                              cx={size / 2} cy={size / 2} r={radius}
-                              stroke="#E5E7EB" strokeWidth={strokeWidth} fill="none"
+                              cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
+                              stroke="#E5E7EB" strokeWidth={DONUT_STROKE} fill="none"
                             />
                             {/* Pending arc (amber, drawn first so earned overlaps) */}
                             {pending > 0 && (
                               <SvgCircle
-                                cx={size / 2} cy={size / 2} r={radius}
-                                stroke="#FCD34D" strokeWidth={strokeWidth} fill="none"
-                                strokeDasharray={`${circumference}`}
+                                cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
+                                stroke="#FCD34D" strokeWidth={DONUT_STROKE} fill="none"
+                                strokeDasharray={`${DONUT_CIRCUMFERENCE}`}
                                 strokeDashoffset={pendingOffset}
                                 strokeLinecap="round"
-                                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                                transform={`rotate(-90 ${DONUT_SIZE / 2} ${DONUT_SIZE / 2})`}
                               />
                             )}
                             {/* Earned arc (purple, on top) */}
                             {earned > 0 && (
                               <SvgCircle
-                                cx={size / 2} cy={size / 2} r={radius}
-                                stroke="#6D469B" strokeWidth={strokeWidth} fill="none"
-                                strokeDasharray={`${circumference}`}
+                                cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
+                                stroke="#6D469B" strokeWidth={DONUT_STROKE} fill="none"
+                                strokeDasharray={`${DONUT_CIRCUMFERENCE}`}
                                 strokeDashoffset={earnedOffset}
                                 strokeLinecap="round"
-                                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                                transform={`rotate(-90 ${DONUT_SIZE / 2} ${DONUT_SIZE / 2})`}
                               />
                             )}
                           </Svg>
@@ -565,6 +575,11 @@ export default function ProfileScreen() {
           </Button>
         </VStack>
       </ScrollView>
+
+      <ScrollToTopFab
+        visible={showScrollTop}
+        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+      />
 
       {/* Invite Observer Modal */}
       <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={() => setInviteObserverVisible(false)}>

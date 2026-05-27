@@ -986,7 +986,7 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
             raise ValidationError('Blocks must be an array')
 
         # Validate block types
-        valid_block_types = ['text', 'image', 'video', 'link', 'document']
+        valid_block_types = ['text', 'image', 'video', 'link', 'document', 'audio']
         for block in blocks:
             block_type = block.get('block_type') or block.get('type')
             if not block_type:

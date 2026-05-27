@@ -19,6 +19,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB (keep under Render memory budget; applies to legacy multipart POSTs)
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
 MAX_DOCUMENT_SIZE = 25 * 1024 * 1024  # 25MB for documents (PDFs, etc.)
+MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25MB for voice notes (~30min at AAC 128kbps)
 # Legacy (multipart-through-backend) video cap — kept small to bound worker memory.
 MAX_VIDEO_SIZE = 50 * 1024 * 1024  # 50MB for videos (was 100MB, caused OOM on Render)
 # Signed-upload (direct-to-Supabase) video cap — payload never touches our workers,
@@ -43,6 +44,9 @@ ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
 ALLOWED_VIDEO_MIME_TYPES = {'video/mp4', 'video/quicktime'}
+# Voice notes — m4a is the iOS default (AAC in MP4 container); mp3/wav/aac for cross-platform.
+ALLOWED_AUDIO_EXTENSIONS = {'m4a', 'mp3', 'wav', 'aac', 'ogg'}
+ALLOWED_AUDIO_MIME_TYPES = {'audio/m4a', 'audio/mp4', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/ogg'}
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'mov'}  # Legacy compatibility
 
 # Grouped evidence upload lookups (used by MediaUploadService).
@@ -54,24 +58,28 @@ EVIDENCE_SIZE_LIMITS = {
     'image': MAX_IMAGE_SIZE,
     'video': MAX_VIDEO_SIZE,
     'document': MAX_DOCUMENT_SIZE,
+    'audio': MAX_AUDIO_SIZE,
 }
 
 SIGNED_EVIDENCE_SIZE_LIMITS = {
     'image': MAX_IMAGE_SIZE,
     'video': MAX_VIDEO_SIZE_SIGNED,
     'document': MAX_DOCUMENT_SIZE,
+    'audio': MAX_AUDIO_SIZE,
 }
 
 EVIDENCE_ALLOWED_EXTENSIONS = {
     'image': ALLOWED_IMAGE_EXTENSIONS,
     'video': ALLOWED_VIDEO_EXTENSIONS,
     'document': ALLOWED_DOCUMENT_EXTENSIONS,
+    'audio': ALLOWED_AUDIO_EXTENSIONS,
 }
 
 # Human-readable format labels for error messages
 IMAGE_FORMAT_LABEL = 'JPG, JPEG, PNG, GIF, WebP, HEIC, HEIF, TIFF, BMP, AVIF'
 DOCUMENT_FORMAT_LABEL = 'PDF, DOC, DOCX, TXT'
 VIDEO_FORMAT_LABEL = 'MP4, MOV'
+AUDIO_FORMAT_LABEL = 'M4A, MP3, WAV, AAC, OGG'
 
 # Video thumbnail settings
 VIDEO_THUMBNAIL_WIDTH = 480

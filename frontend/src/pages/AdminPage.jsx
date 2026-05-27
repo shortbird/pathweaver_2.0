@@ -20,6 +20,7 @@ const PhilosophyEditor = lazy(() => import('./admin/PhilosophyEditor'))
 const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue'))
 const AdminClassesHub = lazy(() => import('./classes/AdminClassesHub'))
 const ShowcaseConsentPanel = lazy(() => import('./admin/ShowcaseConsentPanel'))
+const ClassReviewsPage = lazy(() => import('./admin/ClassReviewsPage'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -59,6 +60,7 @@ const AdminPage = () => {
 
   const superadminTabs = [
     { path: 'classes', label: 'Classes' },
+    { path: 'class-reviews', label: 'Class Reviews' },
     { path: 'moderation', label: 'Moderation' },
     { path: 'showcase-consent', label: 'Showcase Consent' },
     { path: 'bulk-generate', label: 'Bulk Generate' },
@@ -172,6 +174,7 @@ const AdminPage = () => {
           <Route path="moderation" element={<ModerationQueue />} />
           <Route path="showcase-consent" element={<ShowcaseConsentPanel />} />
           <Route path="classes/*" element={<AdminClassesHub />} />
+          <Route path="class-reviews" element={<ClassReviewsPage />} />
         </Routes>
       </Suspense>
     </div>

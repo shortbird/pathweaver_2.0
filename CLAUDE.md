@@ -411,6 +411,20 @@ SELECT column_name, data_type FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'your_table';
 ```
 
+### Data API Grants (Supabase 2026-10-30 change)
+
+Supabase is changing the default so new tables in `public` won't be exposed to
+the Data API (PostgREST / supabase-py / supabase-js) without an explicit grant.
+For this project, [supabase/migrations/20260527_restore_default_data_api_grants.sql](supabase/migrations/20260527_restore_default_data_api_grants.sql)
+sets `ALTER DEFAULT PRIVILEGES` so any future `CREATE TABLE` in `public` inherits
+the implicit grants that Supabase used to apply automatically.
+
+**You do not need to add per-table GRANT statements in new migrations** — the
+default-privileges rule covers it. RLS remains the access-control mechanism.
+
+If you create a table outside the normal migration flow (e.g., as a different
+role), verify it's reachable via the backend and add explicit grants if not.
+
 ---
 
 ## Authentication

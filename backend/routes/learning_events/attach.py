@@ -197,6 +197,13 @@ def get_task_attached_moment(user_id, task_id):
 def list_attachable_tasks(user_id):
     """List active quests with their pending tasks, for the attach picker.
 
+    Mirrors the quest-detail query pattern (which is known to work): scope
+    tasks through the enrollment FK `user_quest_id` and require approved
+    tasks. The earlier implementation filtered `user_quest_tasks` directly
+    by `user_id` + `quest_id`, which returned no rows for enrollments where
+    tasks were created via the personalization wizard (approval_status
+    transitions) — hence the bogus "no active quests" message.
+
     Shape:
       { quests: [ { id, title, tasks: [ { id, title, pillar, xp_value,
                                           attached_moment_id | null } ] } ] }
@@ -205,20 +212,41 @@ def list_attachable_tasks(user_id):
         # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth; ownership verified via user_id match on the event row
         supabase = get_supabase_admin_client()
 
-        active_quests = supabase.table('user_quests') \
-            .select('quest_id') \
+        enrollments = supabase.table('user_quests') \
+            .select('id, quest_id') \
             .eq('user_id', user_id) \
             .eq('is_active', True) \
             .is_('completed_at', 'null') \
             .execute()
 
-        quest_rows = active_quests.data or []
-        if not quest_rows:
+        enrollment_rows = enrollments.data or []
+        if not enrollment_rows:
             return jsonify({'quests': []}), 200
 
-        quest_ids = list({r['quest_id'] for r in quest_rows if r.get('quest_id')})
-        if not quest_ids:
+        enrollment_ids = [r['id'] for r in enrollment_rows if r.get('id')]
+        quest_ids = list({r['quest_id'] for r in enrollment_rows if r.get('quest_id')})
+        if not enrollment_ids or not quest_ids:
             return jsonify({'quests': []}), 200
+
+        # Exclude quests that belong to a course — students see those tasks
+        # via the course's own surface, and including them here makes the
+        # attach picker show way more quests than they're "really" active in.
+        course_quest_rows = supabase.table('course_quests') \
+            .select('quest_id') \
+            .in_('quest_id', quest_ids) \
+            .execute()
+        course_quest_ids = {
+            r['quest_id'] for r in (course_quest_rows.data or []) if r.get('quest_id')
+        }
+        if course_quest_ids:
+            quest_ids = [qid for qid in quest_ids if qid not in course_quest_ids]
+            enrollment_rows = [r for r in enrollment_rows if r.get('quest_id') not in course_quest_ids]
+            enrollment_ids = [r['id'] for r in enrollment_rows if r.get('id')]
+            if not enrollment_ids or not quest_ids:
+                return jsonify({'quests': []}), 200
+
+        # enrollment.id -> quest_id, so we can route tasks back to their quest
+        enrollment_to_quest = {r['id']: r['quest_id'] for r in enrollment_rows if r.get('id')}
 
         quest_titles_resp = supabase.table('quests') \
             .select('id, title') \
@@ -226,38 +254,58 @@ def list_attachable_tasks(user_id):
             .execute()
         quest_titles = {q['id']: q['title'] for q in (quest_titles_resp.data or [])}
 
+        # Same shape the quest-detail screen pulls — scope by enrollment FK
+        # and require approved tasks.
         tasks_resp = supabase.table('user_quest_tasks') \
-            .select('id, quest_id, title, pillar, xp_value, order_index') \
-            .eq('user_id', user_id) \
-            .in_('quest_id', quest_ids) \
+            .select('id, user_quest_id, title, pillar, xp_value, order_index') \
+            .in_('user_quest_id', enrollment_ids) \
+            .eq('approval_status', 'approved') \
             .execute()
         all_tasks = tasks_resp.data or []
         task_ids = [t['id'] for t in all_tasks]
+
+        # Fetch completions / attachments scoped to this user (small result
+        # set), then intersect with task_ids in Python. The previous IN-list
+        # filter on potentially hundreds of task UUIDs overflowed the
+        # PostgREST URL and returned 400 Bad Request.
+        task_ids_set = set(task_ids)
 
         completed_ids = set()
         if task_ids:
             comp_resp = supabase.table('quest_task_completions') \
                 .select('user_quest_task_id') \
-                .in_('user_quest_task_id', task_ids) \
+                .eq('user_id', user_id) \
                 .execute()
-            completed_ids = {r['user_quest_task_id'] for r in (comp_resp.data or [])}
+            completed_ids = {
+                r['user_quest_task_id']
+                for r in (comp_resp.data or [])
+                if r.get('user_quest_task_id') in task_ids_set
+            }
 
         attached_map = {}
         if task_ids:
+            # Moments (learning_events) attached to any of this user's tasks.
+            # Scope by user_id so we don't pull every user's moments off the
+            # table — the FK chain already guarantees the task belongs to us.
             att_resp = supabase.table('learning_events') \
                 .select('id, attached_task_id') \
-                .in_('attached_task_id', task_ids) \
+                .eq('user_id', user_id) \
+                .not_.is_('attached_task_id', 'null') \
                 .execute()
             attached_map = {
                 r['attached_task_id']: r['id']
                 for r in (att_resp.data or [])
+                if r.get('attached_task_id') in task_ids_set
             }
 
         by_quest = {}
         for t in all_tasks:
             if t['id'] in completed_ids:
                 continue
-            by_quest.setdefault(t['quest_id'], []).append({
+            quest_id = enrollment_to_quest.get(t['user_quest_id'])
+            if not quest_id:
+                continue
+            by_quest.setdefault(quest_id, []).append({
                 'id': t['id'],
                 'title': t['title'],
                 'pillar': t['pillar'],
@@ -268,7 +316,7 @@ def list_attachable_tasks(user_id):
 
         quests_out = []
         seen = set()
-        for r in quest_rows:
+        for r in enrollment_rows:
             qid = r.get('quest_id')
             if not qid or qid in seen:
                 continue

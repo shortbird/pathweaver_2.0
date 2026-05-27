@@ -97,6 +97,7 @@ const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
+const ClassesPage = lazy(() => import('./pages/marketing/ClassesPage'))
 const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
 const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
 const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))
@@ -387,7 +388,9 @@ function App() {
             <Routes>
               {/* Marketing pages (standalone, use MarketingLayout) */}
               <Route path="/" element={<HomePage />} />
-              <Route path="for-students" element={<PromoStudentPage />} />
+              <Route path="classes" element={<ClassesPage />} />
+              {/* /for-students is the legacy URL for the same offering; preserve external links by redirecting. */}
+              <Route path="for-students" element={<Navigate to="/classes" replace />} />
               <Route path="for-families" element={<ForFamiliesPage />} />
               <Route path="for-schools" element={<ForSchoolsPage />} />
               <Route path="how-it-works" element={<HowItWorksPage />} />
@@ -500,10 +503,11 @@ function App() {
                 <Route path="admin/organizations/:orgId/student/:studentId" element={<OrgStudentOverviewPage />} />
               </Route>
 
-              {/* Organization Classes - accessible to students (enrolled), advisors, org_admins, superadmin */}
+              {/* Organization Classes - accessible to students (enrolled), advisors, org_admins, superadmin.
+                  Routed at /org-classes so the public marketing /classes page can own the simpler URL. */}
               <Route element={<PrivateRoute requiredRole={["student", "advisor", "org_admin", "superadmin"]} />}>
-                <Route path="classes" element={<AdvisorClassesPage />} />
-                <Route path="classes/:classId" element={<AdvisorClassesPage />} />
+                <Route path="org-classes" element={<AdvisorClassesPage />} />
+                <Route path="org-classes/:classId" element={<AdvisorClassesPage />} />
               </Route>
 
               <Route element={<PrivateRoute requiredRole={["advisor", "org_admin", "superadmin"]} />}>

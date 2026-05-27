@@ -33,7 +33,7 @@ export interface UploadViaSignedUrlArgs {
   file: UploadFile;
   initPath: string;
   finalizePath: string;
-  blockType?: 'image' | 'video' | 'document';
+  blockType?: 'image' | 'video' | 'document' | 'audio';
   extraInitBody?: Record<string, unknown>;
   extraFinalizeBody?: Record<string, unknown>;
   onProgress?: (pct: number) => void;

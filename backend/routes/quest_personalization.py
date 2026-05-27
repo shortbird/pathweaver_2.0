@@ -45,6 +45,29 @@ bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 # CORS headers are set globally in app.py - do not duplicate here
 
 
+def _class_subject_override(supabase, quest_id: str, xp_value: int):
+    """When the parent quest is a class, force 100% of a new task's XP into
+    the class's transcript_subject. Returns (diploma_subjects, subject_xp_distribution)
+    or (None, None) when the quest isn't a class.
+
+    Why this is class-specific: AI/library tasks routinely split XP across 2-3
+    diploma subjects, but a class needs ALL the work to count toward its single
+    transcript subject. Without this override, a Fine Arts class's tasks would
+    only deposit ~50% of their XP toward the Fine Arts credit bar.
+    """
+    try:
+        q = supabase.table('quests') \
+            .select('quest_type, transcript_subject') \
+            .eq('id', quest_id).single().execute()
+        if q.data and q.data.get('quest_type') == 'class' and q.data.get('transcript_subject'):
+            ts = q.data['transcript_subject']
+            xp = int(xp_value or 100)
+            return {ts: xp}, {ts: xp}
+    except Exception:
+        logger.debug('intentional swallow', exc_info=True)
+    return None, None
+
+
 @bp.route('/<quest_id>/start-personalization', methods=['POST'])
 @require_auth
 def start_personalization(user_id: str, quest_id: str):
@@ -139,6 +162,21 @@ def generate_tasks(user_id: str, quest_id: str):
                 vision_statement = user_result.data['bio']
         except Exception as e:
             logger.warning(f"Could not fetch user vision statement: {e}")
+
+        # Class quests carry a transcript_subject — auto-inject it into the
+        # cross_curricular list so generated tasks naturally pay XP toward
+        # the class subject. Student-supplied subjects still come along.
+        try:
+            supabase_admin = get_supabase_admin_client()
+            quest_row = supabase_admin.table('quests')\
+                .select('quest_type, transcript_subject')\
+                .eq('id', quest_id).single().execute()
+            if quest_row.data and quest_row.data.get('quest_type') == 'class':
+                ts = quest_row.data.get('transcript_subject')
+                if ts and ts not in cross_curricular_subjects:
+                    cross_curricular_subjects = [ts, *cross_curricular_subjects]
+        except Exception as e:
+            logger.warning(f"Could not check class context for quest {quest_id}: {e}")
 
         # Generate tasks
         result = personalization_service.generate_task_suggestions(
@@ -383,6 +421,12 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
             except Exception as e:
                 logger.error(f"Failed to generate subject distribution for manual task '{task['title']}': {e}")
 
+            # Class override: dump 100% of XP into the class's transcript_subject.
+            class_ds, class_sxd = _class_subject_override(supabase, quest_id, task.get('xp_value', 100))
+            if class_ds is not None:
+                diploma_subjects = class_ds
+                subject_xp_distribution = class_sxd
+
             user_task = {
                 'user_id': user_id,
                 'quest_id': quest_id,
@@ -539,6 +583,13 @@ def accept_task_immediate(user_id: str, quest_id: str):
             logger.info(f"Generated subject distribution for accepted task '{task['title']}': {subject_xp_distribution}")
         except Exception as e:
             logger.error(f"Failed to generate subject distribution for accepted task '{task['title']}': {e}")
+
+        # Class override: dump 100% of XP into the class's transcript_subject
+        # so the credit bar moves by the task's full XP.
+        class_ds, class_sxd = _class_subject_override(supabase, quest_id, task.get('xp_value', 100))
+        if class_ds is not None:
+            diploma_subjects = class_ds
+            subject_xp_distribution = class_sxd
 
         # Create user_quest_tasks entry
         user_task = {

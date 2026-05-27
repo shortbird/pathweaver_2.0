@@ -8,13 +8,13 @@
  * Mobile: single column with bottom tabs.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl, Modal, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
-import { useDashboard, useGlobalEngagement } from '@/src/hooks/useDashboard';
+import { useDashboard } from '@/src/hooks/useDashboard';
 import api from '@/src/services/api';
 import type { EngagementData } from '@/src/hooks/useDashboard';
 import {
@@ -23,57 +23,14 @@ import {
   Skeleton,
 } from '@/src/components/ui';
 import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
-import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { CaptureModal } from '@/src/components/capture/CaptureModal';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
-
-// ── Rhythm Explainer Modal ──
-
-const rhythmExplainerContent: { state: string; label: string; icon: keyof typeof Ionicons.glyphMap; color: string; description: string }[] = [
-  { state: 'active', label: 'Active', icon: 'flash', color: '#6D469B', description: 'You are learning regularly. Keep going!' },
-  { state: 'building', label: 'Building', icon: 'trending-up', color: '#1D4ED8', description: 'You are getting into a groove -- whether starting fresh or returning after a break.' },
-  { state: 'resting', label: 'Resting', icon: 'moon', color: '#15803D', description: 'You are taking a break or haven\'t started yet. Rest is part of learning too.' },
-];
-
-function RhythmExplainerModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  if (!visible) return null;
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <Pressable onPress={(e) => e.stopPropagation?.()} style={{ backgroundColor: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, padding: 24, margin: 20 }}>
-          <VStack space="md">
-            <HStack className="items-center justify-between">
-              <Heading size="lg">Learning Rhythm</Heading>
-              <Pressable onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="close" size={18} color="#6B7280" />
-              </Pressable>
-            </HStack>
-            <UIText size="sm" className="text-typo-500">
-              Your learning rhythm reflects how consistently you engage with learning activities. It is not about speed or quantity -- it is about finding a sustainable pattern that works for you.
-            </UIText>
-            <Divider />
-            <VStack space="sm">
-              {rhythmExplainerContent.map((item) => (
-                <HStack key={item.state} className="items-center gap-3">
-                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: item.color + '15', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name={item.icon} size={18} color={item.color} />
-                  </View>
-                  <VStack className="flex-1">
-                    <UIText size="sm" className="font-poppins-semibold" style={{ color: item.color }}>{item.label}</UIText>
-                    <UIText size="xs" className="text-typo-500">{item.description}</UIText>
-                  </VStack>
-                </HStack>
-              ))}
-            </VStack>
-          </VStack>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
+import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
+import { CreateClassSheet } from '@/src/components/class/CreateClassSheet';
+import { ClassCard } from '@/src/components/class/ClassCard';
 
 // ── Quest Card with engagement ──
 
@@ -98,7 +55,7 @@ function QuestCard({ quest }: { quest: any }) {
 
   return (
     <Pressable testID={`quest-card-${q?.id}`} onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
-    <Card variant="elevated" size="sm" className="min-w-0 overflow-hidden" style={{ minHeight: 240, maxHeight: 240 }}>
+    <Card variant="elevated" size="sm" className="min-w-0 overflow-hidden">
       {/* Quest image */}
       {imageUrl ? (
         <View className="h-28 -mx-3 -mt-3 mb-3 overflow-hidden rounded-t-xl">
@@ -126,10 +83,12 @@ function QuestCard({ quest }: { quest: any }) {
         {days.length > 0 && <MiniHeatmap days={days} />}
       </HStack>
 
-      {/* Description */}
-      <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={2}>
-        {q?.description || ''}
-      </UIText>
+      {/* Description — only renders if there is one, no flex-1 pad-out */}
+      {q?.description ? (
+        <UIText size="xs" className="text-typo-500" numberOfLines={2}>
+          {q.description}
+        </UIText>
+      ) : null}
     </Card>
     </Pressable>
   );
@@ -142,22 +101,62 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
 
   return (
     <Card testID="welcome-header" variant="elevated" size="lg">
-      {/* Top: avatar + greeting */}
+      {/* Top: avatar (tappable → Profile) + greeting.
+          Visual affordances for tap: thin purple ring, drop shadow, and a small
+          chevron badge in the bottom-right of the avatar. Together they read as
+          "this opens something" rather than just "this is your picture". */}
       <HStack className="items-center gap-3 md:gap-4">
-        <Avatar size="lg" className="flex-shrink-0">
-          {user?.avatar_url ? (
-            <AvatarImage source={{ uri: user.avatar_url }} />
-          ) : (
-            <AvatarFallbackText>{initials}</AvatarFallbackText>
-          )}
-        </Avatar>
+        <Pressable
+          onPress={() => router.push('/(app)/(tabs)/profile')}
+          accessibilityLabel="Open your profile"
+          accessibilityRole="button"
+          hitSlop={8}
+          style={({ pressed }) => ({
+            position: 'relative',
+            padding: 3,
+            borderRadius: 999,
+            backgroundColor: '#FFFFFF',
+            borderWidth: 2,
+            borderColor: '#6D469B',
+            shadowColor: '#6D469B',
+            shadowOpacity: 0.25,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 3,
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Avatar size="lg" className="flex-shrink-0">
+            {user?.avatar_url ? (
+              <AvatarImage source={{ uri: user.avatar_url }} />
+            ) : (
+              <AvatarFallbackText>{initials}</AvatarFallbackText>
+            )}
+          </Avatar>
+          {/* Small chevron overlay — signals "drill in" */}
+          <View
+            style={{
+              position: 'absolute',
+              bottom: -2,
+              right: -2,
+              width: 22,
+              height: 22,
+              borderRadius: 11,
+              backgroundColor: '#6D469B',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 2,
+              borderColor: '#FFFFFF',
+            }}
+          >
+            <Ionicons name="chevron-forward" size={12} color="#FFFFFF" />
+          </View>
+        </Pressable>
         <VStack className="flex-1 min-w-0">
           <Heading testID="welcome-greeting" size="md" className="md:text-2xl" numberOfLines={1}>
             Welcome back, {user?.first_name || 'Student'}!
           </Heading>
-          <UIText size="sm" className="text-typo-500 mt-1">
-            Keep building your learning journey
-          </UIText>
+          <UIText size="xs" className="text-typo-400 mt-0.5">Tap your photo to open your profile</UIText>
         </VStack>
       </HStack>
 
@@ -397,10 +396,11 @@ function NextUpPanel({ quests }: { quests: any[] }) {
 export default function DashboardScreen() {
   const { user } = useAuthStore();
   const { data, loading, refetch } = useDashboard();
-  const { data: globalEngagement } = useGlobalEngagement();
   const [refreshing, setRefreshing] = useState(false);
   const [captureVisible, setCaptureVisible] = useState(false);
-  const [rhythmExplainerVisible, setRhythmExplainerVisible] = useState(false);
+  const [classSheetVisible, setClassSheetVisible] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
   const isWeb = Platform.OS === 'web';
 
   // Refetch when screen regains focus (e.g. after leaving a quest)
@@ -425,17 +425,21 @@ export default function DashboardScreen() {
   }
 
   const activeQuests = data?.active_quests || [];
+  const classes = activeQuests.filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) === 'class');
+  const nonClassQuests = activeQuests.filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) !== 'class');
   const enrolledCourses = data?.enrolled_courses || [];
   const completedQuests = data?.recent_completed_quests || [];
-  const calendarDays = globalEngagement?.calendar?.days || [];
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
       <PageHeader title="Home" />
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
         contentContainerClassName="px-5 md:px-8 pt-2 md:pt-6 pb-12"
         showsVerticalScrollIndicator={false}
+        onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
+        scrollEventThrottle={64}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />
         }
@@ -444,6 +448,41 @@ export default function DashboardScreen() {
 
           {/* Welcome */}
           <WelcomeHeader user={user} stats={data?.stats} activeQuestCount={activeQuests.length} />
+
+          {/* Start a Class CTA — Optio logo on the left (matches the icon used
+              in the center capture tab and on the auth screens). */}
+          <Pressable testID="start-a-class-cta" onPress={() => setClassSheetVisible(true)}>
+            <Card variant="elevated" size="md" className="border-2 border-optio-pink/30 bg-gradient-to-r from-purple-50 to-pink-50">
+              <HStack className="items-center gap-3">
+                <Image
+                  source={require('@/assets/images/icon.png')}
+                  style={{ width: 48, height: 48, borderRadius: 24 }}
+                  resizeMode="cover"
+                />
+                <VStack className="flex-1 min-w-0">
+                  <Heading size="sm">Start a Class</Heading>
+                  <UIText size="xs" className="text-typo-500">
+                    Earn high school credit for a passion project
+                  </UIText>
+                </VStack>
+                <Ionicons name="chevron-forward" size={20} color="#6D469B" />
+              </HStack>
+            </Card>
+          </Pressable>
+
+          {/* My Classes */}
+          {classes.length > 0 && (
+            <VStack space="sm">
+              <Heading size="md">My Classes</Heading>
+              <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
+                {classes.map((uq: any) => (
+                  <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                    <ClassCard quest={uq} />
+                  </View>
+                ))}
+              </View>
+            </VStack>
+          )}
 
           {/* Current Quests */}
           <VStack space="sm">
@@ -454,15 +493,15 @@ export default function DashboardScreen() {
               </Button>
             </HStack>
 
-            {activeQuests.length > 0 ? (
+            {nonClassQuests.length > 0 ? (
               <View testID="current-quests-grid" className="flex flex-col md:flex-row md:flex-wrap gap-4">
-                {activeQuests.map((uq: any) => (
+                {nonClassQuests.map((uq: any) => (
                   <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
                     <QuestCard quest={uq} />
                   </View>
                 ))}
               </View>
-            ) : (
+            ) : classes.length === 0 ? (
               <Card variant="filled" size="lg" className="items-center py-10">
                 <Ionicons name="rocket-outline" size={40} color="#9CA3AF" />
                 <Heading size="sm" className="text-typo-500 mt-3">No quests yet</Heading>
@@ -471,7 +510,7 @@ export default function DashboardScreen() {
                   <ButtonText>Browse Quests</ButtonText>
                 </Button>
               </Card>
-            )}
+            ) : null}
           </VStack>
 
           {/* Next Up */}
@@ -483,36 +522,6 @@ export default function DashboardScreen() {
           {/* Diploma Credit Tracker */}
           <DiplomaCreditTracker />
 
-          {/* Learning Rhythm + Activity Calendar (combined) */}
-          <VStack testID="learning-rhythm-section" space="sm">
-            <HStack className="items-center justify-between">
-              <Heading size="md">Your Learning Rhythm</Heading>
-              <Pressable onPress={() => setRhythmExplainerVisible(true)} className="flex-row items-center gap-1">
-                <Ionicons name="help-circle-outline" size={16} color="#9CA3AF" />
-                <UIText size="xs" className="text-typo-400">Learn more</UIText>
-              </Pressable>
-            </HStack>
-            <Card testID="learning-rhythm-card" variant="elevated" size="md">
-              <VStack space="md">
-                {/* Header: title + rhythm badge inline */}
-                <HStack className="items-center justify-between">
-                  <RhythmBadge rhythm={globalEngagement?.rhythm || null} compact />
-                  {globalEngagement?.rhythm?.pattern_description ? (
-                    <UIText size="xs" className="text-typo-400">
-                      {globalEngagement.rhythm.pattern_description}
-                    </UIText>
-                  ) : null}
-                </HStack>
-
-                {/* Activity calendar */}
-                <EngagementCalendar
-                  days={calendarDays}
-                  firstActivityDate={globalEngagement?.calendar?.first_activity_date}
-                />
-              </VStack>
-            </Card>
-          </VStack>
-
           {/* Completed Quests */}
           <CompletedQuests quests={completedQuests} />
 
@@ -520,39 +529,47 @@ export default function DashboardScreen() {
         </VStack>
       </ScrollView>
 
-      {/* Quick Capture FAB */}
-      <Pressable
-        testID="capture-fab"
-        onPress={() => setCaptureVisible(true)}
-        style={{
-          position: 'absolute',
-          bottom: 24,
-          right: 24,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: '#6D469B',
-          alignItems: 'center',
-          justifyContent: 'center',
-          elevation: 6,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.27,
-          shadowRadius: 4.65,
-        }}
-      >
-        <Ionicons name="add" size={28} color="white" />
-      </Pressable>
-
-      {/* Capture modal/sheet */}
-      {isWeb ? (
-        <CaptureModal visible={captureVisible} onClose={() => setCaptureVisible(false)} onCaptured={refetch} />
-      ) : (
-        <CaptureSheet visible={captureVisible} onClose={() => setCaptureVisible(false)} onCaptured={refetch} />
+      {/* Quick Capture FAB — web only. On mobile the center tab button is the
+          single capture entry point, so a duplicate FAB here would be redundant
+          (and visually compete with it). */}
+      {isWeb && (
+        <>
+          <Pressable
+            testID="capture-fab"
+            onPress={() => setCaptureVisible(true)}
+            style={{
+              position: 'absolute',
+              bottom: 24,
+              right: 24,
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: '#6D469B',
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: 6,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.27,
+              shadowRadius: 4.65,
+            }}
+          >
+            <Ionicons name="add" size={28} color="white" />
+          </Pressable>
+          <CaptureModal visible={captureVisible} onClose={() => setCaptureVisible(false)} onCaptured={refetch} />
+        </>
       )}
 
-      {/* Rhythm explainer */}
-      <RhythmExplainerModal visible={rhythmExplainerVisible} onClose={() => setRhythmExplainerVisible(false)} />
+      <ScrollToTopFab
+        visible={showScrollTop}
+        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+      />
+
+      <CreateClassSheet
+        visible={classSheetVisible}
+        onClose={() => setClassSheetVisible(false)}
+        onCreated={() => { refetch(); }}
+      />
     </SafeAreaView>
   );
 }

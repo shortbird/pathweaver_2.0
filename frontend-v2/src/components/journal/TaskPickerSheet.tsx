@@ -38,6 +38,8 @@ interface Props {
   /** Show a "Detach" option at the top when true (editing an existing attachment) */
   allowDetach?: boolean;
   onDetach?: () => void | Promise<void>;
+  /** When set, only tasks from this quest are shown (used by quest-scoped capture). */
+  questIdFilter?: string;
 }
 
 export function TaskPickerSheet({
@@ -47,6 +49,7 @@ export function TaskPickerSheet({
   currentTaskId,
   allowDetach,
   onDetach,
+  questIdFilter,
 }: Props) {
   const [quests, setQuests] = useState<AttachableQuest[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,7 +60,10 @@ export function TaskPickerSheet({
     setLoading(true);
     try {
       const { data } = await api.get('/api/learning-events/attachable-tasks');
-      const list: AttachableQuest[] = data?.quests || [];
+      let list: AttachableQuest[] = data?.quests || [];
+      if (questIdFilter) {
+        list = list.filter((q) => q.id === questIdFilter);
+      }
       setQuests(list);
       if (list.length === 1) setExpandedQuestId(list[0].id);
     } catch {
@@ -65,7 +71,7 @@ export function TaskPickerSheet({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [questIdFilter]);
 
   useEffect(() => {
     if (visible) fetchTasks();
