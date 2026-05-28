@@ -18,55 +18,55 @@ const PEXELS = (id, w = 800) =>
 const SUBJECTS = [
   {
     name: 'Math',
-    blurb: 'A math class built around how you actually use numbers.',
+    blurb: 'A math class built around the way you actually use numbers.',
     image: PEXELS(5212662),
     examples: ['Budgeting & personal finance', 'Coding & game design', 'Statistics through sports'],
   },
   {
     name: 'English',
-    blurb: 'Build a class around your voice — reading, writing, storytelling.',
+    blurb: 'An English class built around your reading, writing, and storytelling.',
     image: PEXELS(6256202),
     examples: ['Creative writing & fiction', 'Journalism & blogging', 'Poetry & spoken word'],
   },
   {
     name: 'Science',
-    blurb: 'Real-world science from what you\'re already curious about.',
+    blurb: 'A science class built around what you\'re already curious about.',
     image: PEXELS(5622142),
     examples: ['Field journaling & ecology', 'Cooking & food chemistry', 'Robotics & engineering'],
   },
   {
     name: 'History',
-    blurb: 'Turn your family roots, travel, or current events into a history class.',
+    blurb: 'A history class built around the past you\'re connected to.',
     image: PEXELS(15186551),
     examples: ['Family history & genealogy', 'Travel-based world history', 'Local & community history'],
   },
   {
     name: 'World Languages',
-    blurb: 'Earn a language class for the language you\'re already learning.',
+    blurb: 'Class credit for the language you\'re already learning.',
     image: PEXELS(4881147),
     examples: ['Conversational practice with tutors', 'Travel & immersion', 'Translation projects'],
   },
   {
     name: 'Physical Education',
-    blurb: 'Take a PE class for the sport or movement you already do.',
+    blurb: 'A PE class for the sport or movement you already do.',
     image: PEXELS(28887298),
     examples: ['Competitive sports & training', 'Dance, yoga, martial arts', 'Hiking & outdoor skills'],
   },
   {
     name: 'Visual Arts',
-    blurb: 'Build an art class around the work you actually want to make.',
+    blurb: 'An art class for the work you actually want to make.',
     image: PEXELS(33029254),
     examples: ['Drawing, painting, sculpture', 'Digital art & illustration', 'Photography & editing'],
   },
   {
     name: 'Music',
-    blurb: 'Your lessons, band, or songwriting can become a music class.',
+    blurb: 'A music class for your lessons, band, or songwriting.',
     image: PEXELS(10222167),
     examples: ['Private lessons on any instrument', 'Songwriting & home recording', 'Performing live'],
   },
   {
     name: 'Career & Technical',
-    blurb: 'Real work, real skills — count it as a CTE class.',
+    blurb: 'A career and tech class for real work — jobs, side projects, building things.',
     image: PEXELS(4709289),
     examples: ['Internships & part-time work', 'Entrepreneurship', 'Web & app development'],
   },
@@ -155,9 +155,51 @@ const Hero = ({ onClaim }) => {
   )
 }
 
+const SubjectAccordionItem = ({ subject, open, onToggle }) => (
+  <div className="border-b border-gray-200 last:border-b-0">
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="w-full flex items-center gap-4 py-3 pl-3 pr-3 text-left hover:bg-gray-50 transition-colors"
+    >
+      <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+        <img src={subject.image} alt="" loading="lazy" className="w-full h-full object-cover" />
+      </div>
+      <span className="flex-1 text-base font-semibold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+        {subject.name}
+      </span>
+      <svg
+        className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+    {open && (
+      <div className="pb-4 pl-[84px] pr-3">
+        <p className="text-sm text-gray-700 mb-2 leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+          {subject.blurb}
+        </p>
+        <ul className="space-y-1.5">
+          {subject.examples.map((ex) => (
+            <li key={ex} className="flex items-start gap-2 text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              <svg className="w-4 h-4 text-optio-pink flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              <span>{ex}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+)
+
 const SubjectCatalog = ({ onClaim }) => {
   const ref = useSectionView('subjects', PAGE)
   const track = useCtaTracker(PAGE)
+  const [openIndex, setOpenIndex] = useState(null)
   return (
     <section ref={ref} id="subjects" className="py-16 sm:py-24 px-4 bg-white scroll-mt-24">
       <div className="max-w-6xl mx-auto">
@@ -170,7 +212,20 @@ const SubjectCatalog = ({ onClaim }) => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Mobile: compact accordion list. Tapping a subject reveals its blurb + examples. */}
+        <div className="sm:hidden border border-gray-200 rounded-2xl overflow-hidden bg-white">
+          {SUBJECTS.map((s, i) => (
+            <SubjectAccordionItem
+              key={s.name}
+              subject={s}
+              open={openIndex === i}
+              onToggle={() => setOpenIndex(openIndex === i ? null : i)}
+            />
+          ))}
+        </div>
+
+        {/* Tablet/desktop: photo-led card grid. */}
+        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {SUBJECTS.map((s) => (
             <article
               key={s.name}
