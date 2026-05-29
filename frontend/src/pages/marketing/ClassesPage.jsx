@@ -108,14 +108,14 @@ const FAQS = [
 
 const TESTIMONIALS = [
   {
-    quote: 'My son was playing competitive soccer 15 hours a week and getting nothing for it on paper. Optio turned that into a real PE class on his transcript. His school accepted it without a question.',
-    name: 'Sarah M.',
-    context: 'Parent of an 11th-grader, Texas',
+    quote: 'High school just wasn\'t challenging enough. I had so many projects I wanted to work on, but I was stuck in a classroom filling out worksheets. Switching to Optio lets me take on real, challenging work I\'m actually excited about, and earn my diploma at the same time.',
+    name: 'Clare B.',
+    context: 'Optio Student',
   },
   {
-    quote: 'I\'ve been writing fiction every day for two years and nobody at my school cared. With Optio I got actual English credit for it. The teacher I worked with actually read my stuff.',
-    name: 'Jordan L.',
-    context: 'Student, 10th grade, Oregon',
+    quote: 'We\'ve always homeschooled our seven kids because we wanted them to get the best education possible, and Optio has been a perfect fit. Our kids get one-on-one mentorship from their Optio teacher, and the teacher helps them build their learning around the things they already love.',
+    name: 'Paige H.',
+    context: 'Optio Parent',
   },
 ]
 
@@ -510,7 +510,7 @@ const Transfer = () => {
 const Testimonials = () => {
   const ref = useSectionView('testimonials', PAGE)
   return (
-    <section ref={ref} className="py-16 sm:py-24 px-4 bg-gradient-to-b from-gray-50 to-white">
+    <section ref={ref} className="py-16 sm:py-24 px-4 bg-white">
       <div className="max-w-5xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 text-center mb-12" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
           What families are saying
@@ -652,9 +652,9 @@ const ClassesPage = () => {
 
       <Hero onClaim={openModal} />
       <SubjectCatalog onClaim={openModal} />
+      <Testimonials />
       <HowItWorks />
       <Transfer />
-      {/* <Testimonials /> hidden until we have real testimonials */}
       <Faq />
       <FinalCta onClaim={openModal} />
 

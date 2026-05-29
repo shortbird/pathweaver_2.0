@@ -84,11 +84,11 @@ emails:
     title: "You've Been Invited to Support a Student on Optio"
     greeting: "Hi {{ observer_name }},"
     paragraphs:
-      - "{{ student_name }} has invited you to become an <strong>Observer</strong> on their Optio learning journey!"
+      - "{{ student_name }} has invited you to become an Observer on their Optio learning journey!"
       - "As an observer, you'll get a special view into {{ student_name }}'s learning process. You'll see their completed work, celebrate their progress, and leave encouraging comments to support their growth."
     highlight_box:
       title: "What is Optio?"
-      content: "Optio is a learning platform where students explore their interests through self-directed quests, build real-world skills, and create a personalized portfolio. We believe that <strong>the process is the goal</strong> - focusing on curiosity, effort, and growth rather than grades or test scores."
+      content: "Optio is a learning platform where students explore their interests through self-directed quests, build real-world skills, and create a personalized portfolio. We believe that the process is the goal - focusing on curiosity, effort, and growth rather than grades or test scores."
     bullet_points:
       - "View their completed quests and tasks"
       - "See photos, videos, and evidence of their work"
@@ -526,6 +526,26 @@ emails:
         - "Official credit issuance through accredited partners"
         - "Dedicated support and analytics"
     closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
+    signature: "tanner"
+
+  claim_free_class_confirmation:
+    subject: "Your free Optio class — here's what's next"
+    title: "Your free class is on the way"
+    salutation: "Hi there,"
+    paragraphs:
+      - "Thanks for grabbing your first free class on Optio. There's no credit card and no commitment — just a real high school class built around something you actually care about."
+      - "I'll personally reply within 1 business day with the next steps: how to pick your class, how the schedule works, and how the credit gets back to your local high school."
+    highlight_box:
+      title: "What to Expect Next"
+      bullet_points:
+        - "I'll email you back personally within 1 business day"
+        - "We'll figure out which class fits the credit you need"
+        - "You'll get everything you need to start — at your pace"
+    closing_paragraphs:
+      - "If you have questions before then, just hit reply. I read every message myself."
+    cta:
+      text: "See How Optio Classes Work"
+      url: "https://www.optioeducation.com/classes"
     signature: "tanner"
 
   promo_first_month_free:
