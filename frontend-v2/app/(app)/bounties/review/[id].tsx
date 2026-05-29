@@ -238,31 +238,51 @@ function ClaimReviewCard({
                 className="bg-surface-50 rounded-xl p-3 text-sm font-poppins text-typo min-h-[60px] border border-surface-200"
                 style={{ textAlignVertical: 'top' }}
               />
-              <HStack className="gap-2">
+              {/* Equal-weight, fully-labeled action buttons. The old layout had
+               *  Approve as a primary button, Revise as a faded pill, and
+               *  Reject as a tiny red icon-only square — a bad affordance for
+               *  irreversible actions. All three are now full-width buttons. */}
+              <VStack space="xs">
                 <Button
                   size="md"
-                  className="flex-1"
+                  className="w-full"
                   onPress={() => handleReview('approved')}
                   disabled={submitting}
                   loading={submitting}
+                  accessibilityLabel="Approve submission"
                 >
-                  <ButtonText>Approve</ButtonText>
+                  <HStack className="items-center gap-2">
+                    <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                    <ButtonText>Approve</ButtonText>
+                  </HStack>
                 </Button>
-                <Pressable
-                  onPress={() => handleReview('revision_requested')}
-                  disabled={submitting}
-                  className="flex-1 py-3 rounded-lg bg-amber-50 items-center"
-                >
-                  <UIText size="sm" className="font-poppins-semibold text-amber-700">Revise</UIText>
-                </Pressable>
-                <Pressable
-                  onPress={() => handleReview('rejected')}
-                  disabled={submitting}
-                  className="py-3 px-4 rounded-lg bg-red-50 items-center"
-                >
-                  <Ionicons name="close" size={18} color="#B91C1C" />
-                </Pressable>
-              </HStack>
+                <HStack className="gap-2">
+                  <Pressable
+                    onPress={() => handleReview('revision_requested')}
+                    disabled={submitting}
+                    accessibilityLabel="Request revisions"
+                    className="flex-1 py-3 rounded-lg border border-amber-300 bg-amber-50 items-center"
+                    style={{ opacity: submitting ? 0.5 : 1 }}
+                  >
+                    <HStack className="items-center gap-2">
+                      <Ionicons name="refresh-outline" size={16} color="#B45309" />
+                      <UIText size="sm" className="font-poppins-semibold text-amber-800">Request revisions</UIText>
+                    </HStack>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleReview('rejected')}
+                    disabled={submitting}
+                    accessibilityLabel="Reject submission"
+                    className="flex-1 py-3 rounded-lg border border-red-300 bg-red-50 items-center"
+                    style={{ opacity: submitting ? 0.5 : 1 }}
+                  >
+                    <HStack className="items-center gap-2">
+                      <Ionicons name="close-circle-outline" size={16} color="#B91C1C" />
+                      <UIText size="sm" className="font-poppins-semibold text-red-700">Reject</UIText>
+                    </HStack>
+                  </Pressable>
+                </HStack>
+              </VStack>
             </VStack>
           </>
         )}

@@ -4,6 +4,7 @@ Observer Module - Family Management
 Family observer invitations and child access management.
 """
 
+import re
 from flask import request, jsonify
 from datetime import datetime, timedelta
 import logging
@@ -14,8 +15,13 @@ from .helpers import get_frontend_url
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
+from services.email_service import email_service
 
 logger = logging.getLogger(__name__)
+
+# Loose email validation — server-side guard, not a substitute for the
+# more permissive client-side hint. Anything obviously malformed gets rejected.
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 def register_routes(bp):
@@ -142,6 +148,126 @@ def register_routes(bp):
         except Exception as e:
             logger.error(f"Failed to create family observer invitation: {str(e)}", exc_info=True)
             return jsonify({'error': 'Failed to create invitation'}), 500
+
+
+    @bp.route('/api/observers/family-invite/email', methods=['POST'])
+    @require_auth
+    @rate_limit(limit=20, per=3600)  # 20 invite emails per hour per parent
+    def family_invite_email(user_id):
+        """
+        Email an Optio-branded invitation for an existing pending family invite.
+
+        Body:
+            email: Observer's email address
+            invitation_code: Code of an existing pending invitation owned by this parent
+
+        Returns:
+            200: Email sent
+            400: Bad request (missing/invalid fields)
+            403: Caller doesn't own this invitation or isn't a parent
+            404: Invitation not found
+            500: Failed to send
+        """
+        parent_id = user_id
+        data = request.json or {}
+
+        recipient_email = (data.get('email') or '').strip().lower()
+        invitation_code = (data.get('invitation_code') or '').strip()
+
+        if not recipient_email or not EMAIL_RE.match(recipient_email):
+            return jsonify({'error': 'A valid email address is required'}), 400
+        if not invitation_code:
+            return jsonify({'error': 'invitation_code is required'}), 400
+
+        try:
+            # admin client justified: needs to read parent profile + invitation + invitation_students rows the caller owns
+            supabase = get_supabase_admin_client()
+
+            # Verify caller is a parent (or superadmin previewing as parent)
+            parent = supabase.table('users') \
+                .select('id, role, display_name, first_name, last_name') \
+                .eq('id', parent_id) \
+                .single() \
+                .execute()
+            if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+                return jsonify({'error': 'Only parents can use this endpoint'}), 403
+
+            # Look up the invitation; must belong to this parent, still be pending,
+            # and not expired. Collapse all "you can't email this invite" failure
+            # shapes into a single 404 so we don't leak whether an arbitrary
+            # invitation code exists / belongs to someone else / has been used.
+            invitation = supabase.table('observer_invitations') \
+                .select('id, invitation_code, invited_by_user_id, expires_at, status') \
+                .eq('invitation_code', invitation_code) \
+                .execute()
+
+            now_iso = datetime.utcnow().isoformat()
+            inv_row = invitation.data[0] if invitation.data else None
+            invalid = (
+                not inv_row
+                or inv_row.get('invited_by_user_id') != parent_id
+                or inv_row.get('status') != 'pending'
+                or (inv_row.get('expires_at') and inv_row['expires_at'] <= now_iso)
+            )
+            if invalid:
+                return jsonify({'error': 'Invitation not found'}), 404
+
+            # Build the student-name string for the template ("Sarah & Tommy")
+            student_links = supabase.table('observer_invitation_students') \
+                .select('student_id') \
+                .eq('invitation_id', inv_row['id']) \
+                .execute()
+            student_ids = [link['student_id'] for link in (student_links.data or [])]
+
+            student_label = 'your student'
+            if student_ids:
+                students = supabase.table('users') \
+                    .select('id, display_name, first_name, last_name') \
+                    .in_('id', student_ids) \
+                    .execute()
+                names = []
+                for s in (students.data or []):
+                    name = s.get('display_name') or \
+                        f"{s.get('first_name', '')} {s.get('last_name', '')}".strip()
+                    if name:
+                        names.append(name.split(' ')[0])  # first name only for warmth
+                if len(names) == 1:
+                    student_label = names[0]
+                elif len(names) == 2:
+                    student_label = f"{names[0]} & {names[1]}"
+                elif len(names) > 2:
+                    student_label = ", ".join(names[:-1]) + f" & {names[-1]}"
+
+            # Parent name for the template's optional reference
+            parent_name = parent.data.get('display_name') or \
+                f"{parent.data.get('first_name', '')} {parent.data.get('last_name', '')}".strip() or \
+                'A parent'
+
+            frontend_url = get_frontend_url()
+            invitation_link = f"{frontend_url}/observer/accept/{invitation_code}"
+
+            sent = email_service.send_templated_email(
+                to_email=recipient_email,
+                subject=f"{student_label} invited you to follow their learning on Optio",
+                template_name='observer_invitation',
+                context={
+                    'student_name': student_label,
+                    'observer_name': 'there',  # we don't know recipient's name yet
+                    'invitation_link': invitation_link,
+                    'parent_name': parent_name,
+                }
+            )
+
+            if not sent:
+                logger.error(f"Family invite email failed: parent={parent_id}, to={recipient_email}")
+                return jsonify({'error': 'Failed to send invitation email'}), 500
+
+            logger.info(f"Family invite email sent: parent={parent_id}, to={recipient_email}, invitation={inv_row['id']}")
+            return jsonify({'status': 'success'}), 200
+
+        except Exception as e:
+            logger.error(f"Failed to email family invite: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to send invitation email'}), 500
 
 
     @bp.route('/api/observers/family-observers', methods=['GET'])

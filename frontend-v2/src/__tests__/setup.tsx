@@ -63,6 +63,18 @@ jest.mock('expo-router', () => ({
   Link: ({ children }: any) => children,
 }));
 
+// ── @react-navigation/native (useScrollToTop needs a navigation context that
+//    isn't present in render() without wrapping a NavigationContainer) ──
+jest.mock('@react-navigation/native', () => ({
+  useScrollToTop: jest.fn(),
+  useNavigation: jest.fn(() => ({
+    navigate: jest.fn(),
+    goBack: jest.fn(),
+    setOptions: jest.fn(),
+  })),
+  useIsFocused: jest.fn(() => true),
+}));
+
 // ── expo-font ──
 jest.mock('expo-font', () => ({
   useFonts: jest.fn().mockReturnValue([true, null]),
@@ -216,6 +228,9 @@ jest.mock('react-native-screens', () => ({
   Screen: 'Screen',
   ScreenContainer: 'ScreenContainer',
 }));
+
+// ── @react-native-community/datetimepicker ──
+jest.mock('@react-native-community/datetimepicker', () => 'DateTimePicker');
 
 // ── react-native-mmkv ──
 // Package was dropped from package.json; use { virtual: true } so Jest doesn't try

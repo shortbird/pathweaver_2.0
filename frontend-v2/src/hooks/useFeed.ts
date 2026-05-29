@@ -36,6 +36,14 @@ export interface FeedItem {
   type: 'task_completed' | 'learning_moment';
   id: string;
   completion_id?: string;
+  /** Set for task-attached evidence items that don't yet have a completion
+   *  (e.g. helper-evidence blocks the parent added while the kid still
+   *  hasn't marked the task done). Used as the canonical handle for
+   *  block-scoped actions like privacy toggling. */
+  block_id?: string;
+  /** Set on learning_moment items so the toggle endpoint can address the
+   *  underlying learning_events row directly. */
+  learning_event_id?: string;
   timestamp: string;
   student: FeedStudent;
   task?: {
@@ -203,15 +211,55 @@ export async function createShareLink(type: 'task_completed' | 'learning_moment'
   return data as { share_url: string; token: string };
 }
 
-export async function toggleVisibility(type: 'task_completed' | 'learning_moment', id: string, hidden: boolean, completionId?: string) {
-  // Use completion_id when available (feed items have composite ids like "uuid_uuid")
-  const rawId = completionId || id;
-  const cleanId = rawId.replace(/^(tc_|le_|bounty_)/, '');
-  // Strip any trailing _blockId suffix to get the actual DB uuid
-  const dbId = cleanId.includes('_') ? cleanId.split('_')[0] : cleanId;
-  const body = type === 'task_completed'
-    ? { completion_id: dbId, hidden }
-    : { learning_event_id: dbId, hidden };
+export interface ToggleVisibilityArgs {
+  type: 'task_completed' | 'learning_moment';
+  /** The composite feed item id (e.g. "docId_blockId"). Used as a last
+   *  resort when no canonical id was passed through. */
+  id: string;
+  hidden: boolean;
+  /** Preferred handle for completed-task items (true `quest_task_completions.id`). */
+  completionId?: string;
+  /** Preferred handle for draft helper-evidence items — addresses the
+   *  underlying `evidence_document_blocks` row so we toggle block.is_private,
+   *  not a non-existent completion. */
+  blockId?: string;
+  /** Preferred handle for learning_moment items. */
+  learningEventId?: string;
+}
+
+export async function toggleVisibility(
+  typeOrArgs: 'task_completed' | 'learning_moment' | ToggleVisibilityArgs,
+  id?: string,
+  hidden?: boolean,
+  completionId?: string,
+) {
+  // Back-compat: original positional signature was
+  //   toggleVisibility(type, id, hidden, completionId)
+  // The new signature takes a single args object. Both work.
+  const args: ToggleVisibilityArgs = typeof typeOrArgs === 'string'
+    ? { type: typeOrArgs, id: id!, hidden: hidden!, completionId }
+    : typeOrArgs;
+
+  // Pick the most specific handle the caller gave us. Order:
+  //   block_id (draft evidence) > completion_id (real completion)
+  //     > learning_event_id (moment) > composite id (fallback).
+  let body: Record<string, unknown> = { hidden: args.hidden };
+  if (args.blockId) {
+    body.block_id = args.blockId;
+  } else if (args.completionId) {
+    body.completion_id = args.completionId;
+  } else if (args.learningEventId) {
+    body.learning_event_id = args.learningEventId;
+  } else {
+    // Last-ditch fallback parses the composite id. Strip optional source
+    // prefix and any trailing block suffix to get a uuid.
+    const cleanId = args.id.replace(/^(tc_|le_|bounty_)/, '');
+    const dbId = cleanId.includes('_') ? cleanId.split('_')[0] : cleanId;
+    body = args.type === 'task_completed'
+      ? { completion_id: dbId, hidden: args.hidden }
+      : { learning_event_id: dbId, hidden: args.hidden };
+  }
+
   const { data } = await api.post('/api/observers/feed-item/toggle-visibility', body);
   return data as { status: string; hidden: boolean };
 }

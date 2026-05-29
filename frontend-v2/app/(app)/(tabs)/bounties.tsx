@@ -6,19 +6,23 @@
  * from a bounty detail page) and for desktop sidebar navigation.
  */
 
-import React from 'react';
-import { ScrollView, View, Platform } from 'react-native';
+import React, { useRef } from 'react';
+import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useScrollToTop } from '@react-navigation/native';
 import { VStack, Heading } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { BountiesView } from '@/src/components/bounties/BountiesView';
 
 export default function BountiesScreen() {
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
       >
         <VStack className="max-w-5xl w-full md:mx-auto">

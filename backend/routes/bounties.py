@@ -7,6 +7,7 @@ deliverables, and submit for approval. Superadmin can moderate.
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
+from middleware.rate_limiter import rate_limit
 from services.bounty_service import BountyService
 from services.base_service import ValidationError
 from repositories.base_repository import NotFoundError
@@ -18,7 +19,7 @@ bounties_bp = Blueprint('bounties', __name__)
 
 
 @bounties_bp.route('/api/bounties', methods=['POST', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
 def create_bounty(user_id):
     """Create a new bounty with deliverables."""
     try:
@@ -39,7 +40,7 @@ def create_bounty(user_id):
 
 
 @bounties_bp.route('/api/bounties', methods=['GET', 'OPTIONS'])
-@require_role('student', 'parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'parent', 'advisor', 'org_admin', 'observer', 'superadmin')
 def list_bounties(user_id):
     """List active bounties with optional filters."""
     try:
@@ -57,7 +58,7 @@ def list_bounties(user_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>', methods=['GET', 'OPTIONS'])
-@require_role('student', 'parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'parent', 'advisor', 'org_admin', 'observer', 'superadmin')
 def get_bounty(user_id, bounty_id):
     """Get bounty details with claims (if poster)."""
     try:
@@ -95,7 +96,8 @@ def get_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>', methods=['DELETE', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@rate_limit(limit=60, per=3600)
 def delete_bounty(user_id, bounty_id):
     """Delete a bounty (poster or superadmin only)."""
     try:
@@ -120,7 +122,8 @@ def delete_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>', methods=['PUT', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@rate_limit(limit=60, per=3600)
 def update_bounty(user_id, bounty_id):
     """Update a bounty (poster only)."""
     try:
@@ -239,7 +242,8 @@ def delete_deliverable_evidence(user_id, bounty_id, claim_id, deliverable_id, ev
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/review/<claim_id>', methods=['POST', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@rate_limit(limit=60, per=3600)
 def review_submission(user_id, bounty_id, claim_id):
     """Review a bounty submission."""
     try:
@@ -267,16 +271,18 @@ def review_submission(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/my-posted', methods=['GET', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
 def get_my_posted(user_id):
-    """Get bounties posted by current user (or all bounties for superadmin), with claims."""
+    """Get bounties posted by the current user, with claims.
+
+    Note: superadmins get only what they actually posted here too. The parent
+    "Posted by you" surface is a personal review queue, not a moderation view;
+    a moderation endpoint (`/api/bounties/<id>/moderate`) already exists for
+    superadmin oversight.
+    """
     try:
         service = BountyService()
-        if service.is_superadmin(user_id):
-            bounties = service.get_all_bounties_with_claims()
-        else:
-            bounties = service.get_my_posted_with_claims(user_id)
-
+        bounties = service.get_my_posted_with_claims(user_id)
         return jsonify({'success': True, 'bounties': bounties}), 200
 
     except Exception as e:

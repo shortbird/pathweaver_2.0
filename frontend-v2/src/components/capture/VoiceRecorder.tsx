@@ -79,7 +79,12 @@ export function VoiceRecorder({ active, onRecorded, onCancel }: Props) {
         await setAudioModeAsync({
           allowsRecording: true,
           playsInSilentMode: true,
-        });
+          // Duck other audio while we're recording so the parent's Spotify /
+          // podcast doesn't bleed into the voice note. Both keys are noisy in
+          // the expo-audio types depending on version, so we cast through any.
+          interruptionMode: 'duckOthers',
+          shouldDuckAndroid: true,
+        } as any);
         if (cancelled) return;
         await recorder.prepareToRecordAsync();
         recorder.record();

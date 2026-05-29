@@ -45,4 +45,5 @@ export async function setFlag(key: string, value: boolean = true): Promise<void>
 export const PrefsKeys = {
   OnboardingSeen: 'optio_onboarding_seen',
   ObserverWelcomeSeen: 'optio_observer_welcome_seen',
+  ParentWelcomeSeen: 'optio_parent_welcome_seen',
 } as const;

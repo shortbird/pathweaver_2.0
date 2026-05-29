@@ -4,15 +4,13 @@
  */
 
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Image, Platform, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Image, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { router } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
-import { BountiesView } from '@/src/components/bounties/BountiesView';
-import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
-import { CreateQuestSheet } from '@/src/components/journal/CreateQuestSheet';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon,
@@ -71,97 +69,26 @@ function QuestCard({ quest }: { quest: any }) {
   );
 }
 
-type TopSegment = 'quests' | 'bounties';
-
-const TOP_SEGMENTS: { key: TopSegment; label: string }[] = [
-  { key: 'quests', label: 'Quests' },
-  { key: 'bounties', label: 'Bounties' },
-];
-
 export default function QuestsScreen() {
   const { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, selectedSubtopic, setSelectedSubtopic, subtopics, loadMore, refetch } = useQuestDiscovery();
-  const [topSegment, setTopSegment] = useState<TopSegment>('quests');
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const [createVisible, setCreateVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    // Show the scroll-to-top FAB once the user is past ~600px in.
-    setShowScrollTop(contentOffset.y > 600);
-    // Only paginate quest list scrolls; bounties view manages its own data.
-    if (topSegment !== 'quests') return;
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
     if (distanceFromBottom < 200) {
       loadMore();
     }
-  }, [loadMore, topSegment]);
+  }, [loadMore]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
       <PageHeader title="Quests" />
-      <ScrollView ref={scrollRef} className="flex-1" contentContainerClassName="pt-2 md:pt-6 pb-12" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={64}>
+      <ScrollView ref={scrollRef} className="flex-1" contentContainerClassName="pt-2 md:pt-6 pb-4" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={64}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
-          {/* Top-level segment toggle: Quests / Bounties */}
-          <View style={{ paddingHorizontal: 20 }}>
-            <HStack space="xs">
-              {TOP_SEGMENTS.map((seg) => (
-                <Pressable
-                  key={seg.key}
-                  onPress={() => setTopSegment(seg.key)}
-                  className={`flex-1 py-2.5 rounded-lg items-center ${topSegment === seg.key ? 'bg-white' : ''}`}
-                >
-                  <UIText size="sm" className={topSegment === seg.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
-                    {seg.label}
-                  </UIText>
-                </Pressable>
-              ))}
-            </HStack>
-          </View>
-
-          {topSegment === 'bounties' && <BountiesView />}
-
-          {topSegment === 'quests' && (
-            <VStack space="lg" className="px-5 md:px-8">
-
-          {/* Hero banner — Tailwind's bg-gradient-* classes don't render in
-              NativeWind, so we use a solid purple background everywhere and
-              paint a gradient via raw CSS on web only (matches BrandHeader). */}
-          <View
-            className="rounded-2xl px-6 py-8 md:py-10"
-            style={{
-              backgroundColor: '#6D469B',
-              ...(Platform.OS === 'web'
-                ? { backgroundImage: 'linear-gradient(90deg, #6D469B 0%, #EF597B 100%)' }
-                : {}),
-            }}
-          >
-            <HStack className="items-center justify-between gap-3">
-              <VStack space="sm" className="flex-1 min-w-0">
-                <Heading size="2xl" style={{ color: '#FFFFFF' }}>Discover Quests</Heading>
-                <UIText style={{ color: 'rgba(255,255,255,0.85)' }}>Browse the library or build your own</UIText>
-              </VStack>
-              <Pressable
-                onPress={() => setCreateVisible(true)}
-                accessibilityLabel="Create a new quest"
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  backgroundColor: 'rgba(255,255,255,0.22)',
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                }}
-              >
-                <Ionicons name="add" size={16} color="#FFFFFF" />
-                <UIText size="sm" style={{ color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold' }}>
-                  New quest
-                </UIText>
-              </Pressable>
-            </HStack>
-          </View>
+          <VStack space="lg" className="px-5 md:px-8">
 
           <Input variant="rounded" size="lg">
             <InputSlot className="ml-3">
@@ -243,22 +170,11 @@ export default function QuestsScreen() {
               <UIText size="sm" className="text-typo-400 mt-1">Try a different search or topic</UIText>
             </Card>
           )}
-            </VStack>
-          )}
+          </VStack>
 
         </VStack>
       </ScrollView>
 
-      <CreateQuestSheet
-        visible={createVisible}
-        onClose={() => setCreateVisible(false)}
-        onCreated={() => { setCreateVisible(false); refetch(); }}
-      />
-
-      <ScrollToTopFab
-        visible={showScrollTop}
-        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
-      />
     </SafeAreaView>
   );
 }

@@ -6,22 +6,23 @@
  * Infinite scroll with cursor-based pagination.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useObserverStudents } from '@/src/hooks/useObserverStudents';
+import { useMyChildren } from '@/src/hooks/useParent';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
   Avatar, AvatarFallbackText, AvatarImage, Skeleton,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
-import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import { getFlag, setFlag, PrefsKeys } from '@/src/stores/prefsStore';
 
 const DESKTOP_BREAKPOINT = 768;
@@ -36,6 +37,19 @@ function useIsObserver() {
   if (!user) return false;
   const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
   return role === 'observer';
+}
+
+function useIsParent() {
+  const user = useAuthStore((s) => s.user);
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  if (user?.role === 'superadmin' && previewRole) return previewRole === 'parent';
+  if (!user) return false;
+  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
+  return (
+    role === 'parent'
+    || (user as any).has_dependents === true
+    || (user as any).has_linked_students === true
+  );
 }
 
 function relativeTime(iso?: string | null): string {
@@ -249,16 +263,107 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
   );
 }
 
+function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, maxWidth: 480, width: '92%', maxHeight: '85%' }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24 }}>
+            <VStack space="lg">
+              <Pressable
+                onPress={onClose}
+                style={{ position: 'absolute', right: 0, top: 0, zIndex: 10, padding: 4 }}
+              >
+                <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+                  <Ionicons name="close" size={18} color="#6B7280" />
+                </View>
+              </Pressable>
+
+              <VStack space="sm" className="items-center pt-2">
+                <Image source={{ uri: OPTIO_ICON_URI }} style={{ width: 48, height: 48 }} resizeMode="contain" />
+                <Heading size="xl" className="text-center">Welcome to Optio!</Heading>
+                <UIText size="sm" className="text-typo-500 text-center">
+                  Here's how you can support your kid's learning journey.
+                </UIText>
+              </VStack>
+
+              <VStack space="xs">
+                <Heading size="md">The Process Is The Goal</Heading>
+                <UIText size="sm" className="text-typo-500 leading-5">
+                  We celebrate curiosity, effort, and growth — not grades or test scores.
+                  Your kid learns by doing self-directed quests that build real-world skills.
+                </UIText>
+              </VStack>
+
+              <Divider />
+
+              <VStack space="xs">
+                <Heading size="md">What you can do as a parent</Heading>
+                <VStack space="sm" className="mt-1">
+                  <HStack className="items-start gap-3">
+                    <View style={{ width: 4, backgroundColor: '#6D469B', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
+                    <VStack className="flex-1">
+                      <UIText size="sm" className="font-poppins-semibold">Capture moments</UIText>
+                      <UIText size="xs" className="text-typo-400">Tap the center button to log what your kid is doing in real life.</UIText>
+                    </VStack>
+                  </HStack>
+                  <HStack className="items-start gap-3">
+                    <View style={{ width: 4, backgroundColor: '#E85D8A', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
+                    <VStack className="flex-1">
+                      <UIText size="sm" className="font-poppins-semibold">Post bounties</UIText>
+                      <UIText size="xs" className="text-typo-400">Challenge your kid with a real-world task and reward (XP or $).</UIText>
+                    </VStack>
+                  </HStack>
+                  <HStack className="items-start gap-3">
+                    <View style={{ width: 4, backgroundColor: '#3B82F6', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
+                    <VStack className="flex-1">
+                      <UIText size="sm" className="font-poppins-semibold">Invite observers</UIText>
+                      <UIText size="xs" className="text-typo-400">Bring grandparents, mentors, or family friends along for the ride.</UIText>
+                    </VStack>
+                  </HStack>
+                  <HStack className="items-start gap-3">
+                    <View style={{ width: 4, backgroundColor: '#10B981', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
+                    <VStack className="flex-1">
+                      <UIText size="sm" className="font-poppins-semibold">Celebrate effort, not outcomes</UIText>
+                      <UIText size="xs" className="text-typo-400">Ask "what did you try?" instead of "did you finish?"</UIText>
+                    </VStack>
+                  </HStack>
+                </VStack>
+              </VStack>
+
+              <Button size="lg" onPress={onClose} className="w-full mt-2">
+                <ButtonText>Got it</ButtonText>
+              </Button>
+            </VStack>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function FeedScreen() {
-  const { items, loading, loadingMore, hasMore, loadMore, refetch } = useFeed();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const isObserver = useIsObserver();
+  const isParent = useIsParent();
   const [welcomeVisible, setWelcomeVisible] = useState(false);
+  const [parentWelcomeVisible, setParentWelcomeVisible] = useState(false);
   const [segment, setSegment] = useState<FeedSegment>('feed');
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  // Parent-only: which kid is the feed scoped to. null = all kids.
+  const [selectedKidId, setSelectedKidId] = useState<string | null>(null);
+  // When a parent filters to a specific kid, pass studentId so the feed
+  // scopes to that kid's activity only. null → unfiltered (all kids + own).
+  const { items, loading, loadingMore, hasMore, loadMore, refetch } = useFeed({
+    studentId: selectedKidId || undefined,
+  });
+  const { children: parentKids } = useMyChildren();
   const listRef = useRef<FlatList<any>>(null);
   const studentsScrollRef = useRef<ScrollView>(null);
+  useScrollToTop(listRef);
+  useScrollToTop(studentsScrollRef);
 
   // Auto-show on first visit for observers (cross-platform via prefsStore)
   useEffect(() => {
@@ -270,15 +375,46 @@ export default function FeedScreen() {
     return () => { cancelled = true; };
   }, [isObserver]);
 
+  // Same one-shot welcome for parents.
+  useEffect(() => {
+    if (!isParent) return;
+    let cancelled = false;
+    getFlag(PrefsKeys.ParentWelcomeSeen).then((seen) => {
+      if (!cancelled && !seen) setParentWelcomeVisible(true);
+    });
+    return () => { cancelled = true; };
+  }, [isParent]);
+
   const dismissWelcome = () => {
     setWelcomeVisible(false);
     setFlag(PrefsKeys.ObserverWelcomeSeen).catch(() => { /* ignore */ });
   };
+  const dismissParentWelcome = () => {
+    setParentWelcomeVisible(false);
+    setFlag(PrefsKeys.ParentWelcomeSeen).catch(() => { /* ignore */ });
+  };
 
-  const renderItem = ({ item }: { item: any }) => (
-    <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
-      <FeedCard item={item} />
-    </View>
+  // Parents can mark a kid's item private. Compute kid-id membership per
+  // item rather than blanket-granting "viewerCanModerate" — the feed may
+  // also contain observer-linked students that aren't this parent's kids.
+  // Memoize the set + the per-item check + renderItem so they're stable
+  // across re-renders — otherwise `memo(FeedCard)` is defeated and every
+  // card re-renders on any parent-screen state change.
+  const parentKidIdSet = useMemo(
+    () => new Set(parentKids.map((c: any) => c.id)),
+    [parentKids],
+  );
+  const canModerateItem = useCallback(
+    (item: any) => isParent && !!item?.student?.id && parentKidIdSet.has(item.student.id),
+    [isParent, parentKidIdSet],
+  );
+  const renderItem = useCallback(
+    ({ item }: { item: any }) => (
+      <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
+        <FeedCard item={item} viewerCanModerate={canModerateItem(item)} />
+      </View>
+    ),
+    [isDesktop, canModerateItem],
   );
 
   const renderHeader = () => (
@@ -286,14 +422,18 @@ export default function FeedScreen() {
       <View className={`pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
         <HStack className="items-center justify-between">
           <VStack>
-            {isDesktop && <Heading size="xl">{isObserver ? 'Activity' : 'Feed'}</Heading>}
+            {isDesktop && <Heading size="xl">{isObserver ? 'Activity' : isParent ? 'Family activity' : 'Feed'}</Heading>}
             <UIText size="sm" className="text-typo-500 mt-1">
-              {isObserver ? 'Stay close to the students you observe' : 'Recent completions and learning moments'}
+              {isObserver
+                ? 'Stay close to the students you observe'
+                : isParent
+                  ? "What your kids have been up to"
+                  : 'Recent completions and learning moments'}
             </UIText>
           </VStack>
-          {isObserver && (
+          {(isObserver || isParent) && (
             <Pressable
-              onPress={() => setWelcomeVisible(true)}
+              onPress={() => (isParent ? setParentWelcomeVisible(true) : setWelcomeVisible(true))}
               className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20"
             >
               <Ionicons name="bulb-outline" size={16} color="#6D469B" />
@@ -322,6 +462,35 @@ export default function FeedScreen() {
           </HStack>
         </View>
       )}
+      {/* Per-kid filter chips for parents with 2+ kids. Single-kid families
+       *  don't need the chip row — there's nothing to filter to. */}
+      {isParent && parentKids.length > 1 && (
+        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <HStack space="xs" className="items-center">
+              <Pressable onPress={() => setSelectedKidId(null)}>
+                <View className={`px-3 py-1.5 rounded-full ${selectedKidId === null ? 'bg-optio-purple' : 'bg-surface-100'}`}>
+                  <UIText size="xs" className={`font-poppins-medium ${selectedKidId === null ? 'text-white' : 'text-typo-600'}`}>
+                    All kids
+                  </UIText>
+                </View>
+              </Pressable>
+              {parentKids.map((kid: any) => {
+                const isActive = selectedKidId === kid.id;
+                return (
+                  <Pressable key={kid.id} onPress={() => setSelectedKidId(kid.id)}>
+                    <View className={`px-3 py-1.5 rounded-full ${isActive ? 'bg-optio-purple' : 'bg-surface-100'}`}>
+                      <UIText size="xs" className={`font-poppins-medium ${isActive ? 'text-white' : 'text-typo-600'}`}>
+                        {kid.first_name || kid.display_name || 'Kid'}
+                      </UIText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </HStack>
+          </ScrollView>
+        </View>
+      )}
     </>
   );
 
@@ -333,7 +502,11 @@ export default function FeedScreen() {
           <Ionicons name="newspaper-outline" size={40} color="#9CA3AF" />
           <Heading size="sm" className="text-typo-500 mt-3">No activity yet</Heading>
           <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
-            Complete tasks and capture learning moments to build your feed.
+            {isParent
+              ? "Tap the center button to capture a moment for your kid, or post a bounty to challenge them."
+              : isObserver
+                ? "Activity from the students you observe will show up here."
+                : "Complete tasks and capture learning moments to build your feed."}
           </UIText>
         </Card>
       </View>
@@ -360,7 +533,7 @@ export default function FeedScreen() {
 
   if (loading && items.length === 0) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#6D469B" />
         </View>
@@ -369,15 +542,14 @@ export default function FeedScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
       <PageHeader title={isObserver ? 'Activity' : 'Feed'} />
       {isObserver && segment === 'students' ? (
         <ScrollView
           ref={studentsScrollRef}
           className="flex-1"
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
           showsVerticalScrollIndicator={false}
-          onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
           scrollEventThrottle={64}
         >
           {renderHeader()}
@@ -392,7 +564,7 @@ export default function FeedScreen() {
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
           ItemSeparatorComponent={() => <View className="h-3" />}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
@@ -404,21 +576,11 @@ export default function FeedScreen() {
           removeClippedSubviews={Platform.OS !== 'web'}
           initialNumToRender={4}
           updateCellsBatchingPeriod={100}
-          onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
           scrollEventThrottle={64}
         />
       )}
-      <ScrollToTopFab
-        visible={showScrollTop}
-        onPress={() => {
-          if (isObserver && segment === 'students') {
-            studentsScrollRef.current?.scrollTo({ y: 0, animated: true });
-          } else {
-            listRef.current?.scrollToOffset({ offset: 0, animated: true });
-          }
-        }}
-      />
       <ObserverWelcomeModal visible={welcomeVisible} onClose={dismissWelcome} />
+      <ParentWelcomeModal visible={parentWelcomeVisible} onClose={dismissParentWelcome} />
     </SafeAreaView>
   );
 }

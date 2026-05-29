@@ -16,6 +16,7 @@ import { MediaModal } from './MediaModal';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import type { FeedItem } from '@/src/hooks/useFeed';
 import { getViewers, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
+import { haptic } from '@/src/utils/haptics';
 import { useAuthStore } from '@/src/stores/authStore';
 import { PillarBadge } from '../ui';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
@@ -157,9 +158,15 @@ interface FeedCardProps {
   item: FeedItem;
   showStudent?: boolean;
   onPress?: () => void;
+  /** When true, surface the privacy toggle even if the viewer isn't the
+   *  post owner. Used by parent surfaces (Family tab "Recent Activity" +
+   *  Feed tab) so parents can mark a kid's items private from their feed
+   *  without having to switch into the kid's account. The backend authorizes
+   *  the call against the owner; this is just UI gating. */
+  viewerCanModerate?: boolean;
 }
 
-function FeedCardImpl({ item, showStudent = true, onPress }: FeedCardProps) {
+function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = false }: FeedCardProps) {
   const [viewsCount, setViewsCount] = useState(item.views_count || 0);
   const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null }>>([]);
   const [showViewersList, setShowViewersList] = useState(false);
@@ -175,6 +182,7 @@ function FeedCardImpl({ item, showStudent = true, onPress }: FeedCardProps) {
 
   const isTask = item.type === 'task_completed';
   const isOwnPost = user?.id === item.student?.id;
+  const canTogglePrivacy = isOwnPost || viewerCanModerate;
   const title = isTask ? item.task?.title : item.moment?.title;
   const description = isTask ? null : item.moment?.description;
   const pillars = isTask ? [item.task?.pillar].filter(Boolean) : (item.moment?.pillars || []);
@@ -230,11 +238,20 @@ function FeedCardImpl({ item, showStudent = true, onPress }: FeedCardProps) {
   };
 
   const handleToggleVisibility = async () => {
+    haptic.light();
     const newHidden = !isConfidential;
     setIsConfidential(newHidden);
     try {
-      await toggleVisibility(item.type, item.id, newHidden, item.completion_id);
+      await toggleVisibility({
+        type: item.type,
+        id: item.id,
+        hidden: newHidden,
+        blockId: item.block_id,
+        completionId: item.completion_id,
+        learningEventId: item.learning_event_id,
+      });
     } catch {
+      haptic.error();
       setIsConfidential(!newHidden);
     }
   };
@@ -266,11 +283,13 @@ function FeedCardImpl({ item, showStudent = true, onPress }: FeedCardProps) {
                   {item.student?.display_name || 'Student'}
                 </UIText>
                 <HStack className="items-center gap-2">
-                  {isTask && (
+                  {isTask && item.completion_id && (
                     <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
                   )}
                   <UIText size="xs" className="text-typo-400">
-                    {isTask ? 'Completed a task' : 'Learning moment'} · {timeAgo}
+                    {isTask
+                      ? (item.completion_id ? 'Completed a task' : 'Added evidence')
+                      : 'Learning moment'} · {timeAgo}
                   </UIText>
                 </HStack>
               </VStack>
@@ -364,8 +383,8 @@ function FeedCardImpl({ item, showStudent = true, onPress }: FeedCardProps) {
               <Ionicons name="share-outline" size={16} color={isConfidential ? '#D1D5DB' : '#9CA3AF'} />
             </Pressable>
 
-            {/* Visibility toggle - only for student's own posts */}
-            {isOwnPost && (
+            {/* Visibility toggle - owner always; parents on kid posts via prop */}
+            {canTogglePrivacy && (
               <Pressable onPress={handleToggleVisibility} className="flex-row items-center gap-1.5 py-1 ml-auto">
                 <Ionicons
                   name={isConfidential ? 'eye-off-outline' : 'eye-outline'}

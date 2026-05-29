@@ -28,6 +28,7 @@ import {
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { router } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -149,6 +150,7 @@ export default function JournalScreen() {
   const [editTopicValue, setEditTopicValue] = useState('');
   const [showScrollTop, setShowScrollTop] = useState(false);
   const contentScrollRef = useRef<ScrollView>(null);
+  useScrollToTop(contentScrollRef);
 
   const handleStartEditTopic = () => {
     if (track) {
@@ -392,7 +394,7 @@ export default function JournalScreen() {
   // ── Desktop layout ──
   if (isDesktop) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 flex-row">
           {/* Sidebar */}
           <View className="w-72 bg-white border-r border-surface-200 px-3 pt-4">
@@ -533,7 +535,7 @@ export default function JournalScreen() {
 
   // ── Mobile layout ──
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
       {mobileTab === 'topics' ? (
         <VStack className="flex-1">
           <PageHeader title="Journal" />
@@ -655,14 +657,6 @@ export default function JournalScreen() {
         onAcceptTask={acceptTask}
       />
 
-      {/* Only show the scroll-top FAB when we're on the moments detail view —
-          the topics list is short and doesn't need it. */}
-      {mobileTab === 'detail' && (
-        <ScrollToTopFab
-          visible={showScrollTop}
-          onPress={() => contentScrollRef.current?.scrollTo({ y: 0, animated: true })}
-        />
-      )}
     </SafeAreaView>
   );
 }

@@ -6,8 +6,32 @@
  */
 
 import { useEffect, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/src/services/supabaseClient';
 import api from '@/src/services/api';
+
+// expo-notifications isn't available on web; lazy-require on native only so a
+// missing dep on web doesn't break the bundle.
+let Notifications: typeof import('expo-notifications') | null = null;
+if (Platform.OS !== 'web') {
+  try {
+    Notifications = require('expo-notifications');
+  } catch { /* dev fallback */ }
+}
+
+/**
+ * Sync the iOS/Android app-icon badge to the in-app unread count. Push
+ * delivery sets the badge automatically (shouldSetBadge: true), but the OS
+ * has no way to know when the user reads/dismisses notifications inside the
+ * app — so we have to push the cleared count back to it.
+ */
+async function syncAppIconBadge(count: number): Promise<void> {
+  if (!Notifications) return;
+  try {
+    await Notifications.setBadgeCountAsync(Math.max(0, count));
+  } catch { /* non-critical */ }
+}
 
 // ── Types ──
 
@@ -148,20 +172,31 @@ export function useNotifications(userId: string | undefined) {
   const markRead = useCallback(async (id: string) => {
     await markNotificationRead(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setUnreadCount(prev => {
+      const next = Math.max(0, prev - 1);
+      syncAppIconBadge(next);
+      return next;
+    });
   }, []);
 
   const markAllAsRead = useCallback(async () => {
     await markAllRead();
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     setUnreadCount(0);
+    syncAppIconBadge(0);
   }, []);
 
   const remove = useCallback(async (id: string) => {
     const wasUnread = notifications.find(n => n.id === id)?.is_read === false;
     await deleteNotification(id);
     setNotifications(prev => prev.filter(n => n.id !== id));
-    if (wasUnread) setUnreadCount(prev => Math.max(0, prev - 1));
+    if (wasUnread) {
+      setUnreadCount(prev => {
+        const next = Math.max(0, prev - 1);
+        syncAppIconBadge(next);
+        return next;
+      });
+    }
   }, [notifications]);
 
   return {
@@ -178,24 +213,44 @@ export function useNotifications(userId: string | undefined) {
 
 /**
  * Lightweight hook for just the unread count with real-time.
+ *
+ * Refetches on every screen focus so the badge stays in sync after the user
+ * dismisses notifications elsewhere (this hook is mounted in MobileHeader on
+ * each tab; expo-router's Tabs keeps screens alive, so the cached count would
+ * otherwise go stale until the next app launch).
  */
 export function useUnreadCount(userId: string | undefined) {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     if (!userId) return;
-    (async () => {
-      try {
-        const c = await fetchUnreadCount();
-        setCount(c);
-      } catch { /* non-critical */ }
-      finally { setLoading(false); }
-    })();
+    try {
+      const c = await fetchUnreadCount();
+      setCount(c);
+      syncAppIconBadge(c);
+    } catch { /* non-critical */ }
+    finally { setLoading(false); }
   }, [userId]);
 
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Re-pull whenever the screen this hook is mounted under regains focus —
+  // e.g., user comes back from the notifications screen after dismissing one.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
+
   const handleNew = useCallback(() => {
-    setCount(prev => prev + 1);
+    setCount(prev => {
+      const next = prev + 1;
+      syncAppIconBadge(next);
+      return next;
+    });
   }, []);
 
   useNotificationSubscription(userId, handleNew);

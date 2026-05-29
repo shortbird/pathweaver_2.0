@@ -39,6 +39,35 @@ class BountyService(BaseService):
         except Exception:
             return False
 
+    def _get_posters_student_ids(self, poster_id: str) -> Optional[set]:
+        """Resolve the set of student IDs the poster is authorized to target
+        with a family-visibility bounty. Union of:
+          - dependents (managed_by_parent_id)
+          - approved parent_student_links (13+ kids)
+          - observer_student_links (observer relationships)
+
+        Returns None for superadmin to signal "no filter — they can target
+        any student." Callers should treat None as "skip the intersect."
+        """
+        try:
+            client = self.repository.client
+            user_row = client.table('users').select('role').eq('id', poster_id).execute()
+            if user_row.data and user_row.data[0].get('role') == 'superadmin':
+                return None
+            allowed: set = set()
+            dependents = client.table('users').select('id').eq('managed_by_parent_id', poster_id).execute()
+            allowed.update(d['id'] for d in (dependents.data or []))
+            links = client.table('parent_student_links').select('student_user_id') \
+                .eq('parent_user_id', poster_id).eq('status', 'approved').execute()
+            allowed.update(l['student_user_id'] for l in (links.data or []))
+            obs_links = client.table('observer_student_links').select('student_id') \
+                .eq('observer_id', poster_id).execute()
+            allowed.update(l['student_id'] for l in (obs_links.data or []))
+            return allowed
+        except Exception as e:
+            logger.warning(f"_get_posters_student_ids failed for {poster_id[:8]}: {e}")
+            return set()
+
     def create_bounty(self, poster_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new bounty with deliverables. Auto-activates."""
         self.validate_required(
@@ -114,14 +143,21 @@ class BountyService(BaseService):
                     name = user_data.get('display_name') or full_name or 'Anonymous'
                     sponsor = {'name': name}
 
-        # Allowed student IDs (for family visibility targeting specific kids)
+        # Allowed student IDs (for family visibility targeting specific kids).
+        # Intersect with the poster's actual relationships so an observer
+        # linked to student A can't post a "family" bounty with
+        # allowed_student_ids=[A, B] and trip a notification for unrelated
+        # student B. Superadmin gets a None sentinel (skip intersect).
         allowed_student_ids = data.get('allowed_student_ids')
         if allowed_student_ids is not None:
             if not isinstance(allowed_student_ids, list):
                 allowed_student_ids = None
             else:
-                # Filter to valid non-empty strings
                 allowed_student_ids = [s for s in allowed_student_ids if isinstance(s, str) and s.strip()]
+                if allowed_student_ids:
+                    posters_students = self._get_posters_student_ids(poster_id)
+                    if posters_students is not None:
+                        allowed_student_ids = [s for s in allowed_student_ids if s in posters_students]
                 if not allowed_student_ids:
                     allowed_student_ids = None
 
@@ -212,6 +248,13 @@ class BountyService(BaseService):
                 updates['allowed_student_ids'] = None
             elif isinstance(val, list):
                 filtered = [s for s in val if isinstance(s, str) and s.strip()]
+                # Intersect against the poster's actual relationships — same
+                # rule as create_bounty so an update can't smuggle in
+                # unrelated student IDs.
+                if filtered:
+                    posters_students = self._get_posters_student_ids(bounty['poster_id'])
+                    if posters_students is not None:
+                        filtered = [s for s in filtered if s in posters_students]
                 updates['allowed_student_ids'] = filtered if filtered else None
             else:
                 updates['allowed_student_ids'] = None
@@ -306,6 +349,17 @@ class BountyService(BaseService):
         user_parent_id = user.get('managed_by_parent_id')
         is_superadmin = user.get('role') == 'superadmin'
 
+        # Pre-fetch the set of observer user_ids linked to this user — used so
+        # a student can see family-visibility bounties posted by an observer
+        # they're connected to (mirrors the parent path).
+        observer_ids_for_user: set = set()
+        try:
+            obs_links = self.repository.client.table('observer_student_links')\
+                .select('observer_id').eq('student_id', user_id).execute()
+            observer_ids_for_user = {link['observer_id'] for link in (obs_links.data or [])}
+        except Exception:
+            observer_ids_for_user = set()
+
         visible = []
         for b in all_bounties:
             vis = b.get('visibility', 'public')
@@ -317,15 +371,15 @@ class BountyService(BaseService):
                 # Poster always sees their own family bounties
                 if b['poster_id'] == user_id:
                     visible.append(b)
-                # Child of the poster
-                elif b['poster_id'] == user_parent_id:
+                # Posted by the user's parent OR an observer linked to the user
+                elif b['poster_id'] == user_parent_id or b['poster_id'] in observer_ids_for_user:
                     # If allowed_student_ids is set, only those specific kids can see it
                     allowed = b.get('allowed_student_ids')
                     if allowed and isinstance(allowed, list):
                         if user_id in allowed:
                             visible.append(b)
                     else:
-                        # No restriction -- all kids of the poster can see it
+                        # No restriction -- all linked kids/students see it
                         visible.append(b)
             elif b['poster_id'] == user_id:
                 # Poster always sees their own bounties
@@ -659,13 +713,18 @@ class BountyService(BaseService):
         if claim['status'] != 'submitted':
             raise ValidationError("Can only review submitted claims")
 
+        # Only the bounty's poster (or a superadmin) can review submissions.
+        # Without this, the decorator's role check alone would let any
+        # parent/observer act on bounties that aren't theirs.
+        bounty = self.repository.get_bounty_by_id(claim['bounty_id'])
+        if bounty and bounty['poster_id'] != reviewer_id and not self.is_superadmin(reviewer_id):
+            raise ValidationError("Only the bounty's poster can review this submission")
+
         # Create review record
         self.repository.create_review(claim_id, reviewer_id, decision, feedback)
 
         # Update claim status
         updated_claim = self.repository.update_claim_status(claim_id, decision)
-
-        bounty = self.repository.get_bounty_by_id(claim['bounty_id'])
 
         if decision == 'approved' and bounty:
             # Award XP per reward

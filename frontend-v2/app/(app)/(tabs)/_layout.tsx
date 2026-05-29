@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, useWindowDimensions, View, Image, Pressable } from 'react-native';
 import { useColorScheme } from 'nativewind';
@@ -7,9 +7,13 @@ import { Sidebar } from '@/src/components/layouts/Sidebar';
 import { MobileHeader } from '@/src/components/layouts/MobileHeader';
 import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
+import { StartSomethingFab } from '@/src/components/ui/StartSomethingFab';
+import { ParentStartSomethingFab } from '@/src/components/ui/ParentStartSomethingFab';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useCaptureContextStore } from '@/src/stores/captureContextStore';
+import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
+import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
 import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
@@ -84,8 +88,11 @@ export default function TabsLayout() {
     restorePreviewRole();
   }, [restorePreviewRole]);
 
-  // ── Observer: feed + bounties, minimal chrome ──
-  const observerTabs = ['feed', 'bounties'];
+  // ── Observer: feed + center "+" + bounties, minimal chrome ──
+  // The center Optio button routes straight to /bounties/create. Observers'
+  // only authoring action is posting bounties for the students they follow,
+  // so a sheet of one item is overkill.
+  const observerTabOrder = ['feed', 'capture', 'bounties'];
   if (isObserver) {
     return (
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
@@ -115,7 +122,40 @@ export default function TabsLayout() {
                 },
           }}
         >
-          {observerTabs.map((key) => {
+          {observerTabOrder.map((key) => {
+            if (key === 'capture') {
+              return (
+                <Tabs.Screen
+                  key="capture"
+                  name="capture"
+                  listeners={{
+                    tabPress: (e) => {
+                      e.preventDefault();
+                      router.push('/(app)/bounties/create');
+                    },
+                  }}
+                  options={{
+                    title: '',
+                    tabBarIcon: () => (
+                      <View
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 26,
+                          marginTop: -20,
+                          boxShadow: '0 3px 6px rgba(109, 70, 155, 0.25)',
+                        }}
+                      >
+                        <Image
+                          source={optioIcon}
+                          style={{ width: 52, height: 52, borderRadius: 26 }}
+                        />
+                      </View>
+                    ),
+                  }}
+                />
+              );
+            }
             const item = navItems.find((n) => n.key === key);
             if (!item) return null;
             return (
@@ -132,10 +172,9 @@ export default function TabsLayout() {
             );
           })}
           {/* Register all other routes but hide them */}
-          {navItems.filter((n) => !observerTabs.includes(n.key)).map((n) => (
+          {navItems.filter((n) => !observerTabOrder.includes(n.key)).map((n) => (
             <Tabs.Screen key={n.key} name={n.key} options={{ href: null }} />
           ))}
-          <Tabs.Screen name="capture" options={{ href: null }} />
           <Tabs.Screen name="buddy" options={{ href: null }} />
         </Tabs>
       </View>
@@ -201,7 +240,10 @@ export default function TabsLayout() {
           }}
         >
           {parentMobileTabOrder.map((key) => {
-            // Center capture button — opens CaptureSheet with kid multi-select
+            // Center Optio button — opens the parent action sheet (Post a
+            // bounty / Capture a moment / Manage observers / Add a kid).
+            // Replaces the old floating "+" FAB; same actions, single
+            // primary affordance.
             if (key === 'capture') {
               return (
                 <Tabs.Screen
@@ -210,7 +252,7 @@ export default function TabsLayout() {
                   listeners={{
                     tabPress: (e) => {
                       e.preventDefault();
-                      setCaptureVisible(true);
+                      useParentStartSomethingStore.getState().open();
                     },
                   }}
                   options={{
@@ -262,13 +304,20 @@ export default function TabsLayout() {
           onClose={() => setCaptureVisible(false)}
           pickStudents
         />
+
+        {/* Parent action-sheet mount — headless host for the parent action
+            sheet + Manage observers + Add kid sheets. The center tab opens
+            these via useParentStartSomethingStore; no visible FAB anymore. */}
+        <ParentStartSomethingFab
+          onCaptureMoment={() => setCaptureVisible(true)}
+        />
       </View>
     );
   }
 
   // ── Mobile: tabs with center capture button ──
   return (
-    <>
+    <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
       <ActingAsBanner />
       <Tabs
         initialRouteName="dashboard"
@@ -295,7 +344,9 @@ export default function TabsLayout() {
         }}
       >
         {mobileTabOrder.map((key) => {
-          // Center capture button
+          // Center Optio button — opens the student "Start something new"
+          // sheet (Capture a moment / Browse quests / Create quest / Earn
+          // bounty / Start class). Replaces the old floating "+" FAB.
           if (key === 'capture') {
             return (
               <Tabs.Screen
@@ -304,7 +355,7 @@ export default function TabsLayout() {
                 listeners={{
                   tabPress: (e) => {
                     e.preventDefault();
-                    setCaptureVisible(true);
+                    useStartSomethingStore.getState().open();
                   },
                 }}
                 options={{
@@ -357,6 +408,11 @@ export default function TabsLayout() {
         onClose={() => setCaptureVisible(false)}
         questContext={questCaptureContext || undefined}
       />
-    </>
+
+      {/* Student action-sheet mount — headless host for StartSomethingSheet +
+          CreateQuestSheet + CreateClassSheet. The center tab opens these via
+          useStartSomethingStore; no visible FAB anymore. */}
+      <StartSomethingFab onCaptureMoment={() => setCaptureVisible(true)} />
+    </View>
   );
 }

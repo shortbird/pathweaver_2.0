@@ -118,7 +118,7 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: Cl
           )}
           <VStack className="flex-1">
             <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
-              Transcript Class
+              High School Class
             </UIText>
             <Heading size="sm">{progress?.transcript_subject_display || subject?.name || 'Class'}</Heading>
           </VStack>

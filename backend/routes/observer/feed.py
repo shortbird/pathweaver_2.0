@@ -616,11 +616,19 @@ def register_routes(bp):
                         'comments_count': le_comments_count.get(le_id, 0),
                     })
                 else:
-                    # Task completion feed item
+                    # Task-attached evidence item — either a real completion
+                    # (completion_id present) or a draft evidence block (no
+                    # completion yet — e.g. helper evidence added by a parent
+                    # while the kid hasn't marked the task done).
                     feed_items.append({
                         'type': 'task_completed',
                         'id': item['id'],
                         'completion_id': item.get('completion_id'),
+                        # Block id is needed client-side to address the
+                        # underlying evidence_document_blocks row (e.g. for
+                        # block-scoped privacy toggling) when the item is a
+                        # draft block with no completion yet.
+                        'block_id': item.get('block_id'),
                         'timestamp': item['timestamp'],
                         'student': {
                             'id': item['student_id'],

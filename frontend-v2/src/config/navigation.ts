@@ -22,7 +22,7 @@ export const navItems: NavItem[] = [
   { key: 'dashboard', label: 'Home', icon: 'home-outline', iconActive: 'home', href: '/(app)/(tabs)/dashboard', platforms: ['web', 'mobile'] },
   { key: 'courses', label: 'Courses', icon: 'school-outline', iconActive: 'school', href: '/(app)/(tabs)/courses', platforms: ['web'] },
   { key: 'quests', label: 'Quests', icon: 'rocket-outline', iconActive: 'rocket', href: '/(app)/(tabs)/quests', platforms: ['web'] },
-  { key: 'bounties', label: 'Bounties', icon: 'flag-outline', iconActive: 'flag', href: '/(app)/(tabs)/bounties', platforms: ['web', 'mobile'] },
+  { key: 'bounties', label: 'Bounties', icon: 'trophy-outline', iconActive: 'trophy', href: '/(app)/(tabs)/bounties', platforms: ['web', 'mobile'] },
   { key: 'feed', label: 'Feed', icon: 'newspaper-outline', iconActive: 'newspaper', href: '/(app)/(tabs)/feed', platforms: ['web', 'mobile'] },
   { key: 'journal', label: 'Journal', icon: 'book-outline', iconActive: 'book', href: '/(app)/(tabs)/journal', platforms: ['web', 'mobile'] },
   { key: 'family', label: 'Family', icon: 'people-outline', iconActive: 'people', href: '/(app)/(tabs)/family', platforms: ['mobile'] },

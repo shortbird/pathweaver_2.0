@@ -22,6 +22,11 @@ import type { AttachableTask, AttachableQuest } from '../journal/TaskPickerSheet
 interface Props {
   visible: boolean;
   questIdFilter?: string;
+  /** When set, fetches quests for the given student instead of the caller.
+   *  Used by parent capture: the caller is the parent, but the moment (and
+   *  the quest) belong to the kid. The backend verifies that the caller is
+   *  the student's parent/observer. */
+  studentId?: string;
   onPickTask: (task: AttachableTask, quest: AttachableQuest) => void;
   onPickNewTask: (quest: AttachableQuest) => void;
   selectedTaskId?: string | null;
@@ -32,6 +37,7 @@ interface Props {
 export function InlineQuestTaskPicker({
   visible,
   questIdFilter,
+  studentId,
   onPickTask,
   onPickNewTask,
   selectedTaskId,
@@ -46,7 +52,9 @@ export function InlineQuestTaskPicker({
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.get('/api/learning-events/attachable-tasks');
+      const { data } = await api.get('/api/learning-events/attachable-tasks', {
+        params: studentId ? { student_id: studentId } : undefined,
+      });
       let list: AttachableQuest[] = data?.quests || [];
       if (questIdFilter) list = list.filter((q) => q.id === questIdFilter);
       setQuests(list);
@@ -59,7 +67,7 @@ export function InlineQuestTaskPicker({
     } finally {
       setLoading(false);
     }
-  }, [questIdFilter, selectedNewTaskQuestId]);
+  }, [questIdFilter, selectedNewTaskQuestId, studentId]);
 
   useEffect(() => {
     if (visible) fetchTasks();
