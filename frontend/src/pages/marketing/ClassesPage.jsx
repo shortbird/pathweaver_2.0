@@ -524,14 +524,9 @@ const Testimonials = () => {
               <blockquote className="text-gray-700 text-lg leading-relaxed mb-5" style={{ fontFamily: 'Poppins' }}>
                 "{t.quote}"
               </blockquote>
-              <figcaption className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                  {t.name.charAt(0)}
-                </div>
-                <div>
-                  <div className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>{t.name}</div>
-                  <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>{t.context}</div>
-                </div>
+              <figcaption>
+                <div className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>{t.name}</div>
+                <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>{t.context}</div>
               </figcaption>
             </figure>
           ))}
