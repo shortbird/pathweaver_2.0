@@ -132,6 +132,19 @@ def submit_contact():
             except Exception as e:
                 logger.warning(f"Failed to send Academy inquiry confirmation email: {e}")
 
+        # Send confirmation email for "first class free" leads from /classes
+        if contact_type == 'claim_free_class':
+            try:
+                email_sent = email_service.send_claim_free_class_confirmation(
+                    user_email=email
+                )
+                if email_sent:
+                    logger.info(f"Free class confirmation email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send free class confirmation email to {email}")
+            except Exception as e:
+                logger.warning(f"Failed to send free class confirmation email: {e}")
+
         # Send confirmation email for sales inquiries
         if contact_type == 'sales':
             try:

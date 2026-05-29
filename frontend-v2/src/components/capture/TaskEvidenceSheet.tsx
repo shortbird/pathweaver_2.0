@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { haptic } from '@/src/utils/haptics';
+import { compressImageAssets } from '@/src/utils/imageCompression';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
@@ -34,12 +36,35 @@ interface MediaItem {
 
 interface TaskEvidenceSheetProps {
   visible: boolean;
-  taskId: string;
+  /** Title shown in the sheet header ("For: <taskTitle>"). For bounty
+   *  deliverables, pass the deliverable text. */
   taskTitle: string;
   /** Existing evidence blocks (used to compute next order_index). */
   existingBlocks: any[];
   onClose: () => void;
   onSaved?: () => void;
+  /** Quest task id. Used to build the default upload + save endpoints when
+   *  no overrides are provided. Optional when `uploadInitPath` /
+   *  `uploadFinalizePath` / `onSave` are all supplied (e.g. bounty deliverable). */
+  taskId?: string;
+  /** Signed-upload init endpoint. Defaults to the task evidence document
+   *  init endpoint when `taskId` is set. */
+  uploadInitPath?: string;
+  /** Signed-upload finalize endpoint. Defaults to the task evidence document
+   *  finalize endpoint when `taskId` is set. */
+  uploadFinalizePath?: string;
+  /** Extra body fields appended to the signed-upload init POST. Used by the
+   *  helper-evidence flow to pass `{ student_id, task_id }` through since
+   *  the helper init route doesn't carry a task id in the URL. */
+  extraInitBody?: Record<string, unknown>;
+  /** Extra body fields appended to the signed-upload finalize POST (same
+   *  reason as `extraInitBody`). */
+  extraFinalizeBody?: Record<string, unknown>;
+  /** Persistence override. Receives both the newly-composed blocks and the
+   *  full merged list (existing + new). When omitted, falls back to a POST
+   *  of the combined list to `/api/evidence/documents/<taskId>` (the legacy
+   *  quest-task behavior). */
+  onSave?: (newBlocks: any[], combinedBlocks: any[]) => Promise<void>;
 }
 
 function normalizeBlockForSave(block: any) {
@@ -54,7 +79,16 @@ export function TaskEvidenceSheet({
   existingBlocks,
   onClose,
   onSaved,
+  uploadInitPath,
+  uploadFinalizePath,
+  extraInitBody,
+  extraFinalizeBody,
+  onSave,
 }: TaskEvidenceSheetProps) {
+  // Resolve effective endpoints. Default to the quest-task evidence document
+  // paths when a taskId is supplied; otherwise the override props must be set.
+  const initPath = uploadInitPath || (taskId ? `/api/evidence/documents/${taskId}/upload-init` : '');
+  const finalizePath = uploadFinalizePath || (taskId ? `/api/evidence/documents/${taskId}/upload-finalize` : '');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [textNote, setTextNote] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -106,7 +140,10 @@ export function TaskEvidenceSheet({
       quality: 0.8,
       videoMaxDuration: 120,
     });
-    if (!result.canceled && result.assets.length > 0) addMedia(result.assets);
+    if (!result.canceled && result.assets.length > 0) {
+      const compressed = await compressImageAssets(result.assets);
+      addMedia(compressed);
+    }
   };
 
   const pickFiles = async () => {
@@ -114,8 +151,12 @@ export function TaskEvidenceSheet({
       mediaTypes: ['images', 'videos'],
       quality: 0.8,
       allowsMultipleSelection: true,
+      selectionLimit: 10,
     });
-    if (!result.canceled && result.assets.length > 0) addMedia(result.assets);
+    if (!result.canceled && result.assets.length > 0) {
+      const compressed = await compressImageAssets(result.assets);
+      addMedia(compressed);
+    }
   };
 
   const removeMedia = (idx: number) => {
@@ -140,9 +181,11 @@ export function TaskEvidenceSheet({
             try {
               const result = await uploadViaSignedUrl({
                 file: { uri: item.uri, name: item.name, type: mime, size: item.fileSize ?? 0 },
-                initPath: `/api/evidence/documents/${taskId}/upload-init`,
-                finalizePath: `/api/evidence/documents/${taskId}/upload-finalize`,
+                initPath,
+                finalizePath,
                 blockType: item.type,
+                extraInitBody,
+                extraFinalizeBody,
               });
               return {
                 type: item.type,
@@ -192,14 +235,24 @@ export function TaskEvidenceSheet({
         ...existingBlocks.map(normalizeBlockForSave),
         ...newBlocks,
       ];
-      await api.post(`/api/evidence/documents/${taskId}`, {
-        blocks: combined,
-        status: 'draft',
-      });
+      if (onSave) {
+        await onSave(newBlocks, combined);
+      } else if (taskId) {
+        // Legacy quest-task flow: post the combined block list to the task's
+        // evidence document.
+        await api.post(`/api/evidence/documents/${taskId}`, {
+          blocks: combined,
+          status: 'draft',
+        });
+      } else {
+        throw new Error('TaskEvidenceSheet: either onSave or taskId is required.');
+      }
+      haptic.success();
       reset();
       onClose();
       onSaved?.();
     } catch (err: any) {
+      haptic.error();
       const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save evidence';
       Alert.alert('Error', typeof msg === 'string' ? msg : 'Failed to save evidence');
     } finally {

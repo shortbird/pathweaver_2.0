@@ -93,7 +93,7 @@ describe('CreateBountyPage', () => {
     const { getByText } = render(<CreateBountyPage />);
 
     expect(getByText('Everyone')).toBeTruthy();
-    expect(getByText('My Students')).toBeTruthy();
+    expect(getByText('My Kids')).toBeTruthy();
   });
 
   it('renders pillar selector with all pillars', () => {

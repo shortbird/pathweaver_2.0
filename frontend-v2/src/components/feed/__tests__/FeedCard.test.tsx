@@ -163,7 +163,12 @@ describe('FeedCard', () => {
     fireEvent.press(getByText('Public'));
 
     await waitFor(() => {
-      expect(toggleVisibility).toHaveBeenCalledWith('task_completed', 'tc_feed-1', true, undefined);
+      // Signature is now object-based; assert the salient fields.
+      expect(toggleVisibility).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'task_completed',
+        id: 'tc_feed-1',
+        hidden: true,
+      }));
       expect(getByText('Private')).toBeTruthy();
     });
   });

@@ -518,16 +518,30 @@ def register_routes(bp):
 
     @bp.route('/api/observers/feed-item/toggle-visibility', methods=['POST'])
     @require_auth
+    @rate_limit(limit=120, per=3600)
     def toggle_feed_item_visibility(user_id):
         """
-        Student toggles visibility of a feed item for observers.
+        Toggle visibility of a feed item by setting `is_confidential` on the
+        underlying completion or learning event. When `is_confidential=true`,
+        the item is hidden from the observer feed.
 
-        Sets is_confidential on the completion or learning event.
-        When is_confidential=true, the item is hidden from the observer feed.
+        Allowed callers (any one of):
+          - The item's owner (the student themselves).
+          - A parent linked to the owner (via managed_by_parent_id or an
+            approved parent_student_links row).
+          - A superadmin.
 
-        Body:
-            completion_id: UUID (for task completions)
-            learning_event_id: UUID (for learning moments)
+        Parents need this so they can hide moments their kid posted but
+        shouldn't be public (the kid keeps their own per-item control too).
+
+        Body (exactly one of these id fields):
+            completion_id: UUID (task completions — toggles is_confidential)
+            learning_event_id: UUID (learning moments — toggles is_confidential)
+            block_id: UUID (draft evidence blocks not yet backed by a
+                       completion — toggles evidence_document_blocks.is_private
+                       so only that specific block is hidden, leaving any
+                       sibling blocks on the same task untouched).
+        Plus:
             hidden: boolean (true = hide from observers)
 
         Returns:
@@ -536,48 +550,90 @@ def register_routes(bp):
         data = request.json or {}
         completion_id = data.get('completion_id')
         learning_event_id = data.get('learning_event_id')
+        block_id = data.get('block_id')
         hidden = data.get('hidden', True)
 
-        if not completion_id and not learning_event_id:
-            return jsonify({'error': 'completion_id or learning_event_id is required'}), 400
+        if not completion_id and not learning_event_id and not block_id:
+            return jsonify({'error': 'completion_id, learning_event_id, or block_id is required'}), 400
 
         try:
-            # admin client justified: relationship gate above grants access; reads cross-user activity feed (quest_task_completions + learning_events + evidence blocks) and writes feed-item visibility toggle on user's own rows
+            # admin client justified: cross-user visibility toggle; authorization
+            # is enforced explicitly below (owner / parent-of-owner / superadmin)
             supabase = get_supabase_admin_client()
 
+            # Look up the owner of the target record so we can authorize the
+            # caller against THAT owner, not the caller's own id. For block_id
+            # the owner lives one hop away on the parent evidence document.
             if completion_id:
-                # Verify ownership
                 record = supabase.table('quest_task_completions') \
-                    .select('id') \
+                    .select('id, user_id') \
                     .eq('id', completion_id) \
-                    .eq('user_id', user_id) \
                     .execute()
-
                 if not record.data:
                     return jsonify({'error': 'Completion not found'}), 404
+                owner_id = record.data[0]['user_id']
+            elif learning_event_id:
+                record = supabase.table('learning_events') \
+                    .select('id, user_id') \
+                    .eq('id', learning_event_id) \
+                    .execute()
+                if not record.data:
+                    return jsonify({'error': 'Learning event not found'}), 404
+                owner_id = record.data[0]['user_id']
+            else:
+                block_record = supabase.table('evidence_document_blocks') \
+                    .select('id, document_id') \
+                    .eq('id', block_id) \
+                    .execute()
+                if not block_record.data:
+                    return jsonify({'error': 'Evidence block not found'}), 404
+                doc_record = supabase.table('user_task_evidence_documents') \
+                    .select('id, user_id') \
+                    .eq('id', block_record.data[0]['document_id']) \
+                    .execute()
+                if not doc_record.data:
+                    return jsonify({'error': 'Evidence document not found'}), 404
+                owner_id = doc_record.data[0]['user_id']
 
+            # Authorize: owner, parent-of-owner, or superadmin.
+            authorized = False
+            if owner_id == user_id:
+                authorized = True
+            else:
+                # Reuse the read-side parent-access helper so both directions
+                # of the privacy flow share one source of truth. It also grants
+                # superadmin universal access.
+                from routes.parent.dashboard_overview import verify_parent_access
+                from middleware.error_handler import AuthorizationError
+                try:
+                    verify_parent_access(supabase, user_id, owner_id)
+                    authorized = True
+                except AuthorizationError:
+                    authorized = False
+
+            if not authorized:
+                return jsonify({'error': 'Not authorized to change this item\'s visibility'}), 403
+
+            if completion_id:
                 supabase.table('quest_task_completions') \
                     .update({'is_confidential': hidden}) \
                     .eq('id', completion_id) \
                     .execute()
-
             elif learning_event_id:
-                # Verify ownership
-                record = supabase.table('learning_events') \
-                    .select('id') \
-                    .eq('id', learning_event_id) \
-                    .eq('user_id', user_id) \
-                    .execute()
-
-                if not record.data:
-                    return jsonify({'error': 'Learning event not found'}), 404
-
                 supabase.table('learning_events') \
                     .update({'is_confidential': hidden}) \
                     .eq('id', learning_event_id) \
                     .execute()
+            else:
+                # Block-scoped privacy. The feed query filters on is_private,
+                # so this removes the single block from observer feeds while
+                # leaving the task and any other blocks intact.
+                supabase.table('evidence_document_blocks') \
+                    .update({'is_private': hidden}) \
+                    .eq('id', block_id) \
+                    .execute()
 
-            logger.info(f"Feed item visibility toggled: user={user_id}, hidden={hidden}")
+            logger.info(f"Feed item visibility toggled: caller={user_id}, owner={owner_id}, hidden={hidden}, scope={'completion' if completion_id else 'learning_event' if learning_event_id else 'block'}")
 
             return jsonify({'status': 'success', 'hidden': hidden}), 200
 

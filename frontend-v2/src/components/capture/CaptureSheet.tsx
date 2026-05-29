@@ -11,6 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { haptic } from '@/src/utils/haptics';
+import { compressImageAssets } from '@/src/utils/imageCompression';
 import { useMyChildren } from '@/src/hooks/useParent';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet, PillarBadge,
@@ -66,19 +68,21 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   // gracefully for non-parent users (empty list, no error toast).
   const { children: parentChildren } = useMyChildren();
   const eligibleChildren = pickStudents ? parentChildren : [];
+  // Starts empty by design: parents pick which kids the moment applies to.
+  // A "Select all" chip is offered alongside the per-kid chips below.
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
-  // Default to all kids selected when the sheet first opens with a non-empty list.
-  // Reset whenever the sheet closes so a fresh open starts clean.
-  useEffect(() => {
-    if (!visible) return;
-    if (pickStudents && eligibleChildren.length > 0 && selectedStudentIds.length === 0) {
-      setSelectedStudentIds(eligibleChildren.map((c: any) => c.id));
-    }
-  }, [visible, pickStudents, eligibleChildren, selectedStudentIds.length]);
-
   const toggleStudent = (id: string) => {
+    haptic.light();
     setSelectedStudentIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const allKidsSelected =
+    eligibleChildren.length > 0 && selectedStudentIds.length === eligibleChildren.length;
+
+  const toggleAllKids = () => {
+    haptic.light();
+    setSelectedStudentIds(allKidsSelected ? [] : eligibleChildren.map((c: any) => c.id));
   };
 
   const reset = () => {
@@ -135,7 +139,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       videoMaxDuration: 120,
     });
     if (!result.canceled && result.assets.length > 0) {
-      addMedia(result.assets);
+      const compressed = await compressImageAssets(result.assets);
+      addMedia(compressed);
     }
   };
 
@@ -144,9 +149,13 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       mediaTypes: ['images', 'videos'],
       quality: 0.8,
       allowsMultipleSelection: true,
+      // Cap so a parent who taps "select all" in Photos can't queue 200
+      // uploads at once. Practical evidence/moment ceiling.
+      selectionLimit: 10,
     });
     if (!result.canceled && result.assets.length > 0) {
-      addMedia(result.assets);
+      const compressed = await compressImageAssets(result.assets);
+      addMedia(compressed);
     }
   };
 
@@ -263,10 +272,12 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         }
       }
 
+      haptic.success();
       reset();
       onClose();
       onCaptured?.();
     } catch (err: any) {
+      haptic.error();
       const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save';
       Alert.alert('Error', msg);
     } finally {
@@ -303,13 +314,50 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               </Pressable>
             </HStack>
 
-            {/* Parent kid multi-select */}
+            {/* Parent kid multi-select — defaults to none selected. Parent
+                picks per-kid; "All kids" chip is a shortcut for "applies to
+                everyone." Multi-kid families: each picked kid gets the same
+                moment posted to their journal. */}
             {pickStudents && eligibleChildren.length > 0 && (
               <VStack space="xs">
-                <UIText size="xs" style={{ color: '#6B7280', fontFamily: 'Poppins_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Capture for
-                </UIText>
+                <HStack className="items-center justify-between">
+                  <UIText size="xs" style={{ color: '#6B7280', fontFamily: 'Poppins_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Capture for
+                  </UIText>
+                  {selectedStudentIds.length > 0 && (
+                    <UIText size="xs" style={{ color: '#6D469B', fontFamily: 'Poppins_500Medium' }}>
+                      {selectedStudentIds.length} selected
+                    </UIText>
+                  )}
+                </HStack>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {eligibleChildren.length > 1 && (
+                    <Pressable
+                      testID="capture-select-all-kids"
+                      onPress={toggleAllKids}
+                      accessibilityLabel={allKidsSelected ? 'Clear all kids' : 'Select all kids'}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        backgroundColor: allKidsSelected ? '#1F1F2E' : '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: allKidsSelected ? '#1F1F2E' : '#6D469B',
+                      }}
+                    >
+                      <Ionicons
+                        name={allKidsSelected ? 'checkmark-done' : 'people-outline'}
+                        size={14}
+                        color={allKidsSelected ? '#FFFFFF' : '#6D469B'}
+                      />
+                      <UIText size="sm" style={{ color: allKidsSelected ? '#FFFFFF' : '#6D469B', fontFamily: 'Poppins_600SemiBold' }}>
+                        {allKidsSelected ? 'Clear' : 'All kids'}
+                      </UIText>
+                    </Pressable>
+                  )}
                   {eligibleChildren.map((child: any) => {
                     const active = selectedStudentIds.includes(child.id);
                     const initials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase()
@@ -493,10 +541,17 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             </HStack>
 
             {/* Attach to quest — inline (no extra drawer). Tapping the header
-                expands a list of the student's active quests; each quest
-                expands to show its pending tasks plus an "Add as new task"
-                tile. Parent capture skips this entirely. */}
-            {!pickStudents && (!studentIds || studentIds.length === 0) && (
+                expands a list of the (student's | selected kid's) active
+                quests; each quest expands to show its pending tasks plus an
+                "Add as new task" tile.
+                Available when:
+                  - Student capture for themselves (no pickStudents, no studentIds)
+                  - Parent capture with exactly one kid selected (so the picker
+                    has a single, unambiguous student scope). Multi-kid attach
+                    is intentionally not supported — a single moment can only
+                    attach to one student's task. */}
+            {((!pickStudents && (!studentIds || studentIds.length === 0))
+              || (pickStudents && selectedStudentIds.length === 1)) && (
               <VStack space="xs">
                 <Pressable
                   onPress={() => setAttachOpen((v) => !v)}
@@ -548,6 +603,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 <InlineQuestTaskPicker
                   visible={attachOpen}
                   questIdFilter={questContext?.questId}
+                  studentId={pickStudents ? selectedStudentIds[0] : undefined}
                   selectedTaskId={selectedTask?.task.id || null}
                   selectedNewTaskQuestId={pendingNewTask?.id || null}
                   onPickTask={(task, quest) => {

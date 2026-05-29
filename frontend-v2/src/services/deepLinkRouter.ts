@@ -58,6 +58,19 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   const bountyReview = link.match(/^\/bounties\/review\/([^/]+)$/);
   if (bountyReview) return { target: `/(app)/bounties/review/${bountyReview[1]}` };
 
+  // Parent → kid's quest detail. The web app uses `/parent/quest/<sid>/<qid>`
+  // and the mobile app mirrors that path under the (app) group.
+  const parentQuest = link.match(/^\/parent\/quest\/([^/]+)\/([^/]+)$/);
+  if (parentQuest) return { target: `/(app)/parent/quest/${parentQuest[1]}/${parentQuest[2]}` };
+
+  // Parent bounty review queue → mobile parent's bounty tab (review queue is
+  // the default surface there).
+  if (/^\/parent\/bounties\/?$/.test(link)) return { target: '/(app)/(tabs)/bounties' };
+
+  // Observer accept-invite → mobile observer flow.
+  const observerAccept = link.match(/^\/observer\/accept\/([^/]+)$/);
+  if (observerAccept) return { target: `/(app)/observers/accept/${observerAccept[1]}` };
+
   // Web-only prefixes → fallback screen
   for (const prefix of WEB_ONLY_PREFIXES) {
     if (link === prefix || link.startsWith(`${prefix}/`)) {

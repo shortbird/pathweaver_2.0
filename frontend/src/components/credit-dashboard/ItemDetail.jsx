@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
 import StatusTimeline from './StatusTimeline'
 import { toast } from 'react-hot-toast'
+import {
+  computeEvidenceDiff,
+  summarizeDiff,
+  DIFF_NEW,
+  DIFF_MODIFIED,
+  DIFF_REMOVED,
+} from './evidenceDiff'
 
 // Evidence block content can be a string or an object like {text: "..."}
 const getBlockText = (content) => {
@@ -17,6 +24,147 @@ const getBlockItems = (content, type) => {
   // Legacy single-item format
   if (content.url) return [content]
   return []
+}
+
+// Renders just the inner content of a block (text, image, link, etc).
+// Used for both the live block and the "previous version" peek for modified
+// blocks. Stays a plain function so callers can drop it inside any wrapper.
+const renderBlockBody = (block) => {
+  if (!block) return null
+  switch (block.block_type) {
+    case 'text':
+      return (
+        <p className="text-sm text-gray-700 whitespace-pre-wrap">{getBlockText(block.content)}</p>
+      )
+    case 'image':
+      return (
+        <div className="space-y-2">
+          {getBlockItems(block.content, 'image').map((item, j) => (
+            <div key={j}>
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+                <img
+                  src={item.url}
+                  alt={item.alt || 'Evidence'}
+                  className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
+                  loading="lazy"
+                />
+              </a>
+              {item.caption && (
+                <p className="text-xs text-gray-500 mt-1">{item.caption}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )
+    case 'link':
+      return (
+        <div className="space-y-2">
+          {getBlockItems(block.content, 'link').map((item, j) => (
+            <a
+              key={j}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-optio-purple hover:underline flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              {item.title || item.url}
+            </a>
+          ))}
+        </div>
+      )
+    case 'video':
+      return (
+        <div className="space-y-2">
+          {getBlockItems(block.content, 'video').map((item, j) => (
+            <a key={j} href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
+              Video: {item.title || item.url}
+            </a>
+          ))}
+        </div>
+      )
+    case 'file':
+    case 'document':
+      return (
+        <div className="space-y-2">
+          {getBlockItems(block.content, block.block_type).map((item, j) => (
+            <div key={j} className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
+                {item.title || item.filename || 'Download file'}
+              </a>
+            </div>
+          ))}
+        </div>
+      )
+    default:
+      return null
+  }
+}
+
+const DIFF_BORDER = {
+  [DIFF_NEW]: 'border-emerald-300 bg-emerald-50/40',
+  [DIFF_MODIFIED]: 'border-sky-300 bg-sky-50/40',
+  [DIFF_REMOVED]: 'border-gray-300 bg-gray-50 opacity-75',
+}
+
+const EvidenceBlockCard = ({ block, diffType, previousBlock }) => {
+  const [showPrev, setShowPrev] = useState(false)
+  const borderClass = DIFF_BORDER[diffType] || 'border-gray-200'
+  return (
+    <div className={`border-2 rounded-lg p-3 ${borderClass}`}>
+      {diffType === DIFF_NEW && (
+        <div className="mb-2">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New since last review
+          </span>
+        </div>
+      )}
+      {diffType === DIFF_MODIFIED && (
+        <div className="mb-2 flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-sky-100 text-sky-800">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Modified since last review
+          </span>
+          {previousBlock && (
+            <button
+              type="button"
+              onClick={() => setShowPrev(v => !v)}
+              className="text-xs text-optio-purple hover:text-optio-pink underline"
+            >
+              {showPrev ? 'Hide previous version' : 'View previous version'}
+            </button>
+          )}
+        </div>
+      )}
+      {diffType === DIFF_REMOVED && (
+        <div className="mb-2">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+            </svg>
+            Removed since last review
+          </span>
+        </div>
+      )}
+      {renderBlockBody(block)}
+      {diffType === DIFF_MODIFIED && showPrev && previousBlock && (
+        <div className="mt-3 pt-3 border-t border-dashed border-gray-300">
+          <p className="text-xs text-gray-500 italic mb-2">Previous version:</p>
+          {renderBlockBody(previousBlock)}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const ALL_SUBJECTS = [
@@ -95,6 +243,9 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
   const student = detail?.student || {}
   const evidenceBlocks = detail?.evidence_blocks || []
   const reviewRounds = detail?.review_rounds || []
+  const { diffStatus, removedBlocks, previousById, hasBaseline, baselineRoundNumber } =
+    computeEvidenceDiff(evidenceBlocks, reviewRounds)
+  const diffCounts = summarizeDiff(diffStatus, removedBlocks)
 
   const isSuperadmin = effectiveRole === 'superadmin'
   // Superadmins are simultaneously the org approver AND the Optio approver,
@@ -317,82 +468,66 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
 
       {/* Evidence Blocks */}
       <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-2">
-          Evidence ({evidenceBlocks.length} blocks)
-        </h3>
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <h3 className="text-sm font-medium text-gray-700">
+            Evidence ({evidenceBlocks.length} block{evidenceBlocks.length === 1 ? '' : 's'})
+          </h3>
+          {hasBaseline && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-gray-500">
+                vs. Round {baselineRoundNumber}:
+              </span>
+              {diffCounts.added > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
+                  +{diffCounts.added} new
+                </span>
+              )}
+              {diffCounts.modified > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-medium">
+                  {diffCounts.modified} modified
+                </span>
+              )}
+              {diffCounts.removed > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 font-medium">
+                  −{diffCounts.removed} removed
+                </span>
+              )}
+              {diffCounts.added === 0 && diffCounts.modified === 0 && diffCounts.removed === 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                  No changes
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         {evidenceBlocks.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No evidence blocks</p>
         ) : (
           <div className="space-y-3">
             {evidenceBlocks.map((block, i) => (
-              <div key={block.id || i} className="border border-gray-200 rounded-lg p-3">
-                {block.block_type === 'text' && (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{getBlockText(block.content)}</p>
-                )}
-                {block.block_type === 'image' && (
-                  <div className="space-y-2">
-                    {getBlockItems(block.content, 'image').map((item, j) => (
-                      <div key={j}>
-                        {/* Cap image height on mobile so a single photo doesn't
-                            push everything else off-screen. Tapping opens full size. */}
-                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
-                          <img
-                            src={item.url}
-                            alt={item.alt || 'Evidence'}
-                            className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
-                            loading="lazy"
-                          />
-                        </a>
-                        {item.caption && (
-                          <p className="text-xs text-gray-500 mt-1">{item.caption}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {block.block_type === 'link' && (
-                  <div className="space-y-2">
-                    {getBlockItems(block.content, 'link').map((item, j) => (
-                      <a
-                        key={j}
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-optio-purple hover:underline flex items-center gap-1"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        {item.title || item.url}
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {block.block_type === 'video' && (
-                  <div className="space-y-2">
-                    {getBlockItems(block.content, 'video').map((item, j) => (
-                      <a key={j} href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
-                        Video: {item.title || item.url}
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {(block.block_type === 'file' || block.block_type === 'document') && (
-                  <div className="space-y-2">
-                    {getBlockItems(block.content, block.block_type).map((item, j) => (
-                      <div key={j} className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
-                          {item.title || item.filename || 'Download file'}
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <EvidenceBlockCard
+                key={block.id || i}
+                block={block}
+                diffType={diffStatus[block.id]}
+                previousBlock={previousById[block.id]}
+              />
             ))}
+          </div>
+        )}
+        {removedBlocks.length > 0 && (
+          <div className="mt-4">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Removed since Round {baselineRoundNumber} ({removedBlocks.length})
+            </p>
+            <div className="space-y-3">
+              {removedBlocks.map((block, i) => (
+                <EvidenceBlockCard
+                  key={block.id || `removed-${i}`}
+                  block={block}
+                  diffType={DIFF_REMOVED}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

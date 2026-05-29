@@ -11,6 +11,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl, Modal, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -28,9 +29,11 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { CaptureModal } from '@/src/components/capture/CaptureModal';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
-import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
-import { CreateClassSheet } from '@/src/components/class/CreateClassSheet';
 import { ClassCard } from '@/src/components/class/ClassCard';
+import { CourseCard } from '@/src/components/course/CourseCard';
+import { HomeBountyCard } from '@/src/components/bounties/HomeBountyCard';
+import { useMyClaims } from '@/src/hooks/useBounties';
+import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 
 // ── Quest Card with engagement ──
 
@@ -186,70 +189,6 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
   );
 }
 
-// ── Enrolled Courses ──
-
-function EnrolledCourses({ courses }: { courses: any[] }) {
-  if (!courses || courses.length === 0) return null;
-
-  return (
-    <VStack space="sm">
-      <HStack className="items-center justify-between">
-        <Heading size="md">Your Courses</Heading>
-        <Button variant="link" size="sm" onPress={() => router.push('/(app)/(tabs)/courses')}>
-          <ButtonText>View All</ButtonText>
-        </Button>
-      </HStack>
-      <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
-        {courses.map((course: any) => {
-          const imageUrl = course.cover_image_url;
-          const projectCount = course.quest_count || course.quests?.length || 0;
-          const progress = course.progress;
-          return (
-            <Pressable
-              key={course.id}
-              onPress={() => router.push(`/(app)/courses/${course.id}`)}
-              className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]"
-            >
-              <Card variant="elevated" size="sm" className="overflow-hidden" style={{ minHeight: 180 }}>
-                {imageUrl ? (
-                  <View className="h-24 -mx-3 -mt-3 mb-3 overflow-hidden rounded-t-xl">
-                    <Image
-                      source={{ uri: imageUrl }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                  </View>
-                ) : (
-                  <View className="h-24 -mx-3 -mt-3 mb-3 bg-gradient-to-r from-optio-purple to-optio-pink rounded-t-xl items-center justify-center">
-                    <Ionicons name="book-outline" size={32} color="white" />
-                  </View>
-                )}
-                <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
-                  {course.title}
-                </UIText>
-                <HStack className="items-center gap-2 mt-1">
-                  <Ionicons name="layers-outline" size={14} color="#9CA3AF" />
-                  <UIText size="xs" className="text-typo-400">
-                    {projectCount} {projectCount === 1 ? 'project' : 'projects'}
-                  </UIText>
-                  {progress && (
-                    <>
-                      <View className="w-1 h-1 rounded-full bg-typo-300" />
-                      <UIText size="xs" className="text-optio-purple font-poppins-medium">
-                        {progress.completed_quests || 0}/{progress.total_quests || 0} done
-                      </UIText>
-                    </>
-                  )}
-                </HStack>
-              </Card>
-            </Pressable>
-          );
-        })}
-      </View>
-    </VStack>
-  );
-}
-
 // ── Completed Quests ──
 
 function CompletedQuests({ quests }: { quests: any[] }) {
@@ -396,18 +335,32 @@ function NextUpPanel({ quests }: { quests: any[] }) {
 export default function DashboardScreen() {
   const { user } = useAuthStore();
   const { data, loading, refetch } = useDashboard();
+  // Active bounty claims surface in the unified list below. Fetched here
+  // (not via the dashboard endpoint) so it must stay above the early-return
+  // skeleton — otherwise hook order changes between renders and React
+  // throws "Rendered more hooks than during the previous render."
+  const { claims: bountyClaims, refetch: refetchClaims } = useMyClaims();
   const [refreshing, setRefreshing] = useState(false);
   const [captureVisible, setCaptureVisible] = useState(false);
-  const [classSheetVisible, setClassSheetVisible] = useState(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  const openStartSomething = useStartSomethingStore((s) => s.open);
   const scrollRef = useRef<ScrollView>(null);
+  // Standard iOS pattern: tap the active Home tab to scroll the dashboard
+  // back to the top.
+  useScrollToTop(scrollRef);
   const isWeb = Platform.OS === 'web';
 
-  // Refetch when screen regains focus (e.g. after leaving a quest)
+  // Refetch every time the dashboard regains focus. The previous
+  // `if (data) refetch()` guard was captured with empty deps, so `data` was
+  // frozen at its initial null value and refetch never fired after returning
+  // from a quest (e.g. after Leave Quest), leaving stale active-quest cards.
   useFocusEffect(
     useCallback(() => {
-      if (data) refetch();
-    }, [])
+      refetch();
+      // Bounty claims are fetched separately (not part of /api/dashboard).
+      // Refetch on focus too so a bounty just claimed on the detail page
+      // appears in "What you're working on" without a manual reload.
+      refetchClaims();
+    }, [refetch, refetchClaims])
   );
 
   const onRefresh = async () => {
@@ -418,27 +371,57 @@ export default function DashboardScreen() {
 
   if (loading && !data) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
         <DashboardSkeleton />
       </SafeAreaView>
     );
   }
 
   const activeQuests = data?.active_quests || [];
-  const classes = activeQuests.filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) === 'class');
-  const nonClassQuests = activeQuests.filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) !== 'class');
   const enrolledCourses = data?.enrolled_courses || [];
   const completedQuests = data?.recent_completed_quests || [];
 
+  // Unified "What you're working on" list. Order: bounties (explicit reward
+  // + deadline = highest immediate obligation) -> classes (transcript credit)
+  // -> courses (structured curriculum) -> quests (open exploration). Each
+  // card type has a distinct visual signature so the list reads as one
+  // tidy section.
+  type ListItem =
+    | { kind: 'bounty'; id: string; claim: any }
+    | { kind: 'class'; id: string; quest: any }
+    | { kind: 'course'; id: string; course: any }
+    | { kind: 'quest'; id: string; quest: any };
+  const bountyItems: ListItem[] = (bountyClaims || [])
+    // Surface active claims only — approved/rejected aren't "in progress"
+    // anymore, so they drop off Home (they still show on the bounty detail).
+    .filter((c: any) =>
+      c.status === 'claimed' ||
+      c.status === 'submitted' ||
+      c.status === 'revision_requested'
+    )
+    .map((c: any) => ({ kind: 'bounty', id: `bounty-${c.id}`, claim: c }));
+  const classItems: ListItem[] = activeQuests
+    .filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) === 'class')
+    .map((uq: any) => ({ kind: 'class', id: `class-${uq.id}`, quest: uq }));
+  const courseItems: ListItem[] = enrolledCourses.map((c: any) => ({
+    kind: 'course', id: `course-${c.id}`, course: c,
+  }));
+  const questItems: ListItem[] = activeQuests
+    .filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) !== 'class')
+    .map((uq: any) => ({ kind: 'quest', id: `quest-${uq.id}`, quest: uq }));
+  const workingOnItems: ListItem[] = [...bountyItems, ...classItems, ...courseItems, ...questItems];
+
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
       <PageHeader title="Home" />
       <ScrollView
         ref={scrollRef}
         className="flex-1"
-        contentContainerClassName="px-5 md:px-8 pt-2 md:pt-6 pb-12"
+        // Minimal bottom padding so content scrolls flush with the tab bar.
+        // The FAB hovers over the bottom-right corner by design — that's a
+        // standard FAB pattern; we don't push content above it.
+        contentContainerClassName="px-5 md:px-8 pt-2 md:pt-6 pb-4"
         showsVerticalScrollIndicator={false}
-        onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
         scrollEventThrottle={64}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />
@@ -449,75 +432,40 @@ export default function DashboardScreen() {
           {/* Welcome */}
           <WelcomeHeader user={user} stats={data?.stats} activeQuestCount={activeQuests.length} />
 
-          {/* Start a Class CTA — Optio logo on the left (matches the icon used
-              in the center capture tab and on the auth screens). */}
-          <Pressable testID="start-a-class-cta" onPress={() => setClassSheetVisible(true)}>
-            <Card variant="elevated" size="md" className="border-2 border-optio-pink/30 bg-gradient-to-r from-purple-50 to-pink-50">
-              <HStack className="items-center gap-3">
-                <Image
-                  source={require('@/assets/images/icon.png')}
-                  style={{ width: 48, height: 48, borderRadius: 24 }}
-                  resizeMode="cover"
-                />
-                <VStack className="flex-1 min-w-0">
-                  <Heading size="sm">Start a Class</Heading>
-                  <UIText size="xs" className="text-typo-500">
-                    Earn high school credit for a passion project
-                  </UIText>
-                </VStack>
-                <Ionicons name="chevron-forward" size={20} color="#6D469B" />
-              </HStack>
-            </Card>
-          </Pressable>
-
-          {/* My Classes */}
-          {classes.length > 0 && (
-            <VStack space="sm">
-              <Heading size="md">My Classes</Heading>
-              <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
-                {classes.map((uq: any) => (
-                  <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
-                    <ClassCard quest={uq} />
-                  </View>
-                ))}
-              </View>
-            </VStack>
-          )}
-
-          {/* Current Quests */}
+          {/* Unified active-work section. Classes, courses, and quests live in
+              one list (classes first, then courses, then quests); each card
+              type has a distinct visual signature. The global "+" FAB at the
+              bottom-right of every tab screen is the canonical entry point
+              for adding new work — no in-grid tile here. */}
           <VStack space="sm">
-            <HStack className="items-center justify-between">
-              <Heading size="md">Current Quests</Heading>
-              <Button variant="link" size="sm" onPress={() => router.push('/(app)/(tabs)/quests')}>
-                <ButtonText>Browse All</ButtonText>
-              </Button>
-            </HStack>
+            <Heading size="md">What you're working on</Heading>
 
-            {nonClassQuests.length > 0 ? (
+            {workingOnItems.length > 0 ? (
               <View testID="current-quests-grid" className="flex flex-col md:flex-row md:flex-wrap gap-4">
-                {nonClassQuests.map((uq: any) => (
-                  <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
-                    <QuestCard quest={uq} />
+                {workingOnItems.map((item) => (
+                  <View key={item.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                    {item.kind === 'bounty' && <HomeBountyCard claim={item.claim} />}
+                    {item.kind === 'class' && <ClassCard quest={item.quest} />}
+                    {item.kind === 'course' && <CourseCard course={item.course} />}
+                    {item.kind === 'quest' && <QuestCard quest={item.quest} />}
                   </View>
                 ))}
               </View>
-            ) : classes.length === 0 ? (
-              <Card variant="filled" size="lg" className="items-center py-10">
-                <Ionicons name="rocket-outline" size={40} color="#9CA3AF" />
-                <Heading size="sm" className="text-typo-500 mt-3">No quests yet</Heading>
-                <UIText size="sm" className="text-typo-400 mt-1">Browse quests to get started</UIText>
-                <Button size="sm" className="mt-4" onPress={() => router.push('/(app)/(tabs)/quests')}>
-                  <ButtonText>Browse Quests</ButtonText>
-                </Button>
-              </Card>
-            ) : null}
+            ) : (
+              <Pressable testID="empty-state-cta" onPress={openStartSomething}>
+                <Card variant="filled" size="lg" className="items-center py-10">
+                  <Ionicons name="add-circle-outline" size={40} color="#6D469B" />
+                  <Heading size="sm" className="text-typo-700 mt-3">Nothing here yet</Heading>
+                  <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
+                    Tap the + button to start a quest, class, or claim a bounty.
+                  </UIText>
+                </Card>
+              </Pressable>
+            )}
           </VStack>
 
           {/* Next Up */}
           <NextUpPanel quests={activeQuests} />
-
-          {/* Enrolled Courses */}
-          <EnrolledCourses courses={enrolledCourses} />
 
           {/* Diploma Credit Tracker */}
           <DiplomaCreditTracker />
@@ -560,16 +508,6 @@ export default function DashboardScreen() {
         </>
       )}
 
-      <ScrollToTopFab
-        visible={showScrollTop}
-        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
-      />
-
-      <CreateClassSheet
-        visible={classSheetVisible}
-        onClose={() => setClassSheetVisible(false)}
-        onCreated={() => { refetch(); }}
-      />
     </SafeAreaView>
   );
 }

@@ -844,6 +844,24 @@ class EmailService(BaseService):
             }
         )
 
+    def send_claim_free_class_confirmation(
+        self,
+        user_email: str
+    ) -> bool:
+        """
+        Send confirmation email for the 'first class free' modal on /classes.
+
+        The modal collects only an email (no name), so this template uses a
+        generic salutation. The standard support copy mechanism in send_email
+        copies tanner@optioeducation.com for follow-up.
+        """
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Your free Optio class — here's what's next",
+            template_name='claim_free_class_confirmation',
+            context={}
+        )
+
     def send_promo_code_email(
         self,
         to_email: str,

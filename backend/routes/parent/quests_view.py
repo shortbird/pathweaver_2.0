@@ -328,70 +328,74 @@ def get_student_quest_view(user_id, student_id, quest_id):
                 for comp in completions_response.data
             }
 
+        # Batch fetch ALL evidence docs + blocks + uploader names ahead of
+        # the per-task loop. Old shape did 3 SELECTs per task (doc, blocks,
+        # uploaders). A 12-task quest dropped 36+ round trips per page load;
+        # now it's a fixed 3 regardless of task count.
+        docs_by_task_id = {}
+        all_blocks_by_doc_id = {}
+        uploaders_map = {}
+
+        if task_ids:
+            docs_response = supabase.table('user_task_evidence_documents') \
+                .select('id, task_id') \
+                .eq('user_id', student_id) \
+                .in_('task_id', task_ids) \
+                .execute()
+            docs_by_task_id = {d['task_id']: d['id'] for d in (docs_response.data or [])}
+            doc_ids = list(docs_by_task_id.values())
+
+            if doc_ids:
+                blocks_response = supabase.table('evidence_document_blocks') \
+                    .select('id, document_id, block_type, content, order_index, is_private, uploaded_by_user_id, uploaded_by_role, created_at') \
+                    .in_('document_id', doc_ids) \
+                    .order('order_index') \
+                    .execute()
+                for block in (blocks_response.data or []):
+                    all_blocks_by_doc_id.setdefault(block['document_id'], []).append(block)
+
+                uploader_ids = list({
+                    b['uploaded_by_user_id']
+                    for blocks in all_blocks_by_doc_id.values()
+                    for b in blocks
+                    if b.get('uploaded_by_user_id')
+                })
+                if uploader_ids:
+                    uploaders_response = supabase.table('users') \
+                        .select('id, display_name, first_name, last_name') \
+                        .in_('id', uploader_ids) \
+                        .execute()
+                    for u in (uploaders_response.data or []):
+                        uploaders_map[u['id']] = (
+                            u.get('display_name')
+                            or f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+                            or 'Unknown'
+                        )
+
         # Build tasks list with completion status and enhanced evidence
         tasks = []
         for task in tasks_response.data:
             task_id = task['id']
             completion = completions_map.get(task_id)
 
-            # Enhanced evidence handling
             evidence_text = None
             evidence_url = None
             evidence_blocks = []
             evidence_type = 'legacy_text'
             is_confidential = False
 
-            # Check for evidence document (draft or completed)
-            evidence_doc_response = supabase.table('user_task_evidence_documents')\
-                .select('id')\
-                .eq('task_id', task_id)\
-                .eq('user_id', student_id)\
-                .execute()
-
-            if evidence_doc_response.data:
-                # Fetch evidence blocks
-                doc_id = evidence_doc_response.data[0]['id']
-                blocks_response = supabase.table('evidence_document_blocks')\
-                    .select('id, block_type, content, order_index, is_private, uploaded_by_user_id, uploaded_by_role, created_at')\
-                    .eq('document_id', doc_id)\
-                    .order('order_index')\
-                    .execute()
-
-                if blocks_response.data:
-                    # Batch fetch uploader names (N+1 optimization)
-                    uploader_ids = list(set(
-                        block['uploaded_by_user_id']
-                        for block in blocks_response.data
-                        if block.get('uploaded_by_user_id')
-                    ))
-
-                    uploaders_map = {}
-                    if uploader_ids:
-                        uploaders_response = supabase.table('users')\
-                            .select('id, display_name, first_name, last_name')\
-                            .in_('id', uploader_ids)\
-                            .execute()
-
-                        for uploader in uploaders_response.data:
-                            uploaders_map[uploader['id']] = (
-                                uploader.get('display_name') or
-                                f"{uploader.get('first_name', '')} {uploader.get('last_name', '')}".strip() or
-                                'Unknown'
-                            )
-
-                    # Enrich blocks with uploader names
+            doc_id = docs_by_task_id.get(task_id)
+            if doc_id:
+                task_blocks = all_blocks_by_doc_id.get(doc_id, [])
+                if task_blocks:
                     enriched_blocks = []
-                    for block in blocks_response.data:
+                    for block in task_blocks:
                         enriched_block = dict(block)
-
                         if block.get('uploaded_by_user_id'):
                             enriched_block['uploaded_by_name'] = uploaders_map.get(
-                                block['uploaded_by_user_id'],
-                                'Unknown'
+                                block['uploaded_by_user_id'], 'Unknown'
                             )
-
                         enriched_blocks.append(enriched_block)
-
                     evidence_blocks = enriched_blocks
                     evidence_type = 'multi_format'
 

@@ -204,6 +204,11 @@ def list_attachable_tasks(user_id):
     tasks were created via the personalization wizard (approval_status
     transitions) — hence the bogus "no active quests" message.
 
+    Accepts an optional `student_id` query param for parents/observers
+    capturing a moment on behalf of a child. The caller must be that
+    student's parent (via dependents) or linked observer; otherwise the
+    student scope is ignored and we fall back to the caller's own quests.
+
     Shape:
       { quests: [ { id, title, tasks: [ { id, title, pillar, xp_value,
                                           attached_moment_id | null } ] } ] }
@@ -212,9 +217,52 @@ def list_attachable_tasks(user_id):
         # admin client justified: learning event reads/writes scoped to caller (self) under @require_auth; ownership verified via user_id match on the event row
         supabase = get_supabase_admin_client()
 
+        # Resolve the effective student id. When a `student_id` query param
+        # is supplied, verify the caller has parent/observer permission for
+        # that student before honoring it.
+        from flask import request
+        scope_id = user_id
+        requested_student = (request.args.get('student_id') or '').strip()
+        if requested_student and requested_student != user_id:
+            allowed = False
+            try:
+                deps = supabase.table('users') \
+                    .select('id, managed_by_parent_id') \
+                    .eq('id', requested_student) \
+                    .single().execute()
+                if deps.data and deps.data.get('managed_by_parent_id') == user_id:
+                    allowed = True
+            except Exception:
+                pass
+            if not allowed:
+                try:
+                    links = supabase.table('observer_student_links') \
+                        .select('id') \
+                        .eq('observer_id', user_id) \
+                        .eq('student_id', requested_student) \
+                        .eq('is_active', True) \
+                        .limit(1).execute()
+                    if links.data:
+                        allowed = True
+                except Exception:
+                    pass
+            if not allowed:
+                try:
+                    pl = supabase.table('parent_student_links') \
+                        .select('id') \
+                        .eq('parent_id', user_id) \
+                        .eq('student_id', requested_student) \
+                        .limit(1).execute()
+                    if pl.data:
+                        allowed = True
+                except Exception:
+                    pass
+            if allowed:
+                scope_id = requested_student
+
         enrollments = supabase.table('user_quests') \
             .select('id, quest_id') \
-            .eq('user_id', user_id) \
+            .eq('user_id', scope_id) \
             .eq('is_active', True) \
             .is_('completed_at', 'null') \
             .execute()
@@ -274,7 +322,7 @@ def list_attachable_tasks(user_id):
         if task_ids:
             comp_resp = supabase.table('quest_task_completions') \
                 .select('user_quest_task_id') \
-                .eq('user_id', user_id) \
+                .eq('user_id', scope_id) \
                 .execute()
             completed_ids = {
                 r['user_quest_task_id']
@@ -284,12 +332,12 @@ def list_attachable_tasks(user_id):
 
         attached_map = {}
         if task_ids:
-            # Moments (learning_events) attached to any of this user's tasks.
-            # Scope by user_id so we don't pull every user's moments off the
-            # table — the FK chain already guarantees the task belongs to us.
+            # Moments (learning_events) attached to any of the scoped user's
+            # tasks. The FK chain guarantees the task belongs to scope_id, so
+            # scoping the moments lookup the same way keeps the query bounded.
             att_resp = supabase.table('learning_events') \
                 .select('id, attached_task_id') \
-                .eq('user_id', user_id) \
+                .eq('user_id', scope_id) \
                 .not_.is_('attached_task_id', 'null') \
                 .execute()
             attached_map = {

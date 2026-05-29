@@ -129,7 +129,7 @@ export function ClassCard({ quest }: ClassCardProps) {
           )}
           <VStack className="flex-1 min-w-0">
             <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
-              Class · {progress?.transcript_subject_display || subject?.name || ''}
+              {(progress?.transcript_subject_display || subject?.name || '')} class
             </UIText>
             <UIText size="md" className="font-poppins-semibold" numberOfLines={1}>
               {q?.title || 'Class'}

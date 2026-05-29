@@ -8,11 +8,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import api, { bountyAPI } from '@/src/services/api';
+import { haptic } from '@/src/utils/haptics';
 import { createBounty, updateBounty } from '@/src/hooks/useBounties';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -38,8 +40,18 @@ export default function CreateBountyPage() {
   const [deliverables, setDeliverables] = useState(['']);
   const [rewards, setRewards] = useState<Reward[]>([{ type: 'xp', value: 50, pillar: 'stem', text: '' }]);
   const [pillar, setPillar] = useState('stem');
-  const [visibility, setVisibility] = useState<'public' | 'family'>('public');
+  const [visibility, setVisibility] = useState<'public' | 'family'>('family');
   const [maxClaims, setMaxClaims] = useState('0');
+  // Native date picker holds the deadline as a Date. Default: 30 days out at
+  // end-of-day so a "March 20" deadline doesn't time out at midnight.
+  const [deadline, setDeadline] = useState<Date>(() => {
+    const d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    d.setHours(23, 59, 59, 0);
+    return d;
+  });
+  // Android opens the system modal on demand; iOS uses an inline picker so
+  // no toggle is needed there.
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [dependents, setDependents] = useState<any[]>([]);
   const [selectedKids, setSelectedKids] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -71,6 +83,9 @@ export default function CreateBountyPage() {
         setPillar(bounty.pillar || 'stem');
         setVisibility(bounty.visibility === 'family' ? 'family' : 'public');
         if (bounty.max_participants != null) setMaxClaims(String(bounty.max_participants));
+        if (bounty.deadline) {
+          setDeadline(new Date(bounty.deadline));
+        }
         setSelectedKids(bounty.allowed_student_ids || []);
       } catch {
         Alert.alert('Error', 'Failed to load bounty');
@@ -145,6 +160,18 @@ export default function CreateBountyPage() {
     });
   };
 
+  const handleDateChange = (_event: DateTimePickerEvent, picked?: Date) => {
+    // On Android, the modal dismisses itself after a selection; reflect that
+    // in state so we can re-open it next tap. iOS uses the inline display so
+    // we just keep the picker visible.
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    if (picked) {
+      const next = new Date(picked);
+      next.setHours(23, 59, 59, 0);
+      setDeadline(next);
+    }
+  };
+
   const validate = (): string | null => {
     if (!title.trim()) return 'Title is required';
     if (!description.trim()) return 'Description is required';
@@ -156,6 +183,7 @@ export default function CreateBountyPage() {
       if (r.type === 'custom' && !r.text.trim()) return 'Custom reward needs a description';
     }
     if (totalXP > 200) return 'Total XP cannot exceed 200';
+    if (deadline.getTime() < Date.now()) return 'Deadline must be in the future';
     return null;
   };
 
@@ -175,7 +203,7 @@ export default function CreateBountyPage() {
         deliverables: deliverables.filter((d) => d.trim()),
         rewards: rewards.filter((r) => (r.type === 'xp' && r.value >= 25) || (r.type === 'custom' && r.text.trim())),
         allowed_student_ids: visibility === 'family' && selectedKids.length > 0 ? selectedKids : null,
-        deadline: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        deadline: deadline.toISOString(),
       };
 
       if (isEditMode) {
@@ -183,8 +211,10 @@ export default function CreateBountyPage() {
       } else {
         await createBounty(payload);
       }
+      haptic.success();
       router.replace('/(app)/(tabs)/bounties');
     } catch (err: any) {
+      haptic.error();
       const msg = err.response?.data?.message || err.response?.data?.error || `Failed to ${isEditMode ? 'update' : 'create'} bounty`;
       setFormError(msg);
     } finally {
@@ -420,7 +450,7 @@ export default function CreateBountyPage() {
                   <VStack className="items-center" space="xs">
                     <Ionicons name="people-outline" size={24} color={visibility === 'family' ? '#6D469B' : '#9CA3AF'} />
                     <UIText size="sm" className={visibility === 'family' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
-                      My Students
+                      {isObserver ? 'My Students' : 'My Kids'}
                     </UIText>
                   </VStack>
                 </Card>
@@ -431,7 +461,7 @@ export default function CreateBountyPage() {
             {visibility === 'family' && dependents.length > 1 && (
               <VStack space="xs">
                 <UIText size="xs" className="text-typo-400">
-                  {selectedKids.length === 0 ? 'All students (tap to select specific)' : `${selectedKids.length} selected`}
+                  {selectedKids.length === 0 ? `All ${isObserver ? 'students' : 'kids'} (tap to select specific)` : `${selectedKids.length} selected`}
                 </UIText>
                 <HStack className="flex-wrap gap-2">
                   {dependents.map((kid) => {
@@ -451,6 +481,68 @@ export default function CreateBountyPage() {
                   })}
                 </HStack>
               </VStack>
+            )}
+          </VStack>
+
+          {/* Deadline — native date picker. iOS shows inline; Android opens
+           *  a system modal on tap (and dismisses itself after a pick).
+           *  Web falls back to a typed-date input. */}
+          <VStack space="xs">
+            <UIText size="sm" className="font-poppins-medium">Deadline</UIText>
+            <UIText size="xs" className="text-typo-400">
+              The date students have to claim and complete this bounty by.
+            </UIText>
+            {Platform.OS === 'web' ? (
+              <TextInput
+                // @ts-expect-error — RN web supports type="date" via the underlying <input>.
+                type="date"
+                value={`${deadline.getFullYear()}-${String(deadline.getMonth() + 1).padStart(2, '0')}-${String(deadline.getDate()).padStart(2, '0')}`}
+                onChangeText={(v) => {
+                  const [y, m, d] = v.split('-').map((n) => parseInt(n, 10));
+                  if (!y || !m || !d) return;
+                  const next = new Date(y, m - 1, d, 23, 59, 59);
+                  setDeadline(next);
+                }}
+                accessibilityLabel="Bounty deadline"
+                className="border border-surface-300 rounded-xl p-3 text-base bg-white"
+                style={{ fontFamily: 'Poppins_400Regular' }}
+              />
+            ) : Platform.OS === 'android' ? (
+              <>
+                <Pressable
+                  testID="bounty-deadline-android-trigger"
+                  onPress={() => setShowDatePicker(true)}
+                  accessibilityLabel="Pick deadline date"
+                  className="border border-surface-300 rounded-xl px-4 py-3 bg-white flex-row items-center justify-between"
+                >
+                  <UIText size="md" className="font-poppins-medium text-typo">
+                    {deadline.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </UIText>
+                  <Ionicons name="calendar-outline" size={20} color="#6D469B" />
+                </Pressable>
+                {showDatePicker && (
+                  <DateTimePicker
+                    testID="bounty-deadline-picker"
+                    value={deadline}
+                    mode="date"
+                    display="default"
+                    minimumDate={new Date()}
+                    onChange={handleDateChange}
+                  />
+                )}
+              </>
+            ) : (
+              // iOS — inline picker is nicer than tap-to-open since the form is short.
+              <View className="border border-surface-300 rounded-xl bg-white px-2 py-1">
+                <DateTimePicker
+                  testID="bounty-deadline-picker"
+                  value={deadline}
+                  mode="date"
+                  display="inline"
+                  minimumDate={new Date()}
+                  onChange={handleDateChange}
+                />
+              </View>
             )}
           </VStack>
 

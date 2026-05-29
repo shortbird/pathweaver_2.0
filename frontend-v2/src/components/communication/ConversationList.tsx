@@ -4,9 +4,10 @@
  * Mobile: full-screen list with PageHeader.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { View, Pressable, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading, Avatar, AvatarFallbackText, AvatarImage } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
@@ -73,6 +74,9 @@ export function ConversationList({
   isMobile,
 }: Props) {
   const [search, setSearch] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
+  // Tap the active Messages tab to scroll the conversation list back to top.
+  useScrollToTop(scrollRef);
 
   // Merge contacts with conversation data (for last message preview / unread)
   const contactsWithMeta = useMemo(() => {
@@ -162,7 +166,7 @@ export function ConversationList({
         </View>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Group Chats Section */}
         {(filteredGroups.length > 0 || canCreateGroups) && (
           <View>

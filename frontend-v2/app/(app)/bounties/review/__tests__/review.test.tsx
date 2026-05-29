@@ -135,7 +135,8 @@ describe('ReviewBountyPage', () => {
     await waitFor(() => {
       expect(getByText('Approve')).toBeTruthy();
     });
-    expect(getByText('Revise')).toBeTruthy();
+    expect(getByText('Request revisions')).toBeTruthy();
+    expect(getByText('Reject')).toBeTruthy();
   });
 
   it('shows no claims empty state', async () => {

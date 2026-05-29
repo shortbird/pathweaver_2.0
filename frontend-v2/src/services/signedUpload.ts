@@ -128,7 +128,107 @@ export async function uploadViaSignedUrl({
   throw lastError;
 }
 
+// expo-file-system has no web build; lazy-require so the web bundle isn't
+// affected when we never reach the native branch.
+//
+// SDK 55 moved the upload primitives (`createUploadTask`, `uploadAsync`,
+// `FileSystemUploadType`) into the `legacy` subpath; the top-level module
+// is the new file-system API which doesn't expose them. We import from the
+// legacy subpath specifically for upload functionality — that's still the
+// supported way to get background-tolerant uploads in this SDK.
+let FileSystem: typeof import('expo-file-system/legacy') | null = null;
+if (Platform.OS !== 'web') {
+  try {
+    FileSystem = require('expo-file-system/legacy');
+  } catch {
+    FileSystem = null;
+  }
+}
+
 function putToSignedUrl({
+  signedUrl,
+  file,
+  descriptor,
+  onProgress,
+}: {
+  signedUrl: string;
+  file: UploadFile;
+  descriptor: { name: string; size: number; type: string };
+  onProgress?: (pct: number) => void;
+}): Promise<void> {
+  // Native path: use expo-file-system's upload task. Unlike XHR, this task
+  // survives the OS suspending the JS bridge while the app is backgrounded,
+  // which is the realistic failure mode for parents uploading a long video
+  // and then locking their phone. Falls back to XHR if the native module
+  // isn't present in this dev client.
+  if (Platform.OS !== 'web' && FileSystem) {
+    const localUri = (file as { uri: string }).uri;
+    if (!localUri) {
+      return Promise.reject(new Error('Native upload requires a file uri'));
+    }
+    return uploadViaFileSystem({ signedUrl, localUri, descriptor, onProgress });
+  }
+  return uploadViaXhr({ signedUrl, file, descriptor, onProgress });
+}
+
+function uploadViaFileSystem({
+  signedUrl,
+  localUri,
+  descriptor,
+  onProgress,
+}: {
+  signedUrl: string;
+  localUri: string;
+  descriptor: { name: string; size: number; type: string };
+  onProgress?: (pct: number) => void;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!FileSystem) {
+      reject(new Error('expo-file-system unavailable'));
+      return;
+    }
+    // Match the XHR multipart payload exactly so Supabase signed URLs accept
+    // either path interchangeably. Field name "file" matches the XHR branch.
+    const task = FileSystem.createUploadTask(
+      signedUrl,
+      localUri,
+      {
+        httpMethod: 'PUT',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'file',
+        mimeType: descriptor.type,
+        parameters: {},
+      },
+      (progress) => {
+        if (onProgress && progress.totalBytesExpectedToSend > 0) {
+          onProgress(
+            Math.round((progress.totalBytesSent * 100) / progress.totalBytesExpectedToSend),
+          );
+        }
+      },
+    );
+    task
+      .uploadAsync()
+      .then((res: { status: number; body?: string } | null | undefined) => {
+        if (!res) {
+          reject(new Error('Upload returned no response'));
+          return;
+        }
+        if (res.status >= 200 && res.status < 300) {
+          resolve();
+        } else {
+          const err = new Error(
+            `Storage upload failed (HTTP ${res.status}): ${(res.body || '').slice(0, 200)}`,
+          );
+          (err as { status?: number }).status = res.status;
+          reject(err);
+        }
+      })
+      .catch((err: unknown) => reject(err instanceof Error ? err : new Error(String(err))));
+  });
+}
+
+function uploadViaXhr({
   signedUrl,
   file,
   descriptor,
@@ -144,11 +244,8 @@ function putToSignedUrl({
     const formData = new FormData();
 
     if (Platform.OS === 'web') {
-      // Web: File/Blob is appendable directly.
       formData.append('file', file as Blob, descriptor.name);
     } else {
-      // React Native: append an object with uri/name/type; RN's FormData polyfill
-      // streams the file from disk without reading it into memory.
       formData.append('file', {
         uri: (file as { uri: string }).uri,
         name: descriptor.name,

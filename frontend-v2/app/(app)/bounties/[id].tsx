@@ -5,14 +5,15 @@
  * Poster sees: redirect to review page.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, ScrollView, Pressable, Alert, ActivityIndicator, Image, Linking, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
+import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useBountyDetail, useMyClaims, claimBounty, toggleDeliverable, turnInBounty, deleteEvidence } from '@/src/hooks/useBounties';
-import { EvidenceUploadSheet } from '@/src/components/bounty/EvidenceUploadSheet';
+import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
 import { displayImageUrl } from '@/src/services/imageUrl';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -119,6 +120,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
 export default function BountyDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuthStore();
+  const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const { bounty, loading, refetch } = useBountyDetail(id || null);
   const { claims, refetch: refetchClaims } = useMyClaims();
 
@@ -131,9 +133,16 @@ export default function BountyDetailPage() {
     [claims, id],
   );
 
-  const isSuperadmin = user?.role === 'superadmin';
+  // Resolve the effective role so superadmin previewing as student/parent/etc.
+  // stays in the student detail experience instead of being bounced to the
+  // poster review page.
+  const effectiveRole =
+    user?.role === 'superadmin' && previewRole
+      ? previewRole
+      : (user?.org_role && user?.role === 'org_managed' ? user.org_role : user?.role);
+  const isSuperadmin = effectiveRole === 'superadmin';
   const isPoster = bounty?.poster_id === user?.id;
-  const isStudent = user?.role === 'student' || user?.org_role === 'student';
+  const isStudent = effectiveRole === 'student';
   const isClaimEditable = myClaim && (myClaim.status === 'claimed' || myClaim.status === 'revision_requested');
 
   const deliverables = bounty?.deliverables || [];
@@ -143,11 +152,19 @@ export default function BountyDetailPage() {
   const totalCount = deliverables.length;
   const allComplete = totalCount > 0 && completedCount === totalCount;
 
-  // Poster or superadmin should see review page
-  if ((isPoster || isSuperadmin) && bounty) {
-    router.replace(`/bounties/review/${id}`);
-    return null;
-  }
+  // Poster or superadmin sees the review page instead of the student detail.
+  // Navigation must happen in an effect — calling router.replace() during
+  // render trips React's "setState during render" warning. When previewing
+  // as another role (superadmin masquerade), we suppress the redirect so
+  // the preview is a faithful student-eye view of the page — even if the
+  // real user happens to be the bounty's poster.
+  const shouldRedirectToReview = !!bounty && (isPoster || isSuperadmin) && !previewRole;
+  useEffect(() => {
+    if (shouldRedirectToReview) {
+      router.replace(`/bounties/review/${id}`);
+    }
+  }, [shouldRedirectToReview, id]);
+  if (shouldRedirectToReview) return null;
 
   const handleClaim = async () => {
     if (!id) return;
@@ -412,12 +429,22 @@ export default function BountyDetailPage() {
         </VStack>
       </ScrollView>
 
-      {/* Evidence upload sheet */}
-      <EvidenceUploadSheet
+      {/* Evidence upload sheet — same component the quest detail uses, with
+       *  bounty-specific signed-upload endpoints and a custom save that hands
+       *  off to toggleDeliverable. */}
+      <TaskEvidenceSheet
         visible={!!evidenceTarget}
-        deliverableText={evidenceTarget?.text || ''}
+        taskTitle={evidenceTarget?.text || ''}
+        existingBlocks={
+          evidenceTarget ? (deliverableEvidence[evidenceTarget.deliverableId] || []) : []
+        }
+        uploadInitPath="/api/uploads/sign"
+        uploadFinalizePath="/api/uploads/finalize"
         onClose={() => setEvidenceTarget(null)}
-        onSubmit={handleEvidenceSubmit}
+        onSave={async (newBlocks) => {
+          if (!evidenceTarget || !myClaim || !id) return;
+          await handleEvidenceSubmit(newBlocks);
+        }}
       />
     </SafeAreaView>
   );

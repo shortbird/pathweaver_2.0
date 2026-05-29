@@ -5,22 +5,21 @@
  * Mobile: child selector dropdown + scrollable overview.
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDimensions, Image, RefreshControl, Alert, Modal, Share } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDimensions, Image, RefreshControl, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
 import { useFeed } from '@/src/hooks/useFeed';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
-import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import api from '@/src/services/api';
-import { useActingAsStore } from '@/src/stores/actingAsStore';
+import { useInviteObserverStore } from '@/src/stores/inviteObserverStore';
 import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -173,7 +172,20 @@ function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; o
 
 // ── Active Quests List ──
 
-function QuestsList({ quests, label }: { quests: any[]; label: string }) {
+function QuestsList({
+  quests,
+  label,
+  studentId,
+  tappable = false,
+}: {
+  quests: any[];
+  label: string;
+  /** Required when `tappable` so cards can deep-link into the parent quest view. */
+  studentId?: string | null;
+  /** Active quests are tappable (opens the parent quest view to add evidence);
+   *  completed quests are read-only for now. */
+  tappable?: boolean;
+}) {
   if (!quests || quests.length === 0) return null;
 
   return (
@@ -181,8 +193,9 @@ function QuestsList({ quests, label }: { quests: any[]; label: string }) {
       <Heading size="md">{label}</Heading>
       {quests.map((q: any) => {
         const quest = q.quests || q;
-        return (
-          <Card key={q.quest_id || q.id || quest.id} variant="outline" size="md">
+        const questId = q.quest_id || q.id || quest.id;
+        const cardBody = (
+          <Card variant="outline" size="md">
             <HStack className="items-center gap-3">
               {quest.image_url ? (
                 <Image
@@ -199,9 +212,22 @@ function QuestsList({ quests, label }: { quests: any[]; label: string }) {
                 <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{quest.title}</UIText>
                 <UIText size="xs" className="text-typo-400" numberOfLines={1}>{quest.description || quest.big_idea || ''}</UIText>
               </VStack>
+              {tappable && <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />}
             </HStack>
           </Card>
         );
+        if (tappable && studentId) {
+          return (
+            <Pressable
+              key={questId}
+              onPress={() => router.push(`/parent/quest/${studentId}/${questId}` as any)}
+              accessibilityLabel={`Open ${quest.title}`}
+            >
+              {cardBody}
+            </Pressable>
+          );
+        }
+        return <View key={questId}>{cardBody}</View>;
       })}
     </VStack>
   );
@@ -212,6 +238,9 @@ function QuestsList({ quests, label }: { quests: any[]; label: string }) {
 export default function ParentDashboardPage() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const scrollRef = useRef<ScrollView>(null);
+  // Tap the active Family tab to scroll back to the top.
+  useScrollToTop(scrollRef);
 
   const { children, loading: childrenLoading } = useMyChildren();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -235,15 +264,9 @@ export default function ParentDashboardPage() {
   const { count: ferpaCount } = useFerpaApprovals();
 
   // ── Parent action state ──
-  const [captureVisible, setCaptureVisible] = useState(false);
-  const [captureStudentIds, setCaptureStudentIds] = useState<string[]>([]);
-  const [inviting, setInviting] = useState(false);
-  const [inviteFlowOpen, setInviteFlowOpen] = useState(false);
-  const [selectedChildrenForInvite, setSelectedChildrenForInvite] = useState<string[]>([]);
-  const [generatedInvite, setGeneratedInvite] = useState<{ link: string; expiresAt: string } | null>(null);
-  const [qrVisible, setQrVisible] = useState(false);
-  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
-  const [pendingLoading, setPendingLoading] = useState(false);
+  // Observer admin (list / remove / per-kid toggles / regenerate link) all
+  // happens inside the Manage Observers sheet. The Family dashboard pulls
+  // just the observer count so the summary tile can show "3 observers."
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [observersList, setObserversList] = useState<any[]>([]);
   const [observersLoading, setObserversLoading] = useState(false);
@@ -264,47 +287,9 @@ export default function ParentDashboardPage() {
     }
   }, [selectedId]);
 
-  const fetchPendingInvites = useCallback(async () => {
-    if (!selectedId) return;
-    setPendingLoading(true);
-    try {
-      const { data } = await api.get('/api/observers/family-pending-invites');
-      const filtered = (data?.invites || []).filter((inv: any) =>
-        (inv.children || []).some((c: any) => c.id === selectedId),
-      );
-      setPendingInvites(filtered);
-    } catch {
-      setPendingInvites([]);
-    } finally {
-      setPendingLoading(false);
-    }
-  }, [selectedId]);
-
-  const revokePendingInvite = (invitationId: string) => {
-    Alert.alert('Revoke invitation', 'This link will stop working immediately.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Revoke', style: 'destructive', onPress: async () => {
-          try {
-            await api.delete(`/api/observers/family-pending-invites/${invitationId}`);
-            fetchPendingInvites();
-          } catch {
-            Alert.alert('Error', 'Failed to revoke invitation');
-          }
-        },
-      },
-    ]);
-  };
-
-  const sharePendingInvite = async (link: string, kids: any[]) => {
-    const names = kids.map((k) => k.name).join(' & ') || 'this student';
-    await Share.share({ message: `Follow ${names}'s learning journey on Optio: ${link}`, url: link });
-  };
-
   useEffect(() => {
     fetchObservers();
-    fetchPendingInvites();
-  }, [fetchObservers, fetchPendingInvites]);
+  }, [fetchObservers]);
 
   const isUnder13 = useMemo(() => {
     if (!selectedChild?.date_of_birth) return false;
@@ -312,59 +297,6 @@ export default function ParentDashboardPage() {
     const cutoff = new Date(now.getFullYear() - 13, now.getMonth(), now.getDate());
     return new Date(selectedChild.date_of_birth) > cutoff;
   }, [selectedChild]);
-
-  const handleCaptureForChild = () => {
-    if (!selectedId) return;
-    setCaptureStudentIds([selectedId]);
-    setCaptureVisible(true);
-  };
-
-  const handleCaptureForAll = () => {
-    setCaptureStudentIds(children.map((c) => c.id));
-    setCaptureVisible(true);
-  };
-
-  const openInviteFlow = () => {
-    setSelectedChildrenForInvite(selectedId ? [selectedId] : []);
-    setGeneratedInvite(null);
-    setInviteFlowOpen(true);
-  };
-
-  const toggleChildForInvite = (childId: string) => {
-    setSelectedChildrenForInvite((prev) =>
-      prev.includes(childId) ? prev.filter((id) => id !== childId) : [...prev, childId]
-    );
-  };
-
-  const generateInviteLink = async () => {
-    if (selectedChildrenForInvite.length === 0) return;
-    setInviting(true);
-    try {
-      const { data } = await api.post('/api/observers/family-invite', {
-        student_ids: selectedChildrenForInvite,
-      });
-      const link = data?.shareable_link;
-      if (!link) throw new Error('No link returned');
-      setGeneratedInvite({ link, expiresAt: data?.expires_at });
-      fetchPendingInvites();
-    } catch (err: any) {
-      const msg = err.response?.data?.error || 'Failed to create invitation link';
-      Alert.alert('Error', msg);
-    } finally {
-      setInviting(false);
-    }
-  };
-
-  const shareInviteLink = async () => {
-    if (!generatedInvite?.link) return;
-    const names = selectedChildrenForInvite
-      .map((id) => children.find((c) => c.id === id)?.first_name || 'child')
-      .join(' & ');
-    await Share.share({
-      message: `Follow ${names}'s learning journey on Optio: ${generatedInvite.link}`,
-      url: generatedInvite.link,
-    });
-  };
 
   const handleRemoveObserver = (observerId: string, name: string) => {
     Alert.alert('Remove Observer', `Remove ${name} as an observer?`, [
@@ -381,22 +313,6 @@ export default function ParentDashboardPage() {
         },
       },
     ]);
-  };
-
-  const handleViewAsChild = async () => {
-    if (!selectedChild) return;
-    try {
-      // startActingAs swaps tokens and triggers a full page reload
-      await useActingAsStore.getState().startActingAs({
-        id: selectedChild.id,
-        display_name: selectedChild.display_name,
-        first_name: selectedChild.first_name,
-        last_name: selectedChild.last_name,
-        avatar_url: selectedChild.avatar_url,
-      });
-    } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to switch to child view');
-    }
   };
 
   const handleUploadAvatar = async () => {
@@ -430,7 +346,7 @@ export default function ParentDashboardPage() {
       ? Alert.prompt('Give Login Access', `Enter an email for ${selectedChild.first_name}:`, [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Create Login', onPress: async (email) => {
+            text: 'Create Login', onPress: async (email: string | undefined) => {
               if (!email?.trim()) return;
               try {
                 await api.post(`/api/dependents/${selectedId}/promote`, {
@@ -476,7 +392,7 @@ export default function ParentDashboardPage() {
   // Loading
   if (childrenLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center" edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
@@ -485,7 +401,7 @@ export default function ParentDashboardPage() {
   // No children
   if (children.length === 0) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 items-center justify-center px-8">
           <Ionicons name="people-outline" size={56} color="#9CA3AF" />
           <Heading size="lg" className="text-typo-500 mt-4 text-center">No students linked</Heading>
@@ -502,10 +418,11 @@ export default function ParentDashboardPage() {
 
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
       >
@@ -580,7 +497,12 @@ export default function ParentDashboardPage() {
 
                 {/* Quests */}
                 <VStack className={`${isDesktop ? 'flex-1' : 'mt-4'}`} space="sm">
-                  <QuestsList quests={dashboard?.active_quests || []} label="Active Quests" />
+                  <QuestsList
+                    quests={dashboard?.active_quests || []}
+                    label="Active Quests"
+                    studentId={selectedId}
+                    tappable
+                  />
                   <QuestsList quests={dashboard?.completed_quests || []} label="Completed" />
                   {(!dashboard?.active_quests?.length && !dashboard?.completed_quests?.length) && (
                     <Card variant="filled" size="md" className="items-center py-8">
@@ -591,76 +513,38 @@ export default function ParentDashboardPage() {
                 </VStack>
               </View>
 
-              {/* Observers */}
-              <VStack space="sm">
-                <Heading size="md">Observers</Heading>
-                <Card variant="elevated" size="md">
-                  <VStack space="sm">
-                    {observersLoading ? (
-                      <UIText size="sm" className="text-typo-400">Loading...</UIText>
-                    ) : observersList.length > 0 ? (
-                      observersList.map((obs: any) => {
-                        const name = obs.observer_name || obs.observer_email || 'Observer';
-                        const obsInitials = (name?.[0] || '?').toUpperCase();
-                        return (
-                          <HStack key={obs.observer_id} className="items-center gap-3">
-                            <Avatar size="sm">
-                              {obs.avatar_url ? <AvatarImage source={{ uri: obs.avatar_url }} /> : <AvatarFallbackText>{obsInitials}</AvatarFallbackText>}
-                            </Avatar>
-                            <VStack className="flex-1 min-w-0">
-                              <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{name}</UIText>
-                              {obs.observer_email && obs.observer_email !== name && (
-                                <UIText size="xs" className="text-typo-400" numberOfLines={1}>{obs.observer_email}</UIText>
-                              )}
-                            </VStack>
-                            <Pressable
-                              onPress={() => handleRemoveObserver(obs.observer_id, name)}
-                              hitSlop={8}
-                              style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}
-                            >
-                              <Ionicons name="close" size={16} color="#9CA3AF" />
-                            </Pressable>
-                          </HStack>
-                        );
-                      })
-                    ) : (
-                      <UIText size="sm" className="text-typo-400">No observers yet. Invite a grandparent, mentor, or family friend to follow this student's learning journey.</UIText>
-                    )}
-
-                    {pendingInvites.length > 0 && (
-                      <>
-                        <Divider className="my-1" />
-                        <UIText size="xs" className="text-typo-400 font-poppins-semibold uppercase tracking-wider">Pending invites</UIText>
-                        {pendingInvites.map((inv: any) => {
-                          const daysLeft = Math.max(0, Math.ceil((new Date(inv.expires_at).getTime() - Date.now()) / 86400000));
-                          const kidNames = (inv.children || []).map((c: any) => c.name).join(', ');
-                          return (
-                            <HStack key={inv.id} className="items-center gap-3">
-                              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1EDF5', alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="link-outline" size={16} color="#6D469B" />
-                              </View>
-                              <VStack className="flex-1 min-w-0">
-                                <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{kidNames || 'Pending invite'}</UIText>
-                                <UIText size="xs" className="text-typo-400">Expires in {daysLeft} day{daysLeft === 1 ? '' : 's'}</UIText>
-                              </VStack>
-                              <Pressable onPress={() => sharePendingInvite(inv.shareable_link, inv.children || [])} hitSlop={8} style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="share-outline" size={16} color="#6D469B" />
-                              </Pressable>
-                              <Pressable onPress={() => revokePendingInvite(inv.id)} hitSlop={8} style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="close" size={16} color="#9CA3AF" />
-                              </Pressable>
-                            </HStack>
-                          );
-                        })}
-                      </>
-                    )}
-
-                    <Button size="sm" variant="outline" onPress={openInviteFlow} className="self-start">
-                      <ButtonText>Invite observer</ButtonText>
-                    </Button>
-                  </VStack>
+              {/* Observers summary tile — opens the Manage Observers sheet
+                  which is the canonical surface for invite, list, remove,
+                  toggle, and revoke. Keeping the Family dashboard focused on
+                  the kid by pulling all observer admin into one place. */}
+              <Pressable
+                testID="family-observers-summary"
+                onPress={() => useInviteObserverStore.getState().open()}
+                accessibilityLabel="Manage observers"
+              >
+                <Card variant="outline" size="md">
+                  <HStack className="items-center gap-3">
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1EDF5', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="people-outline" size={18} color="#6D469B" />
+                    </View>
+                    <VStack className="flex-1 min-w-0">
+                      <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
+                        {observersLoading
+                          ? 'Observers'
+                          : observersList.length === 0
+                            ? 'Invite an observer'
+                            : `${observersList.length} observer${observersList.length === 1 ? '' : 's'}`}
+                      </UIText>
+                      <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+                        {observersList.length === 0
+                          ? 'Share your family link with grandparents, mentors, friends'
+                          : 'Tap to manage'}
+                      </UIText>
+                    </VStack>
+                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  </HStack>
                 </Card>
-              </VStack>
+              </Pressable>
 
               {/* Recent Activity Feed */}
               <VStack space="sm">
@@ -673,7 +557,7 @@ export default function ParentDashboardPage() {
                 ) : feedItems.length > 0 ? (
                   <VStack space="sm">
                     {feedItems.slice(0, 5).map((item: any) => (
-                      <FeedCard key={item.id} item={item} showStudent={false} />
+                      <FeedCard key={item.id} item={item} showStudent={false} viewerCanModerate />
                     ))}
                     {feedItems.length > 5 && (
                       <Button variant="outline" size="sm" className="self-center">
@@ -692,14 +576,6 @@ export default function ParentDashboardPage() {
           ) : null}
         </VStack>
       </ScrollView>
-
-      {/* Capture sheet */}
-      <CaptureSheet
-        visible={captureVisible}
-        onClose={() => setCaptureVisible(false)}
-        onCaptured={() => refetch()}
-        studentIds={captureStudentIds}
-      />
 
       {/* Student Settings Menu */}
       <Modal visible={settingsMenuOpen} transparent animationType="none" onRequestClose={() => setSettingsMenuOpen(false)}>
@@ -733,113 +609,6 @@ export default function ParentDashboardPage() {
                 </HStack>
               </Pressable>
             ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* Invite Observer Flow */}
-      <Modal visible={inviteFlowOpen} transparent animationType="none" onRequestClose={() => setInviteFlowOpen(false)}>
-        <Pressable style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }} onPress={() => setInviteFlowOpen(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 32 }}>
-            <VStack space="md">
-              <HStack className="items-center justify-between">
-                <Heading size="lg">Invite an observer</Heading>
-                <Pressable onPress={() => setInviteFlowOpen(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                  <Ionicons name="close" size={18} color="#6B7280" />
-                </Pressable>
-              </HStack>
-
-              {!generatedInvite ? (
-                <>
-                  {/* Privacy preview */}
-                  <View style={{ backgroundColor: '#F8F6FB', borderRadius: 12, padding: 14 }}>
-                    <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">What they'll see</UIText>
-                    <VStack space="xs" className="mt-2">
-                      <HStack className="items-center gap-2">
-                        <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-                        <UIText size="xs" className="text-typo-600">Completed quests &amp; learning moments</UIText>
-                      </HStack>
-                      <HStack className="items-center gap-2">
-                        <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-                        <UIText size="xs" className="text-typo-600">XP totals and pillar progress</UIText>
-                      </HStack>
-                      <HStack className="items-center gap-2">
-                        <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-                        <UIText size="xs" className="text-typo-600">Public portfolio</UIText>
-                      </HStack>
-                      <HStack className="items-center gap-2">
-                        <Ionicons name="close-circle" size={14} color="#9CA3AF" />
-                        <UIText size="xs" className="text-typo-400">Personal info, private journal entries</UIText>
-                      </HStack>
-                    </VStack>
-                  </View>
-
-                  {/* Children picker */}
-                  {children.length > 1 && (
-                    <VStack space="xs">
-                      <UIText size="xs" className="text-typo-500 font-poppins-semibold uppercase tracking-wider">Include</UIText>
-                      {children.map((c) => {
-                        const isOn = selectedChildrenForInvite.includes(c.id);
-                        const name = c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Student';
-                        return (
-                          <Pressable
-                            key={c.id}
-                            onPress={() => toggleChildForInvite(c.id)}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}
-                          >
-                            <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: isOn ? '#6D469B' : '#D1D5DB', backgroundColor: isOn ? '#6D469B' : '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
-                              {isOn && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-                            </View>
-                            <UIText size="sm" className="font-poppins-medium">{name}</UIText>
-                          </Pressable>
-                        );
-                      })}
-                    </VStack>
-                  )}
-
-                  <Button size="lg" onPress={generateInviteLink} loading={inviting} disabled={inviting || selectedChildrenForInvite.length === 0} className="w-full">
-                    <ButtonText>{inviting ? 'Creating link...' : 'Generate link'}</ButtonText>
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <View style={{ backgroundColor: '#F8F6FB', borderRadius: 12, padding: 14 }}>
-                    <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider mb-2">Your invite link</UIText>
-                    <UIText size="xs" className="text-typo-600" numberOfLines={2}>{generatedInvite.link}</UIText>
-                    <UIText size="xs" className="text-typo-400 mt-2">Expires in {Math.max(0, Math.ceil((new Date(generatedInvite.expiresAt).getTime() - Date.now()) / 86400000))} days</UIText>
-                  </View>
-
-                  <HStack className="gap-3">
-                    <Button size="md" onPress={shareInviteLink} className="flex-1">
-                      <ButtonText>Share link</ButtonText>
-                    </Button>
-                    <Button size="md" variant="outline" onPress={() => setQrVisible(true)} className="flex-1">
-                      <ButtonText>Show QR</ButtonText>
-                    </Button>
-                  </HStack>
-
-                  <Pressable onPress={() => { setGeneratedInvite(null); }} className="self-center py-2">
-                    <UIText size="sm" className="text-optio-purple font-poppins-medium">Generate another</UIText>
-                  </Pressable>
-                </>
-              )}
-            </VStack>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* QR Code Modal */}
-      <Modal visible={qrVisible} transparent animationType="fade" onRequestClose={() => setQrVisible(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 24 }} onPress={() => setQrVisible(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, alignItems: 'center' }}>
-            <Heading size="md" className="mb-1">Scan to join</Heading>
-            <UIText size="xs" className="text-typo-400 mb-4">Have them scan with their phone camera</UIText>
-            {generatedInvite?.link && (
-              <QRCode value={generatedInvite.link} size={240} color="#1F1B2D" backgroundColor="#FFFFFF" />
-            )}
-            <Pressable onPress={() => setQrVisible(false)} className="mt-5">
-              <UIText size="sm" className="text-optio-purple font-poppins-semibold">Done</UIText>
-            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>

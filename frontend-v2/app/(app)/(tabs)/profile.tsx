@@ -6,6 +6,7 @@ import React, { useState, useRef } from 'react';
 import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from 'nativewind';
 import Svg, { Circle as SvgCircle } from 'react-native-svg';
@@ -25,7 +26,6 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 import { NotificationPreferences } from '@/src/components/profile/NotificationPreferences';
-import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -89,8 +89,8 @@ export default function ProfileScreen() {
   const [makingPublic, setMakingPublic] = useState(false);
   const [showFerpaConsent, setShowFerpaConsent] = useState(false);
   const [ferpaChecked, setFerpaChecked] = useState(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
   const portfolioPublic = hookPortfolioPublic;
   const setPortfolioPublic = setHookPortfolioPublic;
 
@@ -198,7 +198,7 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface" edges={['top', 'left', 'right']}>
         <VStack className="px-5 pt-6" space="lg">
           <Skeleton className="h-40 rounded-2xl" />
           <Skeleton className="h-32 rounded-xl" />
@@ -209,13 +209,12 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface" edges={['top', 'left', 'right']}>
       <ScrollView
         ref={scrollRef}
         className="flex-1"
-        contentContainerClassName="px-5 md:px-8 pb-12"
+        contentContainerClassName="px-5 md:px-8 pb-4"
         showsVerticalScrollIndicator={false}
-        onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
         scrollEventThrottle={64}
       >
         <PageHeader title="Profile" />
@@ -575,11 +574,6 @@ export default function ProfileScreen() {
           </Button>
         </VStack>
       </ScrollView>
-
-      <ScrollToTopFab
-        visible={showScrollTop}
-        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
-      />
 
       {/* Invite Observer Modal */}
       <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={() => setInviteObserverVisible(false)}>

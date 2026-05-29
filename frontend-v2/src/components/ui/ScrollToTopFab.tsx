@@ -19,8 +19,9 @@
  *
  * For FlatList, replace the onPress with `ref.current?.scrollToOffset({ offset: 0, animated: true })`.
  *
- * Defaults to sitting above the 85pt mobile tab bar (bottomOffset = 100).
- * Pages without a tab bar (e.g. quest detail) should pass a smaller offset.
+ * Default offset clears the mobile tab bar (~85pt) plus a comfortable gap.
+ * Pages without a tab bar (e.g. quest detail) should pass a smaller offset
+ * (typically 24).
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -30,8 +31,9 @@ import { Ionicons } from '@expo/vector-icons';
 interface Props {
   visible: boolean;
   onPress: () => void;
-  /** Distance from the bottom of the screen, in px. Default 100 (clears the
-   *  mobile bottom tab bar). Set lower on screens that don't have a tab bar. */
+  /** Distance from the bottom of the screen, in px. Default 100 clears the
+   *  mobile tab bar (85pt) with a small gap. Pages without a tab bar can
+   *  pass 24. */
   bottomOffset?: number;
 }
 
