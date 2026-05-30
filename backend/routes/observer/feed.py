@@ -25,8 +25,12 @@ def register_routes(bp):
         Observer views activity feed for linked students
 
         Also includes:
-        - Students from advisor_student_assignments for superadmin/advisor users
+        - Students from advisor_student_assignments for advisor users
         - Parent's children (dependents and linked 13+ students) for parent users
+        - For superadmin with no student_id filter: every non-confidential evidence
+          upload across all users and organizations (global moderation feed). When
+          student_id is supplied, superadmin can scope to any user regardless of
+          observer/advisor links.
 
         Query params:
             student_id: (optional) Filter to specific student
@@ -54,99 +58,106 @@ def register_routes(bp):
             # Determine effective role (org_role for org_managed users, role otherwise)
             effective_role = user_org_role if user_role == 'org_managed' else user_role
 
-            # Get all linked students for this observer
-            links = supabase.table('observer_student_links') \
-                .select('student_id, can_view_evidence') \
-                .eq('observer_id', observer_id) \
-                .execute()
+            # Superadmin global feed: no student_id filter -> show every non-confidential
+            # evidence upload across all users and orgs. Skips link-based scoping and
+            # per-row permission checks. Confidential items remain hidden to match the
+            # existing privacy boundary.
+            is_superadmin_global = (effective_role == 'superadmin' and not student_id_filter)
 
-            student_ids = [link['student_id'] for link in links.data]
-            evidence_permissions = {link['student_id']: link['can_view_evidence'] for link in links.data}
-
-            # For superadmin or advisor, also get students from advisor_student_assignments
-            if effective_role in ('superadmin', 'advisor'):
-                advisor_assignments = supabase.table('advisor_student_assignments') \
-                    .select('student_id') \
-                    .eq('advisor_id', observer_id) \
-                    .eq('is_active', True) \
+            if is_superadmin_global:
+                student_ids = []
+                evidence_permissions = {}
+            else:
+                # Get all linked students for this observer
+                links = supabase.table('observer_student_links') \
+                    .select('student_id, can_view_evidence') \
+                    .eq('observer_id', observer_id) \
                     .execute()
-                for assignment in advisor_assignments.data:
-                    sid = assignment['student_id']
+
+                student_ids = [link['student_id'] for link in links.data]
+                evidence_permissions = {link['student_id']: link['can_view_evidence'] for link in links.data}
+
+                # For superadmin or advisor, also get students from advisor_student_assignments
+                if effective_role in ('superadmin', 'advisor'):
+                    advisor_assignments = supabase.table('advisor_student_assignments') \
+                        .select('student_id') \
+                        .eq('advisor_id', observer_id) \
+                        .eq('is_active', True) \
+                        .execute()
+                    for assignment in advisor_assignments.data:
+                        sid = assignment['student_id']
+                        if sid not in student_ids:
+                            student_ids.append(sid)
+                            evidence_permissions[sid] = True  # Advisors can view evidence
+
+                # Always check for user's children (dependents + linked students)
+                # This applies to parents, but also superadmins or anyone who has children
+                # Get dependents (under 13, managed by this user)
+                dependents = supabase.table('users') \
+                    .select('id') \
+                    .eq('managed_by_parent_id', observer_id) \
+                    .execute()
+                for dep in dependents.data:
+                    sid = dep['id']
                     if sid not in student_ids:
                         student_ids.append(sid)
-                        evidence_permissions[sid] = True  # Advisors can view evidence
+                        evidence_permissions[sid] = True  # Parents can view their children's evidence
 
-            # Always check for user's children (dependents + linked students)
-            # This applies to parents, but also superadmins or anyone who has children
-            # Get dependents (under 13, managed by this user)
-            dependents = supabase.table('users') \
-                .select('id') \
-                .eq('managed_by_parent_id', observer_id) \
-                .execute()
-            for dep in dependents.data:
-                sid = dep['id']
-                if sid not in student_ids:
-                    student_ids.append(sid)
-                    evidence_permissions[sid] = True  # Parents can view their children's evidence
-
-            # Get linked students (13+, via parent_student_links)
-            linked_students = supabase.table('parent_student_links') \
-                .select('student_user_id') \
-                .eq('parent_user_id', observer_id) \
-                .eq('status', 'approved') \
-                .execute()
-            for linked in linked_students.data:
-                sid = linked['student_user_id']
-                if sid not in student_ids:
-                    student_ids.append(sid)
-                    evidence_permissions[sid] = True  # Parents can view their children's evidence
-
-            # Always include the user's own activity in the feed
-            if observer_id not in student_ids:
-                student_ids.append(observer_id)
-                evidence_permissions[observer_id] = True
-
-            # Exclude blocked users (never hide own content)
-            try:
-                blocks_result = supabase.table('user_blocks') \
-                    .select('blocked_id') \
-                    .eq('blocker_id', observer_id) \
+                # Get linked students (13+, via parent_student_links)
+                linked_students = supabase.table('parent_student_links') \
+                    .select('student_user_id') \
+                    .eq('parent_user_id', observer_id) \
+                    .eq('status', 'approved') \
                     .execute()
-                blocked_ids = {b['blocked_id'] for b in (blocks_result.data or [])}
-            except Exception as block_err:
-                logger.warning(f"Failed to fetch user blocks for {observer_id[:8]}: {block_err}")
-                blocked_ids = set()
+                for linked in linked_students.data:
+                    sid = linked['student_user_id']
+                    if sid not in student_ids:
+                        student_ids.append(sid)
+                        evidence_permissions[sid] = True  # Parents can view their children's evidence
 
-            if blocked_ids:
-                student_ids = [sid for sid in student_ids if sid == observer_id or sid not in blocked_ids]
+                # Always include the user's own activity in the feed
+                if observer_id not in student_ids:
+                    student_ids.append(observer_id)
+                    evidence_permissions[observer_id] = True
 
-            if not student_ids:
-                return jsonify({'items': [], 'has_more': False}), 200
+                # Exclude blocked users (never hide own content)
+                try:
+                    blocks_result = supabase.table('user_blocks') \
+                        .select('blocked_id') \
+                        .eq('blocker_id', observer_id) \
+                        .execute()
+                    blocked_ids = {b['blocked_id'] for b in (blocks_result.data or [])}
+                except Exception as block_err:
+                    logger.warning(f"Failed to fetch user blocks for {observer_id[:8]}: {block_err}")
+                    blocked_ids = set()
 
-            # Filter to specific student if requested
-            if student_id_filter:
-                if student_id_filter in blocked_ids and student_id_filter != observer_id:
-                    return jsonify({'error': 'Access denied to this student'}), 403
-                if student_id_filter not in student_ids:
-                    return jsonify({'error': 'Access denied to this student'}), 403
-                student_ids = [student_id_filter]
+                if blocked_ids:
+                    student_ids = [sid for sid in student_ids if sid == observer_id or sid not in blocked_ids]
+
+                if not student_ids:
+                    return jsonify({'items': [], 'has_more': False}), 200
+
+                # Filter to specific student if requested
+                if student_id_filter:
+                    if student_id_filter in blocked_ids and student_id_filter != observer_id:
+                        return jsonify({'error': 'Access denied to this student'}), 403
+                    # Superadmin can scope to any student regardless of linking.
+                    if student_id_filter not in student_ids and effective_role != 'superadmin':
+                        return jsonify({'error': 'Access denied to this student'}), 403
+                    student_ids = [student_id_filter]
+                    evidence_permissions.setdefault(student_id_filter, True)
 
             # Evidence is surfaced on upload (block.created_at), not on task completion.
             # Drive document-evidence items from evidence_document_blocks; quest_task_completions
             # is only needed for legacy non-document completions and for view/comment counts.
-            evidence_docs_resp = supabase.table('user_task_evidence_documents') \
-                .select('id, user_id, task_id, quest_id, is_confidential, status') \
-                .in_('user_id', student_ids) \
-                .eq('is_confidential', False) \
-                .execute()
-            evidence_docs_by_id = {d['id']: d for d in (evidence_docs_resp.data or [])}
-            evidence_doc_ids = list(evidence_docs_by_id.keys())
-
+            evidence_docs_by_id = {}
             evidence_block_rows = []
-            if evidence_doc_ids:
+
+            if is_superadmin_global:
+                # Blocks-first to avoid scanning every doc on the platform: get the latest
+                # public blocks, then resolve their parent docs (drop confidential ones).
                 blocks_query = supabase.table('evidence_document_blocks') \
                     .select('id, document_id, block_type, content, order_index, created_at, is_private') \
-                    .in_('document_id', evidence_doc_ids) \
                     .eq('is_private', False) \
                     .order('created_at', desc=True) \
                     .limit(limit + 1)
@@ -155,22 +166,61 @@ def register_routes(bp):
                     blocks_query = blocks_query.lt('created_at', cursor)
 
                 blocks_response = blocks_query.execute()
-                # Attach the parent doc onto each block in the shape expected downstream.
+                referenced_doc_ids = list({b['document_id'] for b in (blocks_response.data or []) if b.get('document_id')})
+
+                if referenced_doc_ids:
+                    docs_resp = supabase.table('user_task_evidence_documents') \
+                        .select('id, user_id, task_id, quest_id, is_confidential, status') \
+                        .in_('id', referenced_doc_ids) \
+                        .eq('is_confidential', False) \
+                        .execute()
+                    evidence_docs_by_id = {d['id']: d for d in (docs_resp.data or [])}
+
                 for b in (blocks_response.data or []):
                     doc = evidence_docs_by_id.get(b['document_id'])
                     if not doc:
                         continue
                     b['user_task_evidence_documents'] = doc
                     evidence_block_rows.append(b)
+            else:
+                evidence_docs_resp = supabase.table('user_task_evidence_documents') \
+                    .select('id, user_id, task_id, quest_id, is_confidential, status') \
+                    .in_('user_id', student_ids) \
+                    .eq('is_confidential', False) \
+                    .execute()
+                evidence_docs_by_id = {d['id']: d for d in (evidence_docs_resp.data or [])}
+                evidence_doc_ids = list(evidence_docs_by_id.keys())
+
+                if evidence_doc_ids:
+                    blocks_query = supabase.table('evidence_document_blocks') \
+                        .select('id, document_id, block_type, content, order_index, created_at, is_private') \
+                        .in_('document_id', evidence_doc_ids) \
+                        .eq('is_private', False) \
+                        .order('created_at', desc=True) \
+                        .limit(limit + 1)
+
+                    if cursor:
+                        blocks_query = blocks_query.lt('created_at', cursor)
+
+                    blocks_response = blocks_query.execute()
+                    # Attach the parent doc onto each block in the shape expected downstream.
+                    for b in (blocks_response.data or []):
+                        doc = evidence_docs_by_id.get(b['document_id'])
+                        if not doc:
+                            continue
+                        b['user_task_evidence_documents'] = doc
+                        evidence_block_rows.append(b)
 
             # Build query for legacy task completions (evidence_text / evidence_url with no document).
             # These predate the multi-format evidence document system.
             completions_query = supabase.table('quest_task_completions') \
                 .select('id, user_id, quest_id, user_quest_task_id, evidence_text, evidence_url, completed_at, is_confidential') \
-                .in_('user_id', student_ids) \
                 .eq('is_confidential', False) \
                 .order('completed_at', desc=True) \
                 .limit(limit + 1)
+
+            if not is_superadmin_global:
+                completions_query = completions_query.in_('user_id', student_ids)
 
             if cursor:
                 completions_query = completions_query.lt('completed_at', cursor)
@@ -182,11 +232,13 @@ def register_routes(bp):
             # same evidence already surfaced via the document-block path above — skip them.
             learning_events_query = supabase.table('learning_events') \
                 .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id, attached_task_id') \
-                .in_('user_id', student_ids) \
                 .eq('is_confidential', False) \
                 .is_('attached_task_id', 'null') \
                 .order('created_at', desc=True) \
                 .limit(limit + 1)
+
+            if not is_superadmin_global:
+                learning_events_query = learning_events_query.in_('user_id', student_ids)
 
             if cursor:
                 learning_events_query = learning_events_query.lt('created_at', cursor)
@@ -254,11 +306,30 @@ def register_routes(bp):
                     .execute()
                 quests_map = {q['id']: q for q in quests.data}
 
-            students = supabase.table('users') \
-                .select('id, display_name, first_name, last_name, avatar_url') \
-                .in_('id', student_ids) \
-                .execute()
-            students_map = {s['id']: s for s in students.data}
+            if is_superadmin_global:
+                # student_ids is empty in global mode — collect the user ids actually
+                # referenced by the result set instead.
+                referenced_user_ids = set()
+                for doc in evidence_docs_by_id.values():
+                    if doc.get('user_id'):
+                        referenced_user_ids.add(doc['user_id'])
+                for c in (completions.data or []):
+                    if c.get('user_id'):
+                        referenced_user_ids.add(c['user_id'])
+                for e in (learning_events.data or []):
+                    if e.get('user_id'):
+                        referenced_user_ids.add(e['user_id'])
+                students_lookup_ids = list(referenced_user_ids)
+            else:
+                students_lookup_ids = student_ids
+
+            students_map = {}
+            if students_lookup_ids:
+                students = supabase.table('users') \
+                    .select('id, display_name, first_name, last_name, avatar_url') \
+                    .in_('id', students_lookup_ids) \
+                    .execute()
+                students_map = {s['id']: s for s in students.data}
 
             # Build a (task_id, user_id) -> completion lookup so block items can attach
             # completion_id for views/comments counts when a completion exists.
@@ -308,7 +379,7 @@ def register_routes(bp):
                 doc_task_id = doc.get('task_id')
                 doc_quest_id = doc.get('quest_id')
 
-                can_view = evidence_permissions.get(doc_user_id, False)
+                can_view = True if is_superadmin_global else evidence_permissions.get(doc_user_id, False)
                 if not can_view:
                     continue
 
@@ -379,7 +450,7 @@ def register_routes(bp):
                 student_info = students_map.get(completion['user_id'], {})
                 task_info = tasks_map.get(completion['user_quest_task_id'], {})
                 quest_info = quests_map.get(completion['quest_id'], {})
-                can_view = evidence_permissions.get(completion['user_id'], False)
+                can_view = True if is_superadmin_global else evidence_permissions.get(completion['user_id'], False)
                 if not can_view:
                     continue
 
@@ -428,7 +499,7 @@ def register_routes(bp):
             # Build feed items for learning moments - group all media into single items
             for event in (learning_events.data or []):
                 student_info = students_map.get(event['user_id'], {})
-                can_view = evidence_permissions.get(event['user_id'], False)
+                can_view = True if is_superadmin_global else evidence_permissions.get(event['user_id'], False)
 
                 if not can_view:
                     continue
@@ -659,14 +730,21 @@ def register_routes(bp):
             # Log feed access
             try:
                 audit_service = ObserverAuditService(user_id=observer_id)
+                # In global mode student_ids is empty; log the observer as the subject
+                # and mark the privileged scope in metadata for compliance review.
+                audit_student = (
+                    student_id_filter
+                    or (student_ids[0] if student_ids else observer_id)
+                )
                 audit_service.log_observer_access(
                     observer_id=observer_id,
-                    student_id=student_id_filter or student_ids[0],
-                    action_type='view_feed',
+                    student_id=audit_student,
+                    action_type='view_global_feed' if is_superadmin_global else 'view_feed',
                     resource_type='feed',
                     metadata={
                         'student_filter': student_id_filter,
-                        'items_returned': len(feed_items)
+                        'items_returned': len(feed_items),
+                        'superadmin_global': is_superadmin_global,
                     }
                 )
             except Exception as audit_error:
