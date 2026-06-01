@@ -95,6 +95,7 @@ const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage')
 const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
+const PoePage = lazy(() => import('./pages/poe/PoePage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const ClassesPage = lazy(() => import('./pages/marketing/ClassesPage'))
@@ -396,6 +397,8 @@ function App() {
               <Route path="how-it-works" element={<HowItWorksPage />} />
               <Route path="philosophy" element={<PhilosophyPage />} />
               <Route path="academy" element={<AcademyPage />} />
+              {/* Pipe Organ Encounter pilot — hidden public page (not linked in nav) */}
+              <Route path="poe" element={<PoePage />} />
 
               {/* Canvas LTI iframe routes (no Layout, no auth chrome). The
                   AuthContext skips session checks on these paths so the

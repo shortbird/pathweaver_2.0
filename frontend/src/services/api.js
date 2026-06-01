@@ -226,7 +226,7 @@ api.interceptors.response.use(
         tokenStore.clearTokens()
 
         // Only redirect to login if we're not already on auth pages or public pages
-        const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services', '/catalog', '/how-it-works', '/auth/callback']
+        const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services', '/catalog', '/how-it-works', '/poe', '/auth/callback']
         const currentPath = window.location.pathname
         const isPublicDiploma = currentPath.startsWith('/public/diploma/') || currentPath.startsWith('/portfolio/')
         const isConsultationPage = currentPath === '/consultation'
