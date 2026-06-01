@@ -133,6 +133,7 @@ def register():
         parent_email = data.get('parent_email')  # Required for invite-flow signups; optional otherwise
         org_slug = data.get('org_slug')  # Optional organization slug for signup
         invite_token = data.get('invite_token')  # Optional: student-curated class invite link
+        program_key = data.get('program_key')  # Optional: partner program tag (e.g. OEA Diploma Plan)
 
         # Mask email in logs
         logger.debug(f"[REGISTRATION] Processing registration for email: {mask_email(email)}")
@@ -377,6 +378,23 @@ def register():
                 # organization_id stays NULL (not set)
                 # Role is set directly (observer from invitation, or default 'student')
                 logger.info(f"[REGISTRATION] Creating platform user (no organization)")
+
+            # Partner program tag (e.g. OEA Diploma Plan via the OpenEd marketplace).
+            # OEA families are platform users carrying this lightweight flag, not
+            # org-managed users. Only accept allowlisted program keys.
+            if program_key:
+                from utils.oea_pathways import is_valid_program_key
+                if is_valid_program_key(program_key):
+                    user_data['program_key'] = program_key
+                    # OEA enrollers are parents managing student dependents (PRD
+                    # section 3). Promote the default 'student' role to 'parent'
+                    # unless a more specific role was already set (observer
+                    # invitation / promo / org-managed).
+                    if not org_slug and user_data.get('role', 'student') == 'student':
+                        user_data['role'] = 'parent'
+                    logger.info(f"[REGISTRATION] Tagging account with program_key={program_key}, role={user_data.get('role')}")
+                else:
+                    logger.warning(f"[REGISTRATION] Ignoring unknown program_key: {program_key}")
 
             # Use upsert to handle cases where auth user exists but profile doesn't
             # Retry logic for FK constraint errors (auth user may not be immediately visible)

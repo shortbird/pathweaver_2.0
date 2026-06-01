@@ -274,6 +274,10 @@ def register_all(app):
     register_parent_blueprints(app)
     app.register_blueprint(dependents.bp)
 
+    # ── OEA Diploma Plan (OpenEd Academy partner integration) ──────────────────
+    from routes import oea
+    app.register_blueprint(oea.bp)
+
     # ── Credit dashboard / pillars / analytics / activity ─────────────────────
     from routes.credit_dashboard import bp as credit_dashboard_bp
     app.register_blueprint(credit_dashboard_bp)
@@ -318,5 +322,9 @@ def register_all(app):
 
     from routes.admin import showcase_consent as admin_showcase_consent
     app.register_blueprint(admin_showcase_consent.bp)
+
+    # ── Beta bug reports (in-app shake-to-report) ─────────────────────────────
+    from routes import bug_reports
+    app.register_blueprint(bug_reports.bp)
 
     logger.info("All route blueprints registered")

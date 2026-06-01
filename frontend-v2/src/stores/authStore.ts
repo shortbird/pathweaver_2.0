@@ -13,6 +13,7 @@ import { tokenStore } from '../services/tokenStore';
 import { supabase } from '../services/supabaseClient';
 import { useActingAsStore } from './actingAsStore';
 import { extractApiError } from '../services/apiError';
+import { setSentryUser } from '../services/sentry';
 
 export interface User {
   id: string;
@@ -28,6 +29,9 @@ export interface User {
   date_of_birth: string | null;
   is_dependent: boolean;
   managed_by_parent_id: string | null;
+  // Partner program tag (e.g. 'opened-academy' for the OEA Diploma Plan). Null
+  // for users not in a partner program.
+  program_key: string | null;
 }
 
 interface AuthState {
@@ -56,6 +60,7 @@ interface AuthState {
     last_name: string;
     date_of_birth?: string;
     acceptedLegalTerms?: boolean;
+    program_key?: string;
   }) => Promise<void>;
   forgotPassword: (email: string) => Promise<string>;
   logout: () => Promise<void>;
@@ -437,3 +442,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+// Keep Sentry's user context in sync with auth state (no-op until Sentry is
+// configured). One subscription covers every path that sets/clears the user:
+// login, OAuth callbacks, loadUser, logout.
+useAuthStore.subscribe((state, prev) => {
+  if (state.user?.id !== prev.user?.id) {
+    setSentryUser(state.user ? { id: state.user.id, email: state.user.email } : null);
+  }
+});

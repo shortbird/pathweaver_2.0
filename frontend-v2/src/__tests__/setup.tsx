@@ -134,9 +134,41 @@ jest.mock('expo-video', () => ({
 }));
 
 // ── expo-constants ──
+// __esModule + default so `import Constants from 'expo-constants'` resolves to
+// the inner object (matching real babel interop), not the module wrapper.
 jest.mock('expo-constants', () => ({
-  default: { expoConfig: { extra: {} } },
+  __esModule: true,
+  default: { expoConfig: { extra: {}, version: '1.0.0' }, nativeBuildVersion: '42' },
 }));
+
+// ── expo-device (diagnostics collector) ──
+jest.mock('expo-device', () => ({
+  osVersion: '18.0',
+  modelName: 'iPhone Test',
+}));
+
+// ── expo-sensors (shake-to-report) ──
+jest.mock('expo-sensors', () => ({
+  Accelerometer: {
+    setUpdateInterval: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    removeAllListeners: jest.fn(),
+  },
+}));
+
+// ── react-native-view-shot (bug-report screenshot) ──
+jest.mock('react-native-view-shot', () => ({
+  captureScreen: jest.fn().mockResolvedValue('file:///tmp/screenshot.jpg'),
+  captureRef: jest.fn().mockResolvedValue('file:///tmp/screenshot.jpg'),
+}));
+
+// ── @sentry/react-native (crash reporting; shim falls back to no-op without DSN) ──
+jest.mock('@sentry/react-native', () => ({
+  init: jest.fn(),
+  captureException: jest.fn(),
+  captureMessage: jest.fn(() => 'evt-test'),
+  setUser: jest.fn(),
+}), { virtual: true });
 
 // ── posthog-react-native ──
 jest.mock('posthog-react-native', () => ({

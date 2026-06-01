@@ -17,7 +17,7 @@ type Extras = Record<string, unknown>;
 interface SentryShim {
   init(opts: { dsn: string; release?: string; environment?: string }): void;
   captureException(err: unknown, extras?: Extras): void;
-  captureMessage(msg: string, extras?: Extras): void;
+  captureMessage(msg: string, extras?: Extras): string | undefined;
   setUser(user: { id: string; email?: string } | null): void;
 }
 
@@ -28,7 +28,7 @@ function makeNoopShim(): SentryShim {
   return {
     init: () => {},
     captureException: () => {},
-    captureMessage: () => {},
+    captureMessage: () => undefined,
     setUser: () => {},
   };
 }
@@ -68,8 +68,8 @@ export function captureException(err: unknown, extras?: Extras): void {
   (impl ?? makeNoopShim()).captureException(err, extras);
 }
 
-export function captureMessage(msg: string, extras?: Extras): void {
-  (impl ?? makeNoopShim()).captureMessage(msg, extras);
+export function captureMessage(msg: string, extras?: Extras): string | undefined {
+  return (impl ?? makeNoopShim()).captureMessage(msg, extras);
 }
 
 export function setSentryUser(user: { id: string; email?: string } | null): void {

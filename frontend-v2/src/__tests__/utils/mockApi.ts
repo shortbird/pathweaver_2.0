@@ -37,6 +37,12 @@ export function mockApiModule() {
       resetPassword: jest.fn().mockResolvedValue({ data: {} }),
       loginWithUsername: jest.fn().mockResolvedValue({ data: {} }),
     },
+    oeaAPI: {
+      pathways: jest.fn().mockResolvedValue({ data: { pathways: [] } }),
+      enrollments: jest.fn().mockResolvedValue({ data: { enrollments: [] } }),
+      studentEnrollment: jest.fn().mockResolvedValue({ data: { enrollment: null } }),
+      selectPathway: jest.fn().mockResolvedValue({ data: {} }),
+    },
     questAPI: {
       list: jest.fn().mockResolvedValue({ data: {} }),
       get: jest.fn().mockResolvedValue({ data: {} }),
