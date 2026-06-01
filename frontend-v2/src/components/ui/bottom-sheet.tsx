@@ -174,7 +174,12 @@ export function BottomSheet({
       {Backdrop}
       <KeyboardAvoidingView
         className="flex-1 justify-end"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // 'padding' on BOTH platforms: the sheet lives in a Modal, and Android's
+        // windowSoftInputMode=adjustResize does NOT resize Modal windows — so
+        // behavior={undefined} left text inputs covered by the keyboard on Android.
+        // Padding the bottom by the keyboard height lifts the bottom-anchored sheet
+        // above the keyboard on both iOS and Android.
+        behavior="padding"
         pointerEvents="box-none"
       >
         <Animated.View

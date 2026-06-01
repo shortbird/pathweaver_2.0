@@ -16,7 +16,8 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     title: '',
     description: '',
     pillar: '',
-    xp_value: 100
+    xp_value: 100,
+    diploma_subject: ''
   });
 
   const [addedTasks, setAddedTasks] = useState([]);
@@ -30,6 +31,35 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     { key: 'civics', label: 'Civics' },
     { key: 'art', label: 'Art' }
   ];
+
+  // Diploma credit (school subject) the task counts toward. Display names must
+  // match the backend SUBJECT_NORMALIZATION map in routes/tasks/xp_helpers.py.
+  const subjects = [
+    'Language Arts',
+    'Math',
+    'Science',
+    'Social Studies',
+    'Financial Literacy',
+    'Health',
+    'PE',
+    'Fine Arts',
+    'CTE',
+    'Digital Literacy',
+    'Electives'
+  ];
+
+  // Sensible default credit for each pillar, so "Auto" never dumps work into
+  // Electives. Mirrors PILLAR_TO_SUBJECTS in backend/utils/school_subjects.py.
+  const pillarDefaultSubject = {
+    stem: 'Math',
+    wellness: 'Health',
+    communication: 'Language Arts',
+    civics: 'Social Studies',
+    art: 'Fine Arts'
+  };
+
+  const resolveSubject = (task) =>
+    task.diploma_subject || pillarDefaultSubject[task.pillar] || 'Electives';
 
   const xpOptions = [
     { value: 50, label: '50 XP - Small task' },
@@ -62,19 +92,20 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
       return;
     }
 
-    // Add to tasks list
+    // Add to tasks list. 100% of the XP counts toward the chosen credit.
+    const chosenSubject = resolveSubject(currentTask);
     const taskData = {
       title: currentTask.title,
       description: currentTask.description,
       pillar: currentTask.pillar,
       xp_value: currentTask.xp_value || 100,
-      diploma_subjects: { 'Electives': 100 }
+      diploma_subjects: { [chosenSubject]: 100 }
     };
 
     setAddedTasks(prev => [...prev, taskData]);
 
     // Reset form
-    setCurrentTask({ title: '', description: '', pillar: '', xp_value: 100 });
+    setCurrentTask({ title: '', description: '', pillar: '', xp_value: 100, diploma_subject: '' });
     setError('');
   };
 
@@ -129,6 +160,9 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
                   <h5 className="font-semibold text-gray-900">{task.title}</h5>
                   <span className="text-sm text-optio-purple font-bold">{task.xp_value || 100} XP</span>
                   <span className="text-xs text-gray-500 capitalize">({task.pillar || 'stem'})</span>
+                  <span className="text-xs font-medium text-optio-pink">
+                    {Object.keys(task.diploma_subjects || {})[0] || 'Electives'}
+                  </span>
                 </div>
                 <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>
               </div>
@@ -213,6 +247,31 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
                 <option key={p.key} value={p.key}>{p.label}</option>
               ))}
             </select>
+          </div>
+
+          {/* Diploma Credit (Subject) Selection */}
+          <div>
+            <label htmlFor="task-subject" className="block text-sm font-semibold text-gray-700 mb-2">
+              Counts toward credit
+            </label>
+            <select
+              id="task-subject"
+              value={currentTask.diploma_subject}
+              onChange={(e) => handleInputChange('diploma_subject', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">
+                {currentTask.pillar
+                  ? `Auto (${pillarDefaultSubject[currentTask.pillar] || 'Electives'})`
+                  : 'Auto (based on pillar)'}
+              </option>
+              {subjects.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              All of this task's XP counts toward the selected subject credit.
+            </p>
           </div>
 
           {/* XP Value Selection */}

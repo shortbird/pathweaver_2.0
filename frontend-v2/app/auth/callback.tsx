@@ -25,7 +25,12 @@ export default function AuthCallbackScreen() {
     hasRunRef.current = true;
 
     if (Platform.OS !== 'web') {
-      router.replace('/(auth)/login');
+      // Native handles OAuth tokens via WebBrowser.openAuthSessionAsync (see
+      // authStore.googleLogin), so this route only mounts if the optio:// deep
+      // link re-enters it. Route by auth state instead of dumping the user back
+      // on a login screen they've already passed.
+      const authed = useAuthStore.getState().isAuthenticated;
+      router.replace(authed ? '/(app)/(tabs)/dashboard' : '/(auth)/login');
       return;
     }
 

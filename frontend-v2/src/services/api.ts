@@ -222,15 +222,6 @@ export const oeaAPI = {
     api.post(`/api/oea/credits/${creditId}/quest`, {}),
 };
 
-// POE (Pipe Organ Encounter) pilot — public, unauthenticated endpoints.
-export const poeAPI = {
-  // Cohort config for the /poe/:slug public landing page.
-  cohort: (slug: string) => api.get(`/api/public/poe/${slug}`),
-  // Create the participant account, record parental consent, set up the journal topic.
-  enroll: (slug: string, body: Record<string, unknown>) =>
-    api.post(`/api/public/poe/${slug}/enroll`, body),
-};
-
 export const questAPI = {
   list: () => api.get('/api/quests'),
   get: (id: string) => api.get(`/api/quests/${id}`),
