@@ -196,6 +196,17 @@ export const oeaAPI = {
   // Select or change a student's diploma pathway.
   selectPathway: (studentId: string, pathwayKey: string) =>
     api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
+  // Credits + computed pathway progress + GPA for a student.
+  credits: (studentId: string) =>
+    api.get(`/api/oea/students/${studentId}/credits`),
+  // Add a course credit to a pathway requirement slot.
+  addCredit: (studentId: string, body: Record<string, unknown>) =>
+    api.post(`/api/oea/students/${studentId}/credits`, body),
+  // Update a credit (rename / mark complete / grade / honors weighting).
+  updateCredit: (creditId: string, body: Record<string, unknown>) =>
+    api.patch(`/api/oea/credits/${creditId}`, body),
+  deleteCredit: (creditId: string) =>
+    api.delete(`/api/oea/credits/${creditId}`),
 };
 
 export const questAPI = {

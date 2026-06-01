@@ -136,3 +136,106 @@ class TestVerifyManagesStudent:
         with patch('routes.oea.get_supabase_admin_client', return_value=fake):
             with pytest.raises(NotFoundError):
                 _verify_manages_student('test-user-123', 'missing')
+
+
+@pytest.mark.unit
+class TestCredits:
+
+    STU = '11111111-1111-4111-8111-111111111111'
+    CID = '22222222-2222-4222-8222-222222222222'
+
+    def test_get_credits_returns_progress_and_gpa(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
+        mock_repo.get_credits.return_value = [
+            {'requirement_key': 'math', 'credits': 3, 'status': 'complete', 'letter_grade': 'A', 'is_weighted': False},
+        ]
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.get(f'/api/oea/students/{self.STU}/credits', headers=auth_headers)
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['gpa']['unweighted'] == 4.0
+        assert data['progress']['foundation_earned'] == 3.0
+        assert data['progress']['total_required'] == 24
+
+    def test_add_credit_happy_path(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
+        mock_repo.add_credit.return_value = {'id': 'c1', 'requirement_key': 'math', 'course_name': 'Algebra I'}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.post(f'/api/oea/students/{self.STU}/credits', headers=auth_headers,
+                               json={'requirement_key': 'math', 'course_name': 'Algebra I'})
+        assert resp.status_code == 201
+        # Category + subject derived from the pathway requirement, credits default 1.
+        kwargs = mock_repo.add_credit.call_args.kwargs
+        assert kwargs['category'] == 'foundation'
+        assert kwargs['subject_key'] == 'math'
+        assert kwargs['credits'] == 1.0
+
+    def test_add_credit_rejects_unknown_requirement(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.post(f'/api/oea/students/{self.STU}/credits', headers=auth_headers,
+                               json={'requirement_key': 'world_language', 'course_name': 'Spanish'})
+        assert resp.status_code == 400  # world_language isn't in open_balanced
+
+    def test_add_credit_requires_course_name(self, client, auth_headers, mock_verify_token):
+        with patch('routes.oea._verify_manages_student', return_value=None):
+            resp = client.post(f'/api/oea/students/{self.STU}/credits', headers=auth_headers,
+                               json={'requirement_key': 'math'})
+        assert resp.status_code == 400
+
+    def test_mark_complete_with_grade(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU}
+        mock_repo.update_credit.return_value = {'id': self.CID, 'status': 'complete', 'letter_grade': 'A'}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
+                                json={'status': 'complete', 'letter_grade': 'A', 'is_weighted': True})
+        assert resp.status_code == 200
+        fields = mock_repo.update_credit.call_args[0][1]
+        assert fields['status'] == 'complete'
+        assert fields['letter_grade'] == 'A'
+        assert fields['is_weighted'] is True
+        assert fields['completed_at'] == 'now()'
+
+    def test_patch_rejects_bad_grade(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
+                                json={'letter_grade': 'E'})
+        assert resp.status_code == 400
+
+    def test_patch_ownership_denied(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'other-kid'}
+        with patch('routes.oea.OEARepository', return_value=mock_repo), \
+             patch('routes.oea._verify_manages_student',
+                   side_effect=AuthorizationError('You do not manage this student')):
+            resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
+                                json={'letter_grade': 'A'})
+        assert resp.status_code == 403
+
+    def test_delete_credit(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU}
+        mock_repo.delete_credit.return_value = True
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.delete(f'/api/oea/credits/{self.CID}', headers=auth_headers)
+        assert resp.status_code == 200
+        mock_repo.delete_credit.assert_called_once()
+
+    def test_delete_missing_credit_404(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = None
+        with patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.delete(f'/api/oea/credits/{self.CID}', headers=auth_headers)
+        assert resp.status_code == 404

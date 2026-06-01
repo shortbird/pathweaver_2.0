@@ -42,6 +42,10 @@ export function mockApiModule() {
       enrollments: jest.fn().mockResolvedValue({ data: { enrollments: [] } }),
       studentEnrollment: jest.fn().mockResolvedValue({ data: { enrollment: null } }),
       selectPathway: jest.fn().mockResolvedValue({ data: {} }),
+      credits: jest.fn().mockResolvedValue({ data: { enrollment: null, credits: [], progress: null, gpa: { unweighted: null, weighted: null, graded_credits: 0 } } }),
+      addCredit: jest.fn().mockResolvedValue({ data: {} }),
+      updateCredit: jest.fn().mockResolvedValue({ data: {} }),
+      deleteCredit: jest.fn().mockResolvedValue({ data: {} }),
     },
     questAPI: {
       list: jest.fn().mockResolvedValue({ data: {} }),

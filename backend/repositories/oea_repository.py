@@ -91,7 +91,7 @@ class OEARepository:
         logger.info(f"Created OEA enrollment for student {student_id} -> {pathway_key}")
         return result.data[0]
 
-    # ── Credits (Phase 2 dashboard reads on these) ──────────────────────────
+    # ── Credits ──────────────────────────────────────────────────────────────
 
     def get_credits(self, student_id: str) -> List[Dict[str, Any]]:
         """Return all self-attested credits for a student (newest first)."""
@@ -99,3 +99,53 @@ class OEARepository:
             .select('*').eq('student_id', student_id) \
             .order('created_at', desc=True).execute()
         return result.data or []
+
+    def get_credit(self, credit_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single credit row, or None. Used for ownership checks."""
+        result = self.client.table('oea_credits') \
+            .select('*').eq('id', credit_id).execute()
+        return result.data[0] if result.data else None
+
+    def add_credit(
+        self,
+        student_id: str,
+        enrollment_id: Optional[str],
+        requirement_key: str,
+        category: str,
+        subject_key: Optional[str],
+        course_name: str,
+        credits: float,
+        created_by: str,
+    ) -> Dict[str, Any]:
+        """Create a new (in-progress) course credit for a requirement slot."""
+        result = self.client.table('oea_credits').insert({
+            'student_id': student_id,
+            'enrollment_id': enrollment_id,
+            'requirement_key': requirement_key,
+            'category': category,
+            'subject_key': subject_key,
+            'course_name': course_name,
+            'credits': credits,
+            'status': 'in_progress',
+            'created_by': created_by,
+        }).execute()
+        if not result.data:
+            raise ValidationError("Failed to create credit")
+        return result.data[0]
+
+    def update_credit(self, credit_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a credit (course name / completion / grade / weighting)."""
+        fields = {**fields, 'updated_at': 'now()'}
+        result = self.client.table('oea_credits') \
+            .update(fields).eq('id', credit_id).execute()
+        if not result.data:
+            raise NotFoundError(f"Credit {credit_id} not found")
+        return result.data[0]
+
+    def delete_credit(self, credit_id: str) -> bool:
+        """Delete a credit."""
+        result = self.client.table('oea_credits') \
+            .delete().eq('id', credit_id).execute()
+        if not result.data:
+            raise NotFoundError(f"Credit {credit_id} not found")
+        return True

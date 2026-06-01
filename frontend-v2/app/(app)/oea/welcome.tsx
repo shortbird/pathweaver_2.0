@@ -81,10 +81,14 @@ export default function OEAWelcomeScreen() {
             {children.map((child) => {
               const enrollment = enrollments[child.id];
               const pathwayName = enrollment?.pathway?.name;
+              const navParams = {
+                studentId: child.id,
+                studentName: child.first_name || child.display_name || '',
+              };
               return (
                 <Card key={child.id} variant="outline" size="md">
-                  <HStack className="items-center justify-between">
-                    <View className="flex-1 pr-3">
+                  <VStack space="sm">
+                    <View>
                       <UIText size="md" className="font-poppins-semibold text-typo">
                         {child.display_name || `${child.first_name} ${child.last_name}`.trim()}
                       </UIText>
@@ -92,20 +96,33 @@ export default function OEAWelcomeScreen() {
                         {pathwayName ? pathwayName : 'No pathway chosen yet'}
                       </UIText>
                     </View>
-                    <Button
-                      size="sm"
-                      variant={pathwayName ? 'outline' : 'solid'}
-                      onPress={() => router.push({
-                        pathname: '/(app)/oea/select-pathway' as any,
-                        params: {
-                          studentId: child.id,
-                          studentName: child.first_name || child.display_name || '',
-                        },
-                      })}
-                    >
-                      <ButtonText>{pathwayName ? 'Change' : 'Choose pathway'}</ButtonText>
-                    </Button>
-                  </HStack>
+                    {pathwayName ? (
+                      <HStack space="sm">
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onPress={() => router.push({ pathname: '/(app)/oea/credits' as any, params: navParams })}
+                        >
+                          <ButtonText>Credits</ButtonText>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onPress={() => router.push({ pathname: '/(app)/oea/select-pathway' as any, params: navParams })}
+                        >
+                          <ButtonText>Change pathway</ButtonText>
+                        </Button>
+                      </HStack>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onPress={() => router.push({ pathname: '/(app)/oea/select-pathway' as any, params: navParams })}
+                      >
+                        <ButtonText>Choose pathway</ButtonText>
+                      </Button>
+                    )}
+                  </VStack>
                 </Card>
               );
             })}
