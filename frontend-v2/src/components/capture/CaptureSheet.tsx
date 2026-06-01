@@ -85,6 +85,20 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setSelectedStudentIds(allKidsSelected ? [] : eligibleChildren.map((c: any) => c.id));
   };
 
+  // Parent flow: default-select all eligible children when the sheet opens, so
+  // the "Save Moment" button isn't disabled-on-arrival (previously a parent had
+  // to manually tap a child chip first, which read as a broken button). Parents
+  // can still deselect to narrow it down. No-op for the student flow (pickStudents
+  // false) and when an explicit studentIds prop drives the selection.
+  useEffect(() => {
+    if (!visible || !pickStudents) return;
+    if (studentIds && studentIds.length > 0) return;
+    if (eligibleChildren.length === 0) return;
+    setSelectedStudentIds((prev) =>
+      prev.length === 0 ? eligibleChildren.map((c: any) => c.id) : prev,
+    );
+  }, [visible, pickStudents, studentIds, eligibleChildren]);
+
   const reset = () => {
     setDescription('');
     setMedia([]);

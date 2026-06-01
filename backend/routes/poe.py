@@ -76,7 +76,7 @@ def list_poe_cohorts():
         client = get_supabase_admin_client()
         result = client.table('poe_cohorts').select(
             'slug, display_name, site_city, summary, start_date, end_date, is_active'
-        ).eq('is_active', True).order('display_name').execute()
+        ).eq('is_active', True).order('start_date').execute()
 
         cohorts = [_public_cohort(c) for c in (result.data or [])]
         return jsonify({'success': True, 'cohorts': cohorts}), 200

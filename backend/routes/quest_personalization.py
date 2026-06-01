@@ -373,6 +373,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
     try:
         from utils.pillar_utils import normalize_pillar_name
         from services.subject_classification_service import SubjectClassificationService
+        from routes.tasks.xp_helpers import get_subject_xp_distribution
 
         # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
@@ -403,23 +404,35 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 pillar_key = 'stem'
 
             # Ensure diploma_subjects is a dict
+            raw_diploma_subjects = task.get('diploma_subjects')
             diploma_subjects = normalize_diploma_subjects(
-                task.get('diploma_subjects', {}),
+                raw_diploma_subjects or {},
                 task.get('xp_value', 100)
             )
 
-            # Generate subject XP distribution using AI
+            # Determine the subject XP distribution. When the student explicitly
+            # chose the credit (diploma_subjects sent from the task creator), that
+            # choice is authoritative — convert it straight to normalized subject
+            # keys so it wins at credit-request time (get_subject_xp_distribution
+            # reads subject_xp_distribution first). Only fall back to AI
+            # classification when no explicit subject was provided.
             subject_xp_distribution = {}
-            try:
-                subject_xp_distribution = subject_service.classify_task_subjects(
-                    title=task['title'],
-                    description=task.get('description', ''),
-                    pillar=pillar_key,
-                    xp_value=task.get('xp_value', 100)
+            if raw_diploma_subjects:
+                subject_xp_distribution = get_subject_xp_distribution(
+                    {'diploma_subjects': diploma_subjects},
+                    task.get('xp_value', 100)
                 )
-                logger.info(f"Generated subject distribution for manual task '{task['title']}': {subject_xp_distribution}")
-            except Exception as e:
-                logger.error(f"Failed to generate subject distribution for manual task '{task['title']}': {e}")
+            else:
+                try:
+                    subject_xp_distribution = subject_service.classify_task_subjects(
+                        title=task['title'],
+                        description=task.get('description', ''),
+                        pillar=pillar_key,
+                        xp_value=task.get('xp_value', 100)
+                    )
+                    logger.info(f"Generated subject distribution for manual task '{task['title']}': {subject_xp_distribution}")
+                except Exception as e:
+                    logger.error(f"Failed to generate subject distribution for manual task '{task['title']}': {e}")
 
             # Class override: dump 100% of XP into the class's transcript_subject.
             class_ds, class_sxd = _class_subject_override(supabase, quest_id, task.get('xp_value', 100))

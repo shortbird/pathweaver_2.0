@@ -1,7 +1,7 @@
 /**
- * Pipe Organ Encounter — public per-camp enrollment page.
+ * Pipe Organ Encounter — public registration page.
  *
- * Route: /poe/:slug  (slug = poe_cohorts.slug, e.g. "poe-1-2026")
+ * Route: /poe   (single page; the participant picks their POE location here)
  * Public (no auth). Teens (or their parents) enroll here; participants under 18
  * capture parental consent inline (typed name + checkbox). On submit the backend
  * creates an independent student account, records consent, and sets up a
@@ -11,7 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, KeyboardAvoidingView, Platform, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { poeAPI } from '@/src/services/api';
 import {
@@ -23,11 +23,8 @@ interface Cohort {
   slug: string;
   display_name: string;
   site_city?: string | null;
-  summary?: string | null;
   start_date?: string | null;
   end_date?: string | null;
-  is_active: boolean;
-  enrollment_open: boolean;
 }
 
 const CONSENT_STATEMENT =
@@ -44,13 +41,27 @@ const WHAT_YOU_GET = [
 ];
 
 const HOW_IT_WORKS = [
-  'Enroll below (free, opt-in). Under 18? A parent or guardian signs consent right here.',
+  'Pick your POE and enroll below (free, opt-in). Under 18? A parent or guardian signs consent right here.',
   'On day one of camp, we show you what to log — about 15–20 minutes.',
   'Each day, log lessons, practice, masterclasses, repertoire, and reflections. Add photos, audio, or video.',
   'After camp, Optio reviews your documented work and issues your 0.5 fine arts credit.',
 ];
 
 const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Format a YYYY-MM-DD range without timezone surprises (parse the parts directly).
+const formatDateRange = (start?: string | null, end?: string | null): string | null => {
+  if (!start) return null;
+  const [sy, sm, sd] = start.split('-').map(Number);
+  if (!sy || !sm || !sd) return null;
+  if (!end) return `${MONTHS[sm - 1]} ${sd}, ${sy}`;
+  const [ey, em, ed] = end.split('-').map(Number);
+  if (sy === ey && sm === em) return `${MONTHS[sm - 1]} ${sd}–${ed}, ${sy}`;
+  if (sy === ey) return `${MONTHS[sm - 1]} ${sd} – ${MONTHS[em - 1]} ${ed}, ${sy}`;
+  return `${MONTHS[sm - 1]} ${sd}, ${sy} – ${MONTHS[em - 1]} ${ed}, ${ey}`;
+};
 
 const ageFromDob = (dob: string): number | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
@@ -60,13 +71,12 @@ const ageFromDob = (dob: string): number | null => {
 };
 
 export default function PoeEnrollScreen() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
-
-  const [cohort, setCohort] = useState<Cohort | null>(null);
+  const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Form state
+  const [selectedSlug, setSelectedSlug] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -83,25 +93,26 @@ export default function PoeEnrollScreen() {
   const [success, setSuccess] = useState<{ consent_pending?: boolean } | null>(null);
 
   useEffect(() => {
-    if (!slug) return;
     (async () => {
       try {
         setLoading(true);
-        const { data } = await poeAPI.cohort(slug);
-        setCohort(data.cohort);
+        const { data } = await poeAPI.cohorts();
+        setCohorts(data.cohorts || []);
       } catch {
-        setLoadError('This Pipe Organ Encounter page could not be found.');
+        setLoadError('Could not load the Pipe Organ Encounter locations. Please try again.');
       } finally {
         setLoading(false);
       }
     })();
-  }, [slug]);
+  }, []);
 
   const age = ageFromDob(dob);
   const isMinor = age !== null && age < 18;
+  const selectedCohort = cohorts.find((c) => c.slug === selectedSlug) || null;
 
   const handleSubmit = async () => {
     setError(null);
+    if (!selectedSlug) { setError('Please select your POE location.'); return; }
     if (!firstName.trim() || !lastName.trim()) { setError('First and last name are required.'); return; }
     if (!emailOk(email)) { setError('A valid email address is required.'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
@@ -112,19 +123,14 @@ export default function PoeEnrollScreen() {
     setSubmitting(true);
     try {
       const body: Record<string, unknown> = {
-        student: {
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          password,
-          date_of_birth: dob,
-        },
+        poe_cohort: selectedSlug,
+        student: { first_name: firstName, last_name: lastName, email, password, date_of_birth: dob },
       };
       if (isMinor) {
         body.parent = { first_name: parentFirst, last_name: parentLast, email: parentEmail };
         body.consent = { signature_name: signatureName, agreed: agreed && !!signatureName.trim() };
       }
-      const { data } = await poeAPI.enroll(slug!, body);
+      const { data } = await poeAPI.enroll(body);
       setSuccess({ consent_pending: data.consent_pending });
     } catch (err: any) {
       const d = err?.response?.data;
@@ -146,8 +152,8 @@ export default function PoeEnrollScreen() {
     );
   }
 
-  // ── Not found ──
-  if (loadError || !cohort) {
+  // ── Load error ──
+  if (loadError) {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
         <Card variant="elevated" size="lg" className="max-w-md w-full">
@@ -155,8 +161,8 @@ export default function PoeEnrollScreen() {
             <View className="w-16 h-16 rounded-full bg-red-100 items-center justify-center">
               <Ionicons name="close-circle-outline" size={32} color="#DC2626" />
             </View>
-            <Heading size="lg" className="text-center">Not found</Heading>
-            <UIText size="sm" className="text-typo-400 text-center">{loadError || 'This page could not be found.'}</UIText>
+            <Heading size="lg" className="text-center">Something went wrong</Heading>
+            <UIText size="sm" className="text-typo-400 text-center">{loadError}</UIText>
           </VStack>
         </Card>
       </SafeAreaView>
@@ -172,7 +178,7 @@ export default function PoeEnrollScreen() {
             <View className="w-16 h-16 rounded-full bg-green-100 items-center justify-center">
               <Ionicons name="checkmark-circle-outline" size={32} color="#16A34A" />
             </View>
-            <Heading size="lg" className="text-center">You’re enrolled in {cohort.display_name}</Heading>
+            <Heading size="lg" className="text-center">You’re enrolled in {selectedCohort?.display_name || 'your POE'}</Heading>
             <UIText size="sm" className="text-typo-500 text-center">
               Check your email to verify your account, then log in to start logging your POE.
             </UIText>
@@ -193,10 +199,6 @@ export default function PoeEnrollScreen() {
     );
   }
 
-  const dateLine = cohort.start_date
-    ? `${cohort.start_date}${cohort.end_date ? `–${cohort.end_date}` : ''}`
-    : null;
-
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -206,17 +208,12 @@ export default function PoeEnrollScreen() {
             <View className="max-w-2xl w-full">
               <UIText size="xs" className="text-white/80 uppercase">Pipe Organ Encounter · 2026</UIText>
               <Heading size="2xl" className="text-white mt-2">
-                Earn fine arts credit for your {cohort.display_name}
+                Earn fine arts credit for your Pipe Organ Encounter
               </Heading>
               <UIText className="text-white/90 mt-3">
                 Document your week at camp in the Optio app and earn 0.5 fine arts credit — real,
                 accredited, transcript-ready. Free for 2026. Opt-in.
               </UIText>
-              {(cohort.site_city || dateLine) && (
-                <UIText size="sm" className="text-white/80 mt-3">
-                  {[cohort.site_city, dateLine].filter(Boolean).join(' · ')}
-                </UIText>
-              )}
             </View>
           </View>
 
@@ -248,15 +245,47 @@ export default function PoeEnrollScreen() {
             {/* Enroll */}
             <Heading size="lg" className="mt-8 mb-3">Enroll</Heading>
 
-            {!cohort.enrollment_open ? (
+            {cohorts.length === 0 ? (
               <View className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <UIText size="sm" className="text-amber-800">
-                  Enrollment for {cohort.display_name} isn’t open yet. Check back soon.
+                  Enrollment isn’t open yet. Check back soon.
                 </UIText>
               </View>
             ) : (
               <Card variant="elevated" size="lg" className="w-full">
                 <VStack space="lg">
+                  {/* POE location picker */}
+                  <VStack space="xs">
+                    <UIText size="sm" className="font-poppins-medium">Which POE are you attending?</UIText>
+                    <VStack space="sm" className="mt-1">
+                      {cohorts.map((c) => {
+                        const sel = c.slug === selectedSlug;
+                        const dates = formatDateRange(c.start_date, c.end_date);
+                        return (
+                          <Pressable
+                            key={c.slug}
+                            onPress={() => setSelectedSlug(c.slug)}
+                            className={`flex-row items-center justify-between rounded-lg border p-3 ${sel ? 'border-optio-purple bg-optio-purple/5' : 'border-outline-200'}`}
+                          >
+                            <View className="flex-1">
+                              <UIText className={`font-poppins-medium ${sel ? 'text-optio-purple' : 'text-typo-600'}`}>
+                                {c.display_name}
+                              </UIText>
+                              {dates && (
+                                <UIText size="xs" className="text-typo-400">{dates}</UIText>
+                              )}
+                            </View>
+                            <Ionicons
+                              name={sel ? 'radio-button-on' : 'radio-button-off'}
+                              size={20}
+                              color={sel ? '#6D469B' : '#9CA3AF'}
+                            />
+                          </Pressable>
+                        );
+                      })}
+                    </VStack>
+                  </VStack>
+
                   <HStack className="gap-3">
                     <VStack space="xs" className="flex-1">
                       <UIText size="sm" className="font-poppins-medium">First name</UIText>

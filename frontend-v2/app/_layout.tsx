@@ -113,7 +113,7 @@ export default function RootLayout() {
         <Stack.Screen name="(lti)" />
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="invite/[code]" />
-        <Stack.Screen name="poe/[slug]" />
+        <Stack.Screen name="poe" />
         <Stack.Screen name="terms" />
         <Stack.Screen name="privacy" />
       </Stack>
