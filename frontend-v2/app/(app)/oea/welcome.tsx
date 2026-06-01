@@ -42,7 +42,7 @@ export default function OEAWelcomeScreen() {
 
   return (
     <ScrollPageLayout
-      title="Welcome to the OEA Diploma Plan"
+      title="Welcome to OpenEd Academy"
       subtitle="Track credits and learning logs toward an OpenEd Academy diploma."
       loading={childrenLoading || enrollmentsLoading}
     >

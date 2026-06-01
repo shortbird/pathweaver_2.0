@@ -191,11 +191,11 @@ export default function RegisterScreen() {
             {isOEA && (
               <View className="bg-optio-purple/10 border border-optio-purple/30 p-4 rounded-xl">
                 <UIText size="sm" className="font-poppins-semibold text-optio-purple">
-                  OpenEd Academy Diploma Plan
+                  OpenEd Academy
                 </UIText>
                 <UIText size="xs" className="text-typo-600 mt-1">
                   Create your parent account to enroll your family. After signup you'll
-                  choose a diploma pathway and start tracking credits toward an OEA diploma.
+                  choose a diploma pathway and start tracking credits toward an OpenEd Academy diploma.
                 </UIText>
               </View>
             )}
@@ -205,7 +205,7 @@ export default function RegisterScreen() {
                 <Heading size="lg">{isOEA ? 'Create Parent Account' : 'Create Account'}</Heading>
                 <UIText size="sm" className="text-typo-500">
                   {isOEA
-                    ? 'Enroll your family in the OEA Diploma Plan'
+                    ? 'Enroll your family in OpenEd Academy'
                     : 'Start your learning journey today'}
                 </UIText>
 
