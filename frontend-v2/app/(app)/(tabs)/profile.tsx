@@ -12,6 +12,7 @@ import { useColorScheme } from 'nativewind';
 import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import { saveTheme } from '@/src/stores/themeStore';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { useProfile, Viewer } from '@/src/hooks/useProfile';
 import api from '@/src/services/api';
 import { useGlobalEngagement } from '@/src/hooks/useDashboard';
@@ -567,6 +568,22 @@ export default function ProfileScreen() {
               </VStack>
             </Card>
           </CollapsibleSection>
+
+          {/* Report a bug (beta) — backstop entry point for the shake gesture */}
+          <Pressable onPress={() => useBugReportStore.getState().open()}>
+            <Card variant="elevated" size="md">
+              <HStack className="items-center gap-3">
+                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="bug-outline" size={22} color="#6D469B" />
+                </View>
+                <VStack className="flex-1">
+                  <UIText size="sm" className="font-poppins-semibold">Report a Bug</UIText>
+                  <UIText size="xs" className="text-typo-400">Found something broken? Let us know (or just shake your phone)</UIText>
+                </VStack>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </HStack>
+            </Card>
+          </Pressable>
 
           <Divider />
           <Button variant="outline" action="negative" onPress={logout}>

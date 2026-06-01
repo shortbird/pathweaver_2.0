@@ -11,7 +11,7 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 """
 
 from flask import Blueprint, request, jsonify
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from repositories import (
     UserRepository,
     QuestRepository,
@@ -120,8 +120,11 @@ def cancel_account_deletion(user_id):
     Cancel account deletion during grace period
     """
     try:
-        # Use user client for RLS enforcement
-        supabase = get_user_client(user_id)
+        # admin client justified: reads + clears the caller's own deletion fields
+        # (self-scoped by .eq('id', user_id) under @require_auth), matching the
+        # request-deletion sibling. Previously get_user_client(user_id) passed a UUID
+        # where a JWT was expected -> anonymous-client fallback -> users RLS recursion.
+        supabase = get_supabase_admin_client()
 
         # Get user data
         user_response = supabase.table('users').select('deletion_status, deletion_scheduled_for').eq('id', user_id).execute()
@@ -169,8 +172,11 @@ def get_deletion_status(user_id):
     Get account deletion status
     """
     try:
-        # Use user client for RLS enforcement
-        supabase = get_user_client(user_id)
+        # admin client justified: reads the caller's own deletion status (self-scoped by
+        # .eq('id', user_id) under @require_auth), matching the sibling delete/cancel
+        # endpoints. The previous get_user_client(user_id) call passed a UUID where a JWT
+        # was expected -> anonymous-client fallback -> users RLS recursion (42P17) -> 500.
+        supabase = get_supabase_admin_client()
 
         user_response = supabase.table('users').select(
             'deletion_status, deletion_requested_at, deletion_scheduled_for'

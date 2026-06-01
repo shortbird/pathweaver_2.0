@@ -85,6 +85,8 @@ export default function AppLayout() {
       <Stack.Screen name="bounties/create" />
       <Stack.Screen name="bounties/review/[id]" />
       <Stack.Screen name="observers/accept" />
+      <Stack.Screen name="oea/welcome" />
+      <Stack.Screen name="oea/select-pathway" />
       <Stack.Screen name="view-on-web" />
     </Stack>
   );

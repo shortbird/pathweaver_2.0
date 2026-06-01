@@ -5,10 +5,11 @@
  * Token refresh handled automatically on 401.
  */
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
 import { tokenStore } from './tokenStore';
 import { postRefreshWithRetry } from './refreshRetry';
+import { recordApiCall } from './diagnostics';
 
 // In dev (no EXPO_PUBLIC_API_URL set), web hits localhost and native hits a
 // platform-appropriate host loopback / LAN IP:
@@ -70,8 +71,34 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     delete config.headers['Content-Type'];
   }
 
+  // Stamp start time so the diagnostics interceptor can measure duration.
+  (config as InternalAxiosRequestConfig & { _startTime?: number })._startTime = Date.now();
+
   return config;
 });
+
+// Diagnostics interceptor: record recent API calls (metadata only, never bodies)
+// for the in-app bug reporter. Runs before the refresh interceptor below.
+function logApiCall(config: InternalAxiosRequestConfig | undefined, status: number | null) {
+  if (!config) return;
+  const start = (config as InternalAxiosRequestConfig & { _startTime?: number })._startTime;
+  recordApiCall({
+    method: (config.method || 'get').toUpperCase(),
+    url: config.url || '',
+    status,
+    ms: start ? Date.now() - start : 0,
+  });
+}
+api.interceptors.response.use(
+  (response: AxiosResponse) => {
+    logApiCall(response.config, response.status);
+    return response;
+  },
+  (error: AxiosError) => {
+    logApiCall(error.config, error.response?.status ?? null);
+    return Promise.reject(error);
+  }
+);
 
 // Response interceptor: auto-refresh on 401
 api.interceptors.response.use(
@@ -157,6 +184,20 @@ export const authAPI = {
     api.post(`/api/auth/login/org/${slug}`, { username, password }),
 };
 
+// OEA Diploma Plan (OpenEd Academy partner integration).
+export const oeaAPI = {
+  // The three fixed diploma pathway definitions for the selection UX.
+  pathways: () => api.get('/api/oea/pathways'),
+  // All enrollments managed by the acting parent.
+  enrollments: () => api.get('/api/oea/enrollments'),
+  // One student's current enrollment (or null).
+  studentEnrollment: (studentId: string) =>
+    api.get(`/api/oea/enrollments/${studentId}`),
+  // Select or change a student's diploma pathway.
+  selectPathway: (studentId: string, pathwayKey: string) =>
+    api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
+};
+
 export const questAPI = {
   list: () => api.get('/api/quests'),
   get: (id: string) => api.get(`/api/quests/${id}`),
@@ -207,6 +248,29 @@ export const bountyAPI = {
     api.post(`/api/bounties/${bountyId}/review/${claimId}`, data),
   uploadEvidence: (formData: FormData) =>
     api.post('/api/uploads/evidence', formData),
+};
+
+export interface BugReportContext {
+  message: string;
+  steps?: string;
+  sentry_event_id?: string | null;
+  [key: string]: unknown;
+}
+
+export const bugReportAPI = {
+  /**
+   * Submit a bug report. `context` is the diagnostics blob + user message;
+   * `screenshot` is an optional native file ({ uri, name, type }).
+   */
+  submit: (context: BugReportContext, screenshot?: { uri: string; name: string; type: string } | null) => {
+    const form = new FormData();
+    form.append('context', JSON.stringify(context));
+    if (screenshot) {
+      // React Native FormData accepts the { uri, name, type } file shape.
+      form.append('screenshot', screenshot as unknown as Blob);
+    }
+    return api.post('/api/bug-reports', form);
+  },
 };
 
 export const messageAPI = {

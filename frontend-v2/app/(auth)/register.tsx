@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Image, KeyboardAvoidingView, Platform, ScrollView, Pressable, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -30,6 +30,11 @@ const PASSWORD_RULES = [
 const TERMS_URL = 'https://www.optioeducation.com/terms';
 const PRIVACY_URL = 'https://www.optioeducation.com/privacy';
 
+// Marketplace partner keys. A parent arriving from the OpenEd Academy tile lands
+// here as /signup?partner=opened-academy (or /register?partner=...): we brand the
+// page for OEA and tag the new account so it joins the OEA Diploma Plan.
+const OEA_PARTNER_KEY = 'opened-academy';
+
 function getRedirectForRole(user: User): string {
   const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
   switch (role) {
@@ -56,6 +61,10 @@ export default function RegisterScreen() {
   const { register, googleLogin, appleLoginWeb, appleLoginNative, isLoading, error, clearError } = useAuthStore();
   const isWeb = Platform.OS === 'web';
   const isIos = Platform.OS === 'ios';
+
+  // Partner key from the marketplace tile (?partner=opened-academy).
+  const { partner } = useLocalSearchParams<{ partner?: string }>();
+  const isOEA = partner === OEA_PARTNER_KEY;
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -119,10 +128,15 @@ export default function RegisterScreen() {
         last_name: lastName.trim(),
         date_of_birth: dateOfBirth,
         acceptedLegalTerms: true,
+        ...(isOEA ? { program_key: OEA_PARTNER_KEY } : {}),
       });
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
-        const destination = state.user ? getRedirectForRole(state.user) : '/(app)/(tabs)/dashboard';
+        // OEA parents go straight into diploma pathway onboarding (PRD 4.1 -> 4.2);
+        // everyone else follows the standard role-based redirect.
+        const destination = isOEA
+          ? '/(app)/oea/welcome'
+          : state.user ? getRedirectForRole(state.user) : '/(app)/(tabs)/dashboard';
         router.replace(destination as any);
       } else {
         setVerificationSent(true);
@@ -174,11 +188,25 @@ export default function RegisterScreen() {
               <Image source={{ uri: LOGO_URI }} className="w-44 h-16" resizeMode="contain" />
             </View>
 
+            {isOEA && (
+              <View className="bg-optio-purple/10 border border-optio-purple/30 p-4 rounded-xl">
+                <UIText size="sm" className="font-poppins-semibold text-optio-purple">
+                  OpenEd Academy Diploma Plan
+                </UIText>
+                <UIText size="xs" className="text-typo-600 mt-1">
+                  Create your parent account to enroll your family. After signup you'll
+                  choose a diploma pathway and start tracking credits toward an OEA diploma.
+                </UIText>
+              </View>
+            )}
+
             <Card variant="elevated" size="lg">
               <VStack space="md">
-                <Heading size="lg">Create Account</Heading>
+                <Heading size="lg">{isOEA ? 'Create Parent Account' : 'Create Account'}</Heading>
                 <UIText size="sm" className="text-typo-500">
-                  Start your learning journey today
+                  {isOEA
+                    ? 'Enroll your family in the OEA Diploma Plan'
+                    : 'Start your learning journey today'}
                 </UIText>
 
                 {error && (

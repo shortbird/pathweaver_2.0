@@ -27,6 +27,7 @@ export function createMockUser(overrides: Partial<User> = {}): User {
     date_of_birth: '2010-05-15',
     is_dependent: false,
     managed_by_parent_id: null,
+    program_key: null,
     ...overrides,
   };
 }

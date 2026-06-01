@@ -41,7 +41,9 @@
       "Bash(powershell.exe -Command \"wsl --status\")",
       "Bash(powershell.exe -Command 'Get-PSDrive C | Select-Object @{N='\\\\''FreeGB'\\\\'';E={[math]::Round\\($_.Free/1GB,1\\)}},@{N='\\\\''UsedGB'\\\\'';E={[math]::Round\\($_.Used/1GB,1\\)}}')",
       "Read(//c/Users/tanne/Desktop/**)",
-      "Read(//c/Users/tanne/**)"
+      "Read(//c/Users/tanne/**)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('routes/bug_reports.py'\\).read\\(\\)\\); ast.parse\\(open\\('repositories/bug_report_repository.py'\\).read\\(\\)\\); print\\('syntax ok'\\)\")",
+      "Bash(sed -n '158,175p' utils/roles.py)"
     ]
   }
 }

@@ -51,6 +51,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { loadPersistedTheme } from '@/src/stores/themeStore';
 import { initSentry } from '@/src/services/sentry';
+import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -105,14 +106,17 @@ export default function RootLayout() {
   if (!fontsLoaded && !splashTimedOut) return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(app)" />
-      <Stack.Screen name="(lti)" />
-      <Stack.Screen name="auth/callback" />
-      <Stack.Screen name="invite/[code]" />
-      <Stack.Screen name="terms" />
-      <Stack.Screen name="privacy" />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(app)" />
+        <Stack.Screen name="(lti)" />
+        <Stack.Screen name="auth/callback" />
+        <Stack.Screen name="invite/[code]" />
+        <Stack.Screen name="terms" />
+        <Stack.Screen name="privacy" />
+      </Stack>
+      <BugReportHost />
+    </>
   );
 }
