@@ -24,7 +24,14 @@ async function captureScreenshot(): Promise<string | null> {
   if (Platform.OS === 'web') return null;
   try {
     const { captureScreen } = require('react-native-view-shot');
-    return await captureScreen({ format: 'jpg', quality: 0.6 });
+    const uri: string | undefined = await captureScreen({ format: 'jpg', quality: 0.6 });
+    if (!uri) return null;
+    // RN's multipart upload needs a proper file:// URI. On Android view-shot can
+    // return a bare path (/data/...), which fails the FormData send — normalize it.
+    if (Platform.OS === 'android' && !uri.startsWith('file://') && !uri.startsWith('content://')) {
+      return `file://${uri}`;
+    }
+    return uri;
   } catch {
     // Screenshot is best-effort — never block opening the report.
     return null;

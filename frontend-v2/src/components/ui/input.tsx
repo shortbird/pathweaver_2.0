@@ -27,7 +27,8 @@ const sizeClasses: Record<InputSize, string> = {
 
 const InputContext = React.createContext<{
   isDisabled: boolean;
-}>({ isDisabled: false });
+  setFocused: (v: boolean) => void;
+}>({ isDisabled: false, setFocused: () => {} });
 
 export function Input({
   className = '',
@@ -38,13 +39,18 @@ export function Input({
   children,
   ...props
 }: InputProps) {
+  const [isFocused, setIsFocused] = React.useState(false);
   const invalidClass = isInvalid ? 'border-red-500 border-2' : '';
+  // Focus affordance: tint the border (color-only, no width change so there's
+  // no 1px layout jump). Tracked via context since the focus lives on the
+  // child TextInput, not this container. Suppressed while invalid.
+  const focusClass = !isInvalid && isFocused ? 'border-optio-purple' : '';
   const disabledClass = isDisabled ? 'opacity-50' : '';
 
   return (
-    <InputContext.Provider value={{ isDisabled }}>
+    <InputContext.Provider value={{ isDisabled, setFocused: setIsFocused }}>
       <View
-        className={`flex-row items-center ${variantClasses[variant]} ${sizeClasses[size]} ${invalidClass} ${disabledClass} ${className}`}
+        className={`flex-row items-center ${variantClasses[variant]} ${sizeClasses[size]} ${invalidClass} ${focusClass} ${disabledClass} ${className}`}
         {...props}
       >
         {children}
@@ -57,14 +63,16 @@ interface InputFieldProps extends TextInputProps {
   className?: string;
 }
 
-export function InputField({ className = '', ...props }: InputFieldProps) {
-  const { isDisabled } = React.useContext(InputContext);
+export function InputField({ className = '', onFocus, onBlur, ...props }: InputFieldProps) {
+  const { isDisabled, setFocused } = React.useContext(InputContext);
 
   return (
     <TextInput
-      className={`flex-1 px-3 py-2 font-poppins text-sm text-typo dark:text-dark-typo ${className}`}
+      className={`flex-1 px-3 py-2 font-poppins text-sm text-typo dark:text-dark-typo web:outline-none ${className}`}
       editable={!isDisabled}
       placeholderTextColor="#9CA3AF"
+      onFocus={(e) => { setFocused(true); onFocus?.(e); }}
+      onBlur={(e) => { setFocused(false); onBlur?.(e); }}
       {...props}
     />
   );
@@ -75,7 +83,12 @@ interface InputSlotProps extends PressableProps {
 }
 
 export function InputSlot({ className = '', ...props }: InputSlotProps) {
-  return <Pressable className={`items-center justify-center px-2 ${className}`} {...props} />;
+  return (
+    <Pressable
+      className={`items-center justify-center px-2 web:cursor-pointer hover:opacity-70 ${className}`}
+      {...props}
+    />
+  );
 }
 
 interface InputIconProps {

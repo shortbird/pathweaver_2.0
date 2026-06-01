@@ -136,10 +136,16 @@ def create_bug_report(user_id):
             record[field] = context[field]
     record['message'] = message  # normalized (stripped)
 
-    screenshot_path = _upload_screenshot(request.files.get('screenshot'), user_id)
-    if screenshot_path:
-        record['screenshot_path'] = screenshot_path
-        record['screenshot_bucket'] = SCREENSHOT_BUCKET
+    # Screenshot is strictly best-effort: a problem reading/scanning/uploading it
+    # must never fail the report itself. (Previously this ran outside the
+    # try/except, so a bad screenshot 500'd the whole request and dropped the report.)
+    try:
+        screenshot_path = _upload_screenshot(request.files.get('screenshot'), user_id)
+        if screenshot_path:
+            record['screenshot_path'] = screenshot_path
+            record['screenshot_bucket'] = SCREENSHOT_BUCKET
+    except Exception as e:
+        logger.error(f"[BugReport] screenshot handling failed (saving report without it): {e}")
 
     try:
         repo = BugReportRepository()  # admin client (custom-JWT app)

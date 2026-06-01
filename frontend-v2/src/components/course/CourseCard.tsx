@@ -32,9 +32,10 @@ export function CourseCard({ course }: CourseCardProps) {
     <Pressable
       testID={`course-card-${course?.id}`}
       onPress={() => router.push(`/(app)/courses/${course?.id}`)}
+      className="md:h-full"
     >
-      <Card variant="elevated" size="sm" className="overflow-hidden border-l-4 border-optio-purple">
-        <HStack className="items-center gap-3">
+      <Card variant="elevated" size="md" className="overflow-hidden border-l-4 border-optio-purple md:h-full">
+        <HStack className="items-center gap-4">
           <View className="w-9 h-9 rounded-lg bg-optio-purple/10 items-center justify-center flex-shrink-0">
             <Ionicons name="layers-outline" size={18} color="#6D469B" />
           </View>

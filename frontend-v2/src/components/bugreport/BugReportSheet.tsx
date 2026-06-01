@@ -13,7 +13,7 @@ import { BottomSheet, VStack, HStack, Heading, UIText, Button, ButtonText } from
 import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { bugReportAPI } from '@/src/services/api';
 import { collectDiagnostics } from '@/src/services/diagnostics';
-import { captureMessage } from '@/src/services/sentry';
+import { captureMessage, captureException } from '@/src/services/sentry';
 
 export function BugReportSheet() {
   const { visible, screenshotUri, close } = useBugReportStore();
@@ -40,35 +40,50 @@ export function BugReportSheet() {
       return;
     }
     setSubmitting(true);
+
+    const diagnostics = collectDiagnostics();
+    // Leave a breadcrumbed Sentry event so the manual report cross-links to
+    // the captured app state/breadcrumbs. No-op until Sentry is configured.
+    const sentryEventId = captureMessage(`Bug report: ${trimmed.slice(0, 80)}`, {
+      route: diagnostics.current_route,
+    });
+
+    const payload = {
+      ...diagnostics,
+      message: trimmed,
+      steps: steps.trim() || undefined,
+      sentry_event_id: sentryEventId ?? null,
+    };
+    const screenshot = screenshotUri
+      ? { uri: screenshotUri, name: 'screenshot.jpg', type: 'image/jpeg' }
+      : null;
+
     try {
-      const diagnostics = collectDiagnostics();
-      // Leave a breadcrumbed Sentry event so the manual report cross-links to
-      // the captured app state/breadcrumbs. No-op until Sentry is configured.
-      const sentryEventId = captureMessage(`Bug report: ${trimmed.slice(0, 80)}`, {
-        route: diagnostics.current_route,
-      });
-
-      const screenshot = screenshotUri
-        ? { uri: screenshotUri, name: 'screenshot.jpg', type: 'image/jpeg' }
-        : null;
-
-      await bugReportAPI.submit(
-        {
-          ...diagnostics,
-          message: trimmed,
-          steps: steps.trim() || undefined,
-          sentry_event_id: sentryEventId ?? null,
-        },
-        screenshot,
-      );
-
-      reset();
-      close();
-      Alert.alert('Thank you!', 'Your report was sent. We appreciate the help making Optio better.');
-    } catch {
-      setSubmitting(false);
-      Alert.alert('Could not send', 'Something went wrong sending your report. Please try again.');
+      await bugReportAPI.submit(payload, screenshot);
+    } catch (err) {
+      // The screenshot multipart is the fragile part (large body, native file URI).
+      // If we attached one and it failed, retry once WITHOUT it so the text report
+      // and diagnostics still land — those are what matter most.
+      if (screenshot) {
+        try {
+          await bugReportAPI.submit(payload, null);
+        } catch (err2) {
+          captureException(err2, { stage: 'bug-report-submit-retry' });
+          setSubmitting(false);
+          Alert.alert('Could not send', 'Something went wrong sending your report. Please try again.');
+          return;
+        }
+      } else {
+        captureException(err, { stage: 'bug-report-submit' });
+        setSubmitting(false);
+        Alert.alert('Could not send', 'Something went wrong sending your report. Please try again.');
+        return;
+      }
     }
+
+    reset();
+    close();
+    Alert.alert('Thank you!', 'Your report was sent. We appreciate the help making Optio better.');
   };
 
   return (

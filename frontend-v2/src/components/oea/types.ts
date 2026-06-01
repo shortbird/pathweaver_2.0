@@ -50,6 +50,26 @@ export interface OEACredit {
   letter_grade: LetterGrade | null;
   is_weighted: boolean;
   completed_at: string | null;
+  // The student's Optio quest for this course (work + evidence live there).
+  quest_id: string | null;
+  evidence_count?: number;
+}
+
+export type EvidenceBlockType = 'text' | 'link' | 'file';
+
+export interface OEACreditEvidence {
+  id: string;
+  credit_id: string;
+  block_type: EvidenceBlockType;
+  content: {
+    text?: string;
+    url?: string;
+    title?: string;
+    name?: string;
+    mime?: string;
+    size?: number;
+  };
+  created_at: string;
 }
 
 export interface RequirementProgress {

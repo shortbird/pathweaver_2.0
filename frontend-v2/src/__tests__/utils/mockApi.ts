@@ -46,6 +46,11 @@ export function mockApiModule() {
       addCredit: jest.fn().mockResolvedValue({ data: {} }),
       updateCredit: jest.fn().mockResolvedValue({ data: {} }),
       deleteCredit: jest.fn().mockResolvedValue({ data: {} }),
+      creditEvidence: jest.fn().mockResolvedValue({ data: { evidence: [] } }),
+      addCreditEvidence: jest.fn().mockResolvedValue({ data: {} }),
+      deleteCreditEvidence: jest.fn().mockResolvedValue({ data: {} }),
+      uploadEvidenceFile: jest.fn().mockResolvedValue({ data: { files: [{ url: 'https://x/f.pdf' }] } }),
+      ensureCreditQuest: jest.fn().mockResolvedValue({ data: { quest_id: 'quest-1' } }),
     },
     questAPI: {
       list: jest.fn().mockResolvedValue({ data: {} }),

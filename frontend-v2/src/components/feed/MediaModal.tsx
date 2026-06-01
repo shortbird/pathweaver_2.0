@@ -18,6 +18,9 @@ interface MediaModalProps {
 
 export function MediaModal({ visible, onClose, type, uri, title }: MediaModalProps) {
   const { width: screenW, height: screenH } = Dimensions.get('window');
+  // Cap media width so a portrait image/video doesn't blow up to the full
+  // width of a wide desktop monitor. resizeMode="contain" keeps aspect ratio.
+  const mediaW = Math.min(screenW, 1100);
 
   // For documents/PDFs on web, just open in a new tab
   if (type === 'document' && Platform.OS === 'web') {
@@ -50,13 +53,13 @@ export function MediaModal({ visible, onClose, type, uri, title }: MediaModalPro
           {(type === 'image' || type === 'document') && (
             <Image
               source={{ uri }}
-              style={{ width: screenW, height: screenH * 0.85 }}
+              style={{ width: mediaW, height: screenH * 0.85 }}
               resizeMode="contain"
             />
           )}
 
           {type === 'video' && (
-            <View style={{ width: screenW, height: screenH * 0.85 }}>
+            <View style={{ width: mediaW, height: screenH * 0.85 }}>
               <VideoPlayer uri={uri} autoPlay fillContainer />
             </View>
           )}

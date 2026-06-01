@@ -71,6 +71,8 @@ export default function CreditsScreen() {
   const [editWeighted, setEditWeighted] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [openingQuest, setOpeningQuest] = useState(false);
+
   const load = useCallback(async () => {
     if (!studentId) { setLoading(false); return; }
     try {
@@ -119,6 +121,26 @@ export default function CreditsScreen() {
     setEditWeighted(credit.is_weighted);
   };
 
+  // Open the student's quest for this course (work + evidence + journal live
+  // there). Creates the quest on first use for credits added before the
+  // course-as-quest feature.
+  const openQuest = async (credit: OEACredit) => {
+    if (openingQuest) return;
+    if (credit.quest_id) {
+      router.push(`/(app)/quests/${credit.quest_id}` as any);
+      return;
+    }
+    setOpeningQuest(true);
+    try {
+      const { data } = await oeaAPI.ensureCreditQuest(credit.id);
+      if (data?.quest_id) router.push(`/(app)/quests/${data.quest_id}` as any);
+    } catch (err) {
+      setError(extractApiError(err, 'Could not open the quest.').message);
+    } finally {
+      setOpeningQuest(false);
+    }
+  };
+
   const saveEdit = async () => {
     if (!editing || saving) return;
     setSaving(true);
@@ -157,7 +179,7 @@ export default function CreditsScreen() {
   const gpa = data?.gpa;
 
   return (
-    <ScrollPageLayout title={title} loading={loading}>
+    <ScrollPageLayout title={title} loading={loading} maxWidth="max-w-2xl">
       <VStack space="lg">
         {error && (
           <View className="bg-red-50 p-3 rounded-lg">
@@ -366,6 +388,29 @@ export default function CreditsScreen() {
                   </Pressable>
                 </VStack>
               )}
+
+              {/* Student quest: the work, evidence, and journal entries live here,
+                  using the same flow as any Optio quest. */}
+              <Pressable
+                onPress={() => editing && openQuest(editing)}
+                disabled={openingQuest}
+                className="border-t border-surface-100 pt-3"
+              >
+                <HStack className="items-center justify-between">
+                  <HStack className="items-center flex-1 pr-2" space="sm">
+                    <Ionicons name="rocket-outline" size={18} color="#6D469B" />
+                    <VStack className="flex-1 min-w-0">
+                      <UIText size="sm" className="font-poppins-medium text-typo">
+                        {openingQuest ? 'Opening…' : editing?.quest_id ? 'Open quest' : 'Start quest'}
+                      </UIText>
+                      <UIText size="xs" className="text-typo-400">
+                        Add work, evidence, and journal entries in the app
+                      </UIText>
+                    </VStack>
+                  </HStack>
+                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                </HStack>
+              </Pressable>
 
               <HStack className="items-center justify-between pt-1">
                 <Pressable onPress={deleteEditing} disabled={saving}>

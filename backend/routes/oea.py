@@ -57,6 +57,31 @@ def _verify_manages_student(parent_id: str, student_id: str):
         raise AuthorizationError("You do not manage this student")
 
 
+def _ensure_course_quest(repo, credit):
+    """
+    Return the credit's linked quest id, creating + linking a quest the first time.
+
+    Idempotent: a credit that already has quest_id returns it unchanged. Used both
+    when a course is first added and lazily for credits created before the
+    course-as-quest feature existed.
+    """
+    if credit.get('quest_id'):
+        return credit['quest_id']
+
+    # Best-effort subject label from the student's pathway requirement.
+    label = None
+    enrollment = repo.get_enrollment(credit['student_id'])
+    if enrollment:
+        pathway = get_pathway(enrollment.get('pathway_key'))
+        req = next((r for r in (pathway['requirements'] if pathway else [])
+                    if r['key'] == credit.get('requirement_key')), None)
+        label = req['label'] if req else None
+
+    quest_id = repo.create_course_quest(credit['student_id'], credit['course_name'], label)
+    repo.update_credit(credit['id'], {'quest_id': quest_id})
+    return quest_id
+
+
 @bp.route('/pathways', methods=['GET'])
 @require_auth
 def get_pathways(user_id):
@@ -175,6 +200,11 @@ def get_student_credits(user_id, student_id):
         credits = repo.get_credits(student_id)
         pathway_key = enrollment.get('pathway_key') if enrollment else None
 
+        # Attach an evidence count to each credit so the dashboard can badge it.
+        counts = repo.get_evidence_counts(student_id)
+        for c in credits:
+            c['evidence_count'] = counts.get(c['id'], 0)
+
         if enrollment:
             enrollment['pathway'] = get_pathway(pathway_key)
 
@@ -251,6 +281,8 @@ def add_student_credit(user_id, student_id):
             credits=credits_value,
             created_by=user_id,
         )
+        # Spin up the student's quest for this course so they can work it in-app.
+        credit['quest_id'] = _ensure_course_quest(repo, credit)
         return jsonify({'success': True, 'credit': credit}), 201
     except AuthorizationError as e:
         return jsonify({'success': False, 'error': str(e)}), 403
@@ -352,3 +384,148 @@ def delete_student_credit(user_id, credit_id):
     except Exception as e:
         logger.error(f"Error deleting OEA credit {credit_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to delete credit'}), 500
+
+
+@bp.route('/credits/<credit_id>/quest', methods=['POST'])
+@require_auth
+@validate_uuid_param('credit_id')
+def ensure_credit_quest(user_id, credit_id):
+    """
+    Ensure a credit has a linked student quest, creating one if needed.
+
+    Used by the dashboard's "Start quest" action for credits created before the
+    course-as-quest feature. Returns the quest id to navigate to.
+    """
+    try:
+        # admin client justified: cross-user parent -> student quest creation.
+        supabase = get_supabase_admin_client()
+        repo = OEARepository(client=supabase)
+
+        credit = repo.get_credit(credit_id)
+        if not credit:
+            raise NotFoundError("Credit not found")
+        _verify_manages_student(user_id, credit['student_id'])
+
+        quest_id = _ensure_course_quest(repo, credit)
+        return jsonify({'success': True, 'quest_id': quest_id}), 200
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except NotFoundError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error ensuring quest for credit {credit_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
+
+
+# ── Credit evidence (text / link / file proof attached to a credit) ──────────
+
+# Accepted evidence content fields per block type. Files are uploaded separately
+# via /api/uploads/evidence; only the returned URL + metadata is stored here.
+_EVIDENCE_TYPES = ('text', 'link', 'file')
+
+
+@bp.route('/credits/<credit_id>/evidence', methods=['GET'])
+@require_auth
+@validate_uuid_param('credit_id')
+def list_credit_evidence(user_id, credit_id):
+    """Return the evidence blocks attached to a credit."""
+    try:
+        # admin client justified: cross-user parent -> student evidence read.
+        supabase = get_supabase_admin_client()
+        repo = OEARepository(client=supabase)
+
+        credit = repo.get_credit(credit_id)
+        if not credit:
+            raise NotFoundError("Credit not found")
+        _verify_manages_student(user_id, credit['student_id'])
+
+        return jsonify({'success': True, 'evidence': repo.get_credit_evidence(credit_id)}), 200
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except NotFoundError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error listing evidence for credit {credit_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to fetch evidence'}), 500
+
+
+@bp.route('/credits/<credit_id>/evidence', methods=['POST'])
+@require_auth
+@validate_uuid_param('credit_id')
+def add_credit_evidence(user_id, credit_id):
+    """
+    Attach an evidence block to a credit.
+
+    Body:
+        block_type: 'text' | 'link' | 'file'
+        content:    object shaped by type:
+                      text -> { text }
+                      link -> { url, title? }
+                      file -> { url, name?, mime?, size? }  (url from /api/uploads/evidence)
+    """
+    try:
+        data = request.get_json() or {}
+        block_type = (data.get('block_type') or '').strip()
+        content = data.get('content') or {}
+
+        if block_type not in _EVIDENCE_TYPES:
+            raise ValidationError(f"block_type must be one of {', '.join(_EVIDENCE_TYPES)}")
+        if not isinstance(content, dict):
+            raise ValidationError("content must be an object")
+        if block_type == 'text' and not (content.get('text') or '').strip():
+            raise ValidationError("text evidence requires non-empty 'text'")
+        if block_type in ('link', 'file') and not (content.get('url') or '').strip():
+            raise ValidationError(f"{block_type} evidence requires a 'url'")
+
+        # admin client justified: cross-user parent -> student evidence write.
+        supabase = get_supabase_admin_client()
+        repo = OEARepository(client=supabase)
+
+        credit = repo.get_credit(credit_id)
+        if not credit:
+            raise NotFoundError("Credit not found")
+        _verify_manages_student(user_id, credit['student_id'])
+
+        evidence = repo.add_credit_evidence(
+            credit_id=credit_id,
+            student_id=credit['student_id'],
+            block_type=block_type,
+            content=content,
+            created_by=user_id,
+        )
+        return jsonify({'success': True, 'evidence': evidence}), 201
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except (ValidationError, RepoValidationError) as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error adding evidence to credit {credit_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to add evidence'}), 500
+
+
+@bp.route('/evidence/<evidence_id>', methods=['DELETE'])
+@require_auth
+@validate_uuid_param('evidence_id')
+def delete_credit_evidence(user_id, evidence_id):
+    """Delete an evidence block the acting parent manages."""
+    try:
+        # admin client justified: cross-user parent -> student evidence delete.
+        supabase = get_supabase_admin_client()
+        repo = OEARepository(client=supabase)
+
+        evidence = repo.get_evidence(evidence_id)
+        if not evidence:
+            raise NotFoundError("Evidence not found")
+        _verify_manages_student(user_id, evidence['student_id'])
+
+        repo.delete_credit_evidence(evidence_id)
+        return jsonify({'success': True}), 200
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except NotFoundError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error deleting evidence {evidence_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to delete evidence'}), 500

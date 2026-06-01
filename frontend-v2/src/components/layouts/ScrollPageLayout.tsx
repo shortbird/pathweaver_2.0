@@ -20,6 +20,13 @@ interface ScrollPageLayoutProps {
   onRefresh?: () => void;
   className?: string;
   contentClassName?: string;
+  /**
+   * Tailwind max-width class for the content column, centered on large screens.
+   * Defaults to `max-w-5xl` so pages stop stretching edge-to-edge on desktop /
+   * tablet. Pass a narrower cap (e.g. `max-w-2xl`) for reading- or form-heavy
+   * pages, or `''` to opt out entirely.
+   */
+  maxWidth?: string;
 }
 
 export function ScrollPageLayout({
@@ -31,6 +38,7 @@ export function ScrollPageLayout({
   onRefresh,
   className = '',
   contentClassName = '',
+  maxWidth = 'max-w-5xl',
 }: ScrollPageLayoutProps) {
   if (loading) {
     return (
@@ -46,7 +54,7 @@ export function ScrollPageLayout({
     <SafeAreaView className={`flex-1 bg-surface-50 dark:bg-dark-surface ${className}`}>
       <ScrollView
         className="flex-1"
-        contentContainerClassName={`px-5 pt-6 pb-12 ${contentClassName}`}
+        contentContainerClassName={`px-5 md:px-8 pt-6 pb-12 ${contentClassName}`}
         showsVerticalScrollIndicator={false}
         refreshControl={
           onRefresh ? (
@@ -58,17 +66,19 @@ export function ScrollPageLayout({
           ) : undefined
         }
       >
-        {title && (
-          <View className="mb-4">
-            <Heading size="2xl">{title}</Heading>
-            {subtitle && (
-              <UIText size="sm" className="text-typo-500 mt-1">
-                {subtitle}
-              </UIText>
-            )}
-          </View>
-        )}
-        {children}
+        <View className={`w-full self-center ${maxWidth}`}>
+          {title && (
+            <View className="mb-4">
+              <Heading size="2xl">{title}</Heading>
+              {subtitle && (
+                <UIText size="sm" className="text-typo-500 mt-1">
+                  {subtitle}
+                </UIText>
+              )}
+            </View>
+          )}
+          {children}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

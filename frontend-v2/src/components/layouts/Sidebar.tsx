@@ -27,8 +27,10 @@ function NavLink({ item }: { item: NavItem }) {
   return (
     <Pressable
       onPress={() => router.push(item.href as any)}
-      className={`flex-row items-center gap-3 px-4 py-3 rounded-xl mx-2 ${
-        isActive ? 'bg-optio-purple/10' : 'active:bg-surface-100 dark:active:bg-dark-surface-200'
+      className={`flex-row items-center gap-3 px-4 py-3 rounded-xl mx-2 web:cursor-pointer ${
+        isActive
+          ? 'bg-optio-purple/10'
+          : 'hover:bg-surface-100 dark:hover:bg-dark-surface-200 active:bg-surface-100 dark:active:bg-dark-surface-200'
       }`}
     >
       <Ionicons
@@ -58,7 +60,7 @@ function SidebarNotificationLink() {
   return (
     <Pressable
       onPress={() => router.push('/(app)/notifications' as any)}
-      className={`flex-row items-center gap-2 py-2 active:opacity-70 ${isActive ? 'opacity-100' : ''}`}
+      className={`flex-row items-center gap-2 py-2 web:cursor-pointer hover:opacity-80 active:opacity-70 ${isActive ? 'opacity-100' : ''}`}
     >
       <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons
@@ -150,7 +152,7 @@ export function Sidebar() {
         <SidebarNotificationLink />
         <Pressable
           onPress={() => router.push('/(app)/(tabs)/profile' as any)}
-          className="flex-row items-center gap-2 py-1 active:opacity-70"
+          className="flex-row items-center gap-2 py-1 web:cursor-pointer hover:opacity-80 active:opacity-70"
         >
           <Ionicons name="person-circle-outline" size={20} color="#6B7280" />
           <UIText size="sm" className="text-typo-500 font-poppins-medium flex-1" numberOfLines={1}>
@@ -159,7 +161,7 @@ export function Sidebar() {
         </Pressable>
         <Pressable
           onPress={logout}
-          className="flex-row items-center gap-2 py-2 active:opacity-70"
+          className="flex-row items-center gap-2 py-2 web:cursor-pointer hover:opacity-80 active:opacity-70"
         >
           <Ionicons name="log-out-outline" size={18} color="#9A93A8" />
           <UIText size="sm" className="text-typo-400">Sign Out</UIText>

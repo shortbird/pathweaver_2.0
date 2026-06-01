@@ -380,7 +380,7 @@ export default function ProfileScreen() {
                   const pendingOffset = DONUT_CIRCUMFERENCE - (totalPct / 100) * DONUT_CIRCUMFERENCE;
 
                   return (
-                    <View key={subject || `subject-${idx}`} className="w-1/2 items-center p-2 mb-2">
+                    <View key={subject || `subject-${idx}`} className="w-1/2 md:w-1/3 lg:w-1/4 items-center p-2 mb-2">
                       <Card variant="elevated" size="sm" className="w-full items-center py-3 px-2">
                         <View style={{ width: DONUT_SIZE, height: DONUT_SIZE }} className="items-center justify-center">
                           <Svg width={DONUT_SIZE} height={DONUT_SIZE}>

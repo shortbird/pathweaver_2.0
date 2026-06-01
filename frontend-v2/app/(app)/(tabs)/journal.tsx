@@ -356,7 +356,7 @@ export default function JournalScreen() {
         {!activeLoading && activeMoments.length > 0 && (
           <View className="flex flex-col md:flex-row md:flex-wrap gap-3">
             {activeMoments.map((event: any) => (
-              <View key={event.id} className="md:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]">
+              <View key={event.id} className="md:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)] xl:w-[calc(25%-9px)]">
                 <LearningEventCard
                   event={event}
                   onDeleted={refetchCurrentView}

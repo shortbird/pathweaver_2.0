@@ -102,13 +102,19 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base = `flex-row items-center justify-center gap-2 ${sizeClasses[size]} ${variantActionClasses[variant][action]}`;
-  const disabledClass = disabled || loading ? 'opacity-50' : '';
+  // Web affordances: pointer cursor + a subtle hover dim (works for every
+  // variant, including the brand-gradient primary whose background can't be
+  // shifted by a `hover:bg-*` class). All no-op on native.
+  const stateClass =
+    disabled || loading
+      ? 'opacity-50 web:cursor-not-allowed'
+      : 'web:cursor-pointer hover:opacity-90 transition-opacity';
   const isBrandPrimary = variant === 'solid' && action === 'primary';
 
   return (
     <ButtonContext.Provider value={{ variant, action, size }}>
       <Pressable
-        className={`${base} ${disabledClass} ${className}`}
+        className={`${base} ${stateClass} ${className}`}
         disabled={disabled || loading}
         style={isBrandPrimary ? [brandGradientStyle, style as any] : style}
         {...props}

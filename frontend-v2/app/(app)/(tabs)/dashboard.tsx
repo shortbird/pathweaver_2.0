@@ -27,13 +27,12 @@ import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
-import { CaptureModal } from '@/src/components/capture/CaptureModal';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 import { ClassCard } from '@/src/components/class/ClassCard';
 import { CourseCard } from '@/src/components/course/CourseCard';
 import { HomeBountyCard } from '@/src/components/bounties/HomeBountyCard';
 import { useMyClaims } from '@/src/hooks/useBounties';
-import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
+import { useStartSomething } from '@/src/hooks/useStartSomething';
 
 // ── Quest Card with engagement ──
 
@@ -57,11 +56,11 @@ function QuestCard({ quest }: { quest: any }) {
   const days = engagement?.calendar?.days || [];
 
   return (
-    <Pressable testID={`quest-card-${q?.id}`} onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
-    <Card variant="elevated" size="sm" className="min-w-0 overflow-hidden">
+    <Pressable testID={`quest-card-${q?.id}`} onPress={() => router.push(`/(app)/quests/${q?.id}`)} className="md:h-full">
+    <Card variant="elevated" size="md" className="min-w-0 overflow-hidden md:h-full">
       {/* Quest image */}
       {imageUrl ? (
-        <View className="h-28 -mx-3 -mt-3 mb-3 overflow-hidden rounded-t-xl">
+        <View className="h-28 -mx-4 -mt-4 mb-4 overflow-hidden rounded-t-xl">
           <Image
             source={{ uri: imageUrl }}
             className="w-full h-full"
@@ -303,8 +302,8 @@ function NextUpPanel({ quests }: { quests: any[] }) {
       <VStack space="sm">
         {tasks.map((task) => (
           <Pressable key={task.id} onPress={() => router.push(`/(app)/quests/${task.quest_id}`)}>
-            <Card variant="elevated" size="sm">
-              <HStack className="items-center gap-3">
+            <Card variant="elevated" size="md">
+              <HStack className="items-center gap-4">
                 <View className={`w-1.5 h-12 rounded-full ${pillarColors[task.pillar] || pillarColors.stem}`} />
                 <VStack className="flex-1 min-w-0">
                   <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
@@ -341,8 +340,8 @@ export default function DashboardScreen() {
   // throws "Rendered more hooks than during the previous render."
   const { claims: bountyClaims, refetch: refetchClaims } = useMyClaims();
   const [refreshing, setRefreshing] = useState(false);
-  const [captureVisible, setCaptureVisible] = useState(false);
-  const openStartSomething = useStartSomethingStore((s) => s.open);
+  // The role-aware "Optio button" action — same flow as the mobile center tab.
+  const startSomething = useStartSomething();
   const scrollRef = useRef<ScrollView>(null);
   // Standard iOS pattern: tap the active Home tab to scroll the dashboard
   // back to the top.
@@ -443,7 +442,7 @@ export default function DashboardScreen() {
             {workingOnItems.length > 0 ? (
               <View testID="current-quests-grid" className="flex flex-col md:flex-row md:flex-wrap gap-4">
                 {workingOnItems.map((item) => (
-                  <View key={item.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                  <View key={item.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]">
                     {item.kind === 'bounty' && <HomeBountyCard claim={item.claim} />}
                     {item.kind === 'class' && <ClassCard quest={item.quest} />}
                     {item.kind === 'course' && <CourseCard course={item.course} />}
@@ -452,7 +451,7 @@ export default function DashboardScreen() {
                 ))}
               </View>
             ) : (
-              <Pressable testID="empty-state-cta" onPress={openStartSomething}>
+              <Pressable testID="empty-state-cta" onPress={startSomething}>
                 <Card variant="filled" size="lg" className="items-center py-10">
                   <Ionicons name="add-circle-outline" size={40} color="#6D469B" />
                   <Heading size="sm" className="text-typo-700 mt-3">Nothing here yet</Heading>
@@ -477,35 +476,33 @@ export default function DashboardScreen() {
         </VStack>
       </ScrollView>
 
-      {/* Quick Capture FAB — web only. On mobile the center tab button is the
-          single capture entry point, so a duplicate FAB here would be redundant
-          (and visually compete with it). */}
+      {/* "Start something" FAB — web only. On mobile the center tab button is
+          the single entry point, so a duplicate FAB here would be redundant.
+          Opens the same role-specific action sheet as the mobile Optio button
+          (via useStartSomething), instead of jumping straight to Capture. */}
       {isWeb && (
-        <>
-          <Pressable
-            testID="capture-fab"
-            onPress={() => setCaptureVisible(true)}
-            style={{
-              position: 'absolute',
-              bottom: 24,
-              right: 24,
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              backgroundColor: '#6D469B',
-              alignItems: 'center',
-              justifyContent: 'center',
-              elevation: 6,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 3 },
-              shadowOpacity: 0.27,
-              shadowRadius: 4.65,
-            }}
-          >
-            <Ionicons name="add" size={28} color="white" />
-          </Pressable>
-          <CaptureModal visible={captureVisible} onClose={() => setCaptureVisible(false)} onCaptured={refetch} />
-        </>
+        <Pressable
+          testID="capture-fab"
+          onPress={startSomething}
+          style={{
+            position: 'absolute',
+            bottom: 24,
+            right: 24,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: '#6D469B',
+            alignItems: 'center',
+            justifyContent: 'center',
+            elevation: 6,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.27,
+            shadowRadius: 4.65,
+          }}
+        >
+          <Ionicons name="add" size={28} color="white" />
+        </Pressable>
       )}
 
     </SafeAreaView>

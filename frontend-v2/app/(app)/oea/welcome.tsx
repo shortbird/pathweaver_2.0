@@ -45,6 +45,7 @@ export default function OEAWelcomeScreen() {
       title="Welcome to OpenEd Academy"
       subtitle="Track credits and learning logs toward an OpenEd Academy diploma."
       loading={childrenLoading || enrollmentsLoading}
+      maxWidth="max-w-2xl"
     >
       <VStack space="lg">
         <Card variant="elevated" size="md">

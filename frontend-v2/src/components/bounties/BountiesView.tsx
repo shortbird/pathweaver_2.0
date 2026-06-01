@@ -7,11 +7,12 @@
  */
 
 import React, { useState } from 'react';
-import { View, Pressable, Platform, useWindowDimensions, Alert } from 'react-native';
+import { View, Pressable, Platform, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useBounties, useMyClaims, useMyPosted, deleteBounty, turnInBounty } from '@/src/hooks/useBounties';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -410,8 +411,7 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
 }
 
 export function BountiesView() {
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= 768;
+  const { isDesktop } = useBreakpoint();
   const { user } = useAuthStore();
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   // Honor the superadmin preview-role shell: when previewing as student, the
@@ -548,9 +548,13 @@ export function BountiesView() {
           {claimsLoading ? (
             <VStack space="sm">{[1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</VStack>
           ) : claims.length > 0 ? (
-            <VStack space="sm">
-              {claims.map((c: any) => <ClaimCard key={c.id} claim={c} onTurnedIn={refetchClaims} />)}
-            </VStack>
+            <View className={`gap-3 ${isDesktop ? 'flex flex-row flex-wrap' : ''}`}>
+              {claims.map((c: any) => (
+                <View key={c.id} className={isDesktop ? 'w-[calc(50%-6px)]' : ''}>
+                  <ClaimCard claim={c} onTurnedIn={refetchClaims} />
+                </View>
+              ))}
+            </View>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10">
               <Ionicons name="hand-left-outline" size={40} color="#9CA3AF" />
@@ -572,10 +576,14 @@ export function BountiesView() {
           {postedLoading ? (
             <VStack space="sm">{[1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</VStack>
           ) : posted.length > 0 ? (
-            <VStack space="sm">
+            <View className={`gap-3 ${isDesktop ? 'flex flex-row flex-wrap' : ''}`}>
               {posted.map((b: any) => (
-                <Pressable key={b.id} onPress={() => router.push(`/bounties/review/${b.id}`)}>
-                  <Card variant="outline" size="md">
+                <Pressable
+                  key={b.id}
+                  onPress={() => router.push(`/bounties/review/${b.id}`)}
+                  className={isDesktop ? 'w-[calc(50%-6px)]' : ''}
+                >
+                  <Card variant="outline" size="md" interactive>
                     <VStack space="sm">
                       <HStack className="items-center justify-between">
                         <PillarBadge pillar={b.pillar} size="md" />
@@ -622,7 +630,7 @@ export function BountiesView() {
                   </Card>
                 </Pressable>
               ))}
-            </VStack>
+            </View>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10">
               <Ionicons name="create-outline" size={40} color="#9CA3AF" />

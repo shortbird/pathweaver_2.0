@@ -6,11 +6,12 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '@/src/services/api';
-import { View, ScrollView, Pressable, Platform, TextInput, Alert, useWindowDimensions, Image } from 'react-native';
+import { View, ScrollView, Pressable, Platform, TextInput, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useAdminUsers, useAdminQuests, useAdminOrganizations, useOrgDetail, type AdminUser } from '@/src/hooks/useAdmin';
 import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
 import {
@@ -329,8 +330,7 @@ function UsersPanel() {
     roleFilter, setRoleFilter, perPage, totalPages,
     deleteUser, masquerade, updateUserRole, resetPassword, verifyEmail,
   } = useAdminUsers();
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= 768;
+  const { isDesktop } = useBreakpoint();
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
 
   const roles = ['student', 'parent', 'advisor', 'observer', 'org_admin', 'org_managed', 'superadmin'];
@@ -731,8 +731,7 @@ function QuestsPanel() {
     for (const o of orgs) map[o.id] = o.name;
     return map;
   }, [orgs]);
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= 768;
+  const { isDesktop } = useBreakpoint();
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedQuestId, setSelectedQuestId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);

@@ -148,8 +148,9 @@ class TestCredits:
         mock_repo = Mock()
         mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
         mock_repo.get_credits.return_value = [
-            {'requirement_key': 'math', 'credits': 3, 'status': 'complete', 'letter_grade': 'A', 'is_weighted': False},
+            {'id': 'c1', 'requirement_key': 'math', 'credits': 3, 'status': 'complete', 'letter_grade': 'A', 'is_weighted': False},
         ]
+        mock_repo.get_evidence_counts.return_value = {}
         with patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.get(f'/api/oea/students/{self.STU}/credits', headers=auth_headers)
@@ -162,7 +163,8 @@ class TestCredits:
     def test_add_credit_happy_path(self, client, auth_headers, mock_verify_token):
         mock_repo = Mock()
         mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
-        mock_repo.add_credit.return_value = {'id': 'c1', 'requirement_key': 'math', 'course_name': 'Algebra I'}
+        mock_repo.add_credit.return_value = {'id': 'c1', 'student_id': 'stu', 'requirement_key': 'math', 'course_name': 'Algebra I'}
+        mock_repo.create_course_quest.return_value = 'quest-1'
         with patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/students/{self.STU}/credits', headers=auth_headers,
@@ -173,6 +175,9 @@ class TestCredits:
         assert kwargs['category'] == 'foundation'
         assert kwargs['subject_key'] == 'math'
         assert kwargs['credits'] == 1.0
+        # A student quest is auto-created and linked to the new credit.
+        assert json.loads(resp.data)['credit']['quest_id'] == 'quest-1'
+        mock_repo.create_course_quest.assert_called_once()
 
     def test_add_credit_rejects_unknown_requirement(self, client, auth_headers, mock_verify_token):
         mock_repo = Mock()
@@ -239,3 +244,121 @@ class TestCredits:
         with patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.delete(f'/api/oea/credits/{self.CID}', headers=auth_headers)
         assert resp.status_code == 404
+
+    def test_credits_include_evidence_count(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
+        mock_repo.get_credits.return_value = [{'id': 'c1', 'requirement_key': 'math', 'credits': 3, 'status': 'in_progress', 'letter_grade': None, 'is_weighted': False}]
+        mock_repo.get_evidence_counts.return_value = {'c1': 2}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.get(f'/api/oea/students/{self.STU}/credits', headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['credits'][0]['evidence_count'] == 2
+
+
+@pytest.mark.unit
+class TestCreditEvidence:
+
+    CID = '22222222-2222-4222-8222-222222222222'
+    EID = '33333333-3333-4333-8333-333333333333'
+
+    def test_add_text_evidence(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'stu'}
+        mock_repo.add_credit_evidence.return_value = {'id': self.EID, 'block_type': 'text'}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.post(f'/api/oea/credits/{self.CID}/evidence', headers=auth_headers,
+                               json={'block_type': 'text', 'content': {'text': 'Final essay'}})
+        assert resp.status_code == 201
+        kwargs = mock_repo.add_credit_evidence.call_args.kwargs
+        assert kwargs['block_type'] == 'text'
+        assert kwargs['student_id'] == 'stu'
+
+    def test_add_link_requires_url(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'stu'}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.post(f'/api/oea/credits/{self.CID}/evidence', headers=auth_headers,
+                               json={'block_type': 'link', 'content': {}})
+        assert resp.status_code == 400
+
+    def test_add_rejects_bad_type(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'stu'}
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.post(f'/api/oea/credits/{self.CID}/evidence', headers=auth_headers,
+                               json={'block_type': 'video', 'content': {'url': 'x'}})
+        assert resp.status_code == 400
+
+    def test_list_evidence_ownership_denied(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'other-kid'}
+        with patch('routes.oea.OEARepository', return_value=mock_repo), \
+             patch('routes.oea._verify_manages_student',
+                   side_effect=AuthorizationError('nope')):
+            resp = client.get(f'/api/oea/credits/{self.CID}/evidence', headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_delete_evidence(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_evidence.return_value = {'id': self.EID, 'student_id': 'stu'}
+        mock_repo.delete_credit_evidence.return_value = True
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.delete(f'/api/oea/evidence/{self.EID}', headers=auth_headers)
+        assert resp.status_code == 200
+        mock_repo.delete_credit_evidence.assert_called_once()
+
+    def test_delete_missing_evidence_404(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_evidence.return_value = None
+        with patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.delete(f'/api/oea/evidence/{self.EID}', headers=auth_headers)
+        assert resp.status_code == 404
+
+
+@pytest.mark.unit
+class TestCourseQuest:
+
+    CID = '22222222-2222-4222-8222-222222222222'
+
+    def test_ensure_creates_quest_when_missing(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {
+            'id': self.CID, 'student_id': 'stu', 'course_name': 'Algebra I',
+            'requirement_key': 'math', 'quest_id': None,
+        }
+        mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
+        mock_repo.create_course_quest.return_value = 'quest-9'
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.post(f'/api/oea/credits/{self.CID}/quest', headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['quest_id'] == 'quest-9'
+        mock_repo.create_course_quest.assert_called_once()
+        mock_repo.update_credit.assert_called_once()
+
+    def test_ensure_returns_existing_quest(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {
+            'id': self.CID, 'student_id': 'stu', 'course_name': 'Algebra I',
+            'requirement_key': 'math', 'quest_id': 'already-here',
+        }
+        with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=mock_repo):
+            resp = client.post(f'/api/oea/credits/{self.CID}/quest', headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['quest_id'] == 'already-here'
+        mock_repo.create_course_quest.assert_not_called()
+
+    def test_ensure_ownership_denied(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'other', 'quest_id': None}
+        with patch('routes.oea.OEARepository', return_value=mock_repo), \
+             patch('routes.oea._verify_manages_student', side_effect=AuthorizationError('nope')):
+            resp = client.post(f'/api/oea/credits/{self.CID}/quest', headers=auth_headers)
+        assert resp.status_code == 403

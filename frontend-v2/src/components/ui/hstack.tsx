@@ -9,10 +9,12 @@ interface HStackProps extends ViewProps {
 const spaceMap = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 
 export function HStack({ className = '', space, style, ...props }: HStackProps) {
-  const gap = space ? spaceMap[space] : 0;
+  // Only force an inline gap when `space` is given. Setting `gap: 0` inline
+  // unconditionally overrides any `gap-*` className (inline style wins over
+  // NativeWind className), which silently killed className-based spacing.
   return (
     <View
-      style={[{ flexDirection: 'row', gap }, style]}
+      style={[{ flexDirection: 'row' }, space ? { gap: spaceMap[space] } : null, style]}
       className={className}
       {...props}
     />

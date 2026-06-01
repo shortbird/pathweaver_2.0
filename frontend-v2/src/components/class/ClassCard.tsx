@@ -74,13 +74,27 @@ export function ClassCard({ quest }: ClassCardProps) {
   const q = quest.quests || quest;
   const subject = getSubject(q?.transcript_subject);
   const [progress, setProgress] = useState<ClassProgress | null>(null);
+  const [outstanding, setOutstanding] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchProgress = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     if (!q?.id) return;
     try {
-      const { data } = await api.get(`/api/quests/${q.id}/class-progress`);
-      setProgress(data.data || data);
+      // Progress drives the ring/XP line; the quest detail gives us the task
+      // list so we can surface what's still outstanding.
+      const [progRes, questRes] = await Promise.allSettled([
+        api.get(`/api/quests/${q.id}/class-progress`),
+        api.get(`/api/quests/${q.id}`),
+      ]);
+      if (progRes.status === 'fulfilled') {
+        const d = progRes.value.data;
+        setProgress(d.data || d);
+      }
+      if (questRes.status === 'fulfilled') {
+        const d = questRes.value.data;
+        const allTasks = (d.quest || d).quest_tasks || [];
+        setOutstanding(allTasks.filter((t: any) => !t.is_completed));
+      }
     } catch {
       // Non-critical
     } finally {
@@ -91,8 +105,8 @@ export function ClassCard({ quest }: ClassCardProps) {
   // Initial fetch + re-fetch every time the dashboard regains focus (e.g. after
   // the student returns from the class detail page where they may have added
   // or completed tasks).
-  useEffect(() => { fetchProgress(); }, [fetchProgress]);
-  useFocusEffect(useCallback(() => { fetchProgress(); }, [fetchProgress]));
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
   const xpToNext = progress
     ? progress.approved_xp - progress.credits_earned * progress.target_xp
@@ -116,9 +130,9 @@ export function ClassCard({ quest }: ClassCardProps) {
   })();
 
   return (
-    <Pressable testID={`class-card-${q?.id}`} onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
-      <Card variant="elevated" size="sm" className="overflow-hidden border-l-4 border-optio-pink">
-        <HStack className="items-center gap-3">
+    <Pressable testID={`class-card-${q?.id}`} onPress={() => router.push(`/(app)/quests/${q?.id}`)} className="md:h-full">
+      <Card variant="elevated" size="md" className="overflow-hidden border-l-4 border-optio-pink md:h-full">
+        <HStack className="items-center gap-4">
           {subject && (
             <View
               style={{ backgroundColor: `${subject.accent}1A` }}
@@ -127,7 +141,7 @@ export function ClassCard({ quest }: ClassCardProps) {
               <Ionicons name={subject.icon} size={16} color={subject.accent} />
             </View>
           )}
-          <VStack className="flex-1 min-w-0">
+          <VStack space="xs" className="flex-1 min-w-0">
             <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
               {(progress?.transcript_subject_display || subject?.name || '')} class
             </UIText>
@@ -135,7 +149,7 @@ export function ClassCard({ quest }: ClassCardProps) {
               {q?.title || 'Class'}
             </UIText>
             {progress && (
-              <UIText size="xs" className="text-typo-400 mt-0.5">
+              <UIText size="xs" className="text-typo-400">
                 {progress.credits_earned > 0 ? (
                   <>
                     {progress.credits_earned} credit{progress.credits_earned > 1 ? 's' : ''} · {xpToNext}/{progress.target_xp} XP toward next
@@ -157,6 +171,35 @@ export function ClassCard({ quest }: ClassCardProps) {
             />
           )}
         </HStack>
+
+        {/* Outstanding tasks — what's still left to do in this class */}
+        {!loading && (
+          outstanding.length > 0 ? (
+            <VStack space="xs" className="mt-3">
+              <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+                To do
+              </UIText>
+              {outstanding.slice(0, 4).map((t: any, idx: number) => (
+                <HStack key={t.id || idx} className="items-center gap-2.5">
+                  <Ionicons name="ellipse-outline" size={15} color="#CEC6D6" />
+                  <UIText size="xs" className="flex-1 text-typo-700" numberOfLines={1}>
+                    {t.title}
+                  </UIText>
+                </HStack>
+              ))}
+              {outstanding.length > 4 && (
+                <UIText size="xs" className="text-typo-400 ml-[23px]">
+                  +{outstanding.length - 4} more
+                </UIText>
+              )}
+            </VStack>
+          ) : progress ? (
+            <HStack className="items-center gap-1.5 mt-3">
+              <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
+              <UIText size="xs" className="text-typo-400">All tasks complete</UIText>
+            </HStack>
+          ) : null
+        )}
 
         {reviewBanner && (
           <View className={`mt-2 flex-row items-center gap-1.5 px-2.5 py-1 rounded-full self-start ${reviewBanner.color}`}>
