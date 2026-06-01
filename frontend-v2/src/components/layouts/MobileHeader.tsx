@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, Platform, useWindowDimensions, Modal, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Pressable, Platform, Modal, ActivityIndicator, Image, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,8 +61,7 @@ function PreviewRolePill() {
 }
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { VStack, UIText, Heading } from '../ui';
-
-const DESKTOP_BREAKPOINT = 768;
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 
 interface MenuItem {
   key: string;
@@ -420,8 +419,7 @@ function NotificationBell() {
 }
 
 export function PageHeader({ title }: PageHeaderProps) {
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const { isDesktop } = useBreakpoint();
 
   // Desktop doesn't need this -- sidebar handles navigation
   if (isDesktop) return null;

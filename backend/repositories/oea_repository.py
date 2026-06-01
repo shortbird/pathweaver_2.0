@@ -91,7 +91,7 @@ class OEARepository:
         logger.info(f"Created OEA enrollment for student {student_id} -> {pathway_key}")
         return result.data[0]
 
-    # ── Credits (Phase 2 dashboard reads on these) ──────────────────────────
+    # ── Credits ──────────────────────────────────────────────────────────────
 
     def get_credits(self, student_id: str) -> List[Dict[str, Any]]:
         """Return all self-attested credits for a student (newest first)."""
@@ -99,3 +99,141 @@ class OEARepository:
             .select('*').eq('student_id', student_id) \
             .order('created_at', desc=True).execute()
         return result.data or []
+
+    def get_credit(self, credit_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single credit row, or None. Used for ownership checks."""
+        result = self.client.table('oea_credits') \
+            .select('*').eq('id', credit_id).execute()
+        return result.data[0] if result.data else None
+
+    def add_credit(
+        self,
+        student_id: str,
+        enrollment_id: Optional[str],
+        requirement_key: str,
+        category: str,
+        subject_key: Optional[str],
+        course_name: str,
+        credits: float,
+        created_by: str,
+    ) -> Dict[str, Any]:
+        """Create a new (in-progress) course credit for a requirement slot."""
+        result = self.client.table('oea_credits').insert({
+            'student_id': student_id,
+            'enrollment_id': enrollment_id,
+            'requirement_key': requirement_key,
+            'category': category,
+            'subject_key': subject_key,
+            'course_name': course_name,
+            'credits': credits,
+            'status': 'in_progress',
+            'created_by': created_by,
+        }).execute()
+        if not result.data:
+            raise ValidationError("Failed to create credit")
+        return result.data[0]
+
+    def update_credit(self, credit_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a credit (course name / completion / grade / weighting)."""
+        fields = {**fields, 'updated_at': 'now()'}
+        result = self.client.table('oea_credits') \
+            .update(fields).eq('id', credit_id).execute()
+        if not result.data:
+            raise NotFoundError(f"Credit {credit_id} not found")
+        return result.data[0]
+
+    def delete_credit(self, credit_id: str) -> bool:
+        """Delete a credit."""
+        result = self.client.table('oea_credits') \
+            .delete().eq('id', credit_id).execute()
+        if not result.data:
+            raise NotFoundError(f"Credit {credit_id} not found")
+        return True
+
+    def create_course_quest(self, student_id: str, course_name: str, subject_label: Optional[str]) -> str:
+        """
+        Create a standard Optio quest in the student's account for an OEA course
+        and enroll the student in it. Returns the new quest id.
+
+        The quest starts empty -- the student adds tasks just-in-time in the mobile
+        app and works them with the normal task -> evidence -> journal flow. XP
+        accrues like any quest; it does NOT auto-convert into the OEA credit (the
+        credit stays parent-graded). created_by is the student so the quest shows
+        up as their own; enrollment makes it active.
+        """
+        from repositories.quest_repository import QuestRepository
+
+        # Inherit the student's org for visibility (NULL for platform OEA families).
+        student = self.client.table('users').select('organization_id') \
+            .eq('id', student_id).execute()
+        org_id = student.data[0].get('organization_id') if student.data else None
+
+        description = f"OpenEd Academy course: {course_name}"
+        if subject_label:
+            description += f" ({subject_label})"
+
+        quest_repo = QuestRepository()
+        quest = quest_repo.create_quest({
+            'title': course_name,
+            'description': description,
+            'quest_type': 'optio',
+            'is_active': True,
+            'is_public': False,
+            'organization_id': org_id,
+        }, student_id)
+        quest_repo.enroll_user(student_id, quest['id'])
+        logger.info(f"Created OEA course quest {quest['id']} for student {student_id}")
+        return quest['id']
+
+    # ── Credit evidence (proof attached to a credit) ─────────────────────────
+
+    def get_credit_evidence(self, credit_id: str) -> List[Dict[str, Any]]:
+        """Return evidence blocks for a credit (oldest first)."""
+        result = self.client.table('oea_credit_evidence') \
+            .select('*').eq('credit_id', credit_id) \
+            .order('created_at', desc=False).execute()
+        return result.data or []
+
+    def get_evidence_counts(self, student_id: str) -> Dict[str, int]:
+        """Return {credit_id: evidence_count} across all of a student's credits."""
+        result = self.client.table('oea_credit_evidence') \
+            .select('credit_id').eq('student_id', student_id).execute()
+        counts: Dict[str, int] = {}
+        for row in (result.data or []):
+            cid = row['credit_id']
+            counts[cid] = counts.get(cid, 0) + 1
+        return counts
+
+    def get_evidence(self, evidence_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single evidence row, or None. Used for ownership checks."""
+        result = self.client.table('oea_credit_evidence') \
+            .select('*').eq('id', evidence_id).execute()
+        return result.data[0] if result.data else None
+
+    def add_credit_evidence(
+        self,
+        credit_id: str,
+        student_id: str,
+        block_type: str,
+        content: Dict[str, Any],
+        created_by: str,
+    ) -> Dict[str, Any]:
+        """Attach an evidence block (text / link / file) to a credit."""
+        result = self.client.table('oea_credit_evidence').insert({
+            'credit_id': credit_id,
+            'student_id': student_id,
+            'block_type': block_type,
+            'content': content,
+            'created_by': created_by,
+        }).execute()
+        if not result.data:
+            raise ValidationError("Failed to add evidence")
+        return result.data[0]
+
+    def delete_credit_evidence(self, evidence_id: str) -> bool:
+        """Delete an evidence block."""
+        result = self.client.table('oea_credit_evidence') \
+            .delete().eq('id', evidence_id).execute()
+        if not result.data:
+            raise NotFoundError(f"Evidence {evidence_id} not found")
+        return True

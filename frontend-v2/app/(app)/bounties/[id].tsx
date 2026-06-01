@@ -242,7 +242,7 @@ export default function BountyDetailPage() {
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <VStack className="px-5 pt-4" space="lg">
+        <VStack className="px-5 pt-4 max-w-3xl w-full md:mx-auto" space="lg">
 
           {/* Back button */}
           <Pressable onPress={() => router.back()} className="flex-row items-center gap-2">

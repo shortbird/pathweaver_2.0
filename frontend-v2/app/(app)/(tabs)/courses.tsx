@@ -171,7 +171,7 @@ export default function CoursesScreen() {
           {loading ? (
             <View className="flex flex-row flex-wrap gap-4">
               {[1, 2, 3, 4].map((i) => (
-                <View key={i} className="w-full md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                <View key={i} className="w-full md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]">
                   <Skeleton className="h-72 rounded-xl" />
                 </View>
               ))}
@@ -179,7 +179,7 @@ export default function CoursesScreen() {
           ) : courses.length > 0 ? (
             <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
               {courses.map((c) => (
-                <View key={c.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                <View key={c.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]">
                   <CourseCard course={c} isSuperadmin={isSuperadmin} userId={user?.id} />
                 </View>
               ))}

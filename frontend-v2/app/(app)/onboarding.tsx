@@ -53,7 +53,8 @@ const SLIDES: Slide[] = [
 
 export default function Onboarding() {
   const { width } = useWindowDimensions();
-  const slideWidth = Math.min(width, 480);
+  // Slightly roomier slides on tablet / desktop; phones stay at 480.
+  const slideWidth = Math.min(width, width >= 768 ? 560 : 480);
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
 

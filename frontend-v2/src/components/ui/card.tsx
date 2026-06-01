@@ -8,6 +8,11 @@ interface CardProps extends ViewProps {
   className?: string;
   variant?: CardVariant;
   size?: CardSize;
+  /**
+   * Set when the card (or its wrapping Pressable) is tappable. Adds a web
+   * pointer cursor + subtle hover lift. No-op on native.
+   */
+  interactive?: boolean;
 }
 
 const variantClasses: Record<CardVariant, string> = {
@@ -37,14 +42,18 @@ export function Card({
   className = '',
   variant = 'elevated',
   size = 'md',
+  interactive = false,
   style,
   ...props
 }: CardProps) {
   const shadow = variant === 'elevated' ? elevatedShadow : undefined;
+  const interactiveClass = interactive
+    ? 'web:cursor-pointer hover:opacity-95 transition-opacity'
+    : '';
 
   return (
     <View
-      className={`${sizeClasses[size]} ${variantClasses[variant]} ${className}`}
+      className={`${sizeClasses[size]} ${variantClasses[variant]} ${interactiveClass} ${className}`}
       style={[shadow, style]}
       {...props}
     />

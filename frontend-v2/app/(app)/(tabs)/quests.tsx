@@ -10,6 +10,7 @@ import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -69,10 +70,29 @@ function QuestCard({ quest }: { quest: any }) {
   );
 }
 
+/**
+ * Filter chip container. Scrolls horizontally on phones; wraps into rows on
+ * large screens where a hidden horizontal scrollbar would read as mobile-only.
+ */
+function FilterRail({ wrap, children }: { wrap: boolean; children: React.ReactNode }) {
+  if (wrap) {
+    return <View className="flex-row flex-wrap gap-2 items-center">{children}</View>;
+  }
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <HStack space="sm" className="items-center">{children}</HStack>
+    </ScrollView>
+  );
+}
+
 export default function QuestsScreen() {
   const { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, selectedSubtopic, setSelectedSubtopic, subtopics, loadMore, refetch } = useQuestDiscovery();
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
+  // On desktop/tablet the filter chips wrap into rows instead of scrolling
+  // horizontally — there's room, and a hidden horizontal scrollbar reads as
+  // mobile-only chrome.
+  const { isLargeScreen } = useBreakpoint();
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -99,8 +119,7 @@ export default function QuestsScreen() {
 
           {topics.length > 0 && (
             <VStack space="sm">
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <HStack space="sm">
+              <FilterRail wrap={isLargeScreen}>
                   <Pressable onPress={() => setSelectedTopic(null)}>
                     <View className={`px-4 py-2 rounded-full ${!selectedTopic ? 'bg-optio-purple' : 'bg-surface-200'}`}>
                       <UIText size="sm" className={`font-poppins-medium ${!selectedTopic ? 'text-white' : 'text-typo-500'}`}>All</UIText>
@@ -115,12 +134,10 @@ export default function QuestsScreen() {
                       </View>
                     </Pressable>
                   ))}
-                </HStack>
-              </ScrollView>
+              </FilterRail>
 
               {selectedTopic && subtopics.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <HStack space="xs" className="items-center">
+                <FilterRail wrap={isLargeScreen}>
                     <UIText size="xs" className="text-typo-400 mr-1">Filter by:</UIText>
                     {subtopics.map((st) => (
                       <Pressable key={st} onPress={() => setSelectedSubtopic(selectedSubtopic === st ? null : st)}>
@@ -131,8 +148,7 @@ export default function QuestsScreen() {
                         </View>
                       </Pressable>
                     ))}
-                  </HStack>
-                </ScrollView>
+                </FilterRail>
               )}
             </VStack>
           )}
@@ -140,7 +156,7 @@ export default function QuestsScreen() {
           {loading ? (
             <View className="flex flex-row flex-wrap gap-4">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <View key={i} className="w-full md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                <View key={i} className="w-full md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]">
                   <Skeleton className="h-64 rounded-xl" />
                 </View>
               ))}
@@ -149,7 +165,7 @@ export default function QuestsScreen() {
             <>
               <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
                 {quests.map((q) => (
-                  <View key={q.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                  <View key={q.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]">
                     <QuestCard quest={q} />
                   </View>
                 ))}

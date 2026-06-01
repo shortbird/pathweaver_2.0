@@ -46,14 +46,15 @@ export function HomeBountyCard({ claim }: HomeBountyCardProps) {
     <Pressable
       testID={`bounty-card-${claim?.id}`}
       onPress={() => router.push(`/bounties/${claim?.bounty_id}`)}
+      className="md:h-full"
     >
-      <Card variant="elevated" size="sm" className="overflow-hidden border-l-4 border-emerald-500">
-        <HStack className="items-center gap-3">
+      <Card variant="elevated" size="md" className="overflow-hidden border-l-4 border-emerald-500 md:h-full">
+        <HStack className="items-center gap-4">
           <View className="w-9 h-9 rounded-lg bg-emerald-100 items-center justify-center flex-shrink-0">
             <Ionicons name="trophy-outline" size={18} color="#0F766E" />
           </View>
           <VStack className="flex-1 min-w-0">
-            <HStack className="items-center gap-1">
+            <HStack className="items-center gap-1.5">
               <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
                 Bounty
               </UIText>
@@ -75,7 +76,7 @@ export function HomeBountyCard({ claim }: HomeBountyCardProps) {
               {deliverables.map((d: any, idx: number) => {
                 const done = completedIds.has(d.id);
                 return (
-                  <HStack key={d.id || idx} className="items-center gap-2">
+                  <HStack key={d.id || idx} className="items-center gap-2.5">
                     <Ionicons
                       name={done ? 'checkmark-circle' : 'ellipse-outline'}
                       size={16}

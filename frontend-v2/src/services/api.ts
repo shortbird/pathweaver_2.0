@@ -196,6 +196,39 @@ export const oeaAPI = {
   // Select or change a student's diploma pathway.
   selectPathway: (studentId: string, pathwayKey: string) =>
     api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
+  // Credits + computed pathway progress + GPA for a student.
+  credits: (studentId: string) =>
+    api.get(`/api/oea/students/${studentId}/credits`),
+  // Add a course credit to a pathway requirement slot.
+  addCredit: (studentId: string, body: Record<string, unknown>) =>
+    api.post(`/api/oea/students/${studentId}/credits`, body),
+  // Update a credit (rename / mark complete / grade / honors weighting).
+  updateCredit: (creditId: string, body: Record<string, unknown>) =>
+    api.patch(`/api/oea/credits/${creditId}`, body),
+  deleteCredit: (creditId: string) =>
+    api.delete(`/api/oea/credits/${creditId}`),
+  // Evidence attached to a credit (text / link / file blocks).
+  creditEvidence: (creditId: string) =>
+    api.get(`/api/oea/credits/${creditId}/evidence`),
+  addCreditEvidence: (creditId: string, body: Record<string, unknown>) =>
+    api.post(`/api/oea/credits/${creditId}/evidence`, body),
+  deleteCreditEvidence: (evidenceId: string) =>
+    api.delete(`/api/oea/evidence/${evidenceId}`),
+  // Upload a file and get back its stored URL (shared evidence upload endpoint).
+  uploadEvidenceFile: (formData: FormData) =>
+    api.post('/api/uploads/evidence', formData),
+  // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
+  ensureCreditQuest: (creditId: string) =>
+    api.post(`/api/oea/credits/${creditId}/quest`, {}),
+};
+
+// POE (Pipe Organ Encounter) pilot — public, unauthenticated endpoints.
+export const poeAPI = {
+  // Cohort config for the /poe/:slug public landing page.
+  cohort: (slug: string) => api.get(`/api/public/poe/${slug}`),
+  // Create the participant account, record parental consent, set up the journal topic.
+  enroll: (slug: string, body: Record<string, unknown>) =>
+    api.post(`/api/public/poe/${slug}/enroll`, body),
 };
 
 export const questAPI = {

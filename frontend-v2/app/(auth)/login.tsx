@@ -232,7 +232,7 @@ export default function LoginScreen() {
                 <Pressable
                   onPress={googleLogin}
                   disabled={isLoading}
-                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white active:bg-surface-50"
+                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white web:cursor-pointer hover:bg-surface-50 active:bg-surface-50"
                   style={{ opacity: isLoading ? 0.5 : 1 }}
                 >
                   <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
@@ -245,7 +245,7 @@ export default function LoginScreen() {
                   <Pressable
                     onPress={isIos ? appleLoginNative : appleLoginWeb}
                     disabled={isLoading}
-                    className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black active:opacity-80"
+                    className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black web:cursor-pointer hover:opacity-90 active:opacity-80"
                     style={{ opacity: isLoading ? 0.5 : 1 }}
                     accessibilityLabel="Sign in with Apple"
                   >

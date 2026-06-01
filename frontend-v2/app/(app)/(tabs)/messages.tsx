@@ -5,9 +5,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Platform, useWindowDimensions } from 'react-native';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading } from '@/src/components/ui';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useUIStore } from '@/src/stores/uiStore';
 import {
@@ -22,8 +23,6 @@ import { ChatWindow } from '@/src/components/communication/ChatWindow';
 import { GroupChatWindow } from '@/src/components/communication/GroupChatWindow';
 import { CreateGroupModal } from '@/src/components/communication/CreateGroupModal';
 
-const DESKTOP_BREAKPOINT = 768;
-
 interface SelectedConversation {
   id: string;
   type: 'dm' | 'group';
@@ -33,8 +32,7 @@ interface SelectedConversation {
 
 export default function MessagesScreen() {
   const { user } = useAuthStore();
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const { isDesktop } = useBreakpoint();
   const isMobile = !isDesktop;
 
   const { conversations, loading: convoLoading, refetch: refetchConversations } = useConversations();
@@ -113,8 +111,9 @@ export default function MessagesScreen() {
         canCreateGroups={canCreateGroups}
       />
 
-      {/* Right: Chat window */}
-      <View className="flex-1">
+      {/* Right: Chat window — capped so it stays readable on ultra-wide screens */}
+      <View className="flex-1 items-center bg-white">
+        <View className="flex-1 w-full max-w-4xl">
         {selected?.type === 'dm' && selected.contact ? (
           <ChatWindow contact={selected.contact} conversationId={selected.id} />
         ) : selected?.type === 'group' && selected.group ? (
@@ -130,6 +129,7 @@ export default function MessagesScreen() {
             </UIText>
           </View>
         )}
+        </View>
       </View>
 
       {/* Create Group Modal */}

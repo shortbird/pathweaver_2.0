@@ -69,6 +69,7 @@ export default function SelectPathwayScreen() {
       title={title}
       subtitle="All three pathways require 24 credits. You can change this anytime."
       loading={loading}
+      maxWidth="max-w-2xl"
     >
       <VStack space="lg">
         {error && (

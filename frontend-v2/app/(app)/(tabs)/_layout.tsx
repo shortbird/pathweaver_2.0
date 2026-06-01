@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, useWindowDimensions, View, Image, Pressable } from 'react-native';
+import { View, Image, Pressable } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { Sidebar } from '@/src/components/layouts/Sidebar';
-import { MobileHeader } from '@/src/components/layouts/MobileHeader';
 import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { StartSomethingFab } from '@/src/components/ui/StartSomethingFab';
@@ -14,11 +13,11 @@ import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useCaptureContextStore } from '@/src/stores/captureContextStore';
 import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
+import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
-
-const DESKTOP_BREAKPOINT = 768;
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 
 // Q5: canonical Optio logo is the Supabase-hosted gradient_fav.svg — same asset
 // used by v1 (frontend/index.html, TopNavbar.jsx, manifest.json) and by other
@@ -28,29 +27,6 @@ const LOGO_URI =
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const optioIcon = require('@/assets/images/icon.png');
-
-function useIsObserver() {
-  const user = useAuthStore((s) => s.user);
-  const previewRole = usePreviewRoleStore((s) => s.previewRole);
-  // Superadmin can preview other role shells without swapping tokens
-  if (user?.role === 'superadmin' && previewRole) return previewRole === 'observer';
-  if (!user) return false;
-  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
-  return role === 'observer';
-}
-
-function useIsParent() {
-  const user = useAuthStore((s) => s.user);
-  const previewRole = usePreviewRoleStore((s) => s.previewRole);
-  if (user?.role === 'superadmin' && previewRole) return previewRole === 'parent';
-  if (!user) return false;
-  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
-  return (
-    role === 'parent' ||
-    (user as any).has_dependents === true ||
-    (user as any).has_linked_students === true
-  );
-}
 
 /** Minimal header for observers on web — logo + sign out, no sidebar */
 function ObserverHeader() {
@@ -70,8 +46,7 @@ function ObserverHeader() {
 }
 
 export default function TabsLayout() {
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const { isDesktop } = useBreakpoint();
   const [captureVisible, setCaptureVisible] = useState(false);
   const isObserver = useIsObserver();
   const isParent = useIsParent();
@@ -206,6 +181,14 @@ export default function TabsLayout() {
           onClose={() => setCaptureVisible(false)}
           questContext={questCaptureContext || undefined}
         />
+        {/* Headless Start-something host on desktop too, so the Home FAB (and
+            any CTA) can open the same role-specific action sheet the mobile
+            center tab button does. Mobile mounts its own host below. */}
+        {isParent ? (
+          <ParentStartSomethingFab onCaptureMoment={() => setCaptureVisible(true)} />
+        ) : (
+          <StartSomethingFab onCaptureMoment={() => setCaptureVisible(true)} />
+        )}
       </View>
     );
   }

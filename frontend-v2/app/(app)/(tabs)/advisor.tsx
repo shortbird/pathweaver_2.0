@@ -416,7 +416,7 @@ export default function AdvisorScreen() {
         </View>
 
         {/* Right: Student detail or welcome */}
-        <ScrollView className="flex-1" contentContainerClassName="p-6" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1" contentContainerClassName="p-6 max-w-3xl w-full md:mx-auto" showsVerticalScrollIndicator={false}>
           {selectedId ? (
             <StudentDetailPanel studentId={selectedId} />
           ) : (
