@@ -105,10 +105,14 @@ export function Button({
   // Web affordances: pointer cursor + a subtle hover dim (works for every
   // variant, including the brand-gradient primary whose background can't be
   // shifted by a `hover:bg-*` class). All no-op on native.
+  // Web-only affordances. `transition-opacity` in particular must stay web-gated:
+  // on native, css-interop's transition runtime for it throws "Couldn't find a
+  // navigation context" when the button renders inside a Modal (capture / evidence
+  // / bug-report sheets). hover/cursor are inherently web-only.
   const stateClass =
     disabled || loading
       ? 'opacity-50 web:cursor-not-allowed'
-      : 'web:cursor-pointer hover:opacity-90 transition-opacity';
+      : 'web:cursor-pointer web:hover:opacity-90 web:transition-opacity';
   const isBrandPrimary = variant === 'solid' && action === 'primary';
 
   return (
