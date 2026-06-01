@@ -21,6 +21,7 @@ const QuestPersonalizationWizard = lazy(() => import('../components/quests/Quest
 const QuestCompletionCelebration = lazy(() => import('../components/quest/QuestCompletionCelebration'));
 const TaskWorkspace = lazy(() => import('../components/quest/TaskWorkspace'));
 const RestartQuestModal = lazy(() => import('../components/quest/RestartQuestModal'));
+const CreditClassProgressPanel = lazy(() => import('../components/classes/CreditClassProgressPanel'));
 
 // Loading spinner
 const LoadingFallback = () => (
@@ -533,6 +534,16 @@ const QuestDetail = () => {
           quest={quest}
           className="mb-4"
         />
+
+        {/* Credit class progress (quest_type='class') - subject XP toward credit + submit */}
+        {quest.quest_type === 'class' && quest.user_enrollment && (
+          <Suspense fallback={<LoadingFallback />}>
+            <CreditClassProgressPanel
+              questId={quest.id}
+              transcriptSubject={quest.transcript_subject}
+            />
+          </Suspense>
+        )}
 
         {/* Collaborators Section removed (March 2026 - Feature pruning) */}
 

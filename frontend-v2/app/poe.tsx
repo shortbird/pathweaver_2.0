@@ -70,6 +70,13 @@ const ageFromDob = (dob: string): number | null => {
   return (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
 };
 
+// Auto-insert dashes as the user types digits, so the YYYY-MM-DD format is built
+// for them and never has to be remembered (fixes the disappearing-placeholder pain).
+const formatDobInput = (raw: string): string => {
+  const digits = raw.replace(/\D/g, '').slice(0, 8); // YYYYMMDD
+  return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)].filter(Boolean).join('-');
+};
+
 export default function PoeEnrollScreen() {
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +94,12 @@ export default function PoeEnrollScreen() {
   const [parentEmail, setParentEmail] = useState('');
   const [signatureName, setSignatureName] = useState('');
   const [agreed, setAgreed] = useState(false);
+  // Credit destination: enrolled school of record, or homeschool/unenrolled.
+  const [creditDest, setCreditDest] = useState<'' | 'school' | 'homeschool'>('');
+  const [schoolName, setSchoolName] = useState('');
+  const [schoolCity, setSchoolCity] = useState('');
+  const [schoolState, setSchoolState] = useState('');
+  const [schoolEmail, setSchoolEmail] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,12 +132,21 @@ export default function PoeEnrollScreen() {
     if (age === null) { setError('Enter your date of birth as YYYY-MM-DD.'); return; }
     if (age < 13) { setError('Participants under 13 cannot enroll directly. Please contact us so a parent can set up a managed account.'); return; }
     if (isMinor && !emailOk(parentEmail)) { setError('A parent or guardian email is required for participants under 18.'); return; }
+    if (!creditDest) { setError('Tell us where your credit should go.'); return; }
+    if (creditDest === 'school' && !schoolName.trim()) { setError('Enter your school name, or choose homeschool / not enrolled.'); return; }
 
     setSubmitting(true);
     try {
       const body: Record<string, unknown> = {
         poe_cohort: selectedSlug,
         student: { first_name: firstName, last_name: lastName, email, password, date_of_birth: dob },
+        school: {
+          is_homeschool: creditDest === 'homeschool',
+          name: schoolName,
+          city: schoolCity,
+          state: schoolState,
+          contact_email: schoolEmail,
+        },
       };
       if (isMinor) {
         body.parent = { first_name: parentFirst, last_name: parentLast, email: parentEmail };
@@ -319,8 +341,17 @@ export default function PoeEnrollScreen() {
                   <VStack space="xs">
                     <UIText size="sm" className="font-poppins-medium">Date of birth</UIText>
                     <Input variant="outline" size="lg">
-                      <InputField placeholder="YYYY-MM-DD" value={dob} onChangeText={setDob} keyboardType="numbers-and-punctuation" />
+                      <InputField
+                        placeholder="YYYY-MM-DD"
+                        value={dob}
+                        onChangeText={(t: string) => setDob(formatDobInput(t))}
+                        keyboardType="number-pad"
+                        maxLength={10}
+                      />
                     </Input>
+                    <UIText size="xs" className="text-typo-400">
+                      Year first: YYYY-MM-DD (e.g. 2009-04-15). Just type the numbers — dashes are added for you.
+                    </UIText>
                   </VStack>
 
                   {isMinor && (
@@ -366,6 +397,72 @@ export default function PoeEnrollScreen() {
                           </UIText>
                         </Pressable>
                       </VStack>
+                    </View>
+                  )}
+
+                  {/* Credit destination */}
+                  <VStack space="xs">
+                    <UIText size="sm" className="font-poppins-medium">Where should your credit go?</UIText>
+                    <HStack className="gap-3 mt-1">
+                      {([
+                        { key: 'school', label: 'My school', sub: 'Transfer to my school' },
+                        { key: 'homeschool', label: 'Homeschool / not enrolled', sub: 'Standalone transcript' },
+                      ] as const).map((opt) => {
+                        const sel = creditDest === opt.key;
+                        return (
+                          <Pressable
+                            key={opt.key}
+                            onPress={() => setCreditDest(opt.key)}
+                            className={`flex-1 rounded-lg border p-3 ${sel ? 'border-optio-purple bg-optio-purple/5' : 'border-outline-200'}`}
+                          >
+                            <UIText size="sm" className={`font-poppins-medium ${sel ? 'text-optio-purple' : 'text-typo-600'}`}>{opt.label}</UIText>
+                            <UIText size="xs" className="text-typo-400">{opt.sub}</UIText>
+                          </Pressable>
+                        );
+                      })}
+                    </HStack>
+                  </VStack>
+
+                  {creditDest === 'school' && (
+                    <VStack space="md">
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">School name</UIText>
+                        <Input variant="outline" size="lg">
+                          <InputField placeholder="e.g. Lincoln High School" value={schoolName} onChangeText={setSchoolName} />
+                        </Input>
+                      </VStack>
+                      <HStack className="gap-3">
+                        <VStack space="xs" className="flex-1">
+                          <UIText size="sm" className="font-poppins-medium">School city</UIText>
+                          <Input variant="outline" size="lg">
+                            <InputField placeholder="City" value={schoolCity} onChangeText={setSchoolCity} />
+                          </Input>
+                        </VStack>
+                        <VStack space="xs" className="flex-1">
+                          <UIText size="sm" className="font-poppins-medium">State</UIText>
+                          <Input variant="outline" size="lg">
+                            <InputField placeholder="State" value={schoolState} onChangeText={setSchoolState} />
+                          </Input>
+                        </VStack>
+                      </HStack>
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">
+                          Counselor or registrar email <UIText size="xs" className="text-typo-300">(optional)</UIText>
+                        </UIText>
+                        <Input variant="outline" size="lg">
+                          <InputField placeholder="counselor@school.org" value={schoolEmail} onChangeText={setSchoolEmail}
+                            autoCapitalize="none" keyboardType="email-address" />
+                        </Input>
+                        <UIText size="xs" className="text-typo-400">Helps us send your transcript to the right person. You can add it later.</UIText>
+                      </VStack>
+                    </VStack>
+                  )}
+
+                  {creditDest === 'homeschool' && (
+                    <View className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
+                      <UIText size="xs" className="text-typo-500">
+                        We’ll issue an official accredited transcript record you can use for your homeschool records and college admissions.
+                      </UIText>
                     </View>
                   )}
 

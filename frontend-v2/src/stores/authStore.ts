@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { authAPI, api } from '../services/api';
 import { tokenStore } from '../services/tokenStore';
@@ -236,6 +237,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       // handleGoogleCallback flips isLoading off + sets user on success.
       await get().handleGoogleCallback(accessToken, refreshToken);
+      // Native OAuth has no web-style callback page to redirect us, so navigate
+      // into the app ourselves once the session is set. Without this the user
+      // stayed on the (authenticated) login screen and the optio:// deep link
+      // could re-enter the OAuth callback route, churning the render tree.
+      if (useAuthStore.getState().isAuthenticated) {
+        router.replace('/(app)/(tabs)/dashboard');
+      }
     } catch (err: any) {
       set({ isLoading: false, error: err?.message || 'Google sign-in failed' });
     }
@@ -380,6 +388,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         sbData.session.refresh_token,
         fullName,
       );
+      // Native OAuth: navigate into the app ourselves (no web callback page).
+      if (useAuthStore.getState().isAuthenticated) {
+        router.replace('/(app)/(tabs)/dashboard');
+      }
     } catch (err: unknown) {
       // User-cancelled is not an error to surface.
       const maybeCode = (err as { code?: string } | null)?.code;

@@ -1,123 +1,155 @@
-import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { listMyClasses } from '../../services/studentClassService'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import api from '../../services/api'
+import { getSubjectName } from '../../constants/subjects'
+import CreateCreditClassModal from '../../components/classes/CreateCreditClassModal'
 
-const STATUS_LABEL = {
-  draft: 'Draft',
-  pending_review: 'Pending review',
-  published: 'Published',
-  archived: 'Archived',
-}
-
-const STATUS_STYLE = {
-  draft: 'bg-gray-100 text-gray-700',
-  pending_review: 'bg-yellow-100 text-yellow-800',
-  published: 'bg-green-100 text-green-800',
-  archived: 'bg-red-100 text-red-700',
+const REVIEW_STATUS_LABEL = {
+  submitted_for_review: { label: 'In review', style: 'bg-yellow-100 text-yellow-800' },
+  credit_awarded: { label: 'Credit awarded', style: 'bg-green-100 text-green-800' },
+  rejected: { label: 'Needs more work', style: 'bg-red-100 text-red-700' },
 }
 
 const MyClasses = () => {
-  const navigate = useNavigate()
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [showCreate, setShowCreate] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const list = await listMyClasses()
-        if (!cancelled) setClasses(list)
-      } catch (e) {
-        if (!cancelled) setError(e?.response?.data?.error || e.message)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
+  const loadClasses = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/api/users/dashboard')
+      const active = res.data?.active_quests || []
+      const classQuests = active.filter(
+        (uq) => (uq.quests?.quest_type || uq.quest_type) === 'class'
+      )
+      const withProgress = await Promise.all(
+        classQuests.map(async (uq) => {
+          const quest = uq.quests || uq
+          const questId = uq.quest_id || quest.id || uq.id
+          let progress = null
+          try {
+            const p = await api.get(`/api/quests/${questId}/class-progress`)
+            progress = p.data?.data || null
+          } catch {
+            // progress is best-effort; the card still renders
+          }
+          return {
+            questId,
+            title: quest.title,
+            transcript_subject: quest.transcript_subject,
+            progress,
+          }
+        })
+      )
+      setClasses(withProgress)
+    } catch {
+      setClasses([])
+    } finally {
+      setLoading(false)
     }
   }, [])
 
+  useEffect(() => {
+    loadClasses()
+  }, [loadClasses])
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      {showCreate && (
+        <CreateCreditClassModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => setShowCreate(false)}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Classes</h1>
+          <h1 className="text-2xl font-bold text-gray-900">High School Classes</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Design a class your friends can sign up for with a shareable link.
+            Earn a transcript credit by working toward a single subject. Everything you do in a
+            class counts toward that credit.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => navigate('/classes/new')}
-          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90"
+          onClick={() => setShowCreate(true)}
+          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 flex-shrink-0"
         >
-          Create a class
+          Start a class
         </button>
       </div>
 
-      {loading && (
+      {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
         </div>
-      )}
-
-      {error && (
-        <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-sm text-red-800">
-          {error}
-        </div>
-      )}
-
-      {!loading && classes.length === 0 && (
+      ) : classes.length === 0 ? (
         <div className="p-8 text-center border border-dashed border-gray-300 rounded-lg">
-          <p className="text-gray-600 mb-4">You haven't created any classes yet.</p>
-          <Link
-            to="/classes/new"
+          <p className="text-gray-600 mb-4">
+            You haven't started a class yet. Pick a subject and start earning credit toward it.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
             className="inline-block px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90"
           >
-            Create your first class
-          </Link>
+            Start your first class
+          </button>
         </div>
-      )}
-
-      {!loading && classes.length > 0 && (
+      ) : (
         <ul className="space-y-3">
-          {classes.map((c) => (
-            <li key={c.id}>
-              <Link
-                to={`/classes/${c.id}/edit`}
-                className="block p-4 border border-gray-200 rounded-lg bg-white hover:border-optio-purple transition"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-gray-900 truncate">{c.title}</h2>
-                    {c.description && (
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">{c.description}</p>
-                    )}
-                    <div className="mt-2 text-xs text-gray-500 flex items-center gap-3">
-                      {c.credit_subject && c.credit_amount && (
-                        <span>
-                          {Number(c.credit_amount).toFixed(2)} {c.credit_subject}
-                        </span>
-                      )}
-                      {c.quest_count != null && (
-                        <span>{c.quest_count} {c.quest_count === 1 ? 'activity' : 'activities'}</span>
+          {classes.map((c) => {
+            const p = c.progress
+            const target = p?.target_xp || 1000
+            const xpToNext = p?.xp_toward_next_credit ?? p?.approved_xp ?? 0
+            const percent = Math.min(100, Math.round((xpToNext / target) * 100))
+            const subjectName =
+              p?.transcript_subject_display || getSubjectName(c.transcript_subject)
+            const reviewMeta = p?.review_status ? REVIEW_STATUS_LABEL[p.review_status] : null
+            return (
+              <li key={c.questId}>
+                <Link
+                  to={`/quests/${c.questId}`}
+                  className="block p-4 border border-gray-200 rounded-lg bg-white hover:border-optio-purple transition"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-semibold text-gray-900 truncate">{c.title}</h2>
+                      <div className="mt-1 text-xs text-gray-500 flex items-center gap-3">
+                        <span className="font-medium text-optio-purple">{subjectName}</span>
+                        {!!(p?.credits_earned) && (
+                          <span className="text-green-700 font-medium">
+                            {p.credits_earned} credit{p.credits_earned > 1 ? 's' : ''} earned
+                          </span>
+                        )}
+                      </div>
+                      {p && (
+                        <div className="mt-2">
+                          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-optio-purple to-optio-pink rounded-full"
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {xpToNext} / {target} XP toward next credit
+                          </p>
+                        </div>
                       )}
                     </div>
+                    {reviewMeta && (
+                      <span
+                        className={`ml-3 px-2 py-1 text-xs font-medium rounded flex-shrink-0 ${reviewMeta.style}`}
+                      >
+                        {reviewMeta.label}
+                      </span>
+                    )}
                   </div>
-                  <span
-                    className={`ml-3 px-2 py-1 text-xs font-medium rounded flex-shrink-0 ${STATUS_STYLE[c.status] || STATUS_STYLE.draft}`}
-                  >
-                    {STATUS_LABEL[c.status] || c.status}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          ))}
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

@@ -98,6 +98,8 @@ def enroll_in_poe():
         student:  { first_name, last_name, email, password, date_of_birth (YYYY-MM-DD) }
         parent:   { first_name?, last_name?, email }   # required for minors (13-17)
         consent:  { signature_name, agreed: true }     # parent's inline e-signature; optional (soft gate)
+        school:   { is_homeschool, name, city?, state?, contact_email? }  # credit destination;
+                  name required unless is_homeschool (then a standalone transcript is issued)
 
     Minors (13-17) must supply a parent email. If the parent's e-signature is
     present we mark consent verified now; if not, the account is still created
@@ -112,6 +114,7 @@ def enroll_in_poe():
         student = data.get('student') or {}
         parent = data.get('parent') or {}
         consent = data.get('consent') or {}
+        school = data.get('school') or {}
 
         first_name = (student.get('first_name') or '').strip()
         last_name = (student.get('last_name') or '').strip()
@@ -151,6 +154,20 @@ def enroll_in_poe():
 
         signature_name = (consent.get('signature_name') or '').strip()
         consent_signed = bool(consent.get('agreed')) and bool(signature_name)
+
+        # --- Credit destination: school of record, or homeschool/unenrolled ---
+        is_homeschool = bool(school.get('is_homeschool'))
+        school_name = (school.get('name') or '').strip()
+        school_city = (school.get('city') or '').strip()
+        school_state = (school.get('state') or '').strip()
+        school_contact_email = (school.get('contact_email') or '').strip().lower()
+        if not is_homeschool and not school_name:
+            return jsonify({
+                'error': 'school_required',
+                'message': 'Tell us which school should receive your credit, or choose homeschool / not enrolled.',
+            }), 400
+        if school_contact_email and not EMAIL_RE.match(school_contact_email):
+            return jsonify({'error': 'A valid school contact email is required (or leave it blank).'}), 400
 
         # admin client justified: pre-auth enrollment; creates the auth user and
         # writes users/diplomas/consent before any session exists.
@@ -289,6 +306,11 @@ def enroll_in_poe():
                 'user_id': user_id,
                 'poe_cohort_id': cohort['id'],
                 'track_id': track_id,
+                'is_homeschool': is_homeschool,
+                'school_name': school_name or None,
+                'school_city': school_city or None,
+                'school_state': school_state or None,
+                'school_contact_email': school_contact_email or None,
             }).execute()
             enrolled = True
         except Exception as part_err:
