@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
   DocumentTextIcon,
@@ -114,13 +114,16 @@ const SortableEvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, o
   } = useSortable({ id: block.id });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    // Translate only (not Transform): rectSortingStrategy otherwise scales the
+    // dragged card to match the slot it's over, which balloons it in a masonry
+    // where cards have very different heights.
+    transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className="mb-4 break-inside-avoid">
       <SwipeableBlock onDelete={() => onDeleteWithUndo?.(block.id)}>
         <EvidenceBlock
           block={block}
@@ -180,9 +183,13 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
   const renderImages = () => {
     if (items.length === 0) return <p className="text-gray-500 text-sm">No images</p>;
 
+    // A single image shows full and uncropped (natural aspect) so the work is
+    // actually legible; multiple images use a larger 2-up grid of thumbnails.
+    const single = items.length === 1;
+
     return (
       <>
-        <div className={`grid gap-2 ${items.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'}`}>
+        <div className={single ? '' : 'grid grid-cols-2 gap-2'}>
           {items.map((item, index) => (
             <div
               key={index}
@@ -191,7 +198,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               <img
                 src={item.url}
                 alt={item.alt || item.caption || `Image ${index + 1}`}
-                className="w-full h-auto min-h-[120px] sm:h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                className={`w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity ${single ? 'h-auto' : 'h-44 object-cover'}`}
                 onClick={() => openLightbox(index)}
               />
               {/* Delete button for individual image */}
@@ -478,8 +485,10 @@ const EvidenceDisplay = ({
     return (
       <>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-4">
+          <SortableContext items={blocks.map(b => b.id)} strategy={rectSortingStrategy}>
+            {/* Masonry: single column on mobile (swipe-to-delete intact), two
+                staggered columns on desktop so images show large and uncropped. */}
+            <div className="columns-1 md:columns-2 gap-4">
               {blocks.map((block) => (
                 <SortableEvidenceBlock
                   key={block.id}
@@ -508,7 +517,7 @@ const EvidenceDisplay = ({
   // Without reordering
   return (
     <>
-      <div className="space-y-4">
+      <div className="columns-1 md:columns-2 gap-4 [&>*]:mb-4 [&>*]:break-inside-avoid">
         {blocks.map((block) => (
           <SwipeableBlock key={block.id} onDelete={() => handleDeleteWithUndo(block.id)}>
             <EvidenceBlock

@@ -1049,7 +1049,7 @@ class InterestTracksService(BaseService):
             # Get active quests with enrollment info
             # Active = is_active=true AND status='picked_up'
             response = supabase.table('user_quests') \
-                .select('id, quest_id, quests(id, title, image_url, description)') \
+                .select('id, quest_id, quests(id, title, image_url, description, quest_type, transcript_subject)') \
                 .eq('user_id', user_id) \
                 .eq('is_active', True) \
                 .eq('status', 'picked_up') \
@@ -1168,7 +1168,11 @@ class InterestTracksService(BaseService):
                         'moment_count': moment_count,
                         'task_count': task_count,
                         'item_count': total_items,
-                        'user_quest_id': user_quest_id
+                        'user_quest_id': user_quest_id,
+                        # Needed so the journal can lock the diploma credit to a
+                        # class's subject when adding a moment to it.
+                        'quest_type': quest.get('quest_type'),
+                        'transcript_subject': quest.get('transcript_subject')
                     })
 
             # Format course topics with nested projects
@@ -1320,20 +1324,36 @@ class InterestTracksService(BaseService):
             # Map topic_type to junction table type
             junction_type = 'topic' if topic_type == 'track' else 'quest'
 
-            if not topic_id:
-                supabase.table('learning_event_topics') \
-                    .delete() \
-                    .eq('learning_event_id', moment_id) \
-                    .eq('topic_type', junction_type) \
-                    .execute()
+            is_removal = (not topic_id) or (action == 'remove')
 
-            elif action == 'remove':
-                supabase.table('learning_event_topics') \
+            if is_removal:
+                # Adding a moment to a quest creates a task, so removing it from
+                # the quest removes that task too. Block when the task was
+                # already completed, so earned XP/credit isn't silently dropped.
+                if junction_type == 'quest':
+                    if topic_id:
+                        quest_ids_to_clear = [topic_id]
+                    else:
+                        existing_links = supabase.table('learning_event_topics') \
+                            .select('topic_id') \
+                            .eq('learning_event_id', moment_id) \
+                            .eq('topic_type', 'quest') \
+                            .execute()
+                        quest_ids_to_clear = [r['topic_id'] for r in (existing_links.data or [])]
+
+                    cleared, err = InterestTracksService._remove_moment_quest_tasks(
+                        supabase, user_id, moment_id, quest_ids_to_clear
+                    )
+                    if not cleared:
+                        return {'success': False, 'error': err}
+
+                delete_q = supabase.table('learning_event_topics') \
                     .delete() \
                     .eq('learning_event_id', moment_id) \
-                    .eq('topic_type', junction_type) \
-                    .eq('topic_id', topic_id) \
-                    .execute()
+                    .eq('topic_type', junction_type)
+                if topic_id:
+                    delete_q = delete_q.eq('topic_id', topic_id)
+                delete_q.execute()
 
             else:
                 if topic_type == 'track':
@@ -1422,7 +1442,7 @@ class InterestTracksService(BaseService):
 
             # Verify user enrollment in quest (use limit 1 instead of single to handle duplicates)
             enrollment_response = supabase.table('user_quests') \
-                .select('id, quests(id, title, description, image_url)') \
+                .select('id, quests(id, title, description, image_url, quest_type, transcript_subject)') \
                 .eq('user_id', user_id) \
                 .eq('quest_id', quest_id) \
                 .limit(1) \
@@ -1571,29 +1591,69 @@ class InterestTracksService(BaseService):
     DEFAULT_PROMOTED_TASK_XP = 50
 
     @staticmethod
+    def _remove_moment_quest_tasks(supabase, user_id, moment_id, quest_ids):
+        """Delete the tasks a moment created on the given quests.
+
+        Returns (True, None) on success. Returns (False, message) if any such
+        task has already been completed — the caller should abort the unassign
+        so the student doesn't silently lose earned XP/credit.
+        """
+        if not quest_ids:
+            return True, None
+
+        tasks_resp = supabase.table('user_quest_tasks') \
+            .select('id') \
+            .eq('user_id', user_id) \
+            .eq('source_moment_id', moment_id) \
+            .in_('quest_id', quest_ids) \
+            .execute()
+        task_ids = [t['id'] for t in (tasks_resp.data or [])]
+        if not task_ids:
+            return True, None
+
+        completed = supabase.table('quest_task_completions') \
+            .select('user_quest_task_id') \
+            .in_('user_quest_task_id', task_ids) \
+            .limit(1) \
+            .execute()
+        if completed.data:
+            return False, ("This moment's task is already completed. Remove the "
+                           "completed task from the quest first, then unassign.")
+
+        supabase.table('user_quest_tasks').delete().in_('id', task_ids).execute()
+        return True, None
+
+    @staticmethod
     def convert_moment_to_task(
         user_id: str,
         moment_id: str,
         quest_id: Optional[str] = None,
         title: Optional[str] = None,
         pillar: str = 'stem',
-        xp_value: int = DEFAULT_PROMOTED_TASK_XP
+        xp_value: int = DEFAULT_PROMOTED_TASK_XP,
+        diploma_subject: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Convert a learning moment into a task on one of its assigned quests.
+        Add a learning moment to a quest as a task (the single "Add to quest"
+        action — there is no separate promote step).
+
+        Creates the moment->quest journal link if missing, then an approved,
+        incomplete task (50 XP default) with the moment's evidence pre-seeded.
 
         Args:
             user_id: The requesting user
-            moment_id: The moment to convert
-            quest_id: Which quest to create the task under. Required when the
-                moment is assigned to multiple quests; if omitted and the
-                moment is assigned to exactly one quest, that quest is used.
+            moment_id: The moment to add
+            quest_id: Which quest to add it to. If omitted and the moment is
+                already assigned to exactly one quest, that quest is used.
             title: Optional title override (uses moment title/description otherwise)
             pillar: Learning pillar for the task
             xp_value: XP value for the new task. Defaults to
-                ``DEFAULT_PROMOTED_TASK_XP`` (50). The student can edit this
-                via ``PUT /api/tasks/<task_id>`` once the task is created;
-                credit review still happens at credit-request time.
+                ``DEFAULT_PROMOTED_TASK_XP`` (50). Editable via
+                ``PUT /api/tasks/<task_id>``.
+            diploma_subject: Optional school-subject key (e.g. 'social_studies')
+                the task's XP counts toward (100%). IGNORED and forced to the
+                class's subject when the quest is a class. None = no diploma
+                credit mapping (counts toward no subject until edited).
         """
         try:
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
@@ -1614,32 +1674,25 @@ class InterestTracksService(BaseService):
 
             moment = moment_response.data
 
-            assigned_quests_resp = supabase.table('learning_event_topics') \
-                .select('topic_id') \
-                .eq('learning_event_id', moment_id) \
-                .eq('topic_type', 'quest') \
-                .execute()
-            assigned_quest_ids = [r['topic_id'] for r in (assigned_quests_resp.data or [])]
-
+            # Resolve the target quest. The "Add to quest" flow passes quest_id
+            # explicitly; fall back to a sole existing assignment for callers
+            # that pre-assigned. We no longer require the moment to be
+            # pre-assigned — adding it to a quest creates that link below.
             if quest_id:
-                if quest_id not in assigned_quest_ids:
-                    return {
-                        'success': False,
-                        'error': 'Moment is not assigned to that quest'
-                    }
                 resolved_quest_id = quest_id
-            elif len(assigned_quest_ids) == 1:
-                resolved_quest_id = assigned_quest_ids[0]
-            elif len(assigned_quest_ids) == 0:
-                return {
-                    'success': False,
-                    'error': 'Moment is not assigned to a quest'
-                }
             else:
-                return {
-                    'success': False,
-                    'error': 'Moment is assigned to multiple quests; specify quest_id'
-                }
+                assigned_quests_resp = supabase.table('learning_event_topics') \
+                    .select('topic_id') \
+                    .eq('learning_event_id', moment_id) \
+                    .eq('topic_type', 'quest') \
+                    .execute()
+                assigned_quest_ids = [r['topic_id'] for r in (assigned_quests_resp.data or [])]
+                if len(assigned_quest_ids) == 1:
+                    resolved_quest_id = assigned_quest_ids[0]
+                elif len(assigned_quest_ids) == 0:
+                    return {'success': False, 'error': 'No quest specified'}
+                else:
+                    return {'success': False, 'error': 'Specify which quest to add this to'}
 
             # `limit(1)` rather than `.single()` — a user can have more than
             # one enrollment row for the same quest, and `.single()` raises
@@ -1658,6 +1711,35 @@ class InterestTracksService(BaseService):
                 }
 
             user_quest_id = enrollment_response.data[0]['id']
+
+            # One task per moment+quest — don't create duplicates if the moment
+            # was already added to this quest.
+            existing_task = supabase.table('user_quest_tasks') \
+                .select('id') \
+                .eq('user_id', user_id) \
+                .eq('quest_id', resolved_quest_id) \
+                .eq('source_moment_id', moment_id) \
+                .limit(1) \
+                .execute()
+            if existing_task.data:
+                return {
+                    'success': False,
+                    'error': 'This moment is already on that quest'
+                }
+
+            # Resolve the diploma credit. A class quest forces its own subject
+            # (100% of the task's XP), matching how all class tasks behave; a
+            # regular quest uses the student's optional pick (may be None).
+            quest_row = supabase.table('quests') \
+                .select('quest_type, transcript_subject') \
+                .eq('id', resolved_quest_id) \
+                .single() \
+                .execute()
+            is_class = bool(quest_row.data and quest_row.data.get('quest_type') == 'class')
+            if is_class:
+                resolved_subject = quest_row.data.get('transcript_subject')
+            else:
+                resolved_subject = diploma_subject or None
 
             task_title = title
             if not task_title:
@@ -1680,9 +1762,24 @@ class InterestTracksService(BaseService):
                 'xp_value': xp_value,
                 'is_required': False,
                 'is_manual': True,
-                'approval_status': 'pending',
+                # Auto-approved like directly-created manual tasks
+                # (add_manual_tasks_batch): the student controls their own quest,
+                # so the promoted task must be visible/completable immediately.
+                # The quest detail endpoint only returns approval_status='approved'
+                # tasks, so 'pending' here left promoted moments invisible.
+                # The task lands incomplete with the moment's evidence pre-seeded;
+                # the student completes it to earn XP. Credit review still happens
+                # at credit-request time.
+                'approval_status': 'approved',
                 'source_moment_id': moment_id
             }
+
+            # 100% of the task's XP counts toward the resolved diploma subject
+            # (class subject when it's a class; the student's pick otherwise).
+            # Left unset when no subject was resolved.
+            if resolved_subject:
+                task_data['subject_xp_distribution'] = {resolved_subject: xp_value}
+                task_data['diploma_subjects'] = {resolved_subject: xp_value}
 
             task_response = supabase.table('user_quest_tasks').insert(task_data).execute()
 
@@ -1693,6 +1790,18 @@ class InterestTracksService(BaseService):
                 }
 
             task = task_response.data[0]
+
+            # Ensure the moment shows under this quest in the journal (and that
+            # "View in quest" resolves). Insert the link if it isn't there yet;
+            # a unique-constraint collision just means it already existed.
+            try:
+                supabase.table('learning_event_topics').insert({
+                    'learning_event_id': moment_id,
+                    'topic_type': 'quest',
+                    'topic_id': resolved_quest_id
+                }).execute()
+            except Exception:
+                logger.debug("quest junction link already present", exc_info=True)
 
             evidence_blocks = moment.get('learning_event_evidence_blocks', [])
             seeded = InterestTracksService._seed_task_evidence_from_moment(

@@ -13,9 +13,8 @@ import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
-import { useAuthStore } from '@/src/stores/authStore';
-import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useObserverStudents } from '@/src/hooks/useObserverStudents';
+import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import {
@@ -29,28 +28,6 @@ const DESKTOP_BREAKPOINT = 768;
 
 const OPTIO_ICON_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
-
-function useIsObserver() {
-  const user = useAuthStore((s) => s.user);
-  const previewRole = usePreviewRoleStore((s) => s.previewRole);
-  if (user?.role === 'superadmin' && previewRole) return previewRole === 'observer';
-  if (!user) return false;
-  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
-  return role === 'observer';
-}
-
-function useIsParent() {
-  const user = useAuthStore((s) => s.user);
-  const previewRole = usePreviewRoleStore((s) => s.previewRole);
-  if (user?.role === 'superadmin' && previewRole) return previewRole === 'parent';
-  if (!user) return false;
-  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
-  return (
-    role === 'parent'
-    || (user as any).has_dependents === true
-    || (user as any).has_linked_students === true
-  );
-}
 
 function relativeTime(iso?: string | null): string {
   if (!iso) return 'No activity yet';

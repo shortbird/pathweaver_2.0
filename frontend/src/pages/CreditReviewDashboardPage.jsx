@@ -10,12 +10,16 @@ import CreditDataTable from '../components/credit-dashboard/CreditDataTable'
 import BulkActionBar from '../components/credit-dashboard/BulkActionBar'
 import MergeModal from '../components/credit-dashboard/MergeModal'
 import ShortcutHelp from '../components/credit-dashboard/ShortcutHelp'
+import ClassReviewsSection from '../components/credit-dashboard/ClassReviewsSection'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 import useIsMobile from '../hooks/useIsMobile'
 
 const CreditReviewDashboardPage = () => {
   const { effectiveRole } = useAuth()
   const isMobile = useIsMobile()
+  // Holistic class credit is a superadmin function (platform class submissions
+  // route to superadmin); only they see the Classes tab.
+  const canReviewClasses = effectiveRole === 'superadmin'
   const [viewMode, setViewMode] = useState('split') // 'split' or 'table'
   const [items, setItems] = useState([])
   const [selectedItem, setSelectedItem] = useState(null)
@@ -50,6 +54,24 @@ const CreditReviewDashboardPage = () => {
   const [showMergeModal, setShowMergeModal] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
 
+  // 'tasks' = per-task credit queue (default); 'classes' = full class submissions
+  const [mainTab, setMainTab] = useState('tasks')
+  const [classPendingCount, setClassPendingCount] = useState(0)
+  const [classRefreshKey, setClassRefreshKey] = useState(0)
+
+  // Badge count of classes awaiting holistic review.
+  useEffect(() => {
+    if (!canReviewClasses) return
+    let cancelled = false
+    api.get('/api/admin/class-reviews', { params: { status: 'submitted_for_review' } })
+      .then(res => {
+        if (cancelled) return
+        const data = res.data?.data || res.data
+        setClassPendingCount((data.items || []).length)
+      })
+      .catch(() => { /* badge is best-effort */ })
+    return () => { cancelled = true }
+  }, [classRefreshKey, canReviewClasses])
 
   const perPage = 50
 
@@ -288,7 +310,29 @@ const CreditReviewDashboardPage = () => {
           <h1 className="text-lg md:text-xl font-semibold text-gray-900 shrink-0">
             {isMobile ? 'Credit Review' : 'Credit Review Dashboard'}
           </h1>
-          {stats && (
+          {/* Tasks vs full-class submissions (superadmin reviews classes) */}
+          {canReviewClasses && (
+          <div className="flex shrink-0 rounded-lg border border-gray-200 overflow-hidden text-sm">
+            <button
+              onClick={() => setMainTab('tasks')}
+              className={`px-3 py-1.5 ${mainTab === 'tasks' ? 'bg-optio-purple text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              Tasks
+            </button>
+            <button
+              onClick={() => setMainTab('classes')}
+              className={`px-3 py-1.5 flex items-center gap-1.5 border-l border-gray-200 ${mainTab === 'classes' ? 'bg-optio-purple text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              Classes
+              {classPendingCount > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${mainTab === 'classes' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                  {classPendingCount}
+                </span>
+              )}
+            </button>
+          </div>
+          )}
+          {mainTab === 'tasks' && stats && (
             <div className="flex gap-2 text-sm overflow-x-auto no-scrollbar">
               {stats.pending_org_approval > 0 && (
                 <span className="shrink-0 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
@@ -304,8 +348,9 @@ const CreditReviewDashboardPage = () => {
           )}
         </div>
         {/* Desktop-only chrome: view toggle, keyboard shortcuts. On mobile
-            the split view is forced and keyboard shortcuts are irrelevant. */}
-        {!isMobile && (
+            the split view is forced and keyboard shortcuts are irrelevant.
+            Only relevant to the per-task queue. */}
+        {!isMobile && mainTab === 'tasks' && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setViewMode(v => v === 'split' ? 'table' : 'split')}
@@ -324,9 +369,16 @@ const CreditReviewDashboardPage = () => {
         )}
       </div>
 
+      {/* Full-class submissions — one card per class, not per task. */}
+      {mainTab === 'classes' && (
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 bg-gray-50">
+          <ClassReviewsSection onReviewed={() => setClassRefreshKey(k => k + 1)} />
+        </div>
+      )}
+
       {/* Main content. On mobile we force the split layout (the table view
           and bulk-select workflow assume a trackpad + keyboard). */}
-      {viewMode === 'split' || isMobile ? (
+      {mainTab === 'tasks' && (viewMode === 'split' || isMobile) && (
         <DashboardLayout
           isMobile={isMobile}
           hasSelection={!!selectedItem}
@@ -364,7 +416,9 @@ const CreditReviewDashboardPage = () => {
             <StudentContext context={studentContext} loading={detailLoading} />
           )}
         </DashboardLayout>
-      ) : (
+      )}
+
+      {mainTab === 'tasks' && viewMode === 'table' && !isMobile && (
         <CreditDataTable
           items={items}
           selectedItems={selectedItems}
@@ -383,7 +437,7 @@ const CreditReviewDashboardPage = () => {
 
       {/* Bulk action bar — desktop only. Mobile users review one item at
           a time via the single-panel layout above. */}
-      {!isMobile && selectedItems.length > 0 && (
+      {mainTab === 'tasks' && !isMobile && selectedItems.length > 0 && (
         <BulkActionBar
           selectedCount={selectedItems.length}
           items={items}

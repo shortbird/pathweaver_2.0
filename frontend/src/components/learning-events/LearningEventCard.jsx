@@ -11,13 +11,10 @@ import {
   FolderPlusIcon,
   LinkIcon,
   PlusIcon,
-  SparklesIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import LearningEventDetailModal from './LearningEventDetailModal';
-import PromoteToTaskModal from './PromoteToTaskModal';
-import RequestXpModal from './RequestXpModal';
-import EvolveTopicModal from '../interest-tracks/EvolveTopicModal';
+import AddToQuestModal from './PromoteToTaskModal';
 import { getPillarData } from '../../utils/pillarMappings';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -41,13 +38,9 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
 
-  // XP-flow modal state
-  const [promoteModalOpen, setPromoteModalOpen] = useState(false);
-  const [promoteEvent, setPromoteEvent] = useState(null);
-  const [promotePresetQuestId, setPromotePresetQuestId] = useState(null);
-  const [requestXpOpen, setRequestXpOpen] = useState(false);
-  const [evolveOpen, setEvolveOpen] = useState(false);
-  const [evolveTrack, setEvolveTrack] = useState(null);
+  // Add-to-quest modal state
+  const [addQuestModalOpen, setAddQuestModalOpen] = useState(false);
+  const [selectedQuest, setSelectedQuest] = useState(null);
 
   const isParentView = !!studentId;
 
@@ -206,56 +199,68 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
     }
   };
 
-  // ─── XP-flow handlers ─────────────────────────────────────────────────────
+  // ─── Add-to-quest + unassign handlers ─────────────────────────────────────
 
-  const openPromoteForCurrent = () => {
-    setPromoteEvent(localEvent);
-    setPromotePresetQuestId(null);
-    setPromoteModalOpen(true);
+  const openAddToQuest = (quest) => {
+    setSelectedQuest(quest);
+    setAddQuestModalOpen(true);
+    setShowTopicDropdown(false);
   };
 
-  const handleAttachAndPromote = ({ questId, questName }) => {
-    // RequestXpModal already attached the quest. Reflect the new attachment
-    // locally so the Promote modal sees a single quest assignment.
-    const updatedTopics = [
-      ...(localEvent.topics || []),
-      { type: 'quest', id: questId, name: questName || 'Quest' }
-    ];
-    const updatedEvent = { ...localEvent, topics: updatedTopics };
-    setLocalEvent(updatedEvent);
-    if (onTrackAssigned) onTrackAssigned(updatedEvent);
-
-    setPromoteEvent(updatedEvent);
-    setPromotePresetQuestId(questId);
-    setPromoteModalOpen(true);
-  };
-
-  const handleEvolveTopic = (track) => {
-    setEvolveTrack(track);
-    setEvolveOpen(true);
-  };
-
-  const handlePromoteSuccess = (task) => {
-    // Reflect the promotion locally so the card flips to "View in quest"
-    // without waiting on a refetch from the parent.
-    const promotedQuest = (localEvent.topics || []).find(
-      (t) => t.type === 'quest' && t.id === task?.quest_id
-    );
-    const promotedTask = task
-      ? {
-          id: task.id,
-          title: task.title,
-          quest_id: task.quest_id,
-          quest_title: promotedQuest?.name,
-        }
-      : null;
-    const updated = { ...localEvent, promoted_task: promotedTask };
+  const handleAddToQuestSuccess = (task) => {
+    // Adding to a quest created both the task and (server-side) the quest link.
+    // Reflect locally: ensure the quest chip is present and flip to "View in quest".
+    const questId = task?.quest_id || selectedQuest?.id;
+    const existingTopics = localEvent.topics || [];
+    const hasQuestChip = existingTopics.some((t) => t.type === 'quest' && t.id === questId);
+    const updatedTopics = hasQuestChip
+      ? existingTopics
+      : [...existingTopics, { type: 'quest', id: questId, name: selectedQuest?.name || 'Quest' }];
+    const updated = {
+      ...localEvent,
+      topics: updatedTopics,
+      promoted_task: task
+        ? { id: task.id, title: task.title, quest_id: task.quest_id }
+        : localEvent.promoted_task
+    };
     setLocalEvent(updated);
     if (onTrackAssigned) onTrackAssigned(updated);
   };
 
-  const handleEvolveSuccess = (questId) => {
-    if (onTrackAssigned) onTrackAssigned({ ...localEvent, _evolved_quest_id: questId });
+  const handleUnassign = async (topic) => {
+    try {
+      setIsAssigning(true);
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/learning-events/${localEvent.id}/assign-topic`
+        : `/api/learning-events/${localEvent.id}/assign-topic`;
+      const response = await api.post(endpoint, {
+        type: topic.type === 'quest' ? 'quest' : 'track',
+        topic_id: topic.id,
+        action: 'remove'
+      });
+      if (response.data.success) {
+        toast.success('Moved back to unassigned');
+        const remaining = (localEvent.topics || []).filter(
+          (t) => !(t.type === topic.type && t.id === topic.id)
+        );
+        // If we removed the quest the task lived on, the task is gone too.
+        const stillPromoted = localEvent.promoted_task
+          && remaining.some((t) => t.type === 'quest' && t.id === localEvent.promoted_task.quest_id);
+        const updated = {
+          ...localEvent,
+          topics: remaining,
+          promoted_task: stillPromoted ? localEvent.promoted_task : null
+        };
+        setLocalEvent(updated);
+        if (onTrackAssigned) onTrackAssigned(updated);
+      } else {
+        toast.error(response.data.error || 'Could not unassign');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Could not unassign');
+    } finally {
+      setIsAssigning(false);
+    }
   };
 
   const renderEvidencePreview = () => {
@@ -361,34 +366,6 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
         </button>
       );
     }
-    if (xpState === 'has-quest') {
-      return (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            openPromoteForCurrent();
-          }}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:shadow-md transition-all"
-        >
-          <SparklesIcon className="w-4 h-4" />
-          <span>Promote to task</span>
-        </button>
-      );
-    }
-    if (xpState === 'topic-only') {
-      return (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setRequestXpOpen(true);
-          }}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
-        >
-          <SparklesIcon className="w-4 h-4" />
-          <span>Request XP</span>
-        </button>
-      );
-    }
     return null;
   };
 
@@ -448,6 +425,21 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                     <span className="truncate max-w-[100px]">
                       {t.name || (t.type === 'quest' ? 'Quest' : 'Topic')}
                     </span>
+                    {canRequestXp && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnassign(t);
+                        }}
+                        disabled={isAssigning}
+                        className="ml-0.5 -mr-0.5 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                        aria-label={`Move back to unassigned (remove from ${t.name || (t.type === 'quest' ? 'quest' : 'topic')})`}
+                        title="Move back to unassigned"
+                      >
+                        <XMarkIcon className="w-3 h-3" />
+                      </button>
+                    )}
                   </span>
                 ))}
               </div>
@@ -472,10 +464,10 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                     ? 'flex-1 text-optio-purple bg-purple-50 hover:bg-purple-100'
                     : 'text-gray-600 bg-gray-50 hover:bg-gray-100'}
                 `}
-                title={xpState === 'unassigned' ? 'Add to topic' : 'Add another topic or quest'}
+                title={xpState === 'unassigned' ? 'Add to a quest or topic' : 'Add to another quest or topic'}
               >
                 <FolderPlusIcon className="w-4 h-4" />
-                {xpState === 'unassigned' && <span>Add to Topic</span>}
+                {xpState === 'unassigned' && <span>Add to quest</span>}
               </button>
 
               {renderXpButton()}
@@ -572,7 +564,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleAssignToTopic('project', project.id);
+                                    openAddToQuest({ id: project.id, name: project.name });
                                   }}
                                   disabled={isAssigning}
                                   className="w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-purple-50 transition-colors disabled:opacity-50"
@@ -598,7 +590,12 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleAssignToTopic('quest', quest.id);
+                              openAddToQuest({
+                                id: quest.id,
+                                name: quest.name,
+                                quest_type: quest.quest_type,
+                                transcript_subject: quest.transcript_subject
+                              });
                             }}
                             disabled={isAssigning}
                             className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors disabled:opacity-50"
@@ -659,34 +656,15 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
         studentId={studentId}
       />
 
-      <PromoteToTaskModal
-        isOpen={promoteModalOpen}
+      <AddToQuestModal
+        isOpen={addQuestModalOpen}
         onClose={() => {
-          setPromoteModalOpen(false);
-          setPromoteEvent(null);
-          setPromotePresetQuestId(null);
+          setAddQuestModalOpen(false);
+          setSelectedQuest(null);
         }}
-        moment={promoteEvent}
-        presetQuestId={promotePresetQuestId}
-        onSuccess={handlePromoteSuccess}
-      />
-
-      <RequestXpModal
-        isOpen={requestXpOpen}
-        onClose={() => setRequestXpOpen(false)}
         moment={localEvent}
-        onAttachAndPromote={handleAttachAndPromote}
-        onEvolveTopic={handleEvolveTopic}
-      />
-
-      <EvolveTopicModal
-        isOpen={evolveOpen}
-        onClose={() => {
-          setEvolveOpen(false);
-          setEvolveTrack(null);
-        }}
-        track={evolveTrack}
-        onSuccess={handleEvolveSuccess}
+        quest={selectedQuest}
+        onSuccess={handleAddToQuestSuccess}
       />
     </>
   );

@@ -153,6 +153,7 @@ const TaskWorkspace = ({
   task,
   tasks = [],
   questId,
+  isClassQuest = false,
   onTaskSelect,
   onTaskReorder,
   onTaskComplete,
@@ -587,6 +588,10 @@ const TaskWorkspace = ({
       const result = await saveEvidence(evidenceBlocks, 'completed');
 
       if (result.success) {
+        // A freshly completed task has diploma_status 'none'. Set it now so the
+        // "Request Credit" button appears immediately — the task stays selected,
+        // so the [task.id] effect that normally loads credit status won't re-run.
+        setCreditStatus('none');
         const pillarData = getPillarData(task.pillar);
         const duration = 2000;
         const animationEnd = Date.now() + duration;
@@ -993,8 +998,10 @@ const TaskWorkspace = ({
                             <span className="hidden sm:inline">Completed! +{task.xp_amount} XP</span>
                           </span>
                         </div>
-                        {/* Request Diploma Credit button */}
-                        {(creditStatus === 'none' || creditStatus === 'grow_this') && (
+                        {/* Per-task diploma credit. Hidden inside a class quest —
+                            there, credit is requested at the class level once the
+                            XP requirement is met (see the class progress panel). */}
+                        {!isClassQuest && (creditStatus === 'none' || creditStatus === 'grow_this') && (
                           <button
                             onClick={handleRequestCredit}
                             disabled={isRequestingCredit}
@@ -1014,19 +1021,19 @@ const TaskWorkspace = ({
                             )}
                           </button>
                         )}
-                        {creditStatus === 'pending_review' && (
+                        {!isClassQuest && creditStatus === 'pending_review' && (
                           <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
                             <AcademicCapIcon className="w-4 h-4" />
                             <span className="hidden sm:inline">Awaiting Review</span>
                           </span>
                         )}
-                        {creditStatus === 'pending_org_approval' && (
+                        {!isClassQuest && creditStatus === 'pending_org_approval' && (
                           <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg">
                             <AcademicCapIcon className="w-4 h-4" />
                             <span className="hidden sm:inline">Awaiting Org Review</span>
                           </span>
                         )}
-                        {creditStatus === 'finalized' && (
+                        {!isClassQuest && creditStatus === 'finalized' && (
                           <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg">
                             <AcademicCapIcon className="w-4 h-4" />
                             <span className="hidden sm:inline">Credit Approved</span>

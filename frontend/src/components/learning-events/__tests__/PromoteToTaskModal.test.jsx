@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import PromoteToTaskModal, { DEFAULT_PROMOTED_TASK_XP } from '../PromoteToTaskModal'
+import AddToQuestModal, { DEFAULT_PROMOTED_TASK_XP } from '../PromoteToTaskModal'
 import api from '../../../services/api'
 
 vi.mock('../../../services/api', () => ({
@@ -13,11 +13,13 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
-describe('PromoteToTaskModal', () => {
+const moment = { id: 'moment-1', title: 'My moment', pillars: ['stem'] }
+
+describe('AddToQuestModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     api.post.mockResolvedValue({
-      data: { success: true, task: { id: 'new-task' }, message: 'Created!' },
+      data: { success: true, task: { id: 'new-task', quest_id: 'quest-1' }, message: 'Added!' },
     })
   })
 
@@ -25,90 +27,68 @@ describe('PromoteToTaskModal', () => {
     expect(DEFAULT_PROMOTED_TASK_XP).toBe(50)
   })
 
-  it('defaults the XP slider to 50 when opened', () => {
-    render(
-      <PromoteToTaskModal
-        isOpen
-        onClose={() => {}}
-        moment={{
-          id: 'moment-1',
-          title: 'My moment',
-          pillars: ['stem'],
-          topics: [{ type: 'quest', id: 'quest-1', name: 'My Quest' }],
-        }}
-      />
+  it('renders nothing without a quest', () => {
+    const { container } = render(
+      <AddToQuestModal isOpen onClose={() => {}} moment={moment} quest={null} />
     )
-    expect(screen.getByText('50 XP')).toBeInTheDocument()
+    expect(container).toBeEmptyDOMElement()
   })
 
-  it('skips the picker and posts with the only quest when moment has one quest', async () => {
+  it('defaults XP to 50 and posts diploma_subject null for a non-class quest', async () => {
     const onSuccess = vi.fn()
     render(
-      <PromoteToTaskModal
+      <AddToQuestModal
         isOpen
         onClose={() => {}}
-        moment={{
-          id: 'moment-1',
-          title: 'My moment',
-          topics: [{ type: 'quest', id: 'quest-1', name: 'My Quest' }],
-        }}
+        moment={moment}
+        quest={{ id: 'quest-1', name: 'My Quest', quest_type: 'optio' }}
         onSuccess={onSuccess}
       />
     )
-    expect(screen.queryByText(/multiple quests/i)).not.toBeInTheDocument()
+    expect(screen.getByText('50 XP')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add to quest/i }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     expect(api.post).toHaveBeenCalledWith(
       '/api/learning-events/moment-1/convert-to-task',
-      expect.objectContaining({
-        quest_id: 'quest-1',
-        xp_value: 50,
-      })
+      expect.objectContaining({ quest_id: 'quest-1', xp_value: 50, diploma_subject: null })
     )
     expect(onSuccess).toHaveBeenCalled()
   })
 
-  it('shows the picker first when moment has multiple quests', () => {
+  it('locks the diploma credit to the class subject for a class quest', async () => {
     render(
-      <PromoteToTaskModal
+      <AddToQuestModal
         isOpen
         onClose={() => {}}
-        moment={{
-          id: 'moment-1',
-          topics: [
-            { type: 'quest', id: 'quest-a', name: 'Quest A' },
-            { type: 'quest', id: 'quest-b', name: 'Quest B' },
-          ],
-        }}
+        moment={moment}
+        quest={{ id: 'quest-2', name: 'US History', quest_type: 'class', transcript_subject: 'social_studies' }}
       />
     )
-    expect(screen.getByText(/multiple quests/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Quest A' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Quest B' })).toBeInTheDocument()
+    // Locked subject is shown; no editable subject dropdown.
+    expect(screen.getByText('Social Studies')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /add to quest/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const payload = api.post.mock.calls[0][1]
+    expect(payload.quest_id).toBe('quest-2')
+    expect(payload.diploma_subject).toBeUndefined()
   })
 
-  it('respects presetQuestId for multi-quest moments and skips the picker', async () => {
+  it('sends the chosen diploma subject for a non-class quest', async () => {
     render(
-      <PromoteToTaskModal
+      <AddToQuestModal
         isOpen
         onClose={() => {}}
-        presetQuestId="quest-b"
-        moment={{
-          id: 'moment-1',
-          topics: [
-            { type: 'quest', id: 'quest-a', name: 'Quest A' },
-            { type: 'quest', id: 'quest-b', name: 'Quest B' },
-          ],
-        }}
+        moment={moment}
+        quest={{ id: 'quest-1', name: 'My Quest', quest_type: 'optio' }}
       />
     )
-    expect(screen.queryByText(/multiple quests/i)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'science' } })
+    fireEvent.click(screen.getByRole('button', { name: /add to quest/i }))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1]).toEqual(
-      expect.objectContaining({ quest_id: 'quest-b' })
-    )
+    expect(api.post.mock.calls[0][1].diploma_subject).toBe('science')
   })
 })

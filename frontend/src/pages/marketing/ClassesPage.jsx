@@ -117,6 +117,11 @@ const TESTIMONIALS = [
     name: 'Paige H.',
     context: 'Optio Parent',
   },
+  {
+    quote: 'Dylan and I are both so energized by the idea that there don\'t have to be all these adult-dictated rules on how you learn or how you show what you learn. He hates rubrics, so now I tell him, "I don\'t care how you do it, I just care that you do it." Write complete sentences, draw a picture, or just pull me aside and tell me out loud what you learned. He is loving learning free from rubrics, and I\'ve loved watching him do it.',
+    name: 'Andrea F.',
+    context: 'Optio Parent',
+  },
 ]
 
 const Hero = ({ onClaim }) => {

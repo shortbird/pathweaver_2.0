@@ -18,6 +18,8 @@ import { CaptureModal } from '@/src/components/capture/CaptureModal';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { LearningEventCard } from '@/src/components/journal/LearningEventCard';
 import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
+import { FeedCard } from '@/src/components/feed/FeedCard';
+import { useFeed } from '@/src/hooks/useFeed';
 import { QuestTasksSection } from '@/src/components/journal/QuestTasksSection';
 import { GenerateTasksModal } from '@/src/components/journal/GenerateTasksModal';
 import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
@@ -29,15 +31,26 @@ import type { LearningEvent } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
+import { useAuthStore } from '@/src/stores/authStore';
 
 const DESKTOP_BREAKPOINT = 768;
 
 type ViewType = 'unassigned' | 'topic' | 'track' | 'quest';
 type MobileTab = 'topics' | 'detail';
 
-export default function JournalScreen() {
+/**
+ * The Learning Journal. Rendered both as the student's own tab (no props) and
+ * as the parent's view of a child's journal (pass `studentId`). In parent mode
+ * the same UI is reused, but data + mutations route through the parent-scoped
+ * endpoints, edits are limited to moments the parent captured, and the
+ * student-only actions that have no parent backend (capture, create/rename/
+ * delete/evolve topic, AI task generation) are hidden.
+ */
+export default function JournalScreen({ studentId, headerTitle }: { studentId?: string; headerTitle?: string } = {}) {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const isParent = !!studentId;
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ViewType>('unassigned');
@@ -84,10 +97,15 @@ export default function JournalScreen() {
     }
   };
 
-  const { topics, loading: topicsLoading, refetch: refetchTopics } = useUnifiedTopics();
-  const { moments: unassigned, loading: unassignedLoading, refetch: refetchUnassigned } = useUnassignedMoments();
+  // Activity feed shown below the topics grid: this journal-owner's recent
+  // activity (the child's in parent mode, the user's own otherwise). The Feed
+  // tab remains the aggregate across all connected students.
+  const { items: feedItems, loading: feedLoading } = useFeed({ studentId });
+  const { topics, loading: topicsLoading, refetch: refetchTopics } = useUnifiedTopics(studentId);
+  const { moments: unassigned, loading: unassignedLoading, refetch: refetchUnassigned } = useUnassignedMoments(studentId);
   const { track, moments: trackMoments, loading: trackLoading, refetch: refetchTrack } = useTrackMoments(
-    selectedType === 'topic' || selectedType === 'track' ? selectedId : null
+    selectedType === 'topic' || selectedType === 'track' ? selectedId : null,
+    studentId
   );
   const { moments: questMoments, loading: questLoading, refetch: refetchQuest } = useQuestMoments(
     selectedType === 'quest' ? selectedId : null
@@ -244,8 +262,8 @@ export default function JournalScreen() {
             />
           )}
 
-          {/* Topic actions (edit / delete) */}
-          {(selectedType === 'topic' || selectedType === 'track') && track && (
+          {/* Topic actions (edit / delete) — parent view is read-only for topics */}
+          {!isParent && (selectedType === 'topic' || selectedType === 'track') && track && (
             <HStack className="gap-2 mt-2">
               <Pressable
                 onPress={handleStartEditTopic}
@@ -302,8 +320,8 @@ export default function JournalScreen() {
             </Pressable>
           )}
 
-          {/* Evolve prompt for tracks with 5+ moments */}
-          {(selectedType === 'topic' || selectedType === 'track') && track && trackMoments.length >= 5 && !track.evolved_to_quest_id && (
+          {/* Evolve prompt for tracks with 5+ moments (student-only) */}
+          {!isParent && (selectedType === 'topic' || selectedType === 'track') && track && trackMoments.length >= 5 && !track.evolved_to_quest_id && (
             <Card variant="filled" size="sm" className="mt-3">
               <HStack className="items-center gap-3">
                 <View className="w-8 h-8 rounded-full bg-optio-purple/10 items-center justify-center">
@@ -355,17 +373,24 @@ export default function JournalScreen() {
         {/* Moments grid */}
         {!activeLoading && activeMoments.length > 0 && (
           <View className="flex flex-col md:flex-row md:flex-wrap gap-3">
-            {activeMoments.map((event: any) => (
-              <View key={event.id} className="md:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)] xl:w-[calc(25%-9px)]">
-                <LearningEventCard
-                  event={event}
-                  onDeleted={refetchCurrentView}
-                  onEdit={(e) => setEditingEvent(e)}
-                  topics={topics}
-                  onAssigned={refetchCurrentView}
-                />
-              </View>
-            ))}
+            {activeMoments.map((event: any) => {
+              // In parent mode a moment is editable only if the parent captured
+              // it; the child's own moments are shown read-only.
+              const editable = !isParent || (!!currentUserId && event.captured_by_user_id === currentUserId);
+              return (
+                <View key={event.id} className="md:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)] xl:w-[calc(25%-9px)]">
+                  <LearningEventCard
+                    event={event}
+                    childId={isParent && editable ? studentId : undefined}
+                    readOnly={isParent && !editable}
+                    onDeleted={refetchCurrentView}
+                    onEdit={editable ? (e) => setEditingEvent(e) : undefined}
+                    topics={topics}
+                    onAssigned={refetchCurrentView}
+                  />
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -399,7 +424,7 @@ export default function JournalScreen() {
           {/* Sidebar */}
           <View className="w-72 bg-white border-r border-surface-200 px-3 pt-4">
             <HStack className="items-center justify-between px-3 mb-3">
-              <Heading size="md">Journal</Heading>
+              <Heading size="md">{headerTitle || 'Journal'}</Heading>
               <HStack className="items-center gap-2">
                 <Pressable
                   onPress={refetchCurrentView}
@@ -407,12 +432,14 @@ export default function JournalScreen() {
                 >
                   <Ionicons name="refresh-outline" size={16} color="#6B7280" />
                 </Pressable>
-                <Pressable
-                  onPress={() => setCaptureVisible(true)}
-                  className="w-8 h-8 rounded-full bg-optio-purple items-center justify-center"
-                >
-                  <Ionicons name="add" size={18} color="white" />
-                </Pressable>
+                {!isParent && (
+                  <Pressable
+                    onPress={() => setCaptureVisible(true)}
+                    className="w-8 h-8 rounded-full bg-optio-purple items-center justify-center"
+                  >
+                    <Ionicons name="add" size={18} color="white" />
+                  </Pressable>
+                )}
               </HStack>
             </HStack>
             {/* Quest entry points removed from the Journal — Discover lives on
@@ -424,7 +451,7 @@ export default function JournalScreen() {
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
-              onNewTopic={() => setNewTopicVisible(true)}
+              onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
               loading={topicsLoading}
             />
           </View>
@@ -443,6 +470,7 @@ export default function JournalScreen() {
           visible={!!editingEvent}
           event={editingEvent}
           topics={topics}
+          childId={studentId}
           onClose={() => setEditingEvent(null)}
           onSaved={refetchCurrentView}
         />
@@ -538,14 +566,28 @@ export default function JournalScreen() {
     <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
       {mobileTab === 'topics' ? (
         <VStack className="flex-1">
-          <PageHeader title="Journal" />
+          {isParent ? (
+            <HStack className="items-center gap-2 px-4 py-3">
+              <Pressable
+                onPress={() => router.back()}
+                hitSlop={10}
+                accessibilityLabel="Go back"
+                style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Ionicons name="chevron-back" size={24} color="#1F1B29" />
+              </Pressable>
+              <Heading size="lg" numberOfLines={1} className="flex-1">{headerTitle || 'Journal'}</Heading>
+            </HStack>
+          ) : (
+            <PageHeader title="Journal" />
+          )}
 
           {/* Unassigned now lives as the first tile inside the Topics grid
               (see TopicsSidebar.UnassignedTile) — no separate banner needed. */}
 
-          <View className="flex-1 px-5">
-            {/* Quest entry points removed from the Journal — Discover lives on
-                Home (Browse All) and New Quest lives inside the Discover sheet. */}
+          <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+            {/* Topics grid (no inner scroll — it shares this ScrollView with the
+                activity feed below). */}
             <TopicsSidebar
               topics={topics}
               selectedId={selectedId}
@@ -553,10 +595,34 @@ export default function JournalScreen() {
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
-              onNewTopic={() => setNewTopicVisible(true)}
+              onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
               loading={topicsLoading}
+              scrollable={false}
             />
-          </View>
+
+            {/* Activity feed below the topics — this journal owner's recent
+                activity. The Feed tab remains the all-students aggregate. */}
+            <VStack space="sm" className="mt-4">
+              <Heading size="md">Recent Activity</Heading>
+              {feedLoading && feedItems.length === 0 ? (
+                <VStack space="sm">
+                  <Skeleton className="h-28 rounded-xl" />
+                  <Skeleton className="h-28 rounded-xl" />
+                </VStack>
+              ) : feedItems.length > 0 ? (
+                <VStack space="sm">
+                  {feedItems.map((item: any) => (
+                    <FeedCard key={item.id} item={item} showStudent={false} viewerCanModerate={isParent} />
+                  ))}
+                </VStack>
+              ) : (
+                <Card variant="filled" size="md" className="items-center py-8">
+                  <Ionicons name="newspaper-outline" size={32} color="#9CA3AF" />
+                  <UIText size="sm" className="text-typo-400 mt-2">No recent activity yet</UIText>
+                </Card>
+              )}
+            </VStack>
+          </ScrollView>
         </VStack>
       ) : (
         <ContentPanel />

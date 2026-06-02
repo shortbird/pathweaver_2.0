@@ -98,6 +98,7 @@ const QuestDetail = () => {
   const [taskDetailToShow, setTaskDetailToShow] = React.useState(null);
   const [droppingTaskId, setDroppingTaskId] = React.useState(null);
   const [showMobileDrawer, setShowMobileDrawer] = React.useState(false);
+  const [classProgressKey, setClassProgressKey] = React.useState(0);
   const { earnedXP } = xpData;
 
   // Handle enrollment
@@ -355,6 +356,9 @@ const QuestDetail = () => {
     logger.debug('[QUEST_DETAIL] Invalidating course cache for XP update');
     queryKeys.invalidateCourses(queryClient);
 
+    // Bump the class progress panel so its XP reflects this completion immediately.
+    setClassProgressKey((k) => k + 1);
+
     // If this task was started from a course lesson, navigate back automatically
     const courseReturnInfo = sessionStorage.getItem('courseTaskReturnInfo');
     if (courseReturnInfo) {
@@ -541,6 +545,7 @@ const QuestDetail = () => {
             <CreditClassProgressPanel
               questId={quest.id}
               transcriptSubject={quest.transcript_subject}
+              refreshKey={classProgressKey}
             />
           </Suspense>
         )}
@@ -566,6 +571,7 @@ const QuestDetail = () => {
                 task={selectedTask}
                 tasks={quest.quest_tasks}
                 questId={quest.id}
+                isClassQuest={quest.quest_type === 'class'}
                 onTaskSelect={handleTaskSelect}
                 onTaskReorder={handleTaskReorder}
                 onTaskComplete={handleTaskCompletion}

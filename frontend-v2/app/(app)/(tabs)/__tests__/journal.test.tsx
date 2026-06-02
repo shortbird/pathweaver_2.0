@@ -38,6 +38,12 @@ jest.mock('@/src/components/journal/GenerateTasksModal', () => ({
 jest.mock('@/src/components/layouts/MobileHeader', () => ({
   PageHeader: () => null,
 }));
+jest.mock('@/src/hooks/useFeed', () => ({
+  useFeed: jest.fn(),
+}));
+jest.mock('@/src/components/feed/FeedCard', () => ({
+  FeedCard: () => null,
+}));
 
 import React from 'react';
 import { render } from '@testing-library/react-native';
@@ -45,6 +51,7 @@ import JournalScreen from '../journal';
 import {
   useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
 } from '@/src/hooks/useJournal';
+import { useFeed } from '@/src/hooks/useFeed';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import { createMockTopic, createMockLearningEvent } from '@/src/__tests__/utils/mockFactories';
 
@@ -54,6 +61,7 @@ beforeEach(() => {
   (useTrackMoments as jest.Mock).mockReturnValue({ track: null, moments: [], loading: false });
   (useQuestMoments as jest.Mock).mockReturnValue({ moments: [], loading: false });
   (useQuestTasks as jest.Mock).mockReturnValue({ tasks: [], questTitle: '', loading: false, refetch: jest.fn(), generateTasks: jest.fn(), acceptTask: jest.fn() });
+  (useFeed as jest.Mock).mockReturnValue({ items: [], loading: false, loadingMore: false, hasMore: false, loadMore: jest.fn(), refetch: jest.fn() });
 });
 
 afterEach(() => {

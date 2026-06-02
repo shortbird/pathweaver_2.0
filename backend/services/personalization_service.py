@@ -38,9 +38,24 @@ class TaskCacheService(BaseService):
             self._supabase = get_supabase_admin_client()
         return self._supabase
 
-    def build_cache_key(self, interests: List[str], cross_curricular: List[str]) -> str:
-        """Build a cache key from interests and cross-curricular subjects"""
+    def build_cache_key(
+        self,
+        interests: List[str],
+        cross_curricular: List[str],
+        exclude_tasks: List[str] = None
+    ) -> str:
+        """Build a cache key from interests, cross-curricular subjects, and the
+        set of tasks the student already has.
+
+        exclude_tasks is part of the key so a quest that already contains tasks
+        never collides with (and is never served) the pristine first-generation
+        cache entry. Without this, repeat generations for the same interests
+        returned the identical cached batch, which is what made tasks feel
+        "repetitive over time."
+        """
         combined = sorted(interests) + sorted(cross_curricular)
+        if exclude_tasks:
+            combined += ['exclude:' + t.strip().lower() for t in sorted(exclude_tasks)]
         key_str = '|'.join(combined)
         return hashlib.md5(key_str.encode()).hexdigest()
 
@@ -196,10 +211,41 @@ class PersonalizationService(BaseService):
     ) -> Dict[str, Any]:
         """Generate AI task suggestions with caching"""
         try:
-            # Build cache key always (needed for storage later)
-            cache_key = self.cache.build_cache_key(interests, cross_curricular_subjects)
+            # Always fold the student's CURRENT tasks for this quest into the
+            # exclusion list so the AI never re-suggests what they already have.
+            # We trust the server -- not the client -- to know this, so dedup
+            # works for every caller (generate-tasks, refine-tasks, web, mobile).
+            # Any client-supplied exclude_tasks are merged in (case-insensitive).
+            exclude_tasks = list(exclude_tasks or [])
+            try:
+                session_row = self.supabase.table('quest_personalization_sessions')\
+                    .select('user_id')\
+                    .eq('id', session_id)\
+                    .single()\
+                    .execute()
+                session_user_id = session_row.data.get('user_id') if session_row.data else None
+                if session_user_id:
+                    existing = self.supabase.table('user_quest_tasks')\
+                        .select('title')\
+                        .eq('user_id', session_user_id)\
+                        .eq('quest_id', quest_id)\
+                        .execute()
+                    seen = {t.strip().lower() for t in exclude_tasks}
+                    for row in (existing.data or []):
+                        title = (row.get('title') or '').strip()
+                        if title and title.lower() not in seen:
+                            exclude_tasks.append(title)
+                            seen.add(title.lower())
+            except Exception as e:
+                logger.warning(f"Could not load existing tasks for dedup (quest {quest_id}): {e}")
 
-            # Skip cache if we have exclude_tasks or additional_feedback
+            # Build cache key always (needed for storage later). exclude_tasks is
+            # part of the key so a quest that already has tasks can't be served
+            # the pristine first-generation cache entry.
+            cache_key = self.cache.build_cache_key(interests, cross_curricular_subjects, exclude_tasks)
+
+            # Skip cache if we have exclude_tasks (i.e. the quest already has
+            # tasks, or the client asked to avoid some) or additional_feedback.
             if exclude_tasks or additional_feedback:
                 cached_tasks = None
             else:
