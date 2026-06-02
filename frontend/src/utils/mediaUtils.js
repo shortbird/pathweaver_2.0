@@ -57,10 +57,21 @@ export function isValidUrl(string) {
 /**
  * Detect media type from a File object.
  * Returns 'video' | 'image' | 'document'.
+ *
+ * Falls back to the filename extension when file.type is missing or generic.
+ * Mobile browsers + iOS share sheet sometimes set file.type to '' or
+ * 'application/octet-stream' for camera-roll JPEGs, which would otherwise
+ * send the upload through the wrong validation path on the backend.
  */
 export function detectMediaType(file) {
-  if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('image/')) return 'image';
+  const mime = (file.type || '').toLowerCase();
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('image/')) return 'image';
+
+  const name = (file.name || '').toLowerCase();
+  const ext = name.includes('.') ? name.split('.').pop() : '';
+  if (['mp4', 'mov', 'webm', 'm4v'].includes(ext)) return 'video';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'tiff', 'tif', 'bmp', 'avif', 'jfif'].includes(ext)) return 'image';
   return 'document';
 }
 
