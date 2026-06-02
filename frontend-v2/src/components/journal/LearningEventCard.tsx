@@ -10,7 +10,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, PillarBadge } from '../ui';
 import type { LearningEvent, UnifiedTopic } from '@/src/hooks/useJournal';
-import { deleteLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
+import { deleteLearningEvent, assignMomentToTopic, deleteChildLearningEvent } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
 
@@ -30,9 +30,16 @@ interface LearningEventCardProps {
   onEdit?: (event: LearningEvent) => void;
   topics?: UnifiedTopic[];
   onAssigned?: () => void;
+  /** Parent view: the moment belongs to this child, so delete routes through
+   *  the parent-scoped endpoint. Student-only actions (topic assign, task
+   *  attach, inline topic creation) are hidden in this mode. */
+  childId?: string;
+  /** Fully read-only — no action menu opens on tap. Used for a child's
+   *  self-captured moments, which a parent can view but not edit/delete. */
+  readOnly?: boolean;
 }
 
-function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned }: LearningEventCardProps) {
+function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned, childId, readOnly }: LearningEventCardProps) {
   const [showActions, setShowActions] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showTopicMenu, setShowTopicMenu] = useState(false);
@@ -142,17 +149,20 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     if (!doDelete) return;
     setDeleting(true);
     try {
-      await deleteLearningEvent(event.id);
+      await (childId ? deleteChildLearningEvent(childId, event.id) : deleteLearningEvent(event.id));
       onDeleted?.();
-    } catch {
-      Alert.alert('Error', 'Failed to delete moment.');
+    } catch (err: any) {
+      // Surface the server's actual reason (the API interceptor also reports it
+      // to Sentry) instead of a generic message.
+      const msg = err?.response?.data?.error || err?.message || 'Failed to delete moment.';
+      Alert.alert('Error', msg);
     } finally {
       setDeleting(false);
     }
   };
 
   return (
-    <Pressable onPress={() => { if (onPress) { onPress(); } else { setShowActions(!showActions); } }}>
+    <Pressable onPress={() => { if (onPress) { onPress(); } else if (!readOnly) { setShowActions(!showActions); } }}>
       <Card variant="elevated" size="sm" className="overflow-hidden">
         {/* Media header */}
         {imageBlock && getBlockUrl(imageBlock) ? (
@@ -204,7 +214,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit</UIText>
                   </Pressable>
                 ) : null}
-                {availableTracks.length > 0 ? (
+                {!childId && availableTracks.length > 0 ? (
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); setShowTopicMenu(!showTopicMenu); }}
                     className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg"
@@ -213,15 +223,17 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">Assign</UIText>
                   </Pressable>
                 ) : null}
-                <Pressable
-                  onPress={(e) => { e.stopPropagation?.(); setTaskPickerVisible(true); }}
-                  className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg"
-                >
-                  <Ionicons name="flag-outline" size={14} color="#6D469B" />
-                  <UIText size="xs" className="text-optio-purple font-poppins-medium">
-                    {event.attached_task ? 'Change task' : 'Attach task'}
-                  </UIText>
-                </Pressable>
+                {!childId ? (
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation?.(); setTaskPickerVisible(true); }}
+                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg"
+                  >
+                    <Ionicons name="flag-outline" size={14} color="#6D469B" />
+                    <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                      {event.attached_task ? 'Change task' : 'Attach task'}
+                    </UIText>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={(e) => { e.stopPropagation?.(); setShowActions(false); handleDelete(); }}
                   disabled={deleting}

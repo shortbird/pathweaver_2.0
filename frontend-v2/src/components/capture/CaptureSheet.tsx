@@ -12,6 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
+import { toast } from '@/src/stores/toastStore';
 import { compressImageAssets } from '@/src/utils/imageCompression';
 import { useMyChildren } from '@/src/hooks/useParent';
 import {
@@ -276,7 +277,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             await attachMomentToTask(eventId, selectedTask.task.id);
           } catch {
             // Non-fatal: moment saved, attach failed — surface softly
-            Alert.alert('Heads up', 'Moment saved but could not attach to task. You can attach it from the journal.');
+            toast.info('Moment saved, but couldn\'t attach to the task. You can attach it from the journal.', { title: 'Heads up' });
           }
         } else if (eventId && pendingNewTask) {
           // Spin up a new pending task on the chosen quest, pointing back at
@@ -288,19 +289,26 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               quest_id: pendingNewTask.id,
             });
           } catch {
-            Alert.alert('Heads up', 'Moment saved but could not add as a new task. You can do that from the journal.');
+            toast.info('Moment saved, but couldn\'t add it as a new task. You can do that from the journal.', { title: 'Heads up' });
           }
         }
       }
 
       haptic.success();
+      const childCount = effectiveStudentIds?.length ?? 0;
+      toast.success(
+        childCount > 1
+          ? `Moment captured for ${childCount} kids`
+          : 'Moment captured',
+        { title: 'Saved to the journal' },
+      );
       reset();
       onClose();
       onCaptured?.();
     } catch (err: any) {
       haptic.error();
       const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save';
-      Alert.alert('Error', msg);
+      toast.error(msg, { title: 'Could not save moment' });
     } finally {
       setSaving(false);
     }

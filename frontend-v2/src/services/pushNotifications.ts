@@ -22,6 +22,27 @@ if (Platform.OS !== 'web') {
 }
 
 /**
+ * Fetch the Expo push token with a few retries. Expo's token endpoint
+ * intermittently returns 503 ("upstream connect error … connection timeout");
+ * a short backoff almost always clears it without bothering the user.
+ */
+async function getExpoTokenWithRetry(projectId: string, attempts = 3): Promise<string> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const tokenData = await Notifications!.getExpoPushTokenAsync({ projectId });
+      return tokenData.data;
+    } catch (err) {
+      lastError = err;
+      if (i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Register for push notifications on mobile.
  * Requests permission, gets Expo push token, sends to backend.
  *
@@ -71,8 +92,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       return null;
     }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-    const token = tokenData.data;
+    const token = await getExpoTokenWithRetry(projectId);
 
     // 4. Send token to backend.
     await api.post('/api/push/expo-token', {
@@ -85,7 +105,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return token;
 
   } catch (error) {
-    console.error('[Push] Registration failed:', error);
+    // Push registration is best-effort. Transient failures (Expo token service
+    // 503s, flaky network) are expected and retry on the next launch/login, so
+    // warn rather than error — no scary red LogBox, no Sentry alert.
+    console.warn('[Push] Registration failed (will retry next launch):', error);
     return null;
   }
 }

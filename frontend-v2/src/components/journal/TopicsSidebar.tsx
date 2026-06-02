@@ -36,6 +36,9 @@ interface TopicsSidebarProps {
   /** When true and topics is empty, render skeleton tiles so the grid has
    *  visible shape immediately while the API call is in flight. */
   loading?: boolean;
+  /** When false, render as a plain View instead of its own ScrollView — for
+   *  embedding inside a parent scroll (e.g. the Journal's topics + feed feed). */
+  scrollable?: boolean;
 }
 
 /** Special tile for unassigned moments. Same shape as TopicCard so it sits
@@ -174,6 +177,7 @@ export function TopicsSidebar({
   unassignedCount,
   onNewTopic,
   loading = false,
+  scrollable = true,
 }: TopicsSidebarProps) {
   const [sectionsCollapsed, setSectionsCollapsed] = useState<Record<string, boolean>>({});
 
@@ -183,8 +187,13 @@ export function TopicsSidebar({
     setSectionsCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const Wrapper: any = scrollable ? ScrollView : View;
+  const wrapperProps = scrollable
+    ? { className: 'flex-1', showsVerticalScrollIndicator: false }
+    : {};
+
   return (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <Wrapper {...wrapperProps}>
       <VStack space="xs" className="py-2">
         {/* Interest Tracks (rendered as 2-column larger cards — these are the
             student's own organization buckets, so they deserve more emphasis
@@ -193,7 +202,9 @@ export function TopicsSidebar({
             The Unassigned bucket lives as the first tile in this grid when
             the student has any unsorted moments — it reads as the next action
             ("Assign 4 moments to topics") rather than a separate inbox. */}
-        {(tracks.length > 0 || onNewTopic) && (
+        {/* Always render so the Unassigned tile stays reachable even with no
+            tracks and no + button (e.g. the parent's read-mostly view). */}
+        {(
           <VStack>
             <HStack className="items-center justify-between px-3 py-1">
               <Pressable
@@ -270,6 +281,6 @@ export function TopicsSidebar({
             live on their own surface. Keeping them out of the Journal makes
             the page about the student's own organization (Topics). */}
       </VStack>
-    </ScrollView>
+    </Wrapper>
   );
 }

@@ -52,6 +52,7 @@ import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { loadPersistedTheme } from '@/src/stores/themeStore';
 import { initSentry } from '@/src/services/sentry';
 import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
+import { ToastHost } from '@/src/components/ui';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -117,6 +118,7 @@ export default function RootLayout() {
         <Stack.Screen name="privacy" />
       </Stack>
       <BugReportHost />
+      <ToastHost />
     </>
   );
 }

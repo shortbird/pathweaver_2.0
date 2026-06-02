@@ -11,17 +11,11 @@ jest.mock('@/src/hooks/useParent', () => ({
   useChildDashboard: jest.fn(),
   useChildEngagement: jest.fn(),
 }));
-jest.mock('@/src/hooks/useFeed', () => ({
-  useFeed: jest.fn(),
-}));
 jest.mock('@/src/components/engagement/EngagementCalendar', () => ({
   EngagementCalendar: () => null,
 }));
 jest.mock('@/src/components/engagement/RhythmBadge', () => ({
   RhythmBadge: () => null,
-}));
-jest.mock('@/src/components/feed/FeedCard', () => ({
-  FeedCard: () => null,
 }));
 jest.mock('@/src/components/layouts/MobileHeader', () => ({
   PageHeader: () => null,
@@ -31,7 +25,6 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import ParentDashboardPage from '../family';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
-import { useFeed } from '@/src/hooks/useFeed';
 import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import { createMockChild } from '@/src/__tests__/utils/mockFactories';
 
@@ -48,9 +41,6 @@ beforeEach(() => {
     refetch: jest.fn(),
   });
   (useChildEngagement as jest.Mock).mockReturnValue({ data: null, loading: false });
-  (useFeed as jest.Mock).mockReturnValue({
-    items: [], loading: false, loadingMore: false, hasMore: false, error: null, loadMore: jest.fn(), refetch: jest.fn(),
-  });
 });
 
 afterEach(() => {

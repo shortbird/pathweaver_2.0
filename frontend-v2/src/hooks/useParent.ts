@@ -7,6 +7,7 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { usePreviewRoleStore } from '../stores/previewRoleStore';
 import type { EngagementData } from './useDashboard';
+import type { LearningEvent, UnifiedTopic } from './useJournal';
 
 export interface Child {
   id: string;
@@ -165,4 +166,43 @@ export function useChildEngagement(studentId: string | null) {
   }, [isAuthenticated, studentId]);
 
   return { data, loading };
+}
+
+/**
+ * useChildJournal - a parent's view of one child's learning journal: every
+ * moment (self- and parent-captured) plus the child's topics, fetched through
+ * the parent-scoped endpoints. Editing/deleting is permission-gated by the
+ * backend to moments the parent captured; the screen decides per-moment.
+ */
+export function useChildJournal(studentId: string | null) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [moments, setMoments] = useState<LearningEvent[]>([]);
+  const [topics, setTopics] = useState<UnifiedTopic[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchJournal = useCallback(async () => {
+    if (!isAuthenticated || !studentId) { setLoading(false); return; }
+    setLoading(true);
+    try {
+      const [momentsRes, topicsRes] = await Promise.all([
+        api.get(`/api/parent/children/${studentId}/learning-moments`, { params: { limit: 100 } }),
+        api.get(`/api/parent/children/${studentId}/topics`),
+      ]);
+      setMoments(momentsRes.data?.moments || []);
+      const t = topicsRes.data || {};
+      setTopics([
+        ...(t.topics || []),
+        ...(t.course_topics || []).map((c: any) => ({ ...c, type: 'course' })),
+      ]);
+    } catch {
+      setMoments([]);
+      setTopics([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, studentId]);
+
+  useEffect(() => { fetchJournal(); }, [fetchJournal]);
+
+  return { moments, topics, loading, refetch: fetchJournal };
 }

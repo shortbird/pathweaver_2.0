@@ -24,6 +24,11 @@ export interface LearningEvent {
   event_date: string;
   created_at: string;
   source_type: string;
+  /** Who captured the moment. Null/own-id = the student; a parent's id when a
+   *  parent captured it for the child. Drives parent edit/delete permissions. */
+  captured_by_user_id?: string | null;
+  /** Display name of the capturer when it wasn't the student (parent view). */
+  captured_by_name?: string;
   evidence_blocks: EvidenceBlock[];
   topics: Array<{ type: string; id: string; name: string; color?: string }>;
   track_id?: string;
@@ -66,31 +71,38 @@ export interface UnifiedTopic {
 // background while the previous tiles remain on screen.
 let _topicsCache: UnifiedTopic[] | null = null;
 
-export function useUnifiedTopics() {
+/**
+ * @param studentId  When set, fetch a CHILD's topics via the parent-scoped
+ *   endpoint (parent journal view). The module-level cache is bypassed in that
+ *   mode so a child's topics never bleed into the parent's own Journal tab.
+ */
+export function useUnifiedTopics(studentId?: string) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [topics, setTopics] = useState<UnifiedTopic[]>(_topicsCache || []);
-  const [loading, setLoading] = useState(_topicsCache === null);
+  const useCache = !studentId;
+  const [topics, setTopics] = useState<UnifiedTopic[]>(useCache ? (_topicsCache || []) : []);
+  const [loading, setLoading] = useState(useCache ? _topicsCache === null : true);
 
   const fetchTopics = useCallback(async () => {
     if (!isAuthenticated) return;
     // Only show the loading state when we have nothing on screen yet —
     // otherwise refetching after e.g. creating a topic would briefly blank
     // out the grid.
-    if (_topicsCache === null) setLoading(true);
+    if (!useCache || _topicsCache === null) setLoading(true);
     try {
-      const { data } = await api.get('/api/topics/unified');
+      const url = studentId ? `/api/parent/children/${studentId}/topics` : '/api/topics/unified';
+      const { data } = await api.get(url);
       const allTopics = [
         ...(data.topics || []),
         ...(data.course_topics || []).map((c: any) => ({ ...c, type: 'course' })),
       ];
-      _topicsCache = allTopics;
+      if (useCache) _topicsCache = allTopics;
       setTopics(allTopics);
     } catch {
       // Non-critical — keep whatever cached tiles are on screen.
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, studentId, useCache]);
 
   useEffect(() => { fetchTopics(); }, [fetchTopics]);
 
@@ -106,25 +118,37 @@ export function clearUnifiedTopicsCache() {
 // Journal's first tile, so we want it to render instantly on re-entry.
 let _unassignedCache: LearningEvent[] | null = null;
 
-export function useUnassignedMoments() {
+/**
+ * @param studentId  When set, derive a CHILD's unassigned moments from the
+ *   parent-scoped moments list (there's no dedicated parent "unassigned"
+ *   endpoint): a moment is unassigned when it carries no topic associations.
+ */
+export function useUnassignedMoments(studentId?: string) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [moments, setMoments] = useState<LearningEvent[]>(_unassignedCache || []);
-  const [loading, setLoading] = useState(_unassignedCache === null);
+  const useCache = !studentId;
+  const [moments, setMoments] = useState<LearningEvent[]>(useCache ? (_unassignedCache || []) : []);
+  const [loading, setLoading] = useState(useCache ? _unassignedCache === null : true);
 
   const fetchMoments = useCallback(async () => {
     if (!isAuthenticated) return;
-    if (_unassignedCache === null) setLoading(true);
+    if (!useCache || _unassignedCache === null) setLoading(true);
     try {
-      const { data } = await api.get('/api/learning-events/unassigned');
-      const next = data.moments || data.learning_events || data || [];
-      _unassignedCache = next;
-      setMoments(next);
+      if (studentId) {
+        const { data } = await api.get(`/api/parent/children/${studentId}/learning-moments`, { params: { limit: 100 } });
+        const all = data.moments || [];
+        setMoments(all.filter((m: any) => !m.topics || m.topics.length === 0));
+      } else {
+        const { data } = await api.get('/api/learning-events/unassigned');
+        const next = data.moments || data.learning_events || data || [];
+        _unassignedCache = next;
+        setMoments(next);
+      }
     } catch {
       // Non-critical — keep cached list on screen.
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, studentId, useCache]);
 
   useEffect(() => { fetchMoments(); }, [fetchMoments]);
 
@@ -135,7 +159,12 @@ export function clearUnassignedMomentsCache() {
   _unassignedCache = null;
 }
 
-export function useTrackMoments(trackId: string | null) {
+/**
+ * @param studentId  When set, fetch a CHILD's track detail via the
+ *   parent-scoped endpoint (same `get_track_with_moments` service, identical
+ *   shape).
+ */
+export function useTrackMoments(trackId: string | null, studentId?: string) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [track, setTrack] = useState<InterestTrack | null>(null);
   const [moments, setMoments] = useState<LearningEvent[]>([]);
@@ -145,7 +174,10 @@ export function useTrackMoments(trackId: string | null) {
     if (!isAuthenticated || !trackId) { setLoading(false); return; }
     try {
       setLoading(true);
-      const { data } = await api.get(`/api/interest-tracks/${trackId}`);
+      const url = studentId
+        ? `/api/parent/children/${studentId}/topics/${trackId}`
+        : `/api/interest-tracks/${trackId}`;
+      const { data } = await api.get(url);
       const trackData = data.track || data;
       setTrack(trackData);
       setMoments(trackData.moments || data.moments || []);
@@ -154,7 +186,7 @@ export function useTrackMoments(trackId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, trackId]);
+  }, [isAuthenticated, trackId, studentId]);
 
   useEffect(() => { fetchTrack(); }, [fetchTrack]);
 
@@ -168,7 +200,7 @@ export async function deleteLearningEvent(eventId: string) {
 }
 
 export async function updateLearningEvent(eventId: string, updates: {
-  title?: string;
+  title?: string | null;
   description?: string;
   pillars?: string[];
   track_id?: string | null;
@@ -190,6 +222,40 @@ export async function assignMomentToTopic(momentId: string, topicType: string, t
     topic_id: topicId,
     action,
   });
+  return data;
+}
+
+// ── Parent-scoped mutations ──
+// A parent edits/deletes a moment on their CHILD's account. The backend
+// (routes/parent/learning_moments.py) only permits this for moments the parent
+// themselves captured (captured_by_user_id == parent). Pillars are intentionally
+// not editable through the parent endpoint — only title/description/date/topic.
+
+export async function updateChildLearningEvent(childId: string, eventId: string, updates: {
+  title?: string | null;
+  description?: string;
+  event_date?: string | null;
+  topics?: Array<{ type: string; id: string }>;
+}) {
+  const { data } = await api.put(`/api/parent/children/${childId}/learning-moments/${eventId}`, updates);
+  return data;
+}
+
+export async function deleteChildLearningEvent(childId: string, eventId: string) {
+  await api.delete(`/api/parent/children/${childId}/learning-moments/${eventId}`);
+}
+
+export async function assignChildMomentToTopic(
+  childId: string,
+  momentId: string,
+  topicType: string,
+  topicId: string | null,
+  action: 'add' | 'remove' = 'add',
+) {
+  const { data } = await api.post(
+    `/api/parent/children/${childId}/learning-events/${momentId}/assign-topic`,
+    { type: topicType, topic_id: topicId, action },
+  );
   return data;
 }
 

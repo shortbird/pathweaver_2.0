@@ -5,22 +5,19 @@
  * Mobile: child selector dropdown + scrollable overview.
  */
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDimensions, Image, RefreshControl, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
-import { useFeed } from '@/src/hooks/useFeed';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
-import { FeedCard } from '@/src/components/feed/FeedCard';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import api from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
-import { useInviteObserverStore } from '@/src/stores/inviteObserverStore';
 import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -287,38 +284,15 @@ export default function ParentDashboardPage() {
   }, [children, selectedId]);
 
   const selectedChild = children.find((c) => c.id === selectedId) || null;
+  // Dependents often have a blank first_name (only display_name is set), so
+  // derive a usable first name for copy/labels.
+  const childFirstName = selectedChild?.first_name || selectedChild?.display_name?.split(' ')[0] || 'your child';
   const { data: dashboard, loading: dashboardLoading, refetch } = useChildDashboard(selectedId);
   const { data: engagement } = useChildEngagement(selectedId);
-  const { items: feedItems, loading: feedLoading } = useFeed({ studentId: selectedId || undefined });
   const { count: ferpaCount } = useFerpaApprovals();
 
   // ── Parent action state ──
-  // Observer admin (list / remove / per-kid toggles / regenerate link) all
-  // happens inside the Manage Observers sheet. The Family dashboard pulls
-  // just the observer count so the summary tile can show "3 observers."
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const [observersList, setObserversList] = useState<any[]>([]);
-  const [observersLoading, setObserversLoading] = useState(false);
-
-  const fetchObservers = useCallback(async () => {
-    if (!selectedId) return;
-    setObserversLoading(true);
-    try {
-      const { data } = await api.get('/api/observers/family-observers');
-      const filtered = (data?.observers || []).filter((obs: any) =>
-        (obs.children || []).some((c: any) => c.student_id === selectedId && c.enabled),
-      );
-      setObserversList(filtered);
-    } catch {
-      setObserversList([]);
-    } finally {
-      setObserversLoading(false);
-    }
-  }, [selectedId]);
-
-  useEffect(() => {
-    fetchObservers();
-  }, [fetchObservers]);
 
   const isUnder13 = useMemo(() => {
     if (!selectedChild?.date_of_birth) return false;
@@ -326,23 +300,6 @@ export default function ParentDashboardPage() {
     const cutoff = new Date(now.getFullYear() - 13, now.getMonth(), now.getDate());
     return new Date(selectedChild.date_of_birth) > cutoff;
   }, [selectedChild]);
-
-  const handleRemoveObserver = (observerId: string, name: string) => {
-    Alert.alert('Remove Observer', `Remove ${name} as an observer?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive', onPress: async () => {
-          try {
-            await api.delete(`/api/observers/family-observers/${observerId}`);
-            Alert.alert('Removed', `${name} has been removed.`);
-            fetchObservers();
-          } catch {
-            Alert.alert('Error', 'Failed to remove observer');
-          }
-        },
-      },
-    ]);
-  };
 
   const handleUploadAvatar = async () => {
     if (!selectedId) return;
@@ -550,65 +507,34 @@ export default function ParentDashboardPage() {
                 </VStack>
               </View>
 
-              {/* Observers summary tile — opens the Manage Observers sheet
-                  which is the canonical surface for invite, list, remove,
-                  toggle, and revoke. Keeping the Family dashboard focused on
-                  the kid by pulling all observer admin into one place. */}
+              {/* Learning Journal link — opens the full journal for this kid,
+                  where the parent can view every moment and edit the ones they
+                  captured. */}
               <Pressable
-                testID="family-observers-summary"
-                onPress={() => useInviteObserverStore.getState().open()}
-                accessibilityLabel="Manage observers"
+                testID="family-journal-link"
+                onPress={() => router.push({
+                  pathname: '/parent/journal/[studentId]',
+                  params: { studentId: selectedId as string, name: childFirstName },
+                } as any)}
+                accessibilityLabel={`Open ${childFirstName}'s learning journal`}
               >
                 <Card variant="outline" size="md">
                   <HStack className="items-center gap-3">
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1EDF5', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="people-outline" size={18} color="#6D469B" />
+                      <Ionicons name="book-outline" size={18} color="#6D469B" />
                     </View>
                     <VStack className="flex-1 min-w-0">
                       <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
-                        {observersLoading
-                          ? 'Observers'
-                          : observersList.length === 0
-                            ? 'Invite an observer'
-                            : `${observersList.length} observer${observersList.length === 1 ? '' : 's'}`}
+                        Learning Journal
                       </UIText>
                       <UIText size="xs" className="text-typo-400" numberOfLines={1}>
-                        {observersList.length === 0
-                          ? 'Share your family link with grandparents, mentors, friends'
-                          : 'Tap to manage'}
+                        View moments and edit the ones you captured
                       </UIText>
                     </VStack>
                     <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
                   </HStack>
                 </Card>
               </Pressable>
-
-              {/* Recent Activity Feed */}
-              <VStack space="sm">
-                <Heading size="md">Recent Activity</Heading>
-                {feedLoading ? (
-                  <VStack space="sm">
-                    <Skeleton className="h-28 rounded-xl" />
-                    <Skeleton className="h-28 rounded-xl" />
-                  </VStack>
-                ) : feedItems.length > 0 ? (
-                  <VStack space="sm">
-                    {feedItems.slice(0, 5).map((item: any) => (
-                      <FeedCard key={item.id} item={item} showStudent={false} viewerCanModerate />
-                    ))}
-                    {feedItems.length > 5 && (
-                      <Button variant="outline" size="sm" className="self-center">
-                        <ButtonText>View All Activity</ButtonText>
-                      </Button>
-                    )}
-                  </VStack>
-                ) : (
-                  <Card variant="filled" size="md" className="items-center py-8">
-                    <Ionicons name="newspaper-outline" size={32} color="#9CA3AF" />
-                    <UIText size="sm" className="text-typo-400 mt-2">No recent activity</UIText>
-                  </Card>
-                )}
-              </VStack>
             </>
           ) : null}
         </VStack>

@@ -19,7 +19,10 @@ import {
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/useJournal';
-import { updateLearningEvent, getAiSuggestions, assignMomentToTopic } from '@/src/hooks/useJournal';
+import {
+  updateLearningEvent, getAiSuggestions, assignMomentToTopic,
+  updateChildLearningEvent, assignChildMomentToTopic,
+} from '@/src/hooks/useJournal';
 
 interface EditMomentModalProps {
   visible: boolean;
@@ -27,6 +30,11 @@ interface EditMomentModalProps {
   topics: UnifiedTopic[];
   onClose: () => void;
   onSaved: () => void;
+  /** When set, the moment belongs to this child and edits route through the
+   *  parent-scoped endpoints. Pillar editing + AI suggestions are hidden in
+   *  this mode because the parent endpoint only persists title/description/
+   *  date/topic. */
+  childId?: string;
 }
 
 function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
@@ -141,7 +149,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
   return null;
 }
 
-export function EditMomentModal({ visible, event, topics, onClose, onSaved }: EditMomentModalProps) {
+export function EditMomentModal({ visible, event, topics, onClose, onSaved, childId }: EditMomentModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPillars, setSelectedPillars] = useState<string[]>([]);
@@ -201,22 +209,35 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved }: Ed
     if (!event) return;
     setSaving(true);
     try {
-      // Always send the full current state to avoid diff/null edge cases
-      await updateLearningEvent(event.id, {
-        title: title.trim() || null,
-        description: description.trim() || event.description,
-        pillars: selectedPillars,
-        event_date: eventDate || null,
-      });
+      // Always send the full current state to avoid diff/null edge cases.
+      // Parent mode routes through the child-scoped endpoint, which doesn't
+      // accept pillars (see updateChildLearningEvent).
+      if (childId) {
+        await updateChildLearningEvent(childId, event.id, {
+          title: title.trim() || null,
+          description: description.trim() || event.description,
+          event_date: eventDate || null,
+        });
+      } else {
+        await updateLearningEvent(event.id, {
+          title: title.trim() || null,
+          description: description.trim() || event.description,
+          pillars: selectedPillars,
+          event_date: eventDate || null,
+        });
+      }
 
       // Handle topic assignment change
       const currentTopicId = event.topics?.find((t) => t.type === 'topic')?.id || event.track_id || null;
       if (selectedTopicId !== currentTopicId) {
+        const assign = childId
+          ? (id: string, action: 'add' | 'remove') => assignChildMomentToTopic(childId, event.id, 'track', id, action)
+          : (id: string, action: 'add' | 'remove') => assignMomentToTopic(event.id, 'track', id, action);
         if (currentTopicId) {
-          await assignMomentToTopic(event.id, 'track', currentTopicId, 'remove');
+          await assign(currentTopicId, 'remove');
         }
         if (selectedTopicId) {
-          await assignMomentToTopic(event.id, 'track', selectedTopicId, 'add');
+          await assign(selectedTopicId, 'add');
         }
       }
 
@@ -280,7 +301,8 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved }: Ed
           />
         </VStack>
 
-        {/* AI Suggestions */}
+        {/* AI Suggestions (self-edit only — parent endpoint can't save pillars) */}
+        {!childId && (
         <Pressable
           onPress={handleAiSuggest}
           disabled={aiLoading || description.trim().length < 30}
@@ -315,10 +337,12 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved }: Ed
             {aiLoading ? 'Thinking...' : aiSuggested ? 'Suggestions applied' : 'AI suggest title & pillars'}
           </UIText>
         </Pressable>
+        )}
 
-        <Divider />
+        {!childId && <Divider />}
 
-        {/* Pillars */}
+        {/* Pillars (self-edit only — parent endpoint doesn't persist pillars) */}
+        {!childId && (
         <VStack space="xs">
           <UIText size="xs" className="text-typo-400 font-poppins-medium">Pillars</UIText>
           <HStack className="flex-wrap gap-2">
@@ -358,6 +382,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved }: Ed
             })}
           </HStack>
         </VStack>
+        )}
 
         {/* Event Date */}
         <VStack space="xs">

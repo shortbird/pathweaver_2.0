@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 import { tokenStore } from './tokenStore';
 import { postRefreshWithRetry } from './refreshRetry';
 import { recordApiCall } from './diagnostics';
+import { captureException, captureMessage } from './sentry';
 
 // In dev (no EXPO_PUBLIC_API_URL set), web hits localhost and native hits a
 // platform-appropriate host loopback / LAN IP:
@@ -89,13 +90,48 @@ function logApiCall(config: InternalAxiosRequestConfig | undefined, status: numb
     ms: start ? Date.now() - start : 0,
   });
 }
+/**
+ * Centrally report failed requests to Sentry so every API error is captured
+ * automatically — no per-callsite `captureException` needed. This is the one
+ * place all requests funnel through.
+ *
+ * - 401 is skipped: it's normal session churn handled by the refresh
+ *   interceptor below (a refresh that ultimately fails logs the user out, and
+ *   authStore reports that separately).
+ * - Canceled requests aren't failures.
+ * - Network errors (no response) and 5xx are real exceptions → captureException.
+ * - 4xx (e.g. a rejected delete) is surfaced at `warning` level so it's visible
+ *   without drowning out genuine crashes.
+ */
+function reportApiError(error: AxiosError, status: number | null) {
+  if (status === 401 || axios.isCancel(error)) return;
+  const cfg = error.config;
+  const method = cfg?.method?.toUpperCase();
+  const ctx = {
+    extra: {
+      method,
+      url: cfg?.url,
+      status,
+      responseData: error.response?.data,
+      message: error.message,
+    },
+  };
+  if (status === null || status >= 500) {
+    captureException(error, ctx);
+  } else {
+    captureMessage(`API ${status} ${method} ${cfg?.url}`, { level: 'warning', ...ctx });
+  }
+}
+
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     logApiCall(response.config, response.status);
     return response;
   },
   (error: AxiosError) => {
-    logApiCall(error.config, error.response?.status ?? null);
+    const status = error.response?.status ?? null;
+    logApiCall(error.config, status);
+    reportApiError(error, status);
     return Promise.reject(error);
   }
 );

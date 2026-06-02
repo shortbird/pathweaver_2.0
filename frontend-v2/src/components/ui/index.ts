@@ -13,3 +13,4 @@ export { Skeleton } from './skeleton';
 export { PillarBadge } from './pillar-badge';
 export { BrandHeader } from './BrandHeader';
 export { BottomSheet } from './bottom-sheet';
+export { ToastHost, toast } from './toast';
