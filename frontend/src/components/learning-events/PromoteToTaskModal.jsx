@@ -1,13 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  ArrowLeftIcon,
-  FlagIcon,
-  SparklesIcon,
-  XMarkIcon
-} from '@heroicons/react/24/outline';
+import { SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { SUBJECTS, getSubject } from '../../constants/subjects';
 
 export const DEFAULT_PROMOTED_TASK_XP = 50;
 
@@ -19,67 +15,58 @@ const PILLAR_CONFIG = {
   civics: { label: 'Civics', color: 'bg-red-600', light: 'bg-red-50 text-red-700 border-red-200' }
 };
 
-const getQuestTopics = (moment) =>
-  (moment?.topics || []).filter((t) => t.type === 'quest');
+/**
+ * AddToQuestModal — the single "Add to quest" action for a learning moment.
+ *
+ * Adding a moment to a quest turns it into a task (50 XP default) in one step;
+ * there is no separate "promote" step. Collects a title, a learning pillar, and
+ * an optional diploma credit. When the quest is a class, the diploma credit is
+ * locked to that class's subject.
+ *
+ * (File name kept as PromoteToTaskModal for import stability.)
+ */
+const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
+  const isClass = quest?.quest_type === 'class';
+  const classSubject = isClass ? (quest?.transcript_subject || null) : null;
 
-const PromoteToTaskModal = ({
-  isOpen,
-  onClose,
-  moment,
-  presetQuestId = null,
-  onSuccess
-}) => {
-  const questTopics = useMemo(() => getQuestTopics(moment), [moment]);
-  const initialQuestId = presetQuestId
-    || (questTopics.length === 1 ? questTopics[0].id : null);
-
-  const [step, setStep] = useState(initialQuestId ? 'form' : 'pick-quest');
-  const [questId, setQuestId] = useState(initialQuestId);
   const [title, setTitle] = useState('');
   const [pillar, setPillar] = useState('stem');
   const [xpValue, setXpValue] = useState(DEFAULT_PROMOTED_TASK_XP);
+  const [diplomaSubject, setDiplomaSubject] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !moment) return;
-
-    const quests = getQuestTopics(moment);
-    const next = presetQuestId || (quests.length === 1 ? quests[0].id : null);
-    setQuestId(next);
-    setStep(next ? 'form' : 'pick-quest');
-
     setTitle(moment.title || moment.ai_generated_title || '');
     setPillar(moment.pillars?.[0] || 'stem');
     setXpValue(DEFAULT_PROMOTED_TASK_XP);
-  }, [isOpen, moment, presetQuestId]);
+    setDiplomaSubject(isClass ? (classSubject || '') : '');
+  }, [isOpen, moment, isClass, classSubject]);
 
-  if (!isOpen || !moment) return null;
-
-  const selectedQuest = questTopics.find((q) => q.id === questId);
+  if (!isOpen || !moment || !quest) return null;
 
   const handleSubmit = async () => {
-    if (!questId) {
-      setStep('pick-quest');
-      return;
-    }
     try {
       setIsSubmitting(true);
       const response = await api.post(`/api/learning-events/${moment.id}/convert-to-task`, {
-        quest_id: questId,
+        quest_id: quest.id,
         title: title.trim() || null,
         pillar,
-        xp_value: xpValue
+        xp_value: xpValue,
+        // A class quest forces its own subject server-side; only send a
+        // diploma_subject for non-class quests (optional).
+        diploma_subject: isClass ? undefined : (diplomaSubject || null)
       });
 
       if (response.data.success) {
-        toast.success(response.data.message || 'Task created!');
+        toast.success(response.data.message || 'Added to quest');
         onSuccess?.(response.data.task);
         onClose();
       } else {
-        toast.error(response.data.error || 'Failed to create task');
+        toast.error(response.data.error || 'Failed to add to quest');
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to create task');
+      toast.error(error.response?.data?.error || 'Failed to add to quest');
     } finally {
       setIsSubmitting(false);
     }
@@ -91,9 +78,9 @@ const PromoteToTaskModal = ({
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-5 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-xl font-bold mb-1">Promote to Task</h2>
+              <h2 className="text-xl font-bold mb-1 truncate">Add to {quest.name || 'quest'}</h2>
               <p className="text-white/90 text-sm">
-                Turn this learning moment into a quest task you can earn XP for
+                This becomes a task you complete to earn XP.
               </p>
             </div>
             <button
@@ -106,155 +93,131 @@ const PromoteToTaskModal = ({
           </div>
         </div>
 
-        {step === 'pick-quest' ? (
-          <div className="p-5 space-y-3">
-            <p className="text-sm text-gray-600">
-              This moment is attached to multiple quests. Pick the one to create the task under.
-            </p>
-            {questTopics.length === 0 ? (
-              <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
-                This moment isn't attached to a quest yet. Attach it first, then promote.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {questTopics.map((quest) => (
-                  <button
-                    key={quest.id}
-                    type="button"
-                    onClick={() => {
-                      setQuestId(quest.id);
-                      setStep('form');
-                    }}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-purple-50 text-left transition-all"
-                  >
-                    <FlagIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
-                    <span className="text-sm font-medium text-gray-900 truncate">
-                      {quest.name || 'Quest'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="pt-2">
-              <button
-                onClick={onClose}
-                className="w-full px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
-              >
-                Cancel
-              </button>
+        <div className="p-5 space-y-4">
+          <div>
+            <label
+              htmlFor="add-quest-title"
+              className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2"
+            >
+              Task Title
+            </label>
+            <input
+              id="add-quest-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter task title..."
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <span className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Learning Pillar
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(PILLAR_CONFIG).map(([key, config]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPillar(key)}
+                  className={`
+                    px-3 py-1.5 rounded-lg border text-sm font-medium transition-all
+                    ${pillar === key
+                      ? `${config.color} text-white border-transparent`
+                      : `${config.light} hover:border-gray-300`}
+                  `}
+                >
+                  {config.label}
+                </button>
+              ))}
             </div>
           </div>
-        ) : (
-          <>
-            <div className="p-5 space-y-4">
-              {questTopics.length > 1 && selectedQuest && (
-                <button
-                  type="button"
-                  onClick={() => setStep('pick-quest')}
-                  className="flex items-center gap-1.5 text-xs text-optio-purple hover:underline"
-                >
-                  <ArrowLeftIcon className="w-3.5 h-3.5" />
-                  <span>Quest: {selectedQuest.name || 'Quest'} (change)</span>
-                </button>
-              )}
 
-              <div>
-                <label
-                  htmlFor="promote-task-title"
-                  className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2"
-                >
-                  Task Title
-                </label>
-                <input
-                  id="promote-task-title"
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter task title..."
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-sm"
+          <div>
+            <span className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Diploma Credit {!isClass && <span className="normal-case text-gray-400">(optional)</span>}
+            </span>
+            {isClass ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200">
+                <span
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: getSubject(classSubject)?.accent || '#6D469B' }}
                 />
-              </div>
-
-              <div>
-                <span className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                  Learning Pillar
+                <span className="text-sm font-medium text-gray-900">
+                  {getSubject(classSubject)?.name || classSubject}
                 </span>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(PILLAR_CONFIG).map(([key, config]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setPillar(key)}
-                      className={`
-                        px-3 py-1.5 rounded-lg border text-sm font-medium transition-all
-                        ${pillar === key
-                          ? `${config.color} text-white border-transparent`
-                          : `${config.light} hover:border-gray-300`}
-                      `}
-                    >
-                      {config.label}
-                    </button>
-                  ))}
-                </div>
+                <span className="ml-auto text-xs text-purple-700">Class credit</span>
               </div>
-
-              <div>
-                <label
-                  htmlFor="promote-task-xp"
-                  className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2"
-                >
-                  XP Value
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="promote-task-xp"
-                    type="range"
-                    min="10"
-                    max="200"
-                    step="10"
-                    value={xpValue}
-                    onChange={(e) => setXpValue(parseInt(e.target.value, 10))}
-                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-optio-purple"
-                  />
-                  <span className="text-sm font-bold text-gray-900 w-16 text-right">{xpValue} XP</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Default {DEFAULT_PROMOTED_TASK_XP} XP. You can adjust the task's XP and pillar later from the quest page; advisor confirms at credit time.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-5 pt-0 flex gap-3">
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+            ) : (
+              <select
+                value={diplomaSubject}
+                onChange={(e) => setDiplomaSubject(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-sm"
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl hover:shadow-lg disabled:opacity-50 transition-all font-medium text-sm flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <SparklesIcon className="w-4 h-4" />
-                    Create Task
-                  </>
-                )}
-              </button>
+                <option value="">No diploma credit</option>
+                {SUBJECTS.map((s) => (
+                  <option key={s.key} value={s.key}>{s.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="add-quest-xp"
+              className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2"
+            >
+              XP Value
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                id="add-quest-xp"
+                type="range"
+                min="10"
+                max="200"
+                step="10"
+                value={xpValue}
+                onChange={(e) => setXpValue(parseInt(e.target.value, 10))}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-optio-purple"
+              />
+              <span className="text-sm font-bold text-gray-900 w-16 text-right">{xpValue} XP</span>
             </div>
-          </>
-        )}
+            <p className="text-xs text-gray-400 mt-1">
+              Default {DEFAULT_PROMOTED_TASK_XP} XP. You can edit the task's title, pillar, and XP later from the quest page.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-5 pt-0 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl hover:shadow-lg disabled:opacity-50 transition-all font-medium text-sm flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Adding...
+              </>
+            ) : (
+              <>
+                <SparklesIcon className="w-4 h-4" />
+                Add to quest
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>,
     document.body
   );
 };
 
-export default PromoteToTaskModal;
+export default AddToQuestModal;

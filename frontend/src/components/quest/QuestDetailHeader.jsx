@@ -285,7 +285,7 @@ const QuestDetailHeader = ({
       {/* Content Below Hero */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         {/* Metadata Pills */}
-        {(timeEstimate || intensity || locationDisplay || ((isEnrolled || isQuestCompleted) && earnedXP > 0)) && (
+        {(timeEstimate || intensity || locationDisplay) && (
           <div className="flex flex-wrap items-center gap-2 mb-3">
             {timeEstimate && (
               <div className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
@@ -303,11 +303,6 @@ const QuestDetailHeader = ({
               <div className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
                 <MapPinIcon className="w-3.5 h-3.5" />
                 <span>{locationDisplay}</span>
-              </div>
-            )}
-            {(isEnrolled || isQuestCompleted) && earnedXP > 0 && (
-              <div className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-full text-xs font-medium text-optio-purple">
-                <span>{earnedXP} XP earned</span>
               </div>
             )}
           </div>

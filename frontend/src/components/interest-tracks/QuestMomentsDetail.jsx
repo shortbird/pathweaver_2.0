@@ -9,7 +9,7 @@ import {
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import LearningEventCard from '../learning-events/LearningEventCard';
-import PromoteToTaskModal from '../learning-events/PromoteToTaskModal';
+import AddToQuestModal from '../learning-events/PromoteToTaskModal';
 
 const PILLAR_CONFIG = {
   art: { label: 'Art', color: 'bg-purple-600', light: 'bg-purple-50 text-purple-700 border-purple-200' },
@@ -246,6 +246,13 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
                       event={item}
                       showTrackAssign={false}
                       studentId={studentId}
+                      onTrackAssigned={() => {
+                        // Unassigning (the chip X) removes the moment from this
+                        // quest; refresh the detail and bubble up so the sidebar
+                        // item counts update immediately too.
+                        fetchQuestMoments();
+                        onMomentConverted?.();
+                      }}
                     />
                     {(() => {
                       // A moment counts as "already promoted" once a quest
@@ -267,7 +274,7 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
                           className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-medium rounded-lg shadow-sm hover:shadow-md transition-all"
                         >
                           <SparklesIcon className="w-3.5 h-3.5" />
-                          Promote to task
+                          Make it a task
                         </button>
                       );
                     })()}
@@ -287,14 +294,19 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
         )}
       </div>
 
-      <PromoteToTaskModal
+      <AddToQuestModal
         isOpen={promoteModalOpen}
         onClose={() => {
           setPromoteModalOpen(false);
           setMomentToPromote(null);
         }}
         moment={momentToPromote}
-        presetQuestId={questId}
+        quest={{
+          id: questId,
+          name: quest?.title,
+          quest_type: quest?.quest_type,
+          transcript_subject: quest?.transcript_subject
+        }}
         onSuccess={handlePromoteSuccess}
       />
     </div>

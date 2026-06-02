@@ -108,12 +108,14 @@ def get_class_review_detail(user_id: str, quest_id: str):
             student_data = s.data or {}
             student_data['display_name'] = _student_display_name(student_data)
 
-        # Approved completions on this quest
+        # All completed tasks on this class quest. Per-task credit review is
+        # skipped inside a class (completions keep diploma_status='none'), so we
+        # must NOT filter by diploma_status — that's what made the class look
+        # empty. Matches how class progress counts XP.
         completions = supabase.table('quest_task_completions') \
-            .select('id, user_quest_task_id, diploma_status, finalized_at, credit_requested_at') \
+            .select('id, user_quest_task_id, diploma_status, finalized_at, credit_requested_at, completed_at') \
             .eq('quest_id', quest_id) \
             .eq('user_id', student_id) \
-            .in_('diploma_status', ['approved', 'finalized']) \
             .execute()
         task_ids = [c['user_quest_task_id'] for c in (completions.data or []) if c.get('user_quest_task_id')]
         tasks_map = {}
@@ -123,6 +125,26 @@ def get_class_review_detail(user_id: str, quest_id: str):
                 .in_('id', task_ids) \
                 .execute()
             tasks_map = {t['id']: t for t in (tasks.data or [])}
+
+        # Evidence per task: documents -> ordered blocks, grouped by task.
+        evidence_by_task = {}
+        if task_ids:
+            docs = supabase.table('user_task_evidence_documents') \
+                .select('id, task_id') \
+                .eq('user_id', student_id) \
+                .in_('task_id', task_ids) \
+                .execute()
+            doc_to_task = {d['id']: d['task_id'] for d in (docs.data or [])}
+            if doc_to_task:
+                blocks = supabase.table('evidence_document_blocks') \
+                    .select('id, document_id, block_type, content, order_index') \
+                    .in_('document_id', list(doc_to_task.keys())) \
+                    .order('order_index') \
+                    .execute()
+                for b in (blocks.data or []):
+                    tid = doc_to_task.get(b['document_id'])
+                    if tid:
+                        evidence_by_task.setdefault(tid, []).append(b)
 
         from routes.tasks.xp_helpers import get_subject_xp_distribution
         approved_xp = 0
@@ -141,6 +163,8 @@ def get_class_review_detail(user_id: str, quest_id: str):
                 'xp_value': xp_value,
                 'subject_xp_attributed': subject_xp,
                 'finalized_at': c.get('finalized_at'),
+                'completed_at': c.get('completed_at'),
+                'evidence_blocks': evidence_by_task.get(t.get('id'), []),
             })
 
         return success_response(data={

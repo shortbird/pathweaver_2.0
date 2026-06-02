@@ -552,9 +552,11 @@ def get_quest_moments(user_id, quest_id):
 def convert_moment_to_task(user_id, moment_id):
     """Promote a quest-assigned learning moment into a task on that quest.
 
-    Creates a pending task with ``source_moment_id`` linked back. The student
-    can adjust title / pillar / xp via ``PUT /api/tasks/<task_id>`` afterward;
-    credit review (org admin and/or superadmin) still happens at credit-request time.
+    Creates an approved (visible) task with ``source_moment_id`` linked back and
+    the moment's evidence pre-seeded. The task lands incomplete — the student
+    taps Complete to earn XP — and can adjust title / pillar / xp via
+    ``PUT /api/tasks/<task_id>`` (default 50 XP). Credit review (org admin
+    and/or superadmin) still happens at credit-request time.
     """
     try:
         data = request.get_json()
@@ -566,6 +568,7 @@ def convert_moment_to_task(user_id, moment_id):
         pillar = data.get('pillar', 'stem')
         xp_value = data.get('xp_value', InterestTracksService.DEFAULT_PROMOTED_TASK_XP)
         quest_id = data.get('quest_id')
+        diploma_subject = data.get('diploma_subject') or None
 
         valid_pillars = ['art', 'stem', 'wellness', 'communication', 'civics']
         if pillar not in valid_pillars:
@@ -574,13 +577,21 @@ def convert_moment_to_task(user_id, moment_id):
         if not isinstance(xp_value, int) or xp_value < 10 or xp_value > 500:
             return jsonify({'error': 'XP value must be between 10 and 500'}), 400
 
+        # Optional diploma credit. For a class quest the backend ignores this and
+        # forces the class's subject, so we only validate it when provided.
+        if diploma_subject is not None:
+            from utils.school_subjects import SCHOOL_SUBJECTS
+            if diploma_subject not in SCHOOL_SUBJECTS:
+                return jsonify({'error': f'Invalid diploma_subject. Must be one of: {", ".join(SCHOOL_SUBJECTS)}'}), 400
+
         result = InterestTracksService.convert_moment_to_task(
             user_id=user_id,
             moment_id=moment_id,
             quest_id=quest_id,
             title=title.strip() if title else None,
             pillar=pillar,
-            xp_value=xp_value
+            xp_value=xp_value,
+            diploma_subject=diploma_subject
         )
 
         if result['success']:

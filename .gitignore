@@ -150,3 +150,6 @@ site/
 
 .claude/workspace/
 test_video.mp4
+
+# Android bug-report artifacts (never commit)
+frontend-v2/bugreport-*.zip
