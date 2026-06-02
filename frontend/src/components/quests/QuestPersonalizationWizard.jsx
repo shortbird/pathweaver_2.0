@@ -163,6 +163,11 @@ export default function QuestPersonalizationWizard({
         approach: 'hybrid', // Default since we removed the approach selection
         interests: selectedInterests,
         cross_curricular_subjects: crossCurricularSubjects,
+        // Parity with v2 mobile: tell the AI which tasks already exist so it
+        // doesn't re-suggest them. The backend also merges in the student's
+        // persisted quest tasks server-side, so this covers any accepted this
+        // session before a re-generate.
+        exclude_tasks: acceptedTasks.map(t => t.title),
         additional_feedback: additionalFeedback
       });
 
