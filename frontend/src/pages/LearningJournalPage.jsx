@@ -8,12 +8,14 @@ import InterestTrackDetail from '../components/interest-tracks/InterestTrackDeta
 import QuestMomentsDetail from '../components/interest-tracks/QuestMomentsDetail';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
 import QuickCaptureButton from '../components/learning-events/QuickCaptureButton';
+import BulkImportModal from '../components/learning-events/BulkImportModal';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
 import EvolveTopicModal from '../components/interest-tracks/EvolveTopicModal';
 import {
   FolderOpenIcon,
   SparklesIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  PhotoIcon
 } from '@heroicons/react/24/outline';
 
 const LearningJournalPage = () => {
@@ -37,6 +39,9 @@ const LearningJournalPage = () => {
   // Evolve modal state
   const [showEvolveModal, setShowEvolveModal] = useState(false);
   const [trackToEvolve, setTrackToEvolve] = useState(null);
+
+  // Bulk import modal (self-view only)
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   // Fetch child info when in parent mode
   useEffect(() => {
@@ -178,17 +183,29 @@ const LearningJournalPage = () => {
     <div className="h-[calc(100vh-4rem)] flex flex-col bg-gray-50">
       {/* Page Header with Mobile Tabs */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-lg sm:text-xl font-bold text-gray-900">
-            {isParentView && childInfo
-              ? `${childInfo.first_name || childInfo.display_name}'s Learning Journal`
-              : 'Learning Journal'}
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
-            {isParentView
-              ? 'View and organize learning moments'
-              : 'Track your spontaneous learning and organize it by topics of interest'}
-          </p>
+        <div className="max-w-7xl mx-auto flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+              {isParentView && childInfo
+                ? `${childInfo.first_name || childInfo.display_name}'s Learning Journal`
+                : 'Learning Journal'}
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
+              {isParentView
+                ? 'View and organize learning moments'
+                : 'Track your spontaneous learning and organize it by topics of interest'}
+            </p>
+          </div>
+          {!isParentView && (
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple border border-optio-purple/40 rounded-lg hover:bg-purple-50 transition-colors"
+              title="Import many photos at once"
+            >
+              <PhotoIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Bulk import</span>
+            </button>
+          )}
         </div>
 
         {/* Mobile Tab Navigation */}
@@ -380,6 +397,15 @@ const LearningJournalPage = () => {
         track={trackToEvolve}
         onSuccess={handleEvolveSuccess}
       />
+
+      {/* Bulk Import Modal (self-view only) */}
+      {!isParentView && (
+        <BulkImportModal
+          isOpen={showBulkImport}
+          onClose={() => setShowBulkImport(false)}
+          onSuccess={handleCaptureSuccess}
+        />
+      )}
     </div>
   );
 };

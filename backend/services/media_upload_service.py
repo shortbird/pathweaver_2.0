@@ -203,6 +203,15 @@ class MediaUploadService:
         filename = secure_filename(file.filename)
         ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
 
+        # Fall back to content_type when filename has no extension. Android camera
+        # roll and the iOS share sheet often hand us names like "IMG_1234" with
+        # the actual format only in Content-Type ("image/jpeg").
+        if not ext:
+            ct = file.content_type if hasattr(file, 'content_type') else None
+            ext = self._ext_from_content_type(ct)
+            if ext:
+                filename = f"{filename or 'upload'}.{ext}"
+
         # Auto-detect block_type from extension if not provided
         if not block_type:
             block_type = self._detect_media_type(ext)
@@ -432,6 +441,14 @@ class MediaUploadService:
 
         safe_name = secure_filename(filename)
         ext = safe_name.rsplit('.', 1)[1].lower() if '.' in safe_name else ''
+
+        # Fall back to content_type when filename has no extension (see comment
+        # in upload_evidence_file). The signed-upload path also rewrites
+        # safe_name so the storage path ends up with a usable extension.
+        if not ext:
+            ext = self._ext_from_content_type(content_type)
+            if ext:
+                safe_name = f"{safe_name or 'upload'}.{ext}"
 
         if not block_type:
             block_type = self._detect_media_type(ext)
@@ -838,6 +855,44 @@ class MediaUploadService:
         if ext in ALLOWED_DOCUMENT_EXTENSIONS:
             return 'document'
         return 'document'
+
+    # Canonical extension to use when the browser/share-sheet hands us a file
+    # with no filename extension (common on Android camera roll / iOS share
+    # sheet — filename like "IMG_1234" with content_type "image/jpeg").
+    _CONTENT_TYPE_EXT_FALLBACK = {
+        'image/jpeg': 'jpeg',
+        'image/jpg': 'jpeg',
+        'image/pjpeg': 'jpeg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+        'image/heic': 'heic',
+        'image/heif': 'heif',
+        'image/tiff': 'tiff',
+        'image/bmp': 'bmp',
+        'image/avif': 'avif',
+        'video/mp4': 'mp4',
+        'video/quicktime': 'mov',
+        'audio/mpeg': 'mp3',
+        'audio/mp4': 'm4a',
+        'audio/x-m4a': 'm4a',
+        'audio/wav': 'wav',
+        'audio/x-wav': 'wav',
+        'audio/aac': 'aac',
+        'audio/ogg': 'ogg',
+        'application/pdf': 'pdf',
+    }
+
+    @classmethod
+    def _ext_from_content_type(cls, content_type: Optional[str]) -> str:
+        """
+        Map a Content-Type to a canonical file extension. Returns '' when the
+        MIME isn't one we accept — caller should still reject in that case.
+        """
+        if not content_type:
+            return ''
+        base = content_type.split(';', 1)[0].strip().lower()
+        return cls._CONTENT_TYPE_EXT_FALLBACK.get(base, '')
 
     def _generate_storage_path(
         self,

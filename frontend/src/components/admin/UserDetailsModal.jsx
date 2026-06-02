@@ -891,7 +891,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 </div>
               </button>
 
-              {/* Set Password */}
+              {/* Reset Password */}
               <button
                 onClick={handleResetPassword}
                 className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors font-medium text-left"
@@ -900,8 +900,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
                 <div>
-                  <p className="font-semibold">Set Password</p>
-                  <p className="text-sm text-yellow-600">Reset user's password</p>
+                  <p className="font-semibold">Reset Password</p>
+                  <p className="text-sm text-yellow-600">Sets password to "changeme!"</p>
                 </div>
               </button>
 
@@ -950,9 +950,9 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         <ResetPasswordModal
           user={user}
           onClose={() => setShowResetPasswordModal(false)}
-          onSuccess={() => {
+          onSuccess={(newPassword) => {
             setShowResetPasswordModal(false)
-            toast.success('Password reset successfully')
+            toast.success(`Password reset to "${newPassword}"`)
             onSave()
           }}
         />
@@ -972,63 +972,13 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
 // Reset Password Modal Component
 const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState(null)
 
-  const validatePassword = (password) => {
-    const errors = []
-    if (password.length < 12) {
-      errors.push('At least 12 characters')
-    }
-    if (!/[A-Z]/.test(password)) {
-      errors.push('One uppercase letter')
-    }
-    if (!/[a-z]/.test(password)) {
-      errors.push('One lowercase letter')
-    }
-    if (!/[0-9]/.test(password)) {
-      errors.push('One number')
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-      errors.push('One special character')
-    }
-    return errors
-  }
-
-  const handlePasswordChange = (password) => {
-    setNewPassword(password)
-    const errors = validatePassword(password)
-    if (errors.length === 0) {
-      setPasswordStrength('strong')
-    } else if (errors.length <= 2) {
-      setPasswordStrength('medium')
-    } else {
-      setPasswordStrength('weak')
-    }
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match')
-      return
-    }
-
-    const errors = validatePassword(newPassword)
-    if (errors.length > 0) {
-      toast.error(`Password requirements not met: ${errors.join(', ')}`)
-      return
-    }
-
+  const handleConfirm = async () => {
     setLoading(true)
     try {
-      await api.post(`/api/admin/users/${user.id}/reset-password`, {
-        new_password: newPassword
-      })
-      onSuccess()
+      const response = await api.post(`/api/admin/users/${user.id}/reset-password`, {})
+      onSuccess(response.data?.new_password || 'changeme!')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to reset password')
     } finally {
@@ -1041,79 +991,35 @@ const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
       <div className="bg-white rounded-lg p-6 max-w-full sm:max-w-md w-full mx-4">
         <h3 className="text-xl font-bold mb-4">Reset Password</h3>
         <p className="text-gray-600 mb-4">
-          Set a new password for <strong>{user.first_name} {user.last_name}</strong> ({user.email})
+          This will reset the password for <strong>{user.first_name} {user.last_name}</strong> ({user.email}) to:
         </p>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              New Password
-            </label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => handlePasswordChange(e.target.value)}
-              className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            {newPassword && (
-              <div className="mt-2">
-                <div className="flex gap-1">
-                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'weak' ? 'bg-red-500' : passwordStrength === 'medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'medium' || passwordStrength === 'strong' ? 'bg-yellow-500' : 'bg-gray-200'}`}></div>
-                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'strong' ? 'bg-green-500' : 'bg-gray-200'}`}></div>
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  {passwordStrength === 'strong' && 'Strong password'}
-                  {passwordStrength === 'medium' && 'Medium strength - consider adding more characters'}
-                  {passwordStrength === 'weak' && 'Weak password - please strengthen'}
-                </p>
-              </div>
-            )}
-          </div>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4 text-center">
+          <code className="text-lg font-mono font-semibold text-gray-900">changeme!</code>
+        </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
+        <p className="text-sm text-gray-500 mb-4">
+          Share this password with the user and have them change it after logging in.
+        </p>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <p className="text-sm text-blue-800 font-medium mb-1">Password Requirements:</p>
-            <ul className="text-xs text-blue-700 space-y-1">
-              <li>• At least 12 characters long</li>
-              <li>• One uppercase letter (A-Z)</li>
-              <li>• One lowercase letter (a-z)</li>
-              <li>• One number (0-9)</li>
-              <li>• One special character (!@#$%^&*...)</li>
-            </ul>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 min-h-[44px] border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              disabled={loading || !newPassword || !confirmPassword}
-            >
-              {loading ? 'Resetting...' : 'Reset Password'}
-            </button>
-          </div>
-        </form>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2 min-h-[44px] border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="flex-1 px-4 py-2 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            disabled={loading}
+          >
+            {loading ? 'Resetting...' : 'Reset Password'}
+          </button>
+        </div>
       </div>
     </div>
   )

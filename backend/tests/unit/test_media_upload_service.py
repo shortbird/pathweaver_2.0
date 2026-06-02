@@ -621,6 +621,36 @@ def test_create_upload_session_auto_detects_block_type():
     assert session.media_type == "video"
 
 
+def test_create_upload_session_accepts_extensionless_image_via_content_type():
+    """iOS share sheet / Android camera roll can hand us a filename with no
+    extension and the format only in Content-Type. The session must still
+    accept it and the storage path must end up with a usable extension."""
+    svc, *_ = _make_service_with_stub_client()
+    session = svc.create_upload_session(
+        user_id="u",
+        context_type="moment",
+        context_id="child-id",
+        filename="IMG_1234",
+        file_size=2048,
+        content_type="image/jpeg",
+        block_type="image",
+    )
+    assert session.success is True, session.error_message
+    assert session.media_type == "image"
+    assert session.storage_path.endswith(".jpeg")
+
+
+def test_upload_evidence_file_accepts_extensionless_image_via_content_type():
+    svc, *_ = _make_service_with_stub_client()
+    file = _FakeFile(b"\xff\xd8\xff\xd9" * 32, "IMG_1234", content_type="image/jpeg")
+    result = svc.upload_evidence_file(
+        file, user_id="u", context_type="moment", context_id="child-id",
+    )
+    assert result.success is True, result.error_message
+    assert result.media_type == "image"
+    assert (result.filename or "").endswith(".jpeg")
+
+
 def test_create_upload_session_handles_supabase_failure():
     svc, client, bucket = _make_service_with_stub_client()
     bucket.create_signed_upload_url.side_effect = RuntimeError("supabase down")
