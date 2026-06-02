@@ -223,7 +223,14 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         ...f,
         order_index: i,
       }));
-      await api.post(`/api/learning-events/${eventId}/evidence`, { blocks });
+      // For a parent-captured moment the event is owned by the CHILD, so the
+      // self-scoped evidence endpoint rejects the caller and the blocks are
+      // silently dropped (empty moment). Use the parent-scoped endpoint, which
+      // authorizes via captured_by_user_id.
+      const evidencePath = studentId
+        ? `/api/parent/children/${studentId}/learning-moments/${eventId}/evidence`
+        : `/api/learning-events/${eventId}/evidence`;
+      await api.post(evidencePath, { blocks });
     }
   };
 

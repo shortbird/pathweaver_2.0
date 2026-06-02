@@ -286,14 +286,34 @@ export const bugReportAPI = {
    * Submit a bug report. `context` is the diagnostics blob + user message;
    * `screenshot` is an optional native file ({ uri, name, type }).
    */
-  submit: (context: BugReportContext, screenshot?: { uri: string; name: string; type: string } | null) => {
+  submit: async (context: BugReportContext, screenshot?: { uri: string; name: string; type: string } | null) => {
     const form = new FormData();
     form.append('context', JSON.stringify(context));
     if (screenshot) {
       // React Native FormData accepts the { uri, name, type } file shape.
       form.append('screenshot', screenshot as unknown as Blob);
     }
-    return api.post('/api/bug-reports', form);
+    // NOTE: deliberately NOT axios. On React Native, posting FormData through
+    // axios fails at the transport layer with ERR_NETWORK ("Network Error",
+    // no status) — the request never leaves the device. RN's own fetch handles
+    // multipart boundaries correctly (the same reason signedUpload uses XHR).
+    // We attach the Bearer token manually and let fetch set Content-Type.
+    const token = tokenStore.getAccessToken();
+    const res = await fetch(`${API_URL}/api/bug-reports`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form,
+      credentials: Platform.OS === 'web' ? 'include' : 'omit',
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      const err = new Error(`Bug report failed (${res.status}) ${detail}`.trim()) as Error & {
+        response?: { status: number };
+      };
+      err.response = { status: res.status };
+      throw err;
+    }
+    return res.json().catch(() => ({}));
   },
 };
 

@@ -1011,6 +1011,16 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
                 'order_index': block.get('order_index', idx)
             }
 
+            # Persist the uploaded-file reference so image/video/document blocks
+            # actually render. Without these the parent-captured moment came
+            # through empty even though the file uploaded to storage.
+            if block.get('file_url'):
+                block_data['file_url'] = block['file_url']
+            if block.get('file_name'):
+                block_data['file_name'] = block['file_name']
+            if isinstance(block.get('file_size'), int):
+                block_data['file_size'] = block['file_size']
+
             block_response = supabase.table('learning_event_evidence_blocks') \
                 .insert(block_data) \
                 .execute()
