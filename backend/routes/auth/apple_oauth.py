@@ -14,6 +14,7 @@ defaults.
 
 from flask import Blueprint, request, make_response, jsonify
 from database import get_supabase_admin_client
+from utils.parent_flags import attach_relationship_flags
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from middleware.csrf_protection import csrf
@@ -226,6 +227,10 @@ def apple_oauth_callback():
 
             if not profile_created:
                 raise Exception("Failed to create user profile after retries")
+
+        # Attach parent/advisor relationship flags so parent detection works
+        # immediately after Apple sign-in (matches email login + /me).
+        attach_relationship_flags(admin_client, user_data)
 
         # New users: return TOS acceptance token (reuse google endpoint for acceptance)
         if requires_tos_acceptance:
