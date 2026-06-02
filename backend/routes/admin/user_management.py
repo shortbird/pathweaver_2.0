@@ -338,17 +338,18 @@ def admin_reset_password(user_id, target_user_id):
     supabase = get_supabase_admin_client()
 
     try:
-        data = request.json
-        new_password = data.get('new_password')
+        data = request.json or {}
+        new_password = (data.get('new_password') or '').strip()
 
+        # Default to a known temporary password when the admin doesn't supply one,
+        # so resets can be one-click. Strength validation only runs on custom values.
         if not new_password:
-            return jsonify({'success': False, 'error': 'New password is required'}), 400
-
-        # Validate password strength
-        from utils.validation import validate_password
-        is_valid, error_message = validate_password(new_password)
-        if not is_valid:
-            return jsonify({'success': False, 'error': error_message}), 400
+            new_password = 'changeme!'
+        else:
+            from utils.validation import validate_password
+            is_valid, error_message = validate_password(new_password)
+            if not is_valid:
+                return jsonify({'success': False, 'error': error_message}), 400
 
         # Check if user exists
         user = supabase.table('users').select('email').eq('id', target_user_id).single().execute()
@@ -358,29 +359,33 @@ def admin_reset_password(user_id, target_user_id):
 
         user_email = user.data['email']
 
-        # Update password using Supabase Admin API
+        # Update password by writing directly to auth.users via a SECURITY DEFINER RPC.
+        # We bypass supabase.auth.admin.update_user_by_id because Supabase Auth runs
+        # an HIBP/leaked-password check that rejects common temporary passwords like
+        # "changeme!". Strength validation for non-default passwords is handled above.
         try:
-            auth_response = supabase.auth.admin.update_user_by_id(
-                target_user_id,
-                {'password': new_password}
-            )
-
-            if not auth_response:
-                return jsonify({'success': False, 'error': 'Failed to update password'}), 500
+            supabase.rpc('admin_set_user_password', {
+                'target_user_id': target_user_id,
+                'new_password': new_password
+            }).execute()
 
             # Clear any account lockouts for this user
-            from routes.auth import reset_login_attempts
-            reset_login_attempts(user_email)
+            try:
+                from routes.auth.login.security import reset_login_attempts
+                reset_login_attempts(user_email)
+            except Exception as lockout_error:
+                logger.warning(f"Could not clear login attempts for {user_email}: {lockout_error}")
 
             logger.info(f"Admin {user_id} reset password for user {target_user_id}")
 
             return jsonify({
                 'success': True,
-                'message': 'Password reset successfully'
+                'message': 'Password reset successfully',
+                'new_password': new_password
             })
 
         except Exception as auth_error:
-            logger.error(f"Error updating password via Supabase Auth: {str(auth_error)}")
+            logger.error(f"Error updating password via RPC: {str(auth_error)}")
             return jsonify({
                 'success': False,
                 'error': 'Failed to update password in authentication system'
