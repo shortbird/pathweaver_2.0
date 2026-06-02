@@ -104,6 +104,9 @@
         "READ_MEDIA_IMAGES",
         "READ_MEDIA_VIDEO",
         "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
       ]
     },
     "web": {
