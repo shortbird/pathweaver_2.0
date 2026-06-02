@@ -1,6 +1,7 @@
 """Learning event CRUD + quick create + AI suggestions."""
 from flask import request, jsonify
 from utils.auth.decorators import require_auth
+from middleware.error_handler import AuthorizationError
 from services.learning_events_service import LearningEventsService
 
 from utils.logger import get_logger
@@ -130,6 +131,32 @@ def create_quick_learning_event(user_id):
         parent_moment_id = data.get('parent_moment_id')
         event_date = data.get('event_date')
 
+        # Parent/guardian capturing for a child: the app's parent capture flow
+        # sends student_id. Own the moment under the CHILD (attributed to the
+        # caller) instead of the caller's own account. Authorization mirrors
+        # POST /api/parent/children/<id>/learning-moments. Without this branch
+        # the moment silently landed on the parent's account as 'realtime'.
+        student_id = data.get('student_id')
+        if student_id and student_id != user_id:
+            from database import get_supabase_admin_client
+            from routes.parent.dashboard_overview import verify_parent_access
+            # admin client justified: cross-user write (moment owned by child) gated by verify_parent_access(parent -> child)
+            supabase = get_supabase_admin_client()
+            verify_parent_access(supabase, user_id, student_id)  # raises AuthorizationError if not linked
+            event_data = {
+                'user_id': student_id,
+                'captured_by_user_id': user_id,
+                'description': description.strip(),
+                'source_type': 'parent_captured',
+                'pillars': [],
+            }
+            if event_date:
+                event_data['event_date'] = event_date
+            resp = supabase.table('learning_events').insert(event_data).execute()
+            if not resp.data:
+                return jsonify({'success': False, 'error': 'Failed to capture moment'}), 500
+            return jsonify({'success': True, 'event': resp.data[0], 'message': 'Moment captured!'}), 201
+
         result = LearningEventsService.create_quick_moment(
             user_id=user_id,
             description=description.strip(),
@@ -150,6 +177,8 @@ def create_quick_learning_event(user_id):
                 'error': result.get('error', 'Failed to capture moment')
             }), 500
 
+    except AuthorizationError as e:
+        return jsonify({'error': str(e) or 'Not authorized to capture for this child'}), 403
     except Exception as e:
         logger.error(f"Error in create_quick_learning_event: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

@@ -9,6 +9,7 @@ Handles:
 
 from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_admin_client
+from utils.parent_flags import attach_relationship_flags
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from middleware.csrf_protection import csrf
@@ -320,6 +321,10 @@ def google_oauth_callback():
             if not profile_created:
                 raise Exception("Failed to create user profile after retries")
 
+        # Attach parent/advisor relationship flags so the app's parent detection
+        # works immediately after Google sign-in (email login + /me already do this).
+        attach_relationship_flags(admin_client, user_data)
+
         # For new users requiring TOS, return early with TOS acceptance token
         if requires_tos_acceptance:
             tos_token = generate_tos_acceptance_token(user_id)
@@ -542,6 +547,7 @@ def accept_tos():
         # Fetch updated user data
         updated_user = admin_client.table('users').select('*').eq('id', user_id).single().execute()
         user_data = updated_user.data if updated_user.data else user_data
+        attach_relationship_flags(admin_client, user_data)
 
         # Now issue full session tokens
         app_access_token = session_manager.generate_access_token(user_id)

@@ -4,24 +4,13 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, Platform, Modal, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Pressable, Platform, Modal, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
-import { api } from '@/src/services/api';
-
-interface DemoAccount {
-  id: string;
-  email: string;
-  first_name?: string;
-  last_name?: string;
-  display_name?: string;
-  role?: string;
-  avatar_url?: string | null;
-}
 
 const PREVIEW_ROLE_LABEL: Record<string, string> = {
   parent: 'Parent',
@@ -83,13 +72,10 @@ function AvatarMenu() {
     user?.org_role === 'parent' ||
     (user as any)?.has_dependents || (user as any)?.has_linked_students;
 
-  const startMasquerade = useActingAsStore((s) => s.startMasquerade);
   const stopMasquerade = useActingAsStore((s) => s.stopMasquerade);
   const restoreActingAs = useActingAsStore((s) => s.restore);
   const actingMode = useActingAsStore((s) => s.mode);
   const actingActive = useActingAsStore((s) => s.isActive);
-  const [demoAccounts, setDemoAccounts] = useState<DemoAccount[] | null>(null);
-  const [demoLoading, setDemoLoading] = useState(false);
 
   // When the menu opens, recheck masquerade state. Native zustand stores
   // reset on Metro reload / app restart, so this is the cheapest place to
@@ -99,34 +85,6 @@ function AvatarMenu() {
       Promise.resolve(restoreActingAs()).catch(() => { /* no-op */ });
     }
   }, [menuOpen, restoreActingAs]);
-
-  // Fetch demo accounts when the picker becomes relevant (superadmin + menu open).
-  useEffect(() => {
-    if (!isSuperadmin || !menuOpen) return;
-    if (demoAccounts !== null) return;
-    let cancelled = false;
-    setDemoLoading(true);
-    api.get('/api/admin/masquerade/demo-accounts')
-      .then(({ data }) => {
-        if (!cancelled) setDemoAccounts(data.accounts || []);
-      })
-      .catch(() => {
-        if (!cancelled) setDemoAccounts([]);
-      })
-      .finally(() => {
-        if (!cancelled) setDemoLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [isSuperadmin, menuOpen, demoAccounts]);
-
-  const handlePickDemo = async (accountId: string) => {
-    setMenuOpen(false);
-    try {
-      await startMasquerade(accountId);
-    } catch (err) {
-      console.warn('Failed to view as demo account', err);
-    }
-  };
 
   const handlePreviewSelect = (role: PreviewRole | null) => {
     setMenuOpen(false);
@@ -277,69 +235,6 @@ function AvatarMenu() {
                     </View>
                   </Pressable>
                 )}
-
-                {/* Demo-account picker. Superadmin always sees this; tapping
-                    a row masquerades as that account. Once masqueraded the
-                    user is no longer superadmin so this whole section hides
-                    automatically (clean for screenshots). */}
-                <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
-                  <UIText size="xs" style={{ color: '#9CA3AF', fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                    Demo accounts
-                  </UIText>
-                </View>
-                {demoLoading && (
-                      <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <ActivityIndicator size="small" color="#6D469B" />
-                        <UIText size="sm" style={{ color: '#6B6280' }}>Loading…</UIText>
-                      </View>
-                    )}
-                    {!demoLoading && demoAccounts && demoAccounts.length === 0 && (
-                      <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
-                        <UIText size="xs" style={{ color: '#9CA3AF' }}>
-                          No demo accounts found. Run scripts/seed_demo_family.py.
-                        </UIText>
-                      </View>
-                    )}
-                    {!demoLoading && demoAccounts && demoAccounts.map((acct) => {
-                      const name = acct.display_name
-                        || `${acct.first_name || ''} ${acct.last_name || ''}`.trim()
-                        || acct.email;
-                      const subtitle = acct.role === 'parent' ? 'Parent'
-                        : acct.role === 'observer' ? 'Observer'
-                        : acct.role === 'student' ? 'Student'
-                        : acct.role || '';
-                      return (
-                        <Pressable
-                          key={acct.id}
-                          onPress={() => handlePickDemo(acct.id)}
-                          style={{ paddingHorizontal: 16, paddingVertical: 10 }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            {acct.avatar_url ? (
-                              <Image
-                                source={{ uri: acct.avatar_url }}
-                                style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#F1EDF5' }}
-                              />
-                            ) : (
-                              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#F1EDF5', alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="person" size={14} color="#9A93A8" />
-                              </View>
-                            )}
-                            <View style={{ flex: 1 }}>
-                              <UIText size="sm" style={{ color: '#1F2937' }} className="font-poppins-medium" numberOfLines={1}>
-                                {name}
-                              </UIText>
-                              {subtitle ? (
-                                <UIText size="xs" style={{ color: '#9CA3AF' }} numberOfLines={1}>
-                                  {subtitle}
-                                </UIText>
-                              ) : null}
-                            </View>
-                            <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
-                          </View>
-                        </Pressable>
-                      );
-                    })}
 
                 <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4 }} />
               </>
