@@ -14,6 +14,8 @@ import { deleteLearningEvent, assignMomentToTopic, deleteChildLearningEvent } fr
 import api from '@/src/services/api';
 import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
 import { AudioClipPreview } from '../capture/VoiceRecorder';
+import { VideoPlayer } from '../feed/VideoPlayer';
+import { DocumentViewer } from '../feed/DocumentViewer';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 
@@ -84,7 +86,12 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   // Voice notes get an inline player; everything else (except the hero) shows as
   // a small evidence-type icon badge.
   const audioBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'audio' && getBlockUrl(b)) || [];
-  const otherEvidence = event.evidence_blocks?.filter((b) => b !== heroBlock && b.block_type !== 'audio') || [];
+  // PDFs/documents get an inline preview (DocumentViewer), so don't also reduce
+  // them to a tiny type icon in the indicator row.
+  const documentBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'document' && getBlockUrl(b)) || [];
+  const otherEvidence = event.evidence_blocks?.filter(
+    (b) => b !== heroBlock && b.block_type !== 'audio' && b.block_type !== 'document',
+  ) || [];
   const rawDate = event.event_date || event.created_at;
   // Append T12:00 to date-only strings to avoid UTC midnight → previous day in local timezone
   const parsedDate = rawDate && !rawDate.includes('T') ? new Date(rawDate + 'T12:00:00') : new Date(rawDate);
@@ -215,8 +222,10 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                 style={{ width: '100%', maxHeight: 400, objectFit: 'contain', borderTopLeftRadius: 12, borderTopRightRadius: 12, backgroundColor: '#000' }}
               />
             ) : (
-              <View className="w-full h-40 bg-surface-100 dark:bg-dark-surface-200 rounded-t-xl items-center justify-center">
-                <Ionicons name="play-circle" size={40} color="#6D469B" />
+              // Real inline player (was a static placeholder) so videos are
+              // watchable directly in the journal.
+              <View style={{ height: 220 }}>
+                <VideoPlayer uri={getBlockUrl(videoBlock)} fillContainer />
               </View>
             )}
           </View>
@@ -398,6 +407,16 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
             <Pressable key={`audio-${i}`} onPress={(e) => e.stopPropagation?.()} style={{ marginTop: i > 0 ? 8 : 0 }}>
               <AudioClipPreview
                 clip={{ uri: getBlockUrl(b)!, name: 'Voice note', fileSize: 0, durationMs: (b as any).content?.duration_ms || 0 }}
+              />
+            </Pressable>
+          ))}
+
+          {/* PDFs / documents — inline page preview (was just a type icon). */}
+          {documentBlocks.map((b, i) => (
+            <Pressable key={`doc-${i}`} onPress={(e) => e.stopPropagation?.()} style={{ marginTop: 4 }}>
+              <DocumentViewer
+                uri={getBlockUrl(b)!}
+                title={(b as any).file_name || (b as any).content?.filename || (b as any).content?.title || 'Document'}
               />
             </Pressable>
           ))}
