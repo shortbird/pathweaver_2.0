@@ -67,6 +67,11 @@ export interface FeedItem {
   views_count: number;
   comments_count: number;
   is_confidential: boolean;
+  /** Whether the current viewer is allowed to create a public share link for
+   *  this post. Set by the backend feed endpoint. Undefined from older
+   *  responses — treated as shareable to avoid hiding the button on version
+   *  skew (see FeedCard). */
+  can_share?: boolean;
 }
 
 interface UseFeedOptions {
@@ -212,11 +217,46 @@ export async function getComments(type: 'task_completed' | 'learning_moment', id
   return data.comments || data || [];
 }
 
-export async function createShareLink(type: 'task_completed' | 'learning_moment', id: string) {
-  const cleanId = id.replace(/^(tc_|le_)/, '');
-  const body = type === 'task_completed'
-    ? { completion_id: cleanId }
-    : { learning_event_id: cleanId };
+export class NotShareableError extends Error {
+  constructor() {
+    super('NOT_SHAREABLE');
+    this.name = 'NotShareableError';
+  }
+}
+
+/**
+ * Create a public share link for a feed item.
+ *
+ * Task-evidence feed items carry a composite `id` ("<docOrCompletionId>_<blockId>")
+ * that is NOT a valid completion id, so we must address the underlying record via
+ * the explicit `completionId`/`learningEventId` handles the feed provides — same
+ * pattern as getViewers/toggleVisibility. Sending the composite id was the cause
+ * of spurious "Failed to share" errors.
+ */
+export async function createShareLink(args: {
+  type: 'task_completed' | 'learning_moment';
+  completionId?: string | null;
+  learningEventId?: string | null;
+  /** Composite feed item id, used only as a fallback for clean (non-composite) ids. */
+  id: string;
+}) {
+  let body: { completion_id: string } | { learning_event_id: string };
+
+  if (args.type === 'task_completed') {
+    // Prefer the explicit completion id. Fall back to the raw id only when it's
+    // a clean (non-composite) value — a composite id has no shareable completion.
+    let completionId = args.completionId || null;
+    if (!completionId) {
+      const cleanId = args.id.replace(/^tc_/, '');
+      completionId = cleanId.includes('_') ? null : cleanId;
+    }
+    if (!completionId) throw new NotShareableError();
+    body = { completion_id: completionId };
+  } else {
+    const learningEventId = args.learningEventId || args.id.replace(/^le_/, '');
+    body = { learning_event_id: learningEventId };
+  }
+
   const { data } = await api.post('/api/observers/feed/share', body);
   return data as { share_url: string; token: string };
 }

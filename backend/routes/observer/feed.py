@@ -370,6 +370,18 @@ def register_routes(bp):
                     return items[0].get('url')
                 return content_obj.get('url')
 
+            # Whether the viewer is allowed to create a public share link for a
+            # given student's post. Kept in lockstep with _check_student_access in
+            # routes/observer/sharing.py so the share button we render never hits a
+            # 403: superadmin (global or scoped), the post owner, or anyone with a
+            # link that already granted evidence visibility (observer/advisor/parent).
+            def viewer_can_share(post_student_id):
+                if is_superadmin_global or effective_role == 'superadmin':
+                    return True
+                if post_student_id == observer_id:
+                    return True
+                return bool(evidence_permissions.get(post_student_id))
+
             # Build feed items - one per evidence block.
             # Items appear as soon as a block is uploaded; no completion record required.
             raw_feed_items = []
@@ -692,6 +704,9 @@ def register_routes(bp):
                         'media': item.get('media_items', []),
                         'views_count': le_views_count.get(le_id, 0),
                         'comments_count': le_comments_count.get(le_id, 0),
+                        # A learning moment is always shareable via its event id,
+                        # subject to the viewer's permission.
+                        'can_share': viewer_can_share(item['student_id']),
                     })
                 else:
                     # Task-attached evidence item — either a real completion
@@ -732,6 +747,11 @@ def register_routes(bp):
                         'xp_awarded': item.get('task_xp', 0),
                         'views_count': views_count.get(item.get('completion_id'), 0),
                         'comments_count': comments_count.get(item.get('completion_id'), 0),
+                        # Task evidence is shareable only once it has a real
+                        # completion (the share endpoint keys off completion_id).
+                        # Draft helper-evidence blocks with no completion yet
+                        # aren't shareable.
+                        'can_share': bool(item.get('completion_id')) and viewer_can_share(item['student_id']),
                     })
 
             # Log feed access

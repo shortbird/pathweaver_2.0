@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 def _check_student_access(supabase, user_id, student_id):
     """Check if user has observer/parent/advisor/superadmin access to a student."""
+    # A user can always share their own post (mirrors the owner-access grant in
+    # the public-view endpoint below).
+    if user_id == student_id:
+        return True
+
     user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
     user_role = user_result.data.get('role') if user_result.data else None
 

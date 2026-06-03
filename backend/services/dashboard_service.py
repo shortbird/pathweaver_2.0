@@ -547,6 +547,21 @@ class DashboardService:
             return response.count
         return len(response.data or [])
 
+    def get_moments_count(self, user_id: str) -> int:
+        """Total count of learning moments (learning_events) for a user.
+
+        In this app every captured moment and task-completion log is a
+        learning_event, so this is the 'Moments' stat shown on profile heroes.
+        """
+        response = self.client.table('learning_events')\
+            .select('id', count='exact')\
+            .eq('user_id', user_id)\
+            .execute()
+
+        if response.count is not None:
+            return response.count
+        return len(response.data or [])
+
     # =========================================================================
     # ALL COURSE QUEST IDS
     # =========================================================================
@@ -595,6 +610,7 @@ class DashboardService:
         # Get completion stats
         completed_quests_count = self.get_completed_quests_count(user_id)
         completed_tasks_count = self.get_completed_tasks_count(user_id)
+        moments_count = self.get_moments_count(user_id)
         recent_completed_quests = self.get_recent_completed_quests(user_id)
 
         # Get XP stats (using helper functions from dashboard helpers)
@@ -609,7 +625,8 @@ class DashboardService:
                 'total_xp': total_xp,
                 'level': level_info,
                 'completed_quests_count': completed_quests_count,
-                'completed_tasks_count': completed_tasks_count
+                'completed_tasks_count': completed_tasks_count,
+                'moments_count': moments_count
             },
             'xp_by_category': skill_breakdown,
             'skill_xp_data': skill_data,

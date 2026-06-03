@@ -27,8 +27,8 @@ import {
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
+import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
-import { NotificationPreferences } from '@/src/components/profile/NotificationPreferences';
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -77,7 +77,7 @@ export default function ProfileScreen() {
   const { colorScheme, setColorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const c = useThemeColors();
-  const { pillarXP, achievements, subjectXP, viewers, deletionStatus, portfolioPublic: hookPortfolioPublic, setPortfolioPublic: setHookPortfolioPublic, portfolioSlug, loading, refetch } = useProfile();
+  const { pillarXP, momentsCount, achievements, subjectXP, viewers, deletionStatus, portfolioPublic: hookPortfolioPublic, setPortfolioPublic: setHookPortfolioPublic, portfolioSlug, loading, refetch } = useProfile();
   const { data: engagement } = useGlobalEngagement();
   // Family Dashboard is parent-only. useIsParent respects the superadmin role
   // selector (previewRole), so previewing as Student/Observer correctly hides it.
@@ -261,8 +261,8 @@ export default function ProfileScreen() {
                   <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Quests</UIText>
                 </VStack>
                 <VStack className="items-center">
-                  <UIText size="lg" className="font-poppins-bold text-pillar-stem">{pillarXP.length}</UIText>
-                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Pillars</UIText>
+                  <UIText size="lg" className="font-poppins-bold text-pillar-stem">{(momentsCount || 0).toLocaleString()}</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Moments</UIText>
                 </VStack>
               </HStack>
             </VStack>
@@ -379,68 +379,7 @@ export default function ProfileScreen() {
           {/* Subject Credits */}
           {subjectXP.length > 0 && (
             <CollapsibleSection title="Subject Credits" defaultOpen={false}>
-              <View className="flex-row flex-wrap">
-                {subjectXP.map((s: any, idx: number) => {
-                  const subject = s.school_subject || '';
-                  const req = SUBJECT_CREDIT_REQUIREMENTS[subject];
-                  const displayName = req?.displayName || subject.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()).replace(/\b(Cte|Pe)\b/g, (m: string) => m.toUpperCase());
-                  const xpRequired = (req?.credits || 1) * SUBJECT_XP_PER_CREDIT;
-                  const earned = s.xp_amount || 0;
-                  const pending = s.pending_xp || 0;
-                  const earnedPct = Math.min((earned / xpRequired) * 100, 100);
-                  const pendingPct = Math.min((pending / xpRequired) * 100, 100);
-                  const totalPct = Math.min(earnedPct + pendingPct, 100);
-                  const displayPct = Math.round(totalPct);
-                  const earnedOffset = DONUT_CIRCUMFERENCE - (earnedPct / 100) * DONUT_CIRCUMFERENCE;
-                  const pendingOffset = DONUT_CIRCUMFERENCE - (totalPct / 100) * DONUT_CIRCUMFERENCE;
-
-                  return (
-                    <View key={subject || `subject-${idx}`} className="w-1/2 md:w-1/3 lg:w-1/4 items-center p-2 mb-2">
-                      <Card variant="elevated" size="sm" className="w-full items-center py-3 px-2">
-                        <View style={{ width: DONUT_SIZE, height: DONUT_SIZE }} className="items-center justify-center">
-                          <Svg width={DONUT_SIZE} height={DONUT_SIZE}>
-                            {/* Background track */}
-                            <SvgCircle
-                              cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
-                              stroke={c.border} strokeWidth={DONUT_STROKE} fill="none"
-                            />
-                            {/* Pending arc (amber, drawn first so earned overlaps) */}
-                            {pending > 0 && (
-                              <SvgCircle
-                                cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
-                                stroke="#FCD34D" strokeWidth={DONUT_STROKE} fill="none"
-                                strokeDasharray={`${DONUT_CIRCUMFERENCE}`}
-                                strokeDashoffset={pendingOffset}
-                                strokeLinecap="round"
-                                transform={`rotate(-90 ${DONUT_SIZE / 2} ${DONUT_SIZE / 2})`}
-                              />
-                            )}
-                            {/* Earned arc (purple, on top) */}
-                            {earned > 0 && (
-                              <SvgCircle
-                                cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
-                                stroke="#6D469B" strokeWidth={DONUT_STROKE} fill="none"
-                                strokeDasharray={`${DONUT_CIRCUMFERENCE}`}
-                                strokeDashoffset={earnedOffset}
-                                strokeLinecap="round"
-                                transform={`rotate(-90 ${DONUT_SIZE / 2} ${DONUT_SIZE / 2})`}
-                              />
-                            )}
-                          </Svg>
-                          <View className="absolute items-center justify-center">
-                            <UIText size="lg" className="font-poppins-bold text-typography-700">{displayPct}%</UIText>
-                          </View>
-                        </View>
-                        <UIText size="sm" className="font-poppins-semibold text-center mt-2">{displayName}</UIText>
-                        <UIText size="xs" className="text-typography-500 text-center">{earned.toLocaleString()} / {xpRequired.toLocaleString()} XP</UIText>
-                        {pending > 0 && (
-                          <UIText size="xs" className="text-amber-600 text-center">+{pending.toLocaleString()} pending</UIText>
-                        )}
-                      </Card>
-                    </View>
-                  );
-                })}
-              </View>
+              <SubjectCreditsGrid subjectXP={subjectXP} />
             </CollapsibleSection>
           )}
 
@@ -515,88 +454,9 @@ export default function ProfileScreen() {
             </Pressable>
           )}
 
-          {/* Notifications */}
-          <CollapsibleSection title="Notifications" defaultOpen={false}>
-            <NotificationPreferences />
-          </CollapsibleSection>
-
-          {/* Account Settings */}
-          <CollapsibleSection title="Account Settings" defaultOpen={false}>
-            <Card variant="elevated" size="md">
-              <VStack space="md">
-                {/* Dark Mode Toggle */}
-                <HStack className="items-center justify-between">
-                  <HStack className="items-center gap-3">
-                    <View className="w-9 h-9 rounded-lg bg-dark-surface/10 dark:bg-dark-surface-200 items-center justify-center">
-                      <Ionicons name={isDark ? 'moon' : 'sunny'} size={20} color={isDark ? '#A78BFA' : '#F59E0B'} />
-                    </View>
-                    <VStack>
-                      <UIText size="sm" className="font-poppins-medium">Dark Mode</UIText>
-                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{isDark ? 'On' : 'Off'}</UIText>
-                    </VStack>
-                  </HStack>
-                  <Switch
-                    value={isDark}
-                    onValueChange={(val) => {
-                      const mode = val ? 'dark' : 'light';
-                      setColorScheme(mode);
-                      saveTheme(mode);
-                    }}
-                    trackColor={{ false: c.border, true: '#6D469B' }}
-                    thumbColor="#FFFFFF"
-                  />
-                </HStack>
-                <Divider />
-                {deletionStatus.deletion_status === 'pending' ? (
-                  <VStack space="sm">
-                    <HStack className="items-center gap-2">
-                      <Ionicons name="warning" size={20} color="#EF4444" />
-                      <UIText size="sm" className="font-poppins-semibold text-red-600">Account Deletion Scheduled</UIText>
-                    </HStack>
-                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
-                      Your account is scheduled for permanent deletion
-                      {deletionStatus.days_remaining !== undefined && ` in ${deletionStatus.days_remaining} days`}.
-                      All data will be permanently removed after this period.
-                    </UIText>
-                    {deletionStatus.deletion_scheduled_for && (
-                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                        Scheduled for: {new Date(deletionStatus.deletion_scheduled_for).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                      </UIText>
-                    )}
-                    <Button size="md" variant="outline" onPress={handleCancelDeletion}>
-                      <ButtonText>Cancel Deletion</ButtonText>
-                    </Button>
-                  </VStack>
-                ) : (
-                  <VStack space="sm">
-                    <UIText size="sm" className="font-poppins-medium">Delete Account</UIText>
-                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
-                      Permanently delete your account and all associated data. A 30-day grace period applies.
-                    </UIText>
-                    <Button size="md" variant="outline" action="negative" onPress={handleRequestDeletion} loading={deletionRequesting} disabled={deletionRequesting}>
-                      <ButtonText>Delete My Account</ButtonText>
-                    </Button>
-                  </VStack>
-                )}
-              </VStack>
-            </Card>
-          </CollapsibleSection>
-
-          {/* Report a bug (beta) — backstop entry point for the shake gesture */}
-          <Pressable onPress={() => useBugReportStore.getState().open()}>
-            <Card variant="elevated" size="md">
-              <HStack className="items-center gap-3">
-                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="bug-outline" size={22} color="#6D469B" />
-                </View>
-                <VStack className="flex-1">
-                  <UIText size="sm" className="font-poppins-semibold">Report a Bug</UIText>
-                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Found something broken? Let us know (or just shake your phone)</UIText>
-                </VStack>
-                <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
-              </HStack>
-            </Card>
-          </Pressable>
+          {/* Notifications, Account Settings (dark mode + account deletion) and
+              Report a Bug now live in the kebab → Settings screen, so they're
+              intentionally not duplicated here. */}
         </VStack>
       </ScrollView>
 

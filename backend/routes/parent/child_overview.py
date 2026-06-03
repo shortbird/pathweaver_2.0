@@ -64,7 +64,7 @@ def get_child_overview(user_id, student_id):
         # Parallel data fetching for efficiency
         # 1. Get student profile
         student_response = supabase.table('users').select('''
-            id, first_name, last_name, avatar_url, created_at, total_xp
+            id, first_name, last_name, avatar_url, created_at, total_xp, date_of_birth
         ''').eq('id', student_id).single().execute()
 
         if not student_response.data:
@@ -181,6 +181,12 @@ def get_child_overview(user_id, student_id):
 
         recent_completions = []
         completed_tasks_count = 0
+
+        # Total learning moments (learning_events) for the "Moments" stat on the
+        # kid profile hero. Every captured moment / task-completion log is one.
+        moments_count = supabase.table('learning_events').select(
+            'id', count='exact'
+        ).eq('user_id', student_id).execute().count or 0
 
         if recent_completions_response.data:
             # Get total completed tasks count
@@ -547,14 +553,16 @@ def get_child_overview(user_id, student_id):
                 'first_name': student.get('first_name'),
                 'last_name': student.get('last_name'),
                 'avatar_url': student.get('avatar_url'),
-                'created_at': student.get('created_at')
+                'created_at': student.get('created_at'),
+                'date_of_birth': student.get('date_of_birth')
             },
             'dashboard': {
                 'total_xp': total_xp,
                 'xp_by_pillar': xp_by_pillar,
                 'active_quests': active_quests,
                 'recent_completions': recent_completions,
-                'completed_tasks_count': completed_tasks_count
+                'completed_tasks_count': completed_tasks_count,
+                'moments_count': moments_count
             },
             'engagement': engagement,
             'completed_quests': completed_quests,

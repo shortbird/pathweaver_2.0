@@ -102,6 +102,28 @@ export function useMyPosted() {
   return { bounties, loading, refetch: fetchPosted };
 }
 
+/**
+ * Coerce a bounty's `deliverables` to an array. Some rows store it as a
+ * JSON-encoded string instead of a JSON array; the detail/review screens call
+ * `.forEach`/`.map` on it and crash with a render error ("forEach is not a
+ * function") when it isn't already an array. Normalising here means every
+ * consumer of useBountyDetail gets a guaranteed array.
+ */
+export function normalizeBounty(bounty: any): Bounty | null {
+  if (!bounty) return null;
+  let deliverables = bounty.deliverables;
+  if (typeof deliverables === 'string') {
+    try {
+      const parsed = JSON.parse(deliverables);
+      deliverables = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      deliverables = [];
+    }
+  }
+  if (!Array.isArray(deliverables)) deliverables = [];
+  return { ...bounty, deliverables };
+}
+
 export function useBountyDetail(bountyId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [bounty, setBounty] = useState<Bounty | null>(null);
@@ -112,7 +134,7 @@ export function useBountyDetail(bountyId: string | null) {
     try {
       setLoading(true);
       const { data } = await bountyAPI.get(bountyId);
-      setBounty(data.bounty || data);
+      setBounty(normalizeBounty(data.bounty || data));
     } catch {
       setBounty(null);
     } finally {
