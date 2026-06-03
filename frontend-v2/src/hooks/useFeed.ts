@@ -26,10 +26,11 @@ export interface FeedEvidence {
 }
 
 export interface FeedMedia {
-  type: 'image' | 'video';
-  preview: string;
+  type: 'image' | 'video' | 'audio';
+  preview?: string;
   url?: string;
   title?: string;
+  duration_ms?: number;
 }
 
 export interface FeedItem {

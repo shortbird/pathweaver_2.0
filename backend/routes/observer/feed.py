@@ -545,6 +545,13 @@ def register_routes(bp):
                                 'url': content.get('url') or block.get('file_url'),
                                 'title': content.get('title') or content.get('filename') or block.get('file_name')
                             }
+                        elif block['block_type'] == 'audio':
+                            media_item = {
+                                'type': 'audio',
+                                'url': content.get('url') or block.get('file_url'),
+                                'title': content.get('filename') or block.get('file_name'),
+                                'duration_ms': content.get('duration_ms'),
+                            }
 
                         if media_item and media_item.get('url'):
                             media_items.append(media_item)
