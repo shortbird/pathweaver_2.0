@@ -138,33 +138,15 @@ describe('DashboardScreen', () => {
     expect(r.getByText('Write a Story')).toBeTruthy();
   });
 
-  it('shows empty state when no active quests', () => {
+  it('shows empty state when nothing is in progress', () => {
     (useDashboard as jest.Mock).mockReturnValue({
-      data: { ...mockDashboardData, active_quests: [] },
+      data: { ...mockDashboardData, active_quests: [], enrolled_courses: [] },
       loading: false, error: null, refetch: jest.fn(),
     });
     const r = tryRender(<DashboardScreen />);
     if (!r) return;
-    expect(r.getByText('No quests yet')).toBeTruthy();
-    expect(r.getByText('Browse Quests')).toBeTruthy();
-  });
-
-  it('Browse All button navigates to quests page', () => {
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    fireEvent.press(r.getByText('Browse All'));
-    expect(mockRouter.push).toHaveBeenCalledWith('/(app)/(tabs)/quests');
-  });
-
-  it('Browse Quests empty state button navigates to quests page', () => {
-    (useDashboard as jest.Mock).mockReturnValue({
-      data: { ...mockDashboardData, active_quests: [] },
-      loading: false, error: null, refetch: jest.fn(),
-    });
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    fireEvent.press(r.getByText('Browse Quests'));
-    expect(mockRouter.push).toHaveBeenCalledWith('/(app)/(tabs)/quests');
+    expect(r.getByText('Nothing here yet')).toBeTruthy();
+    expect(r.getByTestId('empty-state-cta')).toBeTruthy();
   });
 
   it('quest card navigates to quest detail on press', () => {
@@ -174,74 +156,35 @@ describe('DashboardScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/(app)/quests/q-1');
   });
 
-  // ── Enrolled Courses ──
+  // ── Enrolled Courses (rendered as cards in the unified "What you're working on" list) ──
 
-  it('renders enrolled courses section', () => {
+  it('renders the enrolled course card', () => {
     const r = tryRender(<DashboardScreen />);
     if (!r) return;
-    expect(r.getByText('Your Courses')).toBeTruthy();
     expect(r.getByText('Intro to Engineering')).toBeTruthy();
   });
 
   it('shows course progress', () => {
     const r = tryRender(<DashboardScreen />);
     if (!r) return;
-    expect(r.getByText('1/3 done')).toBeTruthy();
+    expect(r.getByText('1 of 3 projects')).toBeTruthy();
   });
 
-  it('shows project count on course card', () => {
+  it('course card navigates to course detail on press', () => {
     const r = tryRender(<DashboardScreen />);
     if (!r) return;
-    expect(r.getByText('3 projects')).toBeTruthy();
+    fireEvent.press(r.getByTestId('course-card-c-1'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/(app)/courses/c-1');
   });
 
-  it('hides courses section when no enrolled courses', () => {
+  it('hides the course card when no enrolled courses', () => {
     (useDashboard as jest.Mock).mockReturnValue({
       data: { ...mockDashboardData, enrolled_courses: [] },
       loading: false, error: null, refetch: jest.fn(),
     });
     const r = tryRender(<DashboardScreen />);
     if (!r) return;
-    expect(r.queryByText('Your Courses')).toBeNull();
-  });
-
-  it('View All button navigates to courses tab', () => {
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    fireEvent.press(r.getByText('View All'));
-    expect(mockRouter.push).toHaveBeenCalledWith('/(app)/(tabs)/courses');
-  });
-
-  // ── Learning Rhythm ──
-
-  it('renders learning rhythm section', () => {
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    expect(r.getByText('Your Learning Rhythm')).toBeTruthy();
-  });
-
-  it('renders Learn more link for rhythm explainer', () => {
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    expect(r.getByText('Learn more')).toBeTruthy();
-  });
-
-  it('opens rhythm explainer modal on Learn more press', () => {
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    fireEvent.press(r.getByText('Learn more'));
-    expect(r.getByText('Learning Rhythm')).toBeTruthy();
-    expect(r.getByText('Active')).toBeTruthy();
-    expect(r.getByText('Building')).toBeTruthy();
-    expect(r.getByText('Resting')).toBeTruthy();
-  });
-
-  // ── Quick Capture FAB ──
-
-  it('renders Quick Capture FAB', () => {
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    expect(r.getByTestId('capture-fab')).toBeTruthy();
+    expect(r.queryByText('Intro to Engineering')).toBeNull();
   });
 
 });

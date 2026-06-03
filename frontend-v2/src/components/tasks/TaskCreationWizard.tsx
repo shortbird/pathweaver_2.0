@@ -9,7 +9,7 @@ import { View, ScrollView, Pressable, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PILLARS } from '@/src/hooks/useQuestDetail';
 import {
-  VStack, HStack, Heading, UIText, Button, ButtonText, Divider,
+  VStack, HStack, Heading, UIText, Button, ButtonText, Divider, Card,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { getSubject } from '@/src/components/class/SUBJECTS';
