@@ -51,16 +51,18 @@ function EvidenceItem({ item }: { item: any }) {
     if (items.length === 0) return null;
     return (
       <>
-        <View className="flex-row flex-wrap gap-2">
+        <View className="gap-2">
           {items.map((img: any, i: number) => {
             const url = displayImageUrl(img.url);
             if (!url) return null;
             return (
               <Pressable key={i} onPress={() => setImageModal(url)}>
+                {/* Full-width, tall preview with `contain` so a screenshot is
+                    actually readable; tap opens it fullscreen. */}
                 <Image
                   source={{ uri: url }}
-                  style={{ width: 120, height: 90, borderRadius: 8 }}
-                  resizeMode="cover"
+                  style={{ width: '100%', height: 320, borderRadius: 10, backgroundColor: '#F3F4F6' }}
+                  resizeMode="contain"
                 />
               </Pressable>
             );

@@ -748,15 +748,19 @@ def update_child_learning_moment(user_id, child_id, moment_id):
 
         data = request.get_json() or {}
 
-        # Build update data for basic fields
+        # Build update data for basic fields. Use `(x or '')` rather than a
+        # get-default: the client may send the key with an explicit null (e.g. an
+        # empty title field), and `data.get('title', '')` returns None in that
+        # case — `.strip()` then crashed with "'NoneType' has no attribute strip"
+        # and surfaced as "Failed to update learning moment".
         update_data = {}
         if 'description' in data:
-            description = data.get('description', '').strip()
+            description = (data.get('description') or '').strip()
             if description:
                 update_data['description'] = description
 
         if 'title' in data:
-            update_data['title'] = data.get('title', '').strip() or None
+            update_data['title'] = (data.get('title') or '').strip() or None
 
         if 'event_date' in data:
             update_data['event_date'] = data.get('event_date') or None

@@ -104,7 +104,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   // explicit id a superadmin gets the GLOBAL feed (every user's activity) — the
   // "this should only show their activity, not everyone they're connected to"
   // report. Falling back to the current user's id scopes it to self.
-  const { items: feedItems, loading: feedLoading } = useFeed({ studentId: studentId ?? currentUserId });
+  const { items: feedItems, loading: feedLoading, removeByLearningEventId } = useFeed({ studentId: studentId ?? currentUserId });
   const { topics, loading: topicsLoading, refetch: refetchTopics } = useUnifiedTopics(studentId);
   const { moments: unassigned, loading: unassignedLoading, refetch: refetchUnassigned, removeMoment: removeUnassigned } = useUnassignedMoments(studentId);
   const { track, moments: trackMoments, loading: trackLoading, refetch: refetchTrack, removeMoment: removeTrackMoment } = useTrackMoments(
@@ -121,6 +121,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
     removeUnassigned(id);
     removeTrackMoment(id);
     removeQuestMoment(id);
+    removeByLearningEventId(id); // also drop it from the "Recent activity" feed
   };
   const {
     tasks: questTasks, questTitle: questTasksTitle, loading: questTasksLoading,

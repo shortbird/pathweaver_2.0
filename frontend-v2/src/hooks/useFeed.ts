@@ -164,7 +164,16 @@ export function useFeed(options: UseFeedOptions = {}) {
     fetchFeed();
   }, [fetchFeed]);
 
-  return { items, loading, loadingMore, hasMore, error, loadMore, refetch };
+  // Optimistically drop a learning-moment item (matched by its learning_event_id)
+  // so a deleted moment also vanishes from the journal's "Recent activity" feed
+  // immediately, not just from the moments list.
+  const removeByLearningEventId = useCallback((learningEventId: string) => {
+    setItems((prev) => prev.filter(
+      (it) => it.learning_event_id !== learningEventId && it.id !== learningEventId,
+    ));
+  }, []);
+
+  return { items, loading, loadingMore, hasMore, error, loadMore, refetch, removeByLearningEventId };
 }
 
 export async function recordViews(items: Array<{ type: string; id: string }>) {
