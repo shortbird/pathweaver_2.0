@@ -230,7 +230,10 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
         await navigator.clipboard.writeText(share_url);
         showToast('Link copied!');
       } else {
-        await Share.share({ url: share_url, message: share_url });
+        // iOS shares `message` and `url` separately — passing the URL as both
+        // makes it appear twice. iOS: `url` only; Android ignores `url`, so it
+        // needs the link in `message`.
+        await Share.share(Platform.OS === 'ios' ? { url: share_url } : { message: share_url });
       }
     } catch {
       showToast('Failed to share');

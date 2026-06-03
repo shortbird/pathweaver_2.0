@@ -120,6 +120,12 @@ function AvatarMenu() {
       },
     }] : []),
     {
+      key: 'settings',
+      label: 'Settings',
+      icon: 'settings-outline',
+      onPress: () => { setMenuOpen(false); router.push('/(app)/settings' as any); },
+    },
+    {
       key: 'logout',
       label: 'Sign Out',
       icon: 'log-out-outline',

@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, View, TextInput, Alert, Share, Modal, ScrollView } from 'react-native';
+import { Pressable, View, TextInput, Alert, Share, Modal, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import api from '@/src/services/api';
@@ -209,10 +209,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     setShareLinkLoading(true);
     try {
       const names = children.map((c: any) => c.first_name || c.display_name).filter(Boolean).join(' & ') || 'this family';
-      await Share.share({
-        message: `Follow ${names}'s learning journey on Optio: ${link}`,
-        url: link,
-      });
+      // iOS shares `message` and `url` as separate items, so embedding the link
+      // in the message AND passing `url` makes it appear twice. iOS: keep the
+      // link in `url` only. Android ignores `url`, so embed it in the message.
+      const intro = `Follow ${names}'s learning journey on Optio:`;
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { message: intro, url: link }
+          : { message: `${intro} ${link}` }
+      );
     } finally {
       setShareLinkLoading(false);
     }

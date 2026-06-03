@@ -34,25 +34,37 @@ const tabs: { key: AdminTab; label: string; icon: keyof typeof Ionicons.glyphMap
   { key: 'docs', label: 'Docs', icon: 'document-text-outline' },
 ];
 
-const roleColors: Record<string, string> = {
-  superadmin: 'bg-red-100 text-red-700',
-  org_admin: 'bg-purple-100 text-purple-700',
-  advisor: 'bg-blue-100 text-blue-700',
-  parent: 'bg-amber-100 text-amber-700',
-  student: 'bg-green-100 text-green-700',
-  observer: 'bg-gray-100 text-gray-700',
-  org_managed: 'bg-indigo-100 text-indigo-700',
-};
+// Only the Users tab is currently exposed in the admin panel. The other admin
+// surfaces (Quests, Organizations, Emails, Bulk Generate, Docs) are hidden
+// until they're polished for mobile/dark mode — add their keys back here to
+// re-enable them.
+const VISIBLE_TAB_KEYS: AdminTab[] = ['users'];
 
 // ── Users Tab ──
 
+// Role badge palettes as raw hex so we can drive both the pill background and
+// the label color via inline styles. (UIText's base `dark:text-dark-typo` wins
+// over a `text-green-700` className in dark mode, which made the label vanish
+// on the light pill — inline color sidesteps that.)
+const roleBadgePalette: Record<string, { light: [string, string]; dark: [string, string] }> = {
+  // [background, text]
+  superadmin: { light: ['#FEE2E2', '#B91C1C'], dark: ['#3F1D1D', '#FCA5A5'] },
+  org_admin: { light: ['#F3E8FF', '#7E22CE'], dark: ['#2E2440', '#D8B4FE'] },
+  advisor: { light: ['#DBEAFE', '#1D4ED8'], dark: ['#1E2A45', '#93C5FD'] },
+  parent: { light: ['#FEF3C7', '#B45309'], dark: ['#3A2E15', '#FCD34D'] },
+  student: { light: ['#DCFCE7', '#15803D'], dark: ['#163024', '#6EE7B7'] },
+  observer: { light: ['#F3F4F6', '#374151'], dark: ['#2A2A42', '#D1D5DB'] },
+  org_managed: { light: ['#E0E7FF', '#4338CA'], dark: ['#21243F', '#A5B4FC'] },
+};
+
 function RoleBadge({ role }: { role: string }) {
-  const rColor = roleColors[role] || roleColors.student;
-  const [bg, text] = rColor.split(' ');
+  const c = useThemeColors();
+  const entry = roleBadgePalette[role] || roleBadgePalette.student;
+  const [bg, text] = c.isDark ? entry.dark : entry.light;
   const label = role === 'org_managed' ? 'Org' : role === 'org_admin' ? 'Org Admin' : role;
   return (
-    <View className={`self-start px-2 py-0.5 rounded-full ${bg}`}>
-      <UIText size="xs" className={`font-poppins-medium capitalize ${text}`}>{label}</UIText>
+    <View style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: bg }}>
+      <UIText size="xs" className="font-poppins-medium capitalize" style={{ color: text }}>{label}</UIText>
     </View>
   );
 }
@@ -104,7 +116,7 @@ function UserCardMobile({ user, onMasquerade, onDelete, onSelect }: { user: Admi
               </Pressable>
               <Pressable
                 onPress={onDelete}
-                className="w-8 h-8 rounded-lg bg-red-50 items-center justify-center active:bg-red-100"
+                className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950 items-center justify-center active:bg-red-100"
               >
                 <Ionicons name="trash-outline" size={14} color="#EF4444" />
               </Pressable>
@@ -349,19 +361,19 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
         {/* Actions tab */}
         {detailTab === 'actions' && (
           <VStack space="sm">
-            <Pressable onPress={onMasquerade} className="flex-row items-center gap-3 px-4 py-3 bg-amber-50 rounded-xl active:bg-amber-100">
+            <Pressable onPress={onMasquerade} className="flex-row items-center gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-950 rounded-xl active:bg-amber-100">
               <Ionicons name="eye-outline" size={20} color="#B45309" />
               <VStack>
-                <UIText size="sm" className="font-poppins-medium text-amber-700">Masquerade</UIText>
-                <UIText size="xs" className="text-amber-600">View platform as this user</UIText>
+                <UIText size="sm" className="font-poppins-medium text-amber-700 dark:text-amber-300">Masquerade</UIText>
+                <UIText size="xs" className="text-amber-600 dark:text-amber-400">View platform as this user</UIText>
               </VStack>
             </Pressable>
 
-            <Pressable onPress={onVerifyEmail} className="flex-row items-center gap-3 px-4 py-3 bg-blue-50 rounded-xl active:bg-blue-100">
+            <Pressable onPress={onVerifyEmail} className="flex-row items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-950 rounded-xl active:bg-blue-100">
               <Ionicons name="checkmark-circle-outline" size={20} color="#1D4ED8" />
               <VStack>
-                <UIText size="sm" className="font-poppins-medium text-blue-700">Verify Email</UIText>
-                <UIText size="xs" className="text-blue-600">Mark email as verified</UIText>
+                <UIText size="sm" className="font-poppins-medium text-blue-700 dark:text-blue-300">Verify Email</UIText>
+                <UIText size="xs" className="text-blue-600 dark:text-blue-400">Mark email as verified</UIText>
               </VStack>
             </Pressable>
 
@@ -378,24 +390,24 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
                   setResettingPassword(false);
                 }
               }}
-              className="flex-row items-center gap-3 px-4 py-3 bg-orange-50 rounded-xl active:bg-orange-100"
+              className="flex-row items-center gap-3 px-4 py-3 bg-orange-50 dark:bg-orange-950 rounded-xl active:bg-orange-100"
             >
               <Ionicons name="key-outline" size={20} color="#C2410C" />
               <VStack>
-                <UIText size="sm" className="font-poppins-medium text-orange-700">
+                <UIText size="sm" className="font-poppins-medium text-orange-700 dark:text-orange-300">
                   {resettingPassword ? 'Resetting...' : 'Reset Password'}
                 </UIText>
-                <UIText size="xs" className="text-orange-600">Sets password to "changeme!"</UIText>
+                <UIText size="xs" className="text-orange-600 dark:text-orange-400">Sets password to "changeme!"</UIText>
               </VStack>
             </Pressable>
 
             <Divider className="my-2" />
 
-            <Pressable onPress={onDelete} className="flex-row items-center gap-3 px-4 py-3 bg-red-50 rounded-xl active:bg-red-100">
+            <Pressable onPress={onDelete} className="flex-row items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-950 rounded-xl active:bg-red-100">
               <Ionicons name="trash-outline" size={20} color="#DC2626" />
               <VStack>
-                <UIText size="sm" className="font-poppins-medium text-red-700">Delete User</UIText>
-                <UIText size="xs" className="text-red-600">Permanently remove this account</UIText>
+                <UIText size="sm" className="font-poppins-medium text-red-700 dark:text-red-300">Delete User</UIText>
+                <UIText size="xs" className="text-red-600 dark:text-red-400">Permanently remove this account</UIText>
               </VStack>
             </Pressable>
           </VStack>
@@ -1573,7 +1585,7 @@ export default function AdminScreen() {
           {/* Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200" space="xs">
-              {tabs.map((t) => (
+              {tabs.filter((t) => VISIBLE_TAB_KEYS.includes(t.key)).map((t) => (
                 <Pressable key={t.key} onPress={() => setActiveTab(t.key)}>
                   <HStack className={`items-center gap-2 px-4 py-2.5 rounded-lg ${activeTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
                     <Ionicons name={t.icon} size={16} color={activeTab === t.key ? '#6D469B' : c.iconMuted} />
