@@ -464,6 +464,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
+              unassignedLoading={unassignedLoading}
               onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
               loading={topicsLoading}
             />
@@ -608,6 +609,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
+              unassignedLoading={unassignedLoading}
               onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
               loading={topicsLoading}
               scrollable={false}

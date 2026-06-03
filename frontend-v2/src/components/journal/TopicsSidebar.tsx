@@ -39,6 +39,9 @@ interface TopicsSidebarProps {
   /** When true and topics is empty, render skeleton tiles so the grid has
    *  visible shape immediately while the API call is in flight. */
   loading?: boolean;
+  /** Unassigned-moments count still loading — keeps the unassigned tile neutral
+   *  instead of flashing "All moments organized" before the count arrives. */
+  unassignedLoading?: boolean;
   /** When false, render as a plain View instead of its own ScrollView — for
    *  embedding inside a parent scroll (e.g. the Journal's topics + feed feed). */
   scrollable?: boolean;
@@ -53,18 +56,26 @@ function UnassignedTile({
   count,
   isSelected,
   onPress,
+  loading = false,
 }: {
   count: number;
   isSelected: boolean;
   onPress: () => void;
+  /** Unassigned-count still loading — show a neutral state instead of asserting
+   *  "All moments organized" before the real count arrives (the green→amber
+   *  flash on first open). */
+  loading?: boolean;
 }) {
+  // Until the count is known, stay neutral. Only the loaded count decides
+  // between the amber "assign" prompt and the green "all organized" affirmation.
+  const isLoading = loading && count === 0;
   const hasWork = count > 0;
-  const tint = hasWork ? '#B45309' : '#15803D'; // amber-700 vs green-700
-  const bg = hasWork ? '#FFFBEB' : '#F0FDF4'; // amber-50 vs green-50
-  const border = hasWork ? '#FDE68A' : '#BBF7D0'; // amber-200 vs green-200
-  const iconBg = hasWork ? '#FEF3C7' : '#DCFCE7'; // amber-100 vs green-100
-  const iconName: keyof typeof iconMap | 'albums-outline' | 'checkmark-circle-outline' =
-    hasWork ? 'albums-outline' : 'checkmark-circle-outline';
+  const tint = isLoading ? '#6B7280' : hasWork ? '#B45309' : '#15803D'; // gray / amber-700 / green-700
+  const bg = isLoading ? '#F9FAFB' : hasWork ? '#FFFBEB' : '#F0FDF4';
+  const border = isLoading ? '#E5E7EB' : hasWork ? '#FDE68A' : '#BBF7D0';
+  const iconBg = isLoading ? '#F3F4F6' : hasWork ? '#FEF3C7' : '#DCFCE7';
+  const iconName: keyof typeof iconMap | 'albums-outline' | 'checkmark-circle-outline' | 'sync-outline' =
+    isLoading ? 'sync-outline' : hasWork ? 'albums-outline' : 'checkmark-circle-outline';
 
   return (
     <View style={{ width: '48%' }}>
@@ -99,9 +110,11 @@ function UnassignedTile({
             style={{ color: tint }}
             numberOfLines={2}
           >
-            {hasWork
-              ? `Assign ${count} moment${count !== 1 ? 's' : ''} to topics`
-              : 'All moments organized'}
+            {isLoading
+              ? 'Checking your moments…'
+              : hasWork
+                ? `Assign ${count} moment${count !== 1 ? 's' : ''} to topics`
+                : 'All moments organized'}
           </UIText>
         </View>
       </Pressable>
@@ -243,6 +256,7 @@ export function TopicsSidebar({
   unassignedCount,
   onNewTopic,
   loading = false,
+  unassignedLoading = false,
   scrollable = true,
 }: TopicsSidebarProps) {
   const c = useThemeColors();
@@ -336,6 +350,7 @@ export function TopicsSidebar({
                       count={unassignedCount}
                       isSelected={selectedType === 'unassigned'}
                       onPress={onSelectUnassigned}
+                      loading={unassignedLoading}
                     />
                   </>
                 )}
