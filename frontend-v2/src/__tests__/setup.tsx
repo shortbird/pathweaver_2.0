@@ -79,6 +79,9 @@ jest.mock('@react-navigation/native', () => ({
     setOptions: jest.fn(),
   })),
   useIsFocused: jest.fn(() => true),
+  // Screens that refetch on focus call this from @react-navigation/native
+  // (not expo-router). No-op so render() doesn't crash without a nav context.
+  useFocusEffect: jest.fn(),
 }));
 
 // ── expo-font ──
@@ -151,6 +154,12 @@ jest.mock('expo-constants', () => ({
 jest.mock('expo-device', () => ({
   osVersion: '18.0',
   modelName: 'iPhone Test',
+}));
+
+// ── expo-application (diagnostics build_number / app_version — primary source) ──
+jest.mock('expo-application', () => ({
+  nativeBuildVersion: '42',
+  nativeApplicationVersion: '1.0.0',
 }));
 
 // ── expo-sensors (shake-to-report) ──

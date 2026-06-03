@@ -13,6 +13,7 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
+import * as Application from 'expo-application';
 
 const RING_SIZE = 20;
 const MAX_ERROR_LEN = 600;
@@ -121,9 +122,16 @@ function readBuildInfo() {
     nativeAppVersion?: string | null;
     nativeBuildVersion?: string | null;
   };
+  // expo-application reads the version/build straight from the compiled native
+  // binary (the same source Sentry uses for `app_build`). Constants.native*
+  // returns null in SDK 55 dev/release builds, which is why build_number was
+  // NULL on every bug report. expo-application is native-only — on web both
+  // values are null, so fall back to the Constants/expoConfig values there.
+  const nativeBuild = Application.nativeBuildVersion ?? null;
+  const nativeVersion = Application.nativeApplicationVersion ?? null;
   return {
-    app_version: c.nativeAppVersion || c.expoConfig?.version || null,
-    build_number: c.nativeBuildVersion || null,
+    app_version: nativeVersion || c.nativeAppVersion || c.expoConfig?.version || null,
+    build_number: nativeBuild || c.nativeBuildVersion || null,
   };
 }
 

@@ -5,7 +5,7 @@
  * Creates moment via JSON, then uploads files individually.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Pressable, TextInput, Alert, ScrollView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -69,6 +69,11 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   // Video transcode runs after the picker closes; surface progress so the UI
   // doesn't appear frozen during the (multi-second) compression.
   const [compressPct, setCompressPct] = useState<number | null>(null);
+  // Direct-to-storage upload progress for large media (video). The moment isn't
+  // saved until the upload finishes, so without this the user just sees a
+  // generic "Saving..." for a minute and assumes it hung — the exact complaint
+  // behind the "had to wait for the video to fully upload" bug reports.
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
 
   // Parent flow: fetch children when pickStudents is on. The hook short-circuits
   // gracefully for non-parent users (empty list, no error toast).
@@ -106,7 +111,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     );
   }, [visible, pickStudents, studentIds, eligibleChildren]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setDescription('');
     setMedia([]);
     setSelectedTask(null);
@@ -115,12 +120,22 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setSelectedStudentIds([]);
     setRecording(false);
     setCompressPct(null);
-  };
+    setUploadPct(null);
+  }, []);
 
   const handleClose = () => {
     reset();
     onClose();
   };
+
+  // Always clear the sheet when it's hidden — by the X, a swipe-down, or the
+  // parent flipping `visible` after navigation. Previously a save that errored
+  // (or an external dismiss) left the picked media in component state, so the
+  // NEXT time the sheet opened the user saw a stale video from the last attempt
+  // ("I see the last video I tried uploading in this new moment capture").
+  useEffect(() => {
+    if (!visible) reset();
+  }, [visible, reset]);
 
   const addMedia = (assets: ImagePicker.ImagePickerAsset[]) => {
     const newItems: MediaItem[] = [];
@@ -220,8 +235,19 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const fallbackExt = (t: MediaItem['type']): string =>
       t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : 'm4a';
 
+    // Surface upload progress for large media (video) so the multi-second/minute
+    // direct-to-storage upload reads as "uploading", not a frozen "Saving...".
+    // Track per-item percent and show the aggregate average.
+    const hasLargeMedia = items.some((it) => it.type === 'video');
+    const itemPct = new Array(items.length).fill(0);
+    if (hasLargeMedia) setUploadPct(0);
+    const reportProgress = (index: number, pct: number) => {
+      itemPct[index] = pct;
+      setUploadPct(Math.round(itemPct.reduce((a, b) => a + b, 0) / itemPct.length));
+    };
+
     const uploadResults = await Promise.all(
-      items.map(async (item) => {
+      items.map(async (item, index) => {
         const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
         const mimeType = mimeForType(item.type);
         try {
@@ -230,6 +256,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             initPath,
             finalizePath,
             blockType: item.type,
+            onProgress: hasLargeMedia ? (pct) => reportProgress(index, pct) : undefined,
           });
           return {
             block_type: item.type,
@@ -352,6 +379,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       toast.error(msg, { title: 'Could not save moment' });
     } finally {
       setSaving(false);
+      setUploadPct(null);
     }
   };
 
@@ -556,6 +584,17 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               </HStack>
             )}
 
+            {/* Upload progress — shown while a large file (video) uploads so the
+                wait is communicated instead of a silent "Saving..." */}
+            {uploadPct !== null && (
+              <HStack className="items-center gap-2 px-1">
+                <Ionicons name="cloud-upload-outline" size={16} color={c.icon} />
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+                  Uploading video… {uploadPct}% (keep this screen open)
+                </UIText>
+              </HStack>
+            )}
+
             {/* Voice recorder — appears between previews and the attach button row when active. */}
             {recording && (
               <VoiceRecorder
@@ -706,7 +745,9 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               loading={saving}
               className="w-full"
             >
-              <ButtonText>{saving ? 'Saving...' : 'Save Moment'}</ButtonText>
+              <ButtonText>
+                {uploadPct !== null ? `Uploading… ${uploadPct}%` : saving ? 'Saving...' : 'Save Moment'}
+              </ButtonText>
             </Button>
           </VStack>
 

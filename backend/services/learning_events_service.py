@@ -489,9 +489,16 @@ class LearningEventsService(BaseService):
                 .execute()
 
             if not response.data:
+                # Zero rows updated means the event doesn't exist OR isn't owned by
+                # this caller (the update is scoped to .eq('user_id', user_id)). That
+                # is a not-found/permission case, not a server fault — the route maps
+                # "not found" to 404. A parent/superadmin editing a CHILD's moment must
+                # use PUT /children/<child_id>/learning-moments/<moment_id>, which is
+                # scoped to the child; hitting this self endpoint for a child's row is
+                # what surfaced as a spurious 500 (Sentry NODE-9).
                 return {
                     'success': False,
-                    'error': 'Failed to update learning event'
+                    'error': 'Learning event not found or access denied'
                 }
 
             if topics_changed:

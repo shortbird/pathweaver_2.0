@@ -10,6 +10,7 @@ jest.mock('@/src/hooks/useMessages', () => ({
   useConversations: jest.fn(),
   useContacts: jest.fn(),
   useGroups: jest.fn(),
+  useChildren: jest.fn(),
   useConversationMessages: jest.fn(),
   useGroupMessages: jest.fn(),
   useGroupDetail: jest.fn(),
@@ -90,7 +91,7 @@ import React from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import MessagesScreen from '../messages';
-import { useConversations, useContacts, useGroups } from '@/src/hooks/useMessages';
+import { useConversations, useContacts, useGroups, useChildren } from '@/src/hooks/useMessages';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import {
   createMockContact,
@@ -104,6 +105,7 @@ beforeEach(() => {
   (useConversations as jest.Mock).mockReturnValue({ conversations: [], loading: false, refetch: jest.fn() });
   (useContacts as jest.Mock).mockReturnValue({ contacts: [], loading: false, refetch: jest.fn() });
   (useGroups as jest.Mock).mockReturnValue({ groups: [], loading: false, refetch: jest.fn() });
+  (useChildren as jest.Mock).mockReturnValue({ children: [], loading: false });
 });
 
 afterEach(() => {

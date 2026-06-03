@@ -15,7 +15,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Image, Linking, Pressable } from 'react-native';
+import { Image, Pressable } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import { useLocalSearchParams } from 'expo-router';
 import { api } from '@/src/services/api';
 import { LtiShell } from '@/src/components/lti/LtiShell';
@@ -87,7 +88,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
         ? `🔗 ${(c.title as string) || url}`
         : `📄 ${(c.file_name as string) || (c.title as string) || 'Attached file'}`;
   return (
-    <Pressable onPress={() => Linking.openURL(url)}>
+    <Pressable onPress={() => safeOpenURL(url)}>
       <UIText size="sm" className="text-primary-600 underline">
         {label}
       </UIText>

@@ -6,7 +6,8 @@
  */
 
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Image, Linking, Modal } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Image, Modal } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -88,7 +89,7 @@ function EvidenceItem({ item }: { item: any }) {
     const videoUrl = items[0]?.url || item.content?.url;
     if (!videoUrl) return null;
     return (
-      <Pressable onPress={() => Linking.openURL(videoUrl)}>
+      <Pressable onPress={() => safeOpenURL(videoUrl)}>
         <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
           <Ionicons name="videocam" size={20} color="#6D469B" />
           <UIText size="sm" className="text-optio-purple font-poppins-medium flex-1" numberOfLines={1}>
@@ -104,7 +105,7 @@ function EvidenceItem({ item }: { item: any }) {
     const url = item.content?.url || item.content?.items?.[0]?.url;
     if (!url) return null;
     return (
-      <Pressable onPress={() => Linking.openURL(url)}>
+      <Pressable onPress={() => safeOpenURL(url)}>
         <HStack className="items-center gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
           <Ionicons name="link" size={18} color="#2563EB" />
           <UIText size="sm" className="text-blue-700 flex-1" numberOfLines={1}>{url}</UIText>
@@ -118,7 +119,7 @@ function EvidenceItem({ item }: { item: any }) {
     const url = item.content?.url || item.content?.items?.[0]?.url;
     const filename = item.content?.filename || item.content?.items?.[0]?.filename || 'Document';
     return (
-      <Pressable onPress={() => url && Linking.openURL(url)}>
+      <Pressable onPress={() => url && safeOpenURL(url)}>
         <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
           <Ionicons name="document-text" size={18} color="#6D469B" />
           <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 flex-1" numberOfLines={1}>{filename}</UIText>

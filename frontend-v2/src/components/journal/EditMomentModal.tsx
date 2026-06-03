@@ -10,8 +10,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Modal, Pressable, TextInput, ScrollView, Platform,
-  KeyboardAvoidingView, ActivityIndicator, Alert, Image, Linking,
+  KeyboardAvoidingView, ActivityIndicator, Alert, Image,
 } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import { Ionicons } from '@expo/vector-icons';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, Card, Divider,
@@ -81,7 +82,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
     }
     return (
       <Pressable
-        onPress={() => Linking.openURL(resolvedUrl)}
+        onPress={() => safeOpenURL(resolvedUrl)}
         className="rounded-xl overflow-hidden border border-surface-200 dark:border-dark-surface-300"
       >
         <View className="h-32 bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
@@ -114,7 +115,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
     if (!url) return null;
     return (
       <Pressable
-        onPress={() => Linking.openURL(url)}
+        onPress={() => safeOpenURL(url)}
         className="flex-row items-center gap-3 bg-blue-50 rounded-xl p-3 border border-blue-200"
       >
         <Ionicons name="link" size={20} color="#2469D1" />
@@ -131,7 +132,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
   if (resolvedUrl) {
     return (
       <Pressable
-        onPress={() => Linking.openURL(resolvedUrl)}
+        onPress={() => safeOpenURL(resolvedUrl)}
         className="flex-row items-center gap-3 bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-3 border border-surface-200 dark:border-dark-surface-300"
       >
         <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">

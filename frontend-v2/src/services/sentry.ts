@@ -54,8 +54,24 @@ export function initSentry(): void {
       dsn,
       release,
       environment: __DEV__ ? 'development' : 'production',
+      // Don't ship events from local Metro dev sessions — those produced pure
+      // noise (Metro ConnectException, simulator "Network Error" blips) that
+      // buried real reports. Release/TestFlight builds run with __DEV__ === false
+      // and still report normally.
+      enabled: !__DEV__,
       enableAutoSessionTracking: true,
       tracesSampleRate: __DEV__ ? 1.0 : 0.1,
+      // Last-line filter for known-benign transport noise that can still slip
+      // through in a release build (e.g. a transient offline blip). Real backend
+      // 5xx/regressions are unaffected — they carry a response/status.
+      beforeSend(event: any) {
+        const type = event?.exception?.values?.[0]?.type ?? '';
+        const value = event?.exception?.values?.[0]?.value ?? '';
+        if (/ConnectException/i.test(type) && /:8081|metro|packager/i.test(value)) {
+          return null;
+        }
+        return event;
+      },
     });
     impl = Sentry as SentryShim;
   } catch {

@@ -636,6 +636,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         visible={!!editingEvent}
         event={editingEvent}
         topics={topics}
+        childId={studentId}
         onClose={() => setEditingEvent(null)}
         onSaved={refetchCurrentView}
       />
