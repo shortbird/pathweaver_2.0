@@ -445,6 +445,12 @@ export const messageAPI = {
   contacts: () => api.get('/api/messages/contacts'),
   canMessage: (targetUserId: string) =>
     api.get(`/api/messages/can-message/${targetUserId}`),
+  // Parent (or superadmin) read-only access to a child's message history.
+  children: () => api.get('/api/messages/children'),
+  childConversations: (childId: string) =>
+    api.get(`/api/messages/children/${childId}/conversations`),
+  childConversationMessages: (childId: string, conversationId: string) =>
+    api.get(`/api/messages/children/${childId}/conversations/${conversationId}`),
 };
 
 export const groupAPI = {
