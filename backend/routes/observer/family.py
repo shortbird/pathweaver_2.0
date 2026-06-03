@@ -361,12 +361,67 @@ def register_routes(bp):
                         })
 
                     observers_data.append({
+                        'status': 'accepted',
                         'observer_id': observer_id,
                         'observer_name': observer_info.get('display_name') or \
                             f"{observer_info.get('first_name', '')} {observer_info.get('last_name', '')}".strip(),
                         'observer_email': observer_info.get('email'),
                         'avatar_url': observer_info.get('avatar_url'),
                         'children': children_access
+                    })
+
+            # Also surface PENDING invitations (created at invite time, before the
+            # observer accepts) so a parent who just invited someone sees them
+            # immediately rather than an empty list. These live in
+            # observer_invitations (status='pending'), with covered children in
+            # observer_invitation_students — there is no observer user row yet, so
+            # there's no observer_id; the frontend keys/removes these by
+            # invitation_id via the invitation-revoke endpoint.
+            now_iso = datetime.utcnow().isoformat()
+            pending_invites = supabase.table('observer_invitations') \
+                .select('id, invitation_code, created_at, expires_at') \
+                .eq('invited_by_user_id', parent_id) \
+                .eq('status', 'pending') \
+                .gt('expires_at', now_iso) \
+                .order('created_at', desc=True) \
+                .execute()
+
+            if pending_invites.data:
+                pending_ids = [inv['id'] for inv in pending_invites.data]
+                pending_links = supabase.table('observer_invitation_students') \
+                    .select('invitation_id, student_id') \
+                    .in_('invitation_id', pending_ids) \
+                    .execute()
+
+                # Org-isolation: only count children this parent actually manages.
+                child_id_set = set(child_ids)
+                for inv in pending_invites.data:
+                    covered = [
+                        l['student_id'] for l in pending_links.data
+                        if l['invitation_id'] == inv['id'] and l['student_id'] in child_id_set
+                    ]
+                    if not covered:
+                        continue  # invitation covers none of this parent's current children
+
+                    pending_children = [{
+                        'student_id': child_id,
+                        'student_name': children_map[child_id].get('display_name') or \
+                            f"{children_map[child_id].get('first_name', '')} {children_map[child_id].get('last_name', '')}".strip(),
+                        'avatar_url': children_map[child_id].get('avatar_url'),
+                        'enabled': True,
+                        'link_id': None,
+                    } for child_id in covered]
+
+                    observers_data.append({
+                        'status': 'pending',
+                        'invitation_id': inv['id'],
+                        'observer_id': None,
+                        'observer_name': None,
+                        'observer_email': None,
+                        'avatar_url': None,
+                        'expires_at': inv['expires_at'],
+                        'created_at': inv['created_at'],
+                        'children': pending_children,
                     })
 
             # Format children list for the response
