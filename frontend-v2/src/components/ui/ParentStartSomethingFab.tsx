@@ -55,6 +55,7 @@ export function ParentStartSomethingFab({ onCaptureMoment }: ParentStartSomethin
       <AddKidSheet
         visible={addKidVisible}
         onClose={closeAddKid}
+        onCreated={() => useAddKidStore.getState().refreshChildren()}
       />
     </>
   );

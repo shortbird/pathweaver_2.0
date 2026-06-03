@@ -17,8 +17,9 @@ import { PillarBadge } from '@/src/components/ui/pillar-badge';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useScrollToTop, useFocusEffect } from '@react-navigation/native';
-import api from '@/src/services/api';
+import api, { uploadChildAvatar } from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useAddKidStore } from '@/src/stores/addKidStore';
 import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -211,9 +212,9 @@ function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; o
         </VStack>
         <VStack className="items-center">
           <UIText size="lg" className="font-poppins-bold" style={{ color: '#3DA24A' }}>
-            {stats?.completed_quests_count || 0}
+            {(stats?.moments_count || 0).toLocaleString()}
           </UIText>
-          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Completed</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Moments</UIText>
         </VStack>
       </HStack>
     </Card>
@@ -374,18 +375,22 @@ export default function ParentDashboardPage() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    const formData = new FormData();
-    formData.append('avatar', {
-      uri: asset.uri,
-      name: asset.fileName || 'avatar.jpg',
-      type: 'image/jpeg',
-    } as any);
     try {
-      await api.put(`/api/users/${selectedId}/profile`, formData);
+      // Parent-scoped avatar upload (works for dependents and linked students,
+      // verifies parent ownership). Uses the raw-fetch uploadChildAvatar helper
+      // because axios mangles/aborts multipart FormData on React Native.
+      await uploadChildAvatar(selectedId, {
+        uri: asset.uri,
+        name: asset.fileName || 'avatar.jpg',
+        type: asset.mimeType || 'image/jpeg',
+      });
       Alert.alert('Updated', 'Profile picture updated.');
       refetch();
-    } catch {
-      Alert.alert('Error', 'Failed to upload picture');
+      // Also refresh the children list so the new avatar shows in the hero/header.
+      useAddKidStore.getState().refreshChildren();
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.response?.data?.message || 'Failed to upload picture';
+      Alert.alert('Error', typeof msg === 'string' ? msg : 'Failed to upload picture');
     }
   };
 
@@ -457,7 +462,7 @@ export default function ParentDashboardPage() {
           <UIText size="sm" className="text-typo-400 mt-2 text-center dark:text-dark-typo-400">
             Add a dependent or connect with a student to view their learning dashboard.
           </UIText>
-          <Button size="lg" className="mt-6">
+          <Button size="lg" className="mt-6" onPress={() => useAddKidStore.getState().open()}>
             <ButtonText>Add a Child</ButtonText>
           </Button>
           {isOEAParent && (

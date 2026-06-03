@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { usePreviewRoleStore } from '../stores/previewRoleStore';
+import { useAddKidStore } from '../stores/addKidStore';
 import type { EngagementData } from './useDashboard';
 import type { LearningEvent, UnifiedTopic } from './useJournal';
 
@@ -42,6 +43,8 @@ export function useMyChildren() {
   const userId = useAuthStore((s) => s.user?.id);
   const user = useAuthStore((s) => s.user);
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
+  // Bumped when a kid is created (AddKidSheet) so the list refetches immediately.
+  const childrenVersion = useAddKidStore((s) => s.version);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -118,7 +121,7 @@ export function useMyChildren() {
       }
     })();
     return () => { cancelled = true; };
-  }, [isAuthenticated, userId, effectiveRole]);
+  }, [isAuthenticated, userId, effectiveRole, childrenVersion]);
 
   return { children, loading };
 }
