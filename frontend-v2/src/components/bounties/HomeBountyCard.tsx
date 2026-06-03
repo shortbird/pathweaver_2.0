@@ -15,6 +15,7 @@ import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, HStack, VStack, UIText } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface HomeBountyCardProps {
   claim: any;
@@ -32,6 +33,7 @@ function rewardLabel(bounty: any): { icon: string; text: string; color: string }
 }
 
 export function HomeBountyCard({ claim }: HomeBountyCardProps) {
+  const c = useThemeColors();
   const bounty = claim?.bounty || {};
   const completedIds = new Set(claim?.evidence?.completed_deliverables || []);
   const deliverables = bounty.deliverables || [];
@@ -55,10 +57,10 @@ export function HomeBountyCard({ claim }: HomeBountyCardProps) {
           </View>
           <VStack className="flex-1 min-w-0">
             <HStack className="items-center gap-1.5">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
                 Bounty
               </UIText>
-              <View className="w-1 h-1 rounded-full bg-typo-300" />
+              <View className="w-1 h-1 rounded-full bg-typo-300 dark:bg-dark-typo-300" />
               <Ionicons name={reward.icon as any} size={11} color={reward.color} />
               <UIText size="xs" style={{ color: reward.color }} className="font-poppins-medium">
                 {reward.text}
@@ -80,11 +82,11 @@ export function HomeBountyCard({ claim }: HomeBountyCardProps) {
                     <Ionicons
                       name={done ? 'checkmark-circle' : 'ellipse-outline'}
                       size={16}
-                      color={done ? '#10B981' : '#D1D5DB'}
+                      color={done ? '#10B981' : c.iconMuted}
                     />
                     <UIText
                       size="xs"
-                      className={`flex-1 ${done ? 'text-typo-400 line-through' : 'text-typo-600'}`}
+                      className={`flex-1 ${done ? 'text-typo-400 dark:text-dark-typo-400 line-through' : 'text-typo-600'}`}
                       numberOfLines={1}
                     >
                       {d.text}
@@ -94,7 +96,7 @@ export function HomeBountyCard({ claim }: HomeBountyCardProps) {
               })}
             </VStack>
           ) : (
-            <UIText size="xs" className="text-typo-400 mt-3">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-3">
               {completed} of {total} deliverables done
             </UIText>
           )

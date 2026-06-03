@@ -17,10 +17,12 @@ import {
   VStack, HStack, Heading, UIText, Card, Skeleton,
   Avatar, AvatarFallbackText, AvatarImage,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const DESKTOP_BREAKPOINT = 768;
 
 export default function ObserverStudentOverviewScreen() {
+  const c = useThemeColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
@@ -40,15 +42,15 @@ export default function ObserverStudentOverviewScreen() {
     : '';
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       {/* Header */}
       <View className="px-5 pt-4 pb-2">
         <HStack className="items-center gap-3">
           <Pressable
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-full bg-surface-100 items-center justify-center"
+            className="w-10 h-10 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
           >
-            <Ionicons name="chevron-back" size={20} color="#6B7280" />
+            <Ionicons name="chevron-back" size={20} color={c.icon} />
           </Pressable>
           <Avatar size="md">
             {student?.avatar_url ? (
@@ -59,7 +61,7 @@ export default function ObserverStudentOverviewScreen() {
           </Avatar>
           <VStack className="flex-1 min-w-0">
             <Heading size="lg" numberOfLines={1}>{name || 'Student'}</Heading>
-            <UIText size="xs" className="text-typo-400">Recent activity</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Recent activity</UIText>
           </VStack>
         </HStack>
       </View>
@@ -78,9 +80,9 @@ export default function ObserverStudentOverviewScreen() {
             items.map((item) => <FeedCard key={item.id} item={item} />)
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10 mt-4">
-              <Ionicons name="newspaper-outline" size={40} color="#9CA3AF" />
-              <Heading size="sm" className="text-typo-500 mt-3">No activity yet</Heading>
-              <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
+              <Ionicons name="newspaper-outline" size={40} color={c.iconMuted} />
+              <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No activity yet</Heading>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1 text-center px-4">
                 When {name || 'this student'} captures a moment or completes a task, it'll show up here.
               </UIText>
             </Card>

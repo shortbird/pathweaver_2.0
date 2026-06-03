@@ -37,7 +37,7 @@ function BulletList({ items }: { items: string[] }) {
 
 export default function TermsOfServiceScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 py-6 pb-16" showsVerticalScrollIndicator={false}>
         <VStack space="lg" className="max-w-3xl w-full md:mx-auto">
 
@@ -50,7 +50,7 @@ export default function TermsOfServiceScreen() {
           <Card variant="elevated" size="lg">
             <VStack space="lg">
               <Heading size="2xl">Terms of Service</Heading>
-              <UIText size="xs" className="text-typo-400">Effective Date: January 27, 2025</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Effective Date: January 27, 2025</UIText>
 
               <Divider />
 

@@ -6,6 +6,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import Svg, { Polygon, Line, Circle, Text as SvgText } from 'react-native-svg';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const PILLARS = [
   { key: 'stem', label: 'STEM', color: '#2469D1' },
@@ -32,6 +33,7 @@ function polarToCartesian(angle: number, radius: number, cx: number, cy: number)
 }
 
 export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
+  const c = useThemeColors();
   const cx = size / 2;
   const cy = size / 2;
   const maxRadius = size / 2 - 30; // leave room for labels
@@ -87,7 +89,7 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
             key={`ring-${i}`}
             points={points}
             fill="none"
-            stroke="#E5E7EB"
+            stroke={c.border}
             strokeWidth={1}
           />
         ))}
@@ -100,7 +102,7 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
             y1={cy}
             x2={a.end.x}
             y2={a.end.y}
-            stroke="#E5E7EB"
+            stroke={c.border}
             strokeWidth={1}
           />
         ))}
@@ -134,7 +136,7 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
             y={a.labelPos.y}
             fontSize={11}
             fontFamily="Poppins_500Medium"
-            fill="#6B7280"
+            fill={c.textMuted}
             textAnchor="middle"
             alignmentBaseline="middle"
           >

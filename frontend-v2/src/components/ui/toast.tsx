@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useToastStore, toast, type Toast, type ToastType } from '@/src/stores/toastStore';
 import { UIText } from './text';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 // react-native-web doesn't support the native animation driver.
 const USE_NATIVE_DRIVER = Platform.OS !== 'web';
@@ -29,6 +30,7 @@ const STYLES: Record<ToastType, { icon: keyof typeof Ionicons.glyphMap; color: s
 function ToastItem({ item }: { item: Toast }) {
   const anim = useRef(new Animated.Value(0)).current;
   const { icon, color } = STYLES[item.type];
+  const c = useThemeColors();
 
   const close = useCallback(() => {
     Animated.timing(anim, {
@@ -80,7 +82,7 @@ function ToastItem({ item }: { item: Toast }) {
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: c.card,
           borderRadius: 14,
           borderLeftWidth: 4,
           borderLeftColor: color,
@@ -95,7 +97,7 @@ function ToastItem({ item }: { item: Toast }) {
               {item.title}
             </UIText>
           ) : null}
-          <UIText size="sm" className="text-typo-700" numberOfLines={3}>
+          <UIText size="sm" className="text-typo-700 dark:text-dark-typo-700" numberOfLines={3}>
             {item.message}
           </UIText>
         </View>

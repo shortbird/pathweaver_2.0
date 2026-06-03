@@ -13,6 +13,7 @@ import { View, TextInput, Pressable, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import api from '@/src/services/api';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
@@ -27,6 +28,7 @@ interface CreateClassSheetProps {
 type Step = 'title' | 'subject' | 'description';
 
 export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassSheetProps) {
+  const c = useThemeColors();
   const [step, setStep] = useState<Step>('title');
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState<SubjectMeta | null>(null);
@@ -102,31 +104,31 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
       <VStack space="md">
         <HStack className="items-center justify-between">
           <VStack>
-            <UIText size="xs" className="text-typo-400 uppercase tracking-wider font-poppins-medium">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 uppercase tracking-wider font-poppins-medium">
               {stepLabel}
             </UIText>
             <Heading size="lg">Start a Class</Heading>
           </VStack>
           <Pressable
             onPress={handleClose}
-            className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
           >
-            <Ionicons name="close" size={18} color="#6B7280" />
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
         {step === 'title' && (
           <VStack space="md">
-            <UIText size="sm" className="text-typo-500">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
               Name your class. Make it real — something you actually want to do.
             </UIText>
             <TextInput
               value={title}
               onChangeText={setTitle}
               placeholder="e.g. Soccer Conditioning"
-              placeholderTextColor="#9CA3AF"
-              className="bg-surface-50 rounded-xl p-4 text-base font-poppins"
+              placeholderTextColor={c.textFaint}
+              className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins"
               maxLength={120}
               autoFocus
               testID="class-title-input"
@@ -136,7 +138,7 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
 
         {step === 'subject' && (
           <VStack space="md">
-            <UIText size="sm" className="text-typo-500">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
               Pick the transcript subject this class will count toward.
             </UIText>
             <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
@@ -148,7 +150,7 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
                       key={s.key}
                       testID={`subject-${s.key}`}
                       onPress={() => setSubject(s)}
-                      className={`rounded-xl p-3 border-2 ${selected ? 'border-optio-purple bg-purple-50' : 'border-surface-200 bg-white'}`}
+                      className={`rounded-xl p-3 border-2 ${selected ? 'border-optio-purple bg-purple-50' : 'border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100'}`}
                     >
                       <HStack className="items-center gap-3">
                         <View
@@ -159,7 +161,7 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
                         </View>
                         <VStack className="flex-1">
                           <UIText size="md" className="font-poppins-semibold">{s.name}</UIText>
-                          <UIText size="xs" className="text-typo-400">{s.description}</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{s.description}</UIText>
                         </VStack>
                         {selected && <Ionicons name="checkmark-circle" size={22} color="#6D469B" />}
                       </HStack>
@@ -173,22 +175,22 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
 
         {step === 'description' && (
           <VStack space="md">
-            <UIText size="sm" className="text-typo-500">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
               What are you actually doing for this class? A sentence or two helps us suggest better tasks later.
             </UIText>
             <TextInput
               value={description}
               onChangeText={setDescription}
               placeholder="e.g. Training for varsity tryouts and running 3x/week"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               multiline
               numberOfLines={4}
-              className="bg-surface-50 rounded-xl p-4 text-base font-poppins min-h-[120px]"
+              className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins min-h-[120px]"
               style={{ textAlignVertical: 'top' }}
               maxLength={600}
               testID="class-description-input"
             />
-            <UIText size="xs" className="text-typo-300">
+            <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">
               Optional — you can add this later. After creating, you'll add tasks from the class page.
             </UIText>
           </VStack>

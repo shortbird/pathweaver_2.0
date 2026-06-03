@@ -46,7 +46,10 @@ export function StartSomethingFab({ onCaptureMoment, onCreated }: StartSomething
   const user = useAuthStore((s) => s.user);
   const sheetVisible = useStartSomethingStore((s) => s.visible);
   const closeSheet = useStartSomethingStore((s) => s.close);
-  const [questSheetVisible, setQuestSheetVisible] = useState(false);
+  // CreateQuestSheet visibility lives in the store so the Quests page's
+  // "Create your own quest" button can open this same mounted sheet.
+  const questSheetVisible = useStartSomethingStore((s) => s.createQuestVisible);
+  const closeQuestSheet = useStartSomethingStore((s) => s.closeCreateQuest);
   const [classSheetVisible, setClassSheetVisible] = useState(false);
   const canStartClass = computeCanStartClass(user);
 
@@ -57,13 +60,12 @@ export function StartSomethingFab({ onCaptureMoment, onCreated }: StartSomething
         onClose={closeSheet}
         canStartClass={canStartClass}
         onCaptureMoment={onCaptureMoment}
-        onCreateQuest={() => setQuestSheetVisible(true)}
         onStartClass={() => setClassSheetVisible(true)}
       />
 
       <CreateQuestSheet
         visible={questSheetVisible}
-        onClose={() => setQuestSheetVisible(false)}
+        onClose={closeQuestSheet}
         onCreated={() => { onCreated?.(); }}
       />
 

@@ -110,7 +110,7 @@ export function LtiShell({
           >
             Something went wrong
           </UIText>
-          <UIText size="sm" className="text-typo-500 text-center">
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
             {error}
           </UIText>
         </VStack>
@@ -131,7 +131,7 @@ export function LtiShell({
           <VStack space="xs" className="mb-4">
             {title ? <Heading size="lg">{title}</Heading> : null}
             {subtitle ? (
-              <UIText size="sm" className="text-typo-500">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                 {subtitle}
               </UIText>
             ) : null}

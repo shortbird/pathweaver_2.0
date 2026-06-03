@@ -11,6 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -42,21 +44,21 @@ function QuestCard({ quest }: { quest: any }) {
       <VStack space="sm">
         <Heading size="sm" numberOfLines={2}>{quest.title}</Heading>
         {quest.description ? (
-          <UIText size="xs" className="text-typo-500" numberOfLines={2}>
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>
             {quest.description}
           </UIText>
         ) : null}
         <HStack className="items-center justify-between">
           <HStack className="items-center gap-2">
             {quest.pillar && (
-              <View className={`px-2 py-0.5 rounded-full ${pillarColors[quest.pillar] || 'bg-surface-200'}/15`}>
-                <UIText size="xs" className="font-poppins-medium text-typo-500 capitalize">
+              <View className={`px-2 py-0.5 rounded-full ${pillarColors[quest.pillar] || 'bg-surface-200 dark:bg-dark-surface-300'}/15`}>
+                <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500 capitalize">
                   {quest.pillar === 'stem' ? 'STEM' : quest.pillar}
                 </UIText>
               </View>
             )}
             {quest.enrollmentCount > 0 && (
-              <UIText size="xs" className="text-typo-400">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 {quest.enrollmentCount} enrolled
               </UIText>
             )}
@@ -93,6 +95,8 @@ export default function QuestsScreen() {
   // horizontally — there's room, and a hidden horizontal scrollbar reads as
   // mobile-only chrome.
   const { isLargeScreen } = useBreakpoint();
+  const openCreateQuest = useStartSomethingStore((s) => s.openCreateQuest);
+  const c = useThemeColors();
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -103,12 +107,21 @@ export default function QuestsScreen() {
   }, [loadMore]);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       <PageHeader title="Quests" />
       <ScrollView ref={scrollRef} className="flex-1" contentContainerClassName="pt-2 md:pt-6 pb-4" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={64}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
           <VStack space="lg" className="px-5 md:px-8">
+
+          <Button
+            size="lg"
+            onPress={openCreateQuest}
+            testID="quests-create-your-own"
+          >
+            <Ionicons name="rocket-outline" size={18} color="#FFFFFF" />
+            <ButtonText>Create your own quest</ButtonText>
+          </Button>
 
           <Input variant="rounded" size="lg">
             <InputSlot className="ml-3">
@@ -121,14 +134,14 @@ export default function QuestsScreen() {
             <VStack space="sm">
               <FilterRail wrap={isLargeScreen}>
                   <Pressable onPress={() => setSelectedTopic(null)}>
-                    <View className={`px-4 py-2 rounded-full ${!selectedTopic ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                      <UIText size="sm" className={`font-poppins-medium ${!selectedTopic ? 'text-white' : 'text-typo-500'}`}>All</UIText>
+                    <View className={`px-4 py-2 rounded-full ${!selectedTopic ? 'bg-optio-purple' : 'bg-surface-200 dark:bg-dark-surface-300'}`}>
+                      <UIText size="sm" className={`font-poppins-medium ${!selectedTopic ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>All</UIText>
                     </View>
                   </Pressable>
                   {topics.map((t) => (
                     <Pressable key={t.name} onPress={() => setSelectedTopic(t.name)}>
-                      <View className={`px-4 py-2 rounded-full ${selectedTopic === t.name ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                        <UIText size="sm" className={`font-poppins-medium ${selectedTopic === t.name ? 'text-white' : 'text-typo-500'}`}>
+                      <View className={`px-4 py-2 rounded-full ${selectedTopic === t.name ? 'bg-optio-purple' : 'bg-surface-200 dark:bg-dark-surface-300'}`}>
+                        <UIText size="sm" className={`font-poppins-medium ${selectedTopic === t.name ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                           {t.name} ({t.count})
                         </UIText>
                       </View>
@@ -138,11 +151,11 @@ export default function QuestsScreen() {
 
               {selectedTopic && subtopics.length > 0 && (
                 <FilterRail wrap={isLargeScreen}>
-                    <UIText size="xs" className="text-typo-400 mr-1">Filter by:</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mr-1">Filter by:</UIText>
                     {subtopics.map((st) => (
                       <Pressable key={st} onPress={() => setSelectedSubtopic(selectedSubtopic === st ? null : st)}>
-                        <View className={`px-3 py-1.5 rounded-full border ${selectedSubtopic === st ? 'bg-optio-purple border-optio-purple' : 'bg-surface-100 border-surface-300'}`}>
-                          <UIText size="xs" className={`font-poppins-medium ${selectedSubtopic === st ? 'text-white' : 'text-typo-500'}`}>
+                        <View className={`px-3 py-1.5 rounded-full border ${selectedSubtopic === st ? 'bg-optio-purple border-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200 border-surface-300 dark:border-dark-surface-300'}`}>
+                          <UIText size="xs" className={`font-poppins-medium ${selectedSubtopic === st ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                             {st}
                           </UIText>
                         </View>
@@ -176,14 +189,14 @@ export default function QuestsScreen() {
                 </View>
               )}
               {!hasMore && quests.length > 0 && (
-                <UIText size="sm" className="text-typo-400 text-center py-4">All quests loaded</UIText>
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center py-4">All quests loaded</UIText>
               )}
             </>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10">
-              <Ionicons name="search-outline" size={40} color="#9CA3AF" />
-              <Heading size="sm" className="text-typo-500 mt-3">No quests found</Heading>
-              <UIText size="sm" className="text-typo-400 mt-1">Try a different search or topic</UIText>
+              <Ionicons name="search-outline" size={40} color={c.iconMuted} />
+              <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No quests found</Heading>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">Try a different search or topic</UIText>
             </Card>
           )}
           </VStack>

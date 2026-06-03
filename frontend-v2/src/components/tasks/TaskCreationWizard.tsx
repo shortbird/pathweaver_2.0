@@ -11,6 +11,7 @@ import { PILLARS } from '@/src/hooks/useQuestDetail';
 import {
   VStack, HStack, Heading, UIText, Button, ButtonText, Divider,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { getSubject } from '@/src/components/class/SUBJECTS';
 
 const pillarColors: Record<string, { bg: string; text: string }> = {
@@ -71,6 +72,7 @@ export function TaskCreationWizard({
   isClassQuest = false,
   classSubject = null,
 }: TaskCreationWizardProps) {
+  const c = useThemeColors();
   const classSubjectMeta = isClassQuest ? getSubject(classSubject) : null;
   const [step, setStep] = useState<'choose' | 'manual' | 'ai-personalize' | 'ai-review' | 'browse'>('choose');
   const [error, setError] = useState<string | null>(null);
@@ -228,23 +230,23 @@ export function TaskCreationWizard({
       >
         <Pressable
           onPress={(e) => e.stopPropagation?.()}
-          style={{ backgroundColor: '#FFFFFF', borderRadius: 20, width: 560, maxWidth: '92%', maxHeight: '85%' }}
+          style={{ backgroundColor: c.card, borderRadius: 20, width: 560, maxWidth: '92%', maxHeight: '85%' }}
         >
           <ScrollView contentContainerStyle={{ padding: 28 }} keyboardShouldPersistTaps="handled">
             <VStack space="md">
               {/* Header */}
               <HStack className="items-center justify-between">
-                <UIText size="sm" className="font-poppins-semibold text-typo-400 uppercase tracking-wider">
+                <UIText size="sm" className="font-poppins-semibold text-typo-400 dark:text-dark-typo-400 uppercase tracking-wider">
                   {step === 'choose' ? 'Add Task' : step === 'manual' ? 'Create Task' : step === 'browse' ? 'Suggested Tasks' : step === 'ai-personalize' ? 'Personalize' : `Task ${reviewIndex + 1} of ${suggestions.length}`}
                 </UIText>
-                <Pressable onPress={handleClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                  <Ionicons name="close" size={16} color="#6B7280" />
+                <Pressable onPress={handleClose} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
+                  <Ionicons name="close" size={16} color={c.icon} />
                 </Pressable>
               </HStack>
 
               {/* Progress bar */}
               {step !== 'choose' && (
-                <View className="h-1 bg-surface-200 rounded-full overflow-hidden">
+                <View className="h-1 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
                   <View
                     className="h-full bg-optio-purple rounded-full"
                     style={{
@@ -269,7 +271,7 @@ export function TaskCreationWizard({
                     {suggestedTasks && suggestedTasks.length > 0 && (
                       <Pressable
                         onPress={() => { setError(null); setStep('browse'); }}
-                        className="flex-1 p-5 border-2 border-surface-200 rounded-xl"
+                        className="flex-1 p-5 border-2 border-surface-200 dark:border-dark-surface-300 rounded-xl"
                         style={{ cursor: 'pointer' } as any}
                       >
                         <VStack className="items-center" space="sm">
@@ -277,14 +279,14 @@ export function TaskCreationWizard({
                             <Ionicons name="list-outline" size={24} color="#2469D1" />
                           </View>
                           <UIText size="sm" className="font-poppins-bold text-center">Browse Ideas</UIText>
-                          <UIText size="xs" className="text-typo-400 text-center">{suggestedTasks.filter((t: any) => !addedIds.has(t.id)).length} suggested tasks</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">{suggestedTasks.filter((t: any) => !addedIds.has(t.id)).length} suggested tasks</UIText>
                         </VStack>
                       </Pressable>
                     )}
 
                     <Pressable
                       onPress={() => { setError(null); setStep('ai-personalize'); }}
-                      className="flex-1 p-5 border-2 border-surface-200 rounded-xl"
+                      className="flex-1 p-5 border-2 border-surface-200 dark:border-dark-surface-300 rounded-xl"
                       style={{ cursor: 'pointer' } as any}
                     >
                       <VStack className="items-center" space="sm">
@@ -292,13 +294,13 @@ export function TaskCreationWizard({
                           <Ionicons name="sparkles" size={24} color="#6D469B" />
                         </View>
                         <UIText size="sm" className="font-poppins-bold text-center">AI Generate</UIText>
-                        <UIText size="xs" className="text-typo-400 text-center">Get personalized suggestions</UIText>
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">Get personalized suggestions</UIText>
                       </VStack>
                     </Pressable>
 
                     <Pressable
                       onPress={() => { setError(null); setStep('manual'); }}
-                      className="flex-1 p-5 border-2 border-surface-200 rounded-xl"
+                      className="flex-1 p-5 border-2 border-surface-200 dark:border-dark-surface-300 rounded-xl"
                       style={{ cursor: 'pointer' } as any}
                     >
                       <VStack className="items-center" space="sm">
@@ -306,7 +308,7 @@ export function TaskCreationWizard({
                           <Ionicons name="create-outline" size={24} color="#EF597B" />
                         </View>
                         <UIText size="sm" className="font-poppins-bold text-center">Write My Own</UIText>
-                        <UIText size="xs" className="text-typo-400 text-center">Create a custom task</UIText>
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">Create a custom task</UIText>
                       </VStack>
                     </Pressable>
                   </HStack>
@@ -317,7 +319,7 @@ export function TaskCreationWizard({
               {step === 'browse' && suggestedTasks && (
                 <VStack space="sm">
                   <HStack className="items-center justify-between">
-                    <UIText size="xs" className="text-typo-400">Tap a task to add it to your project.</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Tap a task to add it to your project.</UIText>
                     {justAddedId && (
                       <HStack className="items-center gap-1 px-2 py-1 rounded bg-green-50">
                         <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
@@ -339,20 +341,20 @@ export function TaskCreationWizard({
                             setTimeout(() => setJustAddedId(null), 1500);
                           } catch { /* error */ }
                         }}
-                        className="border border-surface-200 rounded-xl p-4 bg-surface-50 active:bg-surface-100"
+                        className="border border-surface-200 dark:border-dark-surface-300 rounded-xl p-4 bg-surface-50 dark:bg-dark-surface-50 active:bg-surface-100 dark:active:bg-dark-surface-200"
                         style={{ cursor: 'pointer' } as any}
                       >
                         <HStack className="items-center gap-3">
                           <VStack className="flex-1 min-w-0">
                             <UIText size="sm" className="font-poppins-medium">{t.title}</UIText>
                             {t.description && (
-                              <UIText size="xs" className="text-typo-400 mt-0.5" numberOfLines={2}>{t.description}</UIText>
+                              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5" numberOfLines={2}>{t.description}</UIText>
                             )}
                             <HStack className="items-center gap-2 mt-1">
                               <View className={`px-1.5 py-0.5 rounded ${pc.bg}`}>
                                 <UIText size="xs" className={pc.text}>{label}</UIText>
                               </View>
-                              <UIText size="xs" className="text-typo-400">{t.xp_value || 0} XP</UIText>
+                              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{t.xp_value || 0} XP</UIText>
                             </HStack>
                           </VStack>
                           <Ionicons name="add-circle-outline" size={22} color="#6D469B" />
@@ -385,8 +387,8 @@ export function TaskCreationWizard({
                       value={manualTitle}
                       onChangeText={(t) => { setError(null); setManualTitle(t); }}
                       placeholder="e.g., Interview my grandparent about their childhood"
-                      placeholderTextColor="#9CA3AF"
-                      className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm"
+                      placeholderTextColor={c.textFaint}
+                      className="bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 rounded-xl p-3 text-sm"
                       style={{ fontFamily: 'Poppins_400Regular' }}
                     />
                   </VStack>
@@ -397,13 +399,13 @@ export function TaskCreationWizard({
                       value={manualDesc}
                       onChangeText={(t) => { setError(null); setManualDesc(t); }}
                       placeholder="Describe what you'll do, how you'll explore, and what you hope to discover..."
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={c.textFaint}
                       multiline
                       numberOfLines={4}
-                      className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm min-h-[100px]"
+                      className="bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 rounded-xl p-3 text-sm min-h-[100px]"
                       style={{ fontFamily: 'Poppins_400Regular', textAlignVertical: 'top' }}
                     />
-                    <UIText size="xs" className="text-typo-300">{manualDesc.length} characters</UIText>
+                    <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{manualDesc.length} characters</UIText>
                   </VStack>
 
                   <HStack className="gap-6">
@@ -412,8 +414,8 @@ export function TaskCreationWizard({
                       <HStack className="flex-wrap gap-2">
                         {PILLARS.map((p) => (
                           <Pressable key={p.key} onPress={() => setManualPillar(p.key)}>
-                            <View className={`px-3 py-1.5 rounded-full ${manualPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100'}`}>
-                              <UIText size="xs" className={`font-poppins-medium ${manualPillar === p.key ? 'text-white' : 'text-typo-500'}`}>
+                            <View className={`px-3 py-1.5 rounded-full ${manualPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                              <UIText size="xs" className={`font-poppins-medium ${manualPillar === p.key ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                                 {p.label}
                               </UIText>
                             </View>
@@ -427,8 +429,8 @@ export function TaskCreationWizard({
                       <HStack className="flex-wrap gap-2">
                         {XP_OPTIONS.map((opt) => (
                           <Pressable key={opt.value} onPress={() => setManualXP(opt.value)}>
-                            <View className={`px-3 py-1.5 rounded-full ${manualXP === opt.value ? 'bg-optio-purple' : 'bg-surface-100'}`}>
-                              <UIText size="xs" className={`font-poppins-medium ${manualXP === opt.value ? 'text-white' : 'text-typo-500'}`}>
+                            <View className={`px-3 py-1.5 rounded-full ${manualXP === opt.value ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                              <UIText size="xs" className={`font-poppins-medium ${manualXP === opt.value ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                                 {opt.label}
                               </UIText>
                             </View>
@@ -479,7 +481,7 @@ export function TaskCreationWizard({
                         <UIText size="sm" className="font-poppins-medium">
                           What are you interested in?
                         </UIText>
-                        <UIText size="xs" className="text-typo-400">
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                           Pick a few — we'll generate tasks that connect your interests to this class.
                         </UIText>
                         <HStack className="flex-wrap gap-2 pt-1">
@@ -497,9 +499,9 @@ export function TaskCreationWizard({
                                   });
                                 }}
                               >
-                                <View className={`flex-row items-center gap-1.5 px-3 py-2 rounded-full border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white border-surface-300'}`}>
+                                <View className={`flex-row items-center gap-1.5 px-3 py-2 rounded-full border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white dark:bg-dark-surface-100 border-surface-300 dark:border-dark-surface-300'}`}>
                                   <UIText size="sm">{chip.icon}</UIText>
-                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-600'}`}>
+                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-600 dark:text-dark-typo-600'}`}>
                                     {chip.label}
                                   </UIText>
                                 </View>
@@ -515,8 +517,8 @@ export function TaskCreationWizard({
                           value={extraIdeas}
                           onChangeText={setExtraIdeas}
                           placeholder='e.g. "I play varsity basketball and want to track stats"'
-                          placeholderTextColor="#9CA3AF"
-                          className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm"
+                          placeholderTextColor={c.textFaint}
+                          className="bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 rounded-xl p-3 text-sm"
                           style={{ fontFamily: 'Poppins_400Regular' }}
                           multiline
                         />
@@ -530,8 +532,8 @@ export function TaskCreationWizard({
                           value={interests}
                           onChangeText={setInterests}
                           placeholder='e.g. "photography, cooking, robotics"'
-                          placeholderTextColor="#9CA3AF"
-                          className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm"
+                          placeholderTextColor={c.textFaint}
+                          className="bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 rounded-xl p-3 text-sm"
                           style={{ fontFamily: 'Poppins_400Regular' }}
                         />
                       </VStack>
@@ -540,14 +542,14 @@ export function TaskCreationWizard({
                         <UIText size="sm" className="font-poppins-medium">Focus on a pillar (optional)</UIText>
                         <HStack className="flex-wrap gap-2">
                           <Pressable onPress={() => setSelectedPillar(null)}>
-                            <View className={`px-3 py-1.5 rounded-full ${!selectedPillar ? 'bg-optio-purple' : 'bg-surface-100'}`}>
-                              <UIText size="xs" className={`font-poppins-medium ${!selectedPillar ? 'text-white' : 'text-typo-500'}`}>Any</UIText>
+                            <View className={`px-3 py-1.5 rounded-full ${!selectedPillar ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                              <UIText size="xs" className={`font-poppins-medium ${!selectedPillar ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>Any</UIText>
                             </View>
                           </Pressable>
                           {PILLARS.map((p) => (
                             <Pressable key={p.key} onPress={() => setSelectedPillar(p.key)}>
-                              <View className={`px-3 py-1.5 rounded-full ${selectedPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100'}`}>
-                                <UIText size="xs" className={`font-poppins-medium ${selectedPillar === p.key ? 'text-white' : 'text-typo-500'}`}>
+                              <View className={`px-3 py-1.5 rounded-full ${selectedPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                                <UIText size="xs" className={`font-poppins-medium ${selectedPillar === p.key ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                                   {p.label}
                                 </UIText>
                               </View>
@@ -579,11 +581,11 @@ export function TaskCreationWizard({
               {/* Step: AI Review (one-at-a-time) */}
               {step === 'ai-review' && currentTask && (
                 <VStack space="md">
-                  <UIText size="sm" className="text-typo-500">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                     Accepted {acceptedCount} task{acceptedCount !== 1 ? 's' : ''} so far
                   </UIText>
 
-                  <View className="border border-surface-200 rounded-xl p-5 bg-surface-50">
+                  <View className="border border-surface-200 dark:border-dark-surface-300 rounded-xl p-5 bg-surface-50 dark:bg-dark-surface-50">
                     <VStack space="sm">
                       <HStack className="items-center justify-between">
                         {classSubjectMeta ? (
@@ -610,7 +612,7 @@ export function TaskCreationWizard({
 
                       <Heading size="sm">{currentTask.title}</Heading>
                       {currentTask.description && (
-                        <UIText size="sm" className="text-typo-500 leading-5">{currentTask.description}</UIText>
+                        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 leading-5">{currentTask.description}</UIText>
                       )}
                     </VStack>
                   </View>

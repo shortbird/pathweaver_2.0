@@ -16,7 +16,8 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
-import { compressImageAssets } from '@/src/utils/imageCompression';
+import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
@@ -89,17 +90,22 @@ export function TaskEvidenceSheet({
   // paths when a taskId is supplied; otherwise the override props must be set.
   const initPath = uploadInitPath || (taskId ? `/api/evidence/documents/${taskId}/upload-init` : '');
   const finalizePath = uploadFinalizePath || (taskId ? `/api/evidence/documents/${taskId}/upload-finalize` : '');
+  const c = useThemeColors();
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [textNote, setTextNote] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [recording, setRecording] = useState(false);
+  // Video transcode is slow (seconds) and runs after the picker closes; track
+  // it so the UI shows "Optimizing video…" instead of appearing frozen.
+  const [compressPct, setCompressPct] = useState<number | null>(null);
 
   const reset = () => {
     setMedia([]);
     setTextNote('');
     setLinkUrl('');
     setRecording(false);
+    setCompressPct(null);
   };
 
   const handleClose = () => {
@@ -129,6 +135,29 @@ export function TaskEvidenceSheet({
     if (next.length) setMedia((prev) => [...prev, ...next]);
   };
 
+  // Gate over-long videos BEFORE the expensive transcode, then compress
+  // (images + video) with progress, then attach. Shared by camera + library.
+  const processAndAdd = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    const allowed = assets.filter((a) => {
+      if (a.type === 'video' && a.duration && a.duration > MAX_VIDEO_DURATION_MS) {
+        const mins = (a.duration / 60000).toFixed(1);
+        const maxMins = MAX_VIDEO_DURATION_MS / 60000;
+        Alert.alert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
+        return false;
+      }
+      return true;
+    });
+    if (allowed.length === 0) return;
+    const hasVideo = allowed.some((a) => a.type === 'video');
+    if (hasVideo) setCompressPct(0);
+    try {
+      const compressed = await compressMediaAssets(allowed, setCompressPct);
+      addMedia(compressed);
+    } finally {
+      setCompressPct(null);
+    }
+  };
+
   const openCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -141,8 +170,7 @@ export function TaskEvidenceSheet({
       videoMaxDuration: 120,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const compressed = await compressImageAssets(result.assets);
-      addMedia(compressed);
+      await processAndAdd(result.assets);
     }
   };
 
@@ -154,8 +182,7 @@ export function TaskEvidenceSheet({
       selectionLimit: 10,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const compressed = await compressImageAssets(result.assets);
-      addMedia(compressed);
+      await processAndAdd(result.assets);
     }
   };
 
@@ -267,32 +294,32 @@ export function TaskEvidenceSheet({
         <HStack className="items-center justify-between">
           <VStack className="flex-1 min-w-0">
             <Heading size="lg">Add Evidence</Heading>
-            <UIText size="xs" className="text-typo-500 mt-0.5" numberOfLines={1}>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-0.5" numberOfLines={1}>
               For: {taskTitle}
             </UIText>
           </VStack>
           <Pressable
             onPress={handleClose}
-            className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
           >
-            <Ionicons name="close" size={18} color="#6B7280" />
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
         {/* Text note */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
             What you did
           </UIText>
           <TextInput
             value={textNote}
             onChangeText={setTextNote}
             placeholder="Describe what you did, what you learned..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={c.textFaint}
             multiline
             numberOfLines={3}
-            className="bg-surface-50 rounded-xl p-4 text-base font-poppins text-typo min-h-[80px]"
+            className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-typo dark:text-dark-typo min-h-[80px]"
             style={{ textAlignVertical: 'top' }}
           />
         </VStack>
@@ -321,7 +348,7 @@ export function TaskEvidenceSheet({
                     {item.type === 'image' ? (
                       <Image
                         source={{ uri: item.uri }}
-                        style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: '#F3F4F6' }}
+                        style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: c.surfaceMuted }}
                         resizeMode="cover"
                       />
                     ) : (
@@ -336,19 +363,29 @@ export function TaskEvidenceSheet({
                       style={{
                         position: 'absolute', top: -6, right: -6,
                         width: 24, height: 24, borderRadius: 12,
-                        backgroundColor: '#FFFFFF',
+                        backgroundColor: c.card,
                         alignItems: 'center', justifyContent: 'center',
                         shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
                         elevation: 2,
                       }}
                     >
-                      <Ionicons name="close-circle" size={22} color="#6B7280" />
+                      <Ionicons name="close-circle" size={22} color={c.icon} />
                     </Pressable>
                   </View>
                 );
               })}
             </HStack>
           </ScrollView>
+        )}
+
+        {/* Video compression progress */}
+        {compressPct !== null && (
+          <HStack className="items-center gap-2 px-1">
+            <Ionicons name="film-outline" size={16} color={c.icon} />
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+              Optimizing video… {compressPct}%
+            </UIText>
+          </HStack>
         )}
 
         {/* Voice recorder */}
@@ -375,11 +412,11 @@ export function TaskEvidenceSheet({
         <HStack className="gap-3">
           <Pressable
             onPress={openCamera}
-            className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+            className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
             <Ionicons name="camera-outline" size={26} color="#6D469B" />
-            <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Camera</UIText>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Camera</UIText>
           </Pressable>
           <Pressable
             onPress={() => {
@@ -390,34 +427,34 @@ export function TaskEvidenceSheet({
               setRecording(true);
             }}
             disabled={recording}
-            className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+            className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44, opacity: recording ? 0.4 : 1 }}
           >
             <Ionicons name={recording ? 'mic' : 'mic-outline'} size={26} color="#6D469B" />
-            <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Voice</UIText>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
           </Pressable>
           <Pressable
             onPress={pickFiles}
-            className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+            className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
             <Ionicons name="images-outline" size={26} color="#6D469B" />
-            <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Files</UIText>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
           </Pressable>
         </HStack>
 
         {/* Optional link */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
             Add a link (optional)
           </UIText>
-          <View className="flex-row items-center gap-2 bg-surface-50 rounded-xl px-3">
+          <View className="flex-row items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 rounded-xl px-3">
             <Ionicons name="link-outline" size={16} color="#6D469B" />
             <TextInput
               value={linkUrl}
               onChangeText={setLinkUrl}
               placeholder="https://"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"

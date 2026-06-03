@@ -10,6 +10,7 @@ import { View, Pressable, TextInput, ActivityIndicator, Platform, ScrollView } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useBuddy } from '@/src/hooks/useBuddy';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import OptioBuddy from '@/src/components/buddy/OptioBuddy';
 import useBuddyState from '@/src/components/buddy/useBuddyState';
 import {
@@ -25,13 +26,14 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 function CreateBuddyForm({ onCreate, loading: creating }: { onCreate: (name: string) => void; loading: boolean }) {
   const [name, setName] = useState('');
+  const c = useThemeColors();
 
   return (
     <VStack className="items-center px-6" space="lg">
       <OptioBuddy vitality={0.8} bond={0} stage={0} width={250} height={213} />
       <VStack className="items-center" space="sm">
         <Heading size="xl">Adopt Your Buddy</Heading>
-        <UIText size="sm" className="text-typo-500 text-center">
+        <UIText size="sm" className="text-typo-500 text-center dark:text-dark-typo-500">
           Give your buddy a name and watch it grow as you feed it each day!
         </UIText>
       </VStack>
@@ -41,8 +43,8 @@ function CreateBuddyForm({ onCreate, loading: creating }: { onCreate: (name: str
           onChangeText={setName}
           placeholder="Name your buddy..."
           maxLength={30}
-          className="flex-1 px-4 py-3 border border-surface-200 rounded-lg text-base font-poppins"
-          placeholderTextColor="#9CA3AF"
+          className="flex-1 px-4 py-3 border border-surface-200 rounded-lg text-base font-poppins dark:border-dark-surface-300"
+          placeholderTextColor={c.textFaint}
         />
         <Button
           size="lg"
@@ -138,7 +140,7 @@ function BuddyView({ buddyData, feedBuddy, tapBuddy, updateBuddy }: {
           <View
             key={i}
             className={`w-2.5 h-2.5 rounded-full ${
-              i < feedsUsed ? 'bg-optio-purple' : 'bg-surface-200'
+              i < feedsUsed ? 'bg-optio-purple' : 'bg-surface-200 dark:bg-dark-surface-300'
             }`}
           />
         ))}
@@ -156,7 +158,7 @@ function BuddyView({ buddyData, feedBuddy, tapBuddy, updateBuddy }: {
         </ButtonText>
       </Button>
 
-      <UIText size="xs" className="text-typo-300 mt-3">
+      <UIText size="xs" className="text-typo-300 mt-3 dark:text-dark-typo-300">
         Tap your buddy to interact!
       </UIText>
 
@@ -304,14 +306,14 @@ export default function BuddyScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <PageHeader title="Buddy" />
       {buddy ? (
         <BuddyView

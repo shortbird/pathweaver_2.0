@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import logging
 
 from database import get_supabase_admin_client
+from utils.quest_status import is_enrollment_complete
 
 logger = logging.getLogger(__name__)
 
@@ -386,6 +387,15 @@ class DashboardService:
         self, user_id: str, quests: List[Dict]
     ) -> List[Dict[str, Any]]:
         """Enrich active quests with task data and progress."""
+        # Drop any enrollment that is actually complete. The active-quest query
+        # already filters completed_at IS NULL, but a credit-awarded class is
+        # complete without a completed_at — the shared completion rule
+        # (utils/quest_status) is the single source of truth, also used by the
+        # portfolio/diploma achievements list. Both the primary and fallback
+        # active-quest paths funnel through here with the quest record attached,
+        # so this is the single chokepoint.
+        quests = [q for q in quests if not is_enrollment_complete(q)]
+
         user_quest_ids = [e.get('id') for e in quests if e.get('id')]
 
         if not user_quest_ids:

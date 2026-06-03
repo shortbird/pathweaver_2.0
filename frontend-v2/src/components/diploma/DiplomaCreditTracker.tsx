@@ -10,6 +10,7 @@ import { View, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Card, Badge, BadgeText, Skeleton,
 } from '../ui';
@@ -36,6 +37,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; i
 };
 
 export function DiplomaCreditTracker() {
+  const c = useThemeColors();
   const [requests, setRequests] = useState<CreditRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string | null>(null);
@@ -92,13 +94,13 @@ export function DiplomaCreditTracker() {
           ) : pendingCount > 0 ? (
             <Badge action="warning"><BadgeText>{pendingCount} awaiting</BadgeText></Badge>
           ) : null}
-          <UIText size="xs" className="text-typo-400 ml-auto">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-auto">
             {allCaughtUp ? 'All caught up!' : `${approvedCount} approved`}
           </UIText>
         </HStack>
 
         {allCaughtUp ? (
-          <UIText size="sm" className="text-typo-400 text-center py-2">
+          <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center py-2">
             All caught up! Complete tasks and request diploma credit to track progress here.
           </UIText>
         ) : (
@@ -108,8 +110,8 @@ export function DiplomaCreditTracker() {
               <HStack space="xs">
                 {FILTER_TABS.map((tab) => tab.count > 0 ? (
                   <Pressable key={tab.key} onPress={() => setFilter(tab.key)}>
-                    <View className={`px-3 py-1.5 rounded-full ${filter === tab.key ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                      <UIText size="xs" className={`font-poppins-medium ${filter === tab.key ? 'text-white' : 'text-typo-500'}`}>
+                    <View className={`px-3 py-1.5 rounded-full ${filter === tab.key ? 'bg-optio-purple' : 'bg-surface-200 dark:bg-dark-surface-300'}`}>
+                      <UIText size="xs" className={`font-poppins-medium ${filter === tab.key ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                         {tab.label} ({tab.count})
                       </UIText>
                     </View>
@@ -120,7 +122,7 @@ export function DiplomaCreditTracker() {
 
             {/* Credit request list */}
             {filtered.length === 0 ? (
-              <UIText size="sm" className="text-typo-400 text-center py-3">
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center py-3">
                 No credit requests in this category.
               </UIText>
             ) : (
@@ -132,7 +134,7 @@ export function DiplomaCreditTracker() {
                   const totalSubjectXP = subjectEntries.reduce((sum, [, xp]) => sum + xp, 0);
 
                   return (
-                    <View key={req.completion_id} className="border border-surface-200 rounded-lg overflow-hidden">
+                    <View key={req.completion_id} className="border border-surface-200 dark:border-dark-surface-300 rounded-lg overflow-hidden">
                       <Pressable onPress={() => setExpandedId(isExpanded ? null : req.completion_id)} className="p-3">
                         <HStack className="items-center gap-3">
                           <Ionicons
@@ -142,31 +144,31 @@ export function DiplomaCreditTracker() {
                           />
                           <VStack className="flex-1 min-w-0">
                             <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{req.task_title}</UIText>
-                            <UIText size="xs" className="text-typo-400" numberOfLines={1}>{req.quest_title}</UIText>
+                            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{req.quest_title}</UIText>
                           </VStack>
                           <HStack className="items-center gap-2">
                             <View className={`px-2 py-0.5 rounded-full ${config.bg}`}>
                               <UIText size="xs" className={`font-poppins-medium ${config.text}`}>{config.label}</UIText>
                             </View>
                             {totalSubjectXP > 0 && (
-                              <UIText size="xs" className="text-typo-400">{totalSubjectXP} XP</UIText>
+                              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{totalSubjectXP} XP</UIText>
                             )}
-                            <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#9CA3AF" />
+                            <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={c.iconMuted} />
                           </HStack>
                         </HStack>
                       </Pressable>
 
                       {isExpanded && (
-                        <View className="border-t border-surface-100 p-3 bg-surface-50">
+                        <View className="border-t border-surface-100 dark:border-dark-surface-300 p-3 bg-surface-50 dark:bg-dark-surface-50">
                           <VStack space="sm">
                             {/* Subject breakdown */}
                             {subjectEntries.length > 0 && (
                               <VStack space="xs">
-                                <UIText size="xs" className="font-poppins-medium text-typo-600">Subject Credits:</UIText>
+                                <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Subject Credits:</UIText>
                                 <HStack className="flex-wrap gap-1">
                                   {subjectEntries.map(([subject, xp]) => (
-                                    <View key={subject} className="px-2 py-0.5 bg-white border border-surface-200 rounded">
-                                      <UIText size="xs" className="text-typo-600">
+                                    <View key={subject} className="px-2 py-0.5 bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300 rounded">
+                                      <UIText size="xs" className="text-typo-600 dark:text-dark-typo-600">
                                         {subject.replace(/_/g, ' ')}: {xp} XP
                                       </UIText>
                                     </View>
@@ -194,10 +196,10 @@ export function DiplomaCreditTracker() {
                                 </Pressable>
                               )}
                               {req.revision_number > 1 && (
-                                <UIText size="xs" className="text-typo-400">Round {req.revision_number}</UIText>
+                                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Round {req.revision_number}</UIText>
                               )}
                               {req.credit_requested_at ? (
-                                <UIText size="xs" className="text-typo-300 ml-auto">
+                                <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300 ml-auto">
                                   {new Date(req.credit_requested_at).toLocaleDateString()}
                                 </UIText>
                               ) : null}

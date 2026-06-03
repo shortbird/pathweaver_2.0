@@ -14,8 +14,10 @@ import api from '@/src/services/api';
 import {
   VStack, Heading, UIText, Card, Button, ButtonText,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 export default function AcceptInvitationScreen() {
+  const c = useThemeColors();
   const { code } = useLocalSearchParams<{ code?: string }>();
   const [invitationCode, setInvitationCode] = useState(code || '');
   const [accepting, setAccepting] = useState(false);
@@ -49,7 +51,7 @@ export default function AcceptInvitationScreen() {
 
   if (success) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
         <View className="flex-1 items-center justify-center px-6">
           <Card variant="elevated" size="lg" className="w-full max-w-sm">
             <VStack space="md" className="items-center">
@@ -57,7 +59,7 @@ export default function AcceptInvitationScreen() {
                 <Ionicons name="checkmark-circle" size={40} color="#16A34A" />
               </View>
               <Heading size="lg">You're Connected!</Heading>
-              <UIText size="sm" className="text-typo-500 text-center">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                 You can now view {studentName}'s learning activity in your feed.
               </UIText>
               <Button size="lg" className="w-full" onPress={() => router.replace('/(app)/(tabs)/feed')}>
@@ -71,7 +73,7 @@ export default function AcceptInvitationScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <View className="flex-1 items-center justify-center px-6">
         <Card variant="elevated" size="lg" className="w-full max-w-sm">
           <VStack space="md">
@@ -80,7 +82,7 @@ export default function AcceptInvitationScreen() {
                 <Ionicons name="people" size={28} color="#6D469B" />
               </View>
               <Heading size="lg">Accept Invitation</Heading>
-              <UIText size="sm" className="text-typo-500 text-center">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                 Enter the invitation code to start observing a student's learning journey.
               </UIText>
             </VStack>
@@ -89,9 +91,9 @@ export default function AcceptInvitationScreen() {
               value={invitationCode}
               onChangeText={setInvitationCode}
               placeholder="Enter invitation code"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               autoCapitalize="none"
-              className="bg-surface-50 rounded-xl p-4 text-base text-center"
+              className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base text-center"
               style={{ fontFamily: 'Poppins_400Regular', letterSpacing: 1 }}
             />
 

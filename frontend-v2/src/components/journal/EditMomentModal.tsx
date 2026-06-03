@@ -17,6 +17,7 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText, Card, Divider,
 } from '../ui';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/useJournal';
 import {
@@ -38,6 +39,7 @@ interface EditMomentModalProps {
 }
 
 function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
+  const c = useThemeColors();
   // URL can be in file_url column OR inside content.url (older upload pattern)
   const resolvedUrl = block.file_url || block.content?.url || block.content?.items?.[0]?.url;
   const isImage = block.block_type === 'image' || isHeicUrl(resolvedUrl);
@@ -45,15 +47,15 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
 
   if (isImage && imageUrl) {
     return (
-      <View className="rounded-xl overflow-hidden border border-surface-200">
+      <View className="rounded-xl overflow-hidden border border-surface-200 dark:border-dark-surface-300">
         <Image
           source={{ uri: imageUrl }}
           style={{ width: '100%', height: 200 }}
           resizeMode="cover"
         />
         {block.file_name && (
-          <View className="px-3 py-1.5 bg-surface-50">
-            <UIText size="xs" className="text-typo-400" numberOfLines={1}>{block.file_name}</UIText>
+          <View className="px-3 py-1.5 bg-surface-50 dark:bg-dark-surface-50">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{block.file_name}</UIText>
           </View>
         )}
       </View>
@@ -63,15 +65,15 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
   if (block.block_type === 'video' && resolvedUrl) {
     if (Platform.OS === 'web') {
       return (
-        <View className="rounded-xl overflow-hidden border border-surface-200">
+        <View className="rounded-xl overflow-hidden border border-surface-200 dark:border-dark-surface-300">
           <video
             src={resolvedUrl}
             controls
             style={{ width: '100%', maxHeight: 500, objectFit: 'contain', backgroundColor: '#000', borderRadius: 12 }}
           />
           {block.file_name ? (
-            <View className="px-3 py-1.5 bg-surface-50">
-              <UIText size="xs" className="text-typo-400" numberOfLines={1}>{block.file_name}</UIText>
+            <View className="px-3 py-1.5 bg-surface-50 dark:bg-dark-surface-50">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{block.file_name}</UIText>
             </View>
           ) : null}
         </View>
@@ -80,15 +82,15 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
     return (
       <Pressable
         onPress={() => Linking.openURL(resolvedUrl)}
-        className="rounded-xl overflow-hidden border border-surface-200"
+        className="rounded-xl overflow-hidden border border-surface-200 dark:border-dark-surface-300"
       >
-        <View className="h-32 bg-surface-100 items-center justify-center">
+        <View className="h-32 bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
           <View className="w-14 h-14 rounded-full bg-optio-purple/15 items-center justify-center">
             <Ionicons name="play" size={28} color="#6D469B" />
           </View>
         </View>
-        <View className="px-3 py-2 bg-surface-50">
-          <UIText size="xs" className="text-typo-500" numberOfLines={1}>
+        <View className="px-3 py-2 bg-surface-50 dark:bg-dark-surface-50">
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
             {block.file_name || 'Video'}
           </UIText>
         </View>
@@ -100,8 +102,8 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
     const text = block.content?.text || block.content?.body || '';
     if (!text) return null;
     return (
-      <View className="bg-surface-50 rounded-xl p-4 border border-surface-200">
-        <UIText size="sm" className="text-typo">{text}</UIText>
+      <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 border border-surface-200 dark:border-dark-surface-300">
+        <UIText size="sm" className="text-typo dark:text-dark-typo">{text}</UIText>
       </View>
     );
   }
@@ -130,7 +132,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
     return (
       <Pressable
         onPress={() => Linking.openURL(resolvedUrl)}
-        className="flex-row items-center gap-3 bg-surface-50 rounded-xl p-3 border border-surface-200"
+        className="flex-row items-center gap-3 bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-3 border border-surface-200 dark:border-dark-surface-300"
       >
         <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">
           <Ionicons name="document-attach" size={20} color="#6D469B" />
@@ -139,9 +141,9 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
           <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
             {block.file_name || 'Document'}
           </UIText>
-          <UIText size="xs" className="text-typo-400">Tap to open</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Tap to open</UIText>
         </VStack>
-        <Ionicons name="open-outline" size={16} color="#9CA3AF" />
+        <Ionicons name="open-outline" size={16} color={c.iconMuted} />
       </Pressable>
     );
   }
@@ -160,6 +162,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
   const [aiSuggested, setAiSuggested] = useState(false);
   const [showTopicPicker, setShowTopicPicker] = useState(false);
   const dateInputRef = useRef<any>(null);
+  const c = useThemeColors();
 
   // Populate form from event
   useEffect(() => {
@@ -261,40 +264,40 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       <VStack space="md" className="pb-6">
         {/* Title */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">Title</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Title</UIText>
           <TextInput
             value={title}
             onChangeText={setTitle}
             placeholder="Add a title (optional)"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={c.textFaint}
             style={{
-              backgroundColor: '#F9FAFB',
+              backgroundColor: c.background,
               borderRadius: 12,
               padding: 14,
               fontSize: 15,
               fontFamily: 'Poppins_400Regular',
-              color: '#1F2937',
+              color: c.text,
             }}
           />
         </VStack>
 
         {/* Description */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">Description</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Description</UIText>
           <TextInput
             value={description}
             onChangeText={(text) => { setDescription(text); setAiSuggested(false); }}
             placeholder="What did you learn?"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={c.textFaint}
             multiline
             numberOfLines={4}
             style={{
-              backgroundColor: '#F9FAFB',
+              backgroundColor: c.background,
               borderRadius: 12,
               padding: 14,
               fontSize: 15,
               fontFamily: 'Poppins_400Regular',
-              color: '#1F2937',
+              color: c.text,
               minHeight: 100,
               textAlignVertical: 'top',
             }}
@@ -344,7 +347,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
         {/* Pillars (self-edit only — parent endpoint doesn't persist pillars) */}
         {!childId && (
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">Pillars</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Pillars</UIText>
           <HStack className="flex-wrap gap-2">
             {pillarKeys.map((key) => {
               const pc = getPillar(key);
@@ -361,19 +364,19 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                     paddingVertical: 7,
                     borderRadius: 20,
                     borderWidth: 1.5,
-                    borderColor: selected ? pc.color : '#E5E7EB',
-                    backgroundColor: selected ? pc.color + '15' : '#fff',
+                    borderColor: selected ? pc.color : c.border,
+                    backgroundColor: selected ? pc.color + '15' : c.card,
                   }}
                 >
                   <Ionicons
                     name={selected ? pc.iconFilled : pc.icon}
                     size={14}
-                    color={selected ? pc.color : '#9CA3AF'}
+                    color={selected ? pc.color : c.iconMuted}
                   />
                   <UIText
                     size="xs"
                     className="font-poppins-medium"
-                    style={{ color: selected ? pc.color : '#6B7280' }}
+                    style={{ color: selected ? pc.color : c.textMuted }}
                   >
                     {pc.label}
                   </UIText>
@@ -386,7 +389,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
 
         {/* Event Date */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">Date</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Date</UIText>
           {Platform.OS === 'web' ? (
             <input
               ref={dateInputRef}
@@ -394,12 +397,12 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
               value={eventDate}
               onChange={(e: any) => setEventDate(e.target.value)}
               style={{
-                backgroundColor: '#F9FAFB',
+                backgroundColor: c.background,
                 borderRadius: 12,
                 padding: 14,
                 fontSize: 15,
                 fontFamily: 'Poppins, sans-serif',
-                color: eventDate ? '#1F2937' : '#9CA3AF',
+                color: eventDate ? c.text : c.textFaint,
                 border: 'none',
                 outline: 'none',
                 width: '100%',
@@ -409,12 +412,12 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
             <Pressable
               onPress={() => {}}
               style={{
-                backgroundColor: '#F9FAFB',
+                backgroundColor: c.background,
                 borderRadius: 12,
                 padding: 14,
               }}
             >
-              <UIText size="sm" style={{ color: eventDate ? '#1F2937' : '#9CA3AF' }}>
+              <UIText size="sm" style={{ color: eventDate ? c.text : c.textFaint }}>
                 {eventDate || 'Select a date'}
               </UIText>
             </Pressable>
@@ -423,14 +426,14 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
 
         {/* Topic Assignment */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">Topic</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Topic</UIText>
           <Pressable
             onPress={() => setShowTopicPicker(!showTopicPicker)}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: '#F9FAFB',
+              backgroundColor: c.background,
               borderRadius: 12,
               padding: 14,
             }}
@@ -446,13 +449,13 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                   >
                     <Ionicons name="folder-outline" size={12} color={availableTracks.find((t) => t.id === selectedTopicId)?.color || '#6D469B'} />
                   </View>
-                  <UIText size="sm" className="text-typo">{selectedTopicName}</UIText>
+                  <UIText size="sm" className="text-typo dark:text-dark-typo">{selectedTopicName}</UIText>
                 </>
               ) : (
-                <UIText size="sm" style={{ color: '#9CA3AF' }}>Unassigned</UIText>
+                <UIText size="sm" style={{ color: c.textFaint }}>Unassigned</UIText>
               )}
             </HStack>
-            <Ionicons name={showTopicPicker ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" />
+            <Ionicons name={showTopicPicker ? 'chevron-up' : 'chevron-down'} size={18} color={c.iconMuted} />
           </Pressable>
 
           {showTopicPicker && (
@@ -460,10 +463,10 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
               <VStack space="xs">
                 <Pressable
                   onPress={() => { setSelectedTopicId(null); setShowTopicPicker(false); }}
-                  className={`flex-row items-center gap-2 px-3 py-2 rounded-lg ${!selectedTopicId ? 'bg-surface-100' : ''}`}
+                  className={`flex-row items-center gap-2 px-3 py-2 rounded-lg ${!selectedTopicId ? 'bg-surface-100 dark:bg-dark-surface-200' : ''}`}
                 >
-                  <Ionicons name="remove-circle-outline" size={16} color="#9CA3AF" />
-                  <UIText size="sm" className="text-typo-500">Unassigned</UIText>
+                  <Ionicons name="remove-circle-outline" size={16} color={c.iconMuted} />
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">Unassigned</UIText>
                 </Pressable>
 
                 {availableTracks.map((t) => (
@@ -480,7 +483,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                     </View>
                     <UIText
                       size="sm"
-                      className={selectedTopicId === t.id ? 'font-poppins-medium text-optio-purple' : 'text-typo'}
+                      className={selectedTopicId === t.id ? 'font-poppins-medium text-optio-purple' : 'text-typo dark:text-dark-typo'}
                     >
                       {t.name}
                     </UIText>
@@ -491,7 +494,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                 ))}
 
                 {availableTracks.length === 0 && (
-                  <UIText size="xs" className="text-typo-400 px-3 py-2">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 px-3 py-2">
                     No topics yet. Create one from the journal sidebar.
                   </UIText>
                 )}
@@ -505,7 +508,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
           <>
             <Divider />
             <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">
                 Attachments ({event.evidence_blocks.length})
               </UIText>
               {event.evidence_blocks
@@ -541,7 +544,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
           <Pressable
             onPress={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#fff',
+              backgroundColor: c.card,
               borderRadius: 20,
               width: '100%',
               maxWidth: 540,
@@ -554,9 +557,9 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
               <Heading size="lg">Edit Moment</Heading>
               <Pressable
                 onPress={onClose}
-                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Ionicons name="close" size={18} color="#6B7280" />
+                <Ionicons name="close" size={18} color={c.icon} />
               </Pressable>
             </HStack>
             {content}
@@ -577,7 +580,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
         />
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: c.card,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             paddingHorizontal: 24,
@@ -586,14 +589,14 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
             maxHeight: '90%',
           }}
         >
-          <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
+          <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mb-4" />
           <HStack className="items-center justify-between mb-4">
             <Heading size="lg">Edit Moment</Heading>
             <Pressable
               onPress={onClose}
-              className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+              className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             >
-              <Ionicons name="close" size={18} color="#6B7280" />
+              <Ionicons name="close" size={18} color={c.icon} />
             </Pressable>
           </HStack>
           {content}

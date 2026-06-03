@@ -63,7 +63,7 @@ export function RhythmBadge({ rhythm, compact = false }: RhythmBadgeProps) {
         <UIText size="sm" className="font-poppins-semibold" style={{ color: config.color }}>
           {display}
         </UIText>
-        <UIText size="xs" className="text-typo-500">{message}</UIText>
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">{message}</UIText>
       </VStack>
     </HStack>
   );

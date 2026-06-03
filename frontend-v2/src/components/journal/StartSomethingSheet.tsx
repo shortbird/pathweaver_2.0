@@ -1,9 +1,8 @@
 /**
  * StartSomethingSheet - Bottom sheet listing the ways a student can add
  * new work to their "What you're working on" list:
- *   1. Browse quests (route to catalog)
- *   2. Create your own quest (opens CreateQuestSheet)
- *   3. Start a class (opens CreateClassSheet, gated to 13+ via parent)
+ *   1. Browse quests (route to catalog — quest creation now lives on that page)
+ *   2. Start a class (opens CreateClassSheet, gated to 13+ via parent)
  *
  * The Start-a-class row is only rendered when `canStartClass` is true.
  * The parent owns the visibility state of this sheet plus the two action
@@ -18,6 +17,7 @@ import { router } from 'expo-router';
 import {
   VStack, HStack, UIText, Heading, BottomSheet,
 } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface StartSomethingSheetProps {
   visible: boolean;
@@ -25,8 +25,6 @@ interface StartSomethingSheetProps {
   canStartClass: boolean;
   /** Open the parent-owned CaptureSheet. Parent should hide this sheet first. */
   onCaptureMoment: () => void;
-  /** Open the existing CreateQuestSheet. Parent should hide this sheet first. */
-  onCreateQuest: () => void;
   /** Open the existing CreateClassSheet. Parent should hide this sheet first. */
   onStartClass: () => void;
 }
@@ -56,6 +54,7 @@ function chainAfterClose(close: () => void, then: () => void) {
 }
 
 function Row({ icon, iconColor, iconBg, title, subtitle, onPress, testID }: RowProps) {
+  const c = useThemeColors();
   return (
     <Pressable testID={testID} onPress={onPress} className="active:opacity-70">
       <HStack className="items-center gap-3 py-3">
@@ -67,9 +66,9 @@ function Row({ icon, iconColor, iconBg, title, subtitle, onPress, testID }: RowP
         </View>
         <VStack className="flex-1 min-w-0">
           <UIText size="md" className="font-poppins-semibold">{title}</UIText>
-          <UIText size="xs" className="text-typo-500">{subtitle}</UIText>
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">{subtitle}</UIText>
         </VStack>
-        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+        <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
       </HStack>
     </Pressable>
   );
@@ -80,9 +79,9 @@ export function StartSomethingSheet({
   onClose,
   canStartClass,
   onCaptureMoment,
-  onCreateQuest,
   onStartClass,
 }: StartSomethingSheetProps) {
+  const c = useThemeColors();
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <VStack space="sm">
@@ -90,14 +89,14 @@ export function StartSomethingSheet({
           <Heading size="lg">Start something new</Heading>
           <Pressable
             onPress={onClose}
-            className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
           >
-            <Ionicons name="close" size={18} color="#6B7280" />
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
-        <UIText size="sm" className="text-typo-500">
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
           Pick what you want to do next.
         </UIText>
 
@@ -123,15 +122,6 @@ export function StartSomethingSheet({
               onClose();
               router.push('/(app)/(tabs)/quests');
             }}
-          />
-          <Row
-            testID="start-something-create-quest"
-            icon="sparkles-outline"
-            iconColor="#A21CAF"
-            iconBg="#A21CAF1A"
-            title="Create your own quest"
-            subtitle="Build a quest around something you want to learn"
-            onPress={chainAfterClose(onClose, onCreateQuest)}
           />
           <Row
             testID="start-something-earn-bounty"

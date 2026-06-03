@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useAdminUsers, useAdminQuests, useAdminOrganizations, useOrgDetail, type AdminUser } from '@/src/hooks/useAdmin';
 import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
 import {
@@ -55,6 +56,7 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 function UserCardMobile({ user, onMasquerade, onDelete, onSelect }: { user: AdminUser; onMasquerade: () => void; onDelete: () => void; onSelect?: () => void }) {
+  const c = useThemeColors();
   const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase();
   const effectiveRole = user.role === 'org_managed' ? (user.org_role || 'org_managed') : user.role;
   const lastActive = user.last_active
@@ -79,24 +81,24 @@ function UserCardMobile({ user, onMasquerade, onDelete, onSelect }: { user: Admi
             </UIText>
             <RoleBadge role={effectiveRole} />
           </HStack>
-          <UIText size="xs" className="text-typo-400" numberOfLines={1}>{user.email}</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{user.email}</UIText>
           <HStack className="items-center justify-between">
             <HStack className="items-center gap-3">
               <HStack className="items-center gap-1">
                 <Ionicons name="star" size={12} color="#FF9028" />
-                <UIText size="xs" className="text-typo-400">{(user.total_xp || 0).toLocaleString()} XP</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{(user.total_xp || 0).toLocaleString()} XP</UIText>
               </HStack>
               <HStack className="items-center gap-1">
-                <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-                <UIText size="xs" className="text-typo-400">{lastActive}</UIText>
+                <Ionicons name="time-outline" size={12} color={c.iconMuted} />
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{lastActive}</UIText>
               </HStack>
             </HStack>
             <HStack className="gap-1">
               <Pressable
                 onPress={onMasquerade}
-                className="w-8 h-8 rounded-lg bg-surface-100 items-center justify-center active:bg-surface-200"
+                className="w-8 h-8 rounded-lg bg-surface-100 items-center justify-center active:bg-surface-200 dark:bg-dark-surface-200"
               >
-                <Ionicons name="eye-outline" size={16} color="#6B7280" />
+                <Ionicons name="eye-outline" size={16} color={c.icon} />
               </Pressable>
               <Pressable
                 onPress={onDelete}
@@ -137,13 +139,13 @@ function UserRowDesktop({ user, onSelect }: { user: AdminUser; onSelect: () => v
             </UIText>
           </View>
           <View style={{ flex: 3 }}>
-            <UIText size="xs" className="text-typo-400" numberOfLines={1}>{user.email}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{user.email}</UIText>
           </View>
           <View style={{ flex: 1.5 }}>
             <RoleBadge role={effectiveRole} />
           </View>
           <View style={{ flex: 1.5, alignItems: 'flex-end' }}>
-            <UIText size="xs" className="text-typo-400">{lastActive}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{lastActive}</UIText>
           </View>
         </View>
       </Pressable>
@@ -163,6 +165,7 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
   onVerifyEmail: () => void;
   onUpdateRole: (role: string, orgRole?: string) => void;
 }) {
+  const c = useThemeColors();
   const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase();
   const effectiveRole = user.role === 'org_managed' ? (user.org_role || 'org_managed') : user.role;
   const [detailTab, setDetailTab] = useState<'profile' | 'role' | 'actions'>('profile');
@@ -192,20 +195,20 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
             </Avatar>
             <VStack>
               <Heading size="md">{user.display_name || `${user.first_name} ${user.last_name}`}</Heading>
-              <UIText size="xs" className="text-typo-400">{user.email}</UIText>
-              {memberSince && <UIText size="xs" className="text-typo-300">Member since {memberSince}</UIText>}
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{user.email}</UIText>
+              {memberSince && <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">Member since {memberSince}</UIText>}
             </VStack>
           </HStack>
-          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-            <Ionicons name="close" size={18} color="#6B7280" />
+          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
         {/* Sub-tabs */}
-        <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
+        <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
           {detailTabs.map((t) => (
-            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white' : ''}`}>
-              <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
+            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
+              <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
             </Pressable>
           ))}
         </HStack>
@@ -214,34 +217,34 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
         {detailTab === 'profile' && (
           <VStack space="sm">
             <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400">Name</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Name</UIText>
               <UIText size="sm" className="font-poppins-medium">{user.first_name} {user.last_name}</UIText>
             </HStack>
             <Divider />
             <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400">Email</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Email</UIText>
               <UIText size="sm">{user.email}</UIText>
             </HStack>
             <Divider />
             <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400">Role</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Role</UIText>
               <RoleBadge role={effectiveRole} />
             </HStack>
             <Divider />
             <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400">Total XP</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
               <UIText size="sm" className="font-poppins-medium text-optio-purple">{(user.total_xp || 0).toLocaleString()}</UIText>
             </HStack>
             <Divider />
             <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400">Dependent</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Dependent</UIText>
               <UIText size="sm">{user.is_dependent ? 'Yes' : 'No'}</UIText>
             </HStack>
             {user.organization_id && (
               <>
                 <Divider />
                 <HStack className="items-center justify-between py-1">
-                  <UIText size="xs" className="text-typo-400">Organization</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Organization</UIText>
                   <UIText size="sm">{user.organization_id.slice(0, 8)}...</UIText>
                 </HStack>
               </>
@@ -252,12 +255,12 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
         {/* Role tab */}
         {detailTab === 'role' && (
           <VStack space="sm">
-            <UIText size="xs" className="text-typo-400 font-poppins-medium">Change Role</UIText>
+            <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Change Role</UIText>
             <View className="flex flex-row flex-wrap gap-2">
               {['student', 'parent', 'advisor', 'observer', 'org_admin', 'superadmin'].map((r) => (
                 <Pressable key={r} onPress={() => onUpdateRole(r)}>
-                  <View className={`px-3 py-2 rounded-lg ${effectiveRole === r ? 'bg-optio-purple' : 'bg-surface-100 active:bg-surface-200'}`}>
-                    <UIText size="xs" className={`font-poppins-medium capitalize ${effectiveRole === r ? 'text-white' : 'text-typo-500'}`}>
+                  <View className={`px-3 py-2 rounded-lg ${effectiveRole === r ? 'bg-optio-purple' : 'bg-surface-100 active:bg-surface-200 dark:bg-dark-surface-200'}`}>
+                    <UIText size="xs" className={`font-poppins-medium capitalize ${effectiveRole === r ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                       {r === 'org_admin' ? 'Org Admin' : r}
                     </UIText>
                   </View>
@@ -287,7 +290,7 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
             </Pressable>
 
             <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Reset Password</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Reset Password</UIText>
               <HStack className="gap-2">
                 <View className="flex-1">
                   <Input size="sm">
@@ -325,6 +328,7 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
 // ── Users Panel ──
 
 function UsersPanel() {
+  const c = useThemeColors();
   const {
     users, total, loading, page, setPage, search, setSearch,
     roleFilter, setRoleFilter, perPage, totalPages,
@@ -351,14 +355,14 @@ function UsersPanel() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <HStack space="xs">
           <Pressable onPress={() => { setRoleFilter(null); setPage(1); }}>
-            <View className={`px-3 py-1.5 rounded-full ${!roleFilter ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-              <UIText size="xs" className={`font-poppins-medium ${!roleFilter ? 'text-white' : 'text-typo-500'}`}>All ({total})</UIText>
+            <View className={`px-3 py-1.5 rounded-full ${!roleFilter ? 'bg-optio-purple' : 'bg-surface-200 dark:bg-dark-surface-300'}`}>
+              <UIText size="xs" className={`font-poppins-medium ${!roleFilter ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>All ({total})</UIText>
             </View>
           </Pressable>
           {roles.map((r) => (
             <Pressable key={r} onPress={() => { setRoleFilter(r); setPage(1); }}>
-              <View className={`px-3 py-1.5 rounded-full ${roleFilter === r ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                <UIText size="xs" className={`font-poppins-medium capitalize ${roleFilter === r ? 'text-white' : 'text-typo-500'}`}>
+              <View className={`px-3 py-1.5 rounded-full ${roleFilter === r ? 'bg-optio-purple' : 'bg-surface-200 dark:bg-dark-surface-300'}`}>
+                <UIText size="xs" className={`font-poppins-medium capitalize ${roleFilter === r ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                   {r === 'org_managed' ? 'Org Managed' : r === 'org_admin' ? 'Org Admin' : r}
                 </UIText>
               </View>
@@ -372,20 +376,20 @@ function UsersPanel() {
         <VStack space="sm">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 rounded-xl" />)}</VStack>
       ) : users.length === 0 ? (
         <Card variant="filled" size="lg" className="items-center py-10">
-          <Ionicons name="people-outline" size={40} color="#9CA3AF" />
-          <Heading size="sm" className="text-typo-500 mt-3">No users found</Heading>
-          <UIText size="sm" className="text-typo-400 mt-1">Try a different search or filter</UIText>
+          <Ionicons name="people-outline" size={40} color={c.iconMuted} />
+          <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No users found</Heading>
+          <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Try a different search or filter</UIText>
         </Card>
       ) : isDesktop ? (
         /* Desktop: table + detail panel side by side */
         <View style={{ flexDirection: 'row', gap: 16 }}>
           <View style={{ flex: selectedUser ? 3 : 1 }}>
             <Card variant="elevated" size="sm" className="overflow-hidden">
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">User</UIText></View>
-                <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Email</UIText></View>
-                <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Role</UIText></View>
-                <View style={{ flex: 1.5, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Last Active</UIText></View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.border }}>
+                <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">User</UIText></View>
+                <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Email</UIText></View>
+                <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Role</UIText></View>
+                <View style={{ flex: 1.5, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Last Active</UIText></View>
               </View>
               {users.map((u) => (
                 <UserRowDesktop key={u.id} user={u} onSelect={() => handleSelectUser(u)} />
@@ -437,24 +441,24 @@ function UsersPanel() {
       {/* Pagination */}
       {totalPages > 1 && (
         <HStack className="items-center justify-between">
-          <UIText size="xs" className="text-typo-400">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
             Showing {(page - 1) * perPage + 1}-{Math.min(page * perPage, total)} of {total}
           </UIText>
           <HStack className="items-center gap-2">
             <Pressable
               onPress={() => setPage(page - 1)}
               disabled={page <= 1}
-              className={`w-9 h-9 rounded-lg items-center justify-center ${page <= 1 ? 'opacity-30' : 'bg-surface-100 active:bg-surface-200'}`}
+              className={`w-9 h-9 rounded-lg items-center justify-center ${page <= 1 ? 'opacity-30' : 'bg-surface-100 active:bg-surface-200 dark:bg-dark-surface-200'}`}
             >
-              <Ionicons name="chevron-back" size={18} color="#6B7280" />
+              <Ionicons name="chevron-back" size={18} color={c.icon} />
             </Pressable>
-            <UIText size="sm" className="text-typo-500 font-poppins-medium">{page} / {totalPages}</UIText>
+            <UIText size="sm" className="text-typo-500 font-poppins-medium dark:text-dark-typo-500">{page} / {totalPages}</UIText>
             <Pressable
               onPress={() => setPage(page + 1)}
               disabled={page >= totalPages}
-              className={`w-9 h-9 rounded-lg items-center justify-center ${page >= totalPages ? 'opacity-30' : 'bg-surface-100 active:bg-surface-200'}`}
+              className={`w-9 h-9 rounded-lg items-center justify-center ${page >= totalPages ? 'opacity-30' : 'bg-surface-100 active:bg-surface-200 dark:bg-dark-surface-200'}`}
             >
-              <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+              <Ionicons name="chevron-forward" size={18} color={c.icon} />
             </Pressable>
           </HStack>
         </HStack>
@@ -485,13 +489,13 @@ function QuestRowDesktop({ quest, onSelect, isSelected, orgName }: { quest: any;
             <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{quest.title}</UIText>
           </View>
           <View style={{ flex: 1.5 }}>
-            <UIText size="xs" className="text-typo-400" numberOfLines={1}>{quest.creator_name || '--'}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{quest.creator_name || '--'}</UIText>
           </View>
           <View style={{ flex: 1.5 }}>
-            <UIText size="xs" className="text-typo-400" numberOfLines={1}>{orgName || '--'}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{orgName || '--'}</UIText>
           </View>
           <View style={{ flex: 1 }}>
-            <Badge action="muted"><BadgeText className="text-typo-500 capitalize">{quest.quest_type || 'optio'}</BadgeText></Badge>
+            <Badge action="muted"><BadgeText className="text-typo-500 capitalize dark:text-dark-typo-500">{quest.quest_type || 'optio'}</BadgeText></Badge>
           </View>
           <View style={{ flex: 1 }}>
             <Badge action={quest.is_active ? 'success' : 'error'}>
@@ -501,7 +505,7 @@ function QuestRowDesktop({ quest, onSelect, isSelected, orgName }: { quest: any;
             </Badge>
           </View>
           <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <UIText size="xs" className="text-typo-400">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
               {quest.is_public ? 'Public' : 'Private'}
             </UIText>
           </View>
@@ -534,8 +538,8 @@ function QuestCardMobile({ quest, onDelete, onSelect }: { quest: any; onDelete: 
                   {quest.is_active ? 'Active' : 'Inactive'}
                 </BadgeText>
               </Badge>
-              <Badge action="muted"><BadgeText className="text-typo-500 capitalize">{quest.quest_type || 'optio'}</BadgeText></Badge>
-              <UIText size="xs" className="text-typo-400">{quest.is_public ? 'Public' : 'Private'}</UIText>
+              <Badge action="muted"><BadgeText className="text-typo-500 capitalize dark:text-dark-typo-500">{quest.quest_type || 'optio'}</BadgeText></Badge>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{quest.is_public ? 'Public' : 'Private'}</UIText>
             </HStack>
           </VStack>
           <Pressable
@@ -553,6 +557,7 @@ function QuestCardMobile({ quest, onDelete, onSelect }: { quest: any; onDelete: 
 function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
   quest: any; onClose: () => void; onDelete: () => void; onUpdate: (questId: string, updates: Record<string, any>) => void;
 }) {
+  const c = useThemeColors();
   const [detailTab, setDetailTab] = useState<'details' | 'settings' | 'actions'>('details');
   const [title, setTitle] = useState(quest.title || '');
   const [description, setDescription] = useState(quest.description || '');
@@ -597,24 +602,24 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
                     {quest.is_active ? 'Active' : 'Inactive'}
                   </BadgeText>
                 </Badge>
-                <UIText size="xs" className="text-typo-400">{quest.is_public ? 'Public' : 'Private'}</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{quest.is_public ? 'Public' : 'Private'}</UIText>
               </HStack>
             </VStack>
           </HStack>
-          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-            <Ionicons name="close" size={18} color="#6B7280" />
+          <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
         {/* Sub-tabs */}
-        <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
+        <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
           {([
             { key: 'details' as const, label: 'Details' },
             { key: 'settings' as const, label: 'Settings' },
             { key: 'actions' as const, label: 'Actions' },
           ]).map((t) => (
-            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white' : ''}`}>
-              <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
+            <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
+              <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
             </Pressable>
           ))}
         </HStack>
@@ -623,19 +628,19 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
         {detailTab === 'details' && (
           <VStack space="sm">
             <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Title</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Title</UIText>
               <Input><InputField value={title} onChangeText={setTitle} /></Input>
             </VStack>
             <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Description</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Description</UIText>
               <TextInput
-                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[80px] font-poppins"
+                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[80px] font-poppins dark:border-dark-surface-300"
                 style={{ fontFamily: 'Poppins_400Regular' }}
                 value={description}
                 onChangeText={setDescription}
                 multiline
                 textAlignVertical="top"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
               />
             </VStack>
             <Button onPress={handleSave} loading={saving} disabled={!title.trim()}>
@@ -647,10 +652,10 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
         {/* Settings tab - toggles */}
         {detailTab === 'settings' && (
           <VStack space="sm">
-            <Pressable onPress={handleToggleActive} className="flex-row items-center justify-between px-4 py-3 bg-surface-50 rounded-xl active:bg-surface-100">
+            <Pressable onPress={handleToggleActive} className="flex-row items-center justify-between px-4 py-3 bg-surface-50 rounded-xl active:bg-surface-100 dark:bg-dark-surface-50">
               <VStack>
                 <UIText size="sm" className="font-poppins-medium">Active Status</UIText>
-                <UIText size="xs" className="text-typo-400">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                   {quest.is_active ? 'Quest is visible and enrollable' : 'Quest is hidden from students'}
                 </UIText>
               </VStack>
@@ -661,26 +666,26 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
               </Badge>
             </Pressable>
 
-            <Pressable onPress={handleTogglePublic} className="flex-row items-center justify-between px-4 py-3 bg-surface-50 rounded-xl active:bg-surface-100">
+            <Pressable onPress={handleTogglePublic} className="flex-row items-center justify-between px-4 py-3 bg-surface-50 rounded-xl active:bg-surface-100 dark:bg-dark-surface-50">
               <VStack>
                 <UIText size="sm" className="font-poppins-medium">Visibility</UIText>
-                <UIText size="xs" className="text-typo-400">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                   {quest.is_public ? 'Visible in quest discovery' : 'Only accessible via direct link'}
                 </UIText>
               </VStack>
               <Badge action={quest.is_public ? 'info' : 'muted'}>
-                <BadgeText className={quest.is_public ? 'text-blue-700' : 'text-typo-500'}>
+                <BadgeText className={quest.is_public ? 'text-blue-700' : 'text-typo-500 dark:text-dark-typo-500'}>
                   {quest.is_public ? 'Public' : 'Private'}
                 </BadgeText>
               </Badge>
             </Pressable>
 
-            <HStack className="items-center justify-between px-4 py-3 bg-surface-50 rounded-xl">
+            <HStack className="items-center justify-between px-4 py-3 bg-surface-50 rounded-xl dark:bg-dark-surface-50">
               <VStack>
                 <UIText size="sm" className="font-poppins-medium">Quest Type</UIText>
-                <UIText size="xs" className="text-typo-400">How tasks are assigned</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">How tasks are assigned</UIText>
               </VStack>
-              <Badge action="muted"><BadgeText className="text-typo-500 capitalize">{quest.quest_type || 'optio'}</BadgeText></Badge>
+              <Badge action="muted"><BadgeText className="text-typo-500 capitalize dark:text-dark-typo-500">{quest.quest_type || 'optio'}</BadgeText></Badge>
             </HStack>
           </VStack>
         )}
@@ -695,7 +700,7 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
               <Ionicons name="open-outline" size={20} color="#6D469B" />
               <VStack>
                 <UIText size="sm" className="font-poppins-medium text-optio-purple">View Quest</UIText>
-                <UIText size="xs" className="text-typo-400">Open the student-facing quest page</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Open the student-facing quest page</UIText>
               </VStack>
             </Pressable>
 
@@ -724,6 +729,7 @@ function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
 }
 
 function QuestsPanel() {
+  const c = useThemeColors();
   const { quests, loading, search, setSearch, deleteQuest, updateQuest, refetch } = useAdminQuests();
   const { orgs } = useAdminOrganizations();
   const orgLookup = React.useMemo(() => {
@@ -765,8 +771,8 @@ function QuestsPanel() {
       <HStack space="xs">
         {(['all', 'active', 'inactive'] as const).map((s) => (
           <Pressable key={s} onPress={() => setStatusFilter(s)}>
-            <View className={`px-3 py-1.5 rounded-full ${statusFilter === s ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-              <UIText size="xs" className={`font-poppins-medium capitalize ${statusFilter === s ? 'text-white' : 'text-typo-500'}`}>
+            <View className={`px-3 py-1.5 rounded-full ${statusFilter === s ? 'bg-optio-purple' : 'bg-surface-200 dark:bg-dark-surface-300'}`}>
+              <UIText size="xs" className={`font-poppins-medium capitalize ${statusFilter === s ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                 {s === 'all' ? `All (${quests.length})` : s}
               </UIText>
             </View>
@@ -782,14 +788,14 @@ function QuestsPanel() {
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <View style={{ flex: selectedQuest ? 3 : 1 }}>
               <Card variant="elevated" size="sm" className="overflow-hidden">
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.border }}>
                   <View style={{ flex: 0.5 }} />
-                  <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Title</UIText></View>
-                  <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Created By</UIText></View>
-                  <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Organization</UIText></View>
-                  <View style={{ flex: 1 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Type</UIText></View>
-                  <View style={{ flex: 1 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Status</UIText></View>
-                  <View style={{ flex: 1, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Visibility</UIText></View>
+                  <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Title</UIText></View>
+                  <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Created By</UIText></View>
+                  <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Organization</UIText></View>
+                  <View style={{ flex: 1 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Type</UIText></View>
+                  <View style={{ flex: 1 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Status</UIText></View>
+                  <View style={{ flex: 1, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Visibility</UIText></View>
                 </View>
                 {filtered.map((q: any) => (
                   <QuestRowDesktop
@@ -836,9 +842,9 @@ function QuestsPanel() {
         )
       ) : (
         <Card variant="filled" size="lg" className="items-center py-10">
-          <Ionicons name="rocket-outline" size={40} color="#9CA3AF" />
-          <Heading size="sm" className="text-typo-500 mt-3">No quests found</Heading>
-          <UIText size="sm" className="text-typo-400 mt-1">Try a different search or filter</UIText>
+          <Ionicons name="rocket-outline" size={40} color={c.iconMuted} />
+          <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No quests found</Heading>
+          <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Try a different search or filter</UIText>
         </Card>
       )}
 
@@ -856,6 +862,7 @@ function QuestsPanel() {
 // ── Org Management View ──
 
 function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void }) {
+  const c = useThemeColors();
   const { org, users, loading, refetch } = useOrgDetail(orgId);
   const [orgTab, setOrgTab] = useState<'settings' | 'people' | 'content'>('settings');
   const [editName, setEditName] = useState('');
@@ -932,7 +939,7 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
   if (!org) {
     return (
       <VStack space="md">
-        <UIText className="text-typo-500">Organization not found.</UIText>
+        <UIText className="text-typo-500 dark:text-dark-typo-500">Organization not found.</UIText>
         <Button variant="outline" onPress={onBack}><ButtonText>Back</ButtonText></Button>
       </VStack>
     );
@@ -948,12 +955,12 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
     <VStack space="md">
       {/* Header */}
       <HStack className="items-center gap-3">
-        <Pressable onPress={onBack} className="w-9 h-9 rounded-lg bg-surface-100 items-center justify-center active:bg-surface-200">
-          <Ionicons name="arrow-back" size={18} color="#6B7280" />
+        <Pressable onPress={onBack} className="w-9 h-9 rounded-lg bg-surface-100 items-center justify-center active:bg-surface-200 dark:bg-dark-surface-200">
+          <Ionicons name="arrow-back" size={18} color={c.icon} />
         </Pressable>
         <VStack className="flex-1">
           <Heading size="lg">{org.name}</Heading>
-          <UIText size="xs" className="text-typo-400">/{org.slug}</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">/{org.slug}</UIText>
         </VStack>
         <Badge action={org.is_active ? 'success' : 'error'}>
           <BadgeText className={org.is_active ? 'text-green-700' : 'text-red-700'}>
@@ -963,11 +970,11 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
       </HStack>
 
       {/* Sub-tabs */}
-      <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
+      <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
         {orgTabs.map((t) => (
-          <Pressable key={t.key} onPress={() => setOrgTab(t.key)} className={`flex-1 flex-row items-center justify-center gap-1.5 py-2.5 rounded-md ${orgTab === t.key ? 'bg-white' : ''}`}>
-            <Ionicons name={t.icon} size={14} color={orgTab === t.key ? '#6D469B' : '#9CA3AF'} />
-            <UIText size="xs" className={orgTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
+          <Pressable key={t.key} onPress={() => setOrgTab(t.key)} className={`flex-1 flex-row items-center justify-center gap-1.5 py-2.5 rounded-md ${orgTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
+            <Ionicons name={t.icon} size={14} color={orgTab === t.key ? '#6D469B' : c.iconMuted} />
+            <UIText size="xs" className={orgTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
           </Pressable>
         ))}
       </HStack>
@@ -977,9 +984,9 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
         <VStack space="md">
           <Card variant="elevated" size="md">
             <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Organization Name</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Organization Name</UIText>
               <Input><InputField value={editName} onChangeText={setEditName} /></Input>
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Slug</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Slug</UIText>
               <Input><InputField value={editSlug} onChangeText={(t) => setEditSlug(t.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} /></Input>
               <Button onPress={handleSaveSettings} loading={saving} disabled={!editName.trim() || !editSlug.trim()}>
                 <ButtonText>Save</ButtonText>
@@ -989,12 +996,12 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
 
           <Card variant="elevated" size="md">
             <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Quest Visibility Policy</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Quest Visibility Policy</UIText>
               <View className="flex flex-row flex-wrap gap-2">
                 {['all_optio', 'curated', 'private_only'].map((p) => (
                   <Pressable key={p} onPress={() => handleSetPolicy(p)}>
-                    <View className={`px-4 py-2.5 rounded-lg ${org.quest_visibility_policy === p ? 'bg-optio-purple' : 'bg-surface-100 active:bg-surface-200'}`}>
-                      <UIText size="xs" className={`font-poppins-medium capitalize ${org.quest_visibility_policy === p ? 'text-white' : 'text-typo-500'}`}>
+                    <View className={`px-4 py-2.5 rounded-lg ${org.quest_visibility_policy === p ? 'bg-optio-purple' : 'bg-surface-100 active:bg-surface-200 dark:bg-dark-surface-200'}`}>
+                      <UIText size="xs" className={`font-poppins-medium capitalize ${org.quest_visibility_policy === p ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                         {p.replace(/_/g, ' ')}
                       </UIText>
                     </View>
@@ -1004,10 +1011,10 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
             </VStack>
           </Card>
 
-          <Pressable onPress={handleToggleActive} className="flex-row items-center justify-between px-4 py-3 bg-surface-50 rounded-xl active:bg-surface-100">
+          <Pressable onPress={handleToggleActive} className="flex-row items-center justify-between px-4 py-3 bg-surface-50 rounded-xl active:bg-surface-100 dark:bg-dark-surface-50">
             <VStack>
               <UIText size="sm" className="font-poppins-medium">Organization Status</UIText>
-              <UIText size="xs" className="text-typo-400">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 {org.is_active ? 'Organization is active and visible' : 'Organization is deactivated'}
               </UIText>
             </VStack>
@@ -1026,7 +1033,7 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
           {/* Add user */}
           <Card variant="outline" size="md">
             <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Add User by Email</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Add User by Email</UIText>
               <HStack className="gap-2">
                 <View className="flex-1">
                   <Input><InputField placeholder="user@example.com" value={addEmail} onChangeText={setAddEmail} keyboardType="email-address" autoCapitalize="none" /></Input>
@@ -1041,11 +1048,11 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
           {/* User list */}
           {users.length > 0 ? (
             <Card variant="elevated" size="sm" className="overflow-hidden">
-              <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">User</UIText></View>
-                <View style={{ flex: 2 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Email</UIText></View>
-                <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Org Role</UIText></View>
-                <View style={{ flex: 1, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Actions</UIText></View>
+              <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.border }}>
+                <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">User</UIText></View>
+                <View style={{ flex: 2 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Email</UIText></View>
+                <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Org Role</UIText></View>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Actions</UIText></View>
               </View>
               {users.map((u: any) => {
                 const initials = `${u.first_name?.[0] || ''}${u.last_name?.[0] || ''}`.toUpperCase();
@@ -1060,7 +1067,7 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
                         </UIText>
                       </View>
                       <View style={{ flex: 2 }}>
-                        <UIText size="xs" className="text-typo-400" numberOfLines={1}>{u.email}</UIText>
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{u.email}</UIText>
                       </View>
                       <View style={{ flex: 1.5 }}>
                         <Pressable
@@ -1090,8 +1097,8 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
             </Card>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-8">
-              <Ionicons name="people-outline" size={36} color="#9CA3AF" />
-              <UIText size="sm" className="text-typo-500 mt-2">No users in this organization</UIText>
+              <Ionicons name="people-outline" size={36} color={c.iconMuted} />
+              <UIText size="sm" className="text-typo-500 mt-2 dark:text-dark-typo-500">No users in this organization</UIText>
             </Card>
           )}
         </VStack>
@@ -1102,9 +1109,9 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
         <VStack space="md">
           <Card variant="filled" size="md">
             <VStack space="sm" className="items-center py-4">
-              <Ionicons name="library-outline" size={36} color="#9CA3AF" />
-              <UIText size="sm" className="text-typo-500">Content management coming soon</UIText>
-              <UIText size="xs" className="text-typo-400 text-center">
+              <Ionicons name="library-outline" size={36} color={c.iconMuted} />
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">Content management coming soon</UIText>
+              <UIText size="xs" className="text-typo-400 text-center dark:text-dark-typo-400">
                 Grant/revoke quests and courses for this organization
               </UIText>
             </VStack>
@@ -1118,6 +1125,7 @@ function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void })
 // ── Organizations Panel ──
 
 function OrganizationsPanel() {
+  const c = useThemeColors();
   const { orgs, loading, createOrg, deleteOrg } = useAdminOrganizations();
   const [showCreate, setShowCreate] = useState(false);
   const [managingOrgId, setManagingOrgId] = useState<string | null>(null);
@@ -1168,7 +1176,7 @@ function OrganizationsPanel() {
                 <HStack className="items-center justify-between">
                   <VStack>
                     <Heading size="sm">{org.name}</Heading>
-                    <UIText size="xs" className="text-typo-400">/{org.slug}</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">/{org.slug}</UIText>
                     <HStack className="items-center gap-2 mt-1">
                       <Badge action={org.is_active ? 'success' : 'error'}>
                         <BadgeText className={org.is_active ? 'text-green-700' : 'text-red-700'}>
@@ -1176,7 +1184,7 @@ function OrganizationsPanel() {
                         </BadgeText>
                       </Badge>
                       <Badge action="muted">
-                        <BadgeText className="text-typo-500 capitalize">{org.quest_visibility_policy?.replace(/_/g, ' ') || 'all'}</BadgeText>
+                        <BadgeText className="text-typo-500 capitalize dark:text-dark-typo-500">{org.quest_visibility_policy?.replace(/_/g, ' ') || 'all'}</BadgeText>
                       </Badge>
                     </HStack>
                   </VStack>
@@ -1198,8 +1206,8 @@ function OrganizationsPanel() {
         </View>
       ) : (
         <Card variant="filled" size="lg" className="items-center py-10">
-          <Ionicons name="business-outline" size={40} color="#9CA3AF" />
-          <Heading size="sm" className="text-typo-500 mt-3">No organizations</Heading>
+          <Ionicons name="business-outline" size={40} color={c.iconMuted} />
+          <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No organizations</Heading>
         </Card>
       )}
     </VStack>
@@ -1224,13 +1232,13 @@ const automatedEmails = [
 function EmailsPanel() {
   return (
     <VStack space="sm">
-      <UIText size="sm" className="text-typo-500">Automated system emails (read-only reference)</UIText>
+      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">Automated system emails (read-only reference)</UIText>
       {automatedEmails.map((e, i) => (
         <Card key={i} variant="outline" size="sm">
           <HStack className="items-center justify-between">
             <VStack>
               <UIText size="sm" className="font-poppins-medium">{e.name}</UIText>
-              <UIText size="xs" className="text-typo-400">{e.trigger}</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{e.trigger}</UIText>
             </VStack>
             <Badge action="success"><BadgeText className="text-green-700">{e.status}</BadgeText></Badge>
           </HStack>
@@ -1243,6 +1251,7 @@ function EmailsPanel() {
 // ── Bulk Generate Tab ──
 
 function BulkGeneratePanel() {
+  const c = useThemeColors();
   const [topics, setTopics] = useState('');
   const [generating, setGenerating] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -1267,24 +1276,24 @@ function BulkGeneratePanel() {
 
   return (
     <VStack space="md">
-      <UIText size="sm" className="text-typo-500">
+      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
         Generate multiple courses at once from a list of topics. One topic per line.
       </UIText>
 
       <Card variant="outline" size="md">
         <VStack space="sm">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">Topics (one per line)</UIText>
+          <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Topics (one per line)</UIText>
           <TextInput
-            className="border border-surface-200 rounded-lg p-3 text-sm min-h-[160px] font-poppins"
+            className="border border-surface-200 rounded-lg p-3 text-sm min-h-[160px] font-poppins dark:border-dark-surface-300"
             placeholder={"Introduction to Photography\nBasic Web Development\nCreative Writing Workshop"}
             value={topics}
             onChangeText={setTopics}
             multiline
             textAlignVertical="top"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={c.textFaint}
           />
           <HStack className="items-center justify-between">
-            <UIText size="xs" className="text-typo-400">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
               {topics.split('\n').filter((t: string) => t.trim()).length} topic(s)
             </UIText>
             <Button onPress={handleGenerate} loading={generating} disabled={!topics.trim()}>
@@ -1302,7 +1311,7 @@ function BulkGeneratePanel() {
               <HStack className="items-center justify-between">
                 <VStack>
                   <UIText size="sm" className="font-poppins-medium">{job.topic || job.title || `Job ${idx + 1}`}</UIText>
-                  <UIText size="xs" className="text-typo-400 capitalize">{job.status || 'pending'}</UIText>
+                  <UIText size="xs" className="text-typo-400 capitalize dark:text-dark-typo-400">{job.status || 'pending'}</UIText>
                 </VStack>
                 <Badge action={job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : 'info'}>
                   <BadgeText className={
@@ -1322,6 +1331,7 @@ function BulkGeneratePanel() {
 // ── Docs Tab ──
 
 function DocsPanel() {
+  const c = useThemeColors();
   const [categories, setCategories] = useState<any[]>([]);
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1347,17 +1357,17 @@ function DocsPanel() {
   return (
     <VStack space="md">
       <HStack className="items-center justify-between">
-        <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
+        <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
           <Pressable onPress={() => setActiveView('categories')}>
-            <View className={`px-4 py-2 rounded-md ${activeView === 'categories' ? 'bg-white' : ''}`}>
-              <UIText size="sm" className={activeView === 'categories' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+            <View className={`px-4 py-2 rounded-md ${activeView === 'categories' ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
+              <UIText size="sm" className={activeView === 'categories' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                 Categories ({categories.length})
               </UIText>
             </View>
           </Pressable>
           <Pressable onPress={() => setActiveView('articles')}>
-            <View className={`px-4 py-2 rounded-md ${activeView === 'articles' ? 'bg-white' : ''}`}>
-              <UIText size="sm" className={activeView === 'articles' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+            <View className={`px-4 py-2 rounded-md ${activeView === 'articles' ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
+              <UIText size="sm" className={activeView === 'articles' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                 Articles ({articles.length})
               </UIText>
             </View>
@@ -1378,11 +1388,11 @@ function DocsPanel() {
                 <HStack className="items-center justify-between">
                   <VStack>
                     <UIText size="sm" className="font-poppins-medium">{cat.name || cat.title}</UIText>
-                    <UIText size="xs" className="text-typo-400">{cat.slug || ''} - {cat.article_count || 0} articles</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{cat.slug || ''} - {cat.article_count || 0} articles</UIText>
                   </VStack>
                   <HStack className="gap-2">
-                    <Pressable className="w-8 h-8 rounded-lg bg-surface-100 items-center justify-center">
-                      <Ionicons name="create-outline" size={16} color="#6B7280" />
+                    <Pressable className="w-8 h-8 rounded-lg bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+                      <Ionicons name="create-outline" size={16} color={c.icon} />
                     </Pressable>
                     <Pressable className="w-8 h-8 rounded-lg bg-red-50 items-center justify-center">
                       <Ionicons name="trash-outline" size={16} color="#EF4444" />
@@ -1394,9 +1404,9 @@ function DocsPanel() {
           </VStack>
         ) : (
           <Card variant="filled" size="lg" className="items-center py-10">
-            <Ionicons name="folder-outline" size={40} color="#9CA3AF" />
-            <Heading size="sm" className="text-typo-500 mt-3">No categories</Heading>
-            <UIText size="sm" className="text-typo-400 mt-1">Create a category to organize help articles</UIText>
+            <Ionicons name="folder-outline" size={40} color={c.iconMuted} />
+            <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No categories</Heading>
+            <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Create a category to organize help articles</UIText>
           </Card>
         )
       ) : (
@@ -1407,16 +1417,16 @@ function DocsPanel() {
                 <HStack className="items-center justify-between">
                   <VStack className="flex-1 min-w-0">
                     <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{art.title}</UIText>
-                    <UIText size="xs" className="text-typo-400">{art.category_name || 'Uncategorized'} - {art.status || 'draft'}</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{art.category_name || 'Uncategorized'} - {art.status || 'draft'}</UIText>
                   </VStack>
                   <HStack className="gap-2">
                     <Badge action={art.status === 'published' ? 'success' : 'muted'}>
-                      <BadgeText className={art.status === 'published' ? 'text-green-700' : 'text-typo-500'}>
+                      <BadgeText className={art.status === 'published' ? 'text-green-700' : 'text-typo-500 dark:text-dark-typo-500'}>
                         {art.status || 'draft'}
                       </BadgeText>
                     </Badge>
-                    <Pressable className="w-8 h-8 rounded-lg bg-surface-100 items-center justify-center">
-                      <Ionicons name="create-outline" size={16} color="#6B7280" />
+                    <Pressable className="w-8 h-8 rounded-lg bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+                      <Ionicons name="create-outline" size={16} color={c.icon} />
                     </Pressable>
                   </HStack>
                 </HStack>
@@ -1425,9 +1435,9 @@ function DocsPanel() {
           </VStack>
         ) : (
           <Card variant="filled" size="lg" className="items-center py-10">
-            <Ionicons name="document-text-outline" size={40} color="#9CA3AF" />
-            <Heading size="sm" className="text-typo-500 mt-3">No articles</Heading>
-            <UIText size="sm" className="text-typo-400 mt-1">Create help articles for your users</UIText>
+            <Ionicons name="document-text-outline" size={40} color={c.iconMuted} />
+            <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No articles</Heading>
+            <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Create help articles for your users</UIText>
           </Card>
         )
       )}
@@ -1439,14 +1449,15 @@ function DocsPanel() {
 
 export default function AdminScreen() {
   const { user } = useAuthStore();
+  const c = useThemeColors();
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
 
   if (Platform.OS !== 'web') {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
-        <Ionicons name="desktop-outline" size={40} color="#9CA3AF" />
-        <Heading size="sm" className="text-typo-500 mt-3">Desktop Only</Heading>
-        <UIText size="sm" className="text-typo-400 mt-1">Admin tools are available on desktop.</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
+        <Ionicons name="desktop-outline" size={40} color={c.iconMuted} />
+        <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">Desktop Only</Heading>
+        <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Admin tools are available on desktop.</UIText>
       </SafeAreaView>
     );
   }
@@ -1455,16 +1466,16 @@ export default function AdminScreen() {
   const role = user?.role;
   if (role !== 'superadmin' && role !== 'org_managed') {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
-        <Ionicons name="lock-closed-outline" size={40} color="#9CA3AF" />
-        <Heading size="sm" className="text-typo-500 mt-3">Access Denied</Heading>
-        <UIText size="sm" className="text-typo-400 mt-1">Admin access required.</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
+        <Ionicons name="lock-closed-outline" size={40} color={c.iconMuted} />
+        <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">Access Denied</Heading>
+        <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Admin access required.</UIText>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false}>
         <VStack space="lg" className="max-w-6xl w-full md:mx-auto">
 
@@ -1472,12 +1483,12 @@ export default function AdminScreen() {
 
           {/* Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <HStack className="bg-surface-100 rounded-xl p-1" space="xs">
+            <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200" space="xs">
               {tabs.map((t) => (
                 <Pressable key={t.key} onPress={() => setActiveTab(t.key)}>
-                  <HStack className={`items-center gap-2 px-4 py-2.5 rounded-lg ${activeTab === t.key ? 'bg-white' : ''}`}>
-                    <Ionicons name={t.icon} size={16} color={activeTab === t.key ? '#6D469B' : '#9CA3AF'} />
-                    <UIText size="sm" className={activeTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+                  <HStack className={`items-center gap-2 px-4 py-2.5 rounded-lg ${activeTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
+                    <Ionicons name={t.icon} size={16} color={activeTab === t.key ? '#6D469B' : c.iconMuted} />
+                    <UIText size="sm" className={activeTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                       {t.label}
                     </UIText>
                   </HStack>

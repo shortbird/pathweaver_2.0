@@ -8,7 +8,7 @@ import { View } from 'react-native';
 import type { EngagementDay } from '@/src/hooks/useDashboard';
 
 const intensityClasses = [
-  'bg-surface-200',        // 0: no activity
+  'bg-surface-200 dark:bg-dark-surface-300',        // 0: no activity
   'bg-optio-purple/20',    // 1: light
   'bg-optio-purple/40',    // 2: moderate
   'bg-optio-purple/60',    // 3: active

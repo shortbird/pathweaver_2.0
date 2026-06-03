@@ -12,6 +12,7 @@ import {
   UIText, Heading, Avatar, AvatarFallbackText, AvatarImage,
 } from '@/src/components/ui';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   useConversationMessages,
   sendDirectMessage,
@@ -43,6 +44,7 @@ function formatTime(ts: string) {
 }
 
 export function ChatWindow({ contact, conversationId, onBack }: Props) {
+  const c = useThemeColors();
   const { user } = useAuthStore();
   const { messages, loading, refetch, setMessages } = useConversationMessages(conversationId);
   const [input, setInput] = useState('');
@@ -122,7 +124,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
 
   const header = (
     <View
-      className="flex-row items-center px-4 py-3 border-b border-surface-200 bg-white"
+      className="flex-row items-center px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100"
       style={isMobile ? { paddingTop: Platform.OS === 'web' ? 12 : insets.top + 8 } : undefined}
     >
       {isMobile && (
@@ -139,7 +141,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
       </Avatar>
       <View className="ml-3 flex-1">
         <Heading size="sm">{name}</Heading>
-        <UIText size="xs" className="text-typo-400 capitalize">{contact.relationship || contact.role}</UIText>
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 capitalize">{contact.relationship || contact.role}</UIText>
       </View>
     </View>
   );
@@ -147,7 +149,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
   const messageList = (
     <ScrollView
       ref={scrollRef}
-      className="flex-1 bg-surface-50"
+      className="flex-1 bg-surface-50 dark:bg-dark-surface-50"
       contentContainerStyle={{ padding: 16, gap: 8 }}
       showsVerticalScrollIndicator={false}
       keyboardDismissMode="interactive"
@@ -159,8 +161,8 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
         </View>
       ) : messages.length === 0 ? (
         <View className="items-center py-20">
-          <Ionicons name="chatbubble-ellipses-outline" size={48} color="#CEC6D6" />
-          <UIText size="sm" className="text-typo-400 mt-3">
+          <Ionicons name="chatbubble-ellipses-outline" size={48} color={c.iconMuted} />
+          <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3">
             No messages yet. Start the conversation!
           </UIText>
         </View>
@@ -184,24 +186,24 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
                         borderBottomRightRadius: 4,
                       }
                     : {
-                        backgroundColor: '#fff',
+                        backgroundColor: c.card,
                         borderBottomLeftRadius: 4,
                         borderWidth: 1,
-                        borderColor: '#E2DCE8',
+                        borderColor: c.border,
                       }),
                   opacity: msg.isOptimistic ? 0.7 : 1,
                 }}
               >
                 <UIText
                   size="sm"
-                  style={{ color: isMine ? '#fff' : '#1F2937', lineHeight: 20 }}
+                  style={{ color: isMine ? '#fff' : c.text, lineHeight: 20 }}
                 >
                   {msg.message_content}
                 </UIText>
                 <View className="flex-row items-center justify-end mt-1 gap-2">
                   <UIText
                     size="xs"
-                    style={{ color: isMine ? 'rgba(255,255,255,0.6)' : '#9A93A8', fontSize: 10 }}
+                    style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
                   >
                     {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
                   </UIText>
@@ -223,7 +225,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
 
   const inputBar = (
     <View
-      className="border-t border-surface-200 bg-white px-3"
+      className="border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 px-3"
       style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
     >
       <View className="flex-row items-end gap-2">
@@ -233,10 +235,10 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
           onChangeText={setInput}
           onKeyPress={handleKeyPress}
           placeholder={`Message ${name}...`}
-          placeholderTextColor="#9A93A8"
+          placeholderTextColor={c.textFaint}
           multiline
           maxLength={2000}
-          className="flex-1 bg-surface-100 rounded-2xl px-4 py-2 font-poppins text-sm"
+          className="flex-1 bg-surface-100 dark:bg-dark-surface-200 rounded-2xl px-4 py-2 font-poppins text-sm text-typo dark:text-dark-typo"
           style={{
             outline: 'none',
             minHeight: 36,
@@ -247,7 +249,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
           onPress={handleSend}
           disabled={!input.trim() || sending}
           style={{
-            backgroundColor: input.trim() && !sending ? '#6D469B' : '#CEC6D6',
+            backgroundColor: input.trim() && !sending ? '#6D469B' : c.border,
             width: 36,
             height: 36,
             borderRadius: 18,
@@ -265,7 +267,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
   if (isMobile) {
     return (
       <KeyboardAvoidingView
-        className="flex-1 bg-white"
+        className="flex-1 bg-white dark:bg-dark-surface-100"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
@@ -278,7 +280,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
 
   // Desktop
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-white dark:bg-dark-surface-100">
       {header}
       {messageList}
       {inputBar}

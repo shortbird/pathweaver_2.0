@@ -10,6 +10,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { UIText, VStack } from '../ui';
 
 interface ClassProgressRingProps {
@@ -25,6 +26,7 @@ export function ClassProgressRing({
   size = 120,
   strokeWidth = 10,
 }: ClassProgressRingProps) {
+  const c = useThemeColors();
   const creditsEarned = Math.floor(approvedXp / targetXp);
   const xpToNext = approvedXp - creditsEarned * targetXp;
   const ringValue = creditsEarned > 0 && xpToNext === 0 ? targetXp : xpToNext;
@@ -43,7 +45,7 @@ export function ClassProgressRing({
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="#E5E7EB"
+            stroke={c.border}
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -62,13 +64,13 @@ export function ClassProgressRing({
         </Svg>
       </View>
       <VStack className="items-center" style={{ width: size, height: size, justifyContent: 'center' }}>
-        <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
           {creditsEarned > 0 ? `${creditsEarned} credit${creditsEarned > 1 ? 's' : ''}` : 'Progress'}
         </UIText>
         <UIText size="lg" className="font-poppins-bold text-optio-purple">
           {ringValue}
         </UIText>
-        <UIText size="xs" className="text-typo-400">
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
           / {targetXp} XP
         </UIText>
       </VStack>

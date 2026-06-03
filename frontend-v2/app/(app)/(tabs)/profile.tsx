@@ -14,8 +14,10 @@ import { saveTheme } from '@/src/stores/themeStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { useProfile, Viewer } from '@/src/hooks/useProfile';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
 import { useGlobalEngagement } from '@/src/hooks/useDashboard';
+import { useIsParent } from '@/src/hooks/useStartSomething';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import {
@@ -58,11 +60,12 @@ const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS;
 
 function CollapsibleSection({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
+  const c = useThemeColors();
   return (
     <VStack>
       <Pressable onPress={() => setOpen(!open)} className="flex-row items-center justify-between py-2">
         <Heading size="md">{title}</Heading>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color="#9CA3AF" />
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={c.iconMuted} />
       </Pressable>
       {open && children}
     </VStack>
@@ -70,11 +73,15 @@ function CollapsibleSection({ title, children, defaultOpen = true }: { title: st
 }
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const { colorScheme, setColorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const c = useThemeColors();
   const { pillarXP, achievements, subjectXP, viewers, deletionStatus, portfolioPublic: hookPortfolioPublic, setPortfolioPublic: setHookPortfolioPublic, portfolioSlug, loading, refetch } = useProfile();
   const { data: engagement } = useGlobalEngagement();
+  // Family Dashboard is parent-only. useIsParent respects the superadmin role
+  // selector (previewRole), so previewing as Student/Observer correctly hides it.
+  const isParent = useIsParent();
 
   const [editVisible, setEditVisible] = useState(false);
   const [editFirst, setEditFirst] = useState('');
@@ -233,13 +240,13 @@ export default function ProfileScreen() {
               </Avatar>
               <VStack className="items-center" space="xs">
                 <Heading size="xl">{user?.display_name || `${user?.first_name} ${user?.last_name}`}</Heading>
-                {memberSince && <UIText size="sm" className="text-typo-400">Member since {memberSince}</UIText>}
+                {memberSince && <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">Member since {memberSince}</UIText>}
                 <Pressable onPress={openEdit} className="flex-row items-center gap-1 mt-1">
                   <Ionicons name="pencil-outline" size={14} color="#6D469B" />
                   <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit Profile</UIText>
                 </Pressable>
                 {(user as any)?.bio ? (
-                  <UIText size="sm" className="text-typo-500 text-center mt-1 px-4" numberOfLines={3}>
+                  <UIText size="sm" className="text-typo-500 text-center mt-1 px-4 dark:text-dark-typo-500" numberOfLines={3}>
                     {(user as any).bio}
                   </UIText>
                 ) : null}
@@ -247,15 +254,15 @@ export default function ProfileScreen() {
               <HStack className="justify-around w-full mt-2">
                 <VStack className="items-center">
                   <UIText size="lg" className="font-poppins-bold text-optio-purple">{(user?.total_xp || 0).toLocaleString()}</UIText>
-                  <UIText size="xs" className="text-typo-400">Total XP</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
                 </VStack>
                 <VStack className="items-center">
                   <UIText size="lg" className="font-poppins-bold text-optio-pink">{achievements.filter((a: any) => a.status === 'completed').length}</UIText>
-                  <UIText size="xs" className="text-typo-400">Quests</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Quests</UIText>
                 </VStack>
                 <VStack className="items-center">
                   <UIText size="lg" className="font-poppins-bold text-pillar-stem">{pillarXP.length}</UIText>
-                  <UIText size="xs" className="text-typo-400">Pillars</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Pillars</UIText>
                 </VStack>
               </HStack>
             </VStack>
@@ -277,10 +284,10 @@ export default function ProfileScreen() {
                   <HStack className="flex-wrap gap-3 justify-center">
                     {pillarXP.map(({ pillar, xp }, idx) => (
                       <HStack key={`${pillar}-${idx}`} className="items-center gap-1">
-                        <UIText size="xs" className="font-poppins-medium text-typo-500">
+                        <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">
                           {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
                         </UIText>
-                        <UIText size="xs" className="text-typo-400">{xp.toLocaleString()}</UIText>
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xp.toLocaleString()}</UIText>
                       </HStack>
                     ))}
                   </HStack>
@@ -297,9 +304,9 @@ export default function ProfileScreen() {
                   <Ionicons
                     name={portfolioPublic ? 'globe-outline' : 'lock-closed-outline'}
                     size={14}
-                    color={portfolioPublic ? '#16A34A' : '#9CA3AF'}
+                    color={portfolioPublic ? '#16A34A' : c.iconMuted}
                   />
-                  <UIText size="xs" className={portfolioPublic ? 'text-green-600' : 'text-typo-400'}>
+                  <UIText size="xs" className={portfolioPublic ? 'text-green-600' : 'text-typo-400 dark:text-dark-typo-400'}>
                     {portfolioPublic ? 'Public' : 'Private'}
                   </UIText>
                 </HStack>
@@ -341,16 +348,16 @@ export default function ProfileScreen() {
                       }
                     }}
                     className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg ${
-                      portfolioCopied ? 'bg-green-100' : portfolioPublic ? 'bg-optio-purple/10' : 'bg-surface-100'
+                      portfolioCopied ? 'bg-green-100' : portfolioPublic ? 'bg-optio-purple/10' : 'bg-surface-100 dark:bg-dark-surface-200'
                     }`}
                   >
                     <Ionicons
                       name={portfolioCopied ? 'checkmark-circle' : 'share-outline'}
                       size={16}
-                      color={portfolioCopied ? '#16A34A' : portfolioPublic ? '#6D469B' : '#9CA3AF'}
+                      color={portfolioCopied ? '#16A34A' : portfolioPublic ? '#6D469B' : c.iconMuted}
                     />
                     <UIText size="xs" className={`font-poppins-medium ${
-                      portfolioCopied ? 'text-green-700' : portfolioPublic ? 'text-optio-purple' : 'text-typo-400'
+                      portfolioCopied ? 'text-green-700' : portfolioPublic ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'
                     }`}>
                       {portfolioCopied ? 'Link copied!' : 'Share Portfolio'}
                     </UIText>
@@ -387,7 +394,7 @@ export default function ProfileScreen() {
                             {/* Background track */}
                             <SvgCircle
                               cx={DONUT_SIZE / 2} cy={DONUT_SIZE / 2} r={DONUT_RADIUS}
-                              stroke="#E5E7EB" strokeWidth={DONUT_STROKE} fill="none"
+                              stroke={c.border} strokeWidth={DONUT_STROKE} fill="none"
                             />
                             {/* Pending arc (amber, drawn first so earned overlaps) */}
                             {pending > 0 && (
@@ -441,7 +448,7 @@ export default function ProfileScreen() {
             <CollapsibleSection title="Who Can See My Activity">
               <Card variant="elevated" size="md">
                 <VStack space="md">
-                  <UIText size="sm" className="text-typo-500">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                     These people can view your learning activity and leave comments.
                   </UIText>
                   {viewers.length > 0 ? (
@@ -458,7 +465,7 @@ export default function ProfileScreen() {
                             </View>
                             <VStack>
                               <UIText size="sm" className="font-poppins-medium">{viewer.name}</UIText>
-                              <UIText size="xs" className="text-typo-400">{viewer.detail}</UIText>
+                              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{viewer.detail}</UIText>
                             </VStack>
                           </HStack>
                           {viewer.removable && viewer.link_id && (
@@ -470,7 +477,7 @@ export default function ProfileScreen() {
                       ))}
                     </VStack>
                   ) : (
-                    <UIText size="sm" className="text-typo-400 text-center py-2">No observers yet</UIText>
+                    <UIText size="sm" className="text-typo-400 text-center py-2 dark:text-dark-typo-400">No observers yet</UIText>
                   )}
                   <Divider />
                   <Button size="md" variant="outline" onPress={() => setInviteObserverVisible(true)}>
@@ -481,11 +488,9 @@ export default function ProfileScreen() {
             </CollapsibleSection>
           )}
 
-          {/* Family link (mobile only, parents/superadmin) */}
-          {Platform.OS !== 'web' &&
-            (user?.role === 'parent' || user?.role === 'superadmin' ||
-              user?.org_role === 'parent' ||
-              (user as any)?.has_dependents || (user as any)?.has_linked_students) && (
+          {/* Family link (mobile only, parents — gated via useIsParent so the
+              superadmin role selector previewing Student/Observer hides it) */}
+          {Platform.OS !== 'web' && isParent && (
             <Pressable onPress={() => router.push('/(app)/(tabs)/family' as any)}>
               <Card variant="elevated" size="md">
                 <HStack className="items-center gap-3">
@@ -494,9 +499,9 @@ export default function ProfileScreen() {
                   </View>
                   <VStack className="flex-1">
                     <UIText size="sm" className="font-poppins-semibold">Family Dashboard</UIText>
-                    <UIText size="xs" className="text-typo-400">View your children's learning</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">View your children's learning</UIText>
                   </VStack>
-                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
                 </HStack>
               </Card>
             </Pressable>
@@ -529,7 +534,7 @@ export default function ProfileScreen() {
                       setColorScheme(mode);
                       saveTheme(mode);
                     }}
-                    trackColor={{ false: '#E5E7EB', true: '#6D469B' }}
+                    trackColor={{ false: c.border, true: '#6D469B' }}
                     thumbColor="#FFFFFF"
                   />
                 </HStack>
@@ -540,13 +545,13 @@ export default function ProfileScreen() {
                       <Ionicons name="warning" size={20} color="#EF4444" />
                       <UIText size="sm" className="font-poppins-semibold text-red-600">Account Deletion Scheduled</UIText>
                     </HStack>
-                    <UIText size="sm" className="text-typo-500">
+                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                       Your account is scheduled for permanent deletion
                       {deletionStatus.days_remaining !== undefined && ` in ${deletionStatus.days_remaining} days`}.
                       All data will be permanently removed after this period.
                     </UIText>
                     {deletionStatus.deletion_scheduled_for && (
-                      <UIText size="xs" className="text-typo-400">
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                         Scheduled for: {new Date(deletionStatus.deletion_scheduled_for).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                       </UIText>
                     )}
@@ -557,7 +562,7 @@ export default function ProfileScreen() {
                 ) : (
                   <VStack space="sm">
                     <UIText size="sm" className="font-poppins-medium">Delete Account</UIText>
-                    <UIText size="sm" className="text-typo-500">
+                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                       Permanently delete your account and all associated data. A 30-day grace period applies.
                     </UIText>
                     <Button size="md" variant="outline" action="negative" onPress={handleRequestDeletion} loading={deletionRequesting} disabled={deletionRequesting}>
@@ -578,17 +583,12 @@ export default function ProfileScreen() {
                 </View>
                 <VStack className="flex-1">
                   <UIText size="sm" className="font-poppins-semibold">Report a Bug</UIText>
-                  <UIText size="xs" className="text-typo-400">Found something broken? Let us know (or just shake your phone)</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Found something broken? Let us know (or just shake your phone)</UIText>
                 </VStack>
-                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
               </HStack>
             </Card>
           </Pressable>
-
-          <Divider />
-          <Button variant="outline" action="negative" onPress={logout}>
-            <ButtonText>Sign Out</ButtonText>
-          </Button>
         </VStack>
       </ScrollView>
 
@@ -600,14 +600,14 @@ export default function ProfileScreen() {
             <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mb-4" />
             <VStack space="md">
               <Heading size="lg">Invite Observer</Heading>
-              <UIText size="sm" className="text-typo-500">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                 Enter the email of someone you'd like to observe your learning journey.
               </UIText>
               <TextInput
                 value={observerEmail}
                 onChangeText={setObserverEmail}
                 placeholder="Observer's email address"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
@@ -631,7 +631,7 @@ export default function ProfileScreen() {
               <HStack className="items-center justify-between">
                 <Heading size="lg">Edit Profile</Heading>
                 <Pressable onPress={() => setEditVisible(false)} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
-                  <Ionicons name="close" size={18} color="#6B7280" />
+                  <Ionicons name="close" size={18} color={c.icon} />
                 </Pressable>
               </HStack>
               <VStack space="xs">
@@ -640,7 +640,7 @@ export default function ProfileScreen() {
                   value={editDisplay}
                   onChangeText={setEditDisplay}
                   placeholder="Display name"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={c.textFaint}
                   className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
                   style={{ fontFamily: 'Poppins_400Regular' }}
                 />
@@ -652,7 +652,7 @@ export default function ProfileScreen() {
                     value={editFirst}
                     onChangeText={setEditFirst}
                     placeholder="First name"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={c.textFaint}
                     className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
                     style={{ fontFamily: 'Poppins_400Regular' }}
                   />
@@ -663,7 +663,7 @@ export default function ProfileScreen() {
                     value={editLast}
                     onChangeText={setEditLast}
                     placeholder="Last name"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={c.textFaint}
                     className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
                     style={{ fontFamily: 'Poppins_400Regular' }}
                   />
@@ -675,11 +675,11 @@ export default function ProfileScreen() {
                   value={editBio}
                   onChangeText={setEditBio}
                   placeholder="What drives your learning? What are you passionate about?"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={c.textFaint}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
-                  className="bg-surface-50 rounded-xl p-4 text-base min-h-[80px]"
+                  className="bg-surface-50 rounded-xl p-4 text-base min-h-[80px] dark:bg-dark-surface-50"
                   style={{ fontFamily: 'Poppins_400Regular' }}
                 />
               </VStack>
@@ -694,7 +694,7 @@ export default function ProfileScreen() {
       {/* FERPA Consent Modal */}
       <Modal visible={showFerpaConsent} transparent animationType="fade" onRequestClose={() => setShowFerpaConsent(false)}>
         <View className="flex-1 items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ backgroundColor: '#FFF', borderRadius: 20, width: 440, maxWidth: '92%', padding: 24, maxHeight: '85%' }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 20, width: 440, maxWidth: '92%', padding: 24, maxHeight: '85%' }}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <VStack space="md">
                 <HStack className="items-center gap-3">
@@ -704,11 +704,11 @@ export default function ProfileScreen() {
                   <Heading size="lg">Make Your Portfolio Public</Heading>
                 </HStack>
 
-                <UIText size="sm" className="text-typo-500">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                   Making your portfolio public means anyone with the link can see:
                 </UIText>
 
-                <VStack space="sm" className="bg-surface-50 rounded-xl p-4">
+                <VStack space="sm" className="bg-surface-50 rounded-xl p-4 dark:bg-dark-surface-50">
                   {[
                     { icon: 'eye-outline' as const, text: 'Your completed quests and achievements' },
                     { icon: 'people-outline' as const, text: 'Evidence of your learning (photos, videos, documents)' },
@@ -716,7 +716,7 @@ export default function ProfileScreen() {
                   ].map((item, idx) => (
                     <HStack key={idx} className="items-center gap-3">
                       <Ionicons name={item.icon} size={16} color="#6D469B" />
-                      <UIText size="xs" className="text-typo-500 flex-1">{item.text}</UIText>
+                      <UIText size="xs" className="text-typo-500 flex-1 dark:text-dark-typo-500">{item.text}</UIText>
                     </HStack>
                   ))}
                 </VStack>
@@ -731,12 +731,12 @@ export default function ProfileScreen() {
 
                 <Pressable
                   onPress={() => setFerpaChecked(!ferpaChecked)}
-                  className="flex-row items-start gap-3 p-3 rounded-xl border border-surface-200"
+                  className="flex-row items-start gap-3 p-3 rounded-xl border border-surface-200 dark:border-dark-surface-300"
                 >
-                  <View className={`w-5 h-5 rounded border-2 items-center justify-center mt-0.5 ${ferpaChecked ? 'bg-optio-purple border-optio-purple' : 'border-surface-300'}`}>
+                  <View className={`w-5 h-5 rounded border-2 items-center justify-center mt-0.5 ${ferpaChecked ? 'bg-optio-purple border-optio-purple' : 'border-surface-300 dark:border-dark-surface-300'}`}>
                     {ferpaChecked && <Ionicons name="checkmark" size={14} color="#FFF" />}
                   </View>
-                  <UIText size="xs" className="text-typo-500 flex-1">
+                  <UIText size="xs" className="text-typo-500 flex-1 dark:text-dark-typo-500">
                     I understand that my portfolio will be visible to anyone with the link, and I consent to sharing my learning achievements publicly.
                   </UIText>
                 </Pressable>

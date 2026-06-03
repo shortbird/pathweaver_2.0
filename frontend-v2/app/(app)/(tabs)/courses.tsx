@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCourseCatalog } from '@/src/hooks/useCourses';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useAuthStore } from '@/src/stores/authStore';
 import api from '@/src/services/api';
 import {
@@ -24,6 +25,7 @@ const statusBadgeConfig: Record<string, { action: string; label: string }> = {
 function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmin: boolean; userId?: string }) {
   const canManage = isSuperadmin || (!!userId && course.created_by === userId);
   const imageUrl = course.cover_image_url;
+  const c = useThemeColors();
   const statusConfig = statusBadgeConfig[course.status] || null;
 
   return (
@@ -50,27 +52,27 @@ function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmi
         )}
         <VStack space="sm" className="flex-1 min-h-[100px]">
           <Heading size="sm" numberOfLines={1}>{course.title}</Heading>
-          <UIText size="xs" className="text-typo-500" numberOfLines={2}>
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>
             {course.description}
           </UIText>
           <View className="flex-1" />
           <HStack className="items-center gap-2 flex-wrap">
             {course.estimated_hours && (
               <HStack className="items-center gap-1">
-                <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-                <UIText size="xs" className="text-typo-400">{course.estimated_hours}h</UIText>
+                <Ionicons name="time-outline" size={12} color={c.iconMuted} />
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{course.estimated_hours}h</UIText>
               </HStack>
             )}
             {course.age_range && (
               <HStack className="items-center gap-1">
-                <Ionicons name="people-outline" size={12} color="#9CA3AF" />
-                <UIText size="xs" className="text-typo-400">{course.age_range}</UIText>
+                <Ionicons name="people-outline" size={12} color={c.iconMuted} />
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{course.age_range}</UIText>
               </HStack>
             )}
             {course.quest_count != null && (
               <HStack className="items-center gap-1">
-                <Ionicons name="rocket-outline" size={12} color="#9CA3AF" />
-                <UIText size="xs" className="text-typo-400">{course.quest_count} project{course.quest_count !== 1 ? 's' : ''}</UIText>
+                <Ionicons name="rocket-outline" size={12} color={c.iconMuted} />
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{course.quest_count} project{course.quest_count !== 1 ? 's' : ''}</UIText>
               </HStack>
             )}
           </HStack>
@@ -112,12 +114,13 @@ function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmi
 }
 
 export default function CoursesScreen() {
+  const tc = useThemeColors();
   if (Platform.OS !== 'web') {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
-        <Ionicons name="desktop-outline" size={40} color="#9CA3AF" />
-        <Heading size="sm" className="text-typo-500 mt-3">Desktop Only</Heading>
-        <UIText size="sm" className="text-typo-400 mt-1">Courses are available on desktop.</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
+        <Ionicons name="desktop-outline" size={40} color={tc.iconMuted} />
+        <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">Desktop Only</Heading>
+        <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Courses are available on desktop.</UIText>
       </SafeAreaView>
     );
   }
@@ -127,14 +130,14 @@ export default function CoursesScreen() {
   const canManageCourses = isSuperadmin || canCreateCourse;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
           <HStack className="items-start justify-between">
             <VStack space="sm" className="flex-1">
               <Heading size="2xl">Course Catalog</Heading>
-              <UIText className="text-typo-500">Structured learning paths with projects and lessons</UIText>
+              <UIText className="text-typo-500 dark:text-dark-typo-500">Structured learning paths with projects and lessons</UIText>
             </VStack>
             {canManageCourses && (
               <Button
@@ -186,9 +189,9 @@ export default function CoursesScreen() {
             </View>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10">
-              <Ionicons name="school-outline" size={40} color="#9CA3AF" />
-              <Heading size="sm" className="text-typo-500 mt-3">No courses available</Heading>
-              <UIText size="sm" className="text-typo-400 mt-1">Check back later for new courses</UIText>
+              <Ionicons name="school-outline" size={40} color={tc.iconMuted} />
+              <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No courses available</Heading>
+              <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Check back later for new courses</UIText>
             </Card>
           )}
         </VStack>

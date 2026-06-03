@@ -10,6 +10,7 @@ import { View, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Heading, UIText, Button, ButtonText, VStack, Divider, BottomSheet } from '../ui';
 import api from '@/src/services/api';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 type Reason = 'spam' | 'harassment' | 'inappropriate' | 'self_harm' | 'other';
 type TargetType = 'learning_event' | 'task_completion';
@@ -112,7 +113,7 @@ export function FeedItemMenu({
           )}
           <Divider />
           <Pressable onPress={reset} className="py-3">
-            <UIText size="md" className="text-typo-500 text-center">Cancel</UIText>
+            <UIText size="md" className="text-typo-500 dark:text-dark-typo-500 text-center">Cancel</UIText>
           </Pressable>
         </VStack>
       )}
@@ -128,7 +129,7 @@ export function FeedItemMenu({
             >
               <VStack>
                 <UIText size="sm" className="font-poppins-medium">{r.label}</UIText>
-                <UIText size="xs" className="text-typo-400">{r.description}</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{r.description}</UIText>
               </VStack>
             </Pressable>
           ))}
@@ -140,7 +141,7 @@ export function FeedItemMenu({
 
       {stage === 'submitting' && (
         <View className="items-center py-8">
-          <UIText size="sm" className="text-typo-500">Submitting…</UIText>
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">Submitting…</UIText>
         </View>
       )}
     </BottomSheet>
@@ -148,7 +149,8 @@ export function FeedItemMenu({
 }
 
 function HStackRow({ icon, label, destructive }: { icon: any; label: string; destructive?: boolean }) {
-  const color = destructive ? '#DC2626' : '#111827';
+  const c = useThemeColors();
+  const color = destructive ? '#DC2626' : c.text;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <Ionicons name={icon} size={20} color={color} />

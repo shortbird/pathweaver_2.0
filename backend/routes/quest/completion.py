@@ -10,6 +10,7 @@ from datetime import datetime
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
+from utils.quest_status import is_enrollment_complete, enrollment_completed_at
 from services.webhook_service import WebhookService
 from services.course_progress_service import CourseProgressService
 
@@ -182,9 +183,15 @@ def get_user_completed_quests(user_id: str):
                 if task_id:
                     evidence_docs_by_task[task_id] = doc
 
-        # Separate completed and in-progress quests from the fetched data
-        completed_quests = [q for q in (user_quests_response.data or []) if q.get('completed_at')]
-        in_progress_quests = [q for q in (user_quests_response.data or []) if not q.get('completed_at') and q.get('is_active')]
+        # Separate completed and in-progress quests using the shared completion
+        # rule (utils/quest_status) — a credit-awarded class counts as complete
+        # even though its enrollment completed_at is never set.
+        all_enrollments = user_quests_response.data or []
+        completed_quests = [q for q in all_enrollments if is_enrollment_complete(q)]
+        in_progress_quests = [
+            q for q in all_enrollments
+            if not is_enrollment_complete(q) and q.get('is_active')
+        ]
 
         # Get task counts for all user quests in one query (for progress calculation)
         all_user_quest_ids = [q['id'] for q in (user_quests_response.data or [])]
@@ -304,7 +311,7 @@ def get_user_completed_quests(user_id: str):
             if len(task_evidence) > 0:
                 achievement = {
                     'quest': quest,
-                    'completed_at': cq['completed_at'],
+                    'completed_at': enrollment_completed_at(cq),
                     'task_evidence': task_evidence,
                     'total_xp_earned': total_xp,
                     'status': 'completed',
@@ -392,8 +399,10 @@ def get_user_completed_quests(user_id: str):
 
             achievements.append(achievement)
 
-        # Sort achievements by date (completed_at for completed, started_at for in-progress)
-        achievements.sort(key=lambda x: x.get('completed_at') or x.get('started_at'), reverse=True)
+        # Sort achievements by date (completed_at for completed, started_at for in-progress).
+        # Guard against None (e.g. a credit-awarded class with no review-submission
+        # timestamp) so comparing across str/None can't raise.
+        achievements.sort(key=lambda x: x.get('completed_at') or x.get('started_at') or '', reverse=True)
 
         return jsonify({
             'success': True,

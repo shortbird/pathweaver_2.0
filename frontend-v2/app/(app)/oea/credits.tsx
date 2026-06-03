@@ -14,6 +14,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScrollPageLayout } from '@/src/components/layouts/ScrollPageLayout';
 import { VStack, HStack, UIText, Button, ButtonText, Card } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { oeaAPI } from '@/src/services/api';
 import { extractApiError } from '@/src/services/apiError';
 import type {
@@ -25,7 +26,7 @@ const GRADES: LetterGrade[] = ['A', 'B', 'C', 'D', 'F'];
 function ProgressBar({ percent }: { percent: number }) {
   const clamped = Math.max(0, Math.min(100, percent));
   return (
-    <View className="h-3 rounded-full bg-surface-200 overflow-hidden">
+    <View className="h-3 rounded-full bg-surface-200 dark:bg-dark-surface-300 overflow-hidden">
       <View className="h-3 rounded-full bg-optio-purple" style={{ width: `${clamped}%` }} />
     </View>
   );
@@ -52,6 +53,7 @@ function GradePill({ credit }: { credit: OEACredit }) {
 }
 
 export default function CreditsScreen() {
+  const tc = useThemeColors();
   const { studentId, studentName } = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
 
   const [data, setData] = useState<CreditsResponse | null>(null);
@@ -208,17 +210,17 @@ export default function CreditsScreen() {
             <Card variant="elevated" size="md">
               <VStack space="md">
                 <HStack className="items-end justify-between">
-                  <UIText size="lg" className="font-poppins-bold text-typo">
+                  <UIText size="lg" className="font-poppins-bold text-typo dark:text-dark-typo">
                     {progress.total_earned} of {progress.total_required} credits
                   </UIText>
-                  <UIText size="sm" className="text-typo-500">{progress.percent_complete}%</UIText>
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{progress.percent_complete}%</UIText>
                 </HStack>
                 <ProgressBar percent={progress.percent_complete} />
                 <HStack className="justify-between">
-                  <UIText size="xs" className="text-typo-500">
+                  <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
                     Foundation {progress.foundation_earned}/{progress.foundation_required}
                   </UIText>
-                  <UIText size="xs" className="text-typo-500">
+                  <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
                     Elective {progress.elective_earned}/{progress.elective_required}
                   </UIText>
                 </HStack>
@@ -234,13 +236,13 @@ export default function CreditsScreen() {
                     <UIText size="lg" className="font-poppins-bold text-optio-purple">
                       {gpa?.unweighted ?? '—'}
                     </UIText>
-                    <UIText size="xs" className="text-typo-400">Unweighted GPA</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Unweighted GPA</UIText>
                   </VStack>
                   <VStack className="items-center">
                     <UIText size="lg" className="font-poppins-bold text-optio-pink">
                       {gpa?.weighted ?? '—'}
                     </UIText>
-                    <UIText size="xs" className="text-typo-400">Weighted GPA</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Weighted GPA</UIText>
                   </VStack>
                 </HStack>
               </VStack>
@@ -257,18 +259,18 @@ export default function CreditsScreen() {
                         <View className={`w-2 h-2 rounded-full ${
                           req.category === 'foundation' ? 'bg-optio-purple' : 'bg-optio-pink'
                         }`} />
-                        <UIText size="md" className="font-poppins-semibold text-typo">{req.label}</UIText>
+                        <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">{req.label}</UIText>
                         {req.is_met && <Ionicons name="checkmark-circle" size={16} color="#16A34A" />}
                       </HStack>
-                      <UIText size="sm" className="text-typo-500">{req.earned}/{req.required}</UIText>
+                      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{req.earned}/{req.required}</UIText>
                     </HStack>
 
                     {courses.map((c) => (
                       <Pressable key={c.id} onPress={() => openEdit(c)}>
-                        <HStack className="items-center justify-between py-2 px-1 border-t border-surface-100">
+                        <HStack className="items-center justify-between py-2 px-1 border-t border-surface-100 dark:border-dark-surface-300">
                           <VStack className="flex-1 min-w-0 pr-2">
-                            <UIText size="sm" className="text-typo-700" numberOfLines={1}>{c.course_name}</UIText>
-                            <UIText size="xs" className="text-typo-400">
+                            <UIText size="sm" className="text-typo-700 dark:text-dark-typo-700" numberOfLines={1}>{c.course_name}</UIText>
+                            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                               {c.credits} {c.credits === 1 ? 'credit' : 'credits'}
                             </UIText>
                           </VStack>
@@ -298,16 +300,17 @@ export default function CreditsScreen() {
       {/* Add-course modal */}
       <Modal visible={!!addFor} transparent animationType="fade" onRequestClose={() => setAddFor(null)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }} onPress={() => setAddFor(null)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: tc.card, borderRadius: 16, padding: 20 }}>
             <VStack space="md">
-              <UIText size="md" className="font-poppins-semibold text-typo">Add course — {addFor?.label}</UIText>
+              <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">Add course — {addFor?.label}</UIText>
               <VStack space="xs">
                 <UIText size="sm" className="font-poppins-medium">Course name</UIText>
                 <TextInput
                   value={newCourse}
                   onChangeText={setNewCourse}
                   placeholder="e.g. Algebra I"
-                  style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 10, fontSize: 14 }}
+                  placeholderTextColor={tc.textFaint}
+                  style={{ borderWidth: 1, borderColor: tc.border, borderRadius: 8, padding: 10, fontSize: 14, color: tc.text }}
                 />
               </VStack>
               <VStack space="xs">
@@ -316,7 +319,7 @@ export default function CreditsScreen() {
                   value={newCredits}
                   onChangeText={setNewCredits}
                   keyboardType="decimal-pad"
-                  style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 10, fontSize: 14, width: 90 }}
+                  style={{ borderWidth: 1, borderColor: tc.border, borderRadius: 8, padding: 10, fontSize: 14, width: 90, color: tc.text }}
                 />
               </VStack>
               <HStack space="sm" className="justify-end">
@@ -335,15 +338,15 @@ export default function CreditsScreen() {
       {/* Grade / edit modal */}
       <Modal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }} onPress={() => setEditing(null)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: tc.card, borderRadius: 16, padding: 20 }}>
             <VStack space="md">
-              <UIText size="md" className="font-poppins-semibold text-typo">Edit course</UIText>
+              <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">Edit course</UIText>
               <VStack space="xs">
                 <UIText size="sm" className="font-poppins-medium">Course name</UIText>
                 <TextInput
                   value={editName}
                   onChangeText={setEditName}
-                  style={{ borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 10, fontSize: 14 }}
+                  style={{ borderWidth: 1, borderColor: tc.border, borderRadius: 8, padding: 10, fontSize: 14, color: tc.text }}
                 />
               </VStack>
 
@@ -351,11 +354,11 @@ export default function CreditsScreen() {
               <Pressable onPress={() => setEditComplete((v) => !v)}>
                 <HStack className="items-center" space="sm">
                   <View className={`w-5 h-5 rounded border items-center justify-center ${
-                    editComplete ? 'bg-optio-purple border-optio-purple' : 'border-surface-300'
+                    editComplete ? 'bg-optio-purple border-optio-purple' : 'border-surface-300 dark:border-dark-surface-300'
                   }`}>
                     {editComplete && <Ionicons name="checkmark" size={14} color="white" />}
                   </View>
-                  <UIText size="sm" className="text-typo-700">Mark complete</UIText>
+                  <UIText size="sm" className="text-typo-700 dark:text-dark-typo-700">Mark complete</UIText>
                 </HStack>
               </Pressable>
 
@@ -367,9 +370,9 @@ export default function CreditsScreen() {
                     {GRADES.map((g) => (
                       <Pressable key={g} onPress={() => setEditGrade(g)} style={{ flex: 1 }}>
                         <View className={`py-2 rounded-lg items-center border ${
-                          editGrade === g ? 'bg-optio-purple border-optio-purple' : 'border-surface-200'
+                          editGrade === g ? 'bg-optio-purple border-optio-purple' : 'border-surface-200 dark:border-dark-surface-300'
                         }`}>
-                          <UIText size="sm" className={editGrade === g ? 'text-white font-poppins-semibold' : 'text-typo-700'}>{g}</UIText>
+                          <UIText size="sm" className={editGrade === g ? 'text-white font-poppins-semibold' : 'text-typo-700 dark:text-dark-typo-700'}>{g}</UIText>
                         </View>
                       </Pressable>
                     ))}
@@ -379,11 +382,11 @@ export default function CreditsScreen() {
                   <Pressable onPress={() => setEditWeighted((v) => !v)} className="pt-1">
                     <HStack className="items-center" space="sm">
                       <View className={`w-5 h-5 rounded border items-center justify-center ${
-                        editWeighted ? 'bg-optio-purple border-optio-purple' : 'border-surface-300'
+                        editWeighted ? 'bg-optio-purple border-optio-purple' : 'border-surface-300 dark:border-dark-surface-300'
                       }`}>
                         {editWeighted && <Ionicons name="checkmark" size={14} color="white" />}
                       </View>
-                      <UIText size="sm" className="text-typo-700">Honors / AP / IB (weighted)</UIText>
+                      <UIText size="sm" className="text-typo-700 dark:text-dark-typo-700">Honors / AP / IB (weighted)</UIText>
                     </HStack>
                   </Pressable>
                 </VStack>
@@ -394,21 +397,21 @@ export default function CreditsScreen() {
               <Pressable
                 onPress={() => editing && openQuest(editing)}
                 disabled={openingQuest}
-                className="border-t border-surface-100 pt-3"
+                className="border-t border-surface-100 dark:border-dark-surface-300 pt-3"
               >
                 <HStack className="items-center justify-between">
                   <HStack className="items-center flex-1 pr-2" space="sm">
                     <Ionicons name="rocket-outline" size={18} color="#6D469B" />
                     <VStack className="flex-1 min-w-0">
-                      <UIText size="sm" className="font-poppins-medium text-typo">
+                      <UIText size="sm" className="font-poppins-medium text-typo dark:text-dark-typo">
                         {openingQuest ? 'Opening…' : editing?.quest_id ? 'Open quest' : 'Start quest'}
                       </UIText>
-                      <UIText size="xs" className="text-typo-400">
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                         Add work, evidence, and journal entries in the app
                       </UIText>
                     </VStack>
                   </HStack>
-                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={18} color={tc.iconMuted} />
                 </HStack>
               </Pressable>
 

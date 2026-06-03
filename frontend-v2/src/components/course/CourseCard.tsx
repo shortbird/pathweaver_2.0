@@ -40,7 +40,7 @@ export function CourseCard({ course }: CourseCardProps) {
             <Ionicons name="layers-outline" size={18} color="#6D469B" />
           </View>
           <VStack className="flex-1 min-w-0">
-            <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
               Course · {projectCount} {projectCount === 1 ? 'project' : 'projects'}
             </UIText>
             <UIText size="md" className="font-poppins-semibold" numberOfLines={1}>
@@ -52,14 +52,14 @@ export function CourseCard({ course }: CourseCardProps) {
         {total > 0 && (
           <VStack space="xs" className="mt-3">
             <HStack className="items-baseline justify-between">
-              <UIText size="xs" className="text-typo-400">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 {completed} of {total} projects
               </UIText>
               <UIText size="xs" className="text-optio-purple font-poppins-medium">
                 {Math.round(percent)}%
               </UIText>
             </HStack>
-            <View className="h-2 bg-surface-200 rounded-full overflow-hidden">
+            <View className="h-2 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
               <View
                 className="h-full bg-optio-purple rounded-full"
                 style={{ width: `${percent}%` }}

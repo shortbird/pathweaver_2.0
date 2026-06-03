@@ -17,6 +17,7 @@ import { View, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { VStack, HStack, UIText, PillarBadge } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { AttachableTask, AttachableQuest } from '../journal/TaskPickerSheet';
 
 interface Props {
@@ -47,6 +48,7 @@ export function InlineQuestTaskPicker({
   const [loading, setLoading] = useState(false);
   const [expandedQuestId, setExpandedQuestId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const c = useThemeColors();
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -94,8 +96,8 @@ export function InlineQuestTaskPicker({
   if (quests.length === 0) {
     return (
       <View className="py-6 items-center px-4">
-        <Ionicons name="flag-outline" size={28} color="#CEC6D6" />
-        <UIText size="sm" className="text-typo-400 mt-2 text-center">
+        <Ionicons name="flag-outline" size={28} color={c.iconMuted} />
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">
           You don't have any active quests yet.
         </UIText>
       </View>
@@ -109,18 +111,18 @@ export function InlineQuestTaskPicker({
         return (
           <View
             key={quest.id}
-            className="rounded-xl border border-surface-200 overflow-hidden"
+            className="rounded-xl border border-surface-200 dark:border-dark-surface-300 overflow-hidden"
           >
             <Pressable
               onPress={() => setExpandedQuestId(expanded ? null : quest.id)}
-              className="flex-row items-center justify-between px-3 py-3 bg-surface-50 active:bg-surface-100"
+              className="flex-row items-center justify-between px-3 py-3 bg-surface-50 dark:bg-dark-surface-50 active:bg-surface-100"
               style={{ minHeight: 44 }}
             >
               <VStack className="flex-1 min-w-0 mr-2">
                 <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
                   {quest.title}
                 </UIText>
-                <UIText size="xs" className="text-typo-400">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                   {quest.tasks.length} pending task{quest.tasks.length === 1 ? '' : 's'}
                 </UIText>
               </VStack>
@@ -132,7 +134,7 @@ export function InlineQuestTaskPicker({
             </Pressable>
 
             {expanded && (
-              <VStack space="xs" className="p-2 bg-white">
+              <VStack space="xs" className="p-2 bg-white dark:bg-dark-surface-100">
                 {quest.tasks.map((task) => {
                   const isSelected = selectedTaskId === task.id;
                   const occupied = !!task.attached_moment_id && !isSelected;
@@ -143,12 +145,12 @@ export function InlineQuestTaskPicker({
                       className={`flex-row items-center gap-3 px-3 py-2.5 rounded-lg ${
                         isSelected
                           ? 'bg-optio-purple/10 border border-optio-purple/40'
-                          : 'bg-surface-50 active:bg-surface-100'
+                          : 'bg-surface-50 dark:bg-dark-surface-50 active:bg-surface-100'
                       }`}
                       style={{ minHeight: 44, opacity: occupied ? 0.55 : 1 }}
                     >
                       <View className="w-5 h-5 rounded-full items-center justify-center"
-                            style={{ borderWidth: 1.5, borderColor: isSelected ? '#6D469B' : '#CEC6D6', backgroundColor: isSelected ? '#6D469B' : 'transparent' }}>
+                            style={{ borderWidth: 1.5, borderColor: isSelected ? '#6D469B' : c.border, backgroundColor: isSelected ? '#6D469B' : 'transparent' }}>
                         {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
                       </View>
                       <VStack className="flex-1 min-w-0">
@@ -157,7 +159,7 @@ export function InlineQuestTaskPicker({
                         </UIText>
                         <HStack className="items-center gap-2 mt-0.5">
                           <PillarBadge pillar={task.pillar} size="sm" />
-                          <UIText size="xs" className="text-typo-400">{task.xp_value} XP</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{task.xp_value} XP</UIText>
                           {occupied && (
                             <UIText size="xs" className="text-amber-600">already has a moment</UIText>
                           )}
@@ -174,7 +176,7 @@ export function InlineQuestTaskPicker({
                   className={`flex-row items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed ${
                     selectedNewTaskQuestId === quest.id
                       ? 'bg-optio-purple/10 border-optio-purple'
-                      : 'border-surface-300 active:bg-surface-50'
+                      : 'border-surface-300 dark:border-dark-surface-300 active:bg-surface-50'
                   }`}
                   style={{ minHeight: 44 }}
                 >
@@ -182,7 +184,7 @@ export function InlineQuestTaskPicker({
                     className="w-5 h-5 rounded-full items-center justify-center"
                     style={{
                       borderWidth: 1.5,
-                      borderColor: selectedNewTaskQuestId === quest.id ? '#6D469B' : '#CEC6D6',
+                      borderColor: selectedNewTaskQuestId === quest.id ? '#6D469B' : c.border,
                       backgroundColor: selectedNewTaskQuestId === quest.id ? '#6D469B' : 'transparent',
                     }}
                   >

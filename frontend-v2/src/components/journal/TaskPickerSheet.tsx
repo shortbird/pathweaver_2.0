@@ -14,6 +14,7 @@ import api from '@/src/services/api';
 import {
   BottomSheet, VStack, HStack, UIText, Heading, PillarBadge,
 } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 export interface AttachableTask {
   id: string;
@@ -51,6 +52,7 @@ export function TaskPickerSheet({
   onDetach,
   questIdFilter,
 }: Props) {
+  const c = useThemeColors();
   const [quests, setQuests] = useState<AttachableQuest[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedQuestId, setExpandedQuestId] = useState<string | null>(null);
@@ -93,13 +95,13 @@ export function TaskPickerSheet({
           <Heading size="lg">Attach to a task</Heading>
           <Pressable
             onPress={onClose}
-            className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
           >
-            <Ionicons name="close" size={18} color="#6B7280" />
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
-        <UIText size="xs" className="text-typo-500">
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
           This moment becomes draft evidence. You'll finalize completion on the web.
         </UIText>
 
@@ -122,8 +124,8 @@ export function TaskPickerSheet({
             </View>
           ) : quests.length === 0 ? (
             <View className="py-8 items-center">
-              <Ionicons name="flag-outline" size={32} color="#CEC6D6" />
-              <UIText size="sm" className="text-typo-400 mt-2 text-center">
+              <Ionicons name="flag-outline" size={32} color={c.border} />
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">
                 No active quests with pending tasks.
               </UIText>
             </View>
@@ -132,16 +134,16 @@ export function TaskPickerSheet({
               {quests.map((quest) => {
                 const expanded = expandedQuestId === quest.id;
                 return (
-                  <View key={quest.id} className="rounded-xl border border-surface-200 overflow-hidden">
+                  <View key={quest.id} className="rounded-xl border border-surface-200 dark:border-dark-surface-300 overflow-hidden">
                     <Pressable
                       onPress={() => setExpandedQuestId(expanded ? null : quest.id)}
-                      className="flex-row items-center justify-between px-3 py-3 bg-surface-50"
+                      className="flex-row items-center justify-between px-3 py-3 bg-surface-50 dark:bg-dark-surface-50"
                     >
                       <VStack className="flex-1 min-w-0 mr-2">
                         <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
                           {quest.title}
                         </UIText>
-                        <UIText size="xs" className="text-typo-400">
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                           {quest.tasks.length} pending task{quest.tasks.length === 1 ? '' : 's'}
                         </UIText>
                       </VStack>
@@ -153,7 +155,7 @@ export function TaskPickerSheet({
                     </Pressable>
 
                     {expanded && (
-                      <VStack space="xs" className="p-2 bg-white">
+                      <VStack space="xs" className="p-2 bg-white dark:bg-dark-surface-100">
                         {quest.tasks.map((task) => {
                           const isCurrent = currentTaskId === task.id;
                           const occupied = !!task.attached_moment_id && !isCurrent;
@@ -164,7 +166,7 @@ export function TaskPickerSheet({
                               onPress={() => handlePick(task, quest)}
                               disabled={isPicking}
                               className={`flex-row items-center gap-3 px-3 py-3 rounded-lg ${
-                                isCurrent ? 'bg-optio-purple/10' : 'bg-surface-50'
+                                isCurrent ? 'bg-optio-purple/10' : 'bg-surface-50 dark:bg-dark-surface-50'
                               }`}
                               style={{ opacity: isPicking ? 0.5 : 1 }}
                             >
@@ -174,7 +176,7 @@ export function TaskPickerSheet({
                                 </UIText>
                                 <HStack className="items-center gap-2 mt-1">
                                   <PillarBadge pillar={task.pillar} size="sm" />
-                                  <UIText size="xs" className="text-typo-400">
+                                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                                     {task.xp_value} XP
                                   </UIText>
                                   {occupied && (
@@ -195,7 +197,7 @@ export function TaskPickerSheet({
                                 <Ionicons
                                   name={isCurrent ? 'checkmark-circle' : 'chevron-forward'}
                                   size={18}
-                                  color={isCurrent ? '#6D469B' : '#9CA3AF'}
+                                  color={isCurrent ? '#6D469B' : c.iconMuted}
                                 />
                               )}
                             </Pressable>

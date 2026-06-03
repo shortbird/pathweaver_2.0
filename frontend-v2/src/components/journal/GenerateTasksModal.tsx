@@ -10,6 +10,7 @@ import { View, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Pl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Heading, Button, ButtonText, PillarBadge, Divider } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface Props {
   visible: boolean;
@@ -21,6 +22,7 @@ interface Props {
 
 export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, onAcceptTask }: Props) {
   const insets = useSafeAreaInsets();
+  const c = useThemeColors();
   const [step, setStep] = useState<'input' | 'review'>('input');
   const [interests, setInterests] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -107,23 +109,23 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
           <Pressable style={{ flex: 0.15 }} onPress={handleClose} />
 
           <View
-            className="bg-white rounded-t-2xl flex-1"
+            className="bg-white dark:bg-dark-surface-100 rounded-t-2xl flex-1"
             style={{ paddingBottom: insets.bottom || 16, maxHeight: '85%' }}
           >
             {/* Handle */}
             <View className="items-center py-2">
-              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#CEC6D6' }} />
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: c.border }} />
             </View>
 
             {/* Header */}
-            <View className="px-5 pb-3 border-b border-surface-200">
+            <View className="px-5 pb-3 border-b border-surface-200 dark:border-dark-surface-300">
               <HStack className="items-center justify-between">
                 <VStack>
                   <Heading size="md">Generate Task Ideas</Heading>
-                  <UIText size="xs" className="text-typo-400" numberOfLines={1}>{questTitle}</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{questTitle}</UIText>
                 </VStack>
-                <Pressable onPress={handleClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                  <Ionicons name="close" size={16} color="#6B6280" />
+                <Pressable onPress={handleClose} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
+                  <Ionicons name="close" size={16} color={c.icon} />
                 </Pressable>
               </HStack>
             </View>
@@ -140,10 +142,10 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
               {step === 'input' && (
                 <VStack space="lg">
                   <VStack space="xs">
-                    <UIText size="sm" className="font-poppins-medium text-typo-700">
+                    <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700">
                       What are you interested in? (optional)
                     </UIText>
-                    <UIText size="xs" className="text-typo-400">
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                       Describe your interests and the AI will create personalized tasks for this quest.
                     </UIText>
                   </VStack>
@@ -152,10 +154,10 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
                     value={interests}
                     onChangeText={setInterests}
                     placeholder="e.g. photography, cooking, robotics..."
-                    placeholderTextColor="#9A93A8"
+                    placeholderTextColor={c.textFaint}
                     multiline
                     numberOfLines={3}
-                    className="bg-surface-100 rounded-xl px-4 py-3 font-poppins text-sm"
+                    className="bg-surface-100 dark:bg-dark-surface-200 text-typo dark:text-dark-typo rounded-xl px-4 py-3 font-poppins text-sm"
                     style={{ outline: 'none', minHeight: 80, textAlignVertical: 'top' } as any}
                   />
 
@@ -176,14 +178,14 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
                 <VStack space="md">
                   {/* Progress */}
                   <HStack className="items-center justify-between">
-                    <UIText size="xs" className="text-typo-400 font-poppins-medium">
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">
                       Task {reviewIndex + 1} of {suggestions.length}
                     </UIText>
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">
                       {acceptedCount} added
                     </UIText>
                   </HStack>
-                  <View className="h-1.5 bg-surface-100 rounded-full overflow-hidden">
+                  <View className="h-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-full overflow-hidden">
                     <View
                       className="h-full bg-optio-purple rounded-full"
                       style={{ width: `${((reviewIndex + 1) / suggestions.length) * 100}%` }}
@@ -191,7 +193,7 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
                   </View>
 
                   {/* Task card */}
-                  <View className="bg-brand-surface-50 border border-brand-surface-200 rounded-2xl p-5">
+                  <View className="bg-brand-surface-50 dark:bg-dark-brand-surface-50 border border-brand-surface-200 dark:border-dark-brand-surface-200 rounded-2xl p-5">
                     <VStack space="sm">
                       <HStack className="items-center justify-between">
                         <PillarBadge pillar={currentTask.pillar || 'stem'} size="md" />
@@ -201,7 +203,7 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
                       </HStack>
 
                       <Heading size="md">{currentTask.title}</Heading>
-                      <UIText size="sm" className="text-typo-500 leading-5">
+                      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 leading-5">
                         {currentTask.description}
                       </UIText>
                     </VStack>
@@ -212,9 +214,9 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
                     <Pressable
                       onPress={handleSkip}
                       disabled={accepting}
-                      className="flex-1 items-center justify-center py-3.5 rounded-xl border border-surface-300 active:bg-surface-50"
+                      className="flex-1 items-center justify-center py-3.5 rounded-xl border border-surface-300 dark:border-dark-surface-300 active:bg-surface-50 dark:active:bg-dark-surface-50"
                     >
-                      <UIText size="sm" className="font-poppins-semibold text-typo-500">Skip</UIText>
+                      <UIText size="sm" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500">Skip</UIText>
                     </Pressable>
                     <Pressable
                       onPress={handleAccept}

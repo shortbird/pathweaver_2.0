@@ -71,7 +71,7 @@ export function ScrollPageLayout({
             <View className="mb-4">
               <Heading size="2xl">{title}</Heading>
               {subtitle && (
-                <UIText size="sm" className="text-typo-500 mt-1">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-1">
                   {subtitle}
                 </UIText>
               )}

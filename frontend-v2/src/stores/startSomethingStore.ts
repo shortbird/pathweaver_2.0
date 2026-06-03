@@ -14,10 +14,18 @@ interface StartSomethingState {
   visible: boolean;
   open: () => void;
   close: () => void;
+  /** CreateQuestSheet visibility — opened directly from the Quests page's
+   *  "Create your own quest" button (no longer chained off the menu). */
+  createQuestVisible: boolean;
+  openCreateQuest: () => void;
+  closeCreateQuest: () => void;
 }
 
 export const useStartSomethingStore = create<StartSomethingState>((set) => ({
   visible: false,
   open: () => set({ visible: true }),
   close: () => set({ visible: false }),
+  createQuestVisible: false,
+  openCreateQuest: () => set({ createQuestVisible: true }),
+  closeCreateQuest: () => set({ createQuestVisible: false }),
 }));

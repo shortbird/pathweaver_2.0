@@ -61,6 +61,14 @@ module.exports = {
           200: '#D9CEE6',    // medium purple bg
         },
 
+        // Brand accent surface (dark) - purple-tinted dark cards/section bgs.
+        // Pair with brand-surface via `bg-brand-surface-100 dark:bg-dark-brand-surface-100`.
+        'dark-brand-surface': {
+          50: '#241E33',     // subtle purple-dark bg
+          100: '#2C2440',    // purple-dark for feature cards
+          200: '#3A3052',    // medium purple-dark bg
+        },
+
         // Pillars
         pillar: {
           stem: '#2469D1',

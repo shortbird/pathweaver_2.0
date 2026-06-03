@@ -13,8 +13,9 @@ import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
-import { compressImageAssets } from '@/src/utils/imageCompression';
+import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { useMyChildren } from '@/src/hooks/useParent';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet, PillarBadge,
   Avatar, AvatarFallbackText, AvatarImage,
@@ -64,10 +65,14 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   // "Add as new task in <quest>" intent — mutually exclusive with selectedTask.
   const [pendingNewTask, setPendingNewTask] = useState<AttachableQuest | null>(null);
   const [recording, setRecording] = useState(false);
+  // Video transcode runs after the picker closes; surface progress so the UI
+  // doesn't appear frozen during the (multi-second) compression.
+  const [compressPct, setCompressPct] = useState<number | null>(null);
 
   // Parent flow: fetch children when pickStudents is on. The hook short-circuits
   // gracefully for non-parent users (empty list, no error toast).
   const { children: parentChildren } = useMyChildren();
+  const c = useThemeColors();
   const eligibleChildren = pickStudents ? parentChildren : [];
   // Starts empty by design: parents pick which kids the moment applies to.
   // A "Select all" chip is offered alongside the per-kid chips below.
@@ -108,6 +113,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setAttachOpen(false);
     setSelectedStudentIds([]);
     setRecording(false);
+    setCompressPct(null);
   };
 
   const handleClose = () => {
@@ -142,6 +148,29 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setMedia((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Gate over-long videos BEFORE the expensive transcode, then compress
+  // (images + video) with progress, then attach. Shared by camera + library.
+  const processAndAdd = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    const allowed = assets.filter((a) => {
+      if (a.type === 'video' && a.duration && a.duration > MAX_VIDEO_DURATION_MS) {
+        const mins = (a.duration / 60000).toFixed(1);
+        const maxMins = MAX_VIDEO_DURATION_MS / 60000;
+        Alert.alert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
+        return false;
+      }
+      return true;
+    });
+    if (allowed.length === 0) return;
+    const hasVideo = allowed.some((a) => a.type === 'video');
+    if (hasVideo) setCompressPct(0);
+    try {
+      const compressed = await compressMediaAssets(allowed, setCompressPct);
+      addMedia(compressed);
+    } finally {
+      setCompressPct(null);
+    }
+  };
+
   const openCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -154,8 +183,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       videoMaxDuration: 120,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const compressed = await compressImageAssets(result.assets);
-      addMedia(compressed);
+      await processAndAdd(result.assets);
     }
   };
 
@@ -169,8 +197,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       selectionLimit: 10,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const compressed = await compressImageAssets(result.assets);
-      addMedia(compressed);
+      await processAndAdd(result.assets);
     }
   };
 
@@ -336,10 +363,10 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               </VStack>
               <Pressable
                 onPress={handleClose}
-                className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+                className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
                 hitSlop={8}
               >
-                <Ionicons name="close" size={18} color="#6B7280" />
+                <Ionicons name="close" size={18} color={c.icon} />
               </Pressable>
             </HStack>
 
@@ -350,7 +377,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             {pickStudents && eligibleChildren.length > 0 && (
               <VStack space="xs">
                 <HStack className="items-center justify-between">
-                  <UIText size="xs" style={{ color: '#6B7280', fontFamily: 'Poppins_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  <UIText size="xs" style={{ color: c.textMuted, fontFamily: 'Poppins_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                     Capture for
                   </UIText>
                   {selectedStudentIds.length > 0 && (
@@ -372,7 +399,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                         paddingHorizontal: 12,
                         paddingVertical: 6,
                         borderRadius: 999,
-                        backgroundColor: allKidsSelected ? '#1F1F2E' : '#FFFFFF',
+                        backgroundColor: allKidsSelected ? '#1F1F2E' : c.card,
                         borderWidth: 1,
                         borderColor: allKidsSelected ? '#1F1F2E' : '#6D469B',
                       }}
@@ -402,9 +429,9 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                           paddingHorizontal: 10,
                           paddingVertical: 6,
                           borderRadius: 999,
-                          backgroundColor: active ? '#6D469B' : '#F3F4F6',
+                          backgroundColor: active ? '#6D469B' : c.surfaceMuted,
                           borderWidth: active ? 0 : 1,
-                          borderColor: '#E2DCE8',
+                          borderColor: c.border,
                         }}
                       >
                         <Avatar size="xs">
@@ -414,7 +441,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                             <AvatarFallbackText>{initials}</AvatarFallbackText>
                           )}
                         </Avatar>
-                        <UIText size="sm" style={{ color: active ? '#FFFFFF' : '#374151', fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
+                        <UIText size="sm" style={{ color: active ? '#FFFFFF' : c.text, fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
                           {child.first_name || child.display_name || 'Student'}
                         </UIText>
                         {active && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
@@ -438,10 +465,10 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               value={description}
               onChangeText={setDescription}
               placeholder="What did you learn?"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               multiline
               numberOfLines={3}
-              className="bg-surface-50 rounded-xl p-4 text-base font-poppins text-typo min-h-[80px]"
+              className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-typo dark:text-dark-typo min-h-[80px]"
               style={{ textAlignVertical: 'top' }}
             />
 
@@ -469,7 +496,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                         {item.type === 'image' ? (
                           <Image
                             source={{ uri: item.uri }}
-                            style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: '#F3F4F6' }}
+                            style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: c.surfaceMuted }}
                             resizeMode="cover"
                           />
                         ) : (
@@ -490,19 +517,29 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                           style={{
                             position: 'absolute', top: -6, right: -6,
                             width: 24, height: 24, borderRadius: 12,
-                            backgroundColor: '#FFFFFF',
+                            backgroundColor: c.card,
                             alignItems: 'center', justifyContent: 'center',
                             shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
                             elevation: 2,
                           }}
                         >
-                          <Ionicons name="close-circle" size={22} color="#6B7280" />
+                          <Ionicons name="close-circle" size={22} color={c.icon} />
                         </Pressable>
                       </View>
                     );
                   })}
                 </HStack>
               </ScrollView>
+            )}
+
+            {/* Video compression progress */}
+            {compressPct !== null && (
+              <HStack className="items-center gap-2 px-1">
+                <Ionicons name="film-outline" size={16} color={c.icon} />
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+                  Optimizing video… {compressPct}%
+                </UIText>
+              </HStack>
             )}
 
             {/* Voice recorder — appears between previews and the attach button row when active. */}
@@ -535,11 +572,11 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             <HStack className="gap-3">
               <Pressable
                 onPress={openCamera}
-                className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+                className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
                 <Ionicons name="camera-outline" size={26} color="#6D469B" />
-                <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Camera</UIText>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Camera</UIText>
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -553,19 +590,19 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                   setRecording(true);
                 }}
                 disabled={recording}
-                className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+                className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44, opacity: recording ? 0.4 : 1 }}
               >
                 <Ionicons name={recording ? 'mic' : 'mic-outline'} size={26} color="#6D469B" />
-                <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Voice</UIText>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
               </Pressable>
               <Pressable
                 onPress={pickFiles}
-                className="flex-1 items-center py-3.5 bg-surface-50 rounded-xl active:bg-surface-100"
+                className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
                 <Ionicons name="images-outline" size={26} color="#6D469B" />
-                <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Files</UIText>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
               </Pressable>
             </HStack>
 
@@ -584,7 +621,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               <VStack space="xs">
                 <Pressable
                   onPress={() => setAttachOpen((v) => !v)}
-                  className="flex-row items-center justify-between gap-2 py-3 px-3 rounded-xl border border-dashed border-surface-300 active:bg-surface-50"
+                  className="flex-row items-center justify-between gap-2 py-3 px-3 rounded-xl border border-dashed border-surface-300 dark:border-dark-surface-300 active:bg-surface-50"
                   style={{ minHeight: 44 }}
                 >
                   <HStack className="items-center gap-2 flex-1 min-w-0">
@@ -621,12 +658,12 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                         setPendingNewTask(null);
                       }}
                       hitSlop={8}
-                      className="w-7 h-7 rounded-full bg-white items-center justify-center"
+                      className="w-7 h-7 rounded-full bg-white dark:bg-dark-surface-100 items-center justify-center"
                     >
-                      <Ionicons name="close" size={14} color="#6B7280" />
+                      <Ionicons name="close" size={14} color={c.icon} />
                     </Pressable>
                   )}
-                  <Ionicons name={attachOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#9CA3AF" />
+                  <Ionicons name={attachOpen ? 'chevron-up' : 'chevron-down'} size={16} color={c.iconMuted} />
                 </Pressable>
 
                 <InlineQuestTaskPicker

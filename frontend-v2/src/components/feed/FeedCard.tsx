@@ -22,6 +22,7 @@ import { PillarBadge } from '../ui';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
 import { FeedItemMenu } from './FeedItemMenu';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 /** Request a server-resized thumbnail for Supabase storage URLs to save memory */
 function thumbUrl(url: string, width = 600): string {
@@ -42,10 +43,10 @@ function ExpandableText({ text }: { text: string }) {
 
   return (
     <Pressable onPress={() => isLong && setExpanded(!expanded)}>
-      <View className="bg-surface-50 p-3 rounded-lg">
+      <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg">
         <UIText
           size="sm"
-          className="text-typo-500 italic"
+          className="text-typo-500 dark:text-dark-typo-500 italic"
           numberOfLines={expanded ? undefined : 4}
         >
           {text}
@@ -179,6 +180,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const [menuOpen, setMenuOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
   const { user } = useAuthStore();
+  const c = useThemeColors();
 
   const isTask = item.type === 'task_completed';
   const isOwnPost = user?.id === item.student?.id;
@@ -286,7 +288,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                   {isTask && item.completion_id && (
                     <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
                   )}
-                  <UIText size="xs" className="text-typo-400">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                     {isTask
                       ? (item.completion_id ? 'Completed a task' : 'Added evidence')
                       : 'Learning moment'} · {timeAgo}
@@ -303,7 +305,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                   accessibilityLabel="More options"
                   className="p-1"
                 >
-                  <Ionicons name="ellipsis-horizontal" size={20} color="#9CA3AF" />
+                  <Ionicons name="ellipsis-horizontal" size={20} color={c.iconMuted} />
                 </Pressable>
               )}
             </HStack>
@@ -324,8 +326,8 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
           {/* Quest/topic context */}
           {questTitle && (
             <HStack className="items-center gap-1.5">
-              <Ionicons name={isTask ? 'rocket-outline' : 'folder-outline'} size={14} color="#9CA3AF" />
-              <UIText size="xs" className="text-typo-400">{questTitle}</UIText>
+              <Ionicons name={isTask ? 'rocket-outline' : 'folder-outline'} size={14} color={c.iconMuted} />
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{questTitle}</UIText>
             </HStack>
           )}
 
@@ -358,29 +360,29 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
           )}
 
           {/* Social actions */}
-          <HStack className="items-center gap-4 pt-1 border-t border-surface-100 mt-1">
+          <HStack className="items-center gap-4 pt-1 border-t border-surface-100 dark:border-dark-surface-300 mt-1">
             <Pressable onPress={handleShowViewers} className="flex-row items-center gap-1.5 py-1">
               <Ionicons
                 name="eye-outline"
                 size={18}
-                color={showViewersList ? '#6D469B' : '#9CA3AF'}
+                color={showViewersList ? '#6D469B' : c.iconMuted}
               />
               {viewsCount > 0 && (
-                <UIText size="xs" className={showViewersList ? 'text-optio-purple' : 'text-typo-400'}>
+                <UIText size="xs" className={showViewersList ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'}>
                   {viewsCount}
                 </UIText>
               )}
             </Pressable>
 
             <Pressable onPress={() => setShowComments(true)} className="flex-row items-center gap-1.5 py-1">
-              <Ionicons name="chatbubble-outline" size={16} color="#9CA3AF" />
+              <Ionicons name="chatbubble-outline" size={16} color={c.iconMuted} />
               {commentsCount > 0 && (
-                <UIText size="xs" className="text-typo-400">{commentsCount}</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{commentsCount}</UIText>
               )}
             </Pressable>
 
             <Pressable onPress={handleShare} disabled={sharing} className="flex-row items-center gap-1.5 py-1" style={{ opacity: sharing ? 0.5 : 1 }}>
-              <Ionicons name="share-outline" size={16} color={isConfidential ? '#D1D5DB' : '#9CA3AF'} />
+              <Ionicons name="share-outline" size={16} color={isConfidential ? c.border : c.iconMuted} />
             </Pressable>
 
             {/* Visibility toggle - owner always; parents on kid posts via prop */}
@@ -389,9 +391,9 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                 <Ionicons
                   name={isConfidential ? 'eye-off-outline' : 'eye-outline'}
                   size={16}
-                  color={isConfidential ? '#EF597B' : '#9CA3AF'}
+                  color={isConfidential ? '#EF597B' : c.iconMuted}
                 />
-                <UIText size="xs" className={isConfidential ? 'text-optio-pink' : 'text-typo-400'}>
+                <UIText size="xs" className={isConfidential ? 'text-optio-pink' : 'text-typo-400 dark:text-dark-typo-400'}>
                   {isConfidential ? 'Private' : 'Public'}
                 </UIText>
               </Pressable>
@@ -400,12 +402,12 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
 
           {/* Viewers list */}
           {showViewersList && (
-            <View className="bg-surface-50 rounded-lg p-3 mt-1">
+            <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg p-3 mt-1">
               {loadingViewers ? (
-                <UIText size="xs" className="text-typo-400 text-center">Loading...</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">Loading...</UIText>
               ) : viewers.length > 0 ? (
                 <VStack space="xs">
-                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Viewed by</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Viewed by</UIText>
                   {viewers.map((v) => (
                     <HStack key={v.id} className="items-center gap-2">
                       <Avatar size="xs">
@@ -415,19 +417,19 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                           <AvatarFallbackText>{v.display_name?.charAt(0) || '?'}</AvatarFallbackText>
                         )}
                       </Avatar>
-                      <UIText size="xs" className="text-typo-600">{v.display_name}</UIText>
+                      <UIText size="xs" className="text-typo-600 dark:text-dark-typo-700">{v.display_name}</UIText>
                     </HStack>
                   ))}
                 </VStack>
               ) : (
-                <UIText size="xs" className="text-typo-400 text-center">No views yet</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">No views yet</UIText>
               )}
             </View>
           )}
 
           {/* Share toast */}
           {shareToast ? (
-            <View className="bg-typo-700 rounded-lg py-2 px-3 self-center mt-1">
+            <View className="bg-typo-700 dark:bg-dark-surface-300 rounded-lg py-2 px-3 self-center mt-1">
               <UIText size="xs" className="text-white font-poppins-medium">{shareToast}</UIText>
             </View>
           ) : null}

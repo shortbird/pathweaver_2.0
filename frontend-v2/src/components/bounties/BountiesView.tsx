@@ -18,6 +18,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, PillarBadge,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 type Tab = 'browse' | 'claims' | 'posted';
 
@@ -55,6 +56,7 @@ export function BountyCard({
    *  the claim status and switches the CTA to "Continue" / "View status". */
   myClaim?: any;
 }) {
+  const c = useThemeColors();
   const claimStatus = myClaim?.status as string | undefined;
   const sc = claimStatus ? statusConfig[claimStatus] : null;
   const ctaLabel = (() => {
@@ -87,11 +89,11 @@ export function BountyCard({
             ); })()}
           </HStack>
           <Heading size="sm" numberOfLines={2}>{bounty.title}</Heading>
-          <UIText size="sm" className="text-typo-500" numberOfLines={3}>{bounty.description}</UIText>
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={3}>{bounty.description}</UIText>
           {bounty.deliverables?.length > 0 && (
             <HStack className="items-center gap-1.5">
-              <Ionicons name="checkbox-outline" size={14} color="#9CA3AF" />
-              <UIText size="xs" className="text-typo-400">
+              <Ionicons name="checkbox-outline" size={14} color={c.iconMuted} />
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 {bounty.deliverables.length} deliverable{bounty.deliverables.length !== 1 ? 's' : ''}
               </UIText>
             </HStack>
@@ -108,6 +110,7 @@ export function BountyCard({
 }
 
 function ClaimCard({ claim, onTurnedIn }: { claim: any; onTurnedIn?: () => void }) {
+  const c = useThemeColors();
   const bounty = claim.bounty || {};
   const sc = statusConfig[claim.status] || statusConfig.claimed;
   const colors = STATUS_COLORS[claim.status] || STATUS_COLORS.claimed;
@@ -149,17 +152,17 @@ function ClaimCard({ claim, onTurnedIn }: { claim: any; onTurnedIn?: () => void 
             ); })()}
           </HStack>
           <Heading size="sm" numberOfLines={2}>{bounty.title || 'Bounty'}</Heading>
-          <UIText size="xs" className="text-typo-500" numberOfLines={2}>{bounty.description}</UIText>
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>{bounty.description}</UIText>
 
           {hasProgress && (
             <VStack space="xs">
               <HStack className="items-center justify-between">
-                <UIText size="xs" className="text-typo-400 font-poppins-medium">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">
                   {completedCount}/{totalCount} deliverable{totalCount !== 1 ? 's' : ''}
                 </UIText>
                 {allDone && <Ionicons name="checkmark-circle" size={14} color="#16A34A" />}
               </HStack>
-              <View className="h-1.5 bg-surface-200 rounded-full overflow-hidden">
+              <View className="h-1.5 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
                 <View
                   className="h-full rounded-full bg-optio-purple"
                   style={{ width: `${(completedCount / totalCount) * 100}%` }}
@@ -170,9 +173,9 @@ function ClaimCard({ claim, onTurnedIn }: { claim: any; onTurnedIn?: () => void 
                   <Ionicons
                     name={completedIds.has(d.id) ? 'checkmark-circle' : 'ellipse-outline'}
                     size={14}
-                    color={completedIds.has(d.id) ? '#16A34A' : '#D1D5DB'}
+                    color={completedIds.has(d.id) ? '#16A34A' : c.iconMuted}
                   />
-                  <UIText size="xs" className={completedIds.has(d.id) ? 'text-typo-400 line-through' : 'text-typo-600'} numberOfLines={1}>
+                  <UIText size="xs" className={completedIds.has(d.id) ? 'text-typo-400 dark:text-dark-typo-400 line-through' : 'text-typo-600'} numberOfLines={1}>
                     {d.text}
                   </UIText>
                 </HStack>
@@ -221,6 +224,7 @@ interface PosterBountyViewProps {
 }
 
 function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLoading, role }: PosterBountyViewProps) {
+  const c = useThemeColors();
   const studentNoun = role === 'observer' ? 'student' : 'kid';
   // Flatten all "submitted" claims from posted bounties — those are the ones
   // sitting in the parent's review inbox right now.
@@ -276,16 +280,16 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
                         <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
                           {studentName}
                         </UIText>
-                        <UIText size="xs" className="text-typo-500" numberOfLines={1}>
+                        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
                           {claim.bounty.title}
                         </UIText>
                         {submittedAt && (
-                          <UIText size="xs" className="text-typo-400">
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                             Submitted {new Date(submittedAt).toLocaleDateString()}
                           </UIText>
                         )}
                       </VStack>
-                      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                      <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
                     </HStack>
                   </Card>
                 </Pressable>
@@ -294,11 +298,11 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
           </VStack>
         ) : (
           <Card variant="filled" size="md" className="items-center py-6">
-            <Ionicons name="checkmark-circle-outline" size={32} color="#9CA3AF" />
-            <UIText size="sm" className="text-typo-500 mt-2 font-poppins-medium">
+            <Ionicons name="checkmark-circle-outline" size={32} color={c.iconMuted} />
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2 font-poppins-medium">
               All caught up
             </UIText>
-            <UIText size="xs" className="text-typo-400 mt-1">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-1">
               No submissions waiting for review.
             </UIText>
           </Card>
@@ -363,7 +367,7 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
                         </HStack>
                       </HStack>
                       <Heading size="sm" numberOfLines={2}>{b.title}</Heading>
-                      <UIText size="xs" className="text-typo-400">
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                         {claimsCount} claimed
                       </UIText>
                     </VStack>
@@ -374,9 +378,9 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
           </VStack>
         ) : (
           <Card variant="filled" size="lg" className="items-center py-10">
-            <Ionicons name="trophy-outline" size={40} color="#9CA3AF" />
-            <Heading size="sm" className="text-typo-500 mt-3">You haven't posted any bounties</Heading>
-            <UIText size="sm" className="text-typo-400 mt-1">
+            <Ionicons name="trophy-outline" size={40} color={c.iconMuted} />
+            <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">You haven't posted any bounties</Heading>
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">
               Post a bounty above to challenge your {studentNoun}s with a real-world task.
             </UIText>
           </Card>
@@ -388,7 +392,7 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
           is student-only, so non-students can preview without claiming). */}
       <VStack space="sm">
         <Heading size="md">Browse for ideas</Heading>
-        <UIText size="xs" className="text-typo-400">
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
           Get inspiration from bounties Optio and other families have posted.
         </UIText>
         {ideasLoading ? (
@@ -401,8 +405,8 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
           </VStack>
         ) : (
           <Card variant="filled" size="md" className="items-center py-6">
-            <Ionicons name="bulb-outline" size={28} color="#9CA3AF" />
-            <UIText size="sm" className="text-typo-400 mt-2">No public bounties to browse yet</UIText>
+            <Ionicons name="bulb-outline" size={28} color={c.iconMuted} />
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2">No public bounties to browse yet</UIText>
           </Card>
         )}
       </VStack>
@@ -411,6 +415,7 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
 }
 
 export function BountiesView() {
+  const c = useThemeColors();
   const { isDesktop } = useBreakpoint();
   const { user } = useAuthStore();
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
@@ -470,15 +475,15 @@ export function BountiesView() {
       {/* Tab switcher — single-tab layout for students (no chrome). */}
       {tabs.length > 1 && (
         <View className="px-5 md:px-8">
-          <HStack className="bg-surface-100 rounded-xl p-1" space="xs">
+          <HStack className="bg-surface-100 dark:bg-dark-surface-200 rounded-xl p-1" space="xs">
             {tabs.map((t) => (
               <Pressable
                 key={t.key}
                 onPress={() => setTab(t.key)}
-                className={`flex-1 py-2.5 rounded-lg items-center ${tab === t.key ? 'bg-white' : ''}`}
+                className={`flex-1 py-2.5 rounded-lg items-center ${tab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}
               >
                 <HStack className="items-center gap-1">
-                  <UIText size="sm" className={tab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+                  <UIText size="sm" className={tab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                     {t.label}
                   </UIText>
                   {t.count && t.count > 0 && (
@@ -533,9 +538,9 @@ export function BountiesView() {
               </View>
             ) : (
               <Card variant="filled" size="lg" className="items-center py-10">
-                <Ionicons name="trophy-outline" size={40} color="#9CA3AF" />
-                <Heading size="sm" className="text-typo-500 mt-3">No bounties available</Heading>
-                <UIText size="sm" className="text-typo-400 mt-1">Check back later for new bounties</UIText>
+                <Ionicons name="trophy-outline" size={40} color={c.iconMuted} />
+                <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No bounties available</Heading>
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">Check back later for new bounties</UIText>
               </Card>
             )}
           </View>
@@ -557,9 +562,9 @@ export function BountiesView() {
             </View>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10">
-              <Ionicons name="hand-left-outline" size={40} color="#9CA3AF" />
-              <Heading size="sm" className="text-typo-500 mt-3">No active claims</Heading>
-              <UIText size="sm" className="text-typo-400 mt-1">Claim a bounty to get started</UIText>
+              <Ionicons name="hand-left-outline" size={40} color={c.iconMuted} />
+              <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No active claims</Heading>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">Claim a bounty to get started</UIText>
             </Card>
           )}
         </View>
@@ -623,7 +628,7 @@ export function BountiesView() {
                         </HStack>
                       </HStack>
                       <Heading size="sm" numberOfLines={2}>{b.title}</Heading>
-                      <UIText size="xs" className="text-typo-400">
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                         {(b.claims || []).length} claimed
                       </UIText>
                     </VStack>
@@ -633,9 +638,9 @@ export function BountiesView() {
             </View>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10">
-              <Ionicons name="create-outline" size={40} color="#9CA3AF" />
-              <Heading size="sm" className="text-typo-500 mt-3">No posted bounties</Heading>
-              <UIText size="sm" className="text-typo-400 mt-1">
+              <Ionicons name="create-outline" size={40} color={c.iconMuted} />
+              <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No posted bounties</Heading>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">
                 {canPost ? 'Post your first bounty above' : 'Parents and advisors can post bounties'}
               </UIText>
             </Card>

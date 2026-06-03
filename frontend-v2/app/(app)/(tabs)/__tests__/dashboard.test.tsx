@@ -1,6 +1,6 @@
 /**
  * Dashboard screen tests - welcome header, quest grid, enrolled courses,
- * completed quests, navigation buttons.
+ * navigation buttons.
  *
  * Covers issues found during v2 launch readiness audit:
  * - Enrolled courses were fetched but not rendered
@@ -37,7 +37,7 @@ jest.mock('@/src/components/diploma/DiplomaCreditTracker', () => ({
 }));
 
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import DashboardScreen from '../dashboard';
 import { useDashboard, useGlobalEngagement } from '@/src/hooks/useDashboard';
 import api from '@/src/services/api';
@@ -65,13 +65,6 @@ const mockDashboardData = {
       progress: { completed_quests: 1, total_quests: 3 },
     },
   ],
-  recent_completed_quests: [
-    {
-      id: 'uq-3',
-      completed_at: '2026-03-15T00:00:00Z',
-      quests: { title: 'Nature Walk' },
-    },
-  ],
   stats: {
     total_xp: 1250,
     completed_quests_count: 5,
@@ -95,7 +88,7 @@ beforeEach(() => {
   (useGlobalEngagement as jest.Mock).mockReturnValue({
     data: mockEngagement, loading: false,
   });
-  // Default mock for NextUpPanel API calls (fetches quest tasks)
+  // Default mock for card API calls (ClassCard class-progress, quest detail).
   (api.get as jest.Mock).mockResolvedValue({ data: { quest: { quest_tasks: [] } } });
 });
 
@@ -219,24 +212,6 @@ describe('DashboardScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/(app)/(tabs)/courses');
   });
 
-  // ── Completed Quests ──
-
-  it('renders completed quest titles', () => {
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    expect(r.getByText('Nature Walk')).toBeTruthy();
-  });
-
-  it('hides completed quests when none exist', () => {
-    (useDashboard as jest.Mock).mockReturnValue({
-      data: { ...mockDashboardData, recent_completed_quests: [] },
-      loading: false, error: null, refetch: jest.fn(),
-    });
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    expect(r.queryByText('Nature Walk')).toBeNull();
-  });
-
   // ── Learning Rhythm ──
 
   it('renders learning rhythm section', () => {
@@ -267,41 +242,6 @@ describe('DashboardScreen', () => {
     const r = tryRender(<DashboardScreen />);
     if (!r) return;
     expect(r.getByTestId('capture-fab')).toBeTruthy();
-  });
-
-  // ── Next Up Panel ──
-
-  it('renders Next Up section when quests have incomplete tasks', async () => {
-    (api.get as jest.Mock).mockImplementation((url: string) => {
-      if (url.includes('/api/quests/q-1')) {
-        return Promise.resolve({
-          data: { quest: { quest_tasks: [{ id: 't-1', title: 'Build chassis', pillar: 'stem', xp_value: 50, is_completed: false }] } },
-        });
-      }
-      if (url.includes('/api/quests/q-2')) {
-        return Promise.resolve({
-          data: { quest: { quest_tasks: [{ id: 't-2', title: 'Write chapter 1', pillar: 'communication', xp_value: 75, is_completed: false }] } },
-        });
-      }
-      return Promise.resolve({ data: {} });
-    });
-
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    expect(await r.findByText('Next Up')).toBeTruthy();
-    expect(await r.findByText('Build chassis')).toBeTruthy();
-  });
-
-  it('hides Next Up when all tasks are completed', async () => {
-    (api.get as jest.Mock).mockImplementation(() =>
-      Promise.resolve({ data: { quest: { quest_tasks: [{ id: 't-1', title: 'Done', pillar: 'stem', xp_value: 50, is_completed: true }] } } })
-    );
-
-    const r = tryRender(<DashboardScreen />);
-    if (!r) return;
-    await waitFor(() => {
-      expect(r.queryByText('Next Up')).toBeNull();
-    });
   });
 
 });

@@ -23,14 +23,14 @@ export default function ViewOnWebScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <View className="flex-1 items-center justify-center px-6">
         <VStack space="lg" className="items-center max-w-sm">
           <View className="w-16 h-16 rounded-full bg-optio-purple/10 items-center justify-center">
             <Ionicons name="globe-outline" size={32} color="#6D469B" />
           </View>
           <Heading size="lg" className="text-center">Open on the web</Heading>
-          <UIText size="sm" className="text-typo-500 text-center">
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
             {label} isn't available in the mobile app yet. Open it on optioeducation.com to continue.
           </UIText>
           <VStack space="sm" className="w-full">
@@ -41,11 +41,11 @@ export default function ViewOnWebScreen() {
               onPress={() => router.back()}
               className="items-center py-3"
             >
-              <UIText size="sm" className="text-typo-500">Go back</UIText>
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">Go back</UIText>
             </Pressable>
           </VStack>
           {Platform.OS !== 'web' && (
-            <UIText size="xs" className="text-typo-400 text-center mt-2">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center mt-2">
               {url}
             </UIText>
           )}

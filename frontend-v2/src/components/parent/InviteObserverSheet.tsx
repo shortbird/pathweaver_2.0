@@ -25,6 +25,7 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet, Divider, Skeleton,
   Avatar, AvatarImage, AvatarFallbackText,
 } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface InviteObserverSheetProps {
   visible: boolean;
@@ -64,6 +65,7 @@ function extractInvitationCode(link: string | null): string | null {
 }
 
 export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetProps) {
+  const c = useThemeColors();
   const { children } = useMyChildren();
 
   // ── Family link state ──
@@ -273,15 +275,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
           <Heading size="lg">Manage observers</Heading>
           <Pressable
             onPress={handleClose}
-            className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
           >
-            <Ionicons name="close" size={18} color="#6B7280" />
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
         {/* Privacy preview */}
-        <View style={{ backgroundColor: '#F8F6FB', borderRadius: 12, padding: 14 }}>
+        <View style={{ backgroundColor: c.surfaceMuted, borderRadius: 12, padding: 14 }}>
           <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">
             What observers will see
           </UIText>
@@ -295,24 +297,24 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
               <UIText size="xs" className="text-typo-600">XP totals and pillar progress</UIText>
             </HStack>
             <HStack className="items-center gap-2">
-              <Ionicons name="close-circle" size={14} color="#9CA3AF" />
-              <UIText size="xs" className="text-typo-400">Personal info, private journal entries</UIText>
+              <Ionicons name="close-circle" size={14} color={c.iconMuted} />
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Personal info, private journal entries</UIText>
             </HStack>
           </VStack>
         </View>
 
         {/* Family link */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-500 font-poppins-semibold uppercase tracking-wider">
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-semibold uppercase tracking-wider">
             Your family link
           </UIText>
           {loading || !link ? (
             <Skeleton className="h-12 rounded-xl" />
           ) : (
-            <View style={{ backgroundColor: '#F8F6FB', borderRadius: 12, padding: 12 }}>
-              <UIText size="xs" className="text-typo-700" numberOfLines={2}>{link}</UIText>
+            <View style={{ backgroundColor: c.surfaceMuted, borderRadius: 12, padding: 12 }}>
+              <UIText size="xs" className="text-typo-700 dark:text-dark-typo-700" numberOfLines={2}>{link}</UIText>
               {daysLeft !== null && (
-                <UIText size="xs" className="text-typo-400 mt-1">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-1">
                   Active for {daysLeft} more day{daysLeft === 1 ? '' : 's'}
                 </UIText>
               )}
@@ -341,7 +343,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
 
         {/* Email option */}
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-500 font-poppins-semibold uppercase tracking-wider">
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-semibold uppercase tracking-wider">
             Send via email
           </UIText>
           <HStack className="gap-2 items-center">
@@ -349,11 +351,11 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
               value={emailInput}
               onChangeText={setEmailInput}
               placeholder="email@example.com"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              className="flex-1 bg-surface-50 rounded-xl p-3 text-sm font-poppins text-typo border border-surface-200"
+              className="flex-1 bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-3 text-sm font-poppins text-typo dark:text-dark-typo border border-surface-200 dark:border-dark-surface-300"
             />
             <Button
               size="md"
@@ -369,7 +371,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
               Sent an Optio invitation to {emailSentTo}.
             </UIText>
           ) : (
-            <UIText size="xs" className="text-typo-400">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
               We’ll send them an invitation with your family link.
             </UIText>
           )}
@@ -380,13 +382,13 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
         {/* Active observers */}
         <VStack space="sm">
           <HStack className="items-center justify-between">
-            <UIText size="xs" className="text-typo-500 font-poppins-semibold uppercase tracking-wider">
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-semibold uppercase tracking-wider">
               {multiKidFamily
                 ? 'Following your family'
                 : `Following ${children[0]?.first_name || children[0]?.display_name?.split(' ')[0] || 'your student'}`}
             </UIText>
             {observers.length > 0 && (
-              <UIText size="xs" className="text-typo-400">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 {observers.length} observer{observers.length === 1 ? '' : 's'}
               </UIText>
             )}
@@ -394,8 +396,8 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
           {observersLoading ? (
             <Skeleton className="h-16 rounded-xl" />
           ) : observers.length === 0 ? (
-            <View style={{ backgroundColor: '#F8F6FB', borderRadius: 12, padding: 12 }}>
-              <UIText size="xs" className="text-typo-500">
+            <View style={{ backgroundColor: c.surfaceMuted, borderRadius: 12, padding: 12 }}>
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
                 {multiKidFamily
                   ? 'No one’s following yet. Share the link above with grandparents, mentors, or family friends.'
                   : `No one’s following yet. Share the link above with grandparents, mentors, or family friends so they can follow ${children[0]?.first_name || 'your student'}.`}
@@ -409,7 +411,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                 return (
                   <View
                     key={obs.observer_id}
-                    style={{ borderWidth: 1, borderColor: '#EEEBEF', borderRadius: 12, padding: 12 }}
+                    style={{ borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 12 }}
                   >
                     <HStack className="items-center gap-3">
                       <Avatar size="sm">
@@ -418,7 +420,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                       <VStack className="flex-1 min-w-0">
                         <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{name}</UIText>
                         {obs.observer_email && obs.observer_email !== name && (
-                          <UIText size="xs" className="text-typo-400" numberOfLines={1}>{obs.observer_email}</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{obs.observer_email}</UIText>
                         )}
                       </VStack>
                       <Pressable
@@ -427,7 +429,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                         hitSlop={8}
                         style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Ionicons name="trash-outline" size={16} color="#9CA3AF" />
+                        <Ionicons name="trash-outline" size={16} color={c.iconMuted} />
                       </Pressable>
                     </HStack>
                     {/* Per-kid toggle chips — only meaningful for multi-kid families. */}
@@ -445,16 +447,16 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                               paddingHorizontal: 10,
                               paddingVertical: 4,
                               borderRadius: 999,
-                              backgroundColor: kid.enabled ? '#6D469B' : '#F3F4F6',
+                              backgroundColor: kid.enabled ? '#6D469B' : c.surfaceMuted,
                               borderWidth: kid.enabled ? 0 : 1,
-                              borderColor: '#E2DCE8',
+                              borderColor: c.border,
                             }}
                           >
                             {kid.enabled && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
                             <UIText
                               size="xs"
                               style={{
-                                color: kid.enabled ? '#FFFFFF' : '#6B7280',
+                                color: kid.enabled ? '#FFFFFF' : c.textMuted,
                                 fontFamily: kid.enabled ? 'Poppins_600SemiBold' : 'Poppins_500Medium',
                               }}
                             >
@@ -480,10 +482,10 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
         >
           <Pressable
             onPress={(e) => e.stopPropagation?.()}
-            style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, alignItems: 'center' }}
+            style={{ backgroundColor: c.card, borderRadius: 20, padding: 24, alignItems: 'center' }}
           >
             <Heading size="md" className="mb-1">Scan to follow</Heading>
-            <UIText size="xs" className="text-typo-400 mb-4">Have them scan with their phone camera</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mb-4">Have them scan with their phone camera</UIText>
             {link && (
               <QRCode value={link} size={240} color="#1F1B2D" backgroundColor="#FFFFFF" />
             )}

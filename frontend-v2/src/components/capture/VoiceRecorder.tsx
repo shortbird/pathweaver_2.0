@@ -28,6 +28,7 @@ import {
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import { VStack, HStack, UIText, Heading, Button, ButtonText } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 export interface RecordedClip {
   uri: string;
@@ -59,6 +60,7 @@ export function VoiceRecorder({ active, onRecorded, onCancel }: Props) {
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
   const pulse = useRef(new Animated.Value(1)).current;
+  const c = useThemeColors();
 
   // Configure the audio session for recording (iOS) once we go active.
   useEffect(() => {
@@ -210,14 +212,14 @@ export function VoiceRecorder({ active, onRecorded, onCancel }: Props) {
             style={{
               flex: 1,
               minHeight: 48,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: c.card,
               borderRadius: 12,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: starting || stopping ? 0.6 : 1,
             }}
           >
-            <UIText size="sm" className="font-poppins-medium" style={{ color: '#6B7280' }}>
+            <UIText size="sm" className="font-poppins-medium" style={{ color: c.textMuted }}>
               Cancel
             </UIText>
           </Pressable>
@@ -262,6 +264,7 @@ interface PlaybackProps {
 export function AudioClipPreview({ clip, onRemove }: PlaybackProps) {
   const player = useAudioPlayer(clip.uri);
   const status = useAudioPlayerStatus(player);
+  const c = useThemeColors();
 
   useEffect(() => {
     return () => {
@@ -318,7 +321,7 @@ export function AudioClipPreview({ clip, onRemove }: PlaybackProps) {
         <UIText size="xs" className="text-optio-purple font-poppins-semibold">
           Voice note
         </UIText>
-        <UIText size="xs" className="text-typo-500" style={{ fontVariant: ['tabular-nums'] as any }}>
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" style={{ fontVariant: ['tabular-nums'] as any }}>
           {formatTime(currentMs)} / {formatTime(totalMs)}
         </UIText>
       </View>
@@ -330,12 +333,12 @@ export function AudioClipPreview({ clip, onRemove }: PlaybackProps) {
             width: 24,
             height: 24,
             borderRadius: 12,
-            backgroundColor: '#FFFFFF',
+            backgroundColor: c.card,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Ionicons name="close" size={14} color="#6B7280" />
+          <Ionicons name="close" size={14} color={c.icon} />
         </Pressable>
       )}
     </View>

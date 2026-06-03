@@ -18,7 +18,7 @@ export default function BountiesScreen() {
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
   return (
-    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       <ScrollView
         ref={scrollRef}
         className="flex-1"

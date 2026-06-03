@@ -7,6 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Pressable, Image, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Card } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
 import { getPillar } from '@/src/config/pillars';
 import { VideoPlayer } from '@/src/components/feed/VideoPlayer';
@@ -117,10 +118,10 @@ function ExpandableText({ text }: { text: string }) {
 
   return (
     <Pressable onPress={() => isLong && setExpanded(!expanded)}>
-      <View className="bg-surface-50 p-3 rounded-lg">
+      <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg">
         <UIText
           size="sm"
-          className="text-typo-500 italic"
+          className="text-typo-500 dark:text-dark-typo-500 italic"
           numberOfLines={expanded ? undefined : 4}
         >
           {text}
@@ -218,7 +219,7 @@ function InlineEvidence({ task }: { task: TaskItem }) {
         if (!url) return null;
         return (
           <Pressable key={`link-${i}`} onPress={() => Linking.openURL(url)}>
-            <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
+            <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
               <HStack className="items-center gap-2">
                 <Ionicons name="link-outline" size={16} color="#6D469B" />
                 <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
@@ -258,7 +259,7 @@ function InlineEvidence({ task }: { task: TaskItem }) {
       )}
       {!hasBlocks && task.evidenceUrl && !isHeicUrl(task.evidenceUrl) && (
         <Pressable onPress={() => Linking.openURL(task.evidenceUrl!)}>
-          <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
+          <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
             <HStack className="items-center gap-2">
               <Ionicons name="link-outline" size={16} color="#6D469B" />
               <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
@@ -286,17 +287,17 @@ function InlineEvidence({ task }: { task: TaskItem }) {
 /** Expanded task list for a quest */
 function TaskList({ tasks }: { tasks: TaskItem[] }) {
   return (
-    <VStack className="border-t border-surface-200">
+    <VStack className="border-t border-surface-200 dark:border-dark-surface-300">
       {tasks.map((task, idx) => (
         <VStack
           key={task.title}
-          className={idx > 0 ? 'border-t border-surface-100' : ''}
+          className={idx > 0 ? 'border-t border-surface-100 dark:border-dark-surface-300' : ''}
         >
           {/* Task header */}
-          <View className="px-4 py-3 bg-surface-50">
+          <View className="px-4 py-3 bg-surface-50 dark:bg-dark-surface-50">
             <HStack className="items-center gap-2">
               <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
-              <UIText size="sm" className="font-poppins-medium text-typo-700 flex-1" numberOfLines={1}>
+              <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700 flex-1" numberOfLines={1}>
                 {task.title}
               </UIText>
               {task.isCollaborative && (
@@ -307,8 +308,8 @@ function TaskList({ tasks }: { tasks: TaskItem[] }) {
             </HStack>
             <HStack className="items-center gap-2 mt-1 ml-6">
               <PillarBadge pillar={task.pillar} size="sm" />
-              <UIText size="xs" className="text-typo-400">+{task.xpAwarded} XP</UIText>
-              <UIText size="xs" className="text-typo-400">{formatDate(task.completedAt)}</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">+{task.xpAwarded} XP</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{formatDate(task.completedAt)}</UIText>
             </HStack>
           </View>
           {/* Task evidence - rendered inline */}
@@ -426,7 +427,7 @@ function QuestCard({ group }: { group: QuestGroup }) {
             {group.pillars.map((pillar) => (
               <PillarBadge key={pillar} pillar={pillar} size="sm" />
             ))}
-            <UIText size="xs" className="text-typo-400">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
               {group.tasks.length} {group.tasks.length === 1 ? 'task' : 'tasks'}
             </UIText>
           </HStack>
@@ -440,14 +441,15 @@ function QuestCard({ group }: { group: QuestGroup }) {
 }
 
 export function PortfolioSection({ achievements }: PortfolioSectionProps) {
+  const c = useThemeColors();
   const questGroups = useMemo(() => buildQuestGroups(achievements), [achievements]);
 
   if (questGroups.length === 0) {
     return (
       <Card variant="elevated" size="md">
         <VStack className="items-center py-6" space="sm">
-          <Ionicons name="images-outline" size={40} color="#D1D5DB" />
-          <UIText size="sm" className="text-typo-400 text-center">
+          <Ionicons name="images-outline" size={40} color={c.iconMuted} />
+          <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
             Complete quests to build your portfolio
           </UIText>
         </VStack>

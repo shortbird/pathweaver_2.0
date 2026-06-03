@@ -13,6 +13,7 @@ import api from '@/src/services/api';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface AddKidSheetProps {
   visible: boolean;
@@ -21,6 +22,7 @@ interface AddKidSheetProps {
 }
 
 export function AddKidSheet({ visible, onClose, onCreated }: AddKidSheetProps) {
+  const c = useThemeColors();
   const [name, setName] = useState('');
   // Stored as YYYY-MM-DD; we collect month/day/year separately to avoid a
   // native date-picker dep just for this single field.
@@ -82,34 +84,34 @@ export function AddKidSheet({ visible, onClose, onCreated }: AddKidSheetProps) {
           <Heading size="lg">Add a kid</Heading>
           <Pressable
             onPress={handleClose}
-            className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
           >
-            <Ionicons name="close" size={18} color="#6B7280" />
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
-        <UIText size="sm" className="text-typo-500">
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
           Create a profile for your child. Kids under 13 are managed from your account.
         </UIText>
 
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
             Their name
           </UIText>
           <TextInput
             value={name}
             onChangeText={setName}
             placeholder="e.g. Charlie"
-            placeholderTextColor="#9CA3AF"
-            className="bg-surface-50 rounded-xl p-4 text-base font-poppins"
+            placeholderTextColor={c.textFaint}
+            className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-typo dark:text-dark-typo"
             maxLength={60}
             autoFocus
           />
         </VStack>
 
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
             Date of birth
           </UIText>
           <HStack className="gap-2">
@@ -117,25 +119,25 @@ export function AddKidSheet({ visible, onClose, onCreated }: AddKidSheetProps) {
               value={month}
               onChangeText={(v) => setMonth(v.replace(/[^0-9]/g, '').slice(0, 2))}
               placeholder="MM"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               keyboardType="numeric"
-              className="flex-1 bg-surface-50 rounded-xl p-4 text-base font-poppins text-center"
+              className="flex-1 bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-center text-typo dark:text-dark-typo"
             />
             <TextInput
               value={day}
               onChangeText={(v) => setDay(v.replace(/[^0-9]/g, '').slice(0, 2))}
               placeholder="DD"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               keyboardType="numeric"
-              className="flex-1 bg-surface-50 rounded-xl p-4 text-base font-poppins text-center"
+              className="flex-1 bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-center text-typo dark:text-dark-typo"
             />
             <TextInput
               value={year}
               onChangeText={(v) => setYear(v.replace(/[^0-9]/g, '').slice(0, 4))}
               placeholder="YYYY"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               keyboardType="numeric"
-              className="flex-[1.5] bg-surface-50 rounded-xl p-4 text-base font-poppins text-center"
+              className="flex-[1.5] bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-center text-typo dark:text-dark-typo"
             />
           </HStack>
         </VStack>

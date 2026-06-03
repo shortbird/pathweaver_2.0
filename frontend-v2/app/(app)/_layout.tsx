@@ -46,7 +46,7 @@ export default function AppLayout() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-surface-50">
+      <View className="flex-1 items-center justify-center bg-surface-50 dark:bg-dark-surface-50">
         <ActivityIndicator size="large" color="#6D469B" />
       </View>
     );

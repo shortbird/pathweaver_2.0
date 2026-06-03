@@ -14,11 +14,13 @@ import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { desktopNavItems, navItems } from '@/src/config/navigation';
 import type { NavItem } from '@/src/config/navigation';
 import api from '@/src/services/api';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
 
 function NavLink({ item }: { item: NavItem }) {
+  const c = useThemeColors();
   const pathname = usePathname();
   const routePath = item.href.replace('/(app)/(tabs)', '');
   const isActive = pathname === routePath || pathname.startsWith(routePath + '/');
@@ -36,22 +38,23 @@ function NavLink({ item }: { item: NavItem }) {
       <Ionicons
         name={isActive ? item.iconActive : item.icon}
         size={22}
-        color={isActive ? '#6D469B' : '#6B6280'}
+        color={isActive ? '#6D469B' : c.icon}
       />
       <UIText
         size="sm"
-        className={`flex-1 ${isActive ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500'}`}
+        className={`flex-1 ${isActive ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500 dark:text-dark-typo-500'}`}
       >
         {item.label}
       </UIText>
       {isAdminOnly && (
-        <Ionicons name="shield-checkmark-outline" size={14} color="#9A93A8" />
+        <Ionicons name="shield-checkmark-outline" size={14} color={c.iconMuted} />
       )}
     </Pressable>
   );
 }
 
 function SidebarNotificationLink() {
+  const c = useThemeColors();
   const { user } = useAuthStore();
   const { unreadCount } = useUnreadCount(user?.id);
   const pathname = usePathname();
@@ -66,7 +69,7 @@ function SidebarNotificationLink() {
         <Ionicons
           name={isActive ? 'notifications' : 'notifications-outline'}
           size={18}
-          color={isActive ? '#6D469B' : '#6B6280'}
+          color={isActive ? '#6D469B' : c.icon}
         />
         {unreadCount > 0 && (
           <View style={{
@@ -81,7 +84,7 @@ function SidebarNotificationLink() {
           </View>
         )}
       </View>
-      <UIText size="sm" className={isActive ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500'}>
+      <UIText size="sm" className={isActive ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500 dark:text-dark-typo-500'}>
         Notifications
       </UIText>
     </Pressable>
@@ -89,6 +92,7 @@ function SidebarNotificationLink() {
 }
 
 export function Sidebar() {
+  const c = useThemeColors();
   const { user, logout } = useAuthStore();
   const [hasCourses, setHasCourses] = useState(false);
 
@@ -154,8 +158,8 @@ export function Sidebar() {
           onPress={() => router.push('/(app)/(tabs)/profile' as any)}
           className="flex-row items-center gap-2 py-1 web:cursor-pointer hover:opacity-80 active:opacity-70"
         >
-          <Ionicons name="person-circle-outline" size={20} color="#6B7280" />
-          <UIText size="sm" className="text-typo-500 font-poppins-medium flex-1" numberOfLines={1}>
+          <Ionicons name="person-circle-outline" size={20} color={c.icon} />
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium flex-1" numberOfLines={1}>
             {user?.display_name || user?.email}
           </UIText>
         </Pressable>
@@ -163,8 +167,8 @@ export function Sidebar() {
           onPress={logout}
           className="flex-row items-center gap-2 py-2 web:cursor-pointer hover:opacity-80 active:opacity-70"
         >
-          <Ionicons name="log-out-outline" size={18} color="#9A93A8" />
-          <UIText size="sm" className="text-typo-400">Sign Out</UIText>
+          <Ionicons name="log-out-outline" size={18} color={c.iconMuted} />
+          <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">Sign Out</UIText>
         </Pressable>
       </View>
     </View>

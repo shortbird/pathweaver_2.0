@@ -117,7 +117,7 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: Cl
             </View>
           )}
           <VStack className="flex-1">
-            <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
               High School Class
             </UIText>
             <Heading size="sm">{progress?.transcript_subject_display || subject?.name || 'Class'}</Heading>
@@ -138,12 +138,12 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: Cl
               <UIText size="lg" className="font-poppins-bold text-optio-purple">
                 {((progress?.approved_xp ?? 0) - (progress?.credits_earned ?? 0) * (progress?.target_xp ?? 1000))}
               </UIText>
-              <UIText size="sm" className="text-typo-400">
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
                 / {progress?.target_xp ?? 1000} XP toward {progress?.credits_earned ? 'next credit' : 'class credit'}
               </UIText>
             </HStack>
           </HStack>
-          <View className="h-2.5 bg-surface-200 rounded-full overflow-hidden">
+          <View className="h-2.5 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
             <View
               className="h-full bg-optio-purple rounded-full"
               style={{
@@ -157,7 +157,7 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: Cl
             />
           </View>
           {progress?.pending_xp ? (
-            <UIText size="xs" className="text-typo-400">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
               +{progress.pending_xp} XP pending task review
             </UIText>
           ) : null}
