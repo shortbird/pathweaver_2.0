@@ -1,9 +1,10 @@
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
+import { landingRouteForUser } from '@/src/services/landingRoute';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function Index() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -14,7 +15,8 @@ export default function Index() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/(app)/(tabs)/dashboard" />;
+    // Parents land on the Family tab; everyone else on Home/dashboard.
+    return <Redirect href={landingRouteForUser(user) as any} />;
   }
 
   return <Redirect href="/(auth)/login" />;

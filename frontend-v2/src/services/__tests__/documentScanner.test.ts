@@ -35,6 +35,9 @@ describe('scanDocumentToPdf', () => {
     expect(html).toContain('data:image/jpeg;base64,BBB');
     expect(html).toContain('data:image/jpeg;base64,CCC');
     expect((html.match(/class="page"/g) || []).length).toBe(3);
+    // Regression: viewport-height pages overflowed to a blank 2nd page under
+    // expo-print (1 scan -> 2 PDF pages). Page count must equal image count.
+    expect(html).not.toContain('100vh');
 
     expect(res?.uri).toBe('file:///tmp/scan.pdf');
     expect(res?.pageCount).toBe(3);

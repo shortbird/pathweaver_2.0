@@ -61,6 +61,12 @@ export function initSentry(): void {
       enabled: !__DEV__,
       enableAutoSessionTracking: true,
       tracesSampleRate: __DEV__ ? 1.0 : 0.1,
+      // Session Replay: record 10% of all sessions and 100% of sessions that hit
+      // an error. The SDK masks all text/images/vectors by default (privacy-safe);
+      // mobileReplayIntegration keeps that default masking.
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0,
+      integrations: [Sentry.mobileReplayIntegration()],
       // Last-line filter for known-benign transport noise that can still slip
       // through in a release build (e.g. a transient offline blip). Real backend
       // 5xx/regressions are unaffected — they carry a response/status.

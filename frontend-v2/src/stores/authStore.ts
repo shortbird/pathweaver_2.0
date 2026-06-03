@@ -15,6 +15,7 @@ import { supabase } from '../services/supabaseClient';
 import { useActingAsStore } from './actingAsStore';
 import { extractApiError } from '../services/apiError';
 import { setSentryUser } from '../services/sentry';
+import { landingRouteForUser } from '../services/landingRoute';
 
 export interface User {
   id: string;
@@ -242,7 +243,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // stayed on the (authenticated) login screen and the optio:// deep link
       // could re-enter the OAuth callback route, churning the render tree.
       if (useAuthStore.getState().isAuthenticated) {
-        router.replace('/(app)/(tabs)/dashboard');
+        router.replace(landingRouteForUser(useAuthStore.getState().user) as any);
       }
     } catch (err: any) {
       set({ isLoading: false, error: err?.message || 'Google sign-in failed' });
@@ -390,7 +391,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       // Native OAuth: navigate into the app ourselves (no web callback page).
       if (useAuthStore.getState().isAuthenticated) {
-        router.replace('/(app)/(tabs)/dashboard');
+        router.replace(landingRouteForUser(useAuthStore.getState().user) as any);
       }
     } catch (err: unknown) {
       // User-cancelled is not an error to surface.

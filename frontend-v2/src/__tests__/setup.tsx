@@ -196,6 +196,7 @@ jest.mock('@sentry/react-native', () => ({
   captureException: jest.fn(),
   captureMessage: jest.fn(() => 'evt-test'),
   setUser: jest.fn(),
+  mobileReplayIntegration: jest.fn(() => ({ name: 'MobileReplay' })),
 }), { virtual: true });
 
 // ── posthog-react-native ──
