@@ -91,3 +91,49 @@ export function captureMessage(msg: string, extras?: Extras): string | undefined
 export function setSentryUser(user: { id: string; email?: string } | null): void {
   (impl ?? makeNoopShim()).setUser(user);
 }
+
+/**
+ * Report an in-app "shake to report a bug" submission as its OWN Sentry issue.
+ *
+ * Plain captureMessage groups every report under one issue (Sentry fingerprints
+ * by the identical call stack), so 36 reports collapsed into ~3 issues and were
+ * effectively invisible. We give each report a unique fingerprint so it lands as
+ * a distinct issue titled with the user's words, tag it `feature:bug_report` so
+ * the whole inbox is one filter (`is:unresolved feature:bug_report`), and attach
+ * the diagnostics so the issue is actionable without opening the DB. The returned
+ * event id is stored on the bug_reports row, so a Sentry issue cross-links back
+ * to its full record (incl. screenshot) via that id.
+ */
+export function captureBugReport(
+  message: string,
+  meta: {
+    reportId: string;
+    route?: string | null;
+    platform?: string;
+    build?: string | null;
+    appVersion?: string | null;
+    diagnostics?: Extras;
+  },
+): string | undefined {
+  return captureMessage(`[Bug] ${message.slice(0, 120)}`, {
+    level: 'warning',
+    // Unique per submission → one Sentry issue per report (no stack-based merge).
+    fingerprint: ['bug-report', meta.reportId],
+    tags: {
+      feature: 'bug_report',
+      report_route: meta.route ?? 'unknown',
+      report_platform: meta.platform ?? 'unknown',
+      report_build: meta.build ?? 'unknown',
+    },
+    contexts: {
+      bug_report: {
+        report_id: meta.reportId,
+        route: meta.route ?? null,
+        platform: meta.platform ?? null,
+        build: meta.build ?? null,
+        app_version: meta.appVersion ?? null,
+      },
+      diagnostics: meta.diagnostics ?? {},
+    },
+  });
+}

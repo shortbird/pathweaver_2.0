@@ -13,7 +13,7 @@ import { BottomSheet, VStack, HStack, Heading, UIText, Button, ButtonText } from
 import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { bugReportAPI } from '@/src/services/api';
 import { collectDiagnostics } from '@/src/services/diagnostics';
-import { captureMessage, captureException } from '@/src/services/sentry';
+import { captureBugReport, captureException } from '@/src/services/sentry';
 
 export function BugReportSheet() {
   const { visible, screenshotUri, close } = useBugReportStore();
@@ -42,10 +42,24 @@ export function BugReportSheet() {
     setSubmitting(true);
 
     const diagnostics = collectDiagnostics();
-    // Leave a breadcrumbed Sentry event so the manual report cross-links to
-    // the captured app state/breadcrumbs. No-op until Sentry is configured.
-    const sentryEventId = captureMessage(`Bug report: ${trimmed.slice(0, 80)}`, {
+    // Per-submission id → the report lands as its OWN Sentry issue (see
+    // captureBugReport). No crypto dep needed: time + random is unique enough
+    // for a fingerprint. The returned event id is stored on the bug_reports row
+    // so the Sentry issue cross-links back to the full record + screenshot.
+    const reportId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    const sentryEventId = captureBugReport(trimmed, {
+      reportId,
       route: diagnostics.current_route,
+      platform: diagnostics.platform,
+      build: diagnostics.build_number,
+      appVersion: diagnostics.app_version,
+      diagnostics: {
+        recent_api_calls: diagnostics.recent_api_calls,
+        recent_console_errors: diagnostics.recent_console_errors,
+        breadcrumbs: diagnostics.breadcrumbs,
+        device_model: diagnostics.device_model,
+        os_version: diagnostics.os_version,
+      },
     });
 
     const payload = {

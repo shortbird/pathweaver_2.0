@@ -38,6 +38,12 @@ export interface BottomSheetProps {
   children: React.ReactNode;
   /** Tap-outside-to-close. Defaults to true. */
   dismissOnBackdropPress?: boolean;
+  /** Fires once the close animation completes and the underlying Modal has
+   *  unmounted. Use this to open a *second* sheet after this one — on iOS a new
+   *  Modal won't present until the previous is fully gone, which is what caused
+   *  the "tap the drawer action twice" bug. Deterministic replacement for a
+   *  fixed close-delay timeout. */
+  onClosed?: () => void;
 }
 
 export function BottomSheet({
@@ -45,6 +51,7 @@ export function BottomSheet({
   onClose,
   children,
   dismissOnBackdropPress = true,
+  onClosed,
 }: BottomSheetProps) {
   const [mounted, setMounted] = useState(visible);
   const { isLargeScreen } = useBreakpoint();
@@ -59,6 +66,9 @@ export function BottomSheet({
   // keyboard hides (the "buffer below the drawer" bug). Driving paddingBottom
   // off Keyboard events guarantees it returns to exactly 0 on dismiss.
   const keyboardPad = useRef(new Animated.Value(0)).current;
+  // Latest onClosed, read without retriggering the animation effect.
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
 
   useEffect(() => {
     if (visible) {
@@ -105,7 +115,11 @@ export function BottomSheet({
           useNativeDriver: true,
         }),
       ]).start(({ finished }) => {
-        if (finished) setMounted(false);
+        if (finished) {
+          setMounted(false);
+          // Modal is now fully unmounted — safe to present the next sheet.
+          onClosedRef.current?.();
+        }
       });
     }
   }, [visible]);

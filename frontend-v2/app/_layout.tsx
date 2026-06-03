@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 // S4: Suppress React Native Web warnings for native-only props. Match exact,
 // known-benign warning prefixes rather than substrings so genuine errors that
@@ -124,6 +125,10 @@ export default function RootLayout() {
         <Stack.Screen name="terms" />
         <Stack.Screen name="privacy" />
       </Stack>
+      {/* Drive status-bar icon color off the theme so the clock/battery/signal
+          stay legible — without this the system default rendered light icons on
+          the app's white background (invisible) on Android. */}
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <BugReportHost />
       <ToastHost />
     </>

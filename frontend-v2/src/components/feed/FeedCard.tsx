@@ -123,7 +123,7 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
 
       {/* Video - plays inline, tap for full screen */}
       {videoUrl && !imageUrl && (
-        <VideoPlayer uri={videoUrl} />
+        <VideoPlayer uri={videoUrl} isActive={isActive} />
       )}
 
       {/* Voice notes — inline audio player. Wrapped so play taps don't bubble
@@ -185,9 +185,12 @@ interface FeedCardProps {
    *  without having to switch into the kid's account. The backend authorizes
    *  the call against the owner; this is just UI gating. */
   viewerCanModerate?: boolean;
+  /** False when the card is scrolled out of view — pauses inline video so it
+   *  doesn't keep playing off-screen. Defaults to true. */
+  isActive?: boolean;
 }
 
-function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = false }: FeedCardProps) {
+function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = false, isActive = true }: FeedCardProps) {
   const [viewsCount, setViewsCount] = useState(item.views_count || 0);
   const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null }>>([]);
   const [showViewersList, setShowViewersList] = useState(false);
@@ -490,6 +493,9 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
 export const FeedCard = memo(FeedCardImpl, (prev, next) => {
   if (prev.showStudent !== next.showStudent) return false;
   if (prev.onPress !== next.onPress) return false;
+  // isActive flips as the card scrolls in/out of view — must re-render so the
+  // inline video pauses off-screen.
+  if (prev.isActive !== next.isActive) return false;
   const a = prev.item;
   const b = next.item;
   return (

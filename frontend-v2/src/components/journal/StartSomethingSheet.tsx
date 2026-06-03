@@ -10,7 +10,7 @@
  * student picked.
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -45,14 +45,6 @@ interface RowProps {
  * still in its close animation, so we defer the next-sheet open until after
  * the current sheet's BottomSheet close animation (~250ms) has finished.
  */
-const SHEET_CLOSE_MS = 280;
-function chainAfterClose(close: () => void, then: () => void) {
-  return () => {
-    close();
-    setTimeout(then, SHEET_CLOSE_MS);
-  };
-}
-
 function Row({ icon, iconColor, iconBg, title, subtitle, onPress, testID }: RowProps) {
   const c = useThemeColors();
   return (
@@ -82,8 +74,21 @@ export function StartSomethingSheet({
   onStartClass,
 }: StartSomethingSheetProps) {
   const c = useThemeColors();
+  // Run the chosen Modal-opening action only after this sheet has fully
+  // unmounted, so the next sheet presents on the first tap (iOS Modal-over-Modal
+  // race — the "tap twice" bug).
+  const pendingRef = useRef<null | (() => void)>(null);
+  const closeThen = (then: () => void) => () => {
+    pendingRef.current = then;
+    onClose();
+  };
+  const runPending = () => {
+    const fn = pendingRef.current;
+    pendingRef.current = null;
+    fn?.();
+  };
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} onClosed={runPending}>
       <VStack space="sm">
         <HStack className="items-center justify-between">
           <Heading size="lg">Start something new</Heading>
@@ -108,7 +113,7 @@ export function StartSomethingSheet({
             iconBg="#6D469B1A"
             title="Capture a moment"
             subtitle="Snap a photo, record audio, or note what you're working on"
-            onPress={chainAfterClose(onClose, onCaptureMoment)}
+            onPress={closeThen(onCaptureMoment)}
           />
           <Row
             testID="start-something-browse-quests"
@@ -143,7 +148,7 @@ export function StartSomethingSheet({
               iconBg="#DB27771A"
               title="Start a class"
               subtitle="Earn high school credit for a passion project"
-              onPress={chainAfterClose(onClose, onStartClass)}
+              onPress={closeThen(onStartClass)}
             />
           )}
         </VStack>

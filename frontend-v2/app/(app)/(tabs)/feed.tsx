@@ -345,6 +345,17 @@ export default function FeedScreen() {
   const listRef = useRef<FlatList<any>>(null);
   const studentsScrollRef = useRef<ScrollView>(null);
   useScrollToTop(listRef);
+
+  // Track which feed items are on-screen so an inline video pauses when scrolled
+  // past instead of playing audio off-screen. onViewableItemsChanged must keep a
+  // stable identity (FlatList errors otherwise), hence the refs.
+  const [viewableIds, setViewableIds] = useState<Set<string>>(new Set());
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+  const onViewableItemsChanged = useRef(
+    (info: { viewableItems: Array<{ item: { id?: string } }> }) => {
+      setViewableIds(new Set(info.viewableItems.map((v) => v.item?.id).filter(Boolean) as string[]));
+    },
+  ).current;
   useScrollToTop(studentsScrollRef);
 
   // Auto-show on first visit for observers (cross-platform via prefsStore)
@@ -393,10 +404,10 @@ export default function FeedScreen() {
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
       <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
-        <FeedCard item={item} viewerCanModerate={canModerateItem(item)} />
+        <FeedCard item={item} viewerCanModerate={canModerateItem(item)} isActive={viewableIds.has(item.id)} />
       </View>
     ),
-    [isDesktop, canModerateItem],
+    [isDesktop, canModerateItem, viewableIds],
   );
 
   const renderHeader = () => (
@@ -550,6 +561,8 @@ export default function FeedScreen() {
           ItemSeparatorComponent={() => <View className="h-3" />}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
           refreshing={false}
           onRefresh={refetch}
           showsVerticalScrollIndicator={false}

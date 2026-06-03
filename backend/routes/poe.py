@@ -106,6 +106,7 @@ def enroll_in_poe():
     (soft gate) with consent pending. Under-13 self-enrollment is blocked (COPPA).
     Adults (18+) self-consent; no parent required.
     """
+    cohort_slug = ''
     try:
         data = request.json or {}
         cohort_slug = (data.get('poe_cohort') or '').strip()
@@ -214,6 +215,18 @@ def enroll_in_poe():
 
         if not auth_response.user:
             return jsonify({'error': 'Could not create the account. Please try again.'}), 502
+
+        # Supabase does NOT raise for an already-registered email when email
+        # confirmation is on; to prevent enumeration it returns an obfuscated
+        # user with a random id and an empty identities list. Inserting that
+        # fake id into users would violate the auth.users FK, so detect it here
+        # and surface the same "email exists" guidance as the exception path.
+        if not getattr(auth_response.user, 'identities', None):
+            return jsonify({
+                'error': 'email_exists',
+                'message': ('An account with this email already exists. Log in first, '
+                            'then open the POE enrollment link again to join.'),
+            }), 409
 
         user_id = auth_response.user.id
 
@@ -330,5 +343,5 @@ def enroll_in_poe():
         }), 201
 
     except Exception as e:
-        logger.error(f"[POE] enrollment error for cohort '{slug}': {str(e)}")
+        logger.error(f"[POE] enrollment error for cohort '{cohort_slug}': {str(e)}", exc_info=True)
         return jsonify({'error': 'Enrollment failed. Please try again.'}), 500

@@ -11,7 +11,7 @@
  * (Modal stacking issue on iOS — same pattern as the student sheet).
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -58,14 +58,6 @@ function Row({ icon, iconColor, iconBg, title, subtitle, onPress, testID }: RowP
   );
 }
 
-const SHEET_CLOSE_MS = 280;
-function chainAfterClose(close: () => void, then: () => void) {
-  return () => {
-    close();
-    setTimeout(then, SHEET_CLOSE_MS);
-  };
-}
-
 export function ParentStartSomethingSheet({
   visible,
   onClose,
@@ -73,8 +65,21 @@ export function ParentStartSomethingSheet({
   onInviteObserver,
 }: ParentStartSomethingSheetProps) {
   const c = useThemeColors();
+  // Run the chosen action only AFTER this sheet has fully closed/unmounted, so
+  // the next Modal-based sheet presents on the first tap (iOS won't show a
+  // second Modal while the first is dismissing — the "tap twice" bug).
+  const pendingRef = useRef<null | (() => void)>(null);
+  const closeThen = (then: () => void) => () => {
+    pendingRef.current = then;
+    onClose();
+  };
+  const runPending = () => {
+    const fn = pendingRef.current;
+    pendingRef.current = null;
+    fn?.();
+  };
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} onClosed={runPending}>
       <VStack space="sm">
         <HStack className="items-center justify-between">
           <Heading size="lg">What do you want to do?</Heading>
@@ -112,7 +117,7 @@ export function ParentStartSomethingSheet({
             iconBg="#6D469B1A"
             title="Capture a moment"
             subtitle="Log what your kid is doing in real life"
-            onPress={chainAfterClose(onClose, onCaptureMoment)}
+            onPress={closeThen(onCaptureMoment)}
           />
           <Row
             testID="parent-action-invite-observer"
@@ -121,7 +126,7 @@ export function ParentStartSomethingSheet({
             iconBg="#A21CAF1A"
             title="Manage observers"
             subtitle="Share your family link with grandparents, mentors, friends"
-            onPress={chainAfterClose(onClose, onInviteObserver)}
+            onPress={closeThen(onInviteObserver)}
           />
         </VStack>
       </VStack>
