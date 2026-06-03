@@ -460,6 +460,51 @@ export const bugReportAPI = {
   },
 };
 
+/**
+ * Upload a profile picture for a child (dependent or linked student).
+ *
+ * Deliberately uses raw fetch, not axios: on React Native, posting FormData
+ * through axios fails at the transport layer with ERR_NETWORK (the request
+ * never leaves the device) — the same reason bugReportAPI.submit and
+ * signedUpload avoid axios for multipart. We attach the Bearer token manually,
+ * let fetch set the multipart Content-Type/boundary, and refresh-and-retry once
+ * on 401 (this path bypasses the axios 401 interceptor).
+ */
+export async function uploadChildAvatar(
+  childId: string,
+  file: { uri: string; name: string; type: string },
+): Promise<{ avatar_url?: string }> {
+  // Fresh FormData per attempt — RN consumes the multipart body on send, so a
+  // retry needs its own instance.
+  const doFetch = (token: string | null) => {
+    const form = new FormData();
+    form.append('avatar', file as unknown as Blob);
+    return fetch(`${API_URL}/api/parent/child/${childId}/avatar`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form,
+      credentials: Platform.OS === 'web' ? 'include' : 'omit',
+    });
+  };
+
+  let res = await doFetch(tokenStore.getAccessToken());
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) res = await doFetch(refreshed);
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    const err = new Error(`Avatar upload failed (${res.status}) ${detail}`.trim()) as Error & {
+      response?: { status: number; data?: any };
+    };
+    err.response = { status: res.status };
+    try { err.response.data = JSON.parse(detail); } catch { /* non-JSON body */ }
+    throw err;
+  }
+  return res.json().catch(() => ({}));
+}
+
 export const messageAPI = {
   conversations: () => api.get('/api/messages/conversations'),
   messages: (conversationId: string, limit = 50, offset = 0) =>

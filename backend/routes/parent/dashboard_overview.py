@@ -290,6 +290,13 @@ def get_parent_dashboard(user_id, student_id):
             .execute()
         completed_tasks_count = completed_tasks_response.count or 0
 
+        # Learning moments (learning_events) — the "Moments" stat on the hero,
+        # matching the kid profile page.
+        moments_count = supabase.table('learning_events') \
+            .select('id', count='exact') \
+            .eq('user_id', student_id) \
+            .execute().count or 0
+
         return jsonify({
             'student': {
                 'id': student['id'],
@@ -313,6 +320,7 @@ def get_parent_dashboard(user_id, student_id):
                 'active_quests_count': len(active_quests),
                 'completed_quests_count': completed_quests_count,
                 'completed_tasks_count': completed_tasks_count,
+                'moments_count': moments_count,
             },
             'weekly_wins': weekly_wins[:10],  # Limit to 10 most recent
             'recent_completions': recent_completions
