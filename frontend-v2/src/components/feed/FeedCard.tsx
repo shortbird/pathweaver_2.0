@@ -62,7 +62,7 @@ function ExpandableText({ text }: { text: string }) {
   );
 }
 
-function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null }) {
+function EvidenceDisplay({ evidence, media, description, isActive = true }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null; isActive?: boolean }) {
   const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
 
   // Collect all media items (images + videos)
@@ -365,7 +365,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
 
           {/* Evidence */}
           {item.evidence && (
-            <EvidenceDisplay evidence={item.evidence} media={item.media} description={description} />
+            <EvidenceDisplay evidence={item.evidence} media={item.media} description={description} isActive={isActive} />
           )}
 
           {/* Pillar tags */}

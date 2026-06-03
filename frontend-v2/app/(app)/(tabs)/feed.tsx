@@ -352,8 +352,8 @@ export default function FeedScreen() {
   const [viewableIds, setViewableIds] = useState<Set<string>>(new Set());
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
   const onViewableItemsChanged = useRef(
-    (info: { viewableItems: Array<{ item: { id?: string } }> }) => {
-      setViewableIds(new Set(info.viewableItems.map((v) => v.item?.id).filter(Boolean) as string[]));
+    ({ viewableItems }: { viewableItems: Array<{ item: any }> }) => {
+      setViewableIds(new Set(viewableItems.map((v) => v.item?.id).filter(Boolean) as string[]));
     },
   ).current;
   useScrollToTop(studentsScrollRef);

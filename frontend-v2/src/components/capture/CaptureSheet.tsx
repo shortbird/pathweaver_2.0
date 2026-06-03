@@ -69,11 +69,6 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   // Video transcode runs after the picker closes; surface progress so the UI
   // doesn't appear frozen during the (multi-second) compression.
   const [compressPct, setCompressPct] = useState<number | null>(null);
-  // Direct-to-storage upload progress for large media (video). The moment isn't
-  // saved until the upload finishes, so without this the user just sees a
-  // generic "Saving..." for a minute and assumes it hung — the exact complaint
-  // behind the "had to wait for the video to fully upload" bug reports.
-  const [uploadPct, setUploadPct] = useState<number | null>(null);
 
   // Parent flow: fetch children when pickStudents is on. The hook short-circuits
   // gracefully for non-parent users (empty list, no error toast).
@@ -120,7 +115,6 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setSelectedStudentIds([]);
     setRecording(false);
     setCompressPct(null);
-    setUploadPct(null);
   }, []);
 
   const handleClose = () => {
@@ -235,19 +229,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const fallbackExt = (t: MediaItem['type']): string =>
       t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : 'm4a';
 
-    // Surface upload progress for large media (video) so the multi-second/minute
-    // direct-to-storage upload reads as "uploading", not a frozen "Saving...".
-    // Track per-item percent and show the aggregate average.
-    const hasLargeMedia = items.some((it) => it.type === 'video');
-    const itemPct = new Array(items.length).fill(0);
-    if (hasLargeMedia) setUploadPct(0);
-    const reportProgress = (index: number, pct: number) => {
-      itemPct[index] = pct;
-      setUploadPct(Math.round(itemPct.reduce((a, b) => a + b, 0) / itemPct.length));
-    };
-
     const uploadResults = await Promise.all(
-      items.map(async (item, index) => {
+      items.map(async (item) => {
         const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
         const mimeType = mimeForType(item.type);
         try {
@@ -256,7 +239,6 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             initPath,
             finalizePath,
             blockType: item.type,
-            onProgress: hasLargeMedia ? (pct) => reportProgress(index, pct) : undefined,
           });
           return {
             block_type: item.type,
@@ -327,34 +309,37 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     }
 
     setSaving(true);
+    // Snapshot what the background upload needs before reset() clears the sheet.
+    const mediaSnapshot = media;
+    const taskSnapshot = selectedTask;
+    const newTaskSnapshot = pendingNewTask;
+    const studentIdsSnapshot = effectiveStudentIds;
+    const hasMedia = mediaSnapshot.length > 0;
+
     try {
-      if (effectiveStudentIds && effectiveStudentIds.length > 0) {
-        for (const sid of effectiveStudentIds) {
+      // Phase 1 (awaited, fast): create the moment(s) + any task link, and
+      // collect upload jobs. Media upload is deferred to phase 2 so the user
+      // isn't held on the capture screen while a video uploads — the reporter's
+      // ask: "show immediately and continue to upload in the background."
+      const jobs: Array<{ eventId: string; studentId?: string }> = [];
+      if (studentIdsSnapshot && studentIdsSnapshot.length > 0) {
+        for (const sid of studentIdsSnapshot) {
           const eventId = await createMoment(sid);
-          if (eventId && media.length > 0) {
-            await uploadAndAttach(eventId, media, sid);
-          }
+          if (eventId && hasMedia) jobs.push({ eventId, studentId: sid });
         }
       } else {
         const eventId = await createMoment();
-        if (eventId && media.length > 0) {
-          await uploadAndAttach(eventId, media);
-        }
-        if (eventId && selectedTask) {
+        if (eventId && hasMedia) jobs.push({ eventId });
+        if (eventId && taskSnapshot) {
           try {
-            await attachMomentToTask(eventId, selectedTask.task.id);
+            await attachMomentToTask(eventId, taskSnapshot.task.id);
           } catch {
-            // Non-fatal: moment saved, attach failed — surface softly
             toast.info('Moment saved, but couldn\'t attach to the task. You can attach it from the journal.', { title: 'Heads up' });
           }
-        } else if (eventId && pendingNewTask) {
-          // Spin up a new pending task on the chosen quest, pointing back at
-          // this moment via source_moment_id. Backend default pillar / xp
-          // applies; the student can refine title + values from the quest
-          // detail screen.
+        } else if (eventId && newTaskSnapshot) {
           try {
             await api.post(`/api/learning-events/${eventId}/convert-to-task`, {
-              quest_id: pendingNewTask.id,
+              quest_id: newTaskSnapshot.id,
             });
           } catch {
             toast.info('Moment saved, but couldn\'t add it as a new task. You can do that from the journal.', { title: 'Heads up' });
@@ -362,24 +347,42 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         }
       }
 
+      // Moment(s) exist — free the UI immediately and refresh so the moment
+      // appears now (its media fills in when the background upload completes).
       haptic.success();
-      const childCount = effectiveStudentIds?.length ?? 0;
+      const childCount = studentIdsSnapshot?.length ?? 0;
       toast.success(
-        childCount > 1
-          ? `Moment captured for ${childCount} kids`
-          : 'Moment captured',
-        { title: 'Saved to the journal' },
+        hasMedia
+          ? 'Your media is uploading in the background.'
+          : (childCount > 1 ? `Moment captured for ${childCount} kids` : 'Moment captured'),
+        { title: hasMedia ? 'Moment saved' : 'Saved to the journal' },
       );
       reset();
       onClose();
       onCaptured?.();
+
+      // Phase 2 (background, not awaited): upload + attach the media, then
+      // refresh again so it shows. uploadAndAttach surfaces per-file failures.
+      if (jobs.length > 0) {
+        (async () => {
+          try {
+            for (const job of jobs) {
+              await uploadAndAttach(job.eventId, mediaSnapshot, job.studentId);
+            }
+            onCaptured?.();
+          } catch (e) {
+            captureException(e, { stage: 'capture-background-upload' });
+            toast.error('Some media couldn\'t be uploaded. Open the moment to try again.', { title: 'Upload failed' });
+          }
+        })();
+      }
     } catch (err: any) {
+      // Moment creation failed — keep the sheet open so the user can retry.
       haptic.error();
       const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save';
       toast.error(msg, { title: 'Could not save moment' });
     } finally {
       setSaving(false);
-      setUploadPct(null);
     }
   };
 
@@ -584,16 +587,6 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               </HStack>
             )}
 
-            {/* Upload progress — shown while a large file (video) uploads so the
-                wait is communicated instead of a silent "Saving..." */}
-            {uploadPct !== null && (
-              <HStack className="items-center gap-2 px-1">
-                <Ionicons name="cloud-upload-outline" size={16} color={c.icon} />
-                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
-                  Uploading video… {uploadPct}% (keep this screen open)
-                </UIText>
-              </HStack>
-            )}
 
             {/* Voice recorder — appears between previews and the attach button row when active. */}
             {recording && (
@@ -745,9 +738,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               loading={saving}
               className="w-full"
             >
-              <ButtonText>
-                {uploadPct !== null ? `Uploading… ${uploadPct}%` : saving ? 'Saving...' : 'Save Moment'}
-              </ButtonText>
+              <ButtonText>{saving ? 'Saving...' : 'Save Moment'}</ButtonText>
             </Button>
           </VStack>
 
