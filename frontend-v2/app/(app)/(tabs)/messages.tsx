@@ -16,6 +16,7 @@ import {
   useConversations,
   useContacts,
   useGroups,
+  useChildren,
   type Contact,
   type Group,
 } from '@/src/hooks/useMessages';
@@ -38,14 +39,31 @@ export default function MessagesScreen() {
   const isMobile = !isDesktop;
   const c = useThemeColors();
 
+  // Parents get the read-only "view my child's messages" entry point. Superadmins
+  // who are also linked as a parent (e.g. to their own kids) see it too.
+  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role;
+  const isParent = effectiveRole === 'parent';
+  const isSuperadmin = effectiveRole === 'superadmin';
+
   const { conversations, loading: convoLoading, refetch: refetchConversations } = useConversations();
   const { contacts, loading: contactsLoading } = useContacts();
   const { groups, loading: groupsLoading, refetch: refetchGroups } = useGroups();
+  const { children: parentChildren } = useChildren(isParent || isSuperadmin);
 
   const [selected, setSelected] = useState<SelectedConversation | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showChildMessages, setShowChildMessages] = useState(false);
   const setTabBarHidden = useUIStore((s) => s.setTabBarHidden);
+
+  // Always show the entry for parents; for superadmins only when they actually
+  // have linked children (so a non-parent superadmin doesn't get an empty entry).
+  const canViewChildMessages = isParent || (isSuperadmin && parentChildren.length > 0);
+
+  // With exactly one linked child, label the entry point with their name.
+  const onlyChild = canViewChildMessages && parentChildren.length === 1 ? parentChildren[0] : null;
+  const childMessagesLabel = onlyChild
+    ? `${`${onlyChild.first_name || ''} ${onlyChild.last_name || ''}`.trim() || onlyChild.display_name || 'Your child'}'s messages`
+    : undefined;
 
   // Hide tab bar when in a conversation or the child-messages view on mobile
   useEffect(() => {
@@ -55,10 +73,7 @@ export default function MessagesScreen() {
   }, [selected, showChildMessages, isMobile, setTabBarHidden]);
 
   // Check if user can create groups (advisor, org_admin, superadmin)
-  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role;
   const canCreateGroups = ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole || '');
-  // Parents get the read-only "view my child's messages" entry point.
-  const isParent = effectiveRole === 'parent';
 
   const handleGroupCreated = (group: any) => {
     refetchGroups();
@@ -80,7 +95,13 @@ export default function MessagesScreen() {
         return <ChatWindow contact={selected.contact} conversationId={selected.id} onBack={handleBack} />;
       }
       if (selected.type === 'group' && selected.group) {
-        return <GroupChatWindow group={selected.group} onBack={handleBack} />;
+        return (
+          <GroupChatWindow
+            group={selected.group}
+            onBack={handleBack}
+            onDeleted={() => { setSelected(null); refetchGroups(); }}
+          />
+        );
       }
     }
 
@@ -96,7 +117,8 @@ export default function MessagesScreen() {
           onCreateGroup={() => setShowCreateGroup(true)}
           loading={convoLoading || contactsLoading || groupsLoading}
           canCreateGroups={canCreateGroups}
-          onViewChildMessages={isParent ? () => setShowChildMessages(true) : undefined}
+          onViewChildMessages={canViewChildMessages ? () => setShowChildMessages(true) : undefined}
+          childMessagesLabel={childMessagesLabel}
           isMobile
         />
         <CreateGroupModal
@@ -121,7 +143,8 @@ export default function MessagesScreen() {
         onCreateGroup={() => setShowCreateGroup(true)}
         loading={convoLoading || contactsLoading || groupsLoading}
         canCreateGroups={canCreateGroups}
-        onViewChildMessages={isParent ? () => { setSelected(null); setShowChildMessages(true); } : undefined}
+        onViewChildMessages={canViewChildMessages ? () => { setSelected(null); setShowChildMessages(true); } : undefined}
+        childMessagesLabel={childMessagesLabel}
       />
 
       {/* Right: Chat window — capped so it stays readable on ultra-wide screens */}
@@ -132,7 +155,10 @@ export default function MessagesScreen() {
         ) : selected?.type === 'dm' && selected.contact ? (
           <ChatWindow contact={selected.contact} conversationId={selected.id} />
         ) : selected?.type === 'group' && selected.group ? (
-          <GroupChatWindow group={selected.group} />
+          <GroupChatWindow
+            group={selected.group}
+            onDeleted={() => { setSelected(null); refetchGroups(); }}
+          />
         ) : (
           <View className="flex-1 items-center justify-center bg-white dark:bg-dark-surface-100">
             <Ionicons name="chatbubbles-outline" size={64} color={c.border} />

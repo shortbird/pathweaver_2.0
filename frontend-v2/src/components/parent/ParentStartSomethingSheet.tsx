@@ -4,7 +4,6 @@
  *   1. Post a bounty (routes to /bounties/create)
  *   2. Capture a moment (opens CaptureSheet via parent capture flow)
  *   3. Invite an observer (opens InviteObserverSheet)
- *   4. Add a kid (opens AddKidSheet)
  *
  * The parent owns the visibility state of this sheet via the shared store
  * (`useParentStartSomethingStore`). Each row picks an action — the parent
@@ -26,7 +25,6 @@ interface ParentStartSomethingSheetProps {
   onClose: () => void;
   onCaptureMoment: () => void;
   onInviteObserver: () => void;
-  onAddKid: () => void;
 }
 
 interface RowProps {
@@ -73,7 +71,6 @@ export function ParentStartSomethingSheet({
   onClose,
   onCaptureMoment,
   onInviteObserver,
-  onAddKid,
 }: ParentStartSomethingSheetProps) {
   const c = useThemeColors();
   return (
@@ -125,15 +122,6 @@ export function ParentStartSomethingSheet({
             title="Manage observers"
             subtitle="Share your family link with grandparents, mentors, friends"
             onPress={chainAfterClose(onClose, onInviteObserver)}
-          />
-          <Row
-            testID="parent-action-add-kid"
-            icon="person-add-outline"
-            iconColor="#DB2777"
-            iconBg="#DB27771A"
-            title="Add a kid"
-            subtitle="Create a profile for another child"
-            onPress={chainAfterClose(onClose, onAddKid)}
           />
         </VStack>
       </VStack>

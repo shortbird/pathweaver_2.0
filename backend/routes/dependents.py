@@ -850,14 +850,17 @@ def generate_acting_as_token(user_id, dependent_id):
         # get_dependent() will raise NotFoundError or PermissionError if not valid
         dependent = dependent_repo.get_dependent(dependent_id, user_id)
 
-        # Generate acting-as token (parent_id, dependent_id)
+        # Generate acting-as token (+ refresh token so native sessions survive the
+        # 401-refresh cycle without reverting to the parent's own identity).
         acting_as_token = session_manager.generate_acting_as_token(user_id, dependent_id)
+        acting_as_refresh_token = session_manager.generate_acting_as_refresh_token(user_id, dependent_id)
 
         logger.info(f"Parent {user_id} generated acting-as token for dependent {dependent_id}")
 
         return jsonify({
             'success': True,
             'acting_as_token': acting_as_token,
+            'acting_as_refresh_token': acting_as_refresh_token,
             'dependent_id': dependent_id,
             'dependent_display_name': dependent.get('display_name'),
             'message': f"Now acting as {dependent.get('display_name')}"

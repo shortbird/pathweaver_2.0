@@ -510,9 +510,10 @@ def _can_view_child_history(supabase, requester_id, child_id):
 @require_auth
 def get_messageable_children(user_id: str):
     """
-    List the children whose message history the requester may view (parents only;
-    superadmins use the normal contacts list). Used to populate the parent
-    "view my child's messages" picker.
+    List the children whose message history the requester may view. Parents see
+    their linked children; superadmins who are themselves linked as a parent (e.g.
+    to their own kids) see those too. Used to populate the parent "view my child's
+    messages" picker.
     """
     try:
         from database import get_supabase_admin_client
@@ -528,7 +529,10 @@ def get_messageable_children(user_id: str):
 
         role = get_effective_role(requester.data)
         children = []
-        if role == 'parent':
+        # Resolve linked children for parents and superadmins. _get_parent_child_ids
+        # keys off this user's own parent linkage, so a non-parent superadmin simply
+        # gets an empty list.
+        if role in ('parent', 'superadmin'):
             child_ids = _get_parent_child_ids(supabase, user_id)
             if child_ids:
                 res = supabase.table('users').select(

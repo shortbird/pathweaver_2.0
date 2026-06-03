@@ -63,9 +63,14 @@ function Header({ title, subtitle, onBack }: { title: string; subtitle?: string;
 }
 
 export function ChildMessagesView({ onBack, isMobile }: Props) {
-  const c = useThemeColors();
-  const [child, setChild] = useState<Child | null>(null);
+  const { children, loading } = useChildren();
+  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
+
+  // With exactly one linked child, skip the picker and go straight to their
+  // conversations. The "back" button at that level then exits the view.
+  const onlyChild = children.length === 1 ? children[0] : null;
+  const child = selectedChild || onlyChild;
 
   const Container: any = isMobile ? SafeAreaView : View;
   const containerProps: any = isMobile
@@ -91,25 +96,33 @@ export function ChildMessagesView({ onBack, isMobile }: Props) {
       <Container {...containerProps}>
         <ChildConversationList
           child={child}
-          onBack={() => setChild(null)}
+          singleChild={!!onlyChild}
+          onBack={() => (onlyChild ? onBack() : setSelectedChild(null))}
           onSelect={setConversation}
         />
       </Container>
     );
   }
 
-  // ── Level 1: pick a child ──
+  // ── Level 1: pick a child (only when there are 0 or 2+ children) ──
   return (
     <Container {...containerProps}>
       <Header title="My children's messages" subtitle="Read-only" onBack={onBack} />
-      <ChildPicker onSelect={setChild} />
+      <ChildPicker children={children} loading={loading} onSelect={setSelectedChild} />
     </Container>
   );
 }
 
-function ChildPicker({ onSelect }: { onSelect: (child: Child) => void }) {
+function ChildPicker({
+  children,
+  loading,
+  onSelect,
+}: {
+  children: Child[];
+  loading: boolean;
+  onSelect: (child: Child) => void;
+}) {
   const c = useThemeColors();
-  const { children, loading } = useChildren();
 
   if (loading) return <Spinner />;
 
@@ -159,10 +172,12 @@ function ChildPicker({ onSelect }: { onSelect: (child: Child) => void }) {
 
 function ChildConversationList({
   child,
+  singleChild,
   onBack,
   onSelect,
 }: {
   child: Child;
+  singleChild?: boolean;
   onBack: () => void;
   onSelect: (conv: Conversation) => void;
 }) {
@@ -172,7 +187,11 @@ function ChildConversationList({
 
   return (
     <>
-      <Header title={name} subtitle="Read-only conversations" onBack={onBack} />
+      <Header
+        title={singleChild ? `${name}'s messages` : name}
+        subtitle="Read-only conversations"
+        onBack={onBack}
+      />
       {loading ? (
         <Spinner />
       ) : !conversations.length ? (

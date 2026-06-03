@@ -271,7 +271,7 @@ function AvatarMenu() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <Ionicons name="arrow-back" size={18} color="#6D469B" />
                   <UIText size="sm" style={{ color: '#6D469B' }} className="font-poppins-semibold">
-                    Exit demo view
+                    End Masquerade
                   </UIText>
                 </View>
               </Pressable>
@@ -330,6 +330,37 @@ function NotificationBell() {
   );
 }
 
+// Small badge shown next to the page title while an admin is masquerading as
+// another user, so it's always obvious whose account you're viewing.
+function MasqueradeBadge() {
+  const isActive = useActingAsStore((s) => s.isActive);
+  const mode = useActingAsStore((s) => s.mode);
+  const target = useActingAsStore((s) => s.target);
+
+  if (!isActive || mode !== 'masquerade') return null;
+
+  const name = target?.first_name || target?.display_name || 'user';
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+        backgroundColor: '#EF597B',
+      }}
+    >
+      <Ionicons name="eye-outline" size={11} color="#FFFFFF" />
+      <UIText size="xs" style={{ color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold' }}>
+        as {name}
+      </UIText>
+    </View>
+  );
+}
+
 export function PageHeader({ title }: PageHeaderProps) {
   const { isDesktop } = useBreakpoint();
 
@@ -339,7 +370,10 @@ export function PageHeader({ title }: PageHeaderProps) {
   return (
     <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Heading size="2xl">{title}</Heading>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+          <Heading size="2xl">{title}</Heading>
+          <MasqueradeBadge />
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <PreviewRolePill />
           <NotificationBell />

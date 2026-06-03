@@ -14,7 +14,7 @@
  * imports — the export name is unchanged.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, View, TextInput, Alert, Share, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
@@ -72,7 +72,7 @@ function extractInvitationCode(link: string | null): string | null {
 
 export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetProps) {
   const c = useThemeColors();
-  const { children } = useMyChildren();
+  const { children, loading: childrenLoading } = useMyChildren();
 
   // ── Family link state ──
   const [link, setLink] = useState<string | null>(null);
@@ -113,11 +113,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     return null;
   }, [children]);
 
+  // Only show the loading skeleton on the very first fetch; later refreshes
+  // (e.g. reopening the sheet) update the list in place so it doesn't flash.
+  const observersLoadedOnceRef = useRef(false);
   const refreshObservers = useCallback(async () => {
-    setObserversLoading(true);
+    if (!observersLoadedOnceRef.current) setObserversLoading(true);
     try {
       const { data } = await api.get('/api/observers/family-observers');
       setObservers(data?.observers || []);
+      observersLoadedOnceRef.current = true;
     } catch {
       setObservers([]);
     } finally {
@@ -159,10 +163,19 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     }
   }, [children, activeInviteId]);
 
-  // On first open: surface the existing pending invite as the family link;
-  // if none, generate a fresh one. Load observers in parallel.
+  // On open, run the load exactly once — after children finish loading. Without
+  // the ref + childrenLoading guards this effect re-fired on every children /
+  // callback identity change, and each refreshObservers() toggled the loading
+  // skeleton, making the observer list flash in/out and the sheet bounce.
+  const didLoadRef = useRef(false);
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      didLoadRef.current = false; // reset so the next open reloads
+      return;
+    }
+    if (childrenLoading || didLoadRef.current) return;
+    didLoadRef.current = true;
+
     let cancelled = false;
     (async () => {
       const [existingId] = await Promise.all([
@@ -176,7 +189,11 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
       }
     })();
     return () => { cancelled = true; };
-  }, [visible, loadActiveLink, refreshObservers, generateLink]);
+    // loadActiveLink/refreshObservers/generateLink intentionally omitted: the ref
+    // guard makes this a once-per-open load, so their identity churn must not
+    // re-trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, childrenLoading]);
 
   const handleClose = () => {
     setEmailInput('');
@@ -297,6 +314,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
 
   const multiKidFamily = children.length > 1;
 
+  // The active family-link invite is already represented by the "Your family
+  // link" section above. Don't also list it as a deletable pending row --
+  // revoking it there just triggers a regenerate, which looks to the user like
+  // "deleting it added a new pending invitation." Other pending invites (e.g. a
+  // prior link) still show and are genuinely revocable.
+  const visibleObservers = observers.filter(
+    (o) => !(o.status === 'pending' && o.invitation_id === activeInviteId)
+  );
+
   return (
     <BottomSheet visible={visible} onClose={handleClose}>
       <VStack space="md">
@@ -416,15 +442,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                 ? 'Following your family'
                 : `Following ${children[0]?.first_name || children[0]?.display_name?.split(' ')[0] || 'your student'}`}
             </UIText>
-            {observers.length > 0 && (
+            {visibleObservers.length > 0 && (
               <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                {observers.length} observer{observers.length === 1 ? '' : 's'}
+                {visibleObservers.length} observer{visibleObservers.length === 1 ? '' : 's'}
               </UIText>
             )}
           </HStack>
           {observersLoading ? (
             <Skeleton className="h-16 rounded-xl" />
-          ) : observers.length === 0 ? (
+          ) : visibleObservers.length === 0 ? (
             <View style={{ backgroundColor: c.surfaceMuted, borderRadius: 12, padding: 12 }}>
               <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
                 {multiKidFamily
@@ -434,7 +460,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
             </View>
           ) : (
             <VStack space="sm">
-              {observers.map((obs) => {
+              {visibleObservers.map((obs) => {
                 const isPending = obs.status === 'pending';
                 const name = obs.observer_name || obs.observer_email || (isPending ? 'Pending invitation' : 'Observer');
                 const initials = (name?.[0] || '?').toUpperCase();

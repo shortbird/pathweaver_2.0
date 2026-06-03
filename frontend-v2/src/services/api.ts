@@ -460,6 +460,8 @@ export const groupAPI = {
     api.post('/api/groups', data),
   update: (groupId: string, data: { name?: string; description?: string }) =>
     api.put(`/api/groups/${groupId}`, data),
+  delete: (groupId: string) =>
+    api.delete(`/api/groups/${groupId}`),
   addMember: (groupId: string, userId: string) =>
     api.post(`/api/groups/${groupId}/members`, { user_id: userId }),
   removeMember: (groupId: string, userId: string) =>

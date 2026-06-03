@@ -204,12 +204,17 @@ def enroll_children_in_family_quest(user_id, quest_id):
         # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
-        # Verify quest exists and parent owns it
-        quest = supabase.table('quests').select('id, created_by').eq('id', quest_id).single().execute()
+        # Verify quest exists. A parent may enroll their child in:
+        #   - a quest they own (created_by == parent),
+        #   - any public/catalog quest (is_public), or
+        #   - anything, if superadmin.
+        # Private quests owned by other families stay blocked. Per-child access
+        # is still verified below via verify_parent_has_access_to_child().
+        quest = supabase.table('quests').select('id, created_by, is_public').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        if quest.data.get('created_by') != user_id:
+        if quest.data.get('created_by') != user_id and not quest.data.get('is_public'):
             user_check = supabase.table('users').select('role').eq('id', user_id).single().execute()
             if not user_check.data or user_check.data.get('role') != 'superadmin':
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403

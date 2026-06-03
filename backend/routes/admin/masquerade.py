@@ -63,8 +63,10 @@ def start_masquerade(admin_id, target_user_id):
         user_agent = request.headers.get('User-Agent', '')
         reason = request.json.get('reason', '') if request.json else ''
 
-        # Generate masquerade token
+        # Generate masquerade token (+ refresh token so native sessions survive
+        # the 401-refresh cycle without reverting to the admin's own identity).
         masquerade_token = session_manager.generate_masquerade_token(admin_id, target_user_id)
+        masquerade_refresh_token = session_manager.generate_masquerade_refresh_token(admin_id, target_user_id)
 
         # Log masquerade session start
         log_entry = {
@@ -86,6 +88,7 @@ def start_masquerade(admin_id, target_user_id):
         # the admin's access_token cookie in session_manager resolution.
         response = make_response(jsonify({
             'masquerade_token': masquerade_token,
+            'masquerade_refresh_token': masquerade_refresh_token,
             'log_id': log_id,
             'target_user': {
                 'id': target_user_data['id'],

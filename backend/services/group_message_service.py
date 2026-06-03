@@ -387,6 +387,47 @@ class GroupMessageService(BaseService):
             logger.error(f"Error updating group: {str(e)}")
             raise
 
+    def _is_superadmin(self, user_id: str) -> bool:
+        """Check if the user is a platform superadmin."""
+        try:
+            supabase = self._get_client()
+            user = supabase.table('users').select('role').eq('id', user_id).single().execute()
+            return bool(user.data and user.data.get('role') == 'superadmin')
+        except Exception as e:
+            logger.error(f"Error checking superadmin status: {str(e)}")
+            return False
+
+    def delete_group(self, user_id: str, group_id: str) -> bool:
+        """
+        Delete a group (group admin or superadmin only).
+
+        Soft-deletes by setting is_active=False so the group disappears from every
+        member's list (get_user_groups filters on is_active) while preserving the
+        message history. Memberships and messages are left intact.
+
+        Args:
+            user_id: UUID of the requesting user
+            group_id: UUID of the group
+
+        Returns:
+            True if the group was deleted
+        """
+        try:
+            if not (self.is_group_admin(user_id, group_id) or self._is_superadmin(user_id)):
+                raise ValueError("Only group admins can delete the group")
+
+            supabase = self._get_client()
+            result = supabase.table('group_conversations').update({
+                'is_active': False,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('id', group_id).execute()
+
+            return bool(result.data)
+
+        except Exception as e:
+            logger.error(f"Error deleting group: {str(e)}")
+            raise
+
     # ==================== Member Management ====================
 
     def add_member(self, user_id: str, group_id: str, target_user_id: str) -> Dict[str, Any]:

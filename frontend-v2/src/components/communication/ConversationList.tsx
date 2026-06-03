@@ -33,6 +33,8 @@ interface Props {
   isMobile?: boolean;
   /** When provided, shows a "My children's messages" entry point (parents). */
   onViewChildMessages?: () => void;
+  /** Title for the child-messages entry point; defaults to the generic label. */
+  childMessagesLabel?: string;
 }
 
 function formatTime(timestamp: string | null) {
@@ -76,6 +78,7 @@ export function ConversationList({
   canCreateGroups,
   isMobile,
   onViewChildMessages,
+  childMessagesLabel,
 }: Props) {
   const c = useThemeColors();
   const [search, setSearch] = useState('');
@@ -249,7 +252,7 @@ export function ConversationList({
             placeholder="Search conversations..."
             placeholderTextColor={c.textFaint}
             className="flex-1 ml-2 font-poppins text-sm text-typo dark:text-dark-typo"
-            style={{ outline: 'none' } as any}
+            style={{ outline: 'none', padding: 0, textAlignVertical: 'center', includeFontPadding: false } as any}
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
@@ -341,7 +344,7 @@ export function ConversationList({
             </View>
             <View className="flex-1 ml-3">
               <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">
-                My children's messages
+                {childMessagesLabel || "My children's messages"}
               </UIText>
               <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5">
                 View your child's conversations (read-only)

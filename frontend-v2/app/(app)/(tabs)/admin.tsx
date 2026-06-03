@@ -15,10 +15,12 @@ import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useAdminUsers, useAdminQuests, useAdminOrganizations, useOrgDetail, type AdminUser } from '@/src/hooks/useAdmin';
 import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
+import { UserConnectionsTab } from '@/src/components/admin/UserConnectionsTab';
+import { UserChatLogs } from '@/src/components/admin/UserChatLogs';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Input, InputField, InputSlot, InputIcon,
-  Avatar, AvatarFallbackText, AvatarImage,
+  Avatar, AvatarFallbackText, AvatarImage, toast,
 } from '@/src/components/ui';
 
 type AdminTab = 'users' | 'quests' | 'orgs' | 'emails' | 'bulk' | 'docs';
@@ -156,27 +158,89 @@ function UserRowDesktop({ user, onSelect }: { user: AdminUser; onSelect: () => v
 
 // ── User Detail Panel ──
 
-function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPassword, onVerifyEmail, onUpdateRole }: {
+const PROFILE_FIELDS: { key: string; label: string; placeholder?: string; keyboardType?: 'default' | 'email-address' | 'phone-pad' }[] = [
+  { key: 'first_name', label: 'First name' },
+  { key: 'last_name', label: 'Last name' },
+  { key: 'email', label: 'Email', keyboardType: 'email-address' },
+  { key: 'phone_number', label: 'Phone', keyboardType: 'phone-pad' },
+  { key: 'date_of_birth', label: 'Date of birth', placeholder: 'YYYY-MM-DD' },
+  { key: 'address_line1', label: 'Address line 1' },
+  { key: 'address_line2', label: 'Address line 2' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State / Province' },
+  { key: 'postal_code', label: 'Postal code' },
+  { key: 'country', label: 'Country' },
+];
+
+function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPassword, onVerifyEmail, onUpdateRole, onUpdateProfile, getUserDetail }: {
   user: AdminUser;
   onClose: () => void;
   onMasquerade: () => void;
   onDelete: () => void;
-  onResetPassword: (pw: string) => void;
+  onResetPassword: () => Promise<void>;
   onVerifyEmail: () => void;
   onUpdateRole: (role: string, orgRole?: string) => void;
+  onUpdateProfile: (updates: Record<string, any>) => Promise<void>;
+  getUserDetail: (id: string) => Promise<any>;
 }) {
   const c = useThemeColors();
   const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase();
   const effectiveRole = user.role === 'org_managed' ? (user.org_role || 'org_managed') : user.role;
-  const [detailTab, setDetailTab] = useState<'profile' | 'role' | 'actions'>('profile');
-  const [newPassword, setNewPassword] = useState('');
+  const [detailTab, setDetailTab] = useState<'profile' | 'role' | 'connections' | 'chats' | 'actions'>('profile');
+  const [resettingPassword, setResettingPassword] = useState(false);
   const memberSince = user.created_at
     ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '';
 
+  // Editable profile state. Loaded from the detail endpoint (the list row lacks
+  // phone/address/dob); we diff against the loaded snapshot so a Save only sends
+  // fields the admin actually changed.
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [initialForm, setInitialForm] = useState<Record<string, string>>({});
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setProfileLoading(true);
+    getUserDetail(user.id)
+      .then((detail) => {
+        if (!active) return;
+        const next: Record<string, string> = {};
+        for (const { key } of PROFILE_FIELDS) next[key] = detail?.[key] != null ? String(detail[key]) : '';
+        setForm(next);
+        setInitialForm(next);
+      })
+      .catch(() => { if (active) toast.error('Could not load full profile'); })
+      .finally(() => { if (active) setProfileLoading(false); });
+    return () => { active = false; };
+  }, [user.id, getUserDetail]);
+
+  const handleSaveProfile = async () => {
+    const changed: Record<string, any> = {};
+    for (const { key } of PROFILE_FIELDS) {
+      if (form[key] !== initialForm[key]) changed[key] = form[key].trim() === '' ? null : form[key].trim();
+    }
+    if (Object.keys(changed).length === 0) { toast.info('No changes to save'); return; }
+    setSavingProfile(true);
+    try {
+      await onUpdateProfile(changed);
+      setInitialForm({ ...form });
+      toast.success('Profile updated');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to update profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const dirty = PROFILE_FIELDS.some(({ key }) => form[key] !== initialForm[key]);
+
   const detailTabs = [
     { key: 'profile' as const, label: 'Profile' },
     { key: 'role' as const, label: 'Role' },
+    { key: 'connections' as const, label: 'Connect' },
+    { key: 'chats' as const, label: 'Chats' },
     { key: 'actions' as const, label: 'Actions' },
   ];
 
@@ -208,49 +272,61 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
         <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
           {detailTabs.map((t) => (
             <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
-              <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
+              <UIText size="xs" numberOfLines={1} className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
             </Pressable>
           ))}
         </HStack>
 
-        {/* Profile tab */}
+        {/* Profile tab - editable */}
         {detailTab === 'profile' && (
-          <VStack space="sm">
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Name</UIText>
-              <UIText size="sm" className="font-poppins-medium">{user.first_name} {user.last_name}</UIText>
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Email</UIText>
-              <UIText size="sm">{user.email}</UIText>
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Role</UIText>
-              <RoleBadge role={effectiveRole} />
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
-              <UIText size="sm" className="font-poppins-medium text-optio-purple">{(user.total_xp || 0).toLocaleString()}</UIText>
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Dependent</UIText>
-              <UIText size="sm">{user.is_dependent ? 'Yes' : 'No'}</UIText>
-            </HStack>
-            {user.organization_id && (
-              <>
-                <Divider />
-                <HStack className="items-center justify-between py-1">
-                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Organization</UIText>
-                  <UIText size="sm">{user.organization_id.slice(0, 8)}...</UIText>
-                </HStack>
-              </>
-            )}
-          </VStack>
+          profileLoading ? (
+            <VStack space="sm">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 rounded-xl" />)}</VStack>
+          ) : (
+            <VStack space="sm">
+              {/* Read-only stats */}
+              <HStack className="gap-3">
+                <Card variant="filled" size="sm" className="flex-1 items-center py-2">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
+                  <UIText size="sm" className="font-poppins-semibold text-optio-purple">{(user.total_xp || 0).toLocaleString()}</UIText>
+                </Card>
+                <Card variant="filled" size="sm" className="flex-1 items-center py-2">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Role</UIText>
+                  <RoleBadge role={effectiveRole} />
+                </Card>
+                <Card variant="filled" size="sm" className="flex-1 items-center py-2">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Dependent</UIText>
+                  <UIText size="sm" className="font-poppins-medium">{user.is_dependent ? 'Yes' : 'No'}</UIText>
+                </Card>
+              </HStack>
+
+              {/* Editable fields */}
+              {PROFILE_FIELDS.map(({ key, label, placeholder, keyboardType }) => (
+                <VStack key={key} space="xs">
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">{label}</UIText>
+                  <Input size="sm">
+                    <InputField
+                      value={form[key] ?? ''}
+                      onChangeText={(v: string) => setForm((prev) => ({ ...prev, [key]: v }))}
+                      placeholder={placeholder}
+                      keyboardType={keyboardType}
+                      autoCapitalize={key === 'email' ? 'none' : 'sentences'}
+                    />
+                  </Input>
+                </VStack>
+              ))}
+
+              <Button onPress={handleSaveProfile} loading={savingProfile} disabled={!dirty}>
+                <ButtonText>Save Changes</ButtonText>
+              </Button>
+            </VStack>
+          )
         )}
+
+        {/* Connections tab */}
+        {detailTab === 'connections' && <UserConnectionsTab user={user} />}
+
+        {/* Chats tab */}
+        {detailTab === 'chats' && <UserChatLogs user={user} />}
 
         {/* Role tab */}
         {detailTab === 'role' && (
@@ -289,25 +365,29 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
               </VStack>
             </Pressable>
 
-            <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Reset Password</UIText>
-              <HStack className="gap-2">
-                <View className="flex-1">
-                  <Input size="sm">
-                    <InputField
-                      placeholder="New password"
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                      autoComplete="off"
-                      textContentType="none"
-                    />
-                  </Input>
-                </View>
-                <Button size="sm" disabled={!newPassword.trim()} onPress={() => { onResetPassword(newPassword); setNewPassword(''); }}>
-                  <ButtonText>Reset</ButtonText>
-                </Button>
-              </HStack>
-            </VStack>
+            <Pressable
+              disabled={resettingPassword}
+              onPress={async () => {
+                setResettingPassword(true);
+                try {
+                  await onResetPassword();
+                  toast.success("Password reset to “changeme!”");
+                } catch (e: any) {
+                  toast.error(e?.response?.data?.error || 'Failed to reset password');
+                } finally {
+                  setResettingPassword(false);
+                }
+              }}
+              className="flex-row items-center gap-3 px-4 py-3 bg-orange-50 rounded-xl active:bg-orange-100"
+            >
+              <Ionicons name="key-outline" size={20} color="#C2410C" />
+              <VStack>
+                <UIText size="sm" className="font-poppins-medium text-orange-700">
+                  {resettingPassword ? 'Resetting...' : 'Reset Password'}
+                </UIText>
+                <UIText size="xs" className="text-orange-600">Sets password to "changeme!"</UIText>
+              </VStack>
+            </Pressable>
 
             <Divider className="my-2" />
 
@@ -333,6 +413,7 @@ function UsersPanel() {
     users, total, loading, page, setPage, search, setSearch,
     roleFilter, setRoleFilter, perPage, totalPages,
     deleteUser, masquerade, updateUserRole, resetPassword, verifyEmail,
+    updateUser, getUserDetail,
   } = useAdminUsers();
   const { isDesktop } = useBreakpoint();
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
@@ -404,9 +485,11 @@ function UsersPanel() {
                 onClose={() => setSelectedUser(null)}
                 onMasquerade={() => masquerade(selectedUser.id)}
                 onDelete={() => { if (confirm(`Delete ${selectedUser.email}?`)) { deleteUser(selectedUser.id); setSelectedUser(null); } }}
-                onResetPassword={(pw) => resetPassword(selectedUser.id, pw)}
+                onResetPassword={() => resetPassword(selectedUser.id)}
                 onVerifyEmail={() => verifyEmail(selectedUser.id)}
                 onUpdateRole={(role) => updateUserRole(selectedUser.id, role)}
+                onUpdateProfile={(updates) => updateUser(selectedUser.id, updates)}
+                getUserDetail={getUserDetail}
               />
             </View>
           )}
@@ -428,9 +511,11 @@ function UsersPanel() {
                   onClose={() => setSelectedUser(null)}
                   onMasquerade={() => masquerade(u.id)}
                   onDelete={() => { if (confirm(`Delete ${u.email}?`)) { deleteUser(u.id); setSelectedUser(null); } }}
-                  onResetPassword={(pw) => resetPassword(u.id, pw)}
+                  onResetPassword={() => resetPassword(u.id)}
                   onVerifyEmail={() => verifyEmail(u.id)}
                   onUpdateRole={(role) => updateUserRole(u.id, role)}
+                  onUpdateProfile={(updates) => updateUser(u.id, updates)}
+                  getUserDetail={getUserDetail}
                 />
               )}
             </VStack>
@@ -1452,7 +1537,12 @@ export default function AdminScreen() {
   const c = useThemeColors();
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
 
-  if (Platform.OS !== 'web') {
+  const role = user?.role;
+
+  // Superadmin can use the admin tools on any platform (native phone included,
+  // reached via the kebab "Admin" link). Org-managed admins stay desktop-only --
+  // the org workflows lean on the wide table layouts.
+  if (Platform.OS !== 'web' && role !== 'superadmin') {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
         <Ionicons name="desktop-outline" size={40} color={c.iconMuted} />
@@ -1463,7 +1553,6 @@ export default function AdminScreen() {
   }
 
   // Role check
-  const role = user?.role;
   if (role !== 'superadmin' && role !== 'org_managed') {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">

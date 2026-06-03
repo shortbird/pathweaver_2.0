@@ -71,8 +71,9 @@ export function useAdminUsers() {
     return data.user || data;
   };
 
-  const resetPassword = async (userId: string, newPassword: string) => {
-    await api.post(`/api/admin/users/${userId}/reset-password`, { password: newPassword });
+  // Resets the user's password to the backend default ("changeme!").
+  const resetPassword = async (userId: string) => {
+    await api.post(`/api/admin/users/${userId}/reset-password`, {});
   };
 
   const verifyEmail = async (userId: string) => {

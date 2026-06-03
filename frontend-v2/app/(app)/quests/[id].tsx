@@ -13,6 +13,7 @@ import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDetail, PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestDetail';
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
+import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
@@ -622,46 +623,11 @@ export default function QuestDetailScreen() {
               </Card>
             )}
 
-            {/* Quest Progress (enrolled) — hidden for classes, which track progress
-                in the ClassDetailHeader's transcript-credit bar instead. */}
-            {isEnrolled && tasks.length > 0 && quest.quest_type !== 'class' && (
-              <Card variant="elevated" size="md">
-                <VStack space="sm">
-                  <HStack className="items-center justify-between">
-                    <UIText size="sm" className="font-poppins-medium">Progress</UIText>
-                    <UIText size="sm" className="font-poppins-bold text-optio-purple">
-                      {completedCount}/{tasks.length} tasks
-                    </UIText>
-                  </HStack>
-                  {/* Progress bar */}
-                  <View className="h-2.5 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
-                    <View
-                      className="h-full bg-optio-purple rounded-full"
-                      style={{ width: `${tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0}%` }}
-                    />
-                  </View>
-                  <HStack className="items-center justify-between">
-                    <HStack className="items-center gap-1">
-                      <Ionicons name="star" size={14} color="#FF9028" />
-                      <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
-                        {earnedXP} / {totalXP} XP
-                      </UIText>
-                    </HStack>
-                    {/* Pillar breakdown */}
-                    <HStack className="items-center gap-2 flex-wrap">
-                      {Object.entries(pillarXP).map(([pillar, xp]) => (
-                        <HStack key={pillar} className="items-center gap-1">
-                          <View className={`w-2.5 h-2.5 rounded-full ${(pillarColors[pillar] || pillarColors.stem).bar}`} />
-                          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
-                            {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
-                          </UIText>
-                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xp}</UIText>
-                        </HStack>
-                      ))}
-                    </HStack>
-                  </HStack>
-                </VStack>
-              </Card>
+            {/* Engagement mini-calendar (enrolled) — replaces task-completion
+                progress. Hidden for classes, which track XP-toward-credit in the
+                ClassDetailHeader instead. */}
+            {isEnrolled && quest.quest_type !== 'class' && (
+              <QuestEngagement engagement={engagement} />
             )}
 
             {/* Completion Celebration */}

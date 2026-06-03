@@ -322,16 +322,22 @@ export async function markGroupRead(groupId: string) {
   return data.data || data;
 }
 
+/** Delete a group (group admin or superadmin only) */
+export async function deleteGroup(groupId: string) {
+  const { data } = await groupAPI.delete(groupId);
+  return data.data || data;
+}
+
 // ── Parent: read-only view of a child's message history ──
 
 /** Fetch the children whose message history the current parent may view */
-export function useChildren() {
+export function useChildren(enabled: boolean = true) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetch = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !enabled) { setLoading(false); return; }
     try {
       setLoading(true);
       const { data } = await messageAPI.children();
@@ -342,7 +348,7 @@ export function useChildren() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, enabled]);
 
   useEffect(() => { fetch(); }, [fetch]);
 

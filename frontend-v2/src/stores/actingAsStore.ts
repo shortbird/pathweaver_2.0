@@ -122,8 +122,9 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
       const { data } = await api.post(`/api/dependents/${dependent.id}/act-as`, {});
       const actingAsToken = data.acting_as_token;
 
-      // Swap to dependent token
-      await tokenStore.setTokens(actingAsToken, parentRefresh || '');
+      // Use the acting-as refresh token (not the parent's) so a token refresh
+      // re-mints an acting-as token instead of silently reverting to the parent.
+      await tokenStore.setTokens(actingAsToken, data.acting_as_refresh_token || parentRefresh || '');
 
       // Persist state
       saveToStorage(STORAGE_KEY, JSON.stringify({
@@ -199,9 +200,12 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
       if (adminRefresh) saveToStorage(PARENT_REFRESH_KEY, adminRefresh);
 
       const { data } = await api.post(`/api/admin/masquerade/${userId}`, {});
-      const { masquerade_token, target_user } = data;
+      const { masquerade_token, masquerade_refresh_token, target_user } = data;
 
-      await tokenStore.setTokens(masquerade_token, adminRefresh || '');
+      // Use the masquerade refresh token (not the admin's) so a token refresh
+      // re-mints a masquerade token instead of silently reverting to the admin.
+      // Fall back to adminRefresh only if the backend didn't supply one.
+      await tokenStore.setTokens(masquerade_token, masquerade_refresh_token || adminRefresh || '');
 
       const target: ActingAsTarget = {
         id: target_user.id,
@@ -268,26 +272,39 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
 
   restore: async () => {
     const stored = await getFromStorageAsync(STORAGE_KEY);
+    let storedState: { target?: ActingAsTarget; mode?: ActingAsMode } | null = null;
     if (stored) {
       try {
-        const { target, mode } = JSON.parse(stored);
-        if (target && mode) {
-          set({ target, isActive: true, mode });
-          return;
-        }
+        storedState = JSON.parse(stored);
       } catch {
         removeFromStorage(STORAGE_KEY);
       }
     }
 
-    // Fallback: if there's no local state but the access token is a
-    // masquerade token (e.g. after a Metro reload, app restart, or upgrade
-    // path where we hadn't yet persisted state), ask the server.
-    // Tokens may still be on disk only — pull them into memory first or the
+    // Parent->dependent acting-as isn't a server-tracked masquerade (it's a
+    // separate acting-as token), so trust the persisted state as before.
+    if (storedState?.target && storedState?.mode === 'dependent') {
+      set({ target: storedState.target, isActive: true, mode: 'dependent' });
+      return;
+    }
+
+    // For masquerade, the access token is the source of truth -- masquerading
+    // swaps the access token for a masquerade JWT, and the backend derives
+    // is_masquerading purely from the presented token. So a stale optio_acting_as
+    // key (e.g. left by a masquerade that was started/ended on a DIFFERENT device,
+    // or a prior session) must NOT light up the badge here. Confirm with the
+    // server and clear local state if this device isn't actually masquerading.
+    // Tokens may still be on disk only -- pull them into memory first or the
     // interceptor sends the request unauthenticated and we silently bail.
     try {
       await tokenStore.restore();
-      if (!tokenStore.getAccessToken()) return;
+      if (!tokenStore.getAccessToken()) {
+        // Can't validate without a token -- fall back to stored state optimistically.
+        if (storedState?.target && storedState?.mode) {
+          set({ target: storedState.target, isActive: true, mode: storedState.mode });
+        }
+        return;
+      }
       const { data } = await api.get('/api/admin/masquerade/status');
       if (data?.is_masquerading && data.target_user?.id) {
         const target: ActingAsTarget = {
@@ -298,9 +315,17 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
         };
         saveToStorage(STORAGE_KEY, JSON.stringify({ target, mode: 'masquerade' }));
         set({ target, isActive: true, mode: 'masquerade' });
+      } else {
+        // Server confirms this token isn't masquerading -- drop any stale local
+        // state so the badge doesn't appear on a non-masquerading device.
+        removeFromStorage(STORAGE_KEY);
+        set({ target: null, isActive: false, mode: null });
       }
     } catch {
-      /* unauthenticated or endpoint down — leave inactive */
+      // Network/endpoint error -- don't wipe state we couldn't verify; trust stored.
+      if (storedState?.target && storedState?.mode) {
+        set({ target: storedState.target, isActive: true, mode: storedState.mode });
+      }
     }
   },
 
