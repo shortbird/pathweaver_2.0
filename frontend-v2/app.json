@@ -144,6 +144,7 @@
       "expo-video",
       "expo-image",
       "expo-apple-authentication",
+      "./plugins/withGradleVersion",
       [
         "react-native-document-scanner-plugin",
         {

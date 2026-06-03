@@ -11,8 +11,6 @@
  */
 
 import { Platform } from 'react-native';
-import * as Print from 'expo-print';
-import DocumentScanner, { ResponseType, ScanDocumentResponseStatus } from 'react-native-document-scanner-plugin';
 
 export interface ScannedDocument {
   /** Local file URI of the generated PDF. */
@@ -52,12 +50,34 @@ export async function scanDocumentToPdf(): Promise<ScannedDocument | null> {
     throw new Error('Document scanning is only available in the mobile app.');
   }
 
+  // Lazy-require the native modules: importing them at module load would crash
+  // the whole capture sheet on a build that predates them ("Cannot find native
+  // module 'ExpoPrint'"). This way only the Scan action fails — gracefully,
+  // caught by the caller — until the app is rebuilt/updated.
+  let DocumentScanner: any;
+  let ResponseType: any;
+  let ScanDocumentResponseStatus: any;
+  let Print: any;
+  try {
+    const scanner = require('react-native-document-scanner-plugin');
+    DocumentScanner = scanner.default ?? scanner;
+    ResponseType = scanner.ResponseType;
+    ScanDocumentResponseStatus = scanner.ScanDocumentResponseStatus;
+    Print = require('expo-print');
+  } catch {
+    throw new Error('Document scanning needs the latest app version. Please update the app.');
+  }
+  if (!DocumentScanner?.scanDocument || !Print?.printToFileAsync) {
+    throw new Error('Document scanning needs the latest app version. Please update the app.');
+  }
+
   const { scannedImages, status } = await DocumentScanner.scanDocument({
-    responseType: ResponseType.Base64,
+    responseType: ResponseType?.Base64 ?? 'base64',
     croppedImageQuality: 90,
   });
 
-  if (status === ScanDocumentResponseStatus.Cancel || !scannedImages || scannedImages.length === 0) {
+  const cancelStatus = ScanDocumentResponseStatus?.Cancel ?? 'cancel';
+  if (status === cancelStatus || !scannedImages || scannedImages.length === 0) {
     return null;
   }
 
