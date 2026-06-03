@@ -29,14 +29,20 @@ function buildPdfHtml(base64Images: string[]): string {
       return `<div class="page"><img src="${src}" /></div>`;
     })
     .join('');
+  // One scanned image == exactly one PDF page. We deliberately avoid `height:
+  // 100vh` here: under expo-print's paged media a viewport-height block is
+  // slightly taller than the printable area, so each page overflowed onto a
+  // blank second page — turning a 1-page scan into a 2-page PDF (bug report:
+  // "1 page per scan… make sure it doesnt turn 1 scan into two pages"). Letting
+  // the image size itself (`width:100%; height:auto`) with a page break after
+  // each keeps it to one physical page per scan.
   return `<!DOCTYPE html><html><head><meta charset="utf-8" />
     <style>
       @page { margin: 0; }
       html, body { margin: 0; padding: 0; }
-      .page { page-break-after: always; width: 100%; height: 100vh;
-              display: flex; align-items: center; justify-content: center; }
+      .page { page-break-after: always; }
       .page:last-child { page-break-after: auto; }
-      img { max-width: 100%; max-height: 100%; object-fit: contain; }
+      img { display: block; width: 100%; height: auto; }
     </style></head><body>${pages}</body></html>`;
 }
 

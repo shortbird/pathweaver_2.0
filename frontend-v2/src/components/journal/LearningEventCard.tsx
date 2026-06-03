@@ -18,6 +18,7 @@ import { VideoPlayer } from '../feed/VideoPlayer';
 import { DocumentViewer } from '../feed/DocumentViewer';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
+import { displayImageUrl } from '@/src/services/imageUrl';
 
 const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   text: 'document-text-outline',
@@ -205,7 +206,10 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
         {imageBlock && getBlockUrl(imageBlock) ? (
           <View className="-mx-3 -mt-3 mb-3">
             <ExpoImage
-              source={{ uri: getBlockUrl(imageBlock) }}
+              // displayImageUrl rewrites HEIC/HEIF (iPhone photos) to Supabase's
+              // transcoding endpoint; without it those uploads render blank
+              // ("pictures not showing of uploaded images").
+              source={{ uri: displayImageUrl(getBlockUrl(imageBlock)) ?? undefined }}
               className="w-full h-40 rounded-t-xl"
               style={{ width: '100%', height: 160 }}
               contentFit="cover"

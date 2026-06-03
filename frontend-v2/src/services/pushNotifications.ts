@@ -186,3 +186,24 @@ export function addNotificationResponseListener(
 
   return () => subscription.remove();
 }
+
+/**
+ * Link for the notification that COLD-STARTED the app (tapped while the app was
+ * killed). `addNotificationResponseReceivedListener` never fires for this case,
+ * so without checking the last response here, tapping a notification from a
+ * killed app would launch the app with no navigation — the "tapped a
+ * notification and nothing happened / it made me log back in" bug report.
+ *
+ * Returns null if the app wasn't opened from a notification.
+ */
+export async function getInitialNotificationLink(): Promise<string | null> {
+  if (Platform.OS === 'web' || !Notifications) return null;
+  try {
+    const response = await Notifications.getLastNotificationResponseAsync();
+    if (!response) return null;
+    const data = response.notification.request.content.data;
+    return (data?.url || data?.link || null) as string | null;
+  } catch {
+    return null;
+  }
+}

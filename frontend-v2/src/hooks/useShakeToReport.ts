@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { Accelerometer } from 'expo-sensors';
 
 // Magnitude in g's. At rest magnitude ≈ 1 (gravity); a deliberate shake spikes
@@ -37,20 +37,49 @@ export function isShake(
 
 export function useShakeToReport(onShake: () => void, enabled: boolean = true): void {
   const lastTriggerAt = useRef(0);
+  // Keep the latest callback in a ref so the effect (and the live accelerometer
+  // subscription) doesn't tear down/rebuild every time `onShake`'s identity
+  // changes — only `enabled` should drive (re)subscription.
+  const onShakeRef = useRef(onShake);
+  onShakeRef.current = onShake;
 
   useEffect(() => {
     // Accelerometer isn't meaningful on web; skip to avoid noisy permission paths.
     if (!enabled || Platform.OS === 'web') return;
 
-    Accelerometer.setUpdateInterval(UPDATE_INTERVAL_MS);
-    const sub = Accelerometer.addListener((sample) => {
-      const now = Date.now();
-      if (isShake(sample, now, lastTriggerAt.current)) {
-        lastTriggerAt.current = now;
-        onShake();
-      }
+    let sub: { remove: () => void } | null = null;
+
+    const subscribe = () => {
+      if (sub) return;
+      Accelerometer.setUpdateInterval(UPDATE_INTERVAL_MS);
+      sub = Accelerometer.addListener((sample) => {
+        const now = Date.now();
+        if (isShake(sample, now, lastTriggerAt.current)) {
+          lastTriggerAt.current = now;
+          onShakeRef.current();
+        }
+      });
+    };
+
+    const unsubscribe = () => {
+      sub?.remove();
+      sub = null;
+    };
+
+    subscribe();
+
+    // Re-arm on foreground. The accelerometer stream can stop delivering samples
+    // after the app is backgrounded, leaving shake-to-report dead until the app
+    // is killed and reopened (bug report). Drop the listener on background and
+    // re-add it when the app becomes active again.
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') subscribe();
+      else unsubscribe();
     });
 
-    return () => sub && sub.remove();
-  }, [enabled, onShake]);
+    return () => {
+      unsubscribe();
+      appStateSub.remove();
+    };
+  }, [enabled]);
 }

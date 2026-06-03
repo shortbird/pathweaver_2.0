@@ -54,7 +54,40 @@ describe('resolveDeepLink', () => {
     expect(resolved?.params?.label).toBe('Quest invitations');
   });
 
-  it('passes unknown paths through under (app) group', () => {
-    expect(resolveDeepLink('/some/new/route')?.target).toBe('/(app)/some/new/route');
+  it('falls back to the notifications list for unknown paths (never a dead route)', () => {
+    expect(resolveDeepLink('/some/new/route')?.target).toBe('/(app)/notifications');
+    expect(resolveDeepLink('/messages/conversation-123')?.target).toBe('/(app)/notifications');
+  });
+
+  it('strips query strings before matching tab routes', () => {
+    expect(resolveDeepLink('/bounties?tab=active')?.target).toBe('/(app)/(tabs)/bounties');
+    expect(resolveDeepLink('/bounties?tab=my-bounties')?.target).toBe('/(app)/(tabs)/bounties');
+  });
+
+  it('maps the web communication route to the messages tab', () => {
+    expect(resolveDeepLink('/communication?user=u1')?.target).toBe('/(app)/(tabs)/messages');
+    expect(resolveDeepLink('/communication?group=g1')?.target).toBe('/(app)/(tabs)/messages');
+  });
+
+  it('routes /credit-dashboard to view-on-web', () => {
+    expect(resolveDeepLink('/credit-dashboard')?.target).toBe('/(app)/view-on-web');
+  });
+
+  it('passes already-qualified mobile routes through verbatim', () => {
+    expect(resolveDeepLink('/(app)/(tabs)/family?student=s1')?.target).toBe(
+      '/(app)/(tabs)/family?student=s1',
+    );
+  });
+
+  it('resolves parent journal deep links', () => {
+    expect(resolveDeepLink('/parent/journal/student-1')?.target).toBe(
+      '/(app)/parent/journal/student-1',
+    );
+  });
+
+  it('keeps the query string in the view-on-web path param', () => {
+    const resolved = resolveDeepLink('/quests/q1?task=t1');
+    expect(resolved?.target).toBe('/(app)/view-on-web');
+    expect(resolved?.params?.path).toBe('/quests/q1?task=t1');
   });
 });
