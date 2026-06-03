@@ -167,6 +167,29 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * Decide whether a failed token refresh should tear down the session.
+ *
+ * Only a *genuine* auth failure should log the user out:
+ *   - the backend rejected /api/auth/refresh with 401/403 (refresh token
+ *     invalid/expired), or
+ *   - there was no refresh token to send at all (native session is gone).
+ *
+ * Everything else is recoverable and must NOT clear tokens: a network error
+ * (no response), a timeout, or a 5xx (e.g. a Render cold start). Without this
+ * guard a single 401 on a non-critical screen — tapping the notifications bell —
+ * paired with a transient refresh hiccup would clear the tokens and bounce a
+ * perfectly valid session to login. Leave the tokens in place so the next
+ * request can recover.
+ */
+function isUnrecoverableAuthFailure(error: unknown): boolean {
+  if (error instanceof Error && error.message === 'No refresh token') {
+    return true;
+  }
+  const status = (error as AxiosError)?.response?.status;
+  return status === 401 || status === 403;
+}
+
 // Response interceptor: auto-refresh on 401
 api.interceptors.response.use(
   (response) => response,
@@ -224,7 +247,13 @@ api.interceptors.response.use(
       return api(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
-      await tokenStore.clearTokens();
+      // Tear down the session only when the refresh genuinely failed because the
+      // credentials are invalid/expired — never on a transient/recoverable error.
+      // This is what stops a flaky 401 (e.g. from the notifications screen) from
+      // logging the user out.
+      if (isUnrecoverableAuthFailure(refreshError)) {
+        await tokenStore.clearTokens();
+      }
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
