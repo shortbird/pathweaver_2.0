@@ -32,6 +32,19 @@ jest.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
 }));
 
+// ── expo-print (document scan → PDF assembly) ──
+jest.mock('expo-print', () => ({
+  printToFileAsync: jest.fn().mockResolvedValue({ uri: 'file:///tmp/scan.pdf' }),
+}));
+
+// ── react-native-document-scanner-plugin (OS document scanner) ──
+jest.mock('react-native-document-scanner-plugin', () => ({
+  __esModule: true,
+  default: { scanDocument: jest.fn().mockResolvedValue({ scannedImages: [], status: 'cancel' }) },
+  ResponseType: { Base64: 'base64', ImageFilePath: 'imageFilePath' },
+  ScanDocumentResponseStatus: { Success: 'success', Cancel: 'cancel' },
+}), { virtual: true });
+
 // ── react-native-compressor (native video compression) ──
 // No-op in tests: hand back the original uri so the upload path is unchanged.
 jest.mock('react-native-compressor', () => ({

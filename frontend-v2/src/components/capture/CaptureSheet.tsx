@@ -15,6 +15,7 @@ import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
 import { captureException } from '@/src/services/sentry';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
+import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -37,11 +38,13 @@ const MAX_AUDIO_SIZE = 25 * 1024 * 1024;  // 25MB (matches backend MAX_AUDIO_SIZ
 
 interface MediaItem {
   uri: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image' | 'video' | 'audio' | 'document';
   name: string;
   fileSize?: number;
   /** Audio only: duration in ms, for the playback chip. */
   durationMs?: number;
+  /** Document only: scanned page count, for the preview label. */
+  pageCount?: number;
 }
 
 interface CaptureSheetProps {
@@ -212,6 +215,23 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     }
   };
 
+  // Scan pages with the OS document scanner (auto edge-detect, de-skew,
+  // brighten/de-shadow) and attach as a single multi-page PDF.
+  const scanDocument = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Scan documents', 'Document scanning works in the mobile app — try it on iOS or Android.');
+      return;
+    }
+    try {
+      const doc = await scanDocumentToPdf();
+      if (!doc) return; // user cancelled / no pages
+      // size is backfilled by signedUpload's native pre-flight if omitted.
+      setMedia((prev) => [...prev, { uri: doc.uri, type: 'document', name: doc.name, pageCount: doc.pageCount }]);
+    } catch (err: any) {
+      Alert.alert('Scan unavailable', err?.message || 'Could not start the document scanner. Make sure the app has camera access.');
+    }
+  };
+
   const uploadAndAttach = async (eventId: string, items: MediaItem[], studentId?: string) => {
     // Upload each item direct-to-Supabase via signed-upload, then save as
     // evidence blocks on the event. Uploads in parallel.
@@ -225,10 +245,11 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const mimeForType = (t: MediaItem['type']): string => {
       if (t === 'video') return 'video/mp4';
       if (t === 'audio') return 'audio/m4a';
+      if (t === 'document') return 'application/pdf';
       return 'image/jpeg';
     };
     const fallbackExt = (t: MediaItem['type']): string =>
-      t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : 'm4a';
+      t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : t === 'document' ? 'pdf' : 'm4a';
 
     // Publish upload progress (video only — images/audio are quick) so the
     // optimistically-shown moment card can display "Uploading video… N%"
@@ -568,6 +589,19 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                             style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: c.surfaceMuted }}
                             resizeMode="cover"
                           />
+                        ) : item.type === 'document' ? (
+                          <View
+                            style={{
+                              width: 96, height: 96, borderRadius: 12,
+                              backgroundColor: '#6D469B',
+                              alignItems: 'center', justifyContent: 'center', padding: 6,
+                            }}
+                          >
+                            <Ionicons name="document-text" size={32} color="#FFFFFF" />
+                            <UIText size="xs" className="text-white font-poppins-medium mt-1">
+                              PDF{item.pageCount ? ` · ${item.pageCount}p` : ''}
+                            </UIText>
+                          </View>
                         ) : (
                           <View
                             style={{
@@ -673,6 +707,14 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               >
                 <Ionicons name="images-outline" size={26} color="#6D469B" />
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
+              </Pressable>
+              <Pressable
+                onPress={scanDocument}
+                className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
+                style={{ minHeight: 44 }}
+              >
+                <Ionicons name="scan-outline" size={26} color="#6D469B" />
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Scan</UIText>
               </Pressable>
             </HStack>
 

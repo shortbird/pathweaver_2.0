@@ -145,6 +145,12 @@
       "expo-image",
       "expo-apple-authentication",
       [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Optio uses the camera so you can scan documents into your learning journal."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#6D469B"
