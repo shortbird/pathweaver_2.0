@@ -23,7 +23,7 @@ import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/useJournal';
 import {
   updateLearningEvent, getAiSuggestions, assignMomentToTopic,
-  updateChildLearningEvent, assignChildMomentToTopic,
+  updateChildLearningEvent, assignChildMomentToTopic, createTopic,
 } from '@/src/hooks/useJournal';
 
 interface EditMomentModalProps {
@@ -162,6 +162,12 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggested, setAiSuggested] = useState(false);
   const [showTopicPicker, setShowTopicPicker] = useState(false);
+  // Inline "create new topic" inside the picker.
+  const [showCreateTopic, setShowCreateTopic] = useState(false);
+  const [newTopicName, setNewTopicName] = useState('');
+  const [creatingTopic, setCreatingTopic] = useState(false);
+  // Topics created from within this modal, merged into the list + selectable now.
+  const [extraTopics, setExtraTopics] = useState<UnifiedTopic[]>([]);
   const dateInputRef = useRef<any>(null);
   const c = useThemeColors();
 
@@ -176,6 +182,9 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       setSelectedTopicId(trackTopic?.id || event.track_id || null);
       setAiSuggested(false);
       setShowTopicPicker(false);
+      setShowCreateTopic(false);
+      setNewTopicName('');
+      setExtraTopics([]);
     }
   }, [event, visible]);
 
@@ -255,9 +264,33 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
     }
   };
 
+  const handleCreateTopic = async () => {
+    const name = newTopicName.trim();
+    if (!name || creatingTopic) return;
+    setCreatingTopic(true);
+    try {
+      const track = await createTopic(name, { childId });
+      const topic: UnifiedTopic = {
+        id: track.id, name: track.name, color: track.color, type: 'topic',
+      } as UnifiedTopic;
+      setExtraTopics((prev) => [...prev, topic]);
+      setSelectedTopicId(track.id);
+      setNewTopicName('');
+      setShowCreateTopic(false);
+      setShowTopicPicker(false);
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.error || 'Failed to create topic');
+    } finally {
+      setCreatingTopic(false);
+    }
+  };
+
   if (!event) return null;
 
-  const availableTracks = topics.filter((t) => t.type === 'topic' || t.type === 'track');
+  const availableTracks = [
+    ...topics.filter((t) => t.type === 'topic' || t.type === 'track'),
+    ...extraTopics,
+  ];
   const selectedTopicName = availableTracks.find((t) => t.id === selectedTopicId)?.name;
 
   const content = (
@@ -494,10 +527,40 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
                   </Pressable>
                 ))}
 
-                {availableTracks.length === 0 && (
-                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 px-3 py-2">
-                    No topics yet. Create one from the journal sidebar.
-                  </UIText>
+                {/* Create a new topic inline (no need to leave the modal). */}
+                {showCreateTopic ? (
+                  <HStack className="items-center gap-2 px-1 py-1">
+                    <TextInput
+                      value={newTopicName}
+                      onChangeText={setNewTopicName}
+                      placeholder="New topic name"
+                      placeholderTextColor={c.textFaint}
+                      autoFocus
+                      onSubmitEditing={handleCreateTopic}
+                      returnKeyType="done"
+                      editable={!creatingTopic}
+                      className="flex-1 bg-surface-50 dark:bg-dark-surface-50 rounded-lg px-3 py-2 text-sm text-typo dark:text-dark-typo"
+                      style={{ fontFamily: 'Poppins_400Regular' }}
+                    />
+                    <Pressable
+                      onPress={handleCreateTopic}
+                      disabled={!newTopicName.trim() || creatingTopic}
+                      className="px-3 py-2 rounded-lg bg-optio-purple"
+                      style={{ opacity: !newTopicName.trim() || creatingTopic ? 0.5 : 1 }}
+                    >
+                      {creatingTopic
+                        ? <ActivityIndicator size="small" color="#FFFFFF" />
+                        : <UIText size="sm" className="text-white font-poppins-medium">Add</UIText>}
+                    </Pressable>
+                  </HStack>
+                ) : (
+                  <Pressable
+                    onPress={() => setShowCreateTopic(true)}
+                    className="flex-row items-center gap-2 px-3 py-2 rounded-lg"
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color="#6D469B" />
+                    <UIText size="sm" className="text-optio-purple font-poppins-medium">Create new topic</UIText>
+                  </Pressable>
                 )}
               </VStack>
             </Card>

@@ -471,7 +471,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
 
           {/* Main content */}
           <View className="flex-1">
-            <ContentPanel />
+            {ContentPanel()}
           </View>
         </View>
         <CaptureModal
@@ -638,7 +638,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           </ScrollView>
         </VStack>
       ) : (
-        <ContentPanel />
+        ContentPanel()
       )}
       <CaptureSheet
         visible={captureVisible}

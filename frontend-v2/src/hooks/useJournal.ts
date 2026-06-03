@@ -239,6 +239,21 @@ export async function assignMomentToTopic(momentId: string, topicType: string, t
   return data;
 }
 
+/**
+ * Create a topic (track) — for the current user, or for a child when `childId`
+ * is set (parent flow). Returns the new topic row ({ id, name, color, icon }).
+ */
+export async function createTopic(
+  name: string,
+  opts?: { childId?: string; color?: string; icon?: string },
+): Promise<{ id: string; name: string; color?: string; icon?: string }> {
+  const body = { name: name.trim(), color: opts?.color || '#6D469B', icon: opts?.icon || 'folder' };
+  const { data } = opts?.childId
+    ? await api.post(`/api/parent/children/${opts.childId}/topics`, body)
+    : await api.post('/api/interest-tracks', body);
+  return data.track;
+}
+
 // ── Parent-scoped mutations ──
 // A parent edits/deletes a moment on their CHILD's account. The backend
 // (routes/parent/learning_moments.py) only permits this for moments the parent

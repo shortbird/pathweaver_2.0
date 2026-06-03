@@ -14,6 +14,7 @@ import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
 import { captureException } from '@/src/services/sentry';
+import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -229,8 +230,20 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const fallbackExt = (t: MediaItem['type']): string =>
       t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : 'm4a';
 
+    // Publish upload progress (video only — images/audio are quick) so the
+    // optimistically-shown moment card can display "Uploading video… N%"
+    // instead of looking like it failed.
+    const hasVideo = items.some((it) => it.type === 'video');
+    const uploadStore = useMediaUploadStore.getState();
+    if (hasVideo) uploadStore.start(eventId);
+    const itemPct = new Array(items.length).fill(0);
+    const reportProgress = (index: number, pct: number) => {
+      itemPct[index] = pct;
+      uploadStore.setProgress(eventId, Math.round(itemPct.reduce((a, b) => a + b, 0) / itemPct.length));
+    };
+
     const uploadResults = await Promise.all(
-      items.map(async (item) => {
+      items.map(async (item, index) => {
         const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
         const mimeType = mimeForType(item.type);
         try {
@@ -239,6 +252,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             initPath,
             finalizePath,
             blockType: item.type,
+            onProgress: hasVideo ? (pct) => reportProgress(index, pct) : undefined,
           });
           return {
             block_type: item.type,
@@ -283,6 +297,10 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         : `/api/learning-events/${eventId}/evidence`;
       await api.post(evidencePath, { blocks });
     }
+
+    // Clear the progress indicator — the real media block is attached now (or
+    // the upload failed and the toast above explained it).
+    if (hasVideo) uploadStore.finish(eventId);
   };
 
   const createMoment = async (studentId?: string) => {
@@ -367,7 +385,13 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         (async () => {
           try {
             for (const job of jobs) {
-              await uploadAndAttach(job.eventId, mediaSnapshot, job.studentId);
+              try {
+                await uploadAndAttach(job.eventId, mediaSnapshot, job.studentId);
+              } finally {
+                // Always clear the progress indicator, even if the upload threw,
+                // so a card can't get stuck showing "Uploading…".
+                useMediaUploadStore.getState().finish(job.eventId);
+              }
             }
             onCaptured?.();
           } catch (e) {

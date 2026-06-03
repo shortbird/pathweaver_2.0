@@ -15,6 +15,7 @@ import api from '@/src/services/api';
 import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
 import { AudioClipPreview } from '../capture/VoiceRecorder';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 
 const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   text: 'document-text-outline',
@@ -44,6 +45,8 @@ interface LearningEventCardProps {
 function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned, childId, readOnly }: LearningEventCardProps) {
   const c = useThemeColors();
   const [showActions, setShowActions] = useState(false);
+  // Background video upload progress for this moment (if one is in flight).
+  const uploadingPct = useMediaUploadStore((s) => s.uploads[event.id]);
   const [deleting, setDeleting] = useState(false);
   const [showTopicMenu, setShowTopicMenu] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -216,6 +219,17 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                 <Ionicons name="play-circle" size={40} color="#6D469B" />
               </View>
             )}
+          </View>
+        ) : uploadingPct !== undefined ? (
+          // Video still uploading in the background — show progress so it doesn't
+          // look like the attachment failed.
+          <View className="-mx-3 -mt-3 mb-3">
+            <View className="w-full h-40 bg-surface-100 dark:bg-dark-surface-200 rounded-t-xl items-center justify-center">
+              <Ionicons name="cloud-upload-outline" size={28} color="#6D469B" />
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2 font-poppins-medium">
+                Uploading video… {uploadingPct}%
+              </UIText>
+            </View>
           </View>
         ) : null}
 
