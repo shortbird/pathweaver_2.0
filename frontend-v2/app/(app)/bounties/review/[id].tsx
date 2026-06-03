@@ -43,7 +43,11 @@ function EvidenceItem({ item }: { item: any }) {
   }
 
   if (item.type === 'image') {
-    const items = item.content?.items || [];
+    // Fall back to a single content.url so a screenshot stored without an
+    // `items` array still renders (the "screenshot doesn't show here" report).
+    const items = item.content?.items?.length
+      ? item.content.items
+      : (item.content?.url ? [{ url: item.content.url }] : []);
     if (items.length === 0) return null;
     return (
       <>

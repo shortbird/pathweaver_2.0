@@ -152,7 +152,17 @@ export function useUnassignedMoments(studentId?: string) {
 
   useEffect(() => { fetchMoments(); }, [fetchMoments]);
 
-  return { moments, loading, refetch: fetchMoments };
+  // Optimistically drop a moment from the list (and cache) so a delete feels
+  // instant instead of triggering a full reload of the journal.
+  const removeMoment = useCallback((id: string) => {
+    setMoments((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      if (useCache) _unassignedCache = next;
+      return next;
+    });
+  }, [useCache]);
+
+  return { moments, loading, refetch: fetchMoments, removeMoment };
 }
 
 export function clearUnassignedMomentsCache() {
@@ -190,7 +200,11 @@ export function useTrackMoments(trackId: string | null, studentId?: string) {
 
   useEffect(() => { fetchTrack(); }, [fetchTrack]);
 
-  return { track, moments, loading, refetch: fetchTrack };
+  const removeMoment = useCallback((id: string) => {
+    setMoments((prev) => prev.filter((m) => m.id !== id));
+  }, []);
+
+  return { track, moments, loading, refetch: fetchTrack, removeMoment };
 }
 
 // ── Mutation helpers (not hooks) ──
@@ -387,5 +401,9 @@ export function useQuestMoments(questId: string | null) {
 
   useEffect(() => { fetchMoments(); }, [fetchMoments]);
 
-  return { moments, loading, refetch: fetchMoments };
+  const removeMoment = useCallback((id: string) => {
+    setMoments((prev) => prev.filter((m) => m.id !== id));
+  }, []);
+
+  return { moments, loading, refetch: fetchMoments, removeMoment };
 }

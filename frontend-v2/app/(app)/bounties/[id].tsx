@@ -48,7 +48,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
                   <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 italic" numberOfLines={3}>{item.content.text}</UIText>
                 </View>
               )}
-              {item.type === 'image' && (item.content?.items || []).map((img: any, i: number) => {
+              {item.type === 'image' && (item.content?.items?.length ? item.content.items : (item.content?.url ? [{ url: item.content.url }] : [])).map((img: any, i: number) => {
                 const url = displayImageUrl(img.url);
                 if (!url) return null;
                 return (
