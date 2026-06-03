@@ -147,6 +147,7 @@ export default function NotificationsScreen() {
     notifications,
     unreadCount,
     loading,
+    error,
     refetch,
     markRead,
     markAllAsRead,
@@ -301,6 +302,22 @@ export default function NotificationsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />
         }
       >
+        {/* Inline error banner — a failed fetch shows here instead of bouncing
+            the user to login. */}
+        {error && !loading ? (
+          <Card variant="filled" size="sm" className="mb-3 bg-error-50 dark:bg-dark-surface-100 border-l-4 border-l-error-500">
+            <HStack className="items-center gap-2">
+              <Ionicons name="warning-outline" size={18} color="#E65C5C" />
+              <UIText size="xs" className="flex-1 text-typo-600 dark:text-dark-typo-500">
+                {error}
+              </UIText>
+              <Pressable onPress={() => refetch(filter === 'unread')} hitSlop={8}>
+                <UIText size="xs" className="text-optio-purple font-poppins-semibold">Retry</UIText>
+              </Pressable>
+            </HStack>
+          </Card>
+        ) : null}
+
         {loading && filtered.length === 0 ? (
           <VStack space="sm" className="pt-4">
             {[1, 2, 3, 4].map(i => (

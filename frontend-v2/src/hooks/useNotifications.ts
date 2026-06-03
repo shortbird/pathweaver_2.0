@@ -147,7 +147,15 @@ export function useNotifications(userId: string | undefined) {
       setNotifications(result.notifications);
       setUnreadCount(result.unread_count);
     } catch (e: any) {
-      setError(e.message || 'Failed to load notifications');
+      // A failed fetch (incl. an unrecoverable 401) shows an inline error/empty
+      // state — it must never crash the screen or cascade into a logout. The
+      // interceptor decides on its own whether the session is genuinely gone.
+      const status = e?.response?.status;
+      setError(
+        status === 401 || status === 403
+          ? 'Your session needs attention. Pull to refresh to try again.'
+          : e?.message || 'Failed to load notifications',
+      );
     } finally {
       setLoading(false);
     }
@@ -169,8 +177,16 @@ export function useNotifications(userId: string | undefined) {
 
   useNotificationSubscription(userId, handleNewNotification);
 
+  // Mutations swallow their own errors into `error` state: a failed mark/delete
+  // on the notifications screen must never throw an unhandled rejection (which
+  // would otherwise surface as a screen crash) — and certainly never log out.
   const markRead = useCallback(async (id: string) => {
-    await markNotificationRead(id);
+    try {
+      await markNotificationRead(id);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to mark notification as read');
+      return;
+    }
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
     setUnreadCount(prev => {
       const next = Math.max(0, prev - 1);
@@ -180,7 +196,12 @@ export function useNotifications(userId: string | undefined) {
   }, []);
 
   const markAllAsRead = useCallback(async () => {
-    await markAllRead();
+    try {
+      await markAllRead();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to mark all as read');
+      return;
+    }
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     setUnreadCount(0);
     syncAppIconBadge(0);
@@ -188,7 +209,12 @@ export function useNotifications(userId: string | undefined) {
 
   const remove = useCallback(async (id: string) => {
     const wasUnread = notifications.find(n => n.id === id)?.is_read === false;
-    await deleteNotification(id);
+    try {
+      await deleteNotification(id);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to delete notification');
+      return;
+    }
     setNotifications(prev => prev.filter(n => n.id !== id));
     if (wasUnread) {
       setUnreadCount(prev => {
