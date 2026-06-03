@@ -8,6 +8,7 @@ import {
   VStack, HStack, Heading, UIText, Button, ButtonText,
   Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
@@ -58,6 +59,7 @@ function calculateAge(dob: string): number {
 }
 
 export default function RegisterScreen() {
+  const c = useThemeColors();
   const { register, googleLogin, appleLoginWeb, appleLoginNative, isLoading, error, clearError } = useAuthStore();
   const isWeb = Platform.OS === 'web';
   const isIos = Platform.OS === 'ios';
@@ -151,14 +153,14 @@ export default function RegisterScreen() {
 
   if (verificationSent) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
         <View className="flex-1 items-center justify-center px-6">
           <VStack className="w-full max-w-sm items-center" space="lg">
             <Image source={{ uri: LOGO_URI }} className="w-44 h-16" resizeMode="contain" />
             <Card variant="elevated" size="lg">
               <VStack space="md" className="items-center">
                 <Heading size="lg">Check Your Email</Heading>
-                <UIText size="sm" className="text-typo-500 text-center">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                   We sent a verification link to {email}. Please check your inbox to complete registration.
                 </UIText>
                 <Button size="md" variant="outline" onPress={() => router.replace('/(auth)/login')}>
@@ -173,7 +175,7 @@ export default function RegisterScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -203,7 +205,7 @@ export default function RegisterScreen() {
             <Card variant="elevated" size="lg">
               <VStack space="md">
                 <Heading size="lg">{isOEA ? 'Create Parent Account' : 'Create Account'}</Heading>
-                <UIText size="sm" className="text-typo-500">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                   {isOEA
                     ? 'Enroll your family in OpenEd Academy'
                     : 'Start your learning journey today'}
@@ -280,11 +282,11 @@ export default function RegisterScreen() {
                         width: '100%',
                         padding: '10px 12px',
                         borderRadius: 8,
-                        border: fieldErrors.dob ? '1px solid #f87171' : '1px solid #e2e8f0',
+                        border: fieldErrors.dob ? '1px solid #f87171' : `1px solid ${c.border}`,
                         fontSize: 14,
                         fontFamily: 'Poppins_400Regular, sans-serif',
-                        backgroundColor: 'white',
-                        color: dateOfBirth ? '#1a1a1a' : '#94a3b8',
+                        backgroundColor: c.card,
+                        color: dateOfBirth ? c.text : c.textFaint,
                       }}
                     />
                   ) : (
@@ -335,7 +337,7 @@ export default function RegisterScreen() {
                       {PASSWORD_RULES.map((rule) => {
                         const passed = rule.test(password);
                         return (
-                          <UIText key={rule.label} size="xs" className={passed ? 'text-green-600' : 'text-typo-400'}>
+                          <UIText key={rule.label} size="xs" className={passed ? 'text-green-600' : 'text-typo-400 dark:text-dark-typo-400'}>
                             {passed ? '\u2713' : '\u2022'} {rule.label}
                           </UIText>
                         );
@@ -364,13 +366,13 @@ export default function RegisterScreen() {
                   className="flex-row items-start gap-3 mt-1"
                 >
                   <View className={`w-5 h-5 mt-0.5 rounded border items-center justify-center ${
-                    acceptedTerms ? 'bg-optio-purple border-optio-purple' : fieldErrors.terms ? 'border-red-400' : 'border-surface-300'
+                    acceptedTerms ? 'bg-optio-purple border-optio-purple' : fieldErrors.terms ? 'border-red-400' : 'border-surface-300 dark:border-dark-surface-300'
                   }`}>
                     {acceptedTerms && (
                       <Ionicons name="checkmark" size={14} color="white" />
                     )}
                   </View>
-                  <UIText size="xs" className="text-typo-500 flex-1 flex-shrink">
+                  <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1 flex-shrink">
                     I agree to the{' '}
                     <UIText
                       size="xs"
@@ -409,19 +411,19 @@ export default function RegisterScreen() {
                 {/* Social register — same matrix as login:
                     Google everywhere, Apple on iOS + web only. */}
                 <View className="flex-row items-center my-1">
-                  <View className="flex-1 h-px bg-surface-200" />
-                  <UIText size="sm" className="px-3 text-typo-400">Or</UIText>
-                  <View className="flex-1 h-px bg-surface-200" />
+                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
+                  <UIText size="sm" className="px-3 text-typo-400 dark:text-dark-typo-400">Or</UIText>
+                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
                 </View>
 
                 <Pressable
                   onPress={googleLogin}
                   disabled={isLoading}
-                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white web:cursor-pointer hover:bg-surface-50 active:bg-surface-50"
+                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 web:cursor-pointer hover:bg-surface-50 active:bg-surface-50 dark:hover:bg-dark-surface-50 dark:active:bg-dark-surface-50"
                   style={{ opacity: isLoading ? 0.5 : 1 }}
                 >
                   <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
-                  <UIText className="font-poppins-medium text-typo">
+                  <UIText className="font-poppins-medium text-typo dark:text-dark-typo">
                     Sign up with Google
                   </UIText>
                 </Pressable>

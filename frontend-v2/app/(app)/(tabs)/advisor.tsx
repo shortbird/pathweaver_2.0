@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { useAdvisorStudents, useStudentOverview, createCheckin } from '@/src/hooks/useAdvisor';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
@@ -49,7 +50,7 @@ function StudentListItem({ student, rhythm, isSelected, onSelect }: {
           <UIText size="sm" className={`font-poppins-medium ${isSelected ? 'text-optio-purple' : ''}`} numberOfLines={1}>
             {student.display_name || `${student.first_name} ${student.last_name}`}
           </UIText>
-          <UIText size="xs" className="text-typo-400">{(student.total_xp || 0).toLocaleString()} XP</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{(student.total_xp || 0).toLocaleString()} XP</UIText>
         </VStack>
         <Ionicons name={ri.icon} size={16} color={ri.color} />
       </HStack>
@@ -75,7 +76,7 @@ function CaseloadBar({ caseload }: { caseload: any }) {
         counts[s.key] > 0 && (
           <HStack key={s.key} className="items-center gap-1">
             <View className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-            <UIText size="xs" className="text-typo-400">{counts[s.key]} {s.label}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{counts[s.key]} {s.label}</UIText>
           </HStack>
         )
       ))}
@@ -88,6 +89,7 @@ function CaseloadBar({ caseload }: { caseload: any }) {
 function StudentDetailPanel({ studentId }: { studentId: string }) {
   const { overview, loading } = useStudentOverview(studentId);
   const [detailTab, setDetailTab] = useState<'overview' | 'checkin' | 'quests'>('overview');
+  const c = useThemeColors();
   const [checkinNotes, setCheckinNotes] = useState('');
   const [readingNotes, setReadingNotes] = useState('');
   const [writingNotes, setWritingNotes] = useState('');
@@ -105,7 +107,7 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
   }
 
   if (!overview) {
-    return <UIText className="text-typo-500">Could not load student data.</UIText>;
+    return <UIText className="text-typo-500 dark:text-dark-typo-500">Could not load student data.</UIText>;
   }
 
   const student = overview.student || overview.user || {};
@@ -151,7 +153,7 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
           </Avatar>
           <VStack className="flex-1">
             <Heading size="lg">{student.display_name || `${student.first_name} ${student.last_name}`}</Heading>
-            <UIText size="xs" className="text-typo-400">{student.email}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{student.email}</UIText>
             <HStack className="items-center gap-3 mt-1">
               <UIText size="sm" className="font-poppins-semibold text-optio-purple">{(dashboard.total_xp || student.total_xp || 0).toLocaleString()} XP</UIText>
               {engagement.rhythm && <RhythmBadge rhythm={engagement.rhythm} compact />}
@@ -161,10 +163,10 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
       </Card>
 
       {/* Sub-tabs */}
-      <HStack className="bg-surface-100 rounded-lg p-1" space="xs">
+      <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
         {tabs.map((t) => (
-          <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white' : ''}`}>
-            <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>{t.label}</UIText>
+          <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
+            <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
           </Pressable>
         ))}
       </HStack>
@@ -178,14 +180,14 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
             <View style={{ flex: 1 }}>
               <Card variant="elevated" size="md" className="h-full">
                 <VStack space="sm">
-                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Engagement</UIText>
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Engagement</UIText>
                   {(engagement.calendar?.days?.length > 0 || (Array.isArray(engagement.calendar) && engagement.calendar.length > 0)) ? (
                     <EngagementCalendar
                       days={engagement.calendar?.days || engagement.calendar || []}
                       firstActivityDate={engagement.calendar?.first_activity_date || engagement.calendar?.[0]?.date}
                     />
                   ) : (
-                    <UIText size="xs" className="text-typo-400">No engagement data yet.</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">No engagement data yet.</UIText>
                   )}
                 </VStack>
               </Card>
@@ -195,7 +197,7 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
             <View style={{ flex: 1 }}>
               <Card variant="elevated" size="md" className="h-full">
                 <VStack space="sm" className="items-center">
-                  <UIText size="xs" className="text-typo-400 font-poppins-medium self-start">Pillar Balance</UIText>
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium self-start dark:text-dark-typo-400">Pillar Balance</UIText>
                   {pillars.length > 0 ? (
                     <>
                       <PillarRadar
@@ -207,16 +209,16 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
                       <HStack className="flex-wrap gap-3 justify-center">
                         {pillars.map((p: any) => (
                           <HStack key={p.id || p.name} className="items-center gap-1">
-                            <UIText size="xs" className="font-poppins-medium capitalize text-typo-500">
+                            <UIText size="xs" className="font-poppins-medium capitalize text-typo-500 dark:text-dark-typo-500">
                               {(p.id || p.name) === 'stem' ? 'STEM' : p.name || p.id}
                             </UIText>
-                            <UIText size="xs" className="text-typo-400">{(p.xp || 0).toLocaleString()}</UIText>
+                            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{(p.xp || 0).toLocaleString()}</UIText>
                           </HStack>
                         ))}
                       </HStack>
                     </>
                   ) : (
-                    <UIText size="xs" className="text-typo-400">No pillar data yet.</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">No pillar data yet.</UIText>
                   )}
                 </VStack>
               </Card>
@@ -227,12 +229,12 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
           {recentCompletions.length > 0 && (
             <Card variant="elevated" size="md">
               <VStack space="sm">
-                <UIText size="xs" className="text-typo-400 font-poppins-medium">Recent Completions</UIText>
+                <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Recent Completions</UIText>
                 {recentCompletions.slice(0, 5).map((c: any, i: number) => (
                   <HStack key={i} className="items-center gap-2">
                     <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
                     <UIText size="xs" className="flex-1" numberOfLines={1}>{c.title || c.task_title || 'Task'}</UIText>
-                    <UIText size="xs" className="text-typo-400">{c.xp_value || 0} XP</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{c.xp_value || 0} XP</UIText>
                   </HStack>
                 ))}
               </VStack>
@@ -248,58 +250,58 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
             <Heading size="sm">New Check-In</Heading>
 
             <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Reading</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Reading</UIText>
               <TextInput
-                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[60px]"
+                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[60px] dark:border-dark-surface-300"
                 style={{ fontFamily: 'Poppins_400Regular' }}
                 placeholder="What is the student reading? Comprehension level?"
                 value={readingNotes}
                 onChangeText={setReadingNotes}
                 multiline
                 textAlignVertical="top"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
               />
             </VStack>
 
             <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Writing</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Writing</UIText>
               <TextInput
-                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[60px]"
+                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[60px] dark:border-dark-surface-300"
                 style={{ fontFamily: 'Poppins_400Regular' }}
                 placeholder="What is the student writing? Skill development?"
                 value={writingNotes}
                 onChangeText={setWritingNotes}
                 multiline
                 textAlignVertical="top"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
               />
             </VStack>
 
             <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Math</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Math</UIText>
               <TextInput
-                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[60px]"
+                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[60px] dark:border-dark-surface-300"
                 style={{ fontFamily: 'Poppins_400Regular' }}
                 placeholder="Mental math, problem-solving skills?"
                 value={mathNotes}
                 onChangeText={setMathNotes}
                 multiline
                 textAlignVertical="top"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
               />
             </VStack>
 
             <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium">Additional Notes</UIText>
+              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Additional Notes</UIText>
               <TextInput
-                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[80px]"
+                className="border border-surface-200 rounded-lg p-3 text-sm min-h-[80px] dark:border-dark-surface-300"
                 style={{ fontFamily: 'Poppins_400Regular' }}
                 placeholder="General observations, goals, follow-ups..."
                 value={checkinNotes}
                 onChangeText={setCheckinNotes}
                 multiline
                 textAlignVertical="top"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
               />
             </VStack>
 
@@ -324,7 +326,7 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
                     <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
                       {q.title || q.quests?.title || 'Quest'}
                     </UIText>
-                    <UIText size="xs" className="text-typo-400">
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                       {q.completed_tasks || 0} tasks completed
                     </UIText>
                   </VStack>
@@ -333,8 +335,8 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
             ))
           ) : (
             <Card variant="filled" size="md" className="items-center py-6">
-              <Ionicons name="rocket-outline" size={32} color="#9CA3AF" />
-              <UIText size="sm" className="text-typo-500 mt-2">No active quests</UIText>
+              <Ionicons name="rocket-outline" size={32} color={c.iconMuted} />
+              <UIText size="sm" className="text-typo-500 mt-2 dark:text-dark-typo-500">No active quests</UIText>
             </Card>
           )}
         </VStack>
@@ -346,12 +348,13 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
 // ── Main Advisor Dashboard ──
 
 export default function AdvisorScreen() {
+  const c = useThemeColors();
   if (Platform.OS !== 'web') {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
-        <Ionicons name="desktop-outline" size={40} color="#9CA3AF" />
-        <Heading size="sm" className="text-typo-500 mt-3">Desktop Only</Heading>
-        <UIText size="sm" className="text-typo-400 mt-1">Advisor tools are available on desktop.</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
+        <Ionicons name="desktop-outline" size={40} color={c.iconMuted} />
+        <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">Desktop Only</Heading>
+        <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Advisor tools are available on desktop.</UIText>
       </SafeAreaView>
     );
   }
@@ -377,13 +380,13 @@ export default function AdvisorScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <View style={{ flex: 1, flexDirection: 'row' }}>
         {/* Left: Student list */}
-        <View style={{ width: 300, borderRightWidth: 1, borderRightColor: '#E5E7EB' }} className="bg-white">
+        <View style={{ width: 300, borderRightWidth: 1, borderRightColor: c.border }} className="bg-white dark:bg-dark-surface-100">
           <VStack className="p-4" space="sm">
             <Heading size="lg">Advisor</Heading>
-            <UIText size="xs" className="text-typo-400">{students.length} student{students.length !== 1 ? 's' : ''}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{students.length} student{students.length !== 1 ? 's' : ''}</UIText>
             <CaseloadBar caseload={caseload} />
             <Input variant="rounded" size="sm">
               <InputSlot className="ml-2"><InputIcon as="search-outline" /></InputSlot>
@@ -408,8 +411,8 @@ export default function AdvisorScreen() {
               ))
             ) : (
               <VStack className="items-center py-8">
-                <Ionicons name="people-outline" size={32} color="#9CA3AF" />
-                <UIText size="xs" className="text-typo-400 mt-2">No students found</UIText>
+                <Ionicons name="people-outline" size={32} color={c.iconMuted} />
+                <UIText size="xs" className="text-typo-400 mt-2 dark:text-dark-typo-400">No students found</UIText>
               </VStack>
             )}
           </ScrollView>
@@ -424,8 +427,8 @@ export default function AdvisorScreen() {
               <View className="w-20 h-20 rounded-full bg-optio-purple/10 items-center justify-center mb-4">
                 <Ionicons name="clipboard-outline" size={36} color="#6D469B" />
               </View>
-              <Heading size="md" className="text-typo-500">Select a Student</Heading>
-              <UIText size="sm" className="text-typo-400 mt-2 text-center max-w-sm">
+              <Heading size="md" className="text-typo-500 dark:text-dark-typo-500">Select a Student</Heading>
+              <UIText size="sm" className="text-typo-400 mt-2 text-center max-w-sm dark:text-dark-typo-400">
                 Choose a student from the list to view their progress, engagement, and create check-ins.
               </UIText>
             </View>

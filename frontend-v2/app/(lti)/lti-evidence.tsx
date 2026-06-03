@@ -60,7 +60,7 @@ function EvidenceBlockView({ block }: { block: EvidenceBlock }) {
 
   if (type === 'text') {
     return (
-      <UIText size="sm" className="text-typo-700">
+      <UIText size="sm" className="text-typo-700 dark:text-dark-typo-700">
         {(c.text as string) || ''}
       </UIText>
     );
@@ -153,13 +153,13 @@ export default function LtiEvidence() {
           <Badge>
             <BadgeText>{data.earned_xp} XP earned</BadgeText>
           </Badge>
-          <UIText size="sm" className="text-typo-500">
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
             {completed}/{data.tasks.length} tasks complete
           </UIText>
         </HStack>
         <Divider />
         {data.tasks.length === 0 ? (
-          <UIText size="sm" className="text-typo-500">
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
             This student hasn't created any tasks for this quest yet.
           </UIText>
         ) : (
@@ -186,7 +186,7 @@ export default function LtiEvidence() {
                     Completed
                   </UIText>
                 ) : (
-                  <UIText size="xs" className="text-typo-400">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                     Not yet completed
                   </UIText>
                 )}
@@ -197,7 +197,7 @@ export default function LtiEvidence() {
                     ))}
                   </VStack>
                 ) : task.is_completed ? (
-                  <UIText size="xs" className="text-typo-400">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                     (No evidence attached)
                   </UIText>
                 ) : null}

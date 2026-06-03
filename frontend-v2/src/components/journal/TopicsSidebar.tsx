@@ -10,6 +10,7 @@ import { View, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Skeleton } from '../ui';
 import type { UnifiedTopic } from '@/src/hooks/useJournal';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
   folder: 'folder-outline',
@@ -21,6 +22,8 @@ const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
   science: 'flask-outline',
   heart: 'heart-outline',
   globe: 'globe-outline',
+  flag: 'flag-outline',
+  rocket: 'rocket-outline',
   default: 'folder-outline',
 };
 
@@ -120,6 +123,7 @@ function TopicCard({
   isSelected: boolean;
   onPress: () => void;
 }) {
+  const c = useThemeColors();
   const iconName = iconMap[topic.icon || 'default'] || iconMap.default;
   const tint = topic.color || '#6D469B';
   return (
@@ -130,12 +134,12 @@ function TopicCard({
       >
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: c.card,
             borderRadius: 16,
             paddingHorizontal: 14,
             paddingVertical: 14,
             borderWidth: isSelected ? 2 : 1,
-            borderColor: isSelected ? tint : '#E2DCE8',
+            borderColor: isSelected ? tint : c.border,
             minHeight: 108,
           }}
         >
@@ -152,13 +156,75 @@ function TopicCard({
           <UIText
             size="sm"
             className={isSelected ? 'font-poppins-semibold' : 'font-poppins-medium'}
-            style={{ color: isSelected ? tint : '#0F0F1A' }}
+            style={{ color: isSelected ? tint : c.text }}
             numberOfLines={2}
           >
             {topic.name}
           </UIText>
           {topic.moment_count != null && (
-            <UIText size="xs" className="text-typo-400 mt-0.5">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5">
+              {topic.moment_count} moment{topic.moment_count !== 1 ? 's' : ''}
+            </UIText>
+          )}
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
+/** Quest tile — an active quest the student is enrolled in. Tapping it opens
+ *  that quest's view in the Journal (tasks + assigned moments). Styled with the
+ *  Optio purple + a flag icon rather than a track color, since quests carry the
+ *  sentinel `color: 'gradient'` rather than a real hex. */
+function QuestTile({
+  topic,
+  isSelected,
+  onPress,
+}: {
+  topic: UnifiedTopic;
+  isSelected: boolean;
+  onPress: () => void;
+}) {
+  const c = useThemeColors();
+  const tint = '#6D469B';
+  const iconName = iconMap[topic.icon || 'flag'] || iconMap.flag;
+  return (
+    <View style={{ width: '48%' }}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+      >
+        <View
+          style={{
+            backgroundColor: c.card,
+            borderRadius: 16,
+            paddingHorizontal: 14,
+            paddingVertical: 14,
+            borderWidth: isSelected ? 2 : 1,
+            borderColor: isSelected ? tint : c.border,
+            minHeight: 108,
+          }}
+        >
+          <View
+            style={{
+              width: 36, height: 36, borderRadius: 10,
+              backgroundColor: tint + '20',
+              alignItems: 'center', justifyContent: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <Ionicons name={iconName} size={20} color={tint} />
+          </View>
+          <UIText
+            size="sm"
+            className={isSelected ? 'font-poppins-semibold' : 'font-poppins-medium'}
+            style={{ color: isSelected ? tint : c.text }}
+            numberOfLines={2}
+          >
+            {topic.name}
+          </UIText>
+          {topic.moment_count != null && (
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5">
               {topic.moment_count} moment{topic.moment_count !== 1 ? 's' : ''}
             </UIText>
           )}
@@ -179,9 +245,11 @@ export function TopicsSidebar({
   loading = false,
   scrollable = true,
 }: TopicsSidebarProps) {
+  const c = useThemeColors();
   const [sectionsCollapsed, setSectionsCollapsed] = useState<Record<string, boolean>>({});
 
   const tracks = topics.filter((t) => t.type === 'topic' || t.type === 'track');
+  const quests = topics.filter((t) => t.type === 'quest');
 
   const toggleSection = (key: string) => {
     setSectionsCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -212,13 +280,13 @@ export function TopicsSidebar({
                 className="flex-row items-center gap-1"
                 hitSlop={8}
               >
-                <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">
                   Topics
                 </UIText>
                 <Ionicons
                   name={sectionsCollapsed.tracks ? 'chevron-forward' : 'chevron-down'}
                   size={14}
-                  color="#9CA3AF"
+                  color={c.iconMuted}
                 />
               </Pressable>
               {onNewTopic && (
@@ -276,10 +344,54 @@ export function TopicsSidebar({
           </VStack>
         )}
 
-        {/* Quests + Courses sections removed from the Journal — quests are now
-            discovered via the slide-up "Discover quests" sheet, and courses
-            live on their own surface. Keeping them out of the Journal makes
-            the page about the student's own organization (Topics). */}
+        {/* Active Quests — the student's enrolled, in-progress quests. They're
+            surfaced here so a quest can be opened (its tasks + assigned moments)
+            and so captured moments have a quest to be assigned to. Courses
+            still live on their own surface. */}
+        {quests.length > 0 && (
+          <VStack className="mt-2">
+            <HStack className="items-center justify-between px-3 py-1">
+              <Pressable
+                onPress={() => toggleSection('quests')}
+                className="flex-row items-center gap-1"
+                hitSlop={8}
+              >
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">
+                  Quests
+                </UIText>
+                <Ionicons
+                  name={sectionsCollapsed.quests ? 'chevron-forward' : 'chevron-down'}
+                  size={14}
+                  color={c.iconMuted}
+                />
+              </Pressable>
+            </HStack>
+            {!sectionsCollapsed.quests && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  rowGap: 10,
+                  paddingHorizontal: 8,
+                  paddingTop: 6,
+                  paddingBottom: 4,
+                  justifyContent: 'space-between',
+                }}
+              >
+                {quests.map((q) => (
+                  <QuestTile
+                    key={q.id}
+                    topic={q}
+                    isSelected={selectedId === q.id && selectedType === 'quest'}
+                    onPress={() => onSelectTopic(q.id, 'quest')}
+                  />
+                ))}
+                {/* Keep the last row left-aligned when quests are odd-numbered. */}
+                {quests.length % 2 === 1 && <View style={{ width: '48%' }} />}
+              </View>
+            )}
+          </VStack>
+        )}
       </VStack>
     </Wrapper>
   );

@@ -18,6 +18,7 @@ import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 // Q5: canonical Optio logo is the Supabase-hosted gradient_fav.svg — same asset
 // used by v1 (frontend/index.html, TopNavbar.jsx, manifest.json) and by other
@@ -31,15 +32,16 @@ const optioIcon = require('@/assets/images/icon.png');
 /** Minimal header for observers on web — logo + sign out, no sidebar */
 function ObserverHeader() {
   const { user, logout } = useAuthStore();
+  const c = useThemeColors();
   return (
     <View className="bg-white dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300 px-6 py-3 flex-row items-center justify-between">
       <Image source={{ uri: LOGO_URI }} style={{ width: 110, height: 34 }} resizeMode="contain" />
       <Pressable onPress={logout} className="flex-row items-center gap-2 active:opacity-70">
-        <Ionicons name="person-circle-outline" size={20} color="#6B6280" />
-        <UIText size="sm" className="text-typo-500 font-poppins-medium">
+        <Ionicons name="person-circle-outline" size={20} color={c.icon} />
+        <UIText size="sm" className="text-typo-500 font-poppins-medium dark:text-dark-typo-500">
           {user?.display_name || user?.first_name || user?.email}
         </UIText>
-        <Ionicons name="log-out-outline" size={18} color="#9A93A8" />
+        <Ionicons name="log-out-outline" size={18} color={c.iconMuted} />
       </Pressable>
     </View>
   );
@@ -53,6 +55,7 @@ export default function TabsLayout() {
   const restorePreviewRole = usePreviewRoleStore((s) => s.restore);
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const c = useThemeColors();
   const tabBarHidden = useUIStore((s) => s.tabBarHidden);
   // Quest detail screens publish their quest into this store while focused, so
   // the global Capture button can open the sheet pre-scoped to that quest.
@@ -78,7 +81,7 @@ export default function TabsLayout() {
           screenOptions={{
             headerShown: false,
             tabBarActiveTintColor: '#6D469B',
-            tabBarInactiveTintColor: '#9A93A8',
+            tabBarInactiveTintColor: c.iconMuted,
             tabBarLabelStyle: {
               fontFamily: 'Poppins_500Medium',
               fontSize: 10,
@@ -203,7 +206,7 @@ export default function TabsLayout() {
           screenOptions={{
             headerShown: false,
             tabBarActiveTintColor: '#6D469B',
-            tabBarInactiveTintColor: '#9A93A8',
+            tabBarInactiveTintColor: c.iconMuted,
             tabBarLabelStyle: {
               fontFamily: 'Poppins_500Medium',
               fontSize: 10,
@@ -307,7 +310,7 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#6D469B',
-          tabBarInactiveTintColor: '#9A93A8',
+          tabBarInactiveTintColor: c.iconMuted,
           tabBarLabelStyle: {
             fontFamily: 'Poppins_500Medium',
             fontSize: 10,

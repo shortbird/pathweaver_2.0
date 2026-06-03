@@ -70,12 +70,12 @@ export default function ResetPasswordScreen() {
 
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
         <View className="flex-1 items-center justify-center px-6">
           <Card variant="elevated" size="lg" className="w-full max-w-sm">
             <VStack space="md" className="items-center">
               <Heading size="md">Invalid Reset Link</Heading>
-              <UIText size="sm" className="text-typo-500 text-center">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                 This password reset link is invalid or has expired. Please request a new one.
               </UIText>
               <Button size="lg" className="w-full" onPress={() => router.replace('/(auth)/login')}>
@@ -89,7 +89,7 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -121,7 +121,7 @@ export default function ResetPasswordScreen() {
                 ) : (
                   <>
                     <Heading size="lg">Set New Password</Heading>
-                    <UIText size="sm" className="text-typo-500">
+                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                       Choose a strong password for your account.
                     </UIText>
 
@@ -156,7 +156,7 @@ export default function ResetPasswordScreen() {
                             <UIText
                               key={rule.label}
                               size="xs"
-                              className={passed ? 'text-green-600' : 'text-typo-400'}
+                              className={passed ? 'text-green-600' : 'text-typo-400 dark:text-dark-typo-400'}
                             >
                               {passed ? '\u2713' : '\u2022'} {rule.label}
                             </UIText>

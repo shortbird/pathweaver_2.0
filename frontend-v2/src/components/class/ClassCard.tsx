@@ -11,6 +11,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import api from '@/src/services/api';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   Card, HStack, VStack, UIText, Skeleton,
 } from '../ui';
@@ -43,6 +44,7 @@ function MiniRing({
   strokeWidth?: number;
   color?: string;
 }) {
+  const c = useThemeColors();
   const credits = Math.floor(approvedXp / targetXp);
   const xpToNext = approvedXp - credits * targetXp;
   const ringValue = credits > 0 && xpToNext === 0 ? targetXp : xpToNext;
@@ -53,7 +55,7 @@ function MiniRing({
 
   return (
     <Svg width={size} height={size}>
-      <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#E5E7EB" strokeWidth={strokeWidth} fill="none" />
+      <Circle cx={size / 2} cy={size / 2} r={radius} stroke={c.border} strokeWidth={strokeWidth} fill="none" />
       <Circle
         cx={size / 2}
         cy={size / 2}
@@ -71,10 +73,12 @@ function MiniRing({
 }
 
 export function ClassCard({ quest }: ClassCardProps) {
+  const c = useThemeColors();
   const q = quest.quests || quest;
   const subject = getSubject(q?.transcript_subject);
   const [progress, setProgress] = useState<ClassProgress | null>(null);
   const [outstanding, setOutstanding] = useState<any[]>([]);
+  const [taskCount, setTaskCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -93,6 +97,7 @@ export function ClassCard({ quest }: ClassCardProps) {
       if (questRes.status === 'fulfilled') {
         const d = questRes.value.data;
         const allTasks = (d.quest || d).quest_tasks || [];
+        setTaskCount(allTasks.length);
         setOutstanding(allTasks.filter((t: any) => !t.is_completed));
       }
     } catch {
@@ -142,14 +147,14 @@ export function ClassCard({ quest }: ClassCardProps) {
             </View>
           )}
           <VStack space="xs" className="flex-1 min-w-0">
-            <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
               {(progress?.transcript_subject_display || subject?.name || '')} class
             </UIText>
             <UIText size="md" className="font-poppins-semibold" numberOfLines={1}>
               {q?.title || 'Class'}
             </UIText>
             {progress && (
-              <UIText size="xs" className="text-typo-400">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 {progress.credits_earned > 0 ? (
                   <>
                     {progress.credits_earned} credit{progress.credits_earned > 1 ? 's' : ''} · {xpToNext}/{progress.target_xp} XP toward next
@@ -176,27 +181,32 @@ export function ClassCard({ quest }: ClassCardProps) {
         {!loading && (
           outstanding.length > 0 ? (
             <VStack space="xs" className="mt-3">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
                 To do
               </UIText>
               {outstanding.slice(0, 4).map((t: any, idx: number) => (
                 <HStack key={t.id || idx} className="items-center gap-2.5">
-                  <Ionicons name="ellipse-outline" size={15} color="#CEC6D6" />
-                  <UIText size="xs" className="flex-1 text-typo-700" numberOfLines={1}>
+                  <Ionicons name="ellipse-outline" size={15} color={c.border} />
+                  <UIText size="xs" className="flex-1 text-typo-700 dark:text-dark-typo-700" numberOfLines={1}>
                     {t.title}
                   </UIText>
                 </HStack>
               ))}
               {outstanding.length > 4 && (
-                <UIText size="xs" className="text-typo-400 ml-[23px]">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-[23px]">
                   +{outstanding.length - 4} more
                 </UIText>
               )}
             </VStack>
+          ) : taskCount === 0 ? (
+            <HStack className="items-center gap-1.5 mt-3">
+              <Ionicons name="add-circle-outline" size={15} color="#6D469B" />
+              <UIText size="xs" className="text-optio-purple font-poppins-medium">Add tasks to continue the class</UIText>
+            </HStack>
           ) : progress ? (
             <HStack className="items-center gap-1.5 mt-3">
               <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
-              <UIText size="xs" className="text-typo-400">All tasks complete</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">All tasks complete</UIText>
             </HStack>
           ) : null
         )}

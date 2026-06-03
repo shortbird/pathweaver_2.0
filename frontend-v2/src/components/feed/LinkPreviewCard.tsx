@@ -13,6 +13,7 @@ import { View, Image, Pressable, Linking, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, UIText } from '../ui';
 import { useLinkPreview, isVideoPreview, isVideoUrl } from '@/src/hooks/useLinkPreview';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 function openUrl(url: string) {
   if (Platform.OS === 'web') {
@@ -37,6 +38,7 @@ interface Props {
 
 export function LinkPreviewCard({ url, title }: Props) {
   const { data: preview } = useLinkPreview(url);
+  const c = useThemeColors();
 
   const image = preview?.image || null;
   const isVideo = isVideoPreview(preview, url);
@@ -63,13 +65,13 @@ export function LinkPreviewCard({ url, title }: Props) {
               </View>
             </View>
           </View>
-          <View className="bg-surface-50 px-3 py-2 border-t border-surface-200">
-            <UIText size="sm" className="font-poppins-medium text-typo-700" numberOfLines={2}>
+          <View className="bg-surface-50 dark:bg-dark-surface-50 px-3 py-2 border-t border-surface-200 dark:border-dark-surface-300">
+            <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700" numberOfLines={2}>
               {displayTitle}
             </UIText>
             <HStack className="items-center gap-1 mt-0.5">
-              <Ionicons name="play-circle-outline" size={12} color="#9CA3AF" />
-              <UIText size="xs" className="text-typo-400">{host}</UIText>
+              <Ionicons name="play-circle-outline" size={12} color={c.iconMuted} />
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{host}</UIText>
             </HStack>
           </View>
         </View>
@@ -81,17 +83,17 @@ export function LinkPreviewCard({ url, title }: Props) {
   if (image) {
     return (
       <Pressable onPress={() => openUrl(url)}>
-        <View className="bg-surface-50 rounded-lg border border-surface-200 overflow-hidden flex-row">
+        <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg border border-surface-200 dark:border-dark-surface-300 overflow-hidden flex-row">
           <Image
             source={{ uri: image }}
             style={{ width: 72, height: 72 }}
             resizeMode="cover"
           />
           <View className="flex-1 px-3 py-2 justify-center">
-            <UIText size="sm" className="font-poppins-medium text-typo-700" numberOfLines={2}>
+            <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700" numberOfLines={2}>
               {displayTitle}
             </UIText>
-            <UIText size="xs" className="text-typo-400 mt-0.5" numberOfLines={1}>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5" numberOfLines={1}>
               {host}
             </UIText>
           </View>
@@ -103,7 +105,7 @@ export function LinkPreviewCard({ url, title }: Props) {
   // Fallback: simple link row (same as before)
   return (
     <Pressable onPress={() => openUrl(url)}>
-      <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
+      <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
         <HStack className="items-center gap-2">
           <Ionicons name="link-outline" size={16} color="#6D469B" />
           <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>

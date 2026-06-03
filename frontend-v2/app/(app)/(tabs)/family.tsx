@@ -10,6 +10,7 @@ import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDime
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
@@ -48,6 +49,7 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
   onSelect: (id: string) => void;
   attentionByChildId?: Record<string, boolean>;
 }) {
+  const tc = useThemeColors();
   const selected = children.find((c) => c.id === selectedId);
   if (!selected) return null;
   // Single-kid families don't need the switcher.
@@ -100,7 +102,7 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
                 size="xs"
                 style={{
                   marginTop: 4,
-                  color: isSelected ? '#6D469B' : '#1F2937',
+                  color: isSelected ? '#6D469B' : tc.text,
                   fontFamily: isSelected ? 'Poppins_600SemiBold' : 'Poppins_500Medium',
                 }}
                 numberOfLines={1}
@@ -119,6 +121,7 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
 
 function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; onOpenSettings: () => void }) {
   const initials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase();
+  const c = useThemeColors();
 
   return (
     <Card variant="elevated" size="lg">
@@ -138,7 +141,7 @@ function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; o
           style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' }}
           hitSlop={8}
         >
-          <Ionicons name="ellipsis-vertical" size={20} color="#6B6280" />
+          <Ionicons name="ellipsis-vertical" size={20} color={c.icon} />
         </Pressable>
       </HStack>
 
@@ -149,19 +152,19 @@ function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; o
           <UIText size="lg" className="font-poppins-bold text-optio-purple">
             {(stats?.total_xp || child.total_xp || 0).toLocaleString()}
           </UIText>
-          <UIText size="xs" className="text-typo-400">Total XP</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
         </VStack>
         <VStack className="items-center">
           <UIText size="lg" className="font-poppins-bold text-optio-pink">
             {stats?.active_quests_count || 0}
           </UIText>
-          <UIText size="xs" className="text-typo-400">Active Quests</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Active Quests</UIText>
         </VStack>
         <VStack className="items-center">
           <UIText size="lg" className="font-poppins-bold" style={{ color: '#3DA24A' }}>
             {stats?.completed_quests_count || 0}
           </UIText>
-          <UIText size="xs" className="text-typo-400">Completed</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Completed</UIText>
         </VStack>
       </HStack>
     </Card>
@@ -184,6 +187,7 @@ function QuestsList({
    *  completed quests are read-only for now. */
   tappable?: boolean;
 }) {
+  const c = useThemeColors();
   if (!quests || quests.length === 0) return null;
 
   return (
@@ -208,9 +212,9 @@ function QuestsList({
               )}
               <VStack className="flex-1 min-w-0">
                 <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{quest.title}</UIText>
-                <UIText size="xs" className="text-typo-400" numberOfLines={1}>{quest.description || quest.big_idea || ''}</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{quest.description || quest.big_idea || ''}</UIText>
               </VStack>
-              {tappable && <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />}
+              {tappable && <Ionicons name="chevron-forward" size={16} color={c.iconMuted} />}
             </HStack>
           </Card>
         );
@@ -237,6 +241,7 @@ function QuestsList({
 // verification is on, so this is the reliable entry point for OEA parents.
 
 function OpenEdAcademyEntry() {
+  const c = useThemeColors();
   return (
     <Pressable
       onPress={() => router.push('/(app)/oea/welcome' as any)}
@@ -244,14 +249,14 @@ function OpenEdAcademyEntry() {
     >
       <Card variant="outline" size="md">
         <HStack className="items-center gap-3">
-          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1EDF5', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="school-outline" size={18} color="#6D469B" />
           </View>
           <VStack className="flex-1 min-w-0">
             <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>OpenEd Academy</UIText>
-            <UIText size="xs" className="text-typo-400" numberOfLines={1}>Choose diploma pathways and track credits</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>Choose diploma pathways and track credits</UIText>
           </VStack>
-          <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
         </HStack>
       </Card>
     </Pressable>
@@ -267,6 +272,7 @@ export default function ParentDashboardPage() {
   const scrollRef = useRef<ScrollView>(null);
   // Tap the active Family tab to scroll back to the top.
   useScrollToTop(scrollRef);
+  const tc = useThemeColors();
 
   const { children, loading: childrenLoading } = useMyChildren();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -378,7 +384,7 @@ export default function ParentDashboardPage() {
   // Loading
   if (childrenLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
@@ -387,11 +393,11 @@ export default function ParentDashboardPage() {
   // No children
   if (children.length === 0) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 items-center justify-center px-8">
-          <Ionicons name="people-outline" size={56} color="#9CA3AF" />
-          <Heading size="lg" className="text-typo-500 mt-4 text-center">No students linked</Heading>
-          <UIText size="sm" className="text-typo-400 mt-2 text-center">
+          <Ionicons name="people-outline" size={56} color={tc.iconMuted} />
+          <Heading size="lg" className="text-typo-500 mt-4 text-center dark:text-dark-typo-500">No students linked</Heading>
+          <UIText size="sm" className="text-typo-400 mt-2 text-center dark:text-dark-typo-400">
             Add a dependent or connect with a student to view their learning dashboard.
           </UIText>
           <Button size="lg" className="mt-6">
@@ -409,7 +415,7 @@ export default function ParentDashboardPage() {
 
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       <ScrollView
         ref={scrollRef}
         className="flex-1"
@@ -478,7 +484,7 @@ export default function ParentDashboardPage() {
                       <HStack className="items-center justify-between">
                         <RhythmBadge rhythm={engagement?.rhythm || null} compact />
                         {engagement?.rhythm?.pattern_description && (
-                          <UIText size="xs" className="text-typo-400">{engagement.rhythm.pattern_description}</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{engagement.rhythm.pattern_description}</UIText>
                         )}
                       </HStack>
                       <EngagementCalendar
@@ -500,8 +506,8 @@ export default function ParentDashboardPage() {
                   <QuestsList quests={dashboard?.completed_quests || []} label="Completed" />
                   {(!dashboard?.active_quests?.length && !dashboard?.completed_quests?.length) && (
                     <Card variant="filled" size="md" className="items-center py-8">
-                      <Ionicons name="rocket-outline" size={32} color="#9CA3AF" />
-                      <UIText size="sm" className="text-typo-400 mt-2">No quests yet</UIText>
+                      <Ionicons name="rocket-outline" size={32} color={tc.iconMuted} />
+                      <UIText size="sm" className="text-typo-400 mt-2 dark:text-dark-typo-400">No quests yet</UIText>
                     </Card>
                   )}
                 </VStack>
@@ -520,18 +526,18 @@ export default function ParentDashboardPage() {
               >
                 <Card variant="outline" size="md">
                   <HStack className="items-center gap-3">
-                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1EDF5', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: tc.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="book-outline" size={18} color="#6D469B" />
                     </View>
                     <VStack className="flex-1 min-w-0">
                       <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
                         Learning Journal
                       </UIText>
-                      <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
                         View moments and edit the ones you captured
                       </UIText>
                     </VStack>
-                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                    <Ionicons name="chevron-forward" size={18} color={tc.iconMuted} />
                   </HStack>
                 </Card>
               </Pressable>
@@ -550,14 +556,14 @@ export default function ParentDashboardPage() {
               top: '30%',
               left: 24,
               right: 24,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: tc.card,
               borderRadius: 16,
               paddingVertical: 8,
             }}
           >
-            <View style={{ paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1EDF5' }}>
+            <View style={{ paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: tc.surfaceMuted }}>
               <UIText size="sm" className="font-poppins-semibold">{selectedChild?.display_name || `${selectedChild?.first_name || ''} ${selectedChild?.last_name || ''}`.trim() || 'Student'}</UIText>
-              <UIText size="xs" className="text-typo-400">Edit profile</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Edit profile</UIText>
             </View>
             {[
               { key: 'photo', label: 'Change photo', icon: 'image-outline' as const, onPress: () => { setSettingsMenuOpen(false); handleUploadAvatar(); } },
@@ -567,7 +573,7 @@ export default function ParentDashboardPage() {
             ].map((item) => (
               <Pressable key={item.key} onPress={item.onPress} style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
                 <HStack className="items-center gap-3">
-                  <Ionicons name={item.icon} size={18} color="#6B6280" />
+                  <Ionicons name={item.icon} size={18} color={tc.icon} />
                   <UIText size="sm" className="font-poppins-medium">{item.label}</UIText>
                 </HStack>
               </Pressable>

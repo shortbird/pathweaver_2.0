@@ -20,9 +20,9 @@ interface PathwayCardProps {
 
 function CreditPill({ label, value }: { label: string; value: number }) {
   return (
-    <View className="items-center px-3 py-2 rounded-lg bg-surface-100">
-      <UIText size="lg" className="font-poppins-bold text-typo">{value}</UIText>
-      <UIText size="xs" className="text-typo-500">{label}</UIText>
+    <View className="items-center px-3 py-2 rounded-lg bg-surface-100 dark:bg-dark-surface-200">
+      <UIText size="lg" className="font-poppins-bold text-typo dark:text-dark-typo">{value}</UIText>
+      <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">{label}</UIText>
     </View>
   );
 }
@@ -33,14 +33,14 @@ export function PathwayCard({ pathway, selected, saving, onSelect }: PathwayCard
       onPress={() => onSelect(pathway.key)}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      className={`rounded-2xl border bg-white p-5 ${
-        selected ? 'border-optio-purple' : 'border-surface-200'
+      className={`rounded-2xl border bg-white dark:bg-dark-surface-100 p-5 ${
+        selected ? 'border-optio-purple' : 'border-surface-200 dark:border-dark-surface-300'
       }`}
     >
       <VStack space="md">
         <HStack className="items-start justify-between">
           <View className="flex-1 pr-3">
-            <UIText size="lg" className="font-poppins-bold text-typo">{pathway.name}</UIText>
+            <UIText size="lg" className="font-poppins-bold text-typo dark:text-dark-typo">{pathway.name}</UIText>
             <UIText size="sm" className="text-optio-purple font-poppins-medium">{pathway.tagline}</UIText>
           </View>
           {selected && (
@@ -56,24 +56,24 @@ export function PathwayCard({ pathway, selected, saving, onSelect }: PathwayCard
           <CreditPill label="Total" value={pathway.total_credits} />
         </HStack>
 
-        <UIText size="sm" className="text-typo-600">{pathway.description}</UIText>
+        <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600">{pathway.description}</UIText>
 
-        <View className="bg-surface-50 rounded-lg p-3">
-          <UIText size="xs" className="font-poppins-semibold text-typo-500 mb-1">BEST FOR</UIText>
-          <UIText size="sm" className="text-typo-700">{pathway.best_for}</UIText>
+        <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg p-3">
+          <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 mb-1">BEST FOR</UIText>
+          <UIText size="sm" className="text-typo-700 dark:text-dark-typo-700">{pathway.best_for}</UIText>
         </View>
 
         <VStack space="xs">
-          <UIText size="xs" className="font-poppins-semibold text-typo-500">REQUIREMENTS</UIText>
+          <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500">REQUIREMENTS</UIText>
           {pathway.requirements.map((r) => (
             <HStack key={r.key} className="items-center justify-between py-1">
               <HStack className="items-center" space="xs">
                 <View className={`w-2 h-2 rounded-full ${
                   r.category === 'foundation' ? 'bg-optio-purple' : 'bg-optio-pink'
                 }`} />
-                <UIText size="sm" className="text-typo-700">{r.label}</UIText>
+                <UIText size="sm" className="text-typo-700 dark:text-dark-typo-700">{r.label}</UIText>
               </HStack>
-              <UIText size="sm" className="font-poppins-medium text-typo">
+              <UIText size="sm" className="font-poppins-medium text-typo dark:text-dark-typo">
                 {r.credits} {r.credits === 1 ? 'credit' : 'credits'}
               </UIText>
             </HStack>

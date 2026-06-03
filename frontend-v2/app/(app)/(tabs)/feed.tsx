@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useObserverStudents } from '@/src/hooks/useObserverStudents';
 import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { useMyChildren } from '@/src/hooks/useParent';
@@ -47,6 +48,7 @@ type FeedSegment = 'feed' | 'students';
 
 function StudentsList({ isDesktop }: { isDesktop: boolean }) {
   const { students, loading } = useObserverStudents(true);
+  const c = useThemeColors();
 
   if (loading) {
     return (
@@ -60,9 +62,9 @@ function StudentsList({ isDesktop }: { isDesktop: boolean }) {
     return (
       <View className={`px-5 md:px-0 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
         <Card variant="filled" size="lg" className="items-center py-10">
-          <Ionicons name="people-outline" size={40} color="#9CA3AF" />
-          <Heading size="sm" className="text-typo-500 mt-3">No students linked</Heading>
-          <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
+          <Ionicons name="people-outline" size={40} color={c.iconMuted} />
+          <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No students linked</Heading>
+          <UIText size="sm" className="text-typo-400 mt-1 text-center px-4 dark:text-dark-typo-400">
             Once a student or their parent invites you, they'll show up here.
           </UIText>
         </Card>
@@ -105,12 +107,12 @@ function StudentsList({ isDesktop }: { isDesktop: boolean }) {
                   <UIText size="md" style={{ fontFamily: 'Poppins_600SemiBold' }} numberOfLines={1}>
                     {name}
                   </UIText>
-                  <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
                     {s.last_active_at ? `Active ${relativeTime(s.last_active_at)}` : 'No activity yet'}
                     {hasPending ? ` · ${s.pending_count} new` : ''}
                   </UIText>
                 </VStack>
-                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
               </HStack>
             </Card>
           </Pressable>
@@ -121,13 +123,14 @@ function StudentsList({ isDesktop }: { isDesktop: boolean }) {
 }
 
 function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const c = useThemeColors();
   if (!visible) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
         <View style={{
-          backgroundColor: '#FFFFFF',
+          backgroundColor: c.card,
           borderRadius: 24,
           maxWidth: 480,
           width: '92%',
@@ -143,8 +146,8 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
                 onPress={onClose}
                 style={{ position: 'absolute', right: 0, top: 0, zIndex: 10, padding: 4 }}
               >
-                <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                  <Ionicons name="close" size={18} color="#6B7280" />
+                <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+                  <Ionicons name="close" size={18} color={c.icon} />
                 </View>
               </Pressable>
 
@@ -156,7 +159,7 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
                   resizeMode="contain"
                 />
                 <Heading size="xl" className="text-center">Welcome to Optio!</Heading>
-                <UIText size="sm" className="text-typo-500 text-center">
+                <UIText size="sm" className="text-typo-500 text-center dark:text-dark-typo-500">
                   Here's how you can support and celebrate the student's learning journey.
                 </UIText>
               </VStack>
@@ -164,7 +167,7 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
               {/* Philosophy */}
               <VStack space="xs">
                 <Heading size="md">The Process Is The Goal</Heading>
-                <UIText size="sm" className="text-typo-500 leading-5">
+                <UIText size="sm" className="text-typo-500 leading-5 dark:text-dark-typo-500">
                   We celebrate curiosity, effort, and growth - not grades or test scores.
                   Students learn by doing self-directed quests that build real-world skills.
                 </UIText>
@@ -180,28 +183,28 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
                     <View style={{ width: 4, backgroundColor: '#6D469B', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Celebrate Effort</UIText>
-                      <UIText size="xs" className="text-typo-400">"I love how you tried a new approach!"</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"I love how you tried a new approach!"</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">
                     <View style={{ width: 4, backgroundColor: '#E85D8A', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Ask Process Questions</UIText>
-                      <UIText size="xs" className="text-typo-400">"What was the most challenging part?"</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"What was the most challenging part?"</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">
                     <View style={{ width: 4, backgroundColor: '#3B82F6', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Show Genuine Interest</UIText>
-                      <UIText size="xs" className="text-typo-400">"Tell me more about this project!"</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"Tell me more about this project!"</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">
                     <View style={{ width: 4, backgroundColor: '#10B981', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Acknowledge Growth</UIText>
-                      <UIText size="xs" className="text-typo-400">"I can see how much you've learned!"</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"I can see how much you've learned!"</UIText>
                     </VStack>
                   </HStack>
                 </VStack>
@@ -241,34 +244,35 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
 }
 
 function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const c = useThemeColors();
   if (!visible) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, maxWidth: 480, width: '92%', maxHeight: '85%' }}>
+        <View style={{ backgroundColor: c.card, borderRadius: 24, maxWidth: 480, width: '92%', maxHeight: '85%' }}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24 }}>
             <VStack space="lg">
               <Pressable
                 onPress={onClose}
                 style={{ position: 'absolute', right: 0, top: 0, zIndex: 10, padding: 4 }}
               >
-                <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                  <Ionicons name="close" size={18} color="#6B7280" />
+                <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+                  <Ionicons name="close" size={18} color={c.icon} />
                 </View>
               </Pressable>
 
               <VStack space="sm" className="items-center pt-2">
                 <Image source={{ uri: OPTIO_ICON_URI }} style={{ width: 48, height: 48 }} resizeMode="contain" />
                 <Heading size="xl" className="text-center">Welcome to Optio!</Heading>
-                <UIText size="sm" className="text-typo-500 text-center">
+                <UIText size="sm" className="text-typo-500 text-center dark:text-dark-typo-500">
                   Here's how you can support your kid's learning journey.
                 </UIText>
               </VStack>
 
               <VStack space="xs">
                 <Heading size="md">The Process Is The Goal</Heading>
-                <UIText size="sm" className="text-typo-500 leading-5">
+                <UIText size="sm" className="text-typo-500 leading-5 dark:text-dark-typo-500">
                   We celebrate curiosity, effort, and growth — not grades or test scores.
                   Your kid learns by doing self-directed quests that build real-world skills.
                 </UIText>
@@ -283,28 +287,28 @@ function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: (
                     <View style={{ width: 4, backgroundColor: '#6D469B', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Capture moments</UIText>
-                      <UIText size="xs" className="text-typo-400">Tap the center button to log what your kid is doing in real life.</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Tap the center button to log what your kid is doing in real life.</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">
                     <View style={{ width: 4, backgroundColor: '#E85D8A', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Post bounties</UIText>
-                      <UIText size="xs" className="text-typo-400">Challenge your kid with a real-world task and reward (XP or $).</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Challenge your kid with a real-world task and reward (XP or $).</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">
                     <View style={{ width: 4, backgroundColor: '#3B82F6', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Invite observers</UIText>
-                      <UIText size="xs" className="text-typo-400">Bring grandparents, mentors, or family friends along for the ride.</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Bring grandparents, mentors, or family friends along for the ride.</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">
                     <View style={{ width: 4, backgroundColor: '#10B981', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Celebrate effort, not outcomes</UIText>
-                      <UIText size="xs" className="text-typo-400">Ask "what did you try?" instead of "did you finish?"</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Ask "what did you try?" instead of "did you finish?"</UIText>
                     </VStack>
                   </HStack>
                 </VStack>
@@ -324,6 +328,7 @@ function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: (
 export default function FeedScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const c = useThemeColors();
   const isObserver = useIsObserver();
   const isParent = useIsParent();
   const [welcomeVisible, setWelcomeVisible] = useState(false);
@@ -400,7 +405,7 @@ export default function FeedScreen() {
         <HStack className="items-center justify-between">
           <VStack>
             {isDesktop && <Heading size="xl">{isObserver ? 'Activity' : isParent ? 'Family activity' : 'Feed'}</Heading>}
-            <UIText size="sm" className="text-typo-500 mt-1">
+            <UIText size="sm" className="text-typo-500 mt-1 dark:text-dark-typo-500">
               {isObserver
                 ? 'Stay close to the students you observe'
                 : isParent
@@ -421,16 +426,16 @@ export default function FeedScreen() {
       </View>
       {isObserver && (
         <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
-          <HStack className="bg-surface-100 rounded-xl p-1">
+          <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200">
             {(['feed', 'students'] as FeedSegment[]).map((s) => {
               const active = segment === s;
               return (
                 <Pressable
                   key={s}
                   onPress={() => setSegment(s)}
-                  className={`flex-1 py-2.5 rounded-lg items-center ${active ? 'bg-white' : ''}`}
+                  className={`flex-1 py-2.5 rounded-lg items-center ${active ? 'bg-white dark:bg-dark-surface-100' : ''}`}
                 >
-                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                     {s === 'feed' ? 'Feed' : 'Students'}
                   </UIText>
                 </Pressable>
@@ -446,7 +451,7 @@ export default function FeedScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack space="xs" className="items-center">
               <Pressable onPress={() => setSelectedKidId(null)}>
-                <View className={`px-3 py-1.5 rounded-full ${selectedKidId === null ? 'bg-optio-purple' : 'bg-surface-100'}`}>
+                <View className={`px-3 py-1.5 rounded-full ${selectedKidId === null ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
                   <UIText size="xs" className={`font-poppins-medium ${selectedKidId === null ? 'text-white' : 'text-typo-600'}`}>
                     All kids
                   </UIText>
@@ -456,7 +461,7 @@ export default function FeedScreen() {
                 const isActive = selectedKidId === kid.id;
                 return (
                   <Pressable key={kid.id} onPress={() => setSelectedKidId(kid.id)}>
-                    <View className={`px-3 py-1.5 rounded-full ${isActive ? 'bg-optio-purple' : 'bg-surface-100'}`}>
+                    <View className={`px-3 py-1.5 rounded-full ${isActive ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
                       <UIText size="xs" className={`font-poppins-medium ${isActive ? 'text-white' : 'text-typo-600'}`}>
                         {kid.first_name || kid.display_name || 'Kid'}
                       </UIText>
@@ -476,9 +481,9 @@ export default function FeedScreen() {
     return (
       <View className={`px-5 md:px-0 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
         <Card variant="filled" size="lg" className="items-center py-10">
-          <Ionicons name="newspaper-outline" size={40} color="#9CA3AF" />
-          <Heading size="sm" className="text-typo-500 mt-3">No activity yet</Heading>
-          <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
+          <Ionicons name="newspaper-outline" size={40} color={c.iconMuted} />
+          <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No activity yet</Heading>
+          <UIText size="sm" className="text-typo-400 mt-1 text-center px-4 dark:text-dark-typo-400">
             {isParent
               ? "Tap the center button to capture a moment for your kid, or post a bounty to challenge them."
               : isObserver
@@ -501,7 +506,7 @@ export default function FeedScreen() {
     if (!hasMore && items.length > 0) {
       return (
         <View className="items-center py-6">
-          <UIText size="xs" className="text-typo-300">You've reached the end</UIText>
+          <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">You've reached the end</UIText>
         </View>
       );
     }
@@ -510,7 +515,7 @@ export default function FeedScreen() {
 
   if (loading && items.length === 0) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#6D469B" />
         </View>
@@ -519,7 +524,7 @@ export default function FeedScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       <PageHeader title={isObserver ? 'Activity' : 'Feed'} />
       {isObserver && segment === 'students' ? (
         <ScrollView

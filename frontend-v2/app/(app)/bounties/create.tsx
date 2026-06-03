@@ -19,6 +19,7 @@ import { createBounty, updateBounty } from '@/src/hooks/useBounties';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Input, InputField, Divider, PillarBadge,
@@ -34,6 +35,7 @@ interface Reward {
 export default function CreateBountyPage() {
   const { edit: editId } = useLocalSearchParams<{ edit?: string }>();
   const isEditMode = !!editId;
+  const c = useThemeColors();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -224,14 +226,14 @@ export default function CreateBountyPage() {
 
   if (loadingEdit) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <VStack className="px-5 pt-4 max-w-2xl w-full md:mx-auto" space="lg">
 
@@ -256,10 +258,10 @@ export default function CreateBountyPage() {
               value={description}
               onChangeText={setDescription}
               placeholder="Describe the bounty..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               multiline
               numberOfLines={4}
-              className="bg-surface-50 rounded-xl p-4 text-base font-poppins text-typo min-h-[100px] border border-surface-200"
+              className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-typo dark:text-dark-typo min-h-[100px] border border-surface-200 dark:border-dark-surface-300"
               style={{ textAlignVertical: 'top' }}
             />
           </VStack>
@@ -322,7 +324,7 @@ export default function CreateBountyPage() {
             </HStack>
 
             {totalXP > 0 && (
-              <UIText size="xs" className={totalXP > 200 ? 'text-red-500 font-poppins-bold' : 'text-typo-400'}>
+              <UIText size="xs" className={totalXP > 200 ? 'text-red-500 font-poppins-bold' : 'text-typo-400 dark:text-dark-typo-400'}>
                 Total XP: {totalXP}/200
               </UIText>
             )}
@@ -346,14 +348,14 @@ export default function CreateBountyPage() {
                       {r.type === 'xp' ? 'XP Reward' : 'Custom Reward'}
                     </UIText>
                     <Pressable onPress={() => removeReward(i)}>
-                      <Ionicons name="close" size={18} color="#9CA3AF" />
+                      <Ionicons name="close" size={18} color={c.iconMuted} />
                     </Pressable>
                   </HStack>
 
                   {r.type === 'xp' ? (
                     <>
                       <HStack className="items-center gap-3">
-                        <UIText size="sm" className="text-typo-500">Amount:</UIText>
+                        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">Amount:</UIText>
                         <Input className="flex-1">
                           <InputField
                             placeholder="50"
@@ -364,7 +366,7 @@ export default function CreateBountyPage() {
                         </Input>
                         <UIText size="sm" className="font-poppins-bold text-optio-purple">XP</UIText>
                       </HStack>
-                      <UIText size="xs" className="text-typo-400">Pillar:</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Pillar:</UIText>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <HStack className="gap-2">
                           {pillarKeys.map((p) => {
@@ -374,7 +376,7 @@ export default function CreateBountyPage() {
                               <Pressable key={p} onPress={() => updateReward(i, { pillar: p })}>
                                 <View style={{
                                   paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
-                                  backgroundColor: active ? pc.color : '#F3F4F6',
+                                  backgroundColor: active ? pc.color : c.surfaceMuted,
                                 }}>
                                   <UIText size="xs" style={{ color: active ? '#fff' : pc.color, fontFamily: 'Poppins_500Medium' }}>
                                     {p === 'stem' ? 'STEM' : p.charAt(0).toUpperCase() + p.slice(1)}
@@ -405,7 +407,7 @@ export default function CreateBountyPage() {
           {/* Bounty Pillar */}
           <VStack space="sm">
             <Heading size="md">Pillar</Heading>
-            <UIText size="xs" className="text-typo-400">Which pillar does this bounty align with?</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Which pillar does this bounty align with?</UIText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <HStack className="gap-2">
                 {pillarKeys.map((p) => {
@@ -415,7 +417,7 @@ export default function CreateBountyPage() {
                     <Pressable key={p} onPress={() => setPillar(p)}>
                       <View style={{
                         paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                        backgroundColor: active ? pc.color : '#F3F4F6',
+                        backgroundColor: active ? pc.color : c.surfaceMuted,
                         flexDirection: 'row', alignItems: 'center', gap: 6,
                       }}>
                         <UIText size="sm" style={{ color: active ? '#fff' : pc.color, fontFamily: 'Poppins_500Medium' }}>
@@ -438,8 +440,8 @@ export default function CreateBountyPage() {
               <Pressable onPress={() => setVisibility('public')} className="flex-1">
                 <Card variant={visibility === 'public' ? 'elevated' : 'outline'} size="sm">
                   <VStack className="items-center" space="xs">
-                    <Ionicons name="globe-outline" size={24} color={visibility === 'public' ? '#6D469B' : '#9CA3AF'} />
-                    <UIText size="sm" className={visibility === 'public' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+                    <Ionicons name="globe-outline" size={24} color={visibility === 'public' ? '#6D469B' : c.iconMuted} />
+                    <UIText size="sm" className={visibility === 'public' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                       Everyone
                     </UIText>
                   </VStack>
@@ -448,8 +450,8 @@ export default function CreateBountyPage() {
               <Pressable onPress={() => setVisibility('family')} className="flex-1">
                 <Card variant={visibility === 'family' ? 'elevated' : 'outline'} size="sm">
                   <VStack className="items-center" space="xs">
-                    <Ionicons name="people-outline" size={24} color={visibility === 'family' ? '#6D469B' : '#9CA3AF'} />
-                    <UIText size="sm" className={visibility === 'family' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500'}>
+                    <Ionicons name="people-outline" size={24} color={visibility === 'family' ? '#6D469B' : c.iconMuted} />
+                    <UIText size="sm" className={visibility === 'family' ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                       {isObserver ? 'My Students' : 'My Kids'}
                     </UIText>
                   </VStack>
@@ -460,7 +462,7 @@ export default function CreateBountyPage() {
             {/* Kid selector for family visibility */}
             {visibility === 'family' && dependents.length > 1 && (
               <VStack space="xs">
-                <UIText size="xs" className="text-typo-400">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                   {selectedKids.length === 0 ? `All ${isObserver ? 'students' : 'kids'} (tap to select specific)` : `${selectedKids.length} selected`}
                 </UIText>
                 <HStack className="flex-wrap gap-2">
@@ -470,9 +472,9 @@ export default function CreateBountyPage() {
                       <Pressable key={kid.id} onPress={() => toggleKid(kid.id)}>
                         <View style={{
                           paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: selected ? '#6D469B' : '#F3F4F6',
+                          backgroundColor: selected ? '#6D469B' : c.surfaceMuted,
                         }}>
-                          <UIText size="sm" style={{ color: selected ? '#fff' : '#6B7280', fontFamily: 'Poppins_500Medium' }}>
+                          <UIText size="sm" style={{ color: selected ? '#fff' : c.textMuted, fontFamily: 'Poppins_500Medium' }}>
                             {kid.display_name || kid.first_name || 'Student'}
                           </UIText>
                         </View>
@@ -489,7 +491,7 @@ export default function CreateBountyPage() {
            *  Web falls back to a typed-date input. */}
           <VStack space="xs">
             <UIText size="sm" className="font-poppins-medium">Deadline</UIText>
-            <UIText size="xs" className="text-typo-400">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
               The date students have to claim and complete this bounty by.
             </UIText>
             {Platform.OS === 'web' ? (
@@ -504,7 +506,7 @@ export default function CreateBountyPage() {
                   setDeadline(next);
                 }}
                 accessibilityLabel="Bounty deadline"
-                className="border border-surface-300 rounded-xl p-3 text-base bg-white"
+                className="border border-surface-300 dark:border-dark-surface-300 rounded-xl p-3 text-base bg-white dark:bg-dark-surface-100 text-typo dark:text-dark-typo"
                 style={{ fontFamily: 'Poppins_400Regular' }}
               />
             ) : Platform.OS === 'android' ? (
@@ -513,9 +515,9 @@ export default function CreateBountyPage() {
                   testID="bounty-deadline-android-trigger"
                   onPress={() => setShowDatePicker(true)}
                   accessibilityLabel="Pick deadline date"
-                  className="border border-surface-300 rounded-xl px-4 py-3 bg-white flex-row items-center justify-between"
+                  className="border border-surface-300 dark:border-dark-surface-300 rounded-xl px-4 py-3 bg-white dark:bg-dark-surface-100 flex-row items-center justify-between"
                 >
-                  <UIText size="md" className="font-poppins-medium text-typo">
+                  <UIText size="md" className="font-poppins-medium text-typo dark:text-dark-typo">
                     {deadline.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </UIText>
                   <Ionicons name="calendar-outline" size={20} color="#6D469B" />
@@ -533,7 +535,7 @@ export default function CreateBountyPage() {
               </>
             ) : (
               // iOS — inline picker is nicer than tap-to-open since the form is short.
-              <View className="border border-surface-300 rounded-xl bg-white px-2 py-1">
+              <View className="border border-surface-300 dark:border-dark-surface-300 rounded-xl bg-white dark:bg-dark-surface-100 px-2 py-1">
                 <DateTimePicker
                   testID="bounty-deadline-picker"
                   value={deadline}
@@ -549,9 +551,9 @@ export default function CreateBountyPage() {
           {/* Max Claims */}
           <VStack space="xs">
             <UIText size="sm" className="font-poppins-medium">Max Claims</UIText>
-            <UIText size="xs" className="text-typo-400">0 = unlimited. Set a number to limit how many students can claim this bounty.</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">0 = unlimited. Set a number to limit how many students can claim this bounty.</UIText>
             <TextInput
-              className="border border-surface-300 rounded-xl px-4 py-3 text-sm bg-white"
+              className="border border-surface-300 dark:border-dark-surface-300 rounded-xl px-4 py-3 text-sm bg-white dark:bg-dark-surface-100 text-typo dark:text-dark-typo"
               placeholder="0"
               value={maxClaims}
               onChangeText={setMaxClaims}

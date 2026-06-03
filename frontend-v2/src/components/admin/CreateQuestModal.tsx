@@ -14,6 +14,7 @@ import { View, Modal, Pressable, TextInput, ScrollView, Alert, Platform } from '
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, Card, Divider,
 } from '../ui';
@@ -119,6 +120,7 @@ interface Props {
 }
 
 export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
+  const c = useThemeColors();
   const [form, setForm] = useState<FormData>(initialFormData());
   const [subjects, setSubjects] = useState<SchoolSubject[]>(FALLBACK_SUBJECTS);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -267,12 +269,12 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <Pressable onPress={handleClose} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <Pressable onPress={(e) => e.stopPropagation?.()} style={{ backgroundColor: '#fff', borderRadius: 20, width: '100%', maxWidth: 700, maxHeight: '90%', overflow: 'hidden' }}>
+        <Pressable onPress={(e) => e.stopPropagation?.()} style={{ backgroundColor: c.card, borderRadius: 20, width: '100%', maxWidth: 700, maxHeight: '90%', overflow: 'hidden' }}>
           {/* Header */}
-          <HStack className="items-center justify-between px-6 py-4" style={{ borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+          <HStack className="items-center justify-between px-6 py-4" style={{ borderBottomWidth: 1, borderBottomColor: c.border }}>
             <Heading size="lg">Create New Quest</Heading>
-            <Pressable onPress={handleClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="close" size={18} color="#6B7280" />
+            <Pressable onPress={handleClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="close" size={18} color={c.icon} />
             </Pressable>
           </HStack>
 
@@ -292,44 +294,44 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                   value={form.title}
                   onChangeText={(v) => { setForm((p) => ({ ...p, title: v })); if (errors.title) setErrors((e) => { const n = { ...e }; delete n.title; return n; }); }}
                   placeholder="e.g., Build a Community Garden"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={c.textFaint}
                   maxLength={200}
-                  style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 14, fontSize: 15, fontFamily: 'Poppins_400Regular', borderWidth: errors.title ? 2 : 1, borderColor: errors.title ? '#EF4444' : '#E5E7EB' }}
+                  style={{ backgroundColor: c.background, color: c.text, borderRadius: 12, padding: 14, fontSize: 15, fontFamily: 'Poppins_400Regular', borderWidth: errors.title ? 2 : 1, borderColor: errors.title ? '#EF4444' : c.border }}
                 />
                 {errors.title && <UIText size="xs" className="text-red-500">{errors.title}</UIText>}
-                <UIText size="xs" className="text-typo-400">{form.title.length}/200</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{form.title.length}/200</UIText>
               </VStack>
 
               {/* Description */}
               <VStack space="xs">
-                <UIText size="sm" className="font-poppins-medium text-typo-600">Big Idea / Description <UIText size="xs" className="text-typo-400">(optional)</UIText></UIText>
+                <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Big Idea / Description <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">(optional)</UIText></UIText>
                 <TextInput
                   value={form.big_idea}
                   onChangeText={(v) => setForm((p) => ({ ...p, big_idea: v }))}
                   placeholder="Describe the quest's main concept and learning goals"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={c.textFaint}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
-                  style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Poppins_400Regular', minHeight: 80, borderWidth: 1, borderColor: '#E5E7EB' }}
+                  style={{ backgroundColor: c.background, color: c.text, borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Poppins_400Regular', minHeight: 80, borderWidth: 1, borderColor: c.border }}
                 />
               </VStack>
 
               {/* Status */}
               <VStack space="xs">
-                <UIText size="sm" className="font-poppins-medium text-typo-600">Status</UIText>
+                <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Status</UIText>
                 <HStack space="xs">
                   <Pressable
                     onPress={() => setForm((p) => ({ ...p, is_active: true }))}
-                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: form.is_active ? '#16A34A15' : '#F3F4F6', borderWidth: form.is_active ? 1.5 : 0, borderColor: '#16A34A', alignItems: 'center' }}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: form.is_active ? '#16A34A15' : c.surfaceMuted, borderWidth: form.is_active ? 1.5 : 0, borderColor: '#16A34A', alignItems: 'center' }}
                   >
-                    <UIText size="xs" className={`font-poppins-medium ${form.is_active ? 'text-green-700' : 'text-typo-400'}`}>Active</UIText>
+                    <UIText size="xs" className={`font-poppins-medium ${form.is_active ? 'text-green-700' : 'text-typo-400 dark:text-dark-typo-400'}`}>Active</UIText>
                   </Pressable>
                   <Pressable
                     onPress={() => setForm((p) => ({ ...p, is_active: false }))}
-                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: !form.is_active ? '#EF444415' : '#F3F4F6', borderWidth: !form.is_active ? 1.5 : 0, borderColor: '#EF4444', alignItems: 'center' }}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: !form.is_active ? '#EF444415' : c.surfaceMuted, borderWidth: !form.is_active ? 1.5 : 0, borderColor: '#EF4444', alignItems: 'center' }}
                   >
-                    <UIText size="xs" className={`font-poppins-medium ${!form.is_active ? 'text-red-700' : 'text-typo-400'}`}>Inactive</UIText>
+                    <UIText size="xs" className={`font-poppins-medium ${!form.is_active ? 'text-red-700' : 'text-typo-400 dark:text-dark-typo-400'}`}>Inactive</UIText>
                   </Pressable>
                 </HStack>
               </VStack>
@@ -338,14 +340,14 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
               <VStack space="xs">
                 <HStack className="items-center justify-between">
                   <Heading size="md">Template Tasks</Heading>
-                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Optional</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Optional</UIText>
                 </HStack>
-                <UIText size="xs" className="text-typo-500">Suggested tasks for students. Required tasks are auto-added on enrollment.</UIText>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">Suggested tasks for students. Required tasks are auto-added on enrollment.</UIText>
                 <Divider />
               </VStack>
 
               {form.tasks.map((task, idx) => (
-                <Card key={idx} variant="outline" size="md" style={{ borderColor: Object.keys(errors).some((k) => k.startsWith(`task_${idx}`)) ? '#FCA5A5' : '#E5E7EB' }}>
+                <Card key={idx} variant="outline" size="md" style={{ borderColor: Object.keys(errors).some((k) => k.startsWith(`task_${idx}`)) ? '#FCA5A5' : c.border }}>
                   <VStack space="md">
                     {/* Task header */}
                     <HStack className="items-center justify-between">
@@ -353,10 +355,10 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                         <UIText size="sm" className="font-poppins-semibold">Task {idx + 1}</UIText>
                         <Pressable
                           onPress={() => updateTask(idx, 'is_required', !task.is_required)}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, backgroundColor: task.is_required ? '#6D469B15' : '#F3F4F6', borderWidth: 1, borderColor: task.is_required ? '#6D469B' : '#E5E7EB' }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, backgroundColor: task.is_required ? '#6D469B15' : c.surfaceMuted, borderWidth: 1, borderColor: task.is_required ? '#6D469B' : c.border }}
                         >
-                          <Ionicons name={task.is_required ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={task.is_required ? '#6D469B' : '#9CA3AF'} />
-                          <UIText size="xs" className={`font-poppins-medium ${task.is_required ? 'text-optio-purple' : 'text-typo-400'}`}>
+                          <Ionicons name={task.is_required ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={task.is_required ? '#6D469B' : c.iconMuted} />
+                          <UIText size="xs" className={`font-poppins-medium ${task.is_required ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'}`}>
                             {task.is_required ? 'Required' : 'Optional'}
                           </UIText>
                         </Pressable>
@@ -368,36 +370,36 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
                     {/* Task title */}
                     <VStack space="xs">
-                      <UIText size="xs" className="font-poppins-medium text-typo-600">Title <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                      <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Title <UIText size="xs" className="text-red-500">*</UIText></UIText>
                       <TextInput
                         value={task.title}
                         onChangeText={(v) => updateTask(idx, 'title', v)}
                         placeholder="e.g., Research local plant species"
-                        placeholderTextColor="#9CA3AF"
-                        style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontSize: 14, fontFamily: 'Poppins_400Regular', borderWidth: errors[`task_${idx}_title`] ? 2 : 1, borderColor: errors[`task_${idx}_title`] ? '#EF4444' : '#E5E7EB' }}
+                        placeholderTextColor={c.textFaint}
+                        style={{ backgroundColor: c.background, color: c.text, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: 'Poppins_400Regular', borderWidth: errors[`task_${idx}_title`] ? 2 : 1, borderColor: errors[`task_${idx}_title`] ? '#EF4444' : c.border }}
                       />
                       {errors[`task_${idx}_title`] && <UIText size="xs" className="text-red-500">{errors[`task_${idx}_title`]}</UIText>}
                     </VStack>
 
                     {/* Task description */}
                     <VStack space="xs">
-                      <UIText size="xs" className="font-poppins-medium text-typo-600">Description <UIText size="xs" className="text-typo-400">(optional)</UIText></UIText>
+                      <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Description <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">(optional)</UIText></UIText>
                       <TextInput
                         value={task.description}
                         onChangeText={(v) => updateTask(idx, 'description', v)}
                         placeholder="Detailed instructions for students"
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor={c.textFaint}
                         multiline
                         numberOfLines={2}
                         textAlignVertical="top"
-                        style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', minHeight: 60, borderWidth: 1, borderColor: '#E5E7EB' }}
+                        style={{ backgroundColor: c.background, color: c.text, borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', minHeight: 60, borderWidth: 1, borderColor: c.border }}
                       />
                     </VStack>
 
                     {/* Pillar + XP row */}
                     <HStack space="md">
                       <VStack space="xs" className="flex-1">
-                        <UIText size="xs" className="font-poppins-medium text-typo-600">Pillar <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                        <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Pillar <UIText size="xs" className="text-red-500">*</UIText></UIText>
                         <HStack className="flex-wrap gap-1.5">
                           {pillarKeys.map((key) => {
                             const p = getPillar(key);
@@ -406,10 +408,10 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                               <Pressable
                                 key={key}
                                 onPress={() => updateTask(idx, 'pillar', key)}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: selected ? p.color : '#E5E7EB', backgroundColor: selected ? p.color + '15' : '#fff' }}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: selected ? p.color : c.border, backgroundColor: selected ? p.color + '15' : c.card }}
                               >
-                                <Ionicons name={selected ? p.iconFilled : p.icon} size={14} color={selected ? p.color : '#9CA3AF'} />
-                                <UIText size="xs" className="font-poppins-medium" style={{ color: selected ? p.color : '#6B7280' }}>{p.label}</UIText>
+                                <Ionicons name={selected ? p.iconFilled : p.icon} size={14} color={selected ? p.color : c.iconMuted} />
+                                <UIText size="xs" className="font-poppins-medium" style={{ color: selected ? p.color : c.textMuted }}>{p.label}</UIText>
                               </Pressable>
                             );
                           })}
@@ -417,19 +419,19 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                         {errors[`task_${idx}_pillar`] && <UIText size="xs" className="text-red-500">{errors[`task_${idx}_pillar`]}</UIText>}
                       </VStack>
                       <VStack space="xs" style={{ width: 100 }}>
-                        <UIText size="xs" className="font-poppins-medium text-typo-600">XP <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                        <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">XP <UIText size="xs" className="text-red-500">*</UIText></UIText>
                         <TextInput
                           value={String(task.xp_value)}
                           onChangeText={(v) => updateTaskXP(idx, parseInt(v) || 0)}
                           keyboardType="numeric"
-                          style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontSize: 14, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: errors[`task_${idx}_xp_value`] ? '#EF4444' : '#E5E7EB', textAlign: 'center' }}
+                          style={{ backgroundColor: c.background, color: c.text, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: errors[`task_${idx}_xp_value`] ? '#EF4444' : c.border, textAlign: 'center' }}
                         />
                       </VStack>
                     </HStack>
 
                     {/* School subjects */}
                     <VStack space="xs">
-                      <UIText size="xs" className="font-poppins-medium text-typo-600">School Subjects (Diploma Credit) <UIText size="xs" className="text-red-500">*</UIText></UIText>
+                      <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">School Subjects (Diploma Credit) <UIText size="xs" className="text-red-500">*</UIText></UIText>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                         {subjects.map((s) => {
                           const selected = task.school_subjects?.includes(s.key);
@@ -437,9 +439,9 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                             <Pressable
                               key={s.key}
                               onPress={() => toggleSubject(idx, s.key)}
-                              style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: selected ? '#6D469B' : '#E5E7EB', backgroundColor: selected ? '#6D469B15' : '#fff' }}
+                              style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: selected ? '#6D469B' : c.border, backgroundColor: selected ? '#6D469B15' : c.card }}
                             >
-                              <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-optio-purple' : 'text-typo-500'}`}>{s.name}</UIText>
+                              <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}`}>{s.name}</UIText>
                             </Pressable>
                           );
                         })}
@@ -451,20 +453,20 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
                     {task.school_subjects?.length > 0 && (
                       <VStack space="xs" style={{ backgroundColor: '#EFF6FF', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' }}>
                         <UIText size="xs" className="font-poppins-medium text-blue-700">Subject XP Distribution</UIText>
-                        <UIText size="xs" className="text-typo-500">Auto-balanced from task XP. Adjust if needed.</UIText>
+                        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">Auto-balanced from task XP. Adjust if needed.</UIText>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
                           {task.school_subjects.map((sk) => {
                             const subj = subjects.find((s) => s.key === sk);
                             return (
                               <HStack key={sk} className="items-center gap-2">
-                                <UIText size="xs" className="font-poppins-medium text-typo-700">{subj?.name || sk}:</UIText>
+                                <UIText size="xs" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700">{subj?.name || sk}:</UIText>
                                 <TextInput
                                   value={String(task.subject_xp_distribution[sk] || '')}
                                   onChangeText={(v) => updateSubjectXP(idx, sk, parseInt(v) || 0)}
                                   keyboardType="numeric"
                                   placeholder="0"
-                                  placeholderTextColor="#9CA3AF"
-                                  style={{ width: 60, backgroundColor: '#fff', borderRadius: 8, padding: 6, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: '#D1D5DB', textAlign: 'center' }}
+                                  placeholderTextColor={c.textFaint}
+                                  style={{ width: 60, backgroundColor: c.card, color: c.text, borderRadius: 8, padding: 6, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: c.border, textAlign: 'center' }}
                                 />
                               </HStack>
                             );
@@ -488,21 +490,21 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
 
               {/* ── Metadata Section ── */}
               <VStack space="xs">
-                <Heading size="md">Metadata <UIText size="xs" className="text-typo-400 font-poppins-regular">(optional)</UIText></Heading>
+                <Heading size="md">Metadata <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-regular">(optional)</UIText></Heading>
                 <Divider />
               </VStack>
 
               {/* Location type */}
               <VStack space="xs">
-                <UIText size="xs" className="font-poppins-medium text-typo-600">Location Type</UIText>
+                <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Location Type</UIText>
                 <HStack className="flex-wrap gap-1.5">
                   {LOCATION_TYPES.map((lt) => (
                     <Pressable
                       key={lt.value}
                       onPress={() => setForm((p) => ({ ...p, metadata: { ...p.metadata, location_type: lt.value } }))}
-                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: form.metadata.location_type === lt.value ? '#6D469B' : '#E5E7EB', backgroundColor: form.metadata.location_type === lt.value ? '#6D469B15' : '#fff' }}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: form.metadata.location_type === lt.value ? '#6D469B' : c.border, backgroundColor: form.metadata.location_type === lt.value ? '#6D469B15' : c.card }}
                     >
-                      <UIText size="xs" className={`font-poppins-medium ${form.metadata.location_type === lt.value ? 'text-optio-purple' : 'text-typo-500'}`}>{lt.label}</UIText>
+                      <UIText size="xs" className={`font-poppins-medium ${form.metadata.location_type === lt.value ? 'text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}`}>{lt.label}</UIText>
                     </Pressable>
                   ))}
                 </HStack>
@@ -511,23 +513,23 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
               {form.metadata.location_type === 'specific_location' && (
                 <HStack space="md">
                   <VStack space="xs" className="flex-1">
-                    <UIText size="xs" className="font-poppins-medium text-typo-600">Venue Name</UIText>
+                    <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Venue Name</UIText>
                     <TextInput
                       value={form.metadata.venue_name}
                       onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, venue_name: v } }))}
                       placeholder="e.g., Community Center"
-                      placeholderTextColor="#9CA3AF"
-                      style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: '#E5E7EB' }}
+                      placeholderTextColor={c.textFaint}
+                      style={{ backgroundColor: c.background, color: c.text, borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: c.border }}
                     />
                   </VStack>
                   <VStack space="xs" className="flex-1">
-                    <UIText size="xs" className="font-poppins-medium text-typo-600">Address</UIText>
+                    <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Address</UIText>
                     <TextInput
                       value={form.metadata.location_address}
                       onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, location_address: v } }))}
                       placeholder="Full address"
-                      placeholderTextColor="#9CA3AF"
-                      style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: '#E5E7EB' }}
+                      placeholderTextColor={c.textFaint}
+                      style={{ backgroundColor: c.background, color: c.text, borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: c.border }}
                     />
                   </VStack>
                 </HStack>
@@ -536,23 +538,23 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
               {/* Seasonal dates */}
               <HStack space="md">
                 <VStack space="xs" className="flex-1">
-                  <UIText size="xs" className="font-poppins-medium text-typo-600">Seasonal Start</UIText>
+                  <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Seasonal Start</UIText>
                   <TextInput
                     value={form.metadata.seasonal_start}
                     onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, seasonal_start: v } }))}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9CA3AF"
-                    style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: '#E5E7EB' }}
+                    placeholderTextColor={c.textFaint}
+                    style={{ backgroundColor: c.background, color: c.text, borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: c.border }}
                   />
                 </VStack>
                 <VStack space="xs" className="flex-1">
-                  <UIText size="xs" className="font-poppins-medium text-typo-600">Seasonal End</UIText>
+                  <UIText size="xs" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Seasonal End</UIText>
                   <TextInput
                     value={form.metadata.seasonal_end}
                     onChangeText={(v) => setForm((p) => ({ ...p, metadata: { ...p.metadata, seasonal_end: v } }))}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9CA3AF"
-                    style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: '#E5E7EB' }}
+                    placeholderTextColor={c.textFaint}
+                    style={{ backgroundColor: c.background, color: c.text, borderRadius: 10, padding: 12, fontSize: 13, fontFamily: 'Poppins_400Regular', borderWidth: 1, borderColor: c.border }}
                   />
                 </VStack>
               </HStack>
@@ -561,7 +563,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
           </ScrollView>
 
           {/* Footer */}
-          <HStack className="justify-end gap-3 px-6 py-4" style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+          <HStack className="justify-end gap-3 px-6 py-4" style={{ borderTopWidth: 1, borderTopColor: c.border }}>
             <Button variant="outline" size="md" onPress={handleClose} disabled={saving}>
               <ButtonText>Cancel</ButtonText>
             </Button>

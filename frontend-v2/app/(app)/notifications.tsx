@@ -13,6 +13,7 @@ import api from '@/src/services/api';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -61,6 +62,7 @@ function NotificationCard({
   onPress: () => void;
   onDelete: () => void;
 }) {
+  const c = useThemeColors();
   const icon = getIcon(notification.type);
   const isAnnouncement = notification.type === 'announcement';
   const fullContent = notification.metadata?.full_content;
@@ -71,7 +73,7 @@ function NotificationCard({
       <Card
         variant={notification.is_read ? 'filled' : 'elevated'}
         size="sm"
-        className={`${notification.is_read ? 'bg-surface-50' : 'bg-white border-l-4 border-l-optio-purple'}`}
+        className={`${notification.is_read ? 'bg-surface-50 dark:bg-dark-surface-50' : 'bg-white dark:bg-dark-surface-100 border-l-4 border-l-optio-purple'}`}
       >
         <HStack className="items-start gap-3">
           {/* Icon */}
@@ -88,12 +90,12 @@ function NotificationCard({
             <HStack className="items-center justify-between">
               <UIText
                 size="sm"
-                className={`font-poppins-semibold flex-1 ${notification.is_read ? 'text-typo-400' : 'text-typo-900'}`}
+                className={`font-poppins-semibold flex-1 ${notification.is_read ? 'text-typo-400 dark:text-dark-typo-400' : 'text-typo-900 dark:text-dark-typo'}`}
                 numberOfLines={1}
               >
                 {notification.title}
               </UIText>
-              <UIText size="xs" className="text-typo-300 ml-2 flex-shrink-0">
+              <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300 ml-2 flex-shrink-0">
                 {timeAgo(notification.created_at)}
               </UIText>
             </HStack>
@@ -101,7 +103,7 @@ function NotificationCard({
             {notification.message && (
               <UIText
                 size="xs"
-                className={notification.is_read ? 'text-typo-300' : 'text-typo-500'}
+                className={notification.is_read ? 'text-typo-300 dark:text-dark-typo-300' : 'text-typo-500 dark:text-dark-typo-500'}
                 numberOfLines={expanded ? undefined : 2}
               >
                 {notification.message}
@@ -117,7 +119,7 @@ function NotificationCard({
               </Pressable>
             )}
             {isAnnouncement && fullContent && expanded && (
-              <UIText size="xs" className="text-typo-500 mt-2">
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-2">
                 {fullContent}
               </UIText>
             )}
@@ -128,7 +130,7 @@ function NotificationCard({
             onPress={(e) => { e.stopPropagation?.(); onDelete(); }}
             style={{ padding: 4 }}
           >
-            <Ionicons name="close" size={16} color="#D1D5DB" />
+            <Ionicons name="close" size={16} color={c.iconMuted} />
           </Pressable>
         </HStack>
       </Card>
@@ -139,6 +141,7 @@ function NotificationCard({
 // ── Main Page ──
 
 export default function NotificationsScreen() {
+  const c = useThemeColors();
   const { user } = useAuthStore();
   const {
     notifications,
@@ -216,12 +219,12 @@ export default function NotificationsScreen() {
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top']}>
       {/* Mobile header with back button */}
       {!isDesktop && (
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8, gap: 8 }}>
           <Pressable onPress={() => router.back()} style={{ padding: 4 }}>
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="chevron-back" size={24} color={c.text} />
           </Pressable>
           <Heading size="xl" style={{ flex: 1 }}>Notifications</Heading>
           {unreadCount > 0 && (
@@ -237,12 +240,12 @@ export default function NotificationsScreen() {
         <View className="px-5 md:px-8 pt-6 pb-2 max-w-3xl w-full md:mx-auto">
           <HStack className="items-center justify-between">
             <HStack className="items-center gap-3">
-              <Pressable onPress={() => router.back()} className="p-1 -ml-1 rounded-lg active:bg-surface-100">
-                <Ionicons name="arrow-back" size={20} color="#6B7280" />
+              <Pressable onPress={() => router.back()} className="p-1 -ml-1 rounded-lg active:bg-surface-100 dark:active:bg-dark-surface-200">
+                <Ionicons name="arrow-back" size={20} color={c.icon} />
               </Pressable>
               <VStack>
                 <Heading size="2xl">Notifications</Heading>
-                <UIText size="sm" className="text-typo-400">
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
                   {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
                 </UIText>
               </VStack>
@@ -271,13 +274,13 @@ export default function NotificationsScreen() {
               key={f}
               onPress={() => { setFilter(f); refetch(f === 'unread'); }}
               className={`px-4 py-1.5 rounded-full ${
-                filter === f ? 'bg-optio-purple' : 'bg-surface-100'
+                filter === f ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'
               }`}
             >
               <UIText
                 size="xs"
                 className={`font-poppins-medium capitalize ${
-                  filter === f ? 'text-white' : 'text-typo-500'
+                  filter === f ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'
                 }`}
               >
                 {f === 'unread' ? `Unread (${unreadCount})` : 'All'}
@@ -301,7 +304,7 @@ export default function NotificationsScreen() {
         {loading && filtered.length === 0 ? (
           <VStack space="sm" className="pt-4">
             {[1, 2, 3, 4].map(i => (
-              <View key={i} className="h-20 bg-surface-100 rounded-xl animate-pulse" />
+              <View key={i} className="h-20 bg-surface-100 dark:bg-dark-surface-200 rounded-xl animate-pulse" />
             ))}
           </VStack>
         ) : filtered.length > 0 ? (
@@ -317,11 +320,11 @@ export default function NotificationsScreen() {
           </VStack>
         ) : (
           <VStack className="items-center justify-center pt-20 gap-3">
-            <Ionicons name="notifications-off-outline" size={48} color="#D1D5DB" />
-            <Heading size="sm" className="text-typo-400">
+            <Ionicons name="notifications-off-outline" size={48} color={c.iconMuted} />
+            <Heading size="sm" className="text-typo-400 dark:text-dark-typo-400">
               {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
             </Heading>
-            <UIText size="sm" className="text-typo-300 text-center">
+            <UIText size="sm" className="text-typo-300 dark:text-dark-typo-300 text-center">
               {filter === 'unread'
                 ? 'You\'re all caught up!'
                 : 'Notifications about tasks, quests, and messages will appear here.'}
@@ -339,38 +342,40 @@ export default function NotificationsScreen() {
         >
           <Pressable
             onPress={(e) => e.stopPropagation?.()}
-            style={{ backgroundColor: '#FFF', borderRadius: 20, width: 480, maxWidth: '92%', padding: 24 }}
+            style={{ backgroundColor: c.card, borderRadius: 20, width: 480, maxWidth: '92%', padding: 24 }}
           >
             <VStack space="md">
               <HStack className="items-center justify-between">
                 <Heading size="lg">Send Notification</Heading>
                 <Pressable onPress={() => setShowBroadcast(false)}>
-                  <Ionicons name="close" size={24} color="#6B7280" />
+                  <Ionicons name="close" size={24} color={c.icon} />
                 </Pressable>
               </HStack>
 
               <VStack space="xs">
                 <UIText size="sm" className="font-poppins-medium">Title</UIText>
                 <TextInput
-                  className="border border-surface-300 rounded-xl px-4 py-3 text-sm bg-white"
+                  className="border border-surface-300 dark:border-dark-surface-300 rounded-xl px-4 py-3 text-sm bg-white dark:bg-dark-surface-100"
                   placeholder="Notification title"
+                  placeholderTextColor={c.textFaint}
                   value={broadcastTitle}
                   onChangeText={setBroadcastTitle}
-                  style={{ fontFamily: 'Poppins_400Regular' }}
+                  style={{ fontFamily: 'Poppins_400Regular', color: c.text }}
                 />
               </VStack>
 
               <VStack space="xs">
                 <UIText size="sm" className="font-poppins-medium">Message</UIText>
                 <TextInput
-                  className="border border-surface-300 rounded-xl px-4 py-3 text-sm bg-white"
+                  className="border border-surface-300 dark:border-dark-surface-300 rounded-xl px-4 py-3 text-sm bg-white dark:bg-dark-surface-100"
                   placeholder="Write your message..."
+                  placeholderTextColor={c.textFaint}
                   value={broadcastMessage}
                   onChangeText={setBroadcastMessage}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  style={{ fontFamily: 'Poppins_400Regular', minHeight: 100 }}
+                  style={{ fontFamily: 'Poppins_400Regular', minHeight: 100, color: c.text }}
                 />
               </VStack>
 
@@ -386,9 +391,9 @@ export default function NotificationsScreen() {
                     <Pressable
                       key={opt.value}
                       onPress={() => setBroadcastAudience(opt.value)}
-                      className={`px-4 py-2 rounded-full ${broadcastAudience === opt.value ? 'bg-optio-purple' : 'bg-surface-100'}`}
+                      className={`px-4 py-2 rounded-full ${broadcastAudience === opt.value ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}
                     >
-                      <UIText size="xs" className={`font-poppins-medium ${broadcastAudience === opt.value ? 'text-white' : 'text-typo-500'}`}>
+                      <UIText size="xs" className={`font-poppins-medium ${broadcastAudience === opt.value ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
                         {opt.label}
                       </UIText>
                     </Pressable>

@@ -14,6 +14,7 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText,
 } from '../ui';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 // File size limits (must match backend constants)
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -43,6 +44,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
   const [evidenceBlocks, setEvidenceBlocks] = useState<EvidenceBlock[]>([]);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const c = useThemeColors();
 
   const addEvidenceBlock = (type: 'text' | 'link') => {
     setEvidenceBlocks((prev) => [...prev, { type, content: '' }]);
@@ -214,7 +216,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
         <Pressable
           onPress={(e) => e.stopPropagation()}
           style={{
-            backgroundColor: '#fff',
+            backgroundColor: c.card,
             borderRadius: 20,
             width: '100%',
             maxWidth: 520,
@@ -228,9 +230,9 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
               <Heading size="lg">Capture a Moment</Heading>
               <Pressable
                 onPress={handleClose}
-                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Ionicons name="close" size={18} color="#6B7280" />
+                <Ionicons name="close" size={18} color={c.icon} />
               </Pressable>
             </HStack>
 
@@ -239,16 +241,16 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
               value={description}
               onChangeText={setDescription}
               placeholder="What did you learn?"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               multiline
               numberOfLines={4}
               style={{
-                backgroundColor: '#F9FAFB',
+                backgroundColor: c.background,
                 borderRadius: 12,
                 padding: 16,
                 fontSize: 16,
                 fontFamily: 'Poppins_400Regular',
-                color: '#1F2937',
+                color: c.text,
                 minHeight: 100,
                 textAlignVertical: 'top',
               }}
@@ -288,7 +290,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                       </UIText>
                     </VStack>
                     <Pressable onPress={() => removeFile(index)}>
-                      <Ionicons name="close-circle" size={22} color="#9CA3AF" />
+                      <Ionicons name="close-circle" size={22} color={c.iconMuted} />
                     </Pressable>
                   </HStack>
                 ))}
@@ -305,10 +307,10 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                   gap: 8,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
-                  backgroundColor: '#F9FAFB',
+                  backgroundColor: c.background,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#E5E7EB',
+                  borderColor: c.border,
                   borderStyle: 'dashed',
                 }}
               >
@@ -325,10 +327,10 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                   gap: 8,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
-                  backgroundColor: '#F9FAFB',
+                  backgroundColor: c.background,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#E5E7EB',
+                  borderColor: c.border,
                   borderStyle: 'dashed',
                 }}
               >
@@ -343,10 +345,10 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                   gap: 8,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
-                  backgroundColor: '#F9FAFB',
+                  backgroundColor: c.background,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#E5E7EB',
+                  borderColor: c.border,
                   borderStyle: 'dashed',
                 }}
               >
@@ -359,7 +361,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
             {evidenceBlocks.length > 0 && (
               <VStack space="xs">
                 {evidenceBlocks.map((block, idx) => (
-                  <HStack key={idx} className="items-start gap-2" style={{ backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                  <HStack key={idx} className="items-start gap-2" style={{ backgroundColor: c.background, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.border }}>
                     <Ionicons
                       name={block.type === 'link' ? 'link-outline' : 'document-text-outline'}
                       size={18}
@@ -370,7 +372,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                       value={block.content}
                       onChangeText={(val) => updateEvidenceBlock(idx, val)}
                       placeholder={block.type === 'link' ? 'https://...' : 'Add a text note...'}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={c.textFaint}
                       multiline={block.type === 'text'}
                       numberOfLines={block.type === 'text' ? 3 : 1}
                       keyboardType={block.type === 'link' ? 'url' : 'default'}
@@ -379,13 +381,13 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                         flex: 1,
                         fontSize: 14,
                         fontFamily: 'Poppins_400Regular',
-                        color: '#1F2937',
+                        color: c.text,
                         minHeight: block.type === 'text' ? 60 : undefined,
                         textAlignVertical: block.type === 'text' ? 'top' : undefined,
                       }}
                     />
                     <Pressable onPress={() => removeEvidenceBlock(idx)} style={{ marginTop: 2 }}>
-                      <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                      <Ionicons name="close-circle" size={20} color={c.iconMuted} />
                     </Pressable>
                   </HStack>
                 ))}
@@ -423,19 +425,19 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                         paddingVertical: 6,
                         borderRadius: 20,
                         borderWidth: 1.5,
-                        borderColor: selected ? pc.color : '#E5E7EB',
-                        backgroundColor: selected ? pc.color + '15' : '#fff',
+                        borderColor: selected ? pc.color : c.border,
+                        backgroundColor: selected ? pc.color + '15' : c.card,
                       }}
                     >
                       <Ionicons
                         name={selected ? pc.iconFilled : pc.icon}
                         size={14}
-                        color={selected ? pc.color : '#9CA3AF'}
+                        color={selected ? pc.color : c.iconMuted}
                       />
                       <UIText
                         size="xs"
                         className="font-poppins-medium"
-                        style={{ color: selected ? pc.color : '#6B7280' }}
+                        style={{ color: selected ? pc.color : c.textMuted }}
                       >
                         {pc.label}
                       </UIText>

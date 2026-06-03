@@ -12,6 +12,7 @@ import {
   UIText, Heading, Avatar, AvatarFallbackText, AvatarImage,
 } from '@/src/components/ui';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   useGroupMessages,
   useGroupDetail,
@@ -57,6 +58,7 @@ const roleLabels: Record<string, string> = {
 };
 
 function MembersList({ members, userId, onClose }: { members: any[]; userId?: string; onClose?: () => void }) {
+  const c = useThemeColors();
   return (
     <ScrollView className="flex-1" contentContainerStyle={{ paddingVertical: 4 }}>
       {members.map((member: any) => {
@@ -82,13 +84,13 @@ function MembersList({ members, userId, onClose }: { members: any[]; userId?: st
                 <View
                   className="self-start mt-0.5"
                   style={{
-                    backgroundColor: member.role === 'admin' || member.role === 'owner' ? '#EDE9F0' : '#F1EDF5',
+                    backgroundColor: member.role === 'admin' || member.role === 'owner' ? '#EDE9F0' : c.surfaceMuted,
                     paddingHorizontal: 6,
                     paddingVertical: 1,
                     borderRadius: 8,
                   }}
                 >
-                  <UIText size="xs" style={{ color: member.role === 'admin' || member.role === 'owner' ? '#6D469B' : '#6B7280', fontSize: 10 }}>
+                  <UIText size="xs" style={{ color: member.role === 'admin' || member.role === 'owner' ? '#6D469B' : c.textMuted, fontSize: 10 }}>
                     {roleLabel}
                   </UIText>
                 </View>
@@ -102,6 +104,7 @@ function MembersList({ members, userId, onClose }: { members: any[]; userId?: st
 }
 
 export function GroupChatWindow({ group, onBack }: Props) {
+  const c = useThemeColors();
   const { user } = useAuthStore();
   const { messages, loading, refetch, setMessages } = useGroupMessages(group.id);
   const { group: groupDetail, loading: detailLoading } = useGroupDetail(group.id);
@@ -189,7 +192,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
 
   const header = (
     <View
-      className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200 bg-white"
+      className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100"
       style={isMobile ? { paddingTop: Platform.OS === 'web' ? 12 : insets.top + 8 } : undefined}
     >
       <View className="flex-row items-center flex-1">
@@ -221,13 +224,13 @@ export function GroupChatWindow({ group, onBack }: Props) {
           borderRadius: 18,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: showMembers ? '#6D469B' : '#F1EDF5',
+          backgroundColor: showMembers ? '#6D469B' : c.surfaceMuted,
         }}
       >
         <Ionicons
           name="people-outline"
           size={18}
-          color={showMembers ? '#fff' : '#6B7280'}
+          color={showMembers ? '#fff' : c.icon}
         />
       </Pressable>
     </View>
@@ -236,7 +239,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
   const messageList = (
     <ScrollView
       ref={scrollRef}
-      className="flex-1 bg-surface-50"
+      className="flex-1 bg-surface-50 dark:bg-dark-surface-50"
       contentContainerStyle={{ padding: 16, gap: 8 }}
       showsVerticalScrollIndicator={false}
       keyboardDismissMode="interactive"
@@ -248,8 +251,8 @@ export function GroupChatWindow({ group, onBack }: Props) {
         </View>
       ) : messages.length === 0 ? (
         <View className="items-center py-20">
-          <Ionicons name="chatbubbles-outline" size={48} color="#CEC6D6" />
-          <UIText size="sm" className="text-typo-400 mt-3">
+          <Ionicons name="chatbubbles-outline" size={48} color={c.iconMuted} />
+          <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3">
             No messages yet. Start the conversation!
           </UIText>
         </View>
@@ -263,7 +266,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
             <View key={msg.id}>
               {/* Sender name (for others) */}
               {showSender && (
-                <UIText size="xs" className="text-typo-500 mb-1" style={{ marginLeft: isMine ? 0 : 44, fontSize: 11 }}>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mb-1" style={{ marginLeft: isMine ? 0 : 44, fontSize: 11 }}>
                   {name}
                 </UIText>
               )}
@@ -289,21 +292,21 @@ export function GroupChatWindow({ group, onBack }: Props) {
                     ...(isMine
                       ? { backgroundColor: '#6D469B', borderBottomRightRadius: 4 }
                       : {
-                          backgroundColor: '#fff',
+                          backgroundColor: c.card,
                           borderBottomLeftRadius: 4,
                           borderWidth: 1,
-                          borderColor: '#E2DCE8',
+                          borderColor: c.border,
                         }),
                     opacity: msg.isOptimistic ? 0.7 : 1,
                   }}
                 >
-                  <UIText size="sm" style={{ color: isMine ? '#fff' : '#1F2937', lineHeight: 20 }}>
+                  <UIText size="sm" style={{ color: isMine ? '#fff' : c.text, lineHeight: 20 }}>
                     {msg.message_content}
                   </UIText>
                   <UIText
                     size="xs"
                     style={{
-                      color: isMine ? 'rgba(255,255,255,0.6)' : '#9A93A8',
+                      color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint,
                       fontSize: 10,
                       marginTop: 4,
                       textAlign: 'right',
@@ -322,7 +325,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
 
   const inputBar = (
     <View
-      className="border-t border-surface-200 bg-white px-3"
+      className="border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 px-3"
       style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
     >
       <View className="flex-row items-end gap-2">
@@ -332,10 +335,10 @@ export function GroupChatWindow({ group, onBack }: Props) {
           onChangeText={setInput}
           onKeyPress={handleKeyPress}
           placeholder="Type a message..."
-          placeholderTextColor="#9A93A8"
+          placeholderTextColor={c.textFaint}
           multiline
           maxLength={2000}
-          className="flex-1 bg-surface-100 rounded-2xl px-4 py-2 font-poppins text-sm"
+          className="flex-1 bg-surface-100 dark:bg-dark-surface-200 rounded-2xl px-4 py-2 font-poppins text-sm text-typo dark:text-dark-typo"
           style={{
             outline: 'none',
             minHeight: 36,
@@ -346,7 +349,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
           onPress={handleSend}
           disabled={!input.trim() || sending}
           style={{
-            backgroundColor: input.trim() && !sending ? '#6D469B' : '#CEC6D6',
+            backgroundColor: input.trim() && !sending ? '#6D469B' : c.border,
             width: 36,
             height: 36,
             borderRadius: 18,
@@ -366,20 +369,20 @@ export function GroupChatWindow({ group, onBack }: Props) {
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
         <Pressable style={{ flex: 1 }} onPress={() => setShowMembers(false)} />
         <View
-          className="bg-white rounded-t-2xl"
+          className="bg-white dark:bg-dark-surface-100 rounded-t-2xl"
           style={{ maxHeight: '60%', paddingBottom: insets.bottom || 16 }}
         >
-          <View className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200">
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300">
             <UIText size="sm" className="font-poppins-semibold text-typo-800">
               Members ({members.length})
             </UIText>
             <Pressable onPress={() => setShowMembers(false)} className="p-1">
-              <Ionicons name="close" size={20} color="#6B7280" />
+              <Ionicons name="close" size={20} color={c.icon} />
             </Pressable>
           </View>
           {/* Drag handle */}
           <View className="items-center py-1">
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' }} />
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: c.border }} />
           </View>
           {detailLoading ? (
             <View className="items-center py-8">
@@ -389,9 +392,9 @@ export function GroupChatWindow({ group, onBack }: Props) {
             <MembersList members={members} userId={user?.id} />
           )}
           {groupDetail?.description ? (
-            <View className="px-4 py-3 border-t border-surface-200">
-              <UIText size="xs" className="font-poppins-semibold text-typo-500 mb-1">About</UIText>
-              <UIText size="xs" className="text-typo-400">{groupDetail.description}</UIText>
+            <View className="px-4 py-3 border-t border-surface-200 dark:border-dark-surface-300">
+              <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 mb-1">About</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{groupDetail.description}</UIText>
             </View>
           ) : null}
         </View>
@@ -403,7 +406,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
   if (isMobile) {
     return (
       <KeyboardAvoidingView
-        className="flex-1 bg-white"
+        className="flex-1 bg-white dark:bg-dark-surface-100"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
@@ -417,7 +420,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
 
   // ── Desktop layout ──
   return (
-    <View className="flex-1 flex-row bg-white">
+    <View className="flex-1 flex-row bg-white dark:bg-dark-surface-100">
       {/* Main chat area */}
       <View className="flex-1">
         {header}
@@ -427,13 +430,13 @@ export function GroupChatWindow({ group, onBack }: Props) {
 
       {/* Desktop members panel */}
       {showMembers && (
-        <View className="bg-white border-l border-surface-200" style={{ width: 280 }}>
-          <View className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200">
+        <View className="bg-white dark:bg-dark-surface-100 border-l border-surface-200 dark:border-dark-surface-300" style={{ width: 280 }}>
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300">
             <UIText size="sm" className="font-poppins-semibold text-typo-800">
               Members ({members.length})
             </UIText>
             <Pressable onPress={() => setShowMembers(false)} className="p-1">
-              <Ionicons name="close" size={18} color="#6B7280" />
+              <Ionicons name="close" size={18} color={c.icon} />
             </Pressable>
           </View>
           {detailLoading ? (
@@ -442,15 +445,15 @@ export function GroupChatWindow({ group, onBack }: Props) {
             </View>
           ) : members.length === 0 ? (
             <View className="items-center py-8 px-4">
-              <UIText size="sm" className="text-typo-400 text-center">No members found</UIText>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">No members found</UIText>
             </View>
           ) : (
             <MembersList members={members} userId={user?.id} />
           )}
           {groupDetail?.description ? (
-            <View className="px-4 py-3 border-t border-surface-200">
-              <UIText size="xs" className="font-poppins-semibold text-typo-500 mb-1">About</UIText>
-              <UIText size="xs" className="text-typo-400">{groupDetail.description}</UIText>
+            <View className="px-4 py-3 border-t border-surface-200 dark:border-dark-surface-300">
+              <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 mb-1">About</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{groupDetail.description}</UIText>
             </View>
           ) : null}
         </View>

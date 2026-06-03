@@ -14,6 +14,7 @@ import { useFerpaApprovals, type FerpaApprovalRequest } from '@/src/hooks/useFer
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Skeleton,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 function formatDate(dateString?: string): string {
   if (!dateString) return '';
@@ -29,6 +30,7 @@ function ApprovalCard({ request, onApprove, onDeny }: {
   onApprove: () => Promise<void>;
   onDeny: (reason: string) => Promise<void>;
 }) {
+  const c = useThemeColors();
   const [responding, setResponding] = useState(false);
   const [denyOpen, setDenyOpen] = useState(false);
   const [denyReason, setDenyReason] = useState('');
@@ -68,13 +70,13 @@ function ApprovalCard({ request, onApprove, onDeny }: {
             <UIText size="md" style={{ fontFamily: 'Poppins_600SemiBold' }}>
               {request.student_name} wants to make their portfolio public
             </UIText>
-            <UIText size="xs" className="text-typo-500 mt-1">
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1">
               Requested {formatDate(request.requested_at)}
             </UIText>
             {request.context && (
-              <UIText size="xs" className="text-typo-500 mt-1">{request.context}</UIText>
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1">{request.context}</UIText>
             )}
-            <UIText size="xs" className="text-typo-400 mt-2">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-2">
               Approving lets anyone with the link view their achievements and learning evidence.
             </UIText>
           </VStack>
@@ -105,20 +107,20 @@ function ApprovalCard({ request, onApprove, onDeny }: {
       <Modal visible={denyOpen} transparent animationType="none" onRequestClose={() => setDenyOpen(false)}>
         <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setDenyOpen(false)} />
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
-            <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
+          <View style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+            <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mb-4" />
             <VStack space="md">
               <Heading size="lg">Deny request</Heading>
-              <UIText size="sm" className="text-typo-500">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                 Optionally explain why so {request.student_name} understands.
               </UIText>
               <TextInput
                 value={denyReason}
                 onChangeText={setDenyReason}
                 placeholder="Reason (optional)"
-                placeholderTextColor="#9CA3AF"
-                className="bg-surface-50 rounded-xl p-4 text-base"
-                style={{ fontFamily: 'Poppins_400Regular' }}
+                placeholderTextColor={c.textFaint}
+                className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base"
+                style={{ fontFamily: 'Poppins_400Regular', color: c.text }}
               />
               <Button size="lg" onPress={handleDeny} disabled={responding} loading={responding}>
                 <ButtonText>{responding ? 'Denying...' : 'Confirm deny'}</ButtonText>
@@ -132,21 +134,22 @@ function ApprovalCard({ request, onApprove, onDeny }: {
 }
 
 export default function ApprovalsScreen() {
+  const c = useThemeColors();
   const { requests, loading, respond } = useFerpaApprovals();
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <View className="px-5 pt-4 pb-2">
         <HStack className="items-center gap-3">
           <Pressable
             onPress={() => router.back()}
-            className="w-10 h-10 rounded-full bg-surface-100 items-center justify-center"
+            className="w-10 h-10 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
           >
-            <Ionicons name="chevron-back" size={20} color="#6B7280" />
+            <Ionicons name="chevron-back" size={20} color={c.icon} />
           </Pressable>
           <Heading size="xl">Approvals</Heading>
         </HStack>
-        <UIText size="sm" className="text-typo-500 mt-2">
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2">
           Portfolio visibility requests from your children that need your approval.
         </UIText>
       </View>
@@ -171,8 +174,8 @@ export default function ApprovalsScreen() {
         ) : (
           <Card variant="filled" size="lg" className="items-center py-10 mt-4">
             <Ionicons name="checkmark-circle-outline" size={40} color="#16A34A" />
-            <Heading size="sm" className="text-typo-500 mt-3">All caught up</Heading>
-            <UIText size="sm" className="text-typo-400 mt-1 text-center">
+            <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">All caught up</Heading>
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1 text-center">
               No pending approvals right now.
             </UIText>
           </Card>

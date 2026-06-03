@@ -9,6 +9,7 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading } from '@/src/components/ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useUIStore } from '@/src/stores/uiStore';
 import {
@@ -34,6 +35,7 @@ export default function MessagesScreen() {
   const { user } = useAuthStore();
   const { isDesktop } = useBreakpoint();
   const isMobile = !isDesktop;
+  const c = useThemeColors();
 
   const { conversations, loading: convoLoading, refetch: refetchConversations } = useConversations();
   const { contacts, loading: contactsLoading } = useContacts();
@@ -98,7 +100,7 @@ export default function MessagesScreen() {
 
   // ── Desktop: split-panel ──
   return (
-    <View className="flex-1 flex-row bg-surface-50" style={{ height: '100%' as any }}>
+    <View className="flex-1 flex-row bg-surface-50 dark:bg-dark-surface-50" style={{ height: '100%' as any }}>
       {/* Left: Conversation list */}
       <ConversationList
         contacts={contacts}
@@ -112,19 +114,19 @@ export default function MessagesScreen() {
       />
 
       {/* Right: Chat window — capped so it stays readable on ultra-wide screens */}
-      <View className="flex-1 items-center bg-white">
+      <View className="flex-1 items-center bg-white dark:bg-dark-surface-100">
         <View className="flex-1 w-full max-w-4xl">
         {selected?.type === 'dm' && selected.contact ? (
           <ChatWindow contact={selected.contact} conversationId={selected.id} />
         ) : selected?.type === 'group' && selected.group ? (
           <GroupChatWindow group={selected.group} />
         ) : (
-          <View className="flex-1 items-center justify-center bg-white">
-            <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
-            <Heading size="md" className="text-typo-500 mt-4">
+          <View className="flex-1 items-center justify-center bg-white dark:bg-dark-surface-100">
+            <Ionicons name="chatbubbles-outline" size={64} color={c.border} />
+            <Heading size="md" className="text-typo-500 mt-4 dark:text-dark-typo-500">
               Select a conversation
             </Heading>
-            <UIText size="sm" className="text-typo-400 mt-2">
+            <UIText size="sm" className="text-typo-400 mt-2 dark:text-dark-typo-400">
               Choose a contact or group to start messaging
             </UIText>
           </View>

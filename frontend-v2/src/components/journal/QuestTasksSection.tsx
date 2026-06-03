@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Card, Button, ButtonText, PillarBadge } from '../ui';
 import type { QuestTask } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface Props {
   tasks: QuestTask[];
@@ -20,6 +21,7 @@ interface Props {
 }
 
 function TaskItem({ task, hasAttachment }: { task: QuestTask; hasAttachment?: boolean }) {
+  const c = useThemeColors();
   return (
     <Card variant="outline" size="sm">
       <HStack className="items-center gap-3">
@@ -28,7 +30,7 @@ function TaskItem({ task, hasAttachment }: { task: QuestTask; hasAttachment?: bo
           className="w-6 h-6 rounded-full items-center justify-center"
           style={task.is_completed
             ? { backgroundColor: '#16A34A' }
-            : { borderWidth: 2, borderColor: '#CEC6D6' }
+            : { borderWidth: 2, borderColor: c.border }
           }
         >
           {task.is_completed && (
@@ -40,14 +42,14 @@ function TaskItem({ task, hasAttachment }: { task: QuestTask; hasAttachment?: bo
         <VStack className="flex-1 min-w-0">
           <UIText
             size="sm"
-            className={`font-poppins-medium ${task.is_completed ? 'text-typo-400' : 'text-typo'}`}
+            className={`font-poppins-medium ${task.is_completed ? 'text-typo-400 dark:text-dark-typo-400' : 'text-typo dark:text-dark-typo'}`}
             numberOfLines={2}
             style={task.is_completed ? { textDecorationLine: 'line-through' } : undefined}
           >
             {task.title}
           </UIText>
           {task.description ? (
-            <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
               {task.description}
             </UIText>
           ) : null}
@@ -56,7 +58,7 @@ function TaskItem({ task, hasAttachment }: { task: QuestTask; hasAttachment?: bo
         {/* Pillar + XP */}
         <VStack className="items-end gap-1">
           <PillarBadge pillar={task.pillar} size="sm" />
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">
             {task.xp_value || task.xp_amount} XP
           </UIText>
           {hasAttachment && !task.is_completed ? (
@@ -101,11 +103,11 @@ export function QuestTasksSection({ tasks, loading, onGenerateTasks, questId }: 
       <HStack className="items-center justify-between">
         <HStack className="items-center gap-2">
           <Ionicons name="list-outline" size={16} color="#6D469B" />
-          <UIText size="sm" className="font-poppins-semibold text-typo-500 uppercase tracking-wider">
+          <UIText size="sm" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider">
             Tasks
           </UIText>
           {tasks.length > 0 && (
-            <UIText size="xs" className="text-typo-400">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
               {completed.length}/{tasks.length}
             </UIText>
           )}
@@ -114,7 +116,7 @@ export function QuestTasksSection({ tasks, loading, onGenerateTasks, questId }: 
 
       {/* Progress bar */}
       {tasks.length > 0 && (
-        <View className="h-1.5 bg-surface-100 rounded-full overflow-hidden">
+        <View className="h-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-full overflow-hidden">
           <View
             className="h-full bg-optio-purple rounded-full"
             style={{ width: `${tasks.length > 0 ? (completed.length / tasks.length) * 100 : 0}%` }}
@@ -133,7 +135,7 @@ export function QuestTasksSection({ tasks, loading, onGenerateTasks, questId }: 
       {/* Generate tasks button */}
       <Pressable
         onPress={onGenerateTasks}
-        className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-surface-300 active:bg-surface-50"
+        className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-surface-300 dark:border-dark-surface-300 active:bg-surface-50 dark:active:bg-dark-surface-50"
       >
         <Ionicons name="sparkles" size={16} color="#6D469B" />
         <UIText size="sm" className="text-optio-purple font-poppins-medium">

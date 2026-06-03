@@ -140,7 +140,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -160,7 +160,7 @@ export default function LoginScreen() {
             <Card variant="elevated" size="lg">
               <VStack space="md">
                 <Heading size="lg">Welcome Back</Heading>
-                <UIText size="sm" className="text-typo-500">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                   Sign in to continue your learning journey
                 </UIText>
 
@@ -224,19 +224,19 @@ export default function LoginScreen() {
                     - Apple: web + iOS only (Apple guidelines disallow Sign in
                       with Apple on Android in apps that ship on the App Store) */}
                 <View className="flex-row items-center my-1">
-                  <View className="flex-1 h-px bg-surface-200" />
-                  <UIText size="sm" className="px-3 text-typo-400">Or continue with</UIText>
-                  <View className="flex-1 h-px bg-surface-200" />
+                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
+                  <UIText size="sm" className="px-3 text-typo-400 dark:text-dark-typo-400">Or continue with</UIText>
+                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
                 </View>
 
                 <Pressable
                   onPress={googleLogin}
                   disabled={isLoading}
-                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 bg-white web:cursor-pointer hover:bg-surface-50 active:bg-surface-50"
+                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 web:cursor-pointer hover:bg-surface-50 active:bg-surface-50 dark:hover:bg-dark-surface-50 dark:active:bg-dark-surface-50"
                   style={{ opacity: isLoading ? 0.5 : 1 }}
                 >
                   <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
-                  <UIText className="font-poppins-medium text-typo">
+                  <UIText className="font-poppins-medium text-typo dark:text-dark-typo">
                     Sign in with Google
                   </UIText>
                 </Pressable>
@@ -275,7 +275,7 @@ export default function LoginScreen() {
           <Card variant="elevated" size="lg" className="w-full max-w-sm">
             <VStack space="md">
               <Heading size="md">Reset Password</Heading>
-              <UIText size="sm" className="text-typo-500">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                 Enter your email and we'll send you a link to reset your password.
               </UIText>
 

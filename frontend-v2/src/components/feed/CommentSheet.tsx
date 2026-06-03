@@ -13,6 +13,7 @@ import type { FeedItem } from '@/src/hooks/useFeed';
 import {
   VStack, HStack, UIText, Heading, Avatar, AvatarFallbackText,
 } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface Comment {
   id: string;
@@ -33,6 +34,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
+  const c = useThemeColors();
 
   const isTask = item.type === 'task_completed';
   const cleanId = item.id.replace(/^(tc_|le_)/, '');
@@ -96,7 +98,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
         {/* Sheet */}
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: c.card,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             maxHeight: '70%',
@@ -104,13 +106,13 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
           }}
         >
           {/* Handle */}
-          <View className="w-10 h-1 bg-surface-300 rounded-full self-center mt-3 mb-2" />
+          <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mt-3 mb-2" />
 
           {/* Header */}
           <HStack className="items-center justify-between px-6 pb-3">
             <Heading size="md">Comments</Heading>
-            <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-              <Ionicons name="close" size={18} color="#6B7280" />
+            <Pressable onPress={onClose} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
+              <Ionicons name="close" size={18} color={c.icon} />
             </Pressable>
           </HStack>
 
@@ -126,7 +128,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
               contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 8 }}
               ListEmptyComponent={
                 <View className="items-center py-8">
-                  <UIText size="sm" className="text-typo-400">No comments yet. Be the first!</UIText>
+                  <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">No comments yet. Be the first!</UIText>
                 </View>
               }
               renderItem={({ item: c }) => {
@@ -142,9 +144,9 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
                         <UIText size="xs" className="font-poppins-semibold">
                           {c.user_display_name || 'User'}
                         </UIText>
-                        <UIText size="xs" className="text-typo-300">{formatTime(c.created_at)}</UIText>
+                        <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{formatTime(c.created_at)}</UIText>
                       </HStack>
-                      <UIText size="sm" className="text-typo-600">{c.comment_text}</UIText>
+                      <UIText size="sm" className="text-typo-600 dark:text-dark-typo-700">{c.comment_text}</UIText>
                     </VStack>
                   </HStack>
                 );
@@ -153,14 +155,14 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
           )}
 
           {/* Input */}
-          <HStack className="px-4 py-3 border-t border-surface-100 items-end gap-2" style={{ paddingBottom: Platform.OS === 'ios' ? 32 : 16 }}>
+          <HStack className="px-4 py-3 border-t border-surface-100 dark:border-dark-surface-300 items-end gap-2" style={{ paddingBottom: Platform.OS === 'ios' ? 32 : 16 }}>
             <TextInput
               value={text}
               onChangeText={setText}
               placeholder="Add a comment..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               multiline
-              className="flex-1 bg-surface-50 rounded-xl px-4 py-2.5 text-sm max-h-24"
+              className="flex-1 bg-surface-50 dark:bg-dark-surface-50 rounded-xl px-4 py-2.5 text-sm max-h-24 text-typo dark:text-dark-typo"
               style={{ fontFamily: 'Poppins_400Regular' }}
             />
             <Pressable

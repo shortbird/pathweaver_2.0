@@ -51,6 +51,7 @@ function PreviewRolePill() {
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { VStack, UIText, Heading } from '../ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface MenuItem {
   key: string;
@@ -61,6 +62,7 @@ interface MenuItem {
 }
 
 function AvatarMenu() {
+  const c = useThemeColors();
   const { user, logout } = useAuthStore();
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const setPreviewRole = usePreviewRoleStore((s) => s.setPreviewRole);
@@ -145,7 +147,7 @@ function AvatarMenu() {
           backgroundColor: menuOpen ? '#6D469B15' : 'transparent',
         }}
       >
-        <Ionicons name="ellipsis-vertical" size={20} color={menuOpen ? '#6D469B' : '#6B6280'} />
+        <Ionicons name="ellipsis-vertical" size={20} color={menuOpen ? '#6D469B' : c.icon} />
       </Pressable>
 
       <Modal
@@ -160,21 +162,21 @@ function AvatarMenu() {
               position: 'absolute',
               top: Platform.OS === 'web' ? 52 : insets.top + 44,
               right: 16,
-              backgroundColor: '#fff',
+              backgroundColor: c.card,
               borderRadius: 14,
               paddingVertical: 6,
               minWidth: 200,
               boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)',
               elevation: 10,
               borderWidth: 1,
-              borderColor: '#E2DCE8',
+              borderColor: c.border,
             }}
           >
-            <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1EDF5' }}>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.surfaceMuted }}>
               <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
                 {user?.display_name || `${user?.first_name} ${user?.last_name}`}
               </UIText>
-              <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
                 {user?.email}
               </UIText>
             </View>
@@ -186,8 +188,8 @@ function AvatarMenu() {
                 style={{ paddingHorizontal: 16, paddingVertical: 12 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Ionicons name={item.icon} size={18} color={item.color || '#6B6280'} />
-                  <UIText size="sm" style={{ color: item.color || '#1F2937' }} className="font-poppins-medium">
+                  <Ionicons name={item.icon} size={18} color={item.color || c.icon} />
+                  <UIText size="sm" style={{ color: item.color || c.text }} className="font-poppins-medium">
                     {item.label}
                   </UIText>
                 </View>
@@ -197,8 +199,8 @@ function AvatarMenu() {
             {/* Superadmin role preview controls */}
             {isSuperadmin && (
               <>
-                <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
-                  <UIText size="xs" style={{ color: '#9CA3AF', fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                <View style={{ borderTopWidth: 1, borderTopColor: c.surfaceMuted, marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                  <UIText size="xs" style={{ color: c.textFaint, fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
                     Preview as
                   </UIText>
                 </View>
@@ -211,8 +213,8 @@ function AvatarMenu() {
                       style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: active ? '#6D469B0F' : 'transparent' }}
                     >
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <Ionicons name={opt.icon} size={18} color={active ? '#6D469B' : '#6B6280'} />
-                        <UIText size="sm" style={{ color: active ? '#6D469B' : '#1F2937', fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
+                        <Ionicons name={opt.icon} size={18} color={active ? '#6D469B' : c.icon} />
+                        <UIText size="sm" style={{ color: active ? '#6D469B' : c.text, fontFamily: active ? 'Poppins_600SemiBold' : 'Poppins_500Medium' }}>
                           {opt.label}
                         </UIText>
                         {active && (
@@ -228,15 +230,15 @@ function AvatarMenu() {
                     style={{ paddingHorizontal: 16, paddingVertical: 10 }}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <Ionicons name="close-circle-outline" size={18} color="#6B6280" />
-                      <UIText size="sm" style={{ color: '#1F2937' }} className="font-poppins-medium">
+                      <Ionicons name="close-circle-outline" size={18} color={c.icon} />
+                      <UIText size="sm" style={{ color: c.text }} className="font-poppins-medium">
                         Exit preview
                       </UIText>
                     </View>
                   </Pressable>
                 )}
 
-                <View style={{ borderTopWidth: 1, borderTopColor: '#F1EDF5', marginTop: 4 }} />
+                <View style={{ borderTopWidth: 1, borderTopColor: c.surfaceMuted, marginTop: 4 }} />
               </>
             )}
 
@@ -250,7 +252,7 @@ function AvatarMenu() {
                   setMenuOpen(false);
                   try { await stopMasquerade(); } catch { /* no-op */ }
                 }}
-                style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1EDF5' }}
+                style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.surfaceMuted }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <Ionicons name="arrow-back" size={18} color="#6D469B" />
@@ -269,8 +271,8 @@ function AvatarMenu() {
                 style={{ paddingHorizontal: 16, paddingVertical: 12 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Ionicons name={item.icon} size={18} color={item.color || '#6B6280'} />
-                  <UIText size="sm" style={{ color: item.color || '#1F2937' }} className="font-poppins-medium">
+                  <Ionicons name={item.icon} size={18} color={item.color || c.icon} />
+                  <UIText size="sm" style={{ color: item.color || c.text }} className="font-poppins-medium">
                     {item.label}
                   </UIText>
                 </View>
@@ -288,6 +290,7 @@ interface PageHeaderProps {
 }
 
 function NotificationBell() {
+  const c = useThemeColors();
   const { user } = useAuthStore();
   const { unreadCount } = useUnreadCount(user?.id);
 
@@ -296,7 +299,7 @@ function NotificationBell() {
       onPress={() => router.push('/(app)/notifications' as any)}
       style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
     >
-      <Ionicons name="notifications-outline" size={22} color="#6B7280" />
+      <Ionicons name="notifications-outline" size={22} color={c.icon} />
       {unreadCount > 0 && (
         <View style={{
           position: 'absolute', top: 2, right: 2,

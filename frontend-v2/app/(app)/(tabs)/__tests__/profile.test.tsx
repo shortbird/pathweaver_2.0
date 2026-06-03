@@ -71,14 +71,13 @@ const baseProfileMock = {
 };
 
 describe('ProfileScreen', () => {
-  it('renders user name, total XP, pillar breakdown, and sign out button', () => {
+  it('renders user name, total XP, and pillar breakdown', () => {
     (useProfile as jest.Mock).mockReturnValue(baseProfileMock);
 
     const { getByText } = render(<ProfileScreen />);
 
     expect(getByText('Test Student')).toBeTruthy();
     expect(getByText('1,250')).toBeTruthy();
-    expect(getByText('Sign Out')).toBeTruthy();
     expect(getByText('Pillar Breakdown')).toBeTruthy();
   });
 

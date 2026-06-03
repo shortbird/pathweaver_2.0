@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useDashboard } from '@/src/hooks/useDashboard';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
 import type { EngagementData } from '@/src/hooks/useDashboard';
 import {
@@ -27,7 +28,6 @@ import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
-import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 import { ClassCard } from '@/src/components/class/ClassCard';
 import { CourseCard } from '@/src/components/course/CourseCard';
 import { HomeBountyCard } from '@/src/components/bounties/HomeBountyCard';
@@ -87,7 +87,7 @@ function QuestCard({ quest }: { quest: any }) {
 
       {/* Description — only renders if there is one, no flex-1 pad-out */}
       {q?.description ? (
-        <UIText size="xs" className="text-typo-500" numberOfLines={2}>
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>
           {q.description}
         </UIText>
       ) : null}
@@ -100,6 +100,7 @@ function QuestCard({ quest }: { quest: any }) {
 
 function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: any; activeQuestCount: number }) {
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase();
+  const c = useThemeColors();
 
   return (
     <Card testID="welcome-header" variant="elevated" size="lg">
@@ -117,7 +118,7 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
             position: 'relative',
             padding: 3,
             borderRadius: 999,
-            backgroundColor: '#FFFFFF',
+            backgroundColor: c.card,
             borderWidth: 2,
             borderColor: '#6D469B',
             shadowColor: '#6D469B',
@@ -158,7 +159,7 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
           <Heading testID="welcome-greeting" size="md" className="md:text-2xl" numberOfLines={1}>
             Welcome back, {user?.first_name || 'Student'}!
           </Heading>
-          <UIText size="xs" className="text-typo-400 mt-0.5">Tap your photo to open your profile</UIText>
+          <UIText size="xs" className="text-typo-400 mt-0.5 dark:text-dark-typo-400">Tap your photo to open your profile</UIText>
         </VStack>
       </HStack>
 
@@ -169,53 +170,22 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
           <UIText testID="stat-completed-quests" size="lg" className="font-poppins-bold text-optio-purple">
             {stats?.completed_quests_count || 0}
           </UIText>
-          <UIText size="xs" className="text-typo-400">Completed Quests</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Completed Quests</UIText>
         </VStack>
         <VStack className="items-center">
           <UIText testID="stat-total-xp" size="lg" className="font-poppins-bold text-optio-pink">
             {(stats?.total_xp || user?.total_xp || 0).toLocaleString()}
           </UIText>
-          <UIText size="xs" className="text-typo-400">Total XP</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
         </VStack>
         <VStack className="items-center">
           <UIText testID="stat-active-quests" size="lg" className="font-poppins-bold text-pillar-stem">
             {activeQuestCount}
           </UIText>
-          <UIText size="xs" className="text-typo-400">Active Quests</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Active Quests</UIText>
         </VStack>
       </HStack>
     </Card>
-  );
-}
-
-// ── Completed Quests ──
-
-function CompletedQuests({ quests }: { quests: any[] }) {
-  if (quests.length === 0) return null;
-
-  return (
-    <VStack space="sm">
-      <Heading size="md">Completed Quests</Heading>
-      <VStack space="sm">
-        {quests.map((uq: any) => (
-          <Card key={uq.id} variant="outline" size="sm">
-            <HStack className="items-center gap-3">
-              <View className="w-10 h-10 rounded-lg bg-green-50 items-center justify-center">
-                <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
-              </View>
-              <VStack className="flex-1">
-                <UIText size="sm" className="font-poppins-medium">
-                  {uq.quests?.title || 'Quest'}
-                </UIText>
-                <UIText size="xs" className="text-typo-400">
-                  Completed {uq.completed_at ? new Date(uq.completed_at).toLocaleDateString() : ''}
-                </UIText>
-              </VStack>
-            </HStack>
-          </Card>
-        ))}
-      </VStack>
-    </VStack>
   );
 }
 
@@ -235,96 +205,6 @@ function DashboardSkeleton() {
         <Skeleton className="h-48 flex-1 rounded-xl" />
         <Skeleton className="h-48 flex-1 rounded-xl hidden md:flex" />
       </HStack>
-    </VStack>
-  );
-}
-
-// ── Next Up Tasks ──
-
-function NextUpPanel({ quests }: { quests: any[] }) {
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (quests.length === 0) { setLoading(false); return; }
-    (async () => {
-      try {
-        const results = await Promise.allSettled(
-          quests.slice(0, 5).map(async (uq: any) => {
-            const q = uq.quests;
-            if (!q?.id) return null;
-            const { data } = await api.get(`/api/quests/${q.id}`);
-            const questData = data.quest || data;
-            const allTasks = questData.quest_tasks || [];
-            const nextTask = allTasks.find((t: any) => !t.is_completed);
-            if (!nextTask) return null;
-            return { ...nextTask, quest_title: q.title, quest_id: q.id };
-          })
-        );
-        const validTasks = results
-          .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value !== null)
-          .map((r) => r.value);
-        setTasks(validTasks);
-      } catch {
-        // Non-critical
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [quests]);
-
-  if (loading) {
-    return (
-      <VStack space="sm">
-        <Heading size="md">Next Up</Heading>
-        <Skeleton className="h-20 rounded-xl" />
-        <Skeleton className="h-20 rounded-xl" />
-      </VStack>
-    );
-  }
-
-  if (tasks.length === 0) return null;
-
-  const pillarColors: Record<string, string> = {
-    stem: 'bg-pillar-stem',
-    art: 'bg-pillar-art',
-    communication: 'bg-pillar-communication',
-    civics: 'bg-pillar-civics',
-    wellness: 'bg-pillar-wellness',
-  };
-
-  return (
-    <VStack space="sm">
-      <HStack className="items-center gap-2">
-        <Ionicons name="flash-outline" size={20} color="#6D469B" />
-        <Heading size="md">Next Up</Heading>
-      </HStack>
-      <VStack space="sm">
-        {tasks.map((task) => (
-          <Pressable key={task.id} onPress={() => router.push(`/(app)/quests/${task.quest_id}`)}>
-            <Card variant="elevated" size="md">
-              <HStack className="items-center gap-4">
-                <View className={`w-1.5 h-12 rounded-full ${pillarColors[task.pillar] || pillarColors.stem}`} />
-                <VStack className="flex-1 min-w-0">
-                  <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
-                    {task.title}
-                  </UIText>
-                  <HStack className="items-center gap-2 mt-0.5">
-                    <UIText size="xs" className="text-typo-400" numberOfLines={1}>
-                      {task.quest_title}
-                    </UIText>
-                    <View className="w-1 h-1 rounded-full bg-typo-300" />
-                    <UIText size="xs" className="text-optio-purple font-poppins-medium">
-                      {task.xp_value || task.xp_amount || 0} XP
-                    </UIText>
-                  </HStack>
-                </VStack>
-                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-              </HStack>
-            </Card>
-          </Pressable>
-        ))}
-      </VStack>
     </VStack>
   );
 }
@@ -370,7 +250,7 @@ export default function DashboardScreen() {
 
   if (loading && !data) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <DashboardSkeleton />
       </SafeAreaView>
     );
@@ -378,7 +258,6 @@ export default function DashboardScreen() {
 
   const activeQuests = data?.active_quests || [];
   const enrolledCourses = data?.enrolled_courses || [];
-  const completedQuests = data?.recent_completed_quests || [];
 
   // Unified "What you're working on" list. Order: bounties (explicit reward
   // + deadline = highest immediate obligation) -> classes (transcript credit)
@@ -411,7 +290,7 @@ export default function DashboardScreen() {
   const workingOnItems: ListItem[] = [...bountyItems, ...classItems, ...courseItems, ...questItems];
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       <PageHeader title="Home" />
       <ScrollView
         ref={scrollRef}
@@ -454,24 +333,14 @@ export default function DashboardScreen() {
               <Pressable testID="empty-state-cta" onPress={startSomething}>
                 <Card variant="filled" size="lg" className="items-center py-10">
                   <Ionicons name="add-circle-outline" size={40} color="#6D469B" />
-                  <Heading size="sm" className="text-typo-700 mt-3">Nothing here yet</Heading>
-                  <UIText size="sm" className="text-typo-400 mt-1 text-center px-4">
+                  <Heading size="sm" className="text-typo-700 mt-3 dark:text-dark-typo-700">Nothing here yet</Heading>
+                  <UIText size="sm" className="text-typo-400 mt-1 text-center px-4 dark:text-dark-typo-400">
                     Tap the + button to start a quest, class, or claim a bounty.
                   </UIText>
                 </Card>
               </Pressable>
             )}
           </VStack>
-
-          {/* Next Up */}
-          <NextUpPanel quests={activeQuests} />
-
-          {/* Diploma Credit Tracker */}
-          <DiplomaCreditTracker />
-
-          {/* Completed Quests */}
-          <CompletedQuests quests={completedQuests} />
-
 
         </VStack>
       </ScrollView>

@@ -17,7 +17,7 @@ export default function VerifyEmailScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
       <Card variant="elevated" size="lg" className="max-w-md w-full">
         <VStack space="lg" className="items-center py-4">
           <View className="w-16 h-16 rounded-full bg-optio-purple/10 items-center justify-center">
@@ -26,19 +26,19 @@ export default function VerifyEmailScreen() {
 
           <VStack space="sm" className="items-center">
             <Heading size="xl" className="text-center">Check Your Email</Heading>
-            <UIText size="sm" className="text-typo-400 text-center">
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
               We sent a verification link to{' '}
-              {email ? <UIText size="sm" className="font-poppins-semibold text-typo-700">{email}</UIText> : 'your email address'}.
+              {email ? <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">{email}</UIText> : 'your email address'}.
             </UIText>
           </VStack>
 
-          <VStack space="xs" className="w-full bg-surface-50 rounded-xl p-4">
-            <UIText size="xs" className="text-typo-500">1. Open the email from Optio Education</UIText>
-            <UIText size="xs" className="text-typo-500">2. Click the verification link</UIText>
-            <UIText size="xs" className="text-typo-500">3. Return here and sign in</UIText>
+          <VStack space="xs" className="w-full bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4">
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">1. Open the email from Optio Education</UIText>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">2. Click the verification link</UIText>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">3. Return here and sign in</UIText>
           </VStack>
 
-          <UIText size="xs" className="text-typo-300 text-center">
+          <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300 text-center">
             Did not receive the email? Check your spam folder or try registering again.
           </UIText>
 

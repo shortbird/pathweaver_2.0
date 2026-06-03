@@ -15,6 +15,7 @@ import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
 import { useBountyDetail, useMyClaims, claimBounty, toggleDeliverable, turnInBounty, deleteEvidence } from '@/src/hooks/useBounties';
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
 import { displayImageUrl } from '@/src/services/imageUrl';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   PillarBadge, Divider,
@@ -31,6 +32,7 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
 /** Renders evidence items for a deliverable with optional delete. */
 function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete: boolean; onDelete?: (index: number) => void }) {
   const [imageModal, setImageModal] = useState<string | null>(null);
+  const c = useThemeColors();
 
   if (items.length === 0) return null;
 
@@ -41,8 +43,8 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
           <HStack key={idx} className="items-start gap-2">
             <View className="flex-1">
               {item.type === 'text' && item.content?.text && (
-                <View className="bg-surface-50 p-2.5 rounded-lg border border-surface-200">
-                  <UIText size="xs" className="text-typo-500 italic" numberOfLines={3}>{item.content.text}</UIText>
+                <View className="bg-surface-50 dark:bg-dark-surface-50 p-2.5 rounded-lg border border-surface-200 dark:border-dark-surface-300">
+                  <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 italic" numberOfLines={3}>{item.content.text}</UIText>
                 </View>
               )}
               {item.type === 'image' && (item.content?.items || []).map((img: any, i: number) => {
@@ -59,7 +61,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
                   const url = item.content?.items?.[0]?.url || item.content?.url;
                   if (url) Linking.openURL(url);
                 }}>
-                  <HStack className="items-center gap-2 bg-surface-50 p-2.5 rounded-lg border border-surface-200">
+                  <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-2.5 rounded-lg border border-surface-200 dark:border-dark-surface-300">
                     <Ionicons name="videocam" size={16} color="#6D469B" />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium flex-1" numberOfLines={1}>
                       {item.content?.items?.[0]?.caption || 'Video'}
@@ -82,9 +84,9 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
                   const url = item.content?.url || item.content?.items?.[0]?.url;
                   if (url) Linking.openURL(url);
                 }}>
-                  <HStack className="items-center gap-2 bg-surface-50 p-2.5 rounded-lg border border-surface-200">
+                  <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-2.5 rounded-lg border border-surface-200 dark:border-dark-surface-300">
                     <Ionicons name="document-text" size={14} color="#6D469B" />
-                    <UIText size="xs" className="text-typo-600 flex-1" numberOfLines={1}>
+                    <UIText size="xs" className="text-typo-600 dark:text-dark-typo-600 flex-1" numberOfLines={1}>
                       {item.content?.filename || 'Document'}
                     </UIText>
                   </HStack>
@@ -119,6 +121,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
 
 export default function BountyDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const c = useThemeColors();
   const { user } = useAuthStore();
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   const { bounty, loading, refetch } = useBountyDetail(id || null);
@@ -218,7 +221,7 @@ export default function BountyDetailPage() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
@@ -226,9 +229,9 @@ export default function BountyDetailPage() {
 
   if (!bounty) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-8">
-        <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
-        <Heading size="lg" className="text-typo-500 mt-4">Bounty not found</Heading>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-8">
+        <Ionicons name="alert-circle-outline" size={48} color={c.iconMuted} />
+        <Heading size="lg" className="text-typo-500 dark:text-dark-typo-500 mt-4">Bounty not found</Heading>
         <Button size="md" className="mt-4" onPress={() => router.back()}>
           <ButtonText>Go Back</ButtonText>
         </Button>
@@ -240,7 +243,7 @@ export default function BountyDetailPage() {
   const sc = myClaim ? STATUS_CONFIG[myClaim.status] || STATUS_CONFIG.claimed : null;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <VStack className="px-5 pt-4 max-w-3xl w-full md:mx-auto" space="lg">
 
@@ -263,7 +266,7 @@ export default function BountyDetailPage() {
               </HStack>
 
               <Heading size="xl">{bounty.title}</Heading>
-              <UIText size="sm" className="text-typo-500">{bounty.description}</UIText>
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{bounty.description}</UIText>
 
               {/* Rewards */}
               <HStack className="flex-wrap gap-2">
@@ -327,13 +330,13 @@ export default function BountyDetailPage() {
             <HStack className="items-center justify-between">
               <Heading size="md">Deliverables</Heading>
               {myClaim && totalCount > 0 && (
-                <UIText size="sm" className="text-typo-400">{completedCount}/{totalCount}</UIText>
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">{completedCount}/{totalCount}</UIText>
               )}
             </HStack>
 
             {/* Progress bar (only when claimed) */}
             {myClaim && totalCount > 0 && (
-              <View className="h-2 bg-surface-200 rounded-full overflow-hidden">
+              <View className="h-2 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
                 <View
                   className="h-full rounded-full bg-optio-purple"
                   style={{ width: `${(completedCount / totalCount) * 100}%` }}
@@ -355,13 +358,13 @@ export default function BountyDetailPage() {
                         {isCompleted ? (
                           <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
                         ) : (
-                          <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#D1D5DB' }} />
+                          <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: c.border }} />
                         )}
                       </View>
 
                       {/* Text */}
                       <VStack className="flex-1 min-w-0">
-                        <UIText size="sm" className={isCompleted ? 'text-green-700' : 'text-typo-700'}>
+                        <UIText size="sm" className={isCompleted ? 'text-green-700' : 'text-typo-700 dark:text-dark-typo-700'}>
                           {d.text}
                         </UIText>
                       </VStack>

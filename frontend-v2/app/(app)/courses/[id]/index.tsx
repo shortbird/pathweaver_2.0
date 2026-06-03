@@ -18,6 +18,7 @@ import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
 import { PILLARS } from '@/src/hooks/useQuestDetail';
 import api from '@/src/services/api';
 import type { Lesson } from '@/src/hooks/useCourses';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton,
@@ -48,36 +49,37 @@ function normalizeBlockForSave(block: any) {
 function EvidenceBlockDisplay({ block, onDelete }: { block: any; onDelete?: () => void }) {
   const blockType = block.block_type || block.type;
   const content = block.content || {};
+  const c = useThemeColors();
 
   const deleteBtn = onDelete ? (
     <Pressable onPress={onDelete} className="p-0.5">
-      <Ionicons name="close-circle" size={16} color="#9CA3AF" />
+      <Ionicons name="close-circle" size={16} color={c.iconMuted} />
     </Pressable>
   ) : null;
 
   if (blockType === 'image' && content.url) {
     return (
-      <HStack className="items-center gap-2 p-2 bg-surface-50 rounded-lg">
+      <HStack className="items-center gap-2 p-2 bg-surface-50 dark:bg-dark-surface-50 rounded-lg">
         <Image source={{ uri: content.url }} style={{ width: 36, height: 36, borderRadius: 6 }} resizeMode="cover" />
-        <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={1}>{content.caption || content.filename || 'Photo'}</UIText>
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>{content.caption || content.filename || 'Photo'}</UIText>
         {deleteBtn}
       </HStack>
     );
   }
   if (blockType === 'video' && content.url) {
     return (
-      <HStack className="items-center gap-2 p-2 bg-surface-50 rounded-lg">
+      <HStack className="items-center gap-2 p-2 bg-surface-50 dark:bg-dark-surface-50 rounded-lg">
         <View style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: '#6D469B20', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="videocam" size={16} color="#6D469B" />
         </View>
-        <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={1}>{content.filename || 'Video'}</UIText>
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>{content.filename || 'Video'}</UIText>
         {deleteBtn}
       </HStack>
     );
   }
   if (blockType === 'link' && (content.url || content.value)) {
     return (
-      <HStack className="items-center gap-2 p-2 bg-surface-50 rounded-lg">
+      <HStack className="items-center gap-2 p-2 bg-surface-50 dark:bg-dark-surface-50 rounded-lg">
         <Ionicons name="link" size={14} color="#2469D1" />
         <UIText size="xs" className="text-pillar-stem flex-1" numberOfLines={1}>{content.title || content.url || content.value}</UIText>
         {deleteBtn}
@@ -86,17 +88,17 @@ function EvidenceBlockDisplay({ block, onDelete }: { block: any; onDelete?: () =
   }
   if (blockType === 'text') {
     return (
-      <HStack className="items-start gap-2 p-2 bg-surface-50 rounded-lg">
-        <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={2}>{content.text || content.value || ''}</UIText>
+      <HStack className="items-start gap-2 p-2 bg-surface-50 dark:bg-dark-surface-50 rounded-lg">
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={2}>{content.text || content.value || ''}</UIText>
         {deleteBtn}
       </HStack>
     );
   }
   if (blockType === 'document' && content.url) {
     return (
-      <HStack className="items-center gap-2 p-2 bg-surface-50 rounded-lg">
-        <Ionicons name="document-attach" size={14} color="#6B7280" />
-        <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={1}>{content.filename || content.title || 'Document'}</UIText>
+      <HStack className="items-center gap-2 p-2 bg-surface-50 dark:bg-dark-surface-50 rounded-lg">
+        <Ionicons name="document-attach" size={14} color={c.icon} />
+        <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>{content.filename || content.title || 'Document'}</UIText>
         {deleteBtn}
       </HStack>
     );
@@ -113,6 +115,7 @@ function CourseTaskItem({ task, onComplete, onRemove }: { task: any; onComplete:
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [textEvidence, setTextEvidence] = useState('');
+  const c = useThemeColors();
   const colors = pillarColors[task.pillar?.toLowerCase()] || pillarColors.stem;
   const xp = task.xp_value || task.xp_amount || 0;
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -203,29 +206,29 @@ function CourseTaskItem({ task, onComplete, onRemove }: { task: any; onComplete:
             <Ionicons
               name={task.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
               size={22}
-              color={task.is_completed ? '#16A34A' : '#D1D5DB'}
+              color={task.is_completed ? '#16A34A' : c.iconMuted}
             />
             <VStack className="flex-1 min-w-0">
-              <UIText size="sm" className={`font-poppins-medium ${task.is_completed ? 'text-typo-400 line-through' : ''}`}>
+              <UIText size="sm" className={`font-poppins-medium ${task.is_completed ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}>
                 {task.title}
               </UIText>
               <HStack className="items-center gap-2">
                 <View className={`px-1.5 py-0.5 rounded ${colors.bg}`}>
                   <UIText size="xs" className={colors.text}>{getPillarLabel(task.pillar)}</UIText>
                 </View>
-                <UIText size="xs" className="text-typo-400">{xp} XP</UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xp} XP</UIText>
                 {evidenceBlocks.length > 0 && (
                   <HStack className="items-center gap-1">
-                    <Ionicons name="attach" size={12} color="#9CA3AF" />
-                    <UIText size="xs" className="text-typo-400">{evidenceBlocks.length}</UIText>
+                    <Ionicons name="attach" size={12} color={c.iconMuted} />
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{evidenceBlocks.length}</UIText>
                   </HStack>
                 )}
               </HStack>
             </VStack>
             <Pressable onPress={(e) => { e.stopPropagation(); onRemove(task.id); }} className="p-1">
-              <Ionicons name="trash-outline" size={15} color="#D1D5DB" />
+              <Ionicons name="trash-outline" size={15} color={c.iconMuted} />
             </Pressable>
-            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" />
+            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={c.iconMuted} />
           </HStack>
         </Pressable>
 
@@ -233,7 +236,7 @@ function CourseTaskItem({ task, onComplete, onRemove }: { task: any; onComplete:
         {expanded && (
           <VStack space="sm" className="ml-9">
             {task.description && (
-              <UIText size="xs" className="text-typo-500">{task.description}</UIText>
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">{task.description}</UIText>
             )}
 
             {/* Evidence display */}
@@ -261,20 +264,20 @@ function CourseTaskItem({ task, onComplete, onRemove }: { task: any; onComplete:
             {!task.is_completed && (
               <VStack space="xs">
                 <TextInput
-                  className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-sm min-h-[48px] font-poppins"
+                  className="bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 rounded-xl p-3 text-sm min-h-[48px] font-poppins text-typo dark:text-dark-typo"
                   placeholder="What did you do?"
                   value={textEvidence}
                   onChangeText={setTextEvidence}
                   multiline
                   textAlignVertical="top"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={c.textFaint}
                 />
                 <HStack className="items-center justify-between">
                   <HStack className="items-center gap-2">
                     {/* Attach file */}
                     <Pressable
                       onPress={() => fileInputRef.current?.click()}
-                      className="flex-row items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-50 border border-surface-200 active:bg-surface-100"
+                      className="flex-row items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 active:bg-surface-100"
                     >
                       <Ionicons name="attach-outline" size={14} color="#6D469B" />
                       <UIText size="xs" className="text-optio-purple font-poppins-medium">
@@ -332,6 +335,7 @@ function ProjectSection({
   quest: any;
   onTaskCompleted: () => void;
 }) {
+  const c = useThemeColors();
   const progress = quest.progress;
   const totalXp = progress?.total_xp || 0;
   const [localEarnedXp, setLocalEarnedXp] = useState(progress?.earned_xp || 0);
@@ -466,7 +470,7 @@ function ProjectSection({
           <VStack className="flex-1 min-w-0">
             <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{quest.title}</UIText>
             <HStack className="items-center gap-2 mt-0.5">
-              <View className="flex-1 h-1.5 bg-surface-200 rounded-full overflow-hidden">
+              <View className="flex-1 h-1.5 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
                 <View className="h-full bg-optio-purple rounded-full" style={{ width: `${pct}%` }} />
               </View>
               <UIText size="xs" className="font-poppins-bold text-optio-purple flex-shrink-0">
@@ -474,7 +478,7 @@ function ProjectSection({
               </UIText>
             </HStack>
           </VStack>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" />
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={c.iconMuted} />
         </HStack>
       </Pressable>
 
@@ -483,13 +487,13 @@ function ProjectSection({
       <VStack space="md" className="mt-4">
 
       {quest.description && (
-        <UIText size="sm" className="text-typo-500">{quest.description}</UIText>
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{quest.description}</UIText>
       )}
 
       {/* ── 1. Lessons ── */}
       {displayLessons.length > 0 && (
         <VStack space="sm">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase">Lessons</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">Lessons</UIText>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -518,7 +522,7 @@ function ProjectSection({
                         </UIText>
                       </HStack>
                       {!hasContent && (
-                        <UIText size="xs" className="text-typo-300">Coming soon</UIText>
+                        <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">Coming soon</UIText>
                       )}
                     </VStack>
                   </Card>
@@ -543,7 +547,7 @@ function ProjectSection({
 
       {/* ── 2. Your Tasks ── */}
       <VStack space="sm">
-        <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase">Your tasks</UIText>
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">Your tasks</UIText>
         {tasksLoading ? (
           <VStack space="sm">
             {[1, 2].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
@@ -559,10 +563,10 @@ function ProjectSection({
         ) : (
           <Card variant="filled" size="sm">
             <HStack className="items-center gap-3">
-              <Ionicons name="clipboard-outline" size={22} color="#9CA3AF" />
+              <Ionicons name="clipboard-outline" size={22} color={c.iconMuted} />
               <VStack className="flex-1">
                 <UIText size="xs" className="font-poppins-medium">No tasks added yet</UIText>
-                <UIText size="xs" className="text-typo-400">
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                   Add tasks to earn {totalXp} XP and complete this project.
                 </UIText>
               </VStack>
@@ -575,7 +579,7 @@ function ProjectSection({
       {availableSuggestions.length > 0 && (
         <VStack space="sm">
           <HStack className="items-center justify-between">
-            <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase">Suggested tasks</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">Suggested tasks</UIText>
             {justAddedId && (
               <HStack className="items-center gap-1 px-2 py-1 rounded bg-green-50">
                 <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
@@ -624,7 +628,7 @@ function ProjectSection({
                                     <View className={`px-1.5 py-0.5 rounded ${colors.bg}`}>
                                       <UIText size="xs" className={colors.text}>{getPillarLabel(t.pillar, true)}</UIText>
                                     </View>
-                                    <UIText size="xs" className="text-typo-400">{t.xp_value || 0} XP</UIText>
+                                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{t.xp_value || 0} XP</UIText>
                                   </HStack>
                                   <Pressable
                                     onPress={(e) => { e.stopPropagation(); handleAddSuggestion(t); }}
@@ -664,9 +668,9 @@ function ProjectSection({
 
       {/* ── 4. Create Your Own ── */}
       <VStack space="xs">
-        <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase">Create your own</UIText>
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">Create your own</UIText>
         <HStack className="items-center justify-between">
-          <UIText size="xs" className="text-typo-400">Write a custom task or use AI to generate personalized ideas.</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Write a custom task or use AI to generate personalized ideas.</UIText>
           <Pressable
             onPress={() => setWizardOpen(true)}
             className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20 flex-shrink-0 ml-3"
@@ -689,7 +693,7 @@ function ProjectSection({
             >
               <Pressable
                 onPress={(e) => e.stopPropagation?.()}
-                style={{ backgroundColor: '#FFFFFF', borderRadius: 20, width: 480, maxWidth: '92%', maxHeight: '80%' }}
+                style={{ backgroundColor: c.card, borderRadius: 20, width: 480, maxWidth: '92%', maxHeight: '80%' }}
               >
                 <ScrollView contentContainerStyle={{ padding: 24 }}>
                   <VStack space="md">
@@ -698,15 +702,15 @@ function ProjectSection({
                         <View className={`px-2 py-1 rounded ${pc.bg}`}>
                           <UIText size="xs" className={`${pc.text} font-poppins-medium`}>{getPillarLabel(previewTask.pillar)}</UIText>
                         </View>
-                        <UIText size="xs" className="text-typo-400 font-poppins-bold">{previewTask.xp_value || 0} XP</UIText>
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-bold">{previewTask.xp_value || 0} XP</UIText>
                       </HStack>
-                      <Pressable onPress={() => setPreviewTask(null)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-                        <Ionicons name="close" size={16} color="#6B7280" />
+                      <Pressable onPress={() => setPreviewTask(null)} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
+                        <Ionicons name="close" size={16} color={c.icon} />
                       </Pressable>
                     </HStack>
                     <Heading size="md">{previewTask.title}</Heading>
                     {previewTask.description && (
-                      <UIText size="sm" className="text-typo-500 leading-6">{previewTask.description}</UIText>
+                      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 leading-6">{previewTask.description}</UIText>
                     )}
                     <Button size="md" onPress={() => { handleAddSuggestion(previewTask); setPreviewTask(null); }}>
                       <ButtonText>Add to My Tasks</ButtonText>
@@ -741,6 +745,7 @@ export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { course, loading, error, enroll, unenroll, refetch } = useCourseDetail(id || null);
   const user = useAuthStore((s) => s.user);
+  const c = useThemeColors();
   const [enrolling, setEnrolling] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -764,7 +769,7 @@ export default function CourseDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
         <VStack className="px-5 md:px-8 pt-6" space="lg">
           <Skeleton className="h-64 rounded-2xl" />
           <Skeleton className="h-8 w-3/4 rounded" />
@@ -777,10 +782,10 @@ export default function CourseDetailScreen() {
 
   if (error || !course) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
-        <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
-        <Heading size="md" className="text-typo-500 mt-4">Course not found</Heading>
-        <UIText size="sm" className="text-typo-400 mt-2 text-center">{error || 'This course may have been removed.'}</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
+        <Ionicons name="alert-circle-outline" size={48} color={c.iconMuted} />
+        <Heading size="md" className="text-typo-500 dark:text-dark-typo-500 mt-4">Course not found</Heading>
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">{error || 'This course may have been removed.'}</UIText>
         <Button className="mt-6" onPress={() => router.back()}><ButtonText>Go Back</ButtonText></Button>
       </SafeAreaView>
     );
@@ -796,7 +801,7 @@ export default function CourseDetailScreen() {
   const pct = totalXp > 0 ? Math.round((earnedXp / totalXp) * 100) : 0;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
 
         {/* Full-bleed hero */}
@@ -815,9 +820,9 @@ export default function CourseDetailScreen() {
             <Ionicons name="school-outline" size={60} color="#6D469B" />
             <Pressable
               onPress={() => router.back()}
-              className="absolute top-4 left-4 w-10 h-10 rounded-full bg-surface-200 items-center justify-center"
+              className="absolute top-4 left-4 w-10 h-10 rounded-full bg-surface-200 dark:bg-dark-surface-300 items-center justify-center"
             >
-              <Ionicons name="arrow-back" size={22} color="#374151" />
+              <Ionicons name="arrow-back" size={22} color={c.text} />
             </Pressable>
           </View>
         )}
@@ -837,7 +842,7 @@ export default function CourseDetailScreen() {
 
             {/* Description */}
             {course.description && (
-              <UIText className="text-typo-500 leading-6">{course.description}</UIText>
+              <UIText className="text-typo-500 dark:text-dark-typo-500 leading-6">{course.description}</UIText>
             )}
 
             {/* Enrollment CTA */}
@@ -846,7 +851,7 @@ export default function CourseDetailScreen() {
                 <VStack space="md" className="items-center w-full">
                   <Ionicons name="school" size={32} color="#6D469B" />
                   <Heading size="md">Ready to start?</Heading>
-                  <UIText size="sm" className="text-typo-500 text-center">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                     Enroll to access projects, tasks, and lessons.
                   </UIText>
                   <Button size="lg" className="w-full" onPress={handleEnroll} disabled={enrolling}>
@@ -866,12 +871,12 @@ export default function CourseDetailScreen() {
                       {completedQuests}/{quests.length} projects
                     </UIText>
                   </HStack>
-                  <View className="h-2.5 bg-surface-200 rounded-full overflow-hidden">
+                  <View className="h-2.5 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
                     <View className="h-full bg-optio-purple rounded-full" style={{ width: `${pct}%` }} />
                   </View>
                   <HStack className="items-center gap-1">
                     <Ionicons name="star" size={14} color="#FF9028" />
-                    <UIText size="xs" className="text-typo-500 font-poppins-medium">
+                    <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
                       {earnedXp} / {totalXp} XP
                     </UIText>
                   </HStack>

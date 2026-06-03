@@ -16,6 +16,7 @@ import {
   VStack, HStack, Heading, UIText, Button, ButtonText,
   Card, Input, InputField, InputSlot,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface Invitation {
   email: string;
@@ -36,6 +37,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function AcceptInvitationScreen() {
+  const c = useThemeColors();
   const { code } = useLocalSearchParams<{ code: string }>();
   const { user, isAuthenticated } = useAuthStore();
 
@@ -172,10 +174,10 @@ export default function AcceptInvitationScreen() {
   // ── Loading ──
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
         <VStack className="items-center gap-3">
           <ActivityIndicator size="large" color="#6D469B" />
-          <UIText className="text-typo-400">Verifying invitation...</UIText>
+          <UIText className="text-typo-400 dark:text-dark-typo-400">Verifying invitation...</UIText>
         </VStack>
       </SafeAreaView>
     );
@@ -184,14 +186,14 @@ export default function AcceptInvitationScreen() {
   // ── Invalid/expired ──
   if (error && !invitation) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
         <Card variant="elevated" size="lg" className="max-w-md w-full">
           <VStack space="md" className="items-center py-4">
             <View className="w-16 h-16 rounded-full bg-red-100 items-center justify-center">
               <Ionicons name="close-circle-outline" size={32} color="#DC2626" />
             </View>
             <Heading size="lg" className="text-center">Invalid Invitation</Heading>
-            <UIText size="sm" className="text-typo-400 text-center">{error}</UIText>
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">{error}</UIText>
             <Button size="md" onPress={() => router.push('/(auth)/login' as any)} className="bg-optio-purple">
               <ButtonText>Go to Login</ButtonText>
             </Button>
@@ -204,14 +206,14 @@ export default function AcceptInvitationScreen() {
   // ── Success ──
   if (success) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
         <Card variant="elevated" size="lg" className="max-w-md w-full">
           <VStack space="md" className="items-center py-4">
             <View className="w-16 h-16 rounded-full bg-green-100 items-center justify-center">
               <Ionicons name="checkmark-circle-outline" size={32} color="#16A34A" />
             </View>
             <Heading size="lg" className="text-center">Welcome!</Heading>
-            <UIText size="sm" className="text-typo-500 text-center">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
               You've been added to <UIText className="font-poppins-semibold">{invitation?.organization?.name}</UIText> as {ROLE_LABELS[invitation?.role || ''] || invitation?.role}.
             </UIText>
             {invitation?.is_parent_invitation && invitation?.students?.length ? (
@@ -221,7 +223,7 @@ export default function AcceptInvitationScreen() {
                 </UIText>
               </View>
             ) : null}
-            <UIText size="sm" className="text-typo-400 text-center">
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
               {existingAccount ? 'Log in to access your account.' : 'Your account has been created. Log in to get started.'}
             </UIText>
             <Button size="lg" onPress={() => router.push('/(auth)/login' as any)} className="bg-optio-purple w-full">
@@ -237,7 +239,7 @@ export default function AcceptInvitationScreen() {
   if (isAuthenticated && user) {
     const displayName = user.first_name || user.display_name || user.email;
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
         <Card variant="elevated" size="lg" className="max-w-md w-full">
           <VStack space="lg" className="py-4">
             <VStack space="sm" className="items-center">
@@ -247,14 +249,14 @@ export default function AcceptInvitationScreen() {
                 </UIText>
               </View>
               <Heading size="lg" className="text-center">Join {invitation?.organization?.name}</Heading>
-              <UIText size="sm" className="text-typo-400 text-center">
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
                 You've been invited as {ROLE_LABELS[invitation?.role || ''] || invitation?.role}.
               </UIText>
             </VStack>
 
             {invitation?.is_parent_invitation && invitation?.students?.length ? (
               <View className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
-                <UIText size="sm" className="text-typo-500 text-center">
+                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                   You'll be linked to: {invitation.students.map(s => `${s.first_name} ${s.last_name}`).join(', ')}
                 </UIText>
               </View>
@@ -277,7 +279,7 @@ export default function AcceptInvitationScreen() {
 
   // ── Registration form ──
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerClassName="items-center py-8 px-6" showsVerticalScrollIndicator={false}>
           <Card variant="elevated" size="lg" className="max-w-md w-full">
@@ -287,7 +289,7 @@ export default function AcceptInvitationScreen() {
                 <Heading size="xl" className="text-center">
                   Join {invitation?.organization?.name}
                 </Heading>
-                <UIText size="sm" className="text-typo-400 text-center">
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
                   You've been invited as {ROLE_LABELS[invitation?.role || ''] || invitation?.role}.
                   {existingAccount ? ' Enter your password to join.' : ' Create your account below.'}
                 </UIText>
@@ -295,7 +297,7 @@ export default function AcceptInvitationScreen() {
 
               {invitation?.is_parent_invitation && invitation?.students?.length ? (
                 <View className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
-                  <UIText size="sm" className="text-typo-500 text-center">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                     You'll be linked to: {invitation.students.map(s => `${s.first_name} ${s.last_name}`).join(', ')}
                   </UIText>
                 </View>
@@ -365,7 +367,7 @@ export default function AcceptInvitationScreen() {
                   />
                   <InputSlot className="mr-3">
                     <Pressable onPress={() => setShowPassword(!showPassword)}>
-                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#9CA3AF" />
+                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={c.iconMuted} />
                     </Pressable>
                   </InputSlot>
                 </Input>
@@ -391,7 +393,7 @@ export default function AcceptInvitationScreen() {
               {/* Date of birth (new accounts only) */}
               {!existingAccount && (
                 <VStack space="xs">
-                  <UIText size="sm" className="font-poppins-medium">Date of birth <UIText size="xs" className="text-typo-300">(optional)</UIText></UIText>
+                  <UIText size="sm" className="font-poppins-medium">Date of birth <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">(optional)</UIText></UIText>
                   <Input variant="outline" size="lg">
                     <InputField
                       placeholder="YYYY-MM-DD"
@@ -409,7 +411,7 @@ export default function AcceptInvitationScreen() {
 
               {/* Login link */}
               <Pressable onPress={() => router.push('/(auth)/login' as any)} className="self-center">
-                <UIText size="sm" className="text-typo-400">
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
                   Already have an account?{' '}
                   <UIText size="sm" className="text-optio-purple font-poppins-medium">Sign in</UIText>
                 </UIText>

@@ -11,6 +11,7 @@ import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading, Avatar, AvatarFallbackText, AvatarImage } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { Contact, Group } from '@/src/hooks/useMessages';
 
 interface SelectedConversation {
@@ -73,6 +74,7 @@ export function ConversationList({
   canCreateGroups,
   isMobile,
 }: Props) {
+  const c = useThemeColors();
   const [search, setSearch] = useState('');
   const scrollRef = useRef<ScrollView>(null);
   // Tap the active Messages tab to scroll the conversation list back to top.
@@ -132,8 +134,8 @@ export function ConversationList({
 
   const Container: any = isMobile ? SafeAreaView : View;
   const containerProps: any = isMobile
-    ? { className: 'flex-1 bg-white', edges: ['top'] }
-    : { className: 'flex-1 bg-white border-r border-surface-200', style: { minWidth: 320, maxWidth: 380 } };
+    ? { className: 'flex-1 bg-white dark:bg-dark-surface-100', edges: ['top'] }
+    : { className: 'flex-1 bg-white dark:bg-dark-surface-100 border-r border-surface-200 dark:border-dark-surface-300', style: { minWidth: 320, maxWidth: 380 } };
 
   return (
     <Container {...containerProps}>
@@ -141,26 +143,26 @@ export function ConversationList({
       {isMobile ? (
         <PageHeader title="Messages" />
       ) : (
-        <View className="p-4 border-b border-surface-200">
+        <View className="p-4 border-b border-surface-200 dark:border-dark-surface-300">
           <Heading size="lg">Messages</Heading>
         </View>
       )}
 
       {/* Search */}
-      <View className="px-4 py-3 border-b border-surface-200">
-        <View className="flex-row items-center bg-surface-100 rounded-xl px-3 py-2.5">
-          <Ionicons name="search-outline" size={18} color="#9A93A8" />
+      <View className="px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300">
+        <View className="flex-row items-center bg-surface-100 dark:bg-dark-surface-200 rounded-xl px-3 py-2.5">
+          <Ionicons name="search-outline" size={18} color={c.iconMuted} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search conversations..."
-            placeholderTextColor="#9A93A8"
-            className="flex-1 ml-2 font-poppins text-sm"
+            placeholderTextColor={c.textFaint}
+            className="flex-1 ml-2 font-poppins text-sm text-typo dark:text-dark-typo"
             style={{ outline: 'none' } as any}
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={18} color="#9A93A8" />
+              <Ionicons name="close-circle" size={18} color={c.iconMuted} />
             </Pressable>
           )}
         </View>
@@ -170,10 +172,10 @@ export function ConversationList({
         {/* Group Chats Section */}
         {(filteredGroups.length > 0 || canCreateGroups) && (
           <View>
-            <View className="flex-row items-center justify-between px-4 py-2 bg-surface-50 border-b border-surface-200">
+            <View className="flex-row items-center justify-between px-4 py-2 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
               <View className="flex-row items-center gap-1.5">
-                <Ionicons name="people-outline" size={14} color="#6B7280" />
-                <UIText size="xs" className="font-poppins-semibold text-typo-500 uppercase tracking-wider">
+                <Ionicons name="people-outline" size={14} color={c.icon} />
+                <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider">
                   Groups
                 </UIText>
               </View>
@@ -189,7 +191,7 @@ export function ConversationList({
                 <Pressable
                   key={group.id}
                   onPress={() => onSelect({ id: group.id, type: 'group', group })}
-                  className={`flex-row items-center px-4 py-3 active:bg-surface-100 ${isSelected ? 'bg-optio-purple/5' : ''}`}
+                  className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
                   style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
                 >
                   <View
@@ -202,20 +204,20 @@ export function ConversationList({
                     <View className="flex-row items-center justify-between">
                       <UIText
                         size="sm"
-                        className={`font-poppins-semibold ${group.unread_count ? 'text-typo-900' : 'text-typo-700'}`}
+                        className={`font-poppins-semibold ${group.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
                         numberOfLines={1}
                       >
                         {group.name}
                       </UIText>
                       {group.last_message_at && (
-                        <UIText size="xs" className="text-typo-400 ml-2">
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-2">
                           {formatTime(group.last_message_at)}
                         </UIText>
                       )}
                     </View>
                     <UIText
                       size="xs"
-                      className={`mt-0.5 ${group.unread_count ? 'text-typo-700 font-poppins-medium' : 'text-typo-400'}`}
+                      className={`mt-0.5 ${group.unread_count ? 'text-typo-700 dark:text-dark-typo-700 font-poppins-medium' : 'text-typo-400 dark:text-dark-typo-400'}`}
                       numberOfLines={1}
                     >
                       {group.last_message_preview || `${group.member_count || 0} members`}
@@ -229,7 +231,7 @@ export function ConversationList({
                     </View>
                   )}
                   {isMobile && (
-                    <Ionicons name="chevron-forward" size={16} color="#CEC6D6" style={{ marginLeft: 4 }} />
+                    <Ionicons name="chevron-forward" size={16} color={c.iconMuted} style={{ marginLeft: 4 }} />
                   )}
                 </Pressable>
               );
@@ -239,9 +241,9 @@ export function ConversationList({
 
         {/* Direct Messages Section */}
         <View>
-          <View className="flex-row items-center px-4 py-2 bg-surface-50 border-b border-surface-200">
-            <Ionicons name="chatbubble-outline" size={14} color="#6B7280" />
-            <UIText size="xs" className="font-poppins-semibold text-typo-500 uppercase tracking-wider ml-1.5">
+          <View className="flex-row items-center px-4 py-2 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
+            <Ionicons name="chatbubble-outline" size={14} color={c.icon} />
+            <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider ml-1.5">
               Direct Messages
             </UIText>
           </View>
@@ -255,7 +257,7 @@ export function ConversationList({
                 <Pressable
                   key={contact.id}
                   onPress={() => onSelect({ id: contact.conversation_id, type: 'dm', contact })}
-                  className={`flex-row items-center px-4 py-3 active:bg-surface-100 ${isSelected ? 'bg-optio-purple/5' : ''}`}
+                  className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
                   style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
                 >
                   <Avatar size="md">
@@ -270,7 +272,7 @@ export function ConversationList({
                       <View className="flex-row items-center gap-2 flex-1">
                         <UIText
                           size="sm"
-                          className={`font-poppins-semibold ${contact.unread_count ? 'text-typo-900' : 'text-typo-700'}`}
+                          className={`font-poppins-semibold ${contact.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
                           numberOfLines={1}
                         >
                           {name}
@@ -286,14 +288,14 @@ export function ConversationList({
                         )}
                       </View>
                       {contact.last_message_at && (
-                        <UIText size="xs" className="text-typo-400 ml-2">
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-2">
                           {formatTime(contact.last_message_at)}
                         </UIText>
                       )}
                     </View>
                     <UIText
                       size="xs"
-                      className={`mt-0.5 ${contact.unread_count ? 'text-typo-700 font-poppins-medium' : 'text-typo-400'}`}
+                      className={`mt-0.5 ${contact.unread_count ? 'text-typo-700 dark:text-dark-typo-700 font-poppins-medium' : 'text-typo-400 dark:text-dark-typo-400'}`}
                       numberOfLines={1}
                     >
                       {contact.last_message_preview || 'Start a conversation'}
@@ -307,15 +309,15 @@ export function ConversationList({
                     </View>
                   )}
                   {isMobile && (
-                    <Ionicons name="chevron-forward" size={16} color="#CEC6D6" style={{ marginLeft: 4 }} />
+                    <Ionicons name="chevron-forward" size={16} color={c.iconMuted} style={{ marginLeft: 4 }} />
                   )}
                 </Pressable>
               );
             })
           ) : (
             <View className="items-center py-10 px-4">
-              <Ionicons name="chatbubbles-outline" size={40} color="#CEC6D6" />
-              <UIText size="sm" className="text-typo-400 mt-3 text-center">
+              <Ionicons name="chatbubbles-outline" size={40} color={c.iconMuted} />
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3 text-center">
                 {search ? 'No contacts match your search' : 'No contacts available'}
               </UIText>
             </View>

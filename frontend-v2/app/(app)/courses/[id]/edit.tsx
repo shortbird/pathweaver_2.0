@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCourseDetail } from '@/src/hooks/useCourses';
 import { useAuthStore } from '@/src/stores/authStore';
 import api from '@/src/services/api';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
 } from '@/src/components/ui';
@@ -33,7 +34,7 @@ function OptionPicker({
 }) {
   return (
     <VStack space="xs">
-      <UIText size="sm" className="font-poppins-medium text-typo-600">{label}</UIText>
+      <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">{label}</UIText>
       <HStack className="gap-2 flex-wrap">
         {options.map((opt) => {
           const selected = value === opt;
@@ -44,13 +45,13 @@ function OptionPicker({
               className={`px-4 py-2 rounded-lg border ${
                 selected
                   ? 'bg-optio-purple border-optio-purple'
-                  : 'bg-surface-50 border-outline-200'
+                  : 'bg-surface-50 dark:bg-dark-surface-50 border-outline-200 dark:border-dark-surface-300'
               }`}
             >
               <UIText
                 size="sm"
                 className={`capitalize font-poppins-medium ${
-                  selected ? 'text-white' : 'text-typo-500'
+                  selected ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'
                 }`}
               >
                 {opt}
@@ -67,6 +68,7 @@ export default function CourseEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { course, loading, error } = useCourseDetail(id || null);
   const user = useAuthStore((s) => s.user);
+  const c = useThemeColors();
 
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role;
   const isSuperadmin = effectiveRole === 'superadmin';
@@ -112,7 +114,7 @@ export default function CourseEditScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
@@ -120,10 +122,10 @@ export default function CourseEditScreen() {
 
   if (error || !course) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
-        <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
-        <Heading size="md" className="text-typo-500 mt-4">Course not found</Heading>
-        <UIText size="sm" className="text-typo-400 mt-2 text-center">{error || 'This course may have been removed.'}</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
+        <Ionicons name="alert-circle-outline" size={48} color={c.iconMuted} />
+        <Heading size="md" className="text-typo-500 dark:text-dark-typo-500 mt-4">Course not found</Heading>
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">{error || 'This course may have been removed.'}</UIText>
         <Button className="mt-6" onPress={() => router.back()}>
           <ButtonText>Go Back</ButtonText>
         </Button>
@@ -133,10 +135,10 @@ export default function CourseEditScreen() {
 
   if (!canEdit) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
-        <Ionicons name="lock-closed-outline" size={48} color="#9CA3AF" />
-        <Heading size="md" className="text-typo-500 mt-4">Access Denied</Heading>
-        <UIText size="sm" className="text-typo-400 mt-2 text-center">You do not have permission to edit this course.</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
+        <Ionicons name="lock-closed-outline" size={48} color={c.iconMuted} />
+        <Heading size="md" className="text-typo-500 dark:text-dark-typo-500 mt-4">Access Denied</Heading>
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">You do not have permission to edit this course.</UIText>
         <Button className="mt-6" onPress={() => router.back()}>
           <ButtonText>Go Back</ButtonText>
         </Button>
@@ -145,7 +147,7 @@ export default function CourseEditScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <VStack className="max-w-3xl w-full md:mx-auto px-5 md:px-8 pt-6 pb-12" space="lg">
 
@@ -153,13 +155,13 @@ export default function CourseEditScreen() {
           <HStack className="items-center gap-3">
             <Pressable
               onPress={() => router.back()}
-              className="w-10 h-10 rounded-full bg-surface-200 items-center justify-center"
+              className="w-10 h-10 rounded-full bg-surface-200 dark:bg-dark-surface-300 items-center justify-center"
             >
-              <Ionicons name="arrow-back" size={22} color="#374151" />
+              <Ionicons name="arrow-back" size={22} color={c.text} />
             </Pressable>
             <VStack className="flex-1">
               <Heading size="xl">Edit Course</Heading>
-              <UIText size="sm" className="text-typo-400">Update course details and settings</UIText>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">Update course details and settings</UIText>
             </VStack>
           </HStack>
 
@@ -167,28 +169,28 @@ export default function CourseEditScreen() {
 
           {/* Title */}
           <VStack space="xs">
-            <UIText size="sm" className="font-poppins-medium text-typo-600">Title</UIText>
+            <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Title</UIText>
             <TextInput
               value={title}
               onChangeText={setTitle}
               placeholder="Course title"
-              placeholderTextColor="#9CA3AF"
-              className="border border-outline-200 rounded-lg px-4 py-3 text-base text-typo-700 bg-white"
+              placeholderTextColor={c.textFaint}
+              className="border border-outline-200 dark:border-dark-surface-300 rounded-lg px-4 py-3 text-base text-typo-700 dark:text-dark-typo-700 bg-white dark:bg-dark-surface-100"
             />
           </VStack>
 
           {/* Description */}
           <VStack space="xs">
-            <UIText size="sm" className="font-poppins-medium text-typo-600">Description</UIText>
+            <UIText size="sm" className="font-poppins-medium text-typo-600 dark:text-dark-typo-600">Description</UIText>
             <TextInput
               value={description}
               onChangeText={setDescription}
               placeholder="Course description"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={c.textFaint}
               multiline
               numberOfLines={5}
               textAlignVertical="top"
-              className="border border-outline-200 rounded-lg px-4 py-3 text-base text-typo-700 bg-white min-h-[120px]"
+              className="border border-outline-200 dark:border-dark-surface-300 rounded-lg px-4 py-3 text-base text-typo-700 dark:text-dark-typo-700 bg-white dark:bg-dark-surface-100 min-h-[120px]"
             />
           </VStack>
 

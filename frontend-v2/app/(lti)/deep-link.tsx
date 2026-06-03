@@ -122,14 +122,14 @@ export default function DeepLink() {
         <VStack space="lg">
           <VStack space="xs">
             <Heading size="lg">Add an Optio assignment</Heading>
-            <UIText size="sm" className="text-typo-500">
+            <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
               Give it a title and a short prompt. Each student will see an AI
               wizard inside Canvas that helps them invent their own approach.
             </UIText>
           </VStack>
 
           <VStack space="sm">
-            <UIText size="sm" className="font-poppins-medium text-typo-700">
+            <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700">
               Title
             </UIText>
             <Input>
@@ -142,7 +142,7 @@ export default function DeepLink() {
           </VStack>
 
           <VStack space="sm">
-            <UIText size="sm" className="font-poppins-medium text-typo-700">
+            <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700">
               Description (optional)
             </UIText>
             <Input>

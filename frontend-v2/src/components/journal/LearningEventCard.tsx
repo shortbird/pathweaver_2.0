@@ -13,6 +13,7 @@ import type { LearningEvent, UnifiedTopic } from '@/src/hooks/useJournal';
 import { deleteLearningEvent, assignMomentToTopic, deleteChildLearningEvent } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   text: 'document-text-outline',
@@ -40,6 +41,7 @@ interface LearningEventCardProps {
 }
 
 function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned, childId, readOnly }: LearningEventCardProps) {
+  const c = useThemeColors();
   const [showActions, setShowActions] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showTopicMenu, setShowTopicMenu] = useState(false);
@@ -87,6 +89,14 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   const availableTracks = topics?.filter((t) => t.type === 'topic' || t.type === 'track') || [];
   const currentTopicId = event.topics?.find((t) => t.type === 'topic')?.id || event.track_id || null;
 
+  // Active quests the moment can be assigned to. Unlike tracks (single-select),
+  // a moment can belong to multiple quests, so each quest row toggles its own
+  // assignment independently.
+  const availableQuests = topics?.filter((t) => t.type === 'quest') || [];
+  const assignedQuestIds = new Set(
+    (event.topics || []).filter((t) => t.type === 'quest').map((t) => t.id),
+  );
+
   const TOPIC_COLORS = ['#6D469B', '#EF597B', '#3DA24A', '#FF9028', '#2D8CFF', '#E84393'];
 
   const handleCreateAndAssign = async () => {
@@ -131,6 +141,19 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       await onAssigned?.();
     } catch {
       Alert.alert('Error', 'Failed to assign to topic.');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleToggleQuest = async (questId: string) => {
+    setAssigning(true);
+    try {
+      const action = assignedQuestIds.has(questId) ? 'remove' : 'add';
+      await assignMomentToTopic(event.id, 'quest', questId, action);
+      await onAssigned?.();
+    } catch {
+      Alert.alert('Error', 'Failed to assign to quest.');
     } finally {
       setAssigning(false);
     }
@@ -185,7 +208,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                 style={{ width: '100%', maxHeight: 400, objectFit: 'contain', borderTopLeftRadius: 12, borderTopRightRadius: 12, backgroundColor: '#000' }}
               />
             ) : (
-              <View className="w-full h-40 bg-surface-100 rounded-t-xl items-center justify-center">
+              <View className="w-full h-40 bg-surface-100 dark:bg-dark-surface-200 rounded-t-xl items-center justify-center">
                 <Ionicons name="play-circle" size={40} color="#6D469B" />
               </View>
             )}
@@ -198,7 +221,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
             <UIText size="sm" className="font-poppins-semibold flex-1">
               {event.title || event.description || 'Learning Moment'}
             </UIText>
-            <UIText size="xs" className="text-typo-400 ml-2 flex-shrink-0">{dateStr}</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-2 flex-shrink-0">{dateStr}</UIText>
           </HStack>
 
           {/* Action menu */}
@@ -208,16 +231,16 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                 {onEdit ? (
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); setShowActions(false); onEdit(event); }}
-                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg"
+                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-lg"
                   >
                     <Ionicons name="create-outline" size={14} color="#6D469B" />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit</UIText>
                   </Pressable>
                 ) : null}
-                {!childId && availableTracks.length > 0 ? (
+                {!childId && (availableTracks.length > 0 || availableQuests.length > 0) ? (
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); setShowTopicMenu(!showTopicMenu); }}
-                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg"
+                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-lg"
                   >
                     <Ionicons name="folder-outline" size={14} color="#6D469B" />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">Assign</UIText>
@@ -226,7 +249,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                 {!childId ? (
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); setTaskPickerVisible(true); }}
-                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-lg"
+                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-lg"
                   >
                     <Ionicons name="flag-outline" size={14} color="#6D469B" />
                     <UIText size="xs" className="text-optio-purple font-poppins-medium">
@@ -249,14 +272,14 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
 
               {/* Inline topic picker */}
               {showTopicMenu ? (
-                <View className="bg-surface-50 rounded-lg p-2 border border-surface-200">
+                <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg p-2 border border-surface-200 dark:border-dark-surface-300">
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); handleAssignToTopic(null); }}
-                    className={`flex-row items-center gap-2 px-2 py-1.5 rounded ${!currentTopicId ? 'bg-surface-200' : ''}`}
+                    className={`flex-row items-center gap-2 px-2 py-1.5 rounded ${!currentTopicId ? 'bg-surface-200 dark:bg-dark-surface-300' : ''}`}
                     disabled={assigning}
                   >
-                    <Ionicons name="remove-circle-outline" size={14} color="#9CA3AF" />
-                    <UIText size="xs" className="text-typo-500">Unassigned</UIText>
+                    <Ionicons name="remove-circle-outline" size={14} color={c.iconMuted} />
+                    <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">Unassigned</UIText>
                   </Pressable>
                   {availableTracks.map((t) => (
                     <Pressable
@@ -269,22 +292,22 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                         className="w-4 h-4 rounded"
                         style={{ backgroundColor: (t.color || '#6D469B') + '30' }}
                       />
-                      <UIText size="xs" className={currentTopicId === t.id ? 'font-poppins-medium text-optio-purple' : 'text-typo'}>
+                      <UIText size="xs" className={currentTopicId === t.id ? 'font-poppins-medium text-optio-purple' : 'text-typo dark:text-dark-typo'}>
                         {t.name}
                       </UIText>
                     </Pressable>
                   ))}
-                  <View className="h-px bg-surface-200 my-1" />
+                  <View className="h-px bg-surface-200 dark:bg-dark-surface-300 my-1" />
                   {showNewTopic ? (
                     <HStack className="items-center gap-1.5 px-2 py-1">
                       <TextInput
                         value={newTopicName}
                         onChangeText={setNewTopicName}
                         placeholder="Topic name"
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor={c.textFaint}
                         autoFocus
                         onSubmitEditing={handleCreateAndAssign}
-                        className="flex-1 bg-white rounded px-2 py-1 text-xs border border-surface-200"
+                        className="flex-1 bg-white dark:bg-dark-surface-100 text-typo dark:text-dark-typo rounded px-2 py-1 text-xs border border-surface-200 dark:border-dark-surface-300"
                         style={{ fontFamily: 'Poppins_400Regular', fontSize: 12 }}
                       />
                       <Pressable
@@ -295,7 +318,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                         <Ionicons name="checkmark-circle" size={22} color="#6D469B" />
                       </Pressable>
                       <Pressable onPress={(e) => { e.stopPropagation?.(); setShowNewTopic(false); setNewTopicName(''); }}>
-                        <Ionicons name="close-circle" size={22} color="#9CA3AF" />
+                        <Ionicons name="close-circle" size={22} color={c.iconMuted} />
                       </Pressable>
                     </HStack>
                   ) : (
@@ -307,6 +330,38 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                       <UIText size="xs" className="text-optio-purple font-poppins-medium">New Topic</UIText>
                     </Pressable>
                   )}
+
+                  {/* Quests — independent multi-toggle (a moment can belong to
+                      a topic and one or more quests). Tap to add/remove. */}
+                  {availableQuests.length > 0 ? (
+                    <>
+                      <View className="h-px bg-surface-200 dark:bg-dark-surface-300 my-1" />
+                      <HStack className="items-center gap-1.5 px-2 py-1">
+                        <Ionicons name="flag-outline" size={12} color={c.iconMuted} />
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase">Quests</UIText>
+                      </HStack>
+                      {availableQuests.map((q) => {
+                        const assigned = assignedQuestIds.has(q.id);
+                        return (
+                          <Pressable
+                            key={q.id}
+                            onPress={(e) => { e.stopPropagation?.(); handleToggleQuest(q.id); }}
+                            className={`flex-row items-center gap-2 px-2 py-1.5 rounded ${assigned ? 'bg-optio-purple/10' : ''}`}
+                            disabled={assigning}
+                          >
+                            <Ionicons
+                              name={assigned ? 'checkmark-circle' : 'flag-outline'}
+                              size={14}
+                              color={assigned ? '#6D469B' : c.iconMuted}
+                            />
+                            <UIText size="xs" className={assigned ? 'font-poppins-medium text-optio-purple' : 'text-typo dark:text-dark-typo'} numberOfLines={1}>
+                              {q.name}
+                            </UIText>
+                          </Pressable>
+                        );
+                      })}
+                    </>
+                  ) : null}
                 </View>
               ) : null}
             </VStack>
@@ -314,7 +369,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
 
           {/* Description (only if different from title) */}
           {event.description && event.title && event.description !== event.title ? (
-            <UIText size="xs" className="text-typo-500" numberOfLines={2}>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>
               {event.description}
             </UIText>
           ) : null}
@@ -331,7 +386,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                     key={i}
                     name={evidenceIcons[b.block_type] || 'ellipse-outline'}
                     size={14}
-                    color="#9CA3AF"
+                    color={c.iconMuted}
                   />
                 ))}
               </HStack>
@@ -355,9 +410,9 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
               {event.topics.map((t) => (
                 <View
                   key={`${t.type}-${t.id}`}
-                  className="px-1.5 py-0.5 rounded bg-surface-100"
+                  className="px-1.5 py-0.5 rounded bg-surface-100 dark:bg-dark-surface-200"
                 >
-                  <UIText size="xs" className="text-typo-400">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                     {t.name}
                   </UIText>
                 </View>
@@ -388,10 +443,15 @@ export const LearningEventCard = memo(LearningEventCardImpl, (prev, next) => {
   if (prev.topics !== next.topics) return false;
   const a = prev.event;
   const b = next.event;
+  // Topic membership drives the Assign picker's selected/checked state, so a
+  // change there (e.g. toggling a quest assignment) must force a re-render.
+  const topicSig = (e: LearningEvent) =>
+    (e.topics || []).map((t) => `${t.type}:${t.id}`).sort().join('|');
   return (
     a.id === b.id &&
     a.attached_task_id === b.attached_task_id &&
     a.title === b.title &&
-    a.description === b.description
+    a.description === b.description &&
+    topicSig(a) === topicSig(b)
   );
 });

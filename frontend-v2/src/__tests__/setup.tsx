@@ -32,6 +32,12 @@ jest.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
 }));
 
+// ── react-native-compressor (native video compression) ──
+// No-op in tests: hand back the original uri so the upload path is unchanged.
+jest.mock('react-native-compressor', () => ({
+  Video: { compress: jest.fn((uri: string) => Promise.resolve(uri)) },
+}));
+
 // ── expo-haptics ──
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(),

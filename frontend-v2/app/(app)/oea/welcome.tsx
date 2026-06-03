@@ -52,7 +52,7 @@ export default function OEAWelcomeScreen() {
           <VStack space="sm">
             <HStack className="items-center" space="sm">
               <Ionicons name="school-outline" size={22} color="#6D469B" />
-              <UIText size="md" className="font-poppins-semibold text-typo">How it works</UIText>
+              <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">How it works</UIText>
             </HStack>
             <UIText size="sm" className="text-typo-600">
               Each student works toward 24 credits on one of three diploma pathways.
@@ -65,10 +65,10 @@ export default function OEAWelcomeScreen() {
           <Card variant="outline" size="md">
             <VStack space="md" className="items-center">
               <Ionicons name="person-add-outline" size={28} color="#6D469B" />
-              <UIText size="md" className="font-poppins-semibold text-typo text-center">
+              <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo text-center">
                 Add your first student
               </UIText>
-              <UIText size="sm" className="text-typo-500 text-center">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                 Add a student to your family, then choose their diploma pathway.
               </UIText>
               <Button size="md" onPress={() => router.replace('/(app)/(tabs)/family' as any)}>
@@ -78,7 +78,7 @@ export default function OEAWelcomeScreen() {
           </Card>
         ) : (
           <VStack space="md">
-            <UIText size="sm" className="font-poppins-semibold text-typo-500">YOUR STUDENTS</UIText>
+            <UIText size="sm" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500">YOUR STUDENTS</UIText>
             {children.map((child) => {
               const enrollment = enrollments[child.id];
               const pathwayName = enrollment?.pathway?.name;
@@ -90,7 +90,7 @@ export default function OEAWelcomeScreen() {
                 <Card key={child.id} variant="outline" size="md">
                   <VStack space="sm">
                     <View>
-                      <UIText size="md" className="font-poppins-semibold text-typo">
+                      <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">
                         {child.display_name || `${child.first_name} ${child.last_name}`.trim()}
                       </UIText>
                       <UIText size="sm" className={pathwayName ? 'text-typo-600' : 'text-amber-700'}>

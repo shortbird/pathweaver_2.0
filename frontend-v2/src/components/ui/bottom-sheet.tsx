@@ -19,6 +19,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Modal, Pressable, KeyboardAvoidingView, Platform, Animated, Dimensions, Easing, ScrollView, useWindowDimensions } from 'react-native';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 // Sheet content is bounded to this fraction of the screen and becomes
@@ -46,6 +47,7 @@ export function BottomSheet({
   const [mounted, setMounted] = useState(visible);
   const { isLargeScreen } = useBreakpoint();
   const { height: windowHeight } = useWindowDimensions();
+  const c = useThemeColors();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const sheetOpacity = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -140,7 +142,7 @@ export function BottomSheet({
               width: '100%',
               maxWidth: DIALOG_MAX_WIDTH,
               maxHeight: windowHeight * 0.85,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: c.card,
               borderRadius: 24,
               opacity: sheetOpacity,
               transform: [{ scale }],
@@ -184,7 +186,7 @@ export function BottomSheet({
       >
         <Animated.View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: c.card,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             transform: [{ translateY }],

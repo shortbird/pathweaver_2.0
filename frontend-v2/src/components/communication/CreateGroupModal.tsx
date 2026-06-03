@@ -11,6 +11,7 @@ import {
   UIText, Heading, Button, ButtonText, Avatar, AvatarFallbackText, AvatarImage,
 } from '@/src/components/ui';
 import { useContacts, createGroup, type Contact } from '@/src/hooks/useMessages';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface Props {
   visible: boolean;
@@ -23,6 +24,7 @@ function getDisplayName(c: Contact) {
 }
 
 export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
+  const c = useThemeColors();
   const { contacts } = useContacts();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -90,14 +92,14 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
       >
         <Pressable
           style={{ width: 480, maxHeight: '85%' }}
-          className="bg-white rounded-2xl overflow-hidden shadow-xl"
+          className="bg-white dark:bg-dark-surface-100 rounded-2xl overflow-hidden shadow-xl"
           onPress={() => {}} // prevent close on inner press
         >
           {/* Header */}
-          <View className="flex-row items-center justify-between px-5 py-4 border-b border-surface-200">
+          <View className="flex-row items-center justify-between px-5 py-4 border-b border-surface-200 dark:border-dark-surface-300">
             <Heading size="md">Create Group Chat</Heading>
             <Pressable onPress={handleClose} className="p-1">
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={c.icon} />
             </Pressable>
           </View>
 
@@ -111,35 +113,35 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
 
             {/* Group Name */}
             <View>
-              <UIText size="sm" className="font-poppins-medium text-typo-700 mb-1">
+              <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700 mb-1">
                 Group Name *
               </UIText>
               <TextInput
                 value={name}
                 onChangeText={setName}
                 placeholder="Enter group name"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
                 maxLength={100}
-                className="border border-surface-200 rounded-lg px-3 py-2.5 font-poppins text-sm"
+                className="border border-surface-200 dark:border-dark-surface-300 rounded-lg px-3 py-2.5 font-poppins text-sm text-typo dark:text-dark-typo"
                 style={{ outline: 'none' } as any}
               />
-              <UIText size="xs" className="text-typo-400 mt-1">{name.length}/100</UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-1">{name.length}/100</UIText>
             </View>
 
             {/* Description */}
             <View>
-              <UIText size="sm" className="font-poppins-medium text-typo-700 mb-1">
+              <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700 mb-1">
                 Description (optional)
               </UIText>
               <TextInput
                 value={description}
                 onChangeText={setDescription}
                 placeholder="What's this group about?"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
                 maxLength={500}
                 multiline
                 numberOfLines={2}
-                className="border border-surface-200 rounded-lg px-3 py-2.5 font-poppins text-sm"
+                className="border border-surface-200 dark:border-dark-surface-300 rounded-lg px-3 py-2.5 font-poppins text-sm text-typo dark:text-dark-typo"
                 style={{ outline: 'none', minHeight: 60 } as any}
               />
             </View>
@@ -165,22 +167,22 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
 
             {/* Member Search */}
             <View>
-              <UIText size="sm" className="font-poppins-medium text-typo-700 mb-1">
+              <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700 mb-1">
                 Add Members (optional)
               </UIText>
-              <View className="flex-row items-center bg-surface-100 rounded-lg px-3 py-2 mb-2">
-                <Ionicons name="search-outline" size={16} color="#9CA3AF" />
+              <View className="flex-row items-center bg-surface-100 dark:bg-dark-surface-200 rounded-lg px-3 py-2 mb-2">
+                <Ionicons name="search-outline" size={16} color={c.iconMuted} />
                 <TextInput
                   value={search}
                   onChangeText={setSearch}
                   placeholder="Search contacts..."
-                  placeholderTextColor="#9CA3AF"
-                  className="flex-1 ml-2 font-poppins text-sm"
+                  placeholderTextColor={c.textFaint}
+                  className="flex-1 ml-2 font-poppins text-sm text-typo dark:text-dark-typo"
                   style={{ outline: 'none' } as any}
                 />
               </View>
 
-              <View className="border border-surface-200 rounded-lg overflow-hidden" style={{ maxHeight: 200 }}>
+              <View className="border border-surface-200 dark:border-dark-surface-300 rounded-lg overflow-hidden" style={{ maxHeight: 200 }}>
                 <ScrollView>
                   {filtered.length > 0 ? (
                     filtered.map((c) => {
@@ -208,7 +210,7 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
                     })
                   ) : (
                     <View className="items-center py-4">
-                      <UIText size="sm" className="text-typo-400">
+                      <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
                         {search ? 'No contacts found' : 'No contacts available'}
                       </UIText>
                     </View>
@@ -219,7 +221,7 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
           </ScrollView>
 
           {/* Footer */}
-          <View className="flex-row justify-end gap-3 px-5 py-4 border-t border-surface-200">
+          <View className="flex-row justify-end gap-3 px-5 py-4 border-t border-surface-200 dark:border-dark-surface-300">
             <Pressable onPress={handleClose} className="px-4 py-2.5 rounded-lg">
               <UIText size="sm" className="text-typo-600 font-poppins-medium">Cancel</UIText>
             </Pressable>

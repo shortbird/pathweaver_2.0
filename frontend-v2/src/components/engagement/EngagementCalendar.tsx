@@ -9,7 +9,7 @@ import { HStack, VStack, UIText } from '../ui';
 import type { EngagementDay } from '@/src/hooks/useDashboard';
 
 const intensityClasses = [
-  'bg-surface-100',        // 0: no activity
+  'bg-surface-100 dark:bg-dark-surface-200',        // 0: no activity
   'bg-optio-purple/20',    // 1: light
   'bg-optio-purple/40',    // 2: moderate
   'bg-optio-purple/60',    // 3: active
@@ -25,7 +25,7 @@ export function EngagementCalendar({ days, firstActivityDate }: EngagementCalend
   if (!days || days.length === 0) {
     return (
       <VStack testID="calendar-empty" space="sm">
-        <UIText size="sm" className="text-typo-400">
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
           Your activity calendar will appear here as you engage with quests.
         </UIText>
       </VStack>
@@ -51,10 +51,10 @@ export function EngagementCalendar({ days, firstActivityDate }: EngagementCalend
     <VStack space="sm">
       {/* Header */}
       <HStack className="items-center justify-between">
-        <UIText testID="calendar-date-range" size="xs" className="text-typo-400">
+        <UIText testID="calendar-date-range" size="xs" className="text-typo-400 dark:text-dark-typo-400">
           {firstDate && lastDate ? `${formatDate(firstDate)} - ${formatDate(lastDate)}` : ''}
         </UIText>
-        <UIText testID="calendar-active-days" size="xs" className="text-typo-500 font-poppins-medium">
+        <UIText testID="calendar-active-days" size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
           {activeDays} active day{activeDays !== 1 ? 's' : ''}
         </UIText>
       </HStack>
@@ -71,11 +71,11 @@ export function EngagementCalendar({ days, firstActivityDate }: EngagementCalend
 
       {/* Legend */}
       <HStack className="items-center gap-1">
-        <UIText size="xs" className="text-typo-300">Less</UIText>
+        <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">Less</UIText>
         {intensityClasses.map((cls, i) => (
           <View key={i} className={`w-2.5 h-2.5 rounded-sm ${cls}`} />
         ))}
-        <UIText size="xs" className="text-typo-300">More</UIText>
+        <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">More</UIText>
       </HStack>
     </VStack>
   );

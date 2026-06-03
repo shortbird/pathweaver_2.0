@@ -16,6 +16,7 @@ import {
   VStack, HStack, Heading, UIText, Button, ButtonText,
   Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 function getRedirectForRole(user: User): string {
   const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
@@ -36,6 +37,7 @@ interface Organization {
 }
 
 export default function OrgLoginScreen() {
+  const c = useThemeColors();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { loginWithUsername, isAuthenticated, user, isLoading: authLoading } = useAuthStore();
 
@@ -107,7 +109,7 @@ export default function OrgLoginScreen() {
   // Loading state
   if (orgLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
@@ -116,14 +118,14 @@ export default function OrgLoginScreen() {
   // Org not found
   if (orgError) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
         <Card variant="elevated" size="lg" className="max-w-md w-full">
           <VStack space="md" className="items-center py-4">
             <View className="w-16 h-16 rounded-full bg-red-100 items-center justify-center">
               <Ionicons name="alert-circle-outline" size={32} color="#DC2626" />
             </View>
             <Heading size="lg" className="text-center">{orgError}</Heading>
-            <UIText size="sm" className="text-typo-400 text-center">
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
               If you have an email account, you can sign in with email instead.
             </UIText>
             <Button size="md" variant="outline" onPress={() => router.push('/(auth)/login' as any)}>
@@ -139,7 +141,7 @@ export default function OrgLoginScreen() {
   if (isAuthenticated && user && !wantsToSwitch) {
     const displayName = user.first_name || user.display_name || user.email;
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
         <Card variant="elevated" size="lg" className="max-w-md w-full">
           <VStack space="lg" className="items-center py-4">
             <View className="w-16 h-16 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink items-center justify-center">
@@ -173,7 +175,7 @@ export default function OrgLoginScreen() {
   const logoUrl = org?.branding_config?.logo_url;
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -199,7 +201,7 @@ export default function OrgLoginScreen() {
                 <Heading size="xl" className="text-center">
                   Sign in to {org?.name}
                 </Heading>
-                <UIText size="sm" className="text-typo-400">
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
                   Enter your username and password
                 </UIText>
               </VStack>
@@ -224,7 +226,7 @@ export default function OrgLoginScreen() {
                 <UIText size="sm" className="font-poppins-medium">Username</UIText>
                 <Input variant="outline" size="lg" isInvalid={!!usernameError}>
                   <InputSlot className="ml-3">
-                    <Ionicons name="person-outline" size={18} color="#9CA3AF" />
+                    <Ionicons name="person-outline" size={18} color={c.iconMuted} />
                   </InputSlot>
                   <InputField
                     placeholder="Enter your username"
@@ -243,7 +245,7 @@ export default function OrgLoginScreen() {
                 <UIText size="sm" className="font-poppins-medium">Password</UIText>
                 <Input variant="outline" size="lg" isInvalid={!!passwordError}>
                   <InputSlot className="ml-3">
-                    <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" />
+                    <Ionicons name="lock-closed-outline" size={18} color={c.iconMuted} />
                   </InputSlot>
                   <InputField
                     placeholder="Enter your password"
@@ -258,7 +260,7 @@ export default function OrgLoginScreen() {
                       <Ionicons
                         name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                         size={20}
-                        color="#9CA3AF"
+                        color={c.iconMuted}
                       />
                     </Pressable>
                   </InputSlot>
@@ -278,7 +280,7 @@ export default function OrgLoginScreen() {
 
               {/* Email login link */}
               <Pressable onPress={() => router.push('/(auth)/login' as any)} className="self-center">
-                <UIText size="sm" className="text-typo-400">
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">
                   Have an email account?{' '}
                   <UIText size="sm" className="text-optio-purple font-poppins-medium">
                     Sign in with email

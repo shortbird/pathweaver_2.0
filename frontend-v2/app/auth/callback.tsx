@@ -100,11 +100,11 @@ export default function AuthCallbackScreen() {
   }, []);
 
   return (
-    <View className="flex-1 bg-surface-50 items-center justify-center px-6">
+    <View className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
       {status === 'processing' && (
         <View className="items-center">
           <ActivityIndicator size="large" color="#7C3AED" />
-          <UIText className="mt-4 text-typo-500 font-poppins-medium">
+          <UIText className="mt-4 text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
             Completing sign in...
           </UIText>
         </View>
@@ -114,10 +114,10 @@ export default function AuthCallbackScreen() {
           <UIText className="text-red-600 font-poppins-medium text-lg">
             Authentication Failed
           </UIText>
-          <UIText className="mt-2 text-typo-500">
+          <UIText className="mt-2 text-typo-500 dark:text-dark-typo-500">
             {error}
           </UIText>
-          <UIText className="mt-4 text-typo-400 text-sm">
+          <UIText className="mt-4 text-typo-400 dark:text-dark-typo-400 text-sm">
             Redirecting to login...
           </UIText>
         </View>

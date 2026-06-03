@@ -14,6 +14,7 @@ import api from '@/src/services/api';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface CreateQuestSheetProps {
   visible: boolean;
@@ -25,6 +26,7 @@ export function CreateQuestSheet({ visible, onClose, onCreated }: CreateQuestShe
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const c = useThemeColors();
 
   const reset = () => { setTitle(''); setDescription(''); };
   const handleClose = () => { reset(); onClose(); };
@@ -63,27 +65,27 @@ export function CreateQuestSheet({ visible, onClose, onCreated }: CreateQuestShe
           <Heading size="lg">Create your own quest</Heading>
           <Pressable
             onPress={handleClose}
-            className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center"
             hitSlop={8}
           >
-            <Ionicons name="close" size={18} color="#6B7280" />
+            <Ionicons name="close" size={18} color={c.icon} />
           </Pressable>
         </HStack>
 
-        <UIText size="sm" className="text-typo-500">
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
           Build a quest around something you want to learn. It stays private to you — you can add tasks and moments as you go.
         </UIText>
 
         <VStack space="xs">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
             Title
           </UIText>
           <TextInput
             value={title}
             onChangeText={setTitle}
             placeholder="e.g. Build my first drone"
-            placeholderTextColor="#9CA3AF"
-            className="bg-surface-50 rounded-xl p-4 text-base font-poppins"
+            placeholderTextColor={c.textFaint}
+            className="bg-surface-50 dark:bg-dark-surface-50 text-typo dark:text-dark-typo rounded-xl p-4 text-base font-poppins"
             maxLength={120}
             autoFocus
           />
@@ -91,19 +93,19 @@ export function CreateQuestSheet({ visible, onClose, onCreated }: CreateQuestShe
 
         <VStack space="xs">
           <HStack className="items-baseline gap-2">
-            <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
               What's it about?
             </UIText>
-            <UIText size="xs" className="text-typo-300 normal-case">(optional)</UIText>
+            <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300 normal-case">(optional)</UIText>
           </HStack>
           <TextInput
             value={description}
             onChangeText={setDescription}
             placeholder="A sentence or two about what you want to learn or do."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={c.textFaint}
             multiline
             numberOfLines={4}
-            className="bg-surface-50 rounded-xl p-4 text-base font-poppins min-h-[100px]"
+            className="bg-surface-50 dark:bg-dark-surface-50 text-typo dark:text-dark-typo rounded-xl p-4 text-base font-poppins min-h-[100px]"
             style={{ textAlignVertical: 'top' }}
             maxLength={1000}
           />

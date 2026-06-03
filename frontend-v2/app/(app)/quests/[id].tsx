@@ -22,6 +22,7 @@ import { AudioClipPreview } from '@/src/components/capture/VoiceRecorder';
 import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import { ClassDetailHeader } from '@/src/components/class/ClassDetailHeader';
 import { getSubject } from '@/src/components/class/SUBJECTS';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Input, InputField,
@@ -54,13 +55,14 @@ function normalizeBlockForSave(block: any) {
 function EvidenceBlockDisplay({ block }: { block: any }) {
   const blockType = block.block_type || block.type;
   const content = block.content || {};
+  const c = useThemeColors();
 
   if (blockType === 'image' && content.url) {
     return (
-      <View className="rounded-xl overflow-hidden bg-surface-100">
+      <View className="rounded-xl overflow-hidden bg-surface-100 dark:bg-dark-surface-200">
         <Image source={{ uri: content.url }} style={{ width: '100%', height: 200 }} resizeMode="cover" />
         {content.caption && (
-          <UIText size="xs" className="text-typo-400 px-2 py-1.5">{content.caption}</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 px-2 py-1.5">{content.caption}</UIText>
         )}
       </View>
     );
@@ -87,7 +89,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
         onPress={() => Linking.openURL(url).catch(() => {})}
         className="active:opacity-70"
       >
-        <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
+        <HStack className="items-center gap-2 p-3 bg-surface-100 dark:bg-dark-surface-200 rounded-lg">
           <Ionicons name="link" size={18} color="#2469D1" />
           <VStack className="flex-1 min-w-0">
             {content.title && content.title !== url && (
@@ -95,7 +97,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
             )}
             <UIText size="xs" className="text-pillar-stem" numberOfLines={1}>{url}</UIText>
           </VStack>
-          <Ionicons name="open-outline" size={14} color="#9A93A8" />
+          <Ionicons name="open-outline" size={14} color={c.iconMuted} />
         </HStack>
       </Pressable>
     );
@@ -103,8 +105,8 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
 
   if (blockType === 'text') {
     return (
-      <View className="p-3 bg-surface-50 rounded-lg border border-surface-200">
-        <UIText size="sm" className="text-typo-500" style={{ lineHeight: 20 }}>
+      <View className="p-3 bg-surface-50 dark:bg-dark-surface-50 rounded-lg border border-surface-200 dark:border-dark-surface-300">
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500" style={{ lineHeight: 20 }}>
           {content.text || content.value || ''}
         </UIText>
       </View>
@@ -117,12 +119,12 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
         onPress={() => Linking.openURL(content.url).catch(() => {})}
         className="active:opacity-70"
       >
-        <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
-          <Ionicons name="document-attach" size={18} color="#6B7280" />
-          <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={1}>
+        <HStack className="items-center gap-2 p-3 bg-surface-100 dark:bg-dark-surface-200 rounded-lg">
+          <Ionicons name="document-attach" size={18} color={c.icon} />
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>
             {content.filename || content.title || 'Document'}
           </UIText>
-          <Ionicons name="open-outline" size={14} color="#9A93A8" />
+          <Ionicons name="open-outline" size={14} color={c.iconMuted} />
         </HStack>
       </Pressable>
     );
@@ -164,6 +166,7 @@ function TaskItem({
   const [evidenceBlocks, setEvidenceBlocks] = useState<any[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [evidenceSheetVisible, setEvidenceSheetVisible] = useState(false);
+  const c = useThemeColors();
   const pillar = pillarColors[task.pillar] || pillarColors.stem;
   const subjectMeta = classSubject ? getSubject(classSubject) : null;
   const isClassTask = !!subjectMeta;
@@ -252,14 +255,14 @@ function TaskItem({
                 <Ionicons
                   name={task.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
                   size={24}
-                  color={task.is_completed ? '#16A34A' : '#CEC6D6'}
+                  color={task.is_completed ? '#16A34A' : c.iconMuted}
                 />
               </Pressable>
             )}
             <VStack className="flex-1 min-w-0">
               <UIText
                 size="sm"
-                className={`font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 line-through' : ''}`}
+                className={`font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}
               >
                 {task.title}
               </UIText>
@@ -281,7 +284,7 @@ function TaskItem({
                         {task.pillar === 'stem' ? 'STEM' : task.pillar?.charAt(0).toUpperCase() + task.pillar?.slice(1)}
                       </UIText>
                     </View>
-                    <UIText size="xs" className="text-typo-400">{task.xp_value || task.xp_amount || 0} XP</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{task.xp_value || task.xp_amount || 0} XP</UIText>
                   </>
                 )}
                 {task.is_moment && (
@@ -291,8 +294,8 @@ function TaskItem({
                 )}
                 {!task.is_moment && evidenceBlocks.length > 0 && (
                   <HStack className="items-center gap-1">
-                    <Ionicons name="attach" size={12} color="#9A93A8" />
-                    <UIText size="xs" className="text-typo-400">{evidenceBlocks.length}</UIText>
+                    <Ionicons name="attach" size={12} color={c.iconMuted} />
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{evidenceBlocks.length}</UIText>
                   </HStack>
                 )}
               </HStack>
@@ -300,7 +303,7 @@ function TaskItem({
             <Ionicons
               name={expanded ? 'chevron-up' : 'chevron-down'}
               size={18}
-              color="#9CA3AF"
+              color={c.iconMuted}
             />
           </HStack>
 
@@ -308,14 +311,14 @@ function TaskItem({
           {expanded && (
             <VStack space="sm" className="ml-9">
               {task.description && (
-                <UIText size="xs" className="text-typo-500">{task.description}</UIText>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">{task.description}</UIText>
               )}
               {task.diploma_subjects?.length > 0 && (
                 <HStack className="items-center gap-1 flex-wrap">
-                  <UIText size="xs" className="text-typo-400">Subjects:</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Subjects:</UIText>
                   {task.diploma_subjects.map((s: string) => (
                     <Badge key={s} action="muted">
-                      <BadgeText className="text-typo-500">{s}</BadgeText>
+                      <BadgeText className="text-typo-500 dark:text-dark-typo-500">{s}</BadgeText>
                     </Badge>
                   ))}
                 </HStack>
@@ -324,7 +327,7 @@ function TaskItem({
               {/* Evidence display */}
               {evidenceBlocks.length > 0 && (
                 <VStack space="sm">
-                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Evidence</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Evidence</UIText>
                   {evidenceBlocks.map((block, idx) => (
                     <EvidenceBlockDisplay key={block.id || idx} block={block} />
                   ))}
@@ -387,7 +390,7 @@ function TaskItem({
                       hitSlop={8}
                       style={{ minHeight: 36, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <UIText size="xs" className="text-typo-400">Remove from quest</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Remove from quest</UIText>
                     </Pressable>
                   )}
                 </VStack>
@@ -420,6 +423,7 @@ export default function QuestDetailScreen() {
   } = useQuestDetail(id || null);
   const isEnrolled = !!quest?.user_enrollment;
   const { data: engagement } = useQuestEngagement(isEnrolled ? quest?.id || null : null);
+  const c = useThemeColors();
   const [enrolling, setEnrolling] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [restartModalVisible, setRestartModalVisible] = useState(false);
@@ -482,7 +486,7 @@ export default function QuestDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
         <VStack className="px-5 md:px-8 pt-6" space="lg">
           <Skeleton className="h-64 rounded-2xl" />
           <Skeleton className="h-8 w-3/4 rounded" />
@@ -495,10 +499,10 @@ export default function QuestDetailScreen() {
 
   if (error || !quest) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-6">
-        <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
-        <Heading size="md" className="text-typo-500 mt-4">Quest not found</Heading>
-        <UIText size="sm" className="text-typo-400 mt-2 text-center">{error || 'This quest may have been removed.'}</UIText>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-6">
+        <Ionicons name="alert-circle-outline" size={48} color={c.iconMuted} />
+        <Heading size="md" className="text-typo-500 dark:text-dark-typo-500 mt-4">Quest not found</Heading>
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">{error || 'This quest may have been removed.'}</UIText>
         <Button className="mt-6" onPress={() => router.back()}>
           <ButtonText>Go Back</ButtonText>
         </Button>
@@ -538,7 +542,7 @@ export default function QuestDetailScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView
         ref={scrollRef}
         className="flex-1"
@@ -563,9 +567,9 @@ export default function QuestDetailScreen() {
             <Ionicons name="rocket-outline" size={60} color="#6D469B" />
             <Pressable
               onPress={() => router.back()}
-              className="absolute top-4 left-4 w-10 h-10 rounded-full bg-surface-200 items-center justify-center"
+              className="absolute top-4 left-4 w-10 h-10 rounded-full bg-surface-200 dark:bg-dark-surface-300 items-center justify-center"
             >
-              <Ionicons name="arrow-back" size={22} color="#374151" />
+              <Ionicons name="arrow-back" size={22} color={c.text} />
             </Pressable>
           </View>
         )}
@@ -597,7 +601,7 @@ export default function QuestDetailScreen() {
             {/* Description — prefer big_idea (richer copy used on web v1) and
                 fall back to description. Many curated quests only fill one. */}
             {(quest.big_idea || quest.description) ? (
-              <UIText testID="quest-description" className="text-typo-500 leading-6">
+              <UIText testID="quest-description" className="text-typo-500 dark:text-dark-typo-500 leading-6">
                 {quest.big_idea || quest.description}
               </UIText>
             ) : null}
@@ -608,7 +612,7 @@ export default function QuestDetailScreen() {
                 <VStack space="md" className="items-center w-full">
                   <Ionicons name="rocket" size={32} color="#6D469B" />
                   <Heading size="md">Ready to start?</Heading>
-                  <UIText size="sm" className="text-typo-500 text-center">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                     Enroll in this quest to begin your personalized learning journey.
                   </UIText>
                   <Button size="lg" className="w-full" onPress={handleEnroll} loading={enrolling}>
@@ -630,7 +634,7 @@ export default function QuestDetailScreen() {
                     </UIText>
                   </HStack>
                   {/* Progress bar */}
-                  <View className="h-2.5 bg-surface-200 rounded-full overflow-hidden">
+                  <View className="h-2.5 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
                     <View
                       className="h-full bg-optio-purple rounded-full"
                       style={{ width: `${tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0}%` }}
@@ -639,7 +643,7 @@ export default function QuestDetailScreen() {
                   <HStack className="items-center justify-between">
                     <HStack className="items-center gap-1">
                       <Ionicons name="star" size={14} color="#FF9028" />
-                      <UIText size="xs" className="text-typo-500 font-poppins-medium">
+                      <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
                         {earnedXP} / {totalXP} XP
                       </UIText>
                     </HStack>
@@ -648,10 +652,10 @@ export default function QuestDetailScreen() {
                       {Object.entries(pillarXP).map(([pillar, xp]) => (
                         <HStack key={pillar} className="items-center gap-1">
                           <View className={`w-2.5 h-2.5 rounded-full ${(pillarColors[pillar] || pillarColors.stem).bar}`} />
-                          <UIText size="xs" className="text-typo-500 font-poppins-medium">
+                          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 font-poppins-medium">
                             {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
                           </UIText>
-                          <UIText size="xs" className="text-typo-400">{xp}</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xp}</UIText>
                         </HStack>
                       ))}
                     </HStack>
@@ -710,7 +714,7 @@ export default function QuestDetailScreen() {
                   </VStack>
                 ) : (
                   <Card variant="filled" size="md" className="items-center py-6">
-                    <UIText size="sm" className="text-typo-500">No tasks yet. Add your first task below.</UIText>
+                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">No tasks yet. Add your first task below.</UIText>
                   </Card>
                 )}
 
@@ -774,7 +778,7 @@ export default function QuestDetailScreen() {
             <VStack space="md" className="items-center">
               <Ionicons name="refresh-circle-outline" size={40} color="#6D469B" />
               <Heading size="md" className="text-center">Welcome Back!</Heading>
-              <UIText size="sm" className="text-typo-500 text-center">
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
                 You've worked on this quest before. Would you like to continue where you left off or start fresh?
               </UIText>
               <VStack space="sm" className="w-full">
@@ -785,7 +789,7 @@ export default function QuestDetailScreen() {
                   <ButtonText>Start Fresh</ButtonText>
                 </Button>
                 <Button size="sm" variant="link" className="w-full" onPress={() => setRestartModalVisible(false)}>
-                  <ButtonText className="text-typo-400">Cancel</ButtonText>
+                  <ButtonText className="text-typo-400 dark:text-dark-typo-400">Cancel</ButtonText>
                 </Button>
               </VStack>
             </VStack>

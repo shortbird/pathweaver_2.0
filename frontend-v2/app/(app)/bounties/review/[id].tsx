@@ -12,6 +12,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useBountyDetail, reviewSubmission } from '@/src/hooks/useBounties';
 import { displayImageUrl } from '@/src/services/imageUrl';
+import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   PillarBadge, Divider, Avatar, AvatarFallbackText,
@@ -28,13 +29,14 @@ const CLAIM_STATUS: Record<string, { label: string; bg: string; text: string }> 
 /** Renders a single evidence item (text, image, video, link, document). */
 function EvidenceItem({ item }: { item: any }) {
   const [imageModal, setImageModal] = useState<string | null>(null);
+  const c = useThemeColors();
 
   if (item.type === 'text') {
     const text = item.content?.text || '';
     if (!text) return null;
     return (
-      <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
-        <UIText size="sm" className="text-typo-500 italic" numberOfLines={6}>{text}</UIText>
+      <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
+        <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 italic" numberOfLines={6}>{text}</UIText>
       </View>
     );
   }
@@ -87,12 +89,12 @@ function EvidenceItem({ item }: { item: any }) {
     if (!videoUrl) return null;
     return (
       <Pressable onPress={() => Linking.openURL(videoUrl)}>
-        <HStack className="items-center gap-2 bg-surface-50 p-3 rounded-lg border border-surface-200">
+        <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
           <Ionicons name="videocam" size={20} color="#6D469B" />
           <UIText size="sm" className="text-optio-purple font-poppins-medium flex-1" numberOfLines={1}>
             {items[0]?.caption || 'Video evidence'}
           </UIText>
-          <Ionicons name="open-outline" size={16} color="#9CA3AF" />
+          <Ionicons name="open-outline" size={16} color={c.iconMuted} />
         </HStack>
       </Pressable>
     );
@@ -117,10 +119,10 @@ function EvidenceItem({ item }: { item: any }) {
     const filename = item.content?.filename || item.content?.items?.[0]?.filename || 'Document';
     return (
       <Pressable onPress={() => url && Linking.openURL(url)}>
-        <HStack className="items-center gap-2 bg-surface-50 p-3 rounded-lg border border-surface-200">
+        <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
           <Ionicons name="document-text" size={18} color="#6D469B" />
-          <UIText size="sm" className="text-typo-600 flex-1" numberOfLines={1}>{filename}</UIText>
-          {url && <Ionicons name="open-outline" size={16} color="#9CA3AF" />}
+          <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 flex-1" numberOfLines={1}>{filename}</UIText>
+          {url && <Ionicons name="open-outline" size={16} color={c.iconMuted} />}
         </HStack>
       </Pressable>
     );
@@ -145,6 +147,7 @@ function ClaimReviewCard({
 }) {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const c = useThemeColors();
   const student = claim.student || {};
   const sc = CLAIM_STATUS[claim.status] || CLAIM_STATUS.claimed;
   const completedIds: string[] = claim.evidence?.completed_deliverables || [];
@@ -183,7 +186,7 @@ function ClaimReviewCard({
               <UIText size="sm" className="font-poppins-semibold">
                 {student.display_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Student'}
               </UIText>
-              <UIText size="xs" className="text-typo-400">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 Claimed {new Date(claim.created_at).toLocaleDateString()}
               </UIText>
             </VStack>
@@ -195,7 +198,7 @@ function ClaimReviewCard({
 
         {/* Completed deliverables with evidence */}
         <VStack space="sm">
-          <UIText size="xs" className="text-typo-400 font-poppins-medium">Completed Deliverables</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Completed Deliverables</UIText>
           {completedIds.length > 0 ? completedIds.map((dId: string) => {
             const evidence = deliverableEvidence[dId] || [];
             const label = deliverableMap[dId] || dId;
@@ -214,12 +217,12 @@ function ClaimReviewCard({
                   </VStack>
                 )}
                 {evidence.length === 0 && (
-                  <UIText size="xs" className="text-typo-400 ml-6">Marked complete (no evidence attached)</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-6">Marked complete (no evidence attached)</UIText>
                 )}
               </VStack>
             );
           }) : (
-            <UIText size="xs" className="text-typo-400">No deliverables completed</UIText>
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">No deliverables completed</UIText>
           )}
         </VStack>
 
@@ -232,10 +235,10 @@ function ClaimReviewCard({
                 value={feedback}
                 onChangeText={setFeedback}
                 placeholder="Feedback (optional)"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={c.textFaint}
                 multiline
                 numberOfLines={2}
-                className="bg-surface-50 rounded-xl p-3 text-sm font-poppins text-typo min-h-[60px] border border-surface-200"
+                className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-3 text-sm font-poppins text-typo dark:text-dark-typo min-h-[60px] border border-surface-200 dark:border-dark-surface-300"
                 style={{ textAlignVertical: 'top' }}
               />
               {/* Equal-weight, fully-labeled action buttons. The old layout had
@@ -294,10 +297,11 @@ function ClaimReviewCard({
 export default function ReviewBountyPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { bounty, loading, refetch } = useBountyDetail(id || null);
+  const c = useThemeColors();
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center">
         <ActivityIndicator size="large" color="#6D469B" />
       </SafeAreaView>
     );
@@ -305,9 +309,9 @@ export default function ReviewBountyPage() {
 
   if (!bounty) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center px-8">
-        <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
-        <Heading size="lg" className="text-typo-500 mt-4">Bounty not found</Heading>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50 items-center justify-center px-8">
+        <Ionicons name="alert-circle-outline" size={48} color={c.iconMuted} />
+        <Heading size="lg" className="text-typo-500 dark:text-dark-typo-500 mt-4">Bounty not found</Heading>
         <Button size="md" className="mt-4" onPress={() => router.back()}>
           <ButtonText>Go Back</ButtonText>
         </Button>
@@ -321,7 +325,7 @@ export default function ReviewBountyPage() {
   const deliverableMap = buildDeliverableMap(bounty.deliverables);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <VStack className="px-5 pt-4 max-w-2xl w-full md:mx-auto" space="lg">
 
@@ -345,24 +349,24 @@ export default function ReviewBountyPage() {
                 <UIText size="sm" className="font-poppins-bold text-optio-purple">+{bounty.xp_reward} XP</UIText>
               </HStack>
               <Heading size="xl">{bounty.title}</Heading>
-              <UIText size="sm" className="text-typo-500">{bounty.description}</UIText>
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">{bounty.description}</UIText>
 
               {/* Deliverables list */}
               {(bounty.deliverables || []).length > 0 && (
                 <VStack space="xs" className="mt-1">
-                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Deliverables</UIText>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Deliverables</UIText>
                   {bounty.deliverables.map((d: any, i: number) => (
                     <HStack key={d.id} className="items-center gap-2">
                       <View className="w-5 h-5 rounded-full bg-optio-purple/10 items-center justify-center">
                         <UIText size="xs" className="text-optio-purple font-poppins-bold">{i + 1}</UIText>
                       </View>
-                      <UIText size="sm" className="text-typo-600">{d.text}</UIText>
+                      <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600">{d.text}</UIText>
                     </HStack>
                   ))}
                 </VStack>
               )}
 
-              <UIText size="xs" className="text-typo-400">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                 {claims.length} claimed | {submittedClaims.length} awaiting review
               </UIText>
             </VStack>
@@ -403,9 +407,9 @@ export default function ReviewBountyPage() {
           {/* No claims */}
           {claims.length === 0 && (
             <Card variant="filled" size="lg" className="items-center py-10">
-              <Ionicons name="hand-left-outline" size={40} color="#9CA3AF" />
-              <Heading size="sm" className="text-typo-500 mt-3">No claims yet</Heading>
-              <UIText size="sm" className="text-typo-400 mt-1">Students haven't claimed this bounty yet.</UIText>
+              <Ionicons name="hand-left-outline" size={40} color={c.iconMuted} />
+              <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No claims yet</Heading>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">Students haven't claimed this bounty yet.</UIText>
             </Card>
           )}
 
