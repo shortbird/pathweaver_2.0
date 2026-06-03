@@ -46,7 +46,8 @@ describe('diagnostics collector', () => {
     expect(diag.platform).toBeDefined();
     expect(diag.device_model).toBe('iPhone Test');
     expect(diag.os_version).toBe('18.0');
-    // build_number comes from Constants.nativeBuildVersion mock.
+    // build_number comes from expo-application's nativeBuildVersion (read from the
+    // native binary, the same source Sentry uses) — Constants.native* is null on device.
     expect(diag.build_number).toBe('42');
   });
 

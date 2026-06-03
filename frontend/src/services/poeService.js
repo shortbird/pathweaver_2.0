@@ -8,8 +8,8 @@ export const getPoeCohorts = async () => {
   return response.data
 }
 
-// Create the participant account, record parental consent, set up the journal topic.
-// body: { poe_cohort, student:{...}, parent?:{...}, consent?:{...}, school:{...} }
+// Add the participant to the POE credit-interest list and send a confirmation email.
+// Does NOT create an account. body: { poe_cohort, student:{...}, parent?:{...}, school:{...} }
 export const enrollInPoe = async (body) => {
   const response = await api.post('/api/public/poe/enroll', body)
   return response.data

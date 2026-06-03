@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, ScrollView, Pressable, Alert, ActivityIndicator, Image, Linking, Modal } from 'react-native';
+import { View, ScrollView, Pressable, Alert, ActivityIndicator, Image, Modal } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,7 +48,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
                   <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 italic" numberOfLines={3}>{item.content.text}</UIText>
                 </View>
               )}
-              {item.type === 'image' && (item.content?.items || []).map((img: any, i: number) => {
+              {item.type === 'image' && (item.content?.items?.length ? item.content.items : (item.content?.url ? [{ url: item.content.url }] : [])).map((img: any, i: number) => {
                 const url = displayImageUrl(img.url);
                 if (!url) return null;
                 return (
@@ -59,7 +60,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
               {item.type === 'video' && (
                 <Pressable onPress={() => {
                   const url = item.content?.items?.[0]?.url || item.content?.url;
-                  if (url) Linking.openURL(url);
+                  if (url) safeOpenURL(url);
                 }}>
                   <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-2.5 rounded-lg border border-surface-200 dark:border-dark-surface-300">
                     <Ionicons name="videocam" size={16} color="#6D469B" />
@@ -70,7 +71,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
                 </Pressable>
               )}
               {item.type === 'link' && (
-                <Pressable onPress={() => Linking.openURL(item.content?.url || item.content?.items?.[0]?.url || '')}>
+                <Pressable onPress={() => safeOpenURL(item.content?.url || item.content?.items?.[0]?.url || '')}>
                   <HStack className="items-center gap-2 bg-blue-50 p-2.5 rounded-lg">
                     <Ionicons name="link" size={14} color="#2563EB" />
                     <UIText size="xs" className="text-blue-700 flex-1" numberOfLines={1}>
@@ -82,7 +83,7 @@ function EvidenceList({ items, canDelete, onDelete }: { items: any[]; canDelete:
               {item.type === 'document' && (
                 <Pressable onPress={() => {
                   const url = item.content?.url || item.content?.items?.[0]?.url;
-                  if (url) Linking.openURL(url);
+                  if (url) safeOpenURL(url);
                 }}>
                   <HStack className="items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 p-2.5 rounded-lg border border-surface-200 dark:border-dark-surface-300">
                     <Ionicons name="document-text" size={14} color="#6D469B" />

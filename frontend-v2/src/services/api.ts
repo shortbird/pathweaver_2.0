@@ -121,36 +121,63 @@ function logApiCall(config: InternalAxiosRequestConfig | undefined, status: numb
     ms: start ? Date.now() - start : 0,
   });
 }
+// Statuses that are an expected, already-handled part of normal operation —
+// reporting them just buries real crashes in noise:
+//   401 → session churn, handled by the refresh interceptor below
+//   403 → a permission the UI already guards (e.g. a non-parent hitting a
+//         parent-only endpoint; the caller catches it and shows the right state)
+//   404 → a missing optional resource (the caller treats it as "none")
+// All three were the bulk of the Sentry noise (NODE-7 etc). Genuine contract
+// bugs (400/405/409/422) and 5xx/network errors are still reported.
+const SILENCED_API_STATUSES = new Set([401, 403, 404]);
+
+/**
+ * Collapse a request path into a stable fingerprint key by replacing volatile
+ * id segments (UUIDs, numeric ids) with ':id'. Without this, 5xx errors group
+ * by Axios's shared native constructor frame — so every endpoint's 500s pile
+ * into one meaningless "construct(native)" issue (the NODE-9 symptom). Grouping
+ * by `METHOD /api/learning-events/:id` instead gives one actionable issue each.
+ */
+export function fingerprintPath(url?: string): string {
+  if (!url) return 'unknown';
+  return url
+    .split('?')[0]
+    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/:id')
+    .replace(/\/\d+/g, '/:id');
+}
+
 /**
  * Centrally report failed requests to Sentry so every API error is captured
  * automatically — no per-callsite `captureException` needed. This is the one
  * place all requests funnel through.
  *
- * - 401 is skipped: it's normal session churn handled by the refresh
- *   interceptor below (a refresh that ultimately fails logs the user out, and
- *   authStore reports that separately).
- * - Canceled requests aren't failures.
- * - Network errors (no response) and 5xx are real exceptions → captureException.
- * - 4xx (e.g. a rejected delete) is surfaced at `warning` level so it's visible
- *   without drowning out genuine crashes.
+ * - Expected/handled statuses (see SILENCED_API_STATUSES) and canceled
+ *   requests are skipped — they're normal control flow, not defects.
+ * - Network errors (no response) and 5xx are real exceptions → captureException,
+ *   fingerprinted by endpoint so each failing route is its own issue.
+ * - Other 4xx (400/405/409/422 — contract/validation bugs) are surfaced at
+ *   `warning` level so they're visible without drowning out genuine crashes.
  */
 function reportApiError(error: AxiosError, status: number | null) {
-  if (status === 401 || axios.isCancel(error)) return;
+  if (axios.isCancel(error)) return;
+  if (status !== null && SILENCED_API_STATUSES.has(status)) return;
   const cfg = error.config;
   const method = cfg?.method?.toUpperCase();
-  const ctx = {
-    extra: {
-      method,
-      url: cfg?.url,
-      status,
-      responseData: error.response?.data,
-      message: error.message,
-    },
+  const extra = {
+    method,
+    url: cfg?.url,
+    status,
+    responseData: error.response?.data,
+    message: error.message,
   };
   if (status === null || status >= 500) {
-    captureException(error, ctx);
+    captureException(error, {
+      extra,
+      // Group by endpoint, not by Axios's shared native error frame.
+      fingerprint: ['api-error', method ?? 'UNKNOWN', fingerprintPath(cfg?.url), String(status ?? 'network')],
+    });
   } else {
-    captureMessage(`API ${status} ${method} ${cfg?.url}`, { level: 'warning', ...ctx });
+    captureMessage(`API ${status} ${method} ${cfg?.url}`, { level: 'warning', extra });
   }
 }
 

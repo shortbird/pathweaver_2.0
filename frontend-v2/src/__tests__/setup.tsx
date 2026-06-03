@@ -32,6 +32,19 @@ jest.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
 }));
 
+// ── expo-print (document scan → PDF assembly) ──
+jest.mock('expo-print', () => ({
+  printToFileAsync: jest.fn().mockResolvedValue({ uri: 'file:///tmp/scan.pdf' }),
+}));
+
+// ── react-native-document-scanner-plugin (OS document scanner) ──
+jest.mock('react-native-document-scanner-plugin', () => ({
+  __esModule: true,
+  default: { scanDocument: jest.fn().mockResolvedValue({ scannedImages: [], status: 'cancel' }) },
+  ResponseType: { Base64: 'base64', ImageFilePath: 'imageFilePath' },
+  ScanDocumentResponseStatus: { Success: 'success', Cancel: 'cancel' },
+}), { virtual: true });
+
 // ── react-native-compressor (native video compression) ──
 // No-op in tests: hand back the original uri so the upload path is unchanged.
 jest.mock('react-native-compressor', () => ({
@@ -79,6 +92,9 @@ jest.mock('@react-navigation/native', () => ({
     setOptions: jest.fn(),
   })),
   useIsFocused: jest.fn(() => true),
+  // Screens that refetch on focus call this from @react-navigation/native
+  // (not expo-router). No-op so render() doesn't crash without a nav context.
+  useFocusEffect: jest.fn(),
 }));
 
 // ── expo-font ──
@@ -151,6 +167,12 @@ jest.mock('expo-constants', () => ({
 jest.mock('expo-device', () => ({
   osVersion: '18.0',
   modelName: 'iPhone Test',
+}));
+
+// ── expo-application (diagnostics build_number / app_version — primary source) ──
+jest.mock('expo-application', () => ({
+  nativeBuildVersion: '42',
+  nativeApplicationVersion: '1.0.0',
 }));
 
 // ── expo-sensors (shake-to-report) ──

@@ -144,6 +144,13 @@
       "expo-video",
       "expo-image",
       "expo-apple-authentication",
+      "./plugins/withGradleVersion",
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Optio uses the camera so you can scan documents into your learning journal."
+        }
+      ],
       [
         "expo-notifications",
         {

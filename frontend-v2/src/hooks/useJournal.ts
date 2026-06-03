@@ -152,7 +152,17 @@ export function useUnassignedMoments(studentId?: string) {
 
   useEffect(() => { fetchMoments(); }, [fetchMoments]);
 
-  return { moments, loading, refetch: fetchMoments };
+  // Optimistically drop a moment from the list (and cache) so a delete feels
+  // instant instead of triggering a full reload of the journal.
+  const removeMoment = useCallback((id: string) => {
+    setMoments((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      if (useCache) _unassignedCache = next;
+      return next;
+    });
+  }, [useCache]);
+
+  return { moments, loading, refetch: fetchMoments, removeMoment };
 }
 
 export function clearUnassignedMomentsCache() {
@@ -190,7 +200,11 @@ export function useTrackMoments(trackId: string | null, studentId?: string) {
 
   useEffect(() => { fetchTrack(); }, [fetchTrack]);
 
-  return { track, moments, loading, refetch: fetchTrack };
+  const removeMoment = useCallback((id: string) => {
+    setMoments((prev) => prev.filter((m) => m.id !== id));
+  }, []);
+
+  return { track, moments, loading, refetch: fetchTrack, removeMoment };
 }
 
 // ── Mutation helpers (not hooks) ──
@@ -223,6 +237,21 @@ export async function assignMomentToTopic(momentId: string, topicType: string, t
     action,
   });
   return data;
+}
+
+/**
+ * Create a topic (track) — for the current user, or for a child when `childId`
+ * is set (parent flow). Returns the new topic row ({ id, name, color, icon }).
+ */
+export async function createTopic(
+  name: string,
+  opts?: { childId?: string; color?: string; icon?: string },
+): Promise<{ id: string; name: string; color?: string; icon?: string }> {
+  const body = { name: name.trim(), color: opts?.color || '#6D469B', icon: opts?.icon || 'folder' };
+  const { data } = opts?.childId
+    ? await api.post(`/api/parent/children/${opts.childId}/topics`, body)
+    : await api.post('/api/interest-tracks', body);
+  return data.track;
 }
 
 // ── Parent-scoped mutations ──
@@ -387,5 +416,9 @@ export function useQuestMoments(questId: string | null) {
 
   useEffect(() => { fetchMoments(); }, [fetchMoments]);
 
-  return { moments, loading, refetch: fetchMoments };
+  const removeMoment = useCallback((id: string) => {
+    setMoments((prev) => prev.filter((m) => m.id !== id));
+  }, []);
+
+  return { moments, loading, refetch: fetchMoments, removeMoment };
 }

@@ -19,6 +19,7 @@ import type { FeedItem } from '@/src/hooks/useFeed';
 import { getViewers, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
 import { haptic } from '@/src/utils/haptics';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { PillarBadge } from '../ui';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
@@ -62,7 +63,7 @@ function ExpandableText({ text }: { text: string }) {
   );
 }
 
-function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null }) {
+function EvidenceDisplay({ evidence, media, description, isActive = true, uploadingPct }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null; isActive?: boolean; uploadingPct?: number }) {
   const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
 
   // Collect all media items (images + videos)
@@ -123,7 +124,18 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
 
       {/* Video - plays inline, tap for full screen */}
       {videoUrl && !imageUrl && (
-        <VideoPlayer uri={videoUrl} />
+        <VideoPlayer uri={videoUrl} isActive={isActive} />
+      )}
+
+      {/* Background upload still in flight — show progress so the moment doesn't
+          look like it failed before the video block lands. */}
+      {!videoUrl && uploadingPct !== undefined && (
+        <View className="w-full rounded-lg bg-surface-100 dark:bg-dark-surface-200 items-center justify-center" style={{ height: 160 }}>
+          <Ionicons name="cloud-upload-outline" size={28} color="#6D469B" />
+          <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2 font-poppins-medium">
+            Uploading video… {uploadingPct}%
+          </UIText>
+        </View>
       )}
 
       {/* Voice notes — inline audio player. Wrapped so play taps don't bubble
@@ -185,10 +197,16 @@ interface FeedCardProps {
    *  without having to switch into the kid's account. The backend authorizes
    *  the call against the owner; this is just UI gating. */
   viewerCanModerate?: boolean;
+  /** False when the card is scrolled out of view — pauses inline video so it
+   *  doesn't keep playing off-screen. Defaults to true. */
+  isActive?: boolean;
 }
 
-function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = false }: FeedCardProps) {
+function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = false, isActive = true }: FeedCardProps) {
   const [viewsCount, setViewsCount] = useState(item.views_count || 0);
+  // Background video upload progress for this moment (if any in flight).
+  const uploadingPct = useMediaUploadStore((s) =>
+    item.learning_event_id ? s.uploads[item.learning_event_id] : undefined);
   const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null }>>([]);
   const [showViewersList, setShowViewersList] = useState(false);
   const [loadingViewers, setLoadingViewers] = useState(false);
@@ -362,7 +380,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
 
           {/* Evidence */}
           {item.evidence && (
-            <EvidenceDisplay evidence={item.evidence} media={item.media} description={description} />
+            <EvidenceDisplay evidence={item.evidence} media={item.media} description={description} isActive={isActive} uploadingPct={uploadingPct} />
           )}
 
           {/* Pillar tags */}
@@ -490,6 +508,9 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
 export const FeedCard = memo(FeedCardImpl, (prev, next) => {
   if (prev.showStudent !== next.showStudent) return false;
   if (prev.onPress !== next.onPress) return false;
+  // isActive flips as the card scrolls in/out of view — must re-render so the
+  // inline video pauses off-screen.
+  if (prev.isActive !== next.isActive) return false;
   const a = prev.item;
   const b = next.item;
   return (

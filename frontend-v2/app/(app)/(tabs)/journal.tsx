@@ -100,16 +100,29 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   // Activity feed shown below the topics grid: this journal-owner's recent
   // activity (the child's in parent mode, the user's own otherwise). The Feed
   // tab remains the aggregate across all connected students.
-  const { items: feedItems, loading: feedLoading } = useFeed({ studentId });
+  // Always scope the journal's activity feed to the journal owner. Without an
+  // explicit id a superadmin gets the GLOBAL feed (every user's activity) — the
+  // "this should only show their activity, not everyone they're connected to"
+  // report. Falling back to the current user's id scopes it to self.
+  const { items: feedItems, loading: feedLoading, removeByLearningEventId } = useFeed({ studentId: studentId ?? currentUserId });
   const { topics, loading: topicsLoading, refetch: refetchTopics } = useUnifiedTopics(studentId);
-  const { moments: unassigned, loading: unassignedLoading, refetch: refetchUnassigned } = useUnassignedMoments(studentId);
-  const { track, moments: trackMoments, loading: trackLoading, refetch: refetchTrack } = useTrackMoments(
+  const { moments: unassigned, loading: unassignedLoading, refetch: refetchUnassigned, removeMoment: removeUnassigned } = useUnassignedMoments(studentId);
+  const { track, moments: trackMoments, loading: trackLoading, refetch: refetchTrack, removeMoment: removeTrackMoment } = useTrackMoments(
     selectedType === 'topic' || selectedType === 'track' ? selectedId : null,
     studentId
   );
-  const { moments: questMoments, loading: questLoading, refetch: refetchQuest } = useQuestMoments(
+  const { moments: questMoments, loading: questLoading, refetch: refetchQuest, removeMoment: removeQuestMoment } = useQuestMoments(
     selectedType === 'quest' ? selectedId : null
   );
+
+  // Delete = optimistic removal from whichever list holds the moment, so the
+  // card disappears instantly instead of triggering a full journal reload.
+  const removeMomentEverywhere = (id: string) => {
+    removeUnassigned(id);
+    removeTrackMoment(id);
+    removeQuestMoment(id);
+    removeByLearningEventId(id); // also drop it from the "Recent activity" feed
+  };
   const {
     tasks: questTasks, questTitle: questTasksTitle, loading: questTasksLoading,
     refetch: refetchQuestTasks, generateTasks, acceptTask,
@@ -383,7 +396,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                     event={event}
                     childId={isParent && editable ? studentId : undefined}
                     readOnly={isParent && !editable}
-                    onDeleted={refetchCurrentView}
+                    onDeleted={() => removeMomentEverywhere(event.id)}
                     onEdit={editable ? (e) => setEditingEvent(e) : undefined}
                     topics={topics}
                     onAssigned={refetchCurrentView}
@@ -451,6 +464,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
+              unassignedLoading={unassignedLoading}
               onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
               loading={topicsLoading}
             />
@@ -458,7 +472,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
 
           {/* Main content */}
           <View className="flex-1">
-            <ContentPanel />
+            {ContentPanel()}
           </View>
         </View>
         <CaptureModal
@@ -595,6 +609,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               onSelectUnassigned={handleSelectUnassigned}
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
+              unassignedLoading={unassignedLoading}
               onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
               loading={topicsLoading}
               scrollable={false}
@@ -625,7 +640,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           </ScrollView>
         </VStack>
       ) : (
-        <ContentPanel />
+        ContentPanel()
       )}
       <CaptureSheet
         visible={captureVisible}
@@ -636,6 +651,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         visible={!!editingEvent}
         event={editingEvent}
         topics={topics}
+        childId={studentId}
         onClose={() => setEditingEvent(null)}
         onSaved={refetchCurrentView}
       />

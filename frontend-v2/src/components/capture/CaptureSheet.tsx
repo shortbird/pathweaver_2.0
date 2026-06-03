@@ -5,7 +5,7 @@
  * Creates moment via JSON, then uploads files individually.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Pressable, TextInput, Alert, ScrollView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -14,6 +14,8 @@ import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
 import { captureException } from '@/src/services/sentry';
+import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
+import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -36,11 +38,13 @@ const MAX_AUDIO_SIZE = 25 * 1024 * 1024;  // 25MB (matches backend MAX_AUDIO_SIZ
 
 interface MediaItem {
   uri: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image' | 'video' | 'audio' | 'document';
   name: string;
   fileSize?: number;
   /** Audio only: duration in ms, for the playback chip. */
   durationMs?: number;
+  /** Document only: scanned page count, for the preview label. */
+  pageCount?: number;
 }
 
 interface CaptureSheetProps {
@@ -106,7 +110,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     );
   }, [visible, pickStudents, studentIds, eligibleChildren]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setDescription('');
     setMedia([]);
     setSelectedTask(null);
@@ -115,12 +119,21 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setSelectedStudentIds([]);
     setRecording(false);
     setCompressPct(null);
-  };
+  }, []);
 
   const handleClose = () => {
     reset();
     onClose();
   };
+
+  // Always clear the sheet when it's hidden — by the X, a swipe-down, or the
+  // parent flipping `visible` after navigation. Previously a save that errored
+  // (or an external dismiss) left the picked media in component state, so the
+  // NEXT time the sheet opened the user saw a stale video from the last attempt
+  // ("I see the last video I tried uploading in this new moment capture").
+  useEffect(() => {
+    if (!visible) reset();
+  }, [visible, reset]);
 
   const addMedia = (assets: ImagePicker.ImagePickerAsset[]) => {
     const newItems: MediaItem[] = [];
@@ -202,6 +215,23 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     }
   };
 
+  // Scan pages with the OS document scanner (auto edge-detect, de-skew,
+  // brighten/de-shadow) and attach as a single multi-page PDF.
+  const scanDocument = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Scan documents', 'Document scanning works in the mobile app — try it on iOS or Android.');
+      return;
+    }
+    try {
+      const doc = await scanDocumentToPdf();
+      if (!doc) return; // user cancelled / no pages
+      // size is backfilled by signedUpload's native pre-flight if omitted.
+      setMedia((prev) => [...prev, { uri: doc.uri, type: 'document', name: doc.name, pageCount: doc.pageCount }]);
+    } catch (err: any) {
+      Alert.alert('Scan unavailable', err?.message || 'Could not start the document scanner. Make sure the app has camera access.');
+    }
+  };
+
   const uploadAndAttach = async (eventId: string, items: MediaItem[], studentId?: string) => {
     // Upload each item direct-to-Supabase via signed-upload, then save as
     // evidence blocks on the event. Uploads in parallel.
@@ -215,13 +245,26 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const mimeForType = (t: MediaItem['type']): string => {
       if (t === 'video') return 'video/mp4';
       if (t === 'audio') return 'audio/m4a';
+      if (t === 'document') return 'application/pdf';
       return 'image/jpeg';
     };
     const fallbackExt = (t: MediaItem['type']): string =>
-      t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : 'm4a';
+      t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : t === 'document' ? 'pdf' : 'm4a';
+
+    // Publish upload progress (video only — images/audio are quick) so the
+    // optimistically-shown moment card can display "Uploading video… N%"
+    // instead of looking like it failed.
+    const hasVideo = items.some((it) => it.type === 'video');
+    const uploadStore = useMediaUploadStore.getState();
+    if (hasVideo) uploadStore.start(eventId);
+    const itemPct = new Array(items.length).fill(0);
+    const reportProgress = (index: number, pct: number) => {
+      itemPct[index] = pct;
+      uploadStore.setProgress(eventId, Math.round(itemPct.reduce((a, b) => a + b, 0) / itemPct.length));
+    };
 
     const uploadResults = await Promise.all(
-      items.map(async (item) => {
+      items.map(async (item, index) => {
         const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
         const mimeType = mimeForType(item.type);
         try {
@@ -230,6 +273,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             initPath,
             finalizePath,
             blockType: item.type,
+            onProgress: hasVideo ? (pct) => reportProgress(index, pct) : undefined,
           });
           return {
             block_type: item.type,
@@ -274,6 +318,10 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         : `/api/learning-events/${eventId}/evidence`;
       await api.post(evidencePath, { blocks });
     }
+
+    // Clear the progress indicator — the real media block is attached now (or
+    // the upload failed and the toast above explained it).
+    if (hasVideo) uploadStore.finish(eventId);
   };
 
   const createMoment = async (studentId?: string) => {
@@ -300,34 +348,37 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     }
 
     setSaving(true);
+    // Snapshot what the background upload needs before reset() clears the sheet.
+    const mediaSnapshot = media;
+    const taskSnapshot = selectedTask;
+    const newTaskSnapshot = pendingNewTask;
+    const studentIdsSnapshot = effectiveStudentIds;
+    const hasMedia = mediaSnapshot.length > 0;
+
     try {
-      if (effectiveStudentIds && effectiveStudentIds.length > 0) {
-        for (const sid of effectiveStudentIds) {
+      // Phase 1 (awaited, fast): create the moment(s) + any task link, and
+      // collect upload jobs. Media upload is deferred to phase 2 so the user
+      // isn't held on the capture screen while a video uploads — the reporter's
+      // ask: "show immediately and continue to upload in the background."
+      const jobs: Array<{ eventId: string; studentId?: string }> = [];
+      if (studentIdsSnapshot && studentIdsSnapshot.length > 0) {
+        for (const sid of studentIdsSnapshot) {
           const eventId = await createMoment(sid);
-          if (eventId && media.length > 0) {
-            await uploadAndAttach(eventId, media, sid);
-          }
+          if (eventId && hasMedia) jobs.push({ eventId, studentId: sid });
         }
       } else {
         const eventId = await createMoment();
-        if (eventId && media.length > 0) {
-          await uploadAndAttach(eventId, media);
-        }
-        if (eventId && selectedTask) {
+        if (eventId && hasMedia) jobs.push({ eventId });
+        if (eventId && taskSnapshot) {
           try {
-            await attachMomentToTask(eventId, selectedTask.task.id);
+            await attachMomentToTask(eventId, taskSnapshot.task.id);
           } catch {
-            // Non-fatal: moment saved, attach failed — surface softly
             toast.info('Moment saved, but couldn\'t attach to the task. You can attach it from the journal.', { title: 'Heads up' });
           }
-        } else if (eventId && pendingNewTask) {
-          // Spin up a new pending task on the chosen quest, pointing back at
-          // this moment via source_moment_id. Backend default pillar / xp
-          // applies; the student can refine title + values from the quest
-          // detail screen.
+        } else if (eventId && newTaskSnapshot) {
           try {
             await api.post(`/api/learning-events/${eventId}/convert-to-task`, {
-              quest_id: pendingNewTask.id,
+              quest_id: newTaskSnapshot.id,
             });
           } catch {
             toast.info('Moment saved, but couldn\'t add it as a new task. You can do that from the journal.', { title: 'Heads up' });
@@ -335,18 +386,43 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
         }
       }
 
+      // Moment(s) exist — free the UI immediately and refresh so the moment
+      // appears now (its media fills in when the background upload completes).
       haptic.success();
-      const childCount = effectiveStudentIds?.length ?? 0;
+      const childCount = studentIdsSnapshot?.length ?? 0;
       toast.success(
-        childCount > 1
-          ? `Moment captured for ${childCount} kids`
-          : 'Moment captured',
-        { title: 'Saved to the journal' },
+        hasMedia
+          ? 'Your media is uploading in the background.'
+          : (childCount > 1 ? `Moment captured for ${childCount} kids` : 'Moment captured'),
+        { title: hasMedia ? 'Moment saved' : 'Saved to the journal' },
       );
       reset();
       onClose();
       onCaptured?.();
+
+      // Phase 2 (background, not awaited): upload + attach the media, then
+      // refresh again so it shows. uploadAndAttach surfaces per-file failures.
+      if (jobs.length > 0) {
+        (async () => {
+          try {
+            for (const job of jobs) {
+              try {
+                await uploadAndAttach(job.eventId, mediaSnapshot, job.studentId);
+              } finally {
+                // Always clear the progress indicator, even if the upload threw,
+                // so a card can't get stuck showing "Uploading…".
+                useMediaUploadStore.getState().finish(job.eventId);
+              }
+            }
+            onCaptured?.();
+          } catch (e) {
+            captureException(e, { stage: 'capture-background-upload' });
+            toast.error('Some media couldn\'t be uploaded. Open the moment to try again.', { title: 'Upload failed' });
+          }
+        })();
+      }
     } catch (err: any) {
+      // Moment creation failed — keep the sheet open so the user can retry.
       haptic.error();
       const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save';
       toast.error(msg, { title: 'Could not save moment' });
@@ -513,6 +589,19 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                             style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: c.surfaceMuted }}
                             resizeMode="cover"
                           />
+                        ) : item.type === 'document' ? (
+                          <View
+                            style={{
+                              width: 96, height: 96, borderRadius: 12,
+                              backgroundColor: '#6D469B',
+                              alignItems: 'center', justifyContent: 'center', padding: 6,
+                            }}
+                          >
+                            <Ionicons name="document-text" size={32} color="#FFFFFF" />
+                            <UIText size="xs" className="text-white font-poppins-medium mt-1">
+                              PDF{item.pageCount ? ` · ${item.pageCount}p` : ''}
+                            </UIText>
+                          </View>
                         ) : (
                           <View
                             style={{
@@ -555,6 +644,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 </UIText>
               </HStack>
             )}
+
 
             {/* Voice recorder — appears between previews and the attach button row when active. */}
             {recording && (
@@ -617,6 +707,14 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               >
                 <Ionicons name="images-outline" size={26} color="#6D469B" />
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
+              </Pressable>
+              <Pressable
+                onPress={scanDocument}
+                className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
+                style={{ minHeight: 44 }}
+              >
+                <Ionicons name="scan-outline" size={26} color="#6D469B" />
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Scan</UIText>
               </Pressable>
             </HStack>
 

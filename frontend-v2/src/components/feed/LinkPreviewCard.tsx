@@ -9,7 +9,8 @@
  */
 
 import React from 'react';
-import { View, Image, Pressable, Linking, Platform } from 'react-native';
+import { View, Image, Pressable, Platform } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, UIText } from '../ui';
 import { useLinkPreview, isVideoPreview, isVideoUrl } from '@/src/hooks/useLinkPreview';
@@ -19,7 +20,7 @@ function openUrl(url: string) {
   if (Platform.OS === 'web') {
     window.open(url, '_blank');
   } else {
-    Linking.openURL(url).catch(() => {});
+    safeOpenURL(url);
   }
 }
 

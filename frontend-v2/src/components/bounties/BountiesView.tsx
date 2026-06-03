@@ -6,9 +6,9 @@
  * /bounties route).
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Pressable, Platform, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
@@ -440,6 +440,16 @@ export function BountiesView() {
   const { bounties, loading: browsing } = useBounties();
   const { claims, loading: claimsLoading, refetch: refetchClaims } = useMyClaims();
   const { bounties: posted, loading: postedLoading, refetch: refetchPosted } = useMyPosted();
+
+  // Refresh on focus so returning from a bounty detail (after approving/turning
+  // in a claim) reflects the new state instead of a stale list — the "I already
+  // approved it but it still shows here" report.
+  useFocusEffect(
+    useCallback(() => {
+      refetchClaims();
+      refetchPosted();
+    }, [refetchClaims, refetchPosted]),
+  );
 
   // Parent + observer route to the dedicated review-queue layout.
   if (isPoster) {

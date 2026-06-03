@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Platform, Pressable, Image, Dimensions, GestureResponderEvent, Linking } from 'react-native';
+import { View, Platform, Pressable, Image, Dimensions, GestureResponderEvent } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, UIText } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -308,7 +309,7 @@ function NativeDocumentViewer({ uri, title }: DocumentViewerProps) {
 
   // Fallback: open externally
   return (
-    <Pressable onPress={() => Linking.openURL(uri)} className="bg-surface-50 dark:bg-dark-surface-50 p-4 rounded-lg border border-surface-200 dark:border-dark-surface-300">
+    <Pressable onPress={() => safeOpenURL(uri)} className="bg-surface-50 dark:bg-dark-surface-50 p-4 rounded-lg border border-surface-200 dark:border-dark-surface-300">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">
           <Ionicons name={isPdf ? 'document-text-outline' : 'document-attach-outline'} size={20} color="#6D469B" />

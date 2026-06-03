@@ -298,6 +298,11 @@ class Config:
     VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY')
     VAPID_MAILTO = os.getenv('VAPID_MAILTO', 'mailto:support@optioeducation.com')
 
+    # Expo Push (mobile). Optional bearer token — REQUIRED only if the Expo
+    # project has "Enhanced Security for Push Notifications" enabled, in which
+    # case sends without it are rejected (and every push silently fails).
+    EXPO_ACCESS_TOKEN = os.getenv('EXPO_ACCESS_TOKEN')
+
 
     @classmethod
     def validate(cls) -> None:

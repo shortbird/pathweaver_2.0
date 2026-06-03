@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Image, Pressable, Alert, Linking, Platform } from 'react-native';
+import { View, ScrollView, Image, Pressable, Alert, Platform } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import api from '@/src/services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
@@ -71,7 +72,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
 
   if (blockType === 'video' && content.url) {
     return (
-      <Pressable onPress={() => Linking.openURL(content.url).catch(() => {})}>
+      <Pressable onPress={() => safeOpenURL(content.url)}>
         <View
           className="rounded-xl overflow-hidden items-center justify-center"
           style={{ height: 160, backgroundColor: '#1F1F2E' }}
@@ -87,7 +88,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     const url = content.url || content.value;
     return (
       <Pressable
-        onPress={() => Linking.openURL(url).catch(() => {})}
+        onPress={() => safeOpenURL(url)}
         className="active:opacity-70"
       >
         <HStack className="items-center gap-2 p-3 bg-surface-100 dark:bg-dark-surface-200 rounded-lg">
@@ -117,7 +118,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
   if (blockType === 'document' && content.url) {
     return (
       <Pressable
-        onPress={() => Linking.openURL(content.url).catch(() => {})}
+        onPress={() => safeOpenURL(content.url)}
         className="active:opacity-70"
       >
         <HStack className="items-center gap-2 p-3 bg-surface-100 dark:bg-dark-surface-200 rounded-lg">

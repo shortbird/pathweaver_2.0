@@ -76,14 +76,21 @@ class ExpoPushService(BaseService):
                     msg['data'] = data
                 messages.append(msg)
 
-            # Send via Expo Push API
+            # Send via Expo Push API. Include the access token when configured —
+            # Expo projects with "Enhanced Security for Push" reject unauthenticated
+            # sends, which would make every push fail silently.
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+            from app_config import Config
+            if Config.EXPO_ACCESS_TOKEN:
+                headers['Authorization'] = f'Bearer {Config.EXPO_ACCESS_TOKEN}'
+
             response = requests.post(
                 EXPO_PUSH_URL,
                 json=messages,
-                headers={
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
+                headers=headers,
                 timeout=10,
             )
 
@@ -98,9 +105,21 @@ class ExpoPushService(BaseService):
                         sent += 1
                     else:
                         failed += 1
-                        # If token is invalid, mark for deactivation
+                        # Surface WHY it failed — these errors (esp. the Android
+                        # InvalidCredentials that means FCM isn't configured in the
+                        # EAS project) only show up here, so log them loudly instead
+                        # of a bare failed count.
                         details = ticket.get('details', {})
-                        if details.get('error') in ('DeviceNotRegistered', 'InvalidCredentials'):
+                        err = details.get('error')
+                        logger.warning(
+                            f"[ExpoPush] ticket failed for user {user_id[:8]}: "
+                            f"error={err} message={ticket.get('message')}"
+                        )
+                        # Note: a ticket 'ok' only means Expo ACCEPTED the push.
+                        # Real delivery errors arrive later in receipts (not fetched
+                        # here) — if devices register but never receive, check the
+                        # EAS project's FCM (Android) / APNs (iOS) credentials.
+                        if err in ('DeviceNotRegistered', 'InvalidCredentials'):
                             expired_ids.append(expo_tokens[idx]['id'])
             else:
                 logger.warning(f"Expo Push API returned {response.status_code}: {response.text[:200]}")

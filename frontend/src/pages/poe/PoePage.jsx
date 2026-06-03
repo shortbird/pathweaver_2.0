@@ -4,16 +4,11 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { getPoeCohorts, enrollInPoe } from '../../services/poeService'
 
 // Hidden public page for the 2026 Pipe Organ Encounter pilot. Not linked in nav;
-// families reach it via /poe from the AGO announcement email. Participants pick
-// their POE location and enroll; minors capture parental consent inline.
+// families reach it via /poe from the AGO announcement email. This is an interest
+// list, not a sign-up: participants pick their POE location and add their info;
+// they get a confirmation email and Optio follows up to onboard them before camp.
 
 const POPPINS = { fontFamily: 'Poppins' }
-
-const CONSENT_STATEMENT =
-  'I am the parent or legal guardian of this participant. I consent to their ' +
-  'enrollment in the Optio Pipe Organ Encounter program, to Optio creating an ' +
-  'account and processing their learning records to assess and issue academic ' +
-  'credit, and I confirm the information provided is accurate.'
 
 const BENEFITS = [
   { d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', title: '0.5 fine arts credit', text: 'Graded A, on your transcript' },
@@ -22,8 +17,8 @@ const BENEFITS = [
 ]
 
 const STEPS = [
-  { title: 'Enroll free', text: 'Pick your POE and sign up' },
-  { title: 'Document', text: 'Log lessons, practice, and performances in the app' },
+  { title: 'Join the list', text: 'Pick your POE and add your info' },
+  { title: 'Document', text: 'We set you up to log your week in the app' },
   { title: 'Earn credit', text: 'We review your work and post the credit' },
 ]
 
@@ -66,9 +61,8 @@ const PoePage = () => {
 
   const [form, setForm] = useState({
     poe_cohort: '',
-    first_name: '', last_name: '', email: '', password: '', date_of_birth: '',
+    first_name: '', last_name: '', email: '', date_of_birth: '',
     parent_first_name: '', parent_last_name: '', parent_email: '',
-    signature_name: '', agreed: false,
     credit_dest: '', school_name: '', school_city: '', school_state: '', school_email: '',
   })
   const [submitting, setSubmitting] = useState(false)
@@ -95,7 +89,7 @@ const PoePage = () => {
     e.preventDefault()
     setSubmitError(null)
     if (!form.poe_cohort) { setSubmitError('Please select your POE location.'); return }
-    if (age !== null && age < 13) { setSubmitError('Participants under 13 cannot enroll directly. Please contact us so a parent can set up a managed account.'); return }
+    if (age !== null && age < 13) { setSubmitError('Participants under 13 cannot sign up directly. Please contact us and we will help set things up.'); return }
     if (isMinor && !emailOk(form.parent_email)) { setSubmitError('A parent or guardian email is required for participants under 18.'); return }
     if (!form.credit_dest) { setSubmitError('Tell us where your credit should go.'); return }
     if (form.credit_dest === 'school' && !form.school_name.trim()) { setSubmitError('Enter your school name, or choose homeschool / not enrolled.'); return }
@@ -106,7 +100,7 @@ const PoePage = () => {
         poe_cohort: form.poe_cohort,
         student: {
           first_name: form.first_name, last_name: form.last_name,
-          email: form.email, password: form.password, date_of_birth: form.date_of_birth,
+          email: form.email, date_of_birth: form.date_of_birth,
         },
         school: {
           is_homeschool: form.credit_dest === 'homeschool',
@@ -115,7 +109,6 @@ const PoePage = () => {
       }
       if (isMinor) {
         body.parent = { first_name: form.parent_first_name, last_name: form.parent_last_name, email: form.parent_email }
-        body.consent = { signature_name: form.signature_name, agreed: form.agreed && !!form.signature_name.trim() }
       }
       const result = await enrollInPoe(body)
       setSuccess(result)
@@ -147,7 +140,7 @@ const PoePage = () => {
             Document your experience in the Optio app and transfer class credit back to your high school. Free for 2026.
           </p>
           <a href="#enroll" className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200" style={{ ...POPPINS, fontWeight: 600 }}>
-            Enroll for free
+            Get on the list
           </a>
         </div>
       </section>
@@ -192,7 +185,10 @@ const PoePage = () => {
       {/* ===== ENROLL ===== */}
       <section id="enroll" className="py-16 sm:py-20 bg-white">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-10" style={{ ...POPPINS, fontWeight: 700 }}>Enroll</h2>
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-3" style={{ ...POPPINS, fontWeight: 700 }}>Get on the list</h2>
+          <p className="text-center text-gray-600 mb-10" style={POPPINS}>
+            Tell us about yourself and which POE you’re attending. We’ll send a confirmation and follow up to get you set up.
+          </p>
 
           {loading && <p className="text-center text-gray-500">Loading…</p>}
           {loadError && <p className="text-center text-red-600">{loadError}</p>}
@@ -200,15 +196,12 @@ const PoePage = () => {
           {success ? (
             <div className="rounded-2xl border border-green-200 bg-green-50 p-6 text-center" style={POPPINS}>
               <h3 className="text-xl font-bold text-green-800 mb-2" style={{ ...POPPINS, fontWeight: 700 }}>
-                You’re enrolled in {selectedCohort?.display_name || 'your POE'}
+                You’re on the list for {selectedCohort?.display_name || 'your POE'}
               </h3>
-              <p className="text-green-800">Check your email to verify your account, then log in to start logging your POE.</p>
-              {success.consent_pending && (
-                <p className="text-sm text-green-700 mt-3">
-                  Your parent/guardian hasn’t signed consent yet. You can start logging right away — we’ll just
-                  need consent on file before your credit is issued.
-                </p>
-              )}
+              <p className="text-green-800">
+                Check your email for a confirmation. There’s nothing more to do right now — we’ll reach out
+                closer to camp to get you set up to document your week and earn your credit.
+              </p>
             </div>
           ) : (
             !loading && !loadError && cohorts.length > 0 && (
@@ -243,27 +236,20 @@ const PoePage = () => {
                   <div><label className={label}>Last name</label><input className={field} value={form.last_name} onChange={set('last_name')} required /></div>
                 </div>
                 <div><label className={label}>Your email</label><input type="email" className={field} value={form.email} onChange={set('email')} required /></div>
-                <div><label className={label}>Choose a password</label><input type="password" className={field} value={form.password} onChange={set('password')} minLength={6} placeholder="6+ characters" required /></div>
                 <div><label className={label}>Date of birth</label><input type="date" className={field} value={form.date_of_birth} onChange={set('date_of_birth')} max="2025-12-31" required /></div>
 
-                {/* Parent consent (minors) */}
+                {/* Parent / guardian contact (minors) — so we can follow up. No account or consent is created here. */}
                 {isMinor && (
                   <div className="rounded-lg border border-optio-purple/30 bg-optio-purple/5 p-5 space-y-4">
-                    <p className="font-semibold text-gray-900">Parent / guardian consent</p>
+                    <p className="font-semibold text-gray-900">Parent / guardian contact</p>
                     <p className="text-sm text-gray-600">
-                      Sign now or later — you can start logging right away; consent just needs to be on file before credit is issued.
+                      Since you’re under 18, we’ll send the confirmation to your parent or guardian too and follow up with them to get you set up.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div><label className={label}>Parent first name</label><input className={field} value={form.parent_first_name} onChange={set('parent_first_name')} /></div>
                       <div><label className={label}>Parent last name</label><input className={field} value={form.parent_last_name} onChange={set('parent_last_name')} /></div>
                     </div>
                     <div><label className={label}>Parent / guardian email</label><input type="email" className={field} value={form.parent_email} onChange={set('parent_email')} required={isMinor} /></div>
-                    <p className="text-sm text-gray-700">{CONSENT_STATEMENT}</p>
-                    <div><label className={label}>Parent/guardian full name (e-signature)</label><input className={field} value={form.signature_name} onChange={set('signature_name')} placeholder="Type full name" /></div>
-                    <label className="flex items-start gap-3 text-sm text-gray-700">
-                      <input type="checkbox" className="mt-1" checked={form.agreed} onChange={set('agreed')} />
-                      <span>I am the parent/guardian and I agree to the statement above.</span>
-                    </label>
                   </div>
                 )}
 
@@ -315,10 +301,10 @@ const PoePage = () => {
                 <button type="submit" disabled={submitting}
                   className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100"
                   style={{ ...POPPINS, fontWeight: 600 }}>
-                  {submitting ? 'Enrolling…' : 'Enroll for free'}
+                  {submitting ? 'Submitting…' : 'Add me to the list'}
                 </button>
                 <p className="text-xs text-gray-500 text-center">
-                  Enrollment is optional and free for 2026. Declining has no effect on your POE participation.
+                  Free for 2026, and joining the list has no effect on your POE participation.
                 </p>
               </form>
             )

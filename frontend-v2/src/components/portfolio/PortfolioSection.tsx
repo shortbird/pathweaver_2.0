@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { View, Pressable, Image, Linking } from 'react-native';
+import { View, Pressable, Image } from 'react-native';
+import { safeOpenURL } from '@/src/utils/linking';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Card } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -218,7 +219,7 @@ function InlineEvidence({ task }: { task: TaskItem }) {
         const title = block.content.items?.[0]?.title || block.content.title;
         if (!url) return null;
         return (
-          <Pressable key={`link-${i}`} onPress={() => Linking.openURL(url)}>
+          <Pressable key={`link-${i}`} onPress={() => safeOpenURL(url)}>
             <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
               <HStack className="items-center gap-2">
                 <Ionicons name="link-outline" size={16} color="#6D469B" />
@@ -258,7 +259,7 @@ function InlineEvidence({ task }: { task: TaskItem }) {
         </Pressable>
       )}
       {!hasBlocks && task.evidenceUrl && !isHeicUrl(task.evidenceUrl) && (
-        <Pressable onPress={() => Linking.openURL(task.evidenceUrl!)}>
+        <Pressable onPress={() => safeOpenURL(task.evidenceUrl!)}>
           <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
             <HStack className="items-center gap-2">
               <Ionicons name="link-outline" size={16} color="#6D469B" />
