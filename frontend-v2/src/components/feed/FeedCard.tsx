@@ -223,6 +223,10 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const isTask = item.type === 'task_completed';
   const isOwnPost = user?.id === item.student?.id;
   const canTogglePrivacy = isOwnPost || viewerCanModerate;
+  // Only surface the share button when the viewer is actually allowed to create
+  // a share link (backend-determined). Undefined (older responses) is treated as
+  // shareable so we don't hide the button on version skew.
+  const canShare = item.can_share !== false;
   const title = isTask ? item.task?.title : item.moment?.title;
   const description = isTask ? null : item.moment?.description;
   const pillars = isTask ? [item.task?.pillar].filter(Boolean) : (item.moment?.pillars || []);
@@ -263,7 +267,12 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
     }
     setSharing(true);
     try {
-      const { share_url } = await createShareLink(item.type, item.id);
+      const { share_url } = await createShareLink({
+        type: item.type,
+        completionId: item.completion_id,
+        learningEventId: item.learning_event_id,
+        id: item.id,
+      });
       if (Platform.OS === 'web') {
         await navigator.clipboard.writeText(share_url);
         showToast('Link copied!');
@@ -422,9 +431,11 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
               )}
             </Pressable>
 
-            <Pressable onPress={handleShare} disabled={sharing} className="flex-row items-center gap-1.5 py-1" style={{ opacity: sharing ? 0.5 : 1 }}>
-              <Ionicons name="share-outline" size={16} color={isConfidential ? c.border : c.iconMuted} />
-            </Pressable>
+            {canShare && (
+              <Pressable onPress={handleShare} disabled={sharing} accessibilityLabel="Share" className="flex-row items-center gap-1.5 py-1" style={{ opacity: sharing ? 0.5 : 1 }}>
+                <Ionicons name="share-outline" size={16} color={isConfidential ? c.border : c.iconMuted} />
+              </Pressable>
+            )}
 
             {/* Visibility toggle - owner always; parents on kid posts via prop */}
             {canTogglePrivacy && (
@@ -518,6 +529,7 @@ export const FeedCard = memo(FeedCardImpl, (prev, next) => {
     a.views_count === b.views_count &&
     a.comments_count === b.comments_count &&
     a.is_confidential === b.is_confidential &&
+    a.can_share === b.can_share &&
     a.timestamp === b.timestamp
   );
 });

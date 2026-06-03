@@ -118,6 +118,31 @@ describe('FeedCard', () => {
     expect(queryByText('Link copied!')).toBeNull();
   });
 
+  it('hides the share button when the viewer cannot share', () => {
+    const item = createMockFeedItem({ can_share: false });
+    const { queryByLabelText } = render(<FeedCard item={item} />);
+    expect(queryByLabelText('Share')).toBeNull();
+  });
+
+  it('shares using the explicit completion handle, not the composite id', async () => {
+    const item = createMockFeedItem({
+      id: 'completion-1_block-1',
+      completion_id: 'completion-1',
+      can_share: true,
+    });
+    const { getByLabelText } = render(<FeedCard item={item} />);
+
+    fireEvent.press(getByLabelText('Share'));
+
+    await waitFor(() => {
+      expect(createShareLink).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'task_completed',
+        completionId: 'completion-1',
+        id: 'completion-1_block-1',
+      }));
+    });
+  });
+
   // ── Visibility Toggle ──
 
   it('shows visibility toggle on own posts', () => {
