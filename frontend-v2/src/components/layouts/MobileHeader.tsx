@@ -4,13 +4,14 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, Platform, Modal, Alert } from 'react-native';
+import { View, Pressable, Platform, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
+import { useAddKidStore } from '@/src/stores/addKidStore';
 
 const PREVIEW_ROLE_LABEL: Record<string, string> = {
   parent: 'Parent',
@@ -111,13 +112,7 @@ function AvatarMenu() {
       key: 'add-child',
       label: 'Add a child',
       icon: 'person-add-outline' as keyof typeof Ionicons.glyphMap,
-      onPress: () => {
-        setMenuOpen(false);
-        Alert.alert(
-          'Add a child',
-          'Adding a new dependent or connecting to an existing student is currently available on the web app. Visit your Family Settings on web to add a child.',
-        );
-      },
+      onPress: () => { setMenuOpen(false); useAddKidStore.getState().open(); },
     }] : []),
     {
       key: 'settings',

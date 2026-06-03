@@ -1,6 +1,6 @@
 /**
  * ParentStartSomethingMount - Headless mount for the parent action-sheet
- * stack (ParentStartSomethingSheet + InviteObserverSheet).
+ * stack (ParentStartSomethingSheet + InviteObserverSheet + AddKidSheet).
  *
  * Used to be a floating "+" FAB; that affordance moved to the center tab
  * (Optio logo), which now opens the sheet via
@@ -14,8 +14,10 @@
 import React from 'react';
 import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
 import { useInviteObserverStore } from '@/src/stores/inviteObserverStore';
+import { useAddKidStore } from '@/src/stores/addKidStore';
 import { ParentStartSomethingSheet } from '@/src/components/parent/ParentStartSomethingSheet';
 import { InviteObserverSheet } from '@/src/components/parent/InviteObserverSheet';
+import { AddKidSheet } from '@/src/components/parent/AddKidSheet';
 
 interface ParentStartSomethingFabProps {
   /** Open the parent CaptureSheet (owned by the parent (tabs) layout so it
@@ -32,6 +34,9 @@ export function ParentStartSomethingFab({ onCaptureMoment }: ParentStartSomethin
   const inviteVisible = useInviteObserverStore((s) => s.visible);
   const openInvite = useInviteObserverStore((s) => s.open);
   const closeInvite = useInviteObserverStore((s) => s.close);
+  // AddKidSheet is opened from the header kebab "Add a child" via the store.
+  const addKidVisible = useAddKidStore((s) => s.visible);
+  const closeAddKid = useAddKidStore((s) => s.close);
 
   return (
     <>
@@ -45,6 +50,11 @@ export function ParentStartSomethingFab({ onCaptureMoment }: ParentStartSomethin
       <InviteObserverSheet
         visible={inviteVisible}
         onClose={closeInvite}
+      />
+
+      <AddKidSheet
+        visible={addKidVisible}
+        onClose={closeAddKid}
       />
     </>
   );
