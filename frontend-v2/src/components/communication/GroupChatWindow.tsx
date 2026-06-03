@@ -5,11 +5,11 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage,
+  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage, toast,
 } from '@/src/components/ui';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -18,6 +18,7 @@ import {
   useGroupDetail,
   sendGroupMessage,
   markGroupRead,
+  deleteGroup,
   type Group,
   type Message,
 } from '@/src/hooks/useMessages';
@@ -25,6 +26,8 @@ import {
 interface Props {
   group: Group;
   onBack?: () => void;
+  /** Called after the group is deleted so the parent can clear selection + refetch. */
+  onDeleted?: () => void;
 }
 
 function formatTime(ts: string) {
@@ -103,7 +106,7 @@ function MembersList({ members, userId, onClose }: { members: any[]; userId?: st
   );
 }
 
-export function GroupChatWindow({ group, onBack }: Props) {
+export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
   const { messages, loading, refetch, setMessages } = useGroupMessages(group.id);
@@ -111,6 +114,7 @@ export function GroupChatWindow({ group, onBack }: Props) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
@@ -190,6 +194,39 @@ export function GroupChatWindow({ group, onBack }: Props) {
 
   const members = groupDetail?.members || [];
 
+  // Group admins (the creator is added as admin) and superadmins can delete.
+  const myMembership = members.find((m: any) => (m.user || m).id === user?.id);
+  const isGroupAdmin = myMembership?.role === 'admin' || myMembership?.role === 'owner';
+  const canDelete = isGroupAdmin || user?.role === 'superadmin';
+
+  const handleDelete = async () => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(`Delete "${group.name}"? This removes the group for all members and cannot be undone.`)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Delete Group',
+            `Delete "${group.name}"? This removes the group for all members and cannot be undone.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          );
+        });
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await deleteGroup(group.id);
+      toast.success('Group deleted');
+      onDeleted?.();
+      onBack?.();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to delete group');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const header = (
     <View
       className="flex-row items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100"
@@ -216,23 +253,43 @@ export function GroupChatWindow({ group, onBack }: Props) {
           </Pressable>
         </View>
       </View>
-      <Pressable
-        onPress={() => setShowMembers((v) => !v)}
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: showMembers ? '#6D469B' : c.surfaceMuted,
-        }}
-      >
-        <Ionicons
-          name="people-outline"
-          size={18}
-          color={showMembers ? '#fff' : c.icon}
-        />
-      </Pressable>
+      <View className="flex-row items-center" style={{ gap: 8 }}>
+        <Pressable
+          onPress={() => setShowMembers((v) => !v)}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: showMembers ? '#6D469B' : c.surfaceMuted,
+          }}
+        >
+          <Ionicons
+            name="people-outline"
+            size={18}
+            color={showMembers ? '#fff' : c.icon}
+          />
+        </Pressable>
+        {canDelete && (
+          <Pressable
+            onPress={handleDelete}
+            disabled={deleting}
+            hitSlop={6}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: c.surfaceMuted,
+              opacity: deleting ? 0.5 : 1,
+            }}
+          >
+            <Ionicons name="trash-outline" size={18} color="#DC2626" />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 

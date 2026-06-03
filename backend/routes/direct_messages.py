@@ -30,6 +30,79 @@ logger = logging.getLogger(__name__)
 # Initialize service
 message_service = DirectMessageService()
 
+# The "Optio Support" contact is a display alias. Messages addressed to it are
+# routed to the superadmin account below (product owner decision). We resolve the
+# id at request time (by email + role) rather than hardcoding it, since there can
+# be more than one superadmin on the platform.
+SUPPORT_EMAIL = 'tannerbowman@gmail.com'
+
+
+def _get_support_user(supabase):
+    """Return the superadmin user record that backs the 'Optio Support' alias, or None."""
+    try:
+        res = supabase.table('users').select(
+            'id, display_name, first_name, last_name, avatar_url, role'
+        ).eq('email', SUPPORT_EMAIL).eq('role', 'superadmin').single().execute()
+        return res.data if res.data else None
+    except Exception as e:
+        logger.warning(f"Could not resolve Optio Support user: {str(e)}")
+        return None
+
+
+def _build_support_contact(support_user):
+    """Build the display-aliased 'Optio Support' contact for the underlying superadmin."""
+    return {
+        'id': support_user['id'],
+        'display_name': 'Optio Support',
+        'first_name': 'Optio',
+        'last_name': 'Support',
+        # Present as a branded support contact rather than the raw superadmin avatar.
+        'avatar_url': None,
+        'role': 'support',
+        'relationship': 'support',
+        'is_support': True,
+    }
+
+
+def _get_parent_child_ids(supabase, parent_id):
+    """
+    Return the set of child user-ids a parent is linked to, via either mechanism:
+    - dependents created by the parent (users.managed_by_parent_id)
+    - approved parent_student_links (parent_user_id -> student_user_id)
+    """
+    child_ids = set()
+    deps = supabase.table('users').select('id').eq('managed_by_parent_id', parent_id).execute()
+    if deps.data:
+        child_ids.update(d['id'] for d in deps.data)
+    links = supabase.table('parent_student_links').select('student_user_id').eq(
+        'parent_user_id', parent_id
+    ).eq('status', 'approved').execute()
+    if links.data:
+        child_ids.update(l['student_user_id'] for l in links.data)
+    return list(child_ids)
+
+
+def _append_support_contact(supabase, contacts, user_id):
+    """
+    Deduplicate contacts by id (first relationship wins) and always append the
+    'Optio Support' contact, unless the requester IS the support account itself.
+    """
+    seen = set()
+    deduped = []
+    for ct in contacts:
+        if ct['id'] in seen:
+            continue
+        seen.add(ct['id'])
+        deduped.append(ct)
+
+    support_user = _get_support_user(supabase)
+    if support_user and support_user['id'] != user_id:
+        # Don't surface the support account twice under its real name.
+        deduped = [ct for ct in deduped if ct['id'] != support_user['id']]
+        deduped.append(_build_support_contact(support_user))
+
+    return deduped
+
 
 @bp.route('/conversations', methods=['GET'])
 @require_auth
@@ -335,6 +408,75 @@ def get_contacts(user_id: str):
                             'relationship': 'student'
                         })
 
+        # For parents: their children, the advisors of those children, AND all
+        # observers linked to those children.
+        elif user_role == 'parent':
+            child_ids = _get_parent_child_ids(supabase, user_id)
+
+            if child_ids:
+                # The children themselves
+                children = supabase.table('users').select(
+                    'id, display_name, first_name, last_name, avatar_url, role, organization_id'
+                ).in_('id', child_ids).execute()
+                if children.data:
+                    for child in children.data:
+                        if user_org_id is not None and child.get('organization_id') != user_org_id:
+                            continue
+                        child.pop('organization_id', None)
+                        contacts.append({**child, 'relationship': 'child'})
+
+                # Advisors assigned to those children
+                adv_assignments = supabase.table('advisor_student_assignments').select(
+                    'advisor_id'
+                ).in_('student_id', child_ids).eq('is_active', True).execute()
+                advisor_ids = list({a['advisor_id'] for a in (adv_assignments.data or [])})
+                if advisor_ids:
+                    advisors = supabase.table('users').select(
+                        'id, display_name, first_name, last_name, avatar_url, role, organization_id'
+                    ).in_('id', advisor_ids).execute()
+                    if advisors.data:
+                        for advisor in advisors.data:
+                            if user_org_id is not None and advisor.get('organization_id') != user_org_id:
+                                continue
+                            advisor.pop('organization_id', None)
+                            contacts.append({**advisor, 'relationship': 'advisor'})
+
+                # All observers linked to those children
+                obs_links = supabase.table('observer_student_links').select(
+                    'observer_id'
+                ).in_('student_id', child_ids).execute()
+                observer_ids = list({o['observer_id'] for o in (obs_links.data or [])})
+                if observer_ids:
+                    observers = supabase.table('users').select(
+                        'id, display_name, first_name, last_name, avatar_url, role, organization_id'
+                    ).in_('id', observer_ids).execute()
+                    if observers.data:
+                        for observer in observers.data:
+                            if user_org_id is not None and observer.get('organization_id') != user_org_id:
+                                continue
+                            observer.pop('organization_id', None)
+                            contacts.append({**observer, 'relationship': 'observer'})
+
+        # For observers: the students they are linked to
+        elif user_role == 'observer':
+            obs_links = supabase.table('observer_student_links').select(
+                'student_id'
+            ).eq('observer_id', user_id).execute()
+            student_ids = list({o['student_id'] for o in (obs_links.data or [])})
+            if student_ids:
+                students = supabase.table('users').select(
+                    'id, display_name, first_name, last_name, avatar_url, role, organization_id'
+                ).in_('id', student_ids).execute()
+                if students.data:
+                    for student in students.data:
+                        if user_org_id is not None and student.get('organization_id') != user_org_id:
+                            continue
+                        student.pop('organization_id', None)
+                        contacts.append({**student, 'relationship': 'student'})
+
+        # Always include the "Optio Support" contact (dedupes by id too).
+        contacts = _append_support_contact(supabase, contacts, user_id)
+
         return success_response({
             'contacts': contacts,
             'total': len(contacts)
@@ -344,6 +486,144 @@ def get_contacts(user_id: str):
         logger.error(f"Error getting contacts: {str(e)}")
         return error_response(
             f"Failed to get contacts: {str(e)}",
+            status_code=500,
+            error_code="internal_error"
+        )
+
+
+def _can_view_child_history(supabase, requester_id, child_id):
+    """
+    A requester may view a child's message history if they are a parent/guardian
+    of that child (managed_by_parent_id or approved parent_student_links) or a
+    superadmin. Returns True/False.
+    """
+    from utils.roles import get_effective_role
+    requester = supabase.table('users').select(
+        'role, org_role, organization_id'
+    ).eq('id', requester_id).single().execute()
+    if requester.data and get_effective_role(requester.data) == 'superadmin':
+        return True
+    return message_service.is_parent_of_child(requester_id, child_id)
+
+
+@bp.route('/children', methods=['GET'])
+@require_auth
+def get_messageable_children(user_id: str):
+    """
+    List the children whose message history the requester may view. Parents see
+    their linked children; superadmins who are themselves linked as a parent (e.g.
+    to their own kids) see those too. Used to populate the parent "view my child's
+    messages" picker.
+    """
+    try:
+        from database import get_supabase_admin_client
+        # admin client justified: cross-user child lookup gated by parent linkage (managed_by_parent_id / approved parent_student_links) keyed on the authenticated user_id
+        supabase = get_supabase_admin_client()
+
+        from utils.roles import get_effective_role
+        requester = supabase.table('users').select(
+            'role, org_role, organization_id'
+        ).eq('id', user_id).single().execute()
+        if not requester.data:
+            return error_response('User not found', status_code=404, error_code='not_found')
+
+        role = get_effective_role(requester.data)
+        children = []
+        # Resolve linked children for parents and superadmins. _get_parent_child_ids
+        # keys off this user's own parent linkage, so a non-parent superadmin simply
+        # gets an empty list.
+        if role in ('parent', 'superadmin'):
+            child_ids = _get_parent_child_ids(supabase, user_id)
+            if child_ids:
+                res = supabase.table('users').select(
+                    'id, display_name, first_name, last_name, avatar_url, role'
+                ).in_('id', child_ids).execute()
+                children = res.data or []
+
+        return success_response({
+            'children': children,
+            'total': len(children)
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting messageable children: {str(e)}")
+        return error_response(
+            f"Failed to get children: {str(e)}",
+            status_code=500,
+            error_code="internal_error"
+        )
+
+
+@bp.route('/children/<child_id>/conversations', methods=['GET'])
+@require_auth
+def get_child_conversations(user_id: str, child_id: str):
+    """
+    Read-only: list a child's conversations for an authorized parent/guardian
+    (or superadmin). Does NOT mark anything read or allow sending.
+    """
+    try:
+        from database import get_supabase_admin_client
+        # admin client justified: reads another user's (the child's) conversations, gated by _can_view_child_history (parent linkage / superadmin)
+        supabase = get_supabase_admin_client()
+
+        if not _can_view_child_history(supabase, user_id, child_id):
+            return error_response(
+                "You do not have permission to view this child's messages",
+                status_code=403,
+                error_code="forbidden"
+            )
+
+        conversations = message_service.get_user_conversations(child_id)
+        return success_response({
+            'conversations': conversations,
+            'total': len(conversations),
+            'child_id': child_id
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting child conversations: {str(e)}")
+        return error_response(
+            f"Failed to get child conversations: {str(e)}",
+            status_code=500,
+            error_code="internal_error"
+        )
+
+
+@bp.route('/children/<child_id>/conversations/<conversation_id>', methods=['GET'])
+@require_auth
+def get_child_conversation_messages(user_id: str, child_id: str, conversation_id: str):
+    """
+    Read-only: return the messages in one of a child's conversations for an
+    authorized parent/guardian (or superadmin). The child must be a participant.
+    """
+    try:
+        from database import get_supabase_admin_client
+        # admin client justified: reads another user's (the child's) conversation messages, gated by _can_view_child_history (parent linkage / superadmin)
+        supabase = get_supabase_admin_client()
+
+        if not _can_view_child_history(supabase, user_id, child_id):
+            return error_response(
+                "You do not have permission to view this child's messages",
+                status_code=403,
+                error_code="forbidden"
+            )
+
+        messages = message_service.get_child_conversation_messages(conversation_id, child_id)
+        return success_response({
+            'messages': messages,
+            'conversation_id': conversation_id,
+            'child_id': child_id,
+            'count': len(messages)
+        })
+
+    except ValueError as e:
+        logger.error(f"Validation error getting child conversation messages: {str(e)}")
+        return error_response(str(e), status_code=403, error_code="forbidden")
+
+    except Exception as e:
+        logger.error(f"Error getting child conversation messages: {str(e)}")
+        return error_response(
+            f"Failed to get child conversation messages: {str(e)}",
             status_code=500,
             error_code="internal_error"
         )

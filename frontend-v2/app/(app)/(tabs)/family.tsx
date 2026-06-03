@@ -5,7 +5,7 @@
  * Mobile: child selector dropdown + scrollable overview.
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDimensions, Image, RefreshControl, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,7 @@ import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useScrollToTop } from '@react-navigation/native';
+import { useScrollToTop, useFocusEffect } from '@react-navigation/native';
 import api from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
@@ -297,6 +297,14 @@ export default function ParentDashboardPage() {
   const { data: engagement } = useChildEngagement(selectedId);
   const { count: ferpaCount } = useFerpaApprovals();
 
+  // Refresh the selected child's dashboard whenever this screen regains focus
+  // (e.g. returning from "Browse quests" after adding/creating a quest), so the
+  // newly enrolled quest shows up without a manual pull-to-refresh. A latest-ref
+  // keeps the focus callback stable so switching children doesn't double-fetch.
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+  useFocusEffect(useCallback(() => { refetchRef.current(); }, []));
+
   // ── Parent action state ──
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
@@ -512,6 +520,35 @@ export default function ParentDashboardPage() {
                   )}
                 </VStack>
               </View>
+
+              {/* Browse quests for this child — opens the quest catalog in a
+                  for-child context; anything created or added there lands on
+                  the kid's account. */}
+              <Pressable
+                testID="family-browse-quests"
+                onPress={() => router.push({
+                  pathname: '/(app)/(tabs)/quests',
+                  params: { forChildId: selectedId as string, forChildName: childFirstName },
+                } as any)}
+                accessibilityLabel={`Browse quests for ${childFirstName}`}
+              >
+                <Card variant="outline" size="md">
+                  <HStack className="items-center gap-3">
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="rocket-outline" size={18} color="#6D469B" />
+                    </View>
+                    <VStack className="flex-1 min-w-0">
+                      <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
+                        Browse quests
+                      </UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
+                        Create or add a quest for {childFirstName}
+                      </UIText>
+                    </VStack>
+                    <Ionicons name="chevron-forward" size={18} color={tc.iconMuted} />
+                  </HStack>
+                </Card>
+              </Pressable>
 
               {/* Learning Journal link — opens the full journal for this kid,
                   where the parent can view every moment and edit the ones they

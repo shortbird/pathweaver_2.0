@@ -226,6 +226,43 @@ class SessionManager:
             'iat': datetime.now(timezone.utc)
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
+
+    def generate_masquerade_refresh_token(self, admin_id: str, target_user_id: str) -> str:
+        """Generate a refresh token for a masquerade session.
+
+        Native clients have no httpOnly cookie to anchor the masquerade identity,
+        so without a dedicated refresh token the 401-refresh path would mint a
+        regular admin access token and silently drop the admin back into their own
+        identity. This refresh token lets /api/auth/refresh re-mint a masquerade
+        access token instead, preserving the target user across refreshes.
+        """
+        payload = {
+            'sub': target_user_id,
+            'user_id': admin_id,  # admin identity, mirrors generate_masquerade_token
+            'masquerade_as': target_user_id,
+            'type': 'masquerade_refresh',
+            'version': self.token_version,
+            'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
+            'iat': datetime.now(timezone.utc)
+        }
+        return jwt.encode(payload, self.secret_key, algorithm='HS256')
+
+    def generate_acting_as_refresh_token(self, parent_id: str, dependent_id: str) -> str:
+        """Generate a refresh token for a parent acting-as-dependent session.
+
+        Same rationale as generate_masquerade_refresh_token: keeps the dependent
+        identity stable across token refreshes on native (no cookie anchor).
+        """
+        payload = {
+            'sub': dependent_id,
+            'user_id': parent_id,  # parent identity, mirrors generate_acting_as_token
+            'acting_as': dependent_id,
+            'type': 'acting_as_refresh',
+            'version': self.token_version,
+            'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
+            'iat': datetime.now(timezone.utc)
+        }
+        return jwt.encode(payload, self.secret_key, algorithm='HS256')
     
     def verify_access_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify and decode an access token (supports graceful key rotation)"""
@@ -354,7 +391,33 @@ class SessionManager:
                 logger.debug("intentional swallow", exc_info=True)
 
         return None
-    
+
+    def _verify_impersonation_refresh_token(self, token: str, expected_type: str) -> Optional[Dict[str, Any]]:
+        """Verify a masquerade/acting-as refresh token (supports key rotation)."""
+        for key, label in ((self.secret_key, 'current'), (self.previous_secret_key, 'previous')):
+            if not key:
+                continue
+            try:
+                payload = jwt.decode(token, key, algorithms=['HS256'])
+                if payload.get('type') == expected_type:
+                    if self.is_session_expired(payload):
+                        logger.info(f"[SessionManager] {expected_type} rejected: session timeout exceeded")
+                        return None
+                    if label == 'previous':
+                        logger.info(f"[SessionManager] {expected_type} validated with previous secret (version: {payload.get('version', 'unknown')})")
+                    return payload
+            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                logger.debug("intentional swallow", exc_info=True)
+        return None
+
+    def verify_masquerade_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Verify and decode a masquerade refresh token."""
+        return self._verify_impersonation_refresh_token(token, 'masquerade_refresh')
+
+    def verify_acting_as_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Verify and decode an acting-as refresh token."""
+        return self._verify_impersonation_refresh_token(token, 'acting_as_refresh')
+
     def set_auth_cookies(self, response, user_id: str, access_token: str = None, refresh_token: str = None):
         """Set secure httpOnly cookies for authentication (works for both same-origin and cross-origin)
 
@@ -682,6 +745,38 @@ class SessionManager:
             }
         return None
     
+    def _refresh_impersonation_session(self, refresh_token: str) -> Optional[tuple]:
+        """If the refresh token is an impersonation refresh token, re-mint a fresh
+        impersonation access + refresh token pair preserving the target identity.
+
+        Returns the same tuple shape as refresh_session
+        (access_token, refresh_token, effective_user_id, token_issued_at), or None
+        if the token is not an impersonation refresh token.
+        """
+        mq = self.verify_masquerade_refresh_token(refresh_token)
+        if mq:
+            admin_id = mq.get('user_id')
+            target_id = mq.get('masquerade_as')
+            if not admin_id or not target_id:
+                return None
+            new_access = self.generate_masquerade_token(admin_id, target_id)
+            new_refresh = self.generate_masquerade_refresh_token(admin_id, target_id)
+            logger.debug(f"[SessionManager] Re-minted masquerade tokens for admin {admin_id[:8]}... as {target_id[:8]}...")
+            return new_access, new_refresh, target_id, datetime.now(timezone.utc)
+
+        aa = self.verify_acting_as_refresh_token(refresh_token)
+        if aa:
+            parent_id = aa.get('user_id')
+            dependent_id = aa.get('acting_as')
+            if not parent_id or not dependent_id:
+                return None
+            new_access = self.generate_acting_as_token(parent_id, dependent_id)
+            new_refresh = self.generate_acting_as_refresh_token(parent_id, dependent_id)
+            logger.debug(f"[SessionManager] Re-minted acting-as tokens for parent {parent_id[:8]}... as {dependent_id[:8]}...")
+            return new_access, new_refresh, dependent_id, datetime.now(timezone.utc)
+
+        return None
+
     def refresh_session(self, refresh_token_override: Optional[str] = None) -> Optional[tuple]:
         """Refresh the session using refresh token from cookie or request body"""
         # Allow refresh token to be passed in request body for cross-origin
@@ -689,6 +784,15 @@ class SessionManager:
 
         if not refresh_token:
             return None
+
+        # Impersonation refresh tokens (masquerade / acting-as) re-mint an
+        # impersonation access token so the session keeps the TARGET identity
+        # across refreshes. Without this, the 401-refresh path would mint a plain
+        # access token for the admin/parent and silently revert the session.
+        # Checked before verify_refresh_token, which only accepts type='refresh'.
+        impersonation = self._refresh_impersonation_session(refresh_token)
+        if impersonation:
+            return impersonation
 
         payload = self.verify_refresh_token(refresh_token)
         if not payload:

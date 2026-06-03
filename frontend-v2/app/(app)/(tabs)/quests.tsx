@@ -4,16 +4,18 @@
  */
 
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Image, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
-import { router } from 'expo-router';
+import { View, Image, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent, Alert } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import api from '@/src/services/api';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
+import { CreateQuestSheet } from '@/src/components/journal/CreateQuestSheet';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon,
@@ -24,7 +26,14 @@ const pillarColors: Record<string, string> = {
   civics: 'bg-pillar-civics', wellness: 'bg-pillar-wellness',
 };
 
-function QuestCard({ quest }: { quest: any }) {
+function QuestCard({ quest, forChildName, onAdd, adding }: {
+  quest: any;
+  /** When set, the card is in parent-for-child mode: the action adds the quest
+   *  to the child's account instead of opening the student quest page. */
+  forChildName?: string | null;
+  onAdd?: (questId: string) => void;
+  adding?: boolean;
+}) {
   const imageUrl = quest.header_image_url || quest.image_url;
 
   // No h-full / flex-1 here — on mobile (single column, no parent height) those
@@ -63,9 +72,15 @@ function QuestCard({ quest }: { quest: any }) {
               </UIText>
             )}
           </HStack>
-          <Button size="xs" onPress={() => router.push(`/(app)/quests/${quest.id}`)}>
-            <ButtonText>View</ButtonText>
-          </Button>
+          {forChildName ? (
+            <Button size="xs" onPress={() => onAdd?.(quest.id)} loading={!!adding} disabled={!!adding}>
+              <ButtonText>Add</ButtonText>
+            </Button>
+          ) : (
+            <Button size="xs" onPress={() => router.push(`/(app)/quests/${quest.id}`)}>
+              <ButtonText>View</ButtonText>
+            </Button>
+          )}
         </HStack>
       </VStack>
     </Card>
@@ -98,6 +113,28 @@ export default function QuestsScreen() {
   const openCreateQuest = useStartSomethingStore((s) => s.openCreateQuest);
   const c = useThemeColors();
 
+  // Parent-for-child mode: when navigated here from the Family dashboard with a
+  // child target, creating or adding a quest lands on the CHILD's account.
+  const params = useLocalSearchParams<{ forChildId?: string; forChildName?: string }>();
+  const forChildId = typeof params.forChildId === 'string' ? params.forChildId : null;
+  const forChildName = typeof params.forChildName === 'string' ? params.forChildName : 'your child';
+  const forChild = forChildId ? { id: forChildId, name: forChildName } : null;
+  const [createForChildOpen, setCreateForChildOpen] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  const addQuestForChild = useCallback(async (questId: string) => {
+    if (!forChildId) return;
+    setAddingId(questId);
+    try {
+      await api.post(`/api/family/quests/${questId}/enroll-children`, { child_ids: [forChildId] });
+      router.push(`/parent/quest/${forChildId}/${questId}` as any);
+    } catch (e: any) {
+      Alert.alert('Could not add quest', e?.response?.data?.error || 'Failed to add this quest. Try again.');
+    } finally {
+      setAddingId(null);
+    }
+  }, [forChildId]);
+
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
@@ -114,13 +151,34 @@ export default function QuestsScreen() {
 
           <VStack space="lg" className="px-5 md:px-8">
 
+          {forChild && (
+            <Card variant="filled" size="md" className="bg-optio-purple/10">
+              <HStack className="items-center gap-3">
+                <View className="w-9 h-9 rounded-full bg-optio-purple/15 items-center justify-center">
+                  <Ionicons name="people-outline" size={18} color="#6D469B" />
+                </View>
+                <VStack className="flex-1 min-w-0">
+                  <UIText size="sm" className="font-poppins-semibold text-optio-purple" numberOfLines={1}>
+                    Adding for {forChildName}
+                  </UIText>
+                  <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>
+                    Anything you create or add goes to their account.
+                  </UIText>
+                </VStack>
+                <Pressable onPress={() => router.back()} hitSlop={8}>
+                  <UIText size="sm" className="text-optio-purple font-poppins-semibold">Done</UIText>
+                </Pressable>
+              </HStack>
+            </Card>
+          )}
+
           <Button
             size="lg"
-            onPress={openCreateQuest}
+            onPress={forChild ? () => setCreateForChildOpen(true) : openCreateQuest}
             testID="quests-create-your-own"
           >
             <Ionicons name="rocket-outline" size={18} color="#FFFFFF" />
-            <ButtonText>Create your own quest</ButtonText>
+            <ButtonText>{forChild ? `Create a quest for ${forChildName}` : 'Create your own quest'}</ButtonText>
           </Button>
 
           <Input variant="rounded" size="lg">
@@ -179,7 +237,12 @@ export default function QuestsScreen() {
               <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
                 {quests.map((q) => (
                   <View key={q.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]">
-                    <QuestCard quest={q} />
+                    <QuestCard
+                      quest={q}
+                      forChildName={forChild ? forChildName : null}
+                      onAdd={addQuestForChild}
+                      adding={addingId === q.id}
+                    />
                   </View>
                 ))}
               </View>
@@ -203,6 +266,16 @@ export default function QuestsScreen() {
 
         </VStack>
       </ScrollView>
+
+      {/* Create-for-child sheet — reuses the student CreateQuestSheet. */}
+      {forChild && (
+        <CreateQuestSheet
+          visible={createForChildOpen}
+          onClose={() => setCreateForChildOpen(false)}
+          forChild={forChild}
+          onCreated={() => setCreateForChildOpen(false)}
+        />
+      )}
 
     </SafeAreaView>
   );

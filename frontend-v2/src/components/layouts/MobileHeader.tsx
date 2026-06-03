@@ -4,13 +4,14 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, Platform, Modal, Alert } from 'react-native';
+import { View, Pressable, Platform, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
+import { useAddKidStore } from '@/src/stores/addKidStore';
 
 const PREVIEW_ROLE_LABEL: Record<string, string> = {
   parent: 'Parent',
@@ -111,14 +112,14 @@ function AvatarMenu() {
       key: 'add-child',
       label: 'Add a child',
       icon: 'person-add-outline' as keyof typeof Ionicons.glyphMap,
-      onPress: () => {
-        setMenuOpen(false);
-        Alert.alert(
-          'Add a child',
-          'Adding a new dependent or connecting to an existing student is currently available on the web app. Visit your Family Settings on web to add a child.',
-        );
-      },
+      onPress: () => { setMenuOpen(false); useAddKidStore.getState().open(); },
     }] : []),
+    {
+      key: 'settings',
+      label: 'Settings',
+      icon: 'settings-outline',
+      onPress: () => { setMenuOpen(false); router.push('/(app)/settings' as any); },
+    },
     {
       key: 'logout',
       label: 'Sign Out',
@@ -199,6 +200,20 @@ function AvatarMenu() {
             {/* Superadmin role preview controls */}
             {isSuperadmin && (
               <>
+                {/* Admin console — superadmin only. The admin tab is web-only in
+                    the tab bar; this is the native entry point to the same
+                    screen (users list, masquerade, user details). */}
+                <Pressable
+                  onPress={() => { setMenuOpen(false); router.push('/(app)/(tabs)/admin' as any); }}
+                  style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.surfaceMuted, marginTop: 4 }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={c.icon} />
+                    <UIText size="sm" style={{ color: c.text }} className="font-poppins-medium">
+                      Admin
+                    </UIText>
+                  </View>
+                </Pressable>
                 <View style={{ borderTopWidth: 1, borderTopColor: c.surfaceMuted, marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
                   <UIText size="xs" style={{ color: c.textFaint, fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
                     Preview as
@@ -257,7 +272,7 @@ function AvatarMenu() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <Ionicons name="arrow-back" size={18} color="#6D469B" />
                   <UIText size="sm" style={{ color: '#6D469B' }} className="font-poppins-semibold">
-                    Exit demo view
+                    End Masquerade
                   </UIText>
                 </View>
               </Pressable>
@@ -316,6 +331,37 @@ function NotificationBell() {
   );
 }
 
+// Small badge shown next to the page title while an admin is masquerading as
+// another user, so it's always obvious whose account you're viewing.
+function MasqueradeBadge() {
+  const isActive = useActingAsStore((s) => s.isActive);
+  const mode = useActingAsStore((s) => s.mode);
+  const target = useActingAsStore((s) => s.target);
+
+  if (!isActive || mode !== 'masquerade') return null;
+
+  const name = target?.first_name || target?.display_name || 'user';
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+        backgroundColor: '#EF597B',
+      }}
+    >
+      <Ionicons name="eye-outline" size={11} color="#FFFFFF" />
+      <UIText size="xs" style={{ color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold' }}>
+        as {name}
+      </UIText>
+    </View>
+  );
+}
+
 export function PageHeader({ title }: PageHeaderProps) {
   const { isDesktop } = useBreakpoint();
 
@@ -325,7 +371,10 @@ export function PageHeader({ title }: PageHeaderProps) {
   return (
     <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Heading size="2xl">{title}</Heading>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+          <Heading size="2xl">{title}</Heading>
+          <MasqueradeBadge />
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <PreviewRolePill />
           <NotificationBell />

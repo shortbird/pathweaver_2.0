@@ -509,12 +509,12 @@ export function BountiesView() {
                 testID="bounty-active-claims-bridge"
                 onPress={() => router.push('/(app)/(tabs)/dashboard')}
               >
-                <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50">
-                  <Ionicons name="checkmark-circle-outline" size={18} color="#0F766E" />
-                  <UIText size="sm" className="text-emerald-900 flex-1">
+                <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950">
+                  <Ionicons name="checkmark-circle-outline" size={18} color={c.isDark ? '#6EE7B7' : '#0F766E'} />
+                  <UIText size="sm" className="text-emerald-900 dark:text-emerald-200 flex-1">
                     You have {activeClaimCount} bount{activeClaimCount === 1 ? 'y' : 'ies'} in progress — view on Home
                   </UIText>
-                  <Ionicons name="chevron-forward" size={16} color="#0F766E" />
+                  <Ionicons name="chevron-forward" size={16} color={c.isDark ? '#6EE7B7' : '#0F766E'} />
                 </View>
               </Pressable>
             </View>

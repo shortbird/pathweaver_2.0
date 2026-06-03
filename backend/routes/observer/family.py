@@ -274,7 +274,9 @@ def register_routes(bp):
     @require_auth
     def get_family_observers(user_id):
         """
-        Parent views all observers they've invited, grouped by observer with child access toggles.
+        Parent views all observers following their children, grouped by observer
+        with child access toggles. Scoped by the parent's children (not by who
+        sent each invite), so co-parents linked to the same kids share one roster.
 
         Returns:
             200: List of family observers with their child access details
@@ -321,11 +323,14 @@ def register_routes(bp):
             if not child_ids:
                 return jsonify({'observers': [], 'children': []}), 200
 
-            # Get all observer links for these children that were invited by this parent
+            # Get all observer links for these children. Scope by the children
+            # (child_ids already covers everything this parent manages via
+            # managed_by_parent_id + approved parent_student_links), NOT by which
+            # parent sent the invite -- co-parents linked to the same kids must
+            # see the same observer roster regardless of who invited each one.
             links = supabase.table('observer_student_links') \
                 .select('*') \
                 .in_('student_id', child_ids) \
-                .eq('invited_by_parent_id', parent_id) \
                 .execute()
 
             # Group by observer
@@ -361,12 +366,73 @@ def register_routes(bp):
                         })
 
                     observers_data.append({
+                        'status': 'accepted',
                         'observer_id': observer_id,
                         'observer_name': observer_info.get('display_name') or \
                             f"{observer_info.get('first_name', '')} {observer_info.get('last_name', '')}".strip(),
                         'observer_email': observer_info.get('email'),
                         'avatar_url': observer_info.get('avatar_url'),
                         'children': children_access
+                    })
+
+            # Also surface PENDING invitations (created at invite time, before the
+            # observer accepts) so a parent who just invited someone sees them
+            # immediately rather than an empty list. These live in
+            # observer_invitations (status='pending'), with covered children in
+            # observer_invitation_students — there is no observer user row yet, so
+            # there's no observer_id; the frontend keys/removes these by
+            # invitation_id via the invitation-revoke endpoint.
+            # Find pending invitations by the children they cover (not by who
+            # created them), so co-parents linked to the same kids see the same
+            # pending invites -- mirroring the accepted-observer scoping above.
+            now_iso = datetime.utcnow().isoformat()
+            pending_links = supabase.table('observer_invitation_students') \
+                .select('invitation_id, student_id') \
+                .in_('student_id', child_ids) \
+                .execute()
+
+            covered_invitation_ids = list(set(
+                l['invitation_id'] for l in pending_links.data
+            ))
+
+            pending_invites = supabase.table('observer_invitations') \
+                .select('id, invitation_code, created_at, expires_at') \
+                .in_('id', covered_invitation_ids) \
+                .eq('status', 'pending') \
+                .gt('expires_at', now_iso) \
+                .order('created_at', desc=True) \
+                .execute() if covered_invitation_ids else None
+
+            if pending_invites and pending_invites.data:
+                for inv in pending_invites.data:
+                    # pending_links is already scoped to this parent's children,
+                    # so every match here is a child this parent manages.
+                    covered = [
+                        l['student_id'] for l in pending_links.data
+                        if l['invitation_id'] == inv['id']
+                    ]
+                    if not covered:
+                        continue  # invitation covers none of this parent's current children
+
+                    pending_children = [{
+                        'student_id': child_id,
+                        'student_name': children_map[child_id].get('display_name') or \
+                            f"{children_map[child_id].get('first_name', '')} {children_map[child_id].get('last_name', '')}".strip(),
+                        'avatar_url': children_map[child_id].get('avatar_url'),
+                        'enabled': True,
+                        'link_id': None,
+                    } for child_id in covered]
+
+                    observers_data.append({
+                        'status': 'pending',
+                        'invitation_id': inv['id'],
+                        'observer_id': None,
+                        'observer_name': None,
+                        'observer_email': None,
+                        'avatar_url': None,
+                        'expires_at': inv['expires_at'],
+                        'created_at': inv['created_at'],
+                        'children': pending_children,
                     })
 
             # Format children list for the response
@@ -466,23 +532,15 @@ def register_routes(bp):
                     logger.info(f"Child access enabled: observer={observer_id}, student={student_id}, by_parent={parent_id}")
             else:
                 if existing_link.data:
-                    # Only delete if this parent invited this observer
-                    # Check if this link was created by this parent
-                    link_check = supabase.table('observer_student_links') \
-                        .select('id') \
+                    # Authorization is by child ownership (verified above), not by
+                    # who invited the observer -- co-parents managing the same kids
+                    # can each toggle observer access for those kids.
+                    supabase.table('observer_student_links') \
+                        .delete() \
                         .eq('id', existing_link.data[0]['id']) \
-                        .eq('invited_by_parent_id', parent_id) \
                         .execute()
 
-                    if link_check.data:
-                        supabase.table('observer_student_links') \
-                            .delete() \
-                            .eq('id', existing_link.data[0]['id']) \
-                            .execute()
-
-                        logger.info(f"Child access disabled: observer={observer_id}, student={student_id}, by_parent={parent_id}")
-                    else:
-                        return jsonify({'error': 'Cannot modify observer link not created by you'}), 403
+                    logger.info(f"Child access disabled: observer={observer_id}, student={student_id}, by_parent={parent_id}")
 
             return jsonify({
                 'status': 'success',
@@ -538,11 +596,14 @@ def register_routes(bp):
             if not child_ids:
                 return jsonify({'error': 'No children found'}), 404
 
-            # Delete all observer links for this observer that were invited by this parent
+            # Delete this observer's links across all of this parent's children.
+            # Scoped by child_ids (not by who invited), so a co-parent can remove
+            # an observer the other parent added. RLS-safe: child_ids only ever
+            # contains kids this parent manages.
             deleted = supabase.table('observer_student_links') \
                 .delete() \
                 .eq('observer_id', observer_id) \
-                .eq('invited_by_parent_id', parent_id) \
+                .in_('student_id', child_ids) \
                 .execute()
 
             logger.info(f"Family observer removed: observer={observer_id}, by_parent={parent_id}")
@@ -631,7 +692,11 @@ def register_routes(bp):
     @require_auth
     @validate_uuid_param('invitation_id')
     def revoke_pending_family_invite(user_id, invitation_id):
-        """Parent revokes a pending invitation they sent."""
+        """Parent revokes a pending invitation covering one of their children.
+
+        Authorized by child ownership (not by who created the invite), so a
+        co-parent linked to the same kids can revoke the other parent's invite.
+        """
         parent_id = user_id
 
         try:
@@ -644,13 +709,41 @@ def register_routes(bp):
 
             if not invite.data:
                 return jsonify({'error': 'Invitation not found'}), 404
-            if invite.data['invited_by_user_id'] != parent_id:
-                return jsonify({'error': 'Not authorized to revoke this invitation'}), 403
             if invite.data['status'] != 'pending':
                 return jsonify({'error': 'Invitation is not pending'}), 400
 
+            # Authorize: this parent must manage at least one child covered by the
+            # invitation. Build the parent's child set (dependents + approved links)
+            # and intersect with the invitation's covered students.
+            dependents = supabase.table('users') \
+                .select('id') \
+                .eq('managed_by_parent_id', parent_id) \
+                .execute()
+            linked = supabase.table('parent_student_links') \
+                .select('student_user_id') \
+                .eq('parent_user_id', parent_id) \
+                .eq('status', 'approved') \
+                .execute()
+            child_ids = set(
+                [d['id'] for d in dependents.data]
+                + [l['student_user_id'] for l in linked.data]
+            )
+
+            covered = supabase.table('observer_invitation_students') \
+                .select('student_id') \
+                .eq('invitation_id', invitation_id) \
+                .execute()
+            covered_ids = {c['student_id'] for c in covered.data}
+
+            if not (child_ids & covered_ids):
+                return jsonify({'error': 'Not authorized to revoke this invitation'}), 403
+
+            # Mark as 'expired' (the constraint-valid terminal state the accept
+            # flow already treats as revoked -- see acceptance.py, which returns
+            # "Invitation has been revoked" for status='expired'). 'cancelled' is
+            # NOT permitted by observer_invitations_valid_status.
             supabase.table('observer_invitations') \
-                .update({'status': 'cancelled'}) \
+                .update({'status': 'expired'}) \
                 .eq('id', invitation_id) \
                 .execute()
 

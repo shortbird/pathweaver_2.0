@@ -16,6 +16,7 @@ import {
   useConversations,
   useContacts,
   useGroups,
+  useChildren,
   type Contact,
   type Group,
 } from '@/src/hooks/useMessages';
@@ -23,6 +24,7 @@ import { ConversationList } from '@/src/components/communication/ConversationLis
 import { ChatWindow } from '@/src/components/communication/ChatWindow';
 import { GroupChatWindow } from '@/src/components/communication/GroupChatWindow';
 import { CreateGroupModal } from '@/src/components/communication/CreateGroupModal';
+import { ChildMessagesView } from '@/src/components/communication/ChildMessagesView';
 
 interface SelectedConversation {
   id: string;
@@ -37,23 +39,40 @@ export default function MessagesScreen() {
   const isMobile = !isDesktop;
   const c = useThemeColors();
 
+  // Parents get the read-only "view my child's messages" entry point. Superadmins
+  // who are also linked as a parent (e.g. to their own kids) see it too.
+  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role;
+  const isParent = effectiveRole === 'parent';
+  const isSuperadmin = effectiveRole === 'superadmin';
+
   const { conversations, loading: convoLoading, refetch: refetchConversations } = useConversations();
   const { contacts, loading: contactsLoading } = useContacts();
   const { groups, loading: groupsLoading, refetch: refetchGroups } = useGroups();
+  const { children: parentChildren } = useChildren(isParent || isSuperadmin);
 
   const [selected, setSelected] = useState<SelectedConversation | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showChildMessages, setShowChildMessages] = useState(false);
   const setTabBarHidden = useUIStore((s) => s.setTabBarHidden);
 
-  // Hide tab bar when in a conversation on mobile
+  // Always show the entry for parents; for superadmins only when they actually
+  // have linked children (so a non-parent superadmin doesn't get an empty entry).
+  const canViewChildMessages = isParent || (isSuperadmin && parentChildren.length > 0);
+
+  // With exactly one linked child, label the entry point with their name.
+  const onlyChild = canViewChildMessages && parentChildren.length === 1 ? parentChildren[0] : null;
+  const childMessagesLabel = onlyChild
+    ? `${`${onlyChild.first_name || ''} ${onlyChild.last_name || ''}`.trim() || onlyChild.display_name || 'Your child'}'s messages`
+    : undefined;
+
+  // Hide tab bar when in a conversation or the child-messages view on mobile
   useEffect(() => {
     if (!isMobile) return;
-    setTabBarHidden(!!selected);
+    setTabBarHidden(!!selected || showChildMessages);
     return () => setTabBarHidden(false);
-  }, [selected, isMobile, setTabBarHidden]);
+  }, [selected, showChildMessages, isMobile, setTabBarHidden]);
 
   // Check if user can create groups (advisor, org_admin, superadmin)
-  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role;
   const canCreateGroups = ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole || '');
 
   const handleGroupCreated = (group: any) => {
@@ -65,13 +84,24 @@ export default function MessagesScreen() {
 
   // ── Mobile: full-screen list or full-screen chat ──
   if (isMobile) {
+    // Child message history view (parents, read-only)
+    if (showChildMessages) {
+      return <ChildMessagesView onBack={() => setShowChildMessages(false)} isMobile />;
+    }
+
     // Chat view
     if (selected) {
       if (selected.type === 'dm' && selected.contact) {
         return <ChatWindow contact={selected.contact} conversationId={selected.id} onBack={handleBack} />;
       }
       if (selected.type === 'group' && selected.group) {
-        return <GroupChatWindow group={selected.group} onBack={handleBack} />;
+        return (
+          <GroupChatWindow
+            group={selected.group}
+            onBack={handleBack}
+            onDeleted={() => { setSelected(null); refetchGroups(); }}
+          />
+        );
       }
     }
 
@@ -87,6 +117,8 @@ export default function MessagesScreen() {
           onCreateGroup={() => setShowCreateGroup(true)}
           loading={convoLoading || contactsLoading || groupsLoading}
           canCreateGroups={canCreateGroups}
+          onViewChildMessages={canViewChildMessages ? () => setShowChildMessages(true) : undefined}
+          childMessagesLabel={childMessagesLabel}
           isMobile
         />
         <CreateGroupModal
@@ -107,19 +139,26 @@ export default function MessagesScreen() {
         groups={groups}
         conversations={conversations}
         selected={selected}
-        onSelect={setSelected}
+        onSelect={(conv) => { setShowChildMessages(false); setSelected(conv); }}
         onCreateGroup={() => setShowCreateGroup(true)}
         loading={convoLoading || contactsLoading || groupsLoading}
         canCreateGroups={canCreateGroups}
+        onViewChildMessages={canViewChildMessages ? () => { setSelected(null); setShowChildMessages(true); } : undefined}
+        childMessagesLabel={childMessagesLabel}
       />
 
       {/* Right: Chat window — capped so it stays readable on ultra-wide screens */}
       <View className="flex-1 items-center bg-white dark:bg-dark-surface-100">
         <View className="flex-1 w-full max-w-4xl">
-        {selected?.type === 'dm' && selected.contact ? (
+        {showChildMessages ? (
+          <ChildMessagesView onBack={() => setShowChildMessages(false)} />
+        ) : selected?.type === 'dm' && selected.contact ? (
           <ChatWindow contact={selected.contact} conversationId={selected.id} />
         ) : selected?.type === 'group' && selected.group ? (
-          <GroupChatWindow group={selected.group} />
+          <GroupChatWindow
+            group={selected.group}
+            onDeleted={() => { setSelected(null); refetchGroups(); }}
+          />
         ) : (
           <View className="flex-1 items-center justify-center bg-white dark:bg-dark-surface-100">
             <Ionicons name="chatbubbles-outline" size={64} color={c.border} />

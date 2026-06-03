@@ -595,6 +595,22 @@ class MediaUploadService:
                 error_code='VERIFY_FAILED',
             )
 
+        # Reject empty uploads. A 0-byte object means the client wrote no bytes —
+        # the classic iOS failure where a photo-library (ph://) asset serialized
+        # to an empty multipart body. Persisting it would hand back a URL that
+        # renders blank forever ("photos disappear on iPhone"), so fail loudly
+        # and clean up so the client can prompt a retry.
+        if file_size <= 0:
+            try:
+                supabase.storage.from_(bucket).remove([storage_path])
+            except Exception:
+                logger.debug("failed to clean up empty upload", exc_info=True)
+            return MediaUploadResult(
+                success=False,
+                error_message='Uploaded file is empty. Please try selecting the photo or video again.',
+                error_code='FILE_EMPTY',
+            )
+
         # Enforce per-context size limit again, now against actual bytes stored.
         # Supabase's bucket-level limit is the outermost cap; this is the
         # per-media-type cap (e.g. document uploaded as .mp4 extension).

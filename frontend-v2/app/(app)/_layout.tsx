@@ -59,6 +59,7 @@ export default function AppLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="settings" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="quests/[id]" />
       <Stack.Screen name="bounties/[id]" />

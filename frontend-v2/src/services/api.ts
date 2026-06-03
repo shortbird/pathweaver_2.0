@@ -60,6 +60,37 @@ function processQueue(error: unknown, token: string | null) {
   refreshQueue = [];
 }
 
+/**
+ * Refresh the access token using the in-memory/SecureStore refresh token (native)
+ * or the httpOnly refresh cookie (web), update tokenStore, and return the new
+ * access token — or null if the refresh failed.
+ *
+ * Shared so non-axios callers can recover from a 401 the same way the response
+ * interceptor does. The in-app bug reporter posts via raw `fetch` (axios mangles
+ * RN multipart), which means it bypasses the 401-refresh interceptor below; it
+ * uses this helper to refresh-and-retry instead.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const refreshToken = tokenStore.getRefreshToken();
+    // Web relies on the httpOnly cookie (sent via withCredentials); native must
+    // have a refresh token in SecureStore.
+    if (!refreshToken && Platform.OS !== 'web') {
+      return null;
+    }
+    const body = refreshToken ? { refresh_token: refreshToken } : {};
+    const { data } = await postRefreshWithRetry(body, {
+      post: (path, b) => api.post(path, b),
+    });
+    const newAccess = data.access_token;
+    const newRefresh = data.refresh_token;
+    await tokenStore.setTokens(newAccess, newRefresh);
+    return newAccess;
+  } catch {
+    return null;
+  }
+}
+
 // Request interceptor: attach Bearer token
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStore.getAccessToken();
@@ -136,6 +167,29 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * Decide whether a failed token refresh should tear down the session.
+ *
+ * Only a *genuine* auth failure should log the user out:
+ *   - the backend rejected /api/auth/refresh with 401/403 (refresh token
+ *     invalid/expired), or
+ *   - there was no refresh token to send at all (native session is gone).
+ *
+ * Everything else is recoverable and must NOT clear tokens: a network error
+ * (no response), a timeout, or a 5xx (e.g. a Render cold start). Without this
+ * guard a single 401 on a non-critical screen — tapping the notifications bell —
+ * paired with a transient refresh hiccup would clear the tokens and bounce a
+ * perfectly valid session to login. Leave the tokens in place so the next
+ * request can recover.
+ */
+function isUnrecoverableAuthFailure(error: unknown): boolean {
+  if (error instanceof Error && error.message === 'No refresh token') {
+    return true;
+  }
+  const status = (error as AxiosError)?.response?.status;
+  return status === 401 || status === 403;
+}
+
 // Response interceptor: auto-refresh on 401
 api.interceptors.response.use(
   (response) => response,
@@ -193,7 +247,13 @@ api.interceptors.response.use(
       return api(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
-      await tokenStore.clearTokens();
+      // Tear down the session only when the refresh genuinely failed because the
+      // credentials are invalid/expired — never on a transient/recoverable error.
+      // This is what stops a flaky 401 (e.g. from the notifications screen) from
+      // logging the user out.
+      if (isUnrecoverableAuthFailure(refreshError)) {
+        await tokenStore.clearTokens();
+      }
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
@@ -323,24 +383,44 @@ export const bugReportAPI = {
    * `screenshot` is an optional native file ({ uri, name, type }).
    */
   submit: async (context: BugReportContext, screenshot?: { uri: string; name: string; type: string } | null) => {
-    const form = new FormData();
-    form.append('context', JSON.stringify(context));
-    if (screenshot) {
-      // React Native FormData accepts the { uri, name, type } file shape.
-      form.append('screenshot', screenshot as unknown as Blob);
-    }
+    // Build a fresh FormData per attempt: RN consumes the multipart body when it
+    // sends, so a retry needs its own instance.
+    const buildForm = () => {
+      const form = new FormData();
+      form.append('context', JSON.stringify(context));
+      if (screenshot) {
+        // React Native FormData accepts the { uri, name, type } file shape.
+        form.append('screenshot', screenshot as unknown as Blob);
+      }
+      return form;
+    };
     // NOTE: deliberately NOT axios. On React Native, posting FormData through
     // axios fails at the transport layer with ERR_NETWORK ("Network Error",
     // no status) — the request never leaves the device. RN's own fetch handles
     // multipart boundaries correctly (the same reason signedUpload uses XHR).
     // We attach the Bearer token manually and let fetch set Content-Type.
-    const token = tokenStore.getAccessToken();
-    const res = await fetch(`${API_URL}/api/bug-reports`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: form,
-      credentials: Platform.OS === 'web' ? 'include' : 'omit',
-    });
+    const doFetch = (token: string | null) =>
+      fetch(`${API_URL}/api/bug-reports`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: buildForm(),
+        credentials: Platform.OS === 'web' ? 'include' : 'omit',
+      });
+
+    let res = await doFetch(tokenStore.getAccessToken());
+
+    // This raw-fetch path bypasses the axios 401-refresh interceptor, so handle
+    // refresh here. The iOS failure mode (Sentry NODE-B): the in-memory access
+    // token expired while the app sat in the foreground, the report 401'd, and
+    // with no refresh-and-retry the user just saw "Could not send". Refresh once
+    // and retry before giving up.
+    if (res.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        res = await doFetch(refreshed);
+      }
+    }
+
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       const err = new Error(`Bug report failed (${res.status}) ${detail}`.trim()) as Error & {
@@ -365,6 +445,12 @@ export const messageAPI = {
   contacts: () => api.get('/api/messages/contacts'),
   canMessage: (targetUserId: string) =>
     api.get(`/api/messages/can-message/${targetUserId}`),
+  // Parent (or superadmin) read-only access to a child's message history.
+  children: () => api.get('/api/messages/children'),
+  childConversations: (childId: string) =>
+    api.get(`/api/messages/children/${childId}/conversations`),
+  childConversationMessages: (childId: string, conversationId: string) =>
+    api.get(`/api/messages/children/${childId}/conversations/${conversationId}`),
 };
 
 export const groupAPI = {
@@ -374,6 +460,8 @@ export const groupAPI = {
     api.post('/api/groups', data),
   update: (groupId: string, data: { name?: string; description?: string }) =>
     api.put(`/api/groups/${groupId}`, data),
+  delete: (groupId: string) =>
+    api.delete(`/api/groups/${groupId}`),
   addMember: (groupId: string, userId: string) =>
     api.post(`/api/groups/${groupId}/members`, { user_id: userId }),
   removeMember: (groupId: string, userId: string) =>

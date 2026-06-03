@@ -14,6 +14,7 @@ import { VideoPlayer } from './VideoPlayer';
 import { DocumentViewer } from './DocumentViewer';
 import { MediaModal } from './MediaModal';
 import { LinkPreviewCard } from './LinkPreviewCard';
+import { AudioClipPreview } from '../capture/VoiceRecorder';
 import type { FeedItem } from '@/src/hooks/useFeed';
 import { getViewers, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
 import { haptic } from '@/src/utils/haptics';
@@ -91,6 +92,15 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
   const documentBlocks = evidence?.blocks?.filter((b) => b.type === 'document' && !isHeicUrl(b.url)) || [];
   const linkBlocks = evidence?.blocks?.filter((b) => b.type === 'link' && !isHeicUrl(b.url)) || [];
 
+  // Voice notes — learning moments carry audio in `media`; tasks may carry it
+  // as a block. Always playable, independent of any image/video above.
+  const audioItems = [
+    ...allMedia.filter((m) => m.type === 'audio'),
+    ...(evidence?.blocks?.filter((b) => b.type === 'audio') || []).map((b: any) => ({
+      url: b.url, title: b.title, duration_ms: b.content?.duration_ms,
+    })),
+  ].filter((a) => a.url);
+
   // Top-level link/document: skip if HEIC (handled as image above)
   const isLink = evidence?.type === 'link' && evidence?.url && !topLevelIsHeic;
   const isDocument = evidence?.type === 'document' && evidence?.url && !topLevelIsHeic;
@@ -115,6 +125,16 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
       {videoUrl && !imageUrl && (
         <VideoPlayer uri={videoUrl} />
       )}
+
+      {/* Voice notes — inline audio player. Wrapped so play taps don't bubble
+          to the card's onPress. */}
+      {audioItems.map((a, i) => (
+        <Pressable key={`audio-${i}`} onPress={(e) => e.stopPropagation?.()}>
+          <AudioClipPreview
+            clip={{ uri: a.url!, name: a.title || 'Voice note', fileSize: 0, durationMs: a.duration_ms || 0 }}
+          />
+        </Pressable>
+      ))}
 
       {/* Text evidence - expandable (skip if same as description, shown above) */}
       {textContent && !imageUrl && !videoUrl && textContent !== description && (
@@ -230,7 +250,10 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
         await navigator.clipboard.writeText(share_url);
         showToast('Link copied!');
       } else {
-        await Share.share({ url: share_url, message: share_url });
+        // iOS shares `message` and `url` separately — passing the URL as both
+        // makes it appear twice. iOS: `url` only; Android ignores `url`, so it
+        // needs the link in `message`.
+        await Share.share(Platform.OS === 'ios' ? { url: share_url } : { message: share_url });
       }
     } catch {
       showToast('Failed to share');

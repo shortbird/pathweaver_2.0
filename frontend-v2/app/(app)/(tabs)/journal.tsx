@@ -419,10 +419,10 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   // ── Desktop layout ──
   if (isDesktop) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 flex-row">
           {/* Sidebar */}
-          <View className="w-72 bg-white border-r border-surface-200 px-3 pt-4">
+          <View className="w-72 bg-white dark:bg-dark-surface-100 border-r border-surface-200 dark:border-dark-surface-300 px-3 pt-4">
             <HStack className="items-center justify-between px-3 mb-3">
               <Heading size="md">{headerTitle || 'Journal'}</Heading>
               <HStack className="items-center gap-2">
@@ -563,7 +563,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
 
   // ── Mobile layout ──
   return (
-    <SafeAreaView className="flex-1 bg-surface-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       {mobileTab === 'topics' ? (
         <VStack className="flex-1">
           {isParent ? (

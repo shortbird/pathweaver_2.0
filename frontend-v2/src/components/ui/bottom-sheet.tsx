@@ -12,12 +12,14 @@
  * free — no per-sheet changes needed.
  *
  * `mounted` state keeps the Modal rendered through the close animation before
- * unmounting. Content is wrapped in KeyboardAvoidingView on mobile so sheets
- * with text inputs don't get covered by the soft keyboard.
+ * unmounting. On mobile the sheet's bottom padding tracks the soft-keyboard
+ * height (via Keyboard events) so text inputs aren't covered — and always
+ * resets to 0 on dismiss, avoiding the residual-gap bug KeyboardAvoidingView
+ * exhibits inside a Modal.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Modal, Pressable, KeyboardAvoidingView, Platform, Animated, Dimensions, Easing, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Modal, Pressable, Keyboard, Platform, Animated, Dimensions, Easing, ScrollView, useWindowDimensions } from 'react-native';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
@@ -51,6 +53,12 @@ export function BottomSheet({
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const sheetOpacity = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  // Keyboard-driven bottom padding for the phone bottom sheet. We track the
+  // keyboard height ourselves instead of using KeyboardAvoidingView, which —
+  // inside a Modal on iOS — intermittently leaves residual padding after the
+  // keyboard hides (the "buffer below the drawer" bug). Driving paddingBottom
+  // off Keyboard events guarantees it returns to exactly 0 on dismiss.
+  const keyboardPad = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -101,6 +109,30 @@ export function BottomSheet({
       });
     }
   }, [visible]);
+
+  // Track keyboard height → animate the sheet's bottom padding. Always settles
+  // back to 0 on hide so no gap lingers below the sheet. Large-screen dialog is
+  // centered + scrollable, so it doesn't need this.
+  useEffect(() => {
+    if (isLargeScreen) return;
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const animateTo = (toValue: number, duration: number) =>
+      Animated.timing(keyboardPad, {
+        toValue,
+        duration: duration || 250,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    const onShow = (e: any) => animateTo(e?.endCoordinates?.height ?? 0, e?.duration);
+    const onHide = (e: any) => animateTo(0, e?.duration);
+    const subShow = Keyboard.addListener(showEvt, onShow);
+    const subHide = Keyboard.addListener(hideEvt, onHide);
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, [isLargeScreen, keyboardPad]);
 
   if (!mounted) return null;
 
@@ -174,14 +206,12 @@ export function BottomSheet({
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
       {Backdrop}
-      <KeyboardAvoidingView
-        className="flex-1 justify-end"
-        // 'padding' on BOTH platforms: the sheet lives in a Modal, and Android's
-        // windowSoftInputMode=adjustResize does NOT resize Modal windows — so
-        // behavior={undefined} left text inputs covered by the keyboard on Android.
-        // Padding the bottom by the keyboard height lifts the bottom-anchored sheet
-        // above the keyboard on both iOS and Android.
-        behavior="padding"
+      {/* Bottom-anchored container; paddingBottom = keyboard height lifts the
+          sheet above the soft keyboard and resets to 0 on dismiss (no lingering
+          gap). Manual tracking is used because Android's adjustResize doesn't
+          resize Modal windows and iOS KeyboardAvoidingView leaves residual pad. */}
+      <Animated.View
+        style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: keyboardPad }}
         pointerEvents="box-none"
       >
         <Animated.View
@@ -210,7 +240,7 @@ export function BottomSheet({
             {children}
           </ScrollView>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </Modal>
   );
 }

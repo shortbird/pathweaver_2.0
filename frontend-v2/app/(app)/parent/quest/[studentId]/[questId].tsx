@@ -22,12 +22,15 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator, Image, RefreshControl, Alert } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator, Image, RefreshControl, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
+import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
+import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
+import { useChildEngagement } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Skeleton,
@@ -154,13 +157,49 @@ function EvidenceBlockRow({ block }: { block: EvidenceBlock }) {
 function TaskCard({
   task,
   studentId,
+  canComplete,
   onEvidenceAdded,
 }: {
   task: Task;
   studentId: string;
+  /** True for managed dependents — the complete endpoint only accepts
+   *  acting_as_dependent_id for under-13 dependents. */
+  canComplete: boolean;
   onEvidenceAdded: () => void;
 }) {
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [completing, setCompleting] = useState(false);
+
+  const handleMarkComplete = () => {
+    const doComplete = async () => {
+      setCompleting(true);
+      try {
+        // The complete endpoint requires an evidence payload; the parent's
+        // confirmation is recorded as a text block. Awards XP to the child.
+        const form = new FormData();
+        form.append('acting_as_dependent_id', studentId);
+        form.append('evidence_type', 'text');
+        form.append('text_content', 'Marked complete by parent');
+        form.append('is_confidential', 'false');
+        await api.post(`/api/tasks/${task.id}/complete`, form);
+        onEvidenceAdded();
+      } catch (e: any) {
+        Alert.alert('Could not complete', e?.response?.data?.error?.message || e?.response?.data?.error || 'Failed to mark this task complete.');
+      } finally {
+        setCompleting(false);
+      }
+    };
+    const msg = `Mark "${task.title}" complete? They'll earn ${task.xp_value} XP.`;
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (typeof confirm !== 'function' || confirm(msg)) doComplete();
+    } else {
+      Alert.alert('Mark complete?', msg, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Mark complete', onPress: doComplete },
+      ]);
+    }
+  };
 
   const handleSaveBlocks = useCallback(
     async (newBlocks: any[]) => {
@@ -244,21 +283,35 @@ function TaskCard({
           </View>
         )}
 
-        {/* Add-evidence button — hidden once the task is completed (parent
-            can no longer add to a completed task; the student would re-open
-            it themselves). */}
+        {/* Add-evidence / mark-complete — hidden once the task is completed. */}
         {!task.is_completed && (
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={() => setSheetVisible(true)}
-            className="self-start mt-1"
-          >
-            <HStack className="items-center gap-2">
-              <Ionicons name="add" size={14} color="#6D469B" />
-              <ButtonText>Add evidence</ButtonText>
-            </HStack>
-          </Button>
+          <HStack className="gap-2 mt-1 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={() => setSheetVisible(true)}
+              className="self-start"
+            >
+              <HStack className="items-center gap-2">
+                <Ionicons name="add" size={14} color="#6D469B" />
+                <ButtonText>Add evidence</ButtonText>
+              </HStack>
+            </Button>
+            {canComplete && (
+              <Button
+                size="sm"
+                onPress={handleMarkComplete}
+                loading={completing}
+                disabled={completing}
+                className="self-start"
+              >
+                <HStack className="items-center gap-2">
+                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  <ButtonText>Mark complete</ButtonText>
+                </HStack>
+              </Button>
+            )}
+          </HStack>
         )}
       </VStack>
 
@@ -288,6 +341,8 @@ export default function ParentQuestViewPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const { data: engagement } = useChildEngagement(studentId || null);
 
   const fetchData = useCallback(async () => {
     if (!studentId || !questId) return;
@@ -336,7 +391,58 @@ export default function ParentQuestViewPage() {
     );
   }
 
-  const { quest, tasks, progress } = data;
+  const { quest, tasks } = data;
+
+  // Persist a new task to the CHILD's quest enrollment (parent on-behalf-of).
+  // Same TaskCreationWizard UI as the student; only the write target differs.
+  const handleAddTaskForChild = async (task: any) => {
+    await api.post(`/api/family/quests/${questId}/tasks`, {
+      child_id: studentId,
+      title: task.title,
+      description: task.description,
+      pillar: task.pillar,
+      xp_value: task.xp_value,
+    });
+    await fetchData();
+  };
+
+  // Mirrors useQuestDetail.generateTasks so the AI step is identical for parents.
+  const generateTasksForChild = async (interests?: string, pillar?: string, subject?: string) => {
+    const { data: sess } = await api.post(`/api/quests/${questId}/start-personalization`, {});
+    const sessionId = sess.session_id;
+    const interestList = interests ? interests.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const { data: gen } = await api.post(`/api/quests/${questId}/generate-tasks`, {
+      session_id: sessionId,
+      approach: 'hybrid',
+      interests: interestList,
+      cross_curricular_subjects: subject ? [subject] : [],
+      exclude_tasks: tasks.map((t) => t.title),
+    });
+    return gen.tasks || gen.generated_tasks || [];
+  };
+
+  // Remove (un-enroll) the quest from the child. The enrollment-delete route
+  // accepts ?student_id= for parent/advisor delegation and reverses the XP.
+  const handleRemoveQuest = () => {
+    const doRemove = async () => {
+      try {
+        await api.delete(`/api/quests/${questId}/enrollment`, { params: { student_id: studentId } });
+        router.back();
+      } catch (e: any) {
+        Alert.alert('Could not remove', e?.response?.data?.error || 'Failed to remove this quest. Try again.');
+      }
+    };
+    const msg = 'Remove this quest from your kid? Their progress and XP for it will be removed. This cannot be undone.';
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (typeof confirm !== 'function' || confirm(msg)) doRemove();
+    } else {
+      Alert.alert('Remove quest?', msg, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: doRemove },
+      ]);
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
@@ -370,35 +476,8 @@ export default function ParentQuestViewPage() {
             )}
           </VStack>
 
-          {/* Progress */}
-          <Card variant="elevated" size="md">
-            <VStack space="sm">
-              <HStack className="items-center justify-between">
-                <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">
-                  Progress
-                </UIText>
-                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
-                  {progress.completed_tasks}/{progress.total_tasks} tasks · {progress.percentage}%
-                </UIText>
-              </HStack>
-              <View className="h-2 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
-                <View
-                  className="h-full rounded-full bg-optio-purple"
-                  style={{ width: `${progress.percentage}%` }}
-                />
-              </View>
-            </VStack>
-          </Card>
-
-          {/* Helper-evidence note */}
-          <Card variant="outline" size="sm" className="bg-amber-50 border-amber-200">
-            <HStack className="items-start gap-2">
-              <Ionicons name="information-circle-outline" size={18} color="#B45309" style={{ marginTop: 2 }} />
-              <UIText size="xs" style={{ color: '#92400E', flex: 1 }}>
-                Evidence you attach shows up on your kid's task as a draft block. They still need to mark the task complete themselves.
-              </UIText>
-            </HStack>
-          </Card>
+          {/* Engagement mini-calendar — replaces task-completion progress. */}
+          <QuestEngagement engagement={engagement} />
 
           {/* Tasks */}
           <VStack space="sm">
@@ -414,13 +493,45 @@ export default function ParentQuestViewPage() {
                   key={task.id}
                   task={task}
                   studentId={studentId!}
+                  canComplete={data.is_dependent}
                   onEvidenceAdded={fetchData}
                 />
               ))
             )}
+
+            {/* Add a task — only for managed dependents (the family task
+                endpoint requires managed_by_parent_id). Reuses the student's
+                TaskCreationWizard, writing to the child's enrollment. */}
+            {data.is_dependent && (
+              <Button
+                variant="outline"
+                onPress={() => setAddTaskOpen(true)}
+                className="self-start mt-1"
+              >
+                <HStack className="items-center gap-2">
+                  <Ionicons name="add" size={16} color="#6D469B" />
+                  <ButtonText>Add a task</ButtonText>
+                </HStack>
+              </Button>
+            )}
           </VStack>
+
+          {/* Remove quest from this kid */}
+          <Pressable onPress={handleRemoveQuest} className="py-3 items-center mt-2" style={{ minHeight: 44, justifyContent: 'center' }}>
+            <UIText size="sm" className="text-red-400">Remove quest</UIText>
+          </Pressable>
         </VStack>
       </ScrollView>
+
+      {/* Same task-creation wizard the student uses, pointed at the child. */}
+      <TaskCreationWizard
+        questId={questId!}
+        questTitle={quest.title}
+        open={addTaskOpen}
+        onClose={() => setAddTaskOpen(false)}
+        onGenerate={generateTasksForChild}
+        onAcceptTask={handleAddTaskForChild}
+      />
     </SafeAreaView>
   );
 }

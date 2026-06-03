@@ -11,9 +11,10 @@
  * imports — the component just no longer renders a visible FAB.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
 import { useInviteObserverStore } from '@/src/stores/inviteObserverStore';
+import { useAddKidStore } from '@/src/stores/addKidStore';
 import { ParentStartSomethingSheet } from '@/src/components/parent/ParentStartSomethingSheet';
 import { InviteObserverSheet } from '@/src/components/parent/InviteObserverSheet';
 import { AddKidSheet } from '@/src/components/parent/AddKidSheet';
@@ -23,11 +24,9 @@ interface ParentStartSomethingFabProps {
    *  can use the same capture-sheet instance for the center-tab and the
    *  parent action sheet). */
   onCaptureMoment: () => void;
-  /** Called when a new dependent is created so parent surfaces can refresh. */
-  onKidAdded?: () => void;
 }
 
-export function ParentStartSomethingFab({ onCaptureMoment, onKidAdded }: ParentStartSomethingFabProps) {
+export function ParentStartSomethingFab({ onCaptureMoment }: ParentStartSomethingFabProps) {
   const sheetVisible = useParentStartSomethingStore((s) => s.visible);
   const closeSheet = useParentStartSomethingStore((s) => s.close);
   // InviteObserverSheet is shared — also opened from the Family tab's
@@ -35,7 +34,9 @@ export function ParentStartSomethingFab({ onCaptureMoment, onKidAdded }: ParentS
   const inviteVisible = useInviteObserverStore((s) => s.visible);
   const openInvite = useInviteObserverStore((s) => s.open);
   const closeInvite = useInviteObserverStore((s) => s.close);
-  const [addKidVisible, setAddKidVisible] = useState(false);
+  // AddKidSheet is opened from the header kebab "Add a child" via the store.
+  const addKidVisible = useAddKidStore((s) => s.visible);
+  const closeAddKid = useAddKidStore((s) => s.close);
 
   return (
     <>
@@ -44,7 +45,6 @@ export function ParentStartSomethingFab({ onCaptureMoment, onKidAdded }: ParentS
         onClose={closeSheet}
         onCaptureMoment={onCaptureMoment}
         onInviteObserver={openInvite}
-        onAddKid={() => setAddKidVisible(true)}
       />
 
       <InviteObserverSheet
@@ -54,8 +54,7 @@ export function ParentStartSomethingFab({ onCaptureMoment, onKidAdded }: ParentS
 
       <AddKidSheet
         visible={addKidVisible}
-        onClose={() => setAddKidVisible(false)}
-        onCreated={() => onKidAdded?.()}
+        onClose={closeAddKid}
       />
     </>
   );

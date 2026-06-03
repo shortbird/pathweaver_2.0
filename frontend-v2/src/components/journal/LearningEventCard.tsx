@@ -13,6 +13,7 @@ import type { LearningEvent, UnifiedTopic } from '@/src/hooks/useJournal';
 import { deleteLearningEvent, assignMomentToTopic, deleteChildLearningEvent } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
+import { AudioClipPreview } from '../capture/VoiceRecorder';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -77,7 +78,10 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   const imageBlock = event.evidence_blocks?.find((b) => b.block_type === 'image' && getBlockUrl(b));
   const videoBlock = !imageBlock ? event.evidence_blocks?.find((b) => b.block_type === 'video' && getBlockUrl(b)) : null;
   const heroBlock = imageBlock || videoBlock;
-  const otherEvidence = event.evidence_blocks?.filter((b) => b !== heroBlock) || [];
+  // Voice notes get an inline player; everything else (except the hero) shows as
+  // a small evidence-type icon badge.
+  const audioBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'audio' && getBlockUrl(b)) || [];
+  const otherEvidence = event.evidence_blocks?.filter((b) => b !== heroBlock && b.block_type !== 'audio') || [];
   const rawDate = event.event_date || event.created_at;
   // Append T12:00 to date-only strings to avoid UTC midnight → previous day in local timezone
   const parsedDate = rawDate && !rawDate.includes('T') ? new Date(rawDate + 'T12:00:00') : new Date(rawDate);
@@ -373,6 +377,16 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
               {event.description}
             </UIText>
           ) : null}
+
+          {/* Voice notes — inline audio player. Wrapped so play taps don't also
+              trigger the card's tap-to-open-actions handler. */}
+          {audioBlocks.map((b, i) => (
+            <Pressable key={`audio-${i}`} onPress={(e) => e.stopPropagation?.()} style={{ marginTop: i > 0 ? 8 : 0 }}>
+              <AudioClipPreview
+                clip={{ uri: getBlockUrl(b)!, name: 'Voice note', fileSize: 0, durationMs: (b as any).content?.duration_ms || 0 }}
+              />
+            </Pressable>
+          ))}
 
           {/* Pillars + evidence indicators */}
           <HStack className="items-center gap-2 flex-wrap">

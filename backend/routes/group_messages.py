@@ -188,6 +188,34 @@ def update_group(user_id: str, group_id: str):
         )
 
 
+@bp.route('/<group_id>', methods=['DELETE'])
+@require_auth
+def delete_group(user_id: str, group_id: str):
+    """
+    Delete a group (group admin or superadmin only). Soft-delete: the group is
+    marked inactive and disappears from every member's list.
+    """
+    try:
+        group_service.delete_group(user_id=user_id, group_id=group_id)
+
+        return success_response({
+            'success': True,
+            'message': 'Group deleted successfully'
+        })
+
+    except ValueError as e:
+        logger.error(f"Permission error deleting group: {str(e)}")
+        return error_response(str(e), status_code=403, error_code="forbidden")
+
+    except Exception as e:
+        logger.error(f"Error deleting group: {str(e)}")
+        return error_response(
+            f"Failed to delete group: {str(e)}",
+            status_code=500,
+            error_code="internal_error"
+        )
+
+
 @bp.route('/<group_id>/members', methods=['POST'])
 @require_auth
 def add_member(user_id: str, group_id: str):

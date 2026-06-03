@@ -15,10 +15,12 @@ import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useAdminUsers, useAdminQuests, useAdminOrganizations, useOrgDetail, type AdminUser } from '@/src/hooks/useAdmin';
 import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
+import { UserConnectionsTab } from '@/src/components/admin/UserConnectionsTab';
+import { UserChatLogs } from '@/src/components/admin/UserChatLogs';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Input, InputField, InputSlot, InputIcon,
-  Avatar, AvatarFallbackText, AvatarImage,
+  Avatar, AvatarFallbackText, AvatarImage, toast,
 } from '@/src/components/ui';
 
 type AdminTab = 'users' | 'quests' | 'orgs' | 'emails' | 'bulk' | 'docs';
@@ -32,25 +34,37 @@ const tabs: { key: AdminTab; label: string; icon: keyof typeof Ionicons.glyphMap
   { key: 'docs', label: 'Docs', icon: 'document-text-outline' },
 ];
 
-const roleColors: Record<string, string> = {
-  superadmin: 'bg-red-100 text-red-700',
-  org_admin: 'bg-purple-100 text-purple-700',
-  advisor: 'bg-blue-100 text-blue-700',
-  parent: 'bg-amber-100 text-amber-700',
-  student: 'bg-green-100 text-green-700',
-  observer: 'bg-gray-100 text-gray-700',
-  org_managed: 'bg-indigo-100 text-indigo-700',
-};
+// Only the Users tab is currently exposed in the admin panel. The other admin
+// surfaces (Quests, Organizations, Emails, Bulk Generate, Docs) are hidden
+// until they're polished for mobile/dark mode — add their keys back here to
+// re-enable them.
+const VISIBLE_TAB_KEYS: AdminTab[] = ['users'];
 
 // ── Users Tab ──
 
+// Role badge palettes as raw hex so we can drive both the pill background and
+// the label color via inline styles. (UIText's base `dark:text-dark-typo` wins
+// over a `text-green-700` className in dark mode, which made the label vanish
+// on the light pill — inline color sidesteps that.)
+const roleBadgePalette: Record<string, { light: [string, string]; dark: [string, string] }> = {
+  // [background, text]
+  superadmin: { light: ['#FEE2E2', '#B91C1C'], dark: ['#3F1D1D', '#FCA5A5'] },
+  org_admin: { light: ['#F3E8FF', '#7E22CE'], dark: ['#2E2440', '#D8B4FE'] },
+  advisor: { light: ['#DBEAFE', '#1D4ED8'], dark: ['#1E2A45', '#93C5FD'] },
+  parent: { light: ['#FEF3C7', '#B45309'], dark: ['#3A2E15', '#FCD34D'] },
+  student: { light: ['#DCFCE7', '#15803D'], dark: ['#163024', '#6EE7B7'] },
+  observer: { light: ['#F3F4F6', '#374151'], dark: ['#2A2A42', '#D1D5DB'] },
+  org_managed: { light: ['#E0E7FF', '#4338CA'], dark: ['#21243F', '#A5B4FC'] },
+};
+
 function RoleBadge({ role }: { role: string }) {
-  const rColor = roleColors[role] || roleColors.student;
-  const [bg, text] = rColor.split(' ');
+  const c = useThemeColors();
+  const entry = roleBadgePalette[role] || roleBadgePalette.student;
+  const [bg, text] = c.isDark ? entry.dark : entry.light;
   const label = role === 'org_managed' ? 'Org' : role === 'org_admin' ? 'Org Admin' : role;
   return (
-    <View className={`self-start px-2 py-0.5 rounded-full ${bg}`}>
-      <UIText size="xs" className={`font-poppins-medium capitalize ${text}`}>{label}</UIText>
+    <View style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: bg }}>
+      <UIText size="xs" className="font-poppins-medium capitalize" style={{ color: text }}>{label}</UIText>
     </View>
   );
 }
@@ -102,7 +116,7 @@ function UserCardMobile({ user, onMasquerade, onDelete, onSelect }: { user: Admi
               </Pressable>
               <Pressable
                 onPress={onDelete}
-                className="w-8 h-8 rounded-lg bg-red-50 items-center justify-center active:bg-red-100"
+                className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950 items-center justify-center active:bg-red-100"
               >
                 <Ionicons name="trash-outline" size={14} color="#EF4444" />
               </Pressable>
@@ -156,27 +170,89 @@ function UserRowDesktop({ user, onSelect }: { user: AdminUser; onSelect: () => v
 
 // ── User Detail Panel ──
 
-function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPassword, onVerifyEmail, onUpdateRole }: {
+const PROFILE_FIELDS: { key: string; label: string; placeholder?: string; keyboardType?: 'default' | 'email-address' | 'phone-pad' }[] = [
+  { key: 'first_name', label: 'First name' },
+  { key: 'last_name', label: 'Last name' },
+  { key: 'email', label: 'Email', keyboardType: 'email-address' },
+  { key: 'phone_number', label: 'Phone', keyboardType: 'phone-pad' },
+  { key: 'date_of_birth', label: 'Date of birth', placeholder: 'YYYY-MM-DD' },
+  { key: 'address_line1', label: 'Address line 1' },
+  { key: 'address_line2', label: 'Address line 2' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State / Province' },
+  { key: 'postal_code', label: 'Postal code' },
+  { key: 'country', label: 'Country' },
+];
+
+function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPassword, onVerifyEmail, onUpdateRole, onUpdateProfile, getUserDetail }: {
   user: AdminUser;
   onClose: () => void;
   onMasquerade: () => void;
   onDelete: () => void;
-  onResetPassword: (pw: string) => void;
+  onResetPassword: () => Promise<void>;
   onVerifyEmail: () => void;
   onUpdateRole: (role: string, orgRole?: string) => void;
+  onUpdateProfile: (updates: Record<string, any>) => Promise<void>;
+  getUserDetail: (id: string) => Promise<any>;
 }) {
   const c = useThemeColors();
   const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase();
   const effectiveRole = user.role === 'org_managed' ? (user.org_role || 'org_managed') : user.role;
-  const [detailTab, setDetailTab] = useState<'profile' | 'role' | 'actions'>('profile');
-  const [newPassword, setNewPassword] = useState('');
+  const [detailTab, setDetailTab] = useState<'profile' | 'role' | 'connections' | 'chats' | 'actions'>('profile');
+  const [resettingPassword, setResettingPassword] = useState(false);
   const memberSince = user.created_at
     ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '';
 
+  // Editable profile state. Loaded from the detail endpoint (the list row lacks
+  // phone/address/dob); we diff against the loaded snapshot so a Save only sends
+  // fields the admin actually changed.
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [initialForm, setInitialForm] = useState<Record<string, string>>({});
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setProfileLoading(true);
+    getUserDetail(user.id)
+      .then((detail) => {
+        if (!active) return;
+        const next: Record<string, string> = {};
+        for (const { key } of PROFILE_FIELDS) next[key] = detail?.[key] != null ? String(detail[key]) : '';
+        setForm(next);
+        setInitialForm(next);
+      })
+      .catch(() => { if (active) toast.error('Could not load full profile'); })
+      .finally(() => { if (active) setProfileLoading(false); });
+    return () => { active = false; };
+  }, [user.id, getUserDetail]);
+
+  const handleSaveProfile = async () => {
+    const changed: Record<string, any> = {};
+    for (const { key } of PROFILE_FIELDS) {
+      if (form[key] !== initialForm[key]) changed[key] = form[key].trim() === '' ? null : form[key].trim();
+    }
+    if (Object.keys(changed).length === 0) { toast.info('No changes to save'); return; }
+    setSavingProfile(true);
+    try {
+      await onUpdateProfile(changed);
+      setInitialForm({ ...form });
+      toast.success('Profile updated');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to update profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const dirty = PROFILE_FIELDS.some(({ key }) => form[key] !== initialForm[key]);
+
   const detailTabs = [
     { key: 'profile' as const, label: 'Profile' },
     { key: 'role' as const, label: 'Role' },
+    { key: 'connections' as const, label: 'Connect' },
+    { key: 'chats' as const, label: 'Chats' },
     { key: 'actions' as const, label: 'Actions' },
   ];
 
@@ -208,49 +284,61 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
         <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
           {detailTabs.map((t) => (
             <Pressable key={t.key} onPress={() => setDetailTab(t.key)} className={`flex-1 py-2 rounded-md items-center ${detailTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
-              <UIText size="xs" className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
+              <UIText size="xs" numberOfLines={1} className={detailTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
             </Pressable>
           ))}
         </HStack>
 
-        {/* Profile tab */}
+        {/* Profile tab - editable */}
         {detailTab === 'profile' && (
-          <VStack space="sm">
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Name</UIText>
-              <UIText size="sm" className="font-poppins-medium">{user.first_name} {user.last_name}</UIText>
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Email</UIText>
-              <UIText size="sm">{user.email}</UIText>
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Role</UIText>
-              <RoleBadge role={effectiveRole} />
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
-              <UIText size="sm" className="font-poppins-medium text-optio-purple">{(user.total_xp || 0).toLocaleString()}</UIText>
-            </HStack>
-            <Divider />
-            <HStack className="items-center justify-between py-1">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Dependent</UIText>
-              <UIText size="sm">{user.is_dependent ? 'Yes' : 'No'}</UIText>
-            </HStack>
-            {user.organization_id && (
-              <>
-                <Divider />
-                <HStack className="items-center justify-between py-1">
-                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Organization</UIText>
-                  <UIText size="sm">{user.organization_id.slice(0, 8)}...</UIText>
-                </HStack>
-              </>
-            )}
-          </VStack>
+          profileLoading ? (
+            <VStack space="sm">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 rounded-xl" />)}</VStack>
+          ) : (
+            <VStack space="sm">
+              {/* Read-only stats */}
+              <HStack className="gap-3">
+                <Card variant="filled" size="sm" className="flex-1 items-center py-2">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Total XP</UIText>
+                  <UIText size="sm" className="font-poppins-semibold text-optio-purple">{(user.total_xp || 0).toLocaleString()}</UIText>
+                </Card>
+                <Card variant="filled" size="sm" className="flex-1 items-center py-2">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Role</UIText>
+                  <RoleBadge role={effectiveRole} />
+                </Card>
+                <Card variant="filled" size="sm" className="flex-1 items-center py-2">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Dependent</UIText>
+                  <UIText size="sm" className="font-poppins-medium">{user.is_dependent ? 'Yes' : 'No'}</UIText>
+                </Card>
+              </HStack>
+
+              {/* Editable fields */}
+              {PROFILE_FIELDS.map(({ key, label, placeholder, keyboardType }) => (
+                <VStack key={key} space="xs">
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">{label}</UIText>
+                  <Input size="sm">
+                    <InputField
+                      value={form[key] ?? ''}
+                      onChangeText={(v: string) => setForm((prev) => ({ ...prev, [key]: v }))}
+                      placeholder={placeholder}
+                      keyboardType={keyboardType}
+                      autoCapitalize={key === 'email' ? 'none' : 'sentences'}
+                    />
+                  </Input>
+                </VStack>
+              ))}
+
+              <Button onPress={handleSaveProfile} loading={savingProfile} disabled={!dirty}>
+                <ButtonText>Save Changes</ButtonText>
+              </Button>
+            </VStack>
+          )
         )}
+
+        {/* Connections tab */}
+        {detailTab === 'connections' && <UserConnectionsTab user={user} />}
+
+        {/* Chats tab */}
+        {detailTab === 'chats' && <UserChatLogs user={user} />}
 
         {/* Role tab */}
         {detailTab === 'role' && (
@@ -273,49 +361,53 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
         {/* Actions tab */}
         {detailTab === 'actions' && (
           <VStack space="sm">
-            <Pressable onPress={onMasquerade} className="flex-row items-center gap-3 px-4 py-3 bg-amber-50 rounded-xl active:bg-amber-100">
+            <Pressable onPress={onMasquerade} className="flex-row items-center gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-950 rounded-xl active:bg-amber-100">
               <Ionicons name="eye-outline" size={20} color="#B45309" />
               <VStack>
-                <UIText size="sm" className="font-poppins-medium text-amber-700">Masquerade</UIText>
-                <UIText size="xs" className="text-amber-600">View platform as this user</UIText>
+                <UIText size="sm" className="font-poppins-medium text-amber-700 dark:text-amber-300">Masquerade</UIText>
+                <UIText size="xs" className="text-amber-600 dark:text-amber-400">View platform as this user</UIText>
               </VStack>
             </Pressable>
 
-            <Pressable onPress={onVerifyEmail} className="flex-row items-center gap-3 px-4 py-3 bg-blue-50 rounded-xl active:bg-blue-100">
+            <Pressable onPress={onVerifyEmail} className="flex-row items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-950 rounded-xl active:bg-blue-100">
               <Ionicons name="checkmark-circle-outline" size={20} color="#1D4ED8" />
               <VStack>
-                <UIText size="sm" className="font-poppins-medium text-blue-700">Verify Email</UIText>
-                <UIText size="xs" className="text-blue-600">Mark email as verified</UIText>
+                <UIText size="sm" className="font-poppins-medium text-blue-700 dark:text-blue-300">Verify Email</UIText>
+                <UIText size="xs" className="text-blue-600 dark:text-blue-400">Mark email as verified</UIText>
               </VStack>
             </Pressable>
 
-            <VStack space="xs">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Reset Password</UIText>
-              <HStack className="gap-2">
-                <View className="flex-1">
-                  <Input size="sm">
-                    <InputField
-                      placeholder="New password"
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                      autoComplete="off"
-                      textContentType="none"
-                    />
-                  </Input>
-                </View>
-                <Button size="sm" disabled={!newPassword.trim()} onPress={() => { onResetPassword(newPassword); setNewPassword(''); }}>
-                  <ButtonText>Reset</ButtonText>
-                </Button>
-              </HStack>
-            </VStack>
+            <Pressable
+              disabled={resettingPassword}
+              onPress={async () => {
+                setResettingPassword(true);
+                try {
+                  await onResetPassword();
+                  toast.success("Password reset to “changeme!”");
+                } catch (e: any) {
+                  toast.error(e?.response?.data?.error || 'Failed to reset password');
+                } finally {
+                  setResettingPassword(false);
+                }
+              }}
+              className="flex-row items-center gap-3 px-4 py-3 bg-orange-50 dark:bg-orange-950 rounded-xl active:bg-orange-100"
+            >
+              <Ionicons name="key-outline" size={20} color="#C2410C" />
+              <VStack>
+                <UIText size="sm" className="font-poppins-medium text-orange-700 dark:text-orange-300">
+                  {resettingPassword ? 'Resetting...' : 'Reset Password'}
+                </UIText>
+                <UIText size="xs" className="text-orange-600 dark:text-orange-400">Sets password to "changeme!"</UIText>
+              </VStack>
+            </Pressable>
 
             <Divider className="my-2" />
 
-            <Pressable onPress={onDelete} className="flex-row items-center gap-3 px-4 py-3 bg-red-50 rounded-xl active:bg-red-100">
+            <Pressable onPress={onDelete} className="flex-row items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-950 rounded-xl active:bg-red-100">
               <Ionicons name="trash-outline" size={20} color="#DC2626" />
               <VStack>
-                <UIText size="sm" className="font-poppins-medium text-red-700">Delete User</UIText>
-                <UIText size="xs" className="text-red-600">Permanently remove this account</UIText>
+                <UIText size="sm" className="font-poppins-medium text-red-700 dark:text-red-300">Delete User</UIText>
+                <UIText size="xs" className="text-red-600 dark:text-red-400">Permanently remove this account</UIText>
               </VStack>
             </Pressable>
           </VStack>
@@ -333,6 +425,7 @@ function UsersPanel() {
     users, total, loading, page, setPage, search, setSearch,
     roleFilter, setRoleFilter, perPage, totalPages,
     deleteUser, masquerade, updateUserRole, resetPassword, verifyEmail,
+    updateUser, getUserDetail,
   } = useAdminUsers();
   const { isDesktop } = useBreakpoint();
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
@@ -404,9 +497,11 @@ function UsersPanel() {
                 onClose={() => setSelectedUser(null)}
                 onMasquerade={() => masquerade(selectedUser.id)}
                 onDelete={() => { if (confirm(`Delete ${selectedUser.email}?`)) { deleteUser(selectedUser.id); setSelectedUser(null); } }}
-                onResetPassword={(pw) => resetPassword(selectedUser.id, pw)}
+                onResetPassword={() => resetPassword(selectedUser.id)}
                 onVerifyEmail={() => verifyEmail(selectedUser.id)}
                 onUpdateRole={(role) => updateUserRole(selectedUser.id, role)}
+                onUpdateProfile={(updates) => updateUser(selectedUser.id, updates)}
+                getUserDetail={getUserDetail}
               />
             </View>
           )}
@@ -428,9 +523,11 @@ function UsersPanel() {
                   onClose={() => setSelectedUser(null)}
                   onMasquerade={() => masquerade(u.id)}
                   onDelete={() => { if (confirm(`Delete ${u.email}?`)) { deleteUser(u.id); setSelectedUser(null); } }}
-                  onResetPassword={(pw) => resetPassword(u.id, pw)}
+                  onResetPassword={() => resetPassword(u.id)}
                   onVerifyEmail={() => verifyEmail(u.id)}
                   onUpdateRole={(role) => updateUserRole(u.id, role)}
+                  onUpdateProfile={(updates) => updateUser(u.id, updates)}
+                  getUserDetail={getUserDetail}
                 />
               )}
             </VStack>
@@ -1452,7 +1549,12 @@ export default function AdminScreen() {
   const c = useThemeColors();
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
 
-  if (Platform.OS !== 'web') {
+  const role = user?.role;
+
+  // Superadmin can use the admin tools on any platform (native phone included,
+  // reached via the kebab "Admin" link). Org-managed admins stay desktop-only --
+  // the org workflows lean on the wide table layouts.
+  if (Platform.OS !== 'web' && role !== 'superadmin') {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
         <Ionicons name="desktop-outline" size={40} color={c.iconMuted} />
@@ -1463,7 +1565,6 @@ export default function AdminScreen() {
   }
 
   // Role check
-  const role = user?.role;
   if (role !== 'superadmin' && role !== 'org_managed') {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
@@ -1484,7 +1585,7 @@ export default function AdminScreen() {
           {/* Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200" space="xs">
-              {tabs.map((t) => (
+              {tabs.filter((t) => VISIBLE_TAB_KEYS.includes(t.key)).map((t) => (
                 <Pressable key={t.key} onPress={() => setActiveTab(t.key)}>
                   <HStack className={`items-center gap-2 px-4 py-2.5 rounded-lg ${activeTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
                     <Ionicons name={t.icon} size={16} color={activeTab === t.key ? '#6D469B' : c.iconMuted} />

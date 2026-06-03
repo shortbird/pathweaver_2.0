@@ -66,7 +66,7 @@ const SPLASH_TIMEOUT_MS = 5000;
 
 export default function RootLayout() {
   const loadUser = useAuthStore((s) => s.loadUser);
-  const { setColorScheme } = useColorScheme();
+  const { colorScheme, setColorScheme } = useColorScheme();
 
   const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular,
@@ -108,7 +108,14 @@ export default function RootLayout() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          // Default screen background so navigation/loading transitions don't
+          // flash white before a screen mounts its own dark surface.
+          contentStyle: { backgroundColor: colorScheme === 'dark' ? '#16162A' : '#F8F6FA' },
+        }}
+      >
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
         <Stack.Screen name="(lti)" />

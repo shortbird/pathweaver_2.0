@@ -31,6 +31,10 @@ interface Props {
   loading: boolean;
   canCreateGroups: boolean;
   isMobile?: boolean;
+  /** When provided, shows a "My children's messages" entry point (parents). */
+  onViewChildMessages?: () => void;
+  /** Title for the child-messages entry point; defaults to the generic label. */
+  childMessagesLabel?: string;
 }
 
 function formatTime(timestamp: string | null) {
@@ -73,6 +77,8 @@ export function ConversationList({
   loading,
   canCreateGroups,
   isMobile,
+  onViewChildMessages,
+  childMessagesLabel,
 }: Props) {
   const c = useThemeColors();
   const [search, setSearch] = useState('');
@@ -118,6 +124,17 @@ export function ConversationList({
     );
   }, [contactsWithMeta, search]);
 
+  // Split into contacts with an existing conversation vs. contacts you can start
+  // a new conversation with. This answers "how do I message someone".
+  const activeContacts = useMemo(
+    () => filteredContacts.filter((c) => !!c.last_message_at),
+    [filteredContacts]
+  );
+  const newContacts = useMemo(
+    () => filteredContacts.filter((c) => !c.last_message_at),
+    [filteredContacts]
+  );
+
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
     const q = search.toLowerCase().trim();
@@ -131,6 +148,83 @@ export function ConversationList({
       </View>
     );
   }
+
+  const renderContact = (contact: any) => {
+    const name = contact.is_support ? 'Optio Support' : getDisplayName(contact);
+    const isSelected = !isMobile && selected?.type === 'dm' && selected?.id === contact.conversation_id;
+    const relColor = contact.is_support ? '#6D469B' : (relationshipColors[contact.relationship] || '#6B7280');
+
+    return (
+      <Pressable
+        key={contact.id}
+        onPress={() => onSelect({ id: contact.conversation_id, type: 'dm', contact })}
+        className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
+        style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
+      >
+        {contact.is_support ? (
+          <View
+            className="w-12 h-12 rounded-full items-center justify-center"
+            style={{ backgroundColor: '#6D469B' }}
+          >
+            <Ionicons name="headset" size={22} color="#fff" />
+          </View>
+        ) : (
+          <Avatar size="md">
+            {contact.avatar_url ? (
+              <AvatarImage source={{ uri: contact.avatar_url }} />
+            ) : (
+              <AvatarFallbackText>{getInitial(name)}</AvatarFallbackText>
+            )}
+          </Avatar>
+        )}
+        <View className="flex-1 ml-3">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-2 flex-1">
+              <UIText
+                size="sm"
+                className={`font-poppins-semibold ${contact.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
+                numberOfLines={1}
+              >
+                {name}
+              </UIText>
+              {contact.relationship && (
+                <View
+                  style={{ backgroundColor: `${relColor}15`, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 }}
+                >
+                  <UIText size="xs" style={{ color: relColor, fontSize: 10, fontFamily: 'Poppins_500Medium' }}>
+                    {contact.relationship}
+                  </UIText>
+                </View>
+              )}
+            </View>
+            {contact.last_message_at && (
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-2">
+                {formatTime(contact.last_message_at)}
+              </UIText>
+            )}
+          </View>
+          <UIText
+            size="xs"
+            className={`mt-0.5 ${contact.unread_count ? 'text-typo-700 dark:text-dark-typo-700 font-poppins-medium' : 'text-typo-400 dark:text-dark-typo-400'}`}
+            numberOfLines={1}
+          >
+            {contact.last_message_preview ||
+              (contact.is_support ? 'Questions? Message the Optio team' : 'Start a conversation')}
+          </UIText>
+        </View>
+        {contact.unread_count > 0 && (
+          <View className="bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center ml-2 px-1">
+            <UIText size="xs" className="text-white font-poppins-bold" style={{ fontSize: 10 }}>
+              {contact.unread_count > 9 ? '9+' : contact.unread_count}
+            </UIText>
+          </View>
+        )}
+        {isMobile && (
+          <Ionicons name="chevron-forward" size={16} color={c.iconMuted} style={{ marginLeft: 4 }} />
+        )}
+      </Pressable>
+    );
+  };
 
   const Container: any = isMobile ? SafeAreaView : View;
   const containerProps: any = isMobile
@@ -158,7 +252,7 @@ export function ConversationList({
             placeholder="Search conversations..."
             placeholderTextColor={c.textFaint}
             className="flex-1 ml-2 font-poppins text-sm text-typo dark:text-dark-typo"
-            style={{ outline: 'none' } as any}
+            style={{ outline: 'none', padding: 0, textAlignVertical: 'center', includeFontPadding: false } as any}
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
@@ -239,90 +333,62 @@ export function ConversationList({
           </View>
         )}
 
-        {/* Direct Messages Section */}
-        <View>
-          <View className="flex-row items-center px-4 py-2 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
-            <Ionicons name="chatbubble-outline" size={14} color={c.icon} />
-            <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider ml-1.5">
-              Direct Messages
-            </UIText>
-          </View>
-          {filteredContacts.length > 0 ? (
-            filteredContacts.map((contact) => {
-              const name = getDisplayName(contact);
-              const isSelected = !isMobile && selected?.type === 'dm' && selected?.id === contact.conversation_id;
-              const relColor = relationshipColors[contact.relationship] || '#6B7280';
-
-              return (
-                <Pressable
-                  key={contact.id}
-                  onPress={() => onSelect({ id: contact.conversation_id, type: 'dm', contact })}
-                  className={`flex-row items-center px-4 py-3 active:bg-surface-100 dark:active:bg-dark-surface-200 ${isSelected ? 'bg-optio-purple/5' : ''}`}
-                  style={isSelected ? { borderLeftWidth: 3, borderLeftColor: '#6D469B' } : undefined}
-                >
-                  <Avatar size="md">
-                    {contact.avatar_url ? (
-                      <AvatarImage source={{ uri: contact.avatar_url }} />
-                    ) : (
-                      <AvatarFallbackText>{getInitial(name)}</AvatarFallbackText>
-                    )}
-                  </Avatar>
-                  <View className="flex-1 ml-3">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center gap-2 flex-1">
-                        <UIText
-                          size="sm"
-                          className={`font-poppins-semibold ${contact.unread_count ? 'text-typo-900' : 'text-typo-700 dark:text-dark-typo-700'}`}
-                          numberOfLines={1}
-                        >
-                          {name}
-                        </UIText>
-                        {contact.relationship && (
-                          <View
-                            style={{ backgroundColor: `${relColor}15`, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 }}
-                          >
-                            <UIText size="xs" style={{ color: relColor, fontSize: 10, fontFamily: 'Poppins_500Medium' }}>
-                              {contact.relationship}
-                            </UIText>
-                          </View>
-                        )}
-                      </View>
-                      {contact.last_message_at && (
-                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-2">
-                          {formatTime(contact.last_message_at)}
-                        </UIText>
-                      )}
-                    </View>
-                    <UIText
-                      size="xs"
-                      className={`mt-0.5 ${contact.unread_count ? 'text-typo-700 dark:text-dark-typo-700 font-poppins-medium' : 'text-typo-400 dark:text-dark-typo-400'}`}
-                      numberOfLines={1}
-                    >
-                      {contact.last_message_preview || 'Start a conversation'}
-                    </UIText>
-                  </View>
-                  {contact.unread_count > 0 && (
-                    <View className="bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center ml-2 px-1">
-                      <UIText size="xs" className="text-white font-poppins-bold" style={{ fontSize: 10 }}>
-                        {contact.unread_count > 9 ? '9+' : contact.unread_count}
-                      </UIText>
-                    </View>
-                  )}
-                  {isMobile && (
-                    <Ionicons name="chevron-forward" size={16} color={c.iconMuted} style={{ marginLeft: 4 }} />
-                  )}
-                </Pressable>
-              );
-            })
-          ) : (
-            <View className="items-center py-10 px-4">
-              <Ionicons name="chatbubbles-outline" size={40} color={c.iconMuted} />
-              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3 text-center">
-                {search ? 'No contacts match your search' : 'No contacts available'}
+        {/* Parent entry point: view a child's message history (read-only) */}
+        {onViewChildMessages && (
+          <Pressable
+            onPress={onViewChildMessages}
+            className="flex-row items-center px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 active:bg-surface-100 dark:active:bg-dark-surface-200"
+          >
+            <View className="w-10 h-10 rounded-full items-center justify-center bg-optio-purple/10">
+              <Ionicons name="people-circle-outline" size={22} color="#6D469B" />
+            </View>
+            <View className="flex-1 ml-3">
+              <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">
+                {childMessagesLabel || "My children's messages"}
+              </UIText>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5">
+                View your child's conversations (read-only)
               </UIText>
             </View>
-          )}
-        </View>
+            <Ionicons name="chevron-forward" size={16} color={c.iconMuted} />
+          </Pressable>
+        )}
+
+        {/* Direct Messages Section — existing conversations */}
+        {activeContacts.length > 0 && (
+          <View>
+            <View className="flex-row items-center px-4 py-2 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
+              <Ionicons name="chatbubble-outline" size={14} color={c.icon} />
+              <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider ml-1.5">
+                Direct Messages
+              </UIText>
+            </View>
+            {activeContacts.map(renderContact)}
+          </View>
+        )}
+
+        {/* Start a Conversation Section — contacts with no thread yet */}
+        {newContacts.length > 0 && (
+          <View>
+            <View className="flex-row items-center px-4 py-2 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
+              <Ionicons name="add-circle-outline" size={14} color={c.icon} />
+              <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider ml-1.5">
+                Start a conversation
+              </UIText>
+            </View>
+            {newContacts.map(renderContact)}
+          </View>
+        )}
+
+        {/* Empty state — should be rare since Optio Support is always present */}
+        {activeContacts.length === 0 && newContacts.length === 0 && (
+          <View className="items-center py-10 px-4">
+            <Ionicons name="chatbubbles-outline" size={40} color={c.iconMuted} />
+            <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3 text-center">
+              {search ? 'No contacts match your search' : 'No contacts yet'}
+            </UIText>
+          </View>
+        )}
       </ScrollView>
     </Container>
   );

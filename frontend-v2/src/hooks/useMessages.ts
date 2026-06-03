@@ -19,6 +19,17 @@ export interface Contact {
   avatar_url: string | null;
   role: string;
   relationship: string;
+  // True for the always-present "Optio Support" alias (routes to superadmin).
+  is_support?: boolean;
+}
+
+export interface Child {
+  id: string;
+  display_name: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+  role: string;
 }
 
 export interface Conversation {
@@ -309,4 +320,90 @@ export async function createGroup(name: string, description?: string, memberIds?
 export async function markGroupRead(groupId: string) {
   const { data } = await groupAPI.markRead(groupId);
   return data.data || data;
+}
+
+/** Delete a group (group admin or superadmin only) */
+export async function deleteGroup(groupId: string) {
+  const { data } = await groupAPI.delete(groupId);
+  return data.data || data;
+}
+
+// ── Parent: read-only view of a child's message history ──
+
+/** Fetch the children whose message history the current parent may view */
+export function useChildren(enabled: boolean = true) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [children, setChildren] = useState<Child[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    if (!isAuthenticated || !enabled) { setLoading(false); return; }
+    try {
+      setLoading(true);
+      const { data } = await messageAPI.children();
+      const d = data.data || data;
+      setChildren(d.children || []);
+    } catch {
+      // non-critical
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, enabled]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { children, loading, refetch: fetch };
+}
+
+/** Fetch a child's conversations (read-only, parent view) */
+export function useChildConversations(childId: string | null) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    if (!isAuthenticated || !childId) { setLoading(false); return; }
+    try {
+      setLoading(true);
+      const { data } = await messageAPI.childConversations(childId);
+      const d = data.data || data;
+      setConversations(d.conversations || []);
+    } catch {
+      // non-critical
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, childId]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { conversations, loading, refetch: fetch };
+}
+
+/** Fetch the messages in one of a child's conversations (read-only, parent view) */
+export function useChildConversationMessages(
+  childId: string | null,
+  conversationId: string | null,
+) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    if (!isAuthenticated || !childId || !conversationId) { setLoading(false); return; }
+    try {
+      setLoading(true);
+      const { data } = await messageAPI.childConversationMessages(childId, conversationId);
+      const d = data.data || data;
+      setMessages(d.messages || []);
+    } catch {
+      // non-critical
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, childId, conversationId]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { messages, loading, refetch: fetch };
 }

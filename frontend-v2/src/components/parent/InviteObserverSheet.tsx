@@ -14,8 +14,8 @@
  * imports — the export name is unchanged.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, View, TextInput, Alert, Share, Modal, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, View, TextInput, Alert, Share, Modal, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import api from '@/src/services/api';
@@ -48,11 +48,17 @@ interface ObserverChildAccess {
 }
 
 interface Observer {
-  observer_id: string;
-  observer_name: string;
+  // 'accepted' observers have an observer_id and per-kid toggles; 'pending'
+  // ones are invitations that haven't been accepted yet — keyed/removed by
+  // invitation_id via the invitation-revoke endpoint.
+  status: 'accepted' | 'pending';
+  observer_id: string | null;
+  observer_name: string | null;
   observer_email: string | null;
   avatar_url: string | null;
   children: ObserverChildAccess[];
+  invitation_id?: string | null;
+  expires_at?: string | null;
 }
 
 // Extract the invitation_code segment from a shareable link of the form
@@ -66,7 +72,7 @@ function extractInvitationCode(link: string | null): string | null {
 
 export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetProps) {
   const c = useThemeColors();
-  const { children } = useMyChildren();
+  const { children, loading: childrenLoading } = useMyChildren();
 
   // ── Family link state ──
   const [link, setLink] = useState<string | null>(null);
@@ -76,6 +82,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
   const [emailSending, setEmailSending] = useState(false);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
   const [qrVisible, setQrVisible] = useState(false);
+  const [shareLinkLoading, setShareLinkLoading] = useState(false);
 
   // ── Observers + pending invites state ──
   const [observers, setObservers] = useState<Observer[]>([]);
@@ -106,11 +113,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     return null;
   }, [children]);
 
+  // Only show the loading skeleton on the very first fetch; later refreshes
+  // (e.g. reopening the sheet) update the list in place so it doesn't flash.
+  const observersLoadedOnceRef = useRef(false);
   const refreshObservers = useCallback(async () => {
-    setObserversLoading(true);
+    if (!observersLoadedOnceRef.current) setObserversLoading(true);
     try {
       const { data } = await api.get('/api/observers/family-observers');
       setObservers(data?.observers || []);
+      observersLoadedOnceRef.current = true;
     } catch {
       setObservers([]);
     } finally {
@@ -152,10 +163,19 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     }
   }, [children, activeInviteId]);
 
-  // On first open: surface the existing pending invite as the family link;
-  // if none, generate a fresh one. Load observers in parallel.
+  // On open, run the load exactly once — after children finish loading. Without
+  // the ref + childrenLoading guards this effect re-fired on every children /
+  // callback identity change, and each refreshObservers() toggled the loading
+  // skeleton, making the observer list flash in/out and the sheet bounce.
+  const didLoadRef = useRef(false);
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      didLoadRef.current = false; // reset so the next open reloads
+      return;
+    }
+    if (childrenLoading || didLoadRef.current) return;
+    didLoadRef.current = true;
+
     let cancelled = false;
     (async () => {
       const [existingId] = await Promise.all([
@@ -169,7 +189,11 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
       }
     })();
     return () => { cancelled = true; };
-  }, [visible, loadActiveLink, refreshObservers, generateLink]);
+    // loadActiveLink/refreshObservers/generateLink intentionally omitted: the ref
+    // guard makes this a once-per-open load, so their identity churn must not
+    // re-trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, childrenLoading]);
 
   const handleClose = () => {
     setEmailInput('');
@@ -179,12 +203,24 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
   };
 
   const shareLink = async () => {
-    if (!link) return;
-    const names = children.map((c: any) => c.first_name || c.display_name).filter(Boolean).join(' & ') || 'this family';
-    await Share.share({
-      message: `Follow ${names}'s learning journey on Optio: ${link}`,
-      url: link,
-    });
+    // In-flight guard: a double-tap must trigger exactly one share sheet.
+    // Mirrors the email path's `emailSending` guard.
+    if (!link || shareLinkLoading) return;
+    setShareLinkLoading(true);
+    try {
+      const names = children.map((c: any) => c.first_name || c.display_name).filter(Boolean).join(' & ') || 'this family';
+      // iOS shares `message` and `url` as separate items, so embedding the link
+      // in the message AND passing `url` makes it appear twice. iOS: keep the
+      // link in `url` only. Android ignores `url`, so embed it in the message.
+      const intro = `Follow ${names}'s learning journey on Optio:`;
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { message: intro, url: link }
+          : { message: `${intro} ${link}` }
+      );
+    } finally {
+      setShareLinkLoading(false);
+    }
   };
 
   const sendEmail = async () => {
@@ -240,21 +276,36 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
   };
 
   const removeObserver = (observer: Observer) => {
-    const name = observer.observer_name || observer.observer_email || 'this observer';
+    const isPending = observer.status === 'pending';
+    const name = observer.observer_name || observer.observer_email || (isPending ? 'this pending invite' : 'this observer');
     Alert.alert(
-      'Remove observer',
-      `Remove ${name} from all kids?`,
+      isPending ? 'Revoke invitation' : 'Remove observer',
+      isPending ? `Revoke ${name}? The link will stop working.` : `Remove ${name} from all kids?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Remove',
+          text: isPending ? 'Revoke' : 'Remove',
           style: 'destructive',
           onPress: async () => {
             try {
-              await api.delete(`/api/observers/family-observers/${observer.observer_id}`);
-              setObservers((prev) => prev.filter((o) => o.observer_id !== observer.observer_id));
+              if (isPending) {
+                // Pending invite isn't an accepted observer link — revoke it via
+                // the invitation endpoint, not the accepted-observer delete.
+                await api.delete(`/api/observers/family-pending-invites/${observer.invitation_id}`);
+                setObservers((prev) => prev.filter((o) => o.invitation_id !== observer.invitation_id));
+                // If we just revoked the active family link, refresh it so the
+                // link section regenerates rather than pointing at a dead URL.
+                if (observer.invitation_id === activeInviteId) {
+                  setLink(null);
+                  setActiveInviteId(null);
+                  await generateLink();
+                }
+              } else {
+                await api.delete(`/api/observers/family-observers/${observer.observer_id}`);
+                setObservers((prev) => prev.filter((o) => o.observer_id !== observer.observer_id));
+              }
             } catch {
-              Alert.alert('Error', 'Failed to remove observer');
+              Alert.alert('Error', isPending ? 'Failed to revoke invitation' : 'Failed to remove observer');
             }
           },
         },
@@ -267,6 +318,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
     : null;
 
   const multiKidFamily = children.length > 1;
+
+  // The active family-link invite is already represented by the "Your family
+  // link" section above. Don't also list it as a deletable pending row --
+  // revoking it there just triggers a regenerate, which looks to the user like
+  // "deleting it added a new pending invitation." Other pending invites (e.g. a
+  // prior link) still show and are genuinely revocable.
+  const visibleObservers = observers.filter(
+    (o) => !(o.status === 'pending' && o.invitation_id === activeInviteId)
+  );
 
   return (
     <BottomSheet visible={visible} onClose={handleClose}>
@@ -321,7 +381,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
             </View>
           )}
           <HStack className="gap-2">
-            <Button size="md" onPress={shareLink} disabled={!link} className="flex-1">
+            <Button size="md" onPress={shareLink} loading={shareLinkLoading} disabled={!link || shareLinkLoading} className="flex-1">
               <HStack className="items-center gap-2">
                 <Ionicons name="share-outline" size={16} color="#FFFFFF" />
                 <ButtonText>Share</ButtonText>
@@ -387,15 +447,15 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                 ? 'Following your family'
                 : `Following ${children[0]?.first_name || children[0]?.display_name?.split(' ')[0] || 'your student'}`}
             </UIText>
-            {observers.length > 0 && (
+            {visibleObservers.length > 0 && (
               <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                {observers.length} observer{observers.length === 1 ? '' : 's'}
+                {visibleObservers.length} observer{visibleObservers.length === 1 ? '' : 's'}
               </UIText>
             )}
           </HStack>
           {observersLoading ? (
             <Skeleton className="h-16 rounded-xl" />
-          ) : observers.length === 0 ? (
+          ) : visibleObservers.length === 0 ? (
             <View style={{ backgroundColor: c.surfaceMuted, borderRadius: 12, padding: 12 }}>
               <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
                 {multiKidFamily
@@ -405,12 +465,16 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
             </View>
           ) : (
             <VStack space="sm">
-              {observers.map((obs) => {
-                const name = obs.observer_name || obs.observer_email || 'Observer';
+              {visibleObservers.map((obs) => {
+                const isPending = obs.status === 'pending';
+                const name = obs.observer_name || obs.observer_email || (isPending ? 'Pending invitation' : 'Observer');
                 const initials = (name?.[0] || '?').toUpperCase();
+                // Covered kids' first names — shown as a subtitle for pending
+                // invites in place of the (not-yet-applicable) toggle chips.
+                const pendingKids = obs.children.map((k) => k.student_name?.split(' ')[0]).filter(Boolean).join(', ');
                 return (
                   <View
-                    key={obs.observer_id}
+                    key={obs.observer_id || obs.invitation_id}
                     style={{ borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 12 }}
                   >
                     <HStack className="items-center gap-3">
@@ -418,22 +482,36 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
                         {obs.avatar_url ? <AvatarImage source={{ uri: obs.avatar_url }} /> : <AvatarFallbackText>{initials}</AvatarFallbackText>}
                       </Avatar>
                       <VStack className="flex-1 min-w-0">
-                        <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>{name}</UIText>
-                        {obs.observer_email && obs.observer_email !== name && (
-                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{obs.observer_email}</UIText>
+                        <HStack className="items-center gap-2">
+                          <UIText size="sm" className="font-poppins-semibold flex-shrink" numberOfLines={1}>{name}</UIText>
+                          {isPending && (
+                            <View style={{ backgroundColor: c.surfaceMuted, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                              <UIText size="xs" className="text-optio-purple font-poppins-semibold">Pending</UIText>
+                            </View>
+                          )}
+                        </HStack>
+                        {isPending ? (
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
+                            {multiKidFamily && pendingKids ? `Invited to follow ${pendingKids}` : 'Waiting to be accepted'}
+                          </UIText>
+                        ) : (
+                          obs.observer_email && obs.observer_email !== name && (
+                            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{obs.observer_email}</UIText>
+                          )
                         )}
                       </VStack>
                       <Pressable
                         onPress={() => removeObserver(obs)}
-                        accessibilityLabel={`Remove ${name}`}
+                        accessibilityLabel={isPending ? `Revoke invitation for ${name}` : `Remove ${name}`}
                         hitSlop={8}
                         style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Ionicons name="trash-outline" size={16} color={c.iconMuted} />
                       </Pressable>
                     </HStack>
-                    {/* Per-kid toggle chips — only meaningful for multi-kid families. */}
-                    {multiKidFamily && (
+                    {/* Per-kid toggle chips — accepted observers only; a pending
+                        invite has no link rows to toggle yet. */}
+                    {!isPending && multiKidFamily && (
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 10 }}>
                         {obs.children.map((kid) => (
                           <Pressable

@@ -282,6 +282,20 @@ jest.mock('react-native-mmkv', () => ({
   })),
 }), { virtual: true });
 
+// ── React 19 global error reporting ──
+// React 19's dev build reports uncaught errors from async effects via
+// window.dispatchEvent(new ErrorEvent(...)). The react-native Jest environment
+// exposes a `window` shim without dispatchEvent, so a benign post-render async
+// error (e.g. an effect that rejects after the test asserted) crashed the whole
+// suite with "window.dispatchEvent is not a function" instead of degrading to a
+// warning. Provide no-op event plumbing so these reports don't take tests down.
+if (typeof (global as any).window !== 'undefined') {
+  const w = (global as any).window;
+  if (typeof w.dispatchEvent !== 'function') w.dispatchEvent = () => true;
+  if (typeof w.addEventListener !== 'function') w.addEventListener = () => {};
+  if (typeof w.removeEventListener !== 'function') w.removeEventListener = () => {};
+}
+
 // ── Suppress noisy warnings ──
 const originalWarn = console.warn;
 console.warn = (...args: any[]) => {

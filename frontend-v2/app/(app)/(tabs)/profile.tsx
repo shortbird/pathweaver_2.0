@@ -344,7 +344,15 @@ export default function ProfileScreen() {
                         }
                       } else {
                         const { Share } = require('react-native');
-                        Share.share({ message: `Check out my learning portfolio: ${url}`, url });
+                        // iOS shares `message` and `url` separately, so embedding
+                        // the link in both makes it appear twice. iOS: link in
+                        // `url` only; Android ignores `url`, so embed it inline.
+                        const intro = 'Check out my learning portfolio:';
+                        Share.share(
+                          Platform.OS === 'ios'
+                            ? { message: intro, url }
+                            : { message: `${intro} ${url}` }
+                        );
                       }
                     }}
                     className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg ${
