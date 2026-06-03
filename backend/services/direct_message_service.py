@@ -495,6 +495,75 @@ class DirectMessageService(BaseService):
             print(f"Error getting unread count: {str(e)}", file=sys.stderr, flush=True)
             return 0
 
+    # ==================== Parent / Guardian Read Access ====================
+
+    def is_parent_of_child(self, parent_id: str, child_id: str) -> bool:
+        """
+        Check whether parent_id is a parent/guardian of child_id via either
+        the dependents mechanism (users.managed_by_parent_id) or an approved
+        parent_student_links row.
+        """
+        try:
+            supabase = self._get_client()
+
+            child = supabase.table('users').select('managed_by_parent_id').eq(
+                'id', child_id
+            ).single().execute()
+            if child.data and child.data.get('managed_by_parent_id') == parent_id:
+                return True
+
+            link = supabase.table('parent_student_links').select('id').eq(
+                'parent_user_id', parent_id
+            ).eq('student_user_id', child_id).eq('status', 'approved').execute()
+            return bool(link.data)
+
+        except Exception as e:
+            print(f"Error checking parent-child link: {str(e)}", file=sys.stderr, flush=True)
+            return False
+
+    def get_child_conversation_messages(
+        self,
+        conversation_id: str,
+        child_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Read-only fetch of a child's conversation messages (for parent viewing).
+
+        Unlike get_conversation_messages, this never creates a conversation and
+        verifies the CHILD (not the requester) is a participant. Authorization
+        that the requester may view this child is enforced by the route.
+
+        Args:
+            conversation_id: UUID of the conversation
+            child_id: UUID of the child whose history is being viewed
+
+        Returns:
+            List of message records
+        """
+        try:
+            supabase = self._get_client()
+
+            conversation_result = supabase.table('message_conversations').select('*').eq(
+                'id', conversation_id
+            ).execute()
+
+            if not conversation_result.data or len(conversation_result.data) == 0:
+                raise ValueError("Conversation not found")
+
+            conversation = conversation_result.data[0]
+            if child_id not in [conversation['participant_1_id'], conversation['participant_2_id']]:
+                raise ValueError("This conversation does not belong to the specified child")
+
+            messages = supabase.table('direct_messages').select('*').eq(
+                'conversation_id', conversation_id
+            ).order('created_at', desc=False).execute()
+
+            return messages.data if messages.data else []
+
+        except Exception as e:
+            print(f"Error getting child conversation messages: {str(e)}", file=sys.stderr, flush=True)
+            raise
+
     # ==================== Helper Methods ====================
 
     def _update_conversation_metadata(
