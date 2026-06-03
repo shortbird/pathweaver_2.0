@@ -844,6 +844,69 @@ class EmailService(BaseService):
             }
         )
 
+    def send_poe_signup_confirmation(
+        self,
+        to_email: str,
+        first_name: str,
+        cohort_name: str,
+        cc: Optional[List[str]] = None
+    ) -> bool:
+        """
+        Confirm a Pipe Organ Encounter interest-list signup (public /poe page).
+
+        This is NOT an account/email-verification message. It acknowledges that
+        the participant is on the POE credit list and that Optio will follow up
+        to get them set up before camp. For minors, pass the parent/guardian
+        email via cc so they receive the confirmation too.
+        """
+        safe_name = (first_name or '').strip() or 'there'
+        camp = cohort_name or 'your Pipe Organ Encounter'
+        subject = f"You're on the list — {camp}"
+
+        html_body = f"""\
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; color: #1f2937;">
+  <div style="background: linear-gradient(90deg, #6D469B 0%, #EF597B 100%); padding: 28px 24px; border-radius: 12px 12px 0 0;">
+    <p style="margin: 0; color: rgba(255,255,255,0.85); font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">Pipe Organ Encounter &middot; 2026</p>
+    <h1 style="margin: 6px 0 0; color: #ffffff; font-size: 24px;">You're on the list!</h1>
+  </div>
+  <div style="border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
+    <p style="font-size: 16px;">Hi {safe_name},</p>
+    <p style="font-size: 15px; line-height: 1.6;">
+      Thanks for signing up to earn <strong>0.5 fine arts credit</strong> for <strong>{camp}</strong>.
+      We've added you to the list and saved where your credit should go.
+    </p>
+    <p style="font-size: 15px; line-height: 1.6;">
+      There's nothing more you need to do right now. Closer to camp, we'll email you a link to
+      set up your free Optio account so you can document your week and we can review your work for credit.
+    </p>
+    <p style="font-size: 15px; line-height: 1.6;">
+      Questions? Just reply to this email.
+    </p>
+    <p style="font-size: 15px; line-height: 1.6; margin-top: 24px;">
+      &mdash; The Optio Team
+    </p>
+  </div>
+</div>"""
+
+        text_body = (
+            f"Hi {safe_name},\n\n"
+            f"Thanks for signing up to earn 0.5 fine arts credit for {camp}. "
+            "We've added you to the list and saved where your credit should go.\n\n"
+            "There's nothing more you need to do right now. Closer to camp, we'll email "
+            "you a link to set up your free Optio account so you can document your week "
+            "and we can review your work for credit.\n\n"
+            "Questions? Just reply to this email.\n\n"
+            "— The Optio Team"
+        )
+
+        return self.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            cc=cc or None,
+        )
+
     def send_claim_free_class_confirmation(
         self,
         user_email: str
