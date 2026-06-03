@@ -172,6 +172,8 @@ class DependentRepository(BaseRepository):
                 formatted_dependents.append({
                     'id': dep.get('dependent_id'),
                     'display_name': dep.get('dependent_name'),
+                    'first_name': dep.get('first_name'),
+                    'last_name': dep.get('last_name'),
                     'date_of_birth': dep.get('date_of_birth'),
                     'avatar_url': dep.get('avatar_url'),
                     'promotion_eligible': dep.get('promotion_eligible', False),

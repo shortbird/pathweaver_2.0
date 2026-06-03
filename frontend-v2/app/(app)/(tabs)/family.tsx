@@ -43,6 +43,27 @@ function calculateAge(dateOfBirth: string | null | undefined): number | null {
 
 // ── Child Header (horizontal avatar row, tap to switch) ──
 
+/** Avatar initials for a child, from first/last name, else the display name. */
+function initialsFor(child: any): string {
+  const fromName = `${child?.first_name?.[0] || ''}${child?.last_name?.[0] || ''}`.trim();
+  if (fromName) return fromName.toUpperCase();
+  const dn = (child?.display_name || '').trim();
+  if (dn) {
+    const parts = dn.split(/\s+/);
+    return `${parts[0]?.[0] || ''}${parts[1]?.[0] || ''}`.toUpperCase();
+  }
+  return '?';
+}
+
+/** Best display name for a child — never renders literal "undefined undefined". */
+function nameFor(child: any): string {
+  return (
+    child?.display_name?.trim() ||
+    `${child?.first_name || ''} ${child?.last_name || ''}`.trim() ||
+    'Student'
+  );
+}
+
 function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
   children: any[];
   selectedId: string | null;
@@ -65,7 +86,7 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
         {children.map((child) => {
           const isSelected = child.id === selectedId;
           const needsAttention = attentionByChildId?.[child.id] === true;
-          const childInitials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase();
+          const childInitials = initialsFor(child);
           return (
             <Pressable
               key={child.id}
@@ -107,7 +128,7 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
                 }}
                 numberOfLines={1}
               >
-                {child.first_name}
+                {child.first_name || nameFor(child).split(' ')[0]}
               </UIText>
             </Pressable>
           );
@@ -120,21 +141,49 @@ function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
 // ── Child Hero Card ──
 
 function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; onOpenSettings: () => void }) {
-  const initials = `${child.first_name?.[0] || ''}${child.last_name?.[0] || ''}`.toUpperCase();
+  const initials = initialsFor(child);
   const c = useThemeColors();
+
+  // Tapping the photo opens the child's full profile — the same affordance
+  // students have on their own home hero.
+  const firstName = child?.first_name || nameFor(child).split(' ')[0];
+  const openProfile = () => router.push(`/(app)/parent/child/${child.id}` as any);
 
   return (
     <Card variant="elevated" size="lg">
       <HStack className="items-center gap-4">
-        <Avatar size="xl">
-          {child.avatar_url ? (
-            <AvatarImage source={{ uri: child.avatar_url }} />
-          ) : (
-            <AvatarFallbackText>{initials}</AvatarFallbackText>
-          )}
-        </Avatar>
+        <Pressable
+          onPress={openProfile}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${nameFor(child)}'s profile`}
+        >
+          <Avatar size="xl">
+            {child.avatar_url ? (
+              <AvatarImage source={{ uri: child.avatar_url }} />
+            ) : (
+              <AvatarFallbackText>{initials}</AvatarFallbackText>
+            )}
+          </Avatar>
+          {/* Chevron overlay — signals "tap to drill in", matching the student home hero. */}
+          <View
+            style={{
+              position: 'absolute', bottom: -2, right: -2,
+              width: 22, height: 22, borderRadius: 11,
+              backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center',
+              borderWidth: 2, borderColor: '#FFFFFF',
+            }}
+          >
+            <Ionicons name="chevron-forward" size={12} color="#FFFFFF" />
+          </View>
+        </Pressable>
         <VStack className="flex-1 min-w-0">
-          <Heading size="xl" numberOfLines={1}>{child.display_name || `${child.first_name} ${child.last_name}`}</Heading>
+          <Pressable onPress={openProfile} accessibilityRole="button">
+            <Heading size="xl" numberOfLines={1}>{nameFor(child)}</Heading>
+            <UIText size="xs" className="text-typo-400 mt-0.5 dark:text-dark-typo-400" numberOfLines={2}>
+              Tap the photo to open {firstName}'s profile
+            </UIText>
+          </Pressable>
         </VStack>
         <Pressable
           onPress={onOpenSettings}
@@ -599,7 +648,7 @@ export default function ParentDashboardPage() {
             }}
           >
             <View style={{ paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: tc.surfaceMuted }}>
-              <UIText size="sm" className="font-poppins-semibold">{selectedChild?.display_name || `${selectedChild?.first_name || ''} ${selectedChild?.last_name || ''}`.trim() || 'Student'}</UIText>
+              <UIText size="sm" className="font-poppins-semibold">{selectedChild ? nameFor(selectedChild) : 'Student'}</UIText>
               <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Edit profile</UIText>
             </View>
             {[

@@ -78,6 +78,7 @@ export function useProfile() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   const [pillarXP, setPillarXP] = useState<PillarXP[]>([]);
+  const [momentsCount, setMomentsCount] = useState(0);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [subjectXP, setSubjectXP] = useState<SubjectXP[]>([]);
   const [viewers, setViewers] = useState<Viewer[]>([]);
@@ -116,6 +117,7 @@ export function useProfile() {
             xp: xp as number,
           }))
         );
+        setMomentsCount(d.stats?.moments_count || 0);
       }
 
       if (achieveRes.status === 'fulfilled') {
@@ -150,5 +152,5 @@ export function useProfile() {
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-  return { user, pillarXP, achievements, subjectXP, viewers, deletionStatus, portfolioPublic, setPortfolioPublic, portfolioSlug, loading, refetch: fetchProfile };
+  return { user, pillarXP, momentsCount, achievements, subjectXP, viewers, deletionStatus, portfolioPublic, setPortfolioPublic, portfolioSlug, loading, refetch: fetchProfile };
 }

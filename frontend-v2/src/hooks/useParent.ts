@@ -146,6 +146,35 @@ export function useChildDashboard(studentId: string | null) {
   return { data, loading, refetch: fetchData };
 }
 
+/**
+ * Full read-only overview for one child (parent scope): profile, pillar XP,
+ * engagement, portfolio. Mirrors the advisor `useStudentOverview` hook against
+ * the parent-scoped /api/parent/child-overview endpoint so the kid profile
+ * screen can reuse the same rendering.
+ */
+export function useChildOverview(studentId: string | null) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [overview, setOverview] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOverview = useCallback(async () => {
+    if (!isAuthenticated || !studentId) { setLoading(false); return; }
+    try {
+      setLoading(true);
+      const { data } = await api.get(`/api/parent/child-overview/${studentId}`);
+      setOverview(data);
+    } catch {
+      setOverview(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, studentId]);
+
+  useEffect(() => { fetchOverview(); }, [fetchOverview]);
+
+  return { overview, loading, refetch: fetchOverview };
+}
+
 export function useChildEngagement(studentId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [data, setData] = useState<EngagementData | null>(null);
