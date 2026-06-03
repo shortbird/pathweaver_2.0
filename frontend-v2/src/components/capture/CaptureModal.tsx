@@ -10,6 +10,7 @@ import { View, Modal, Pressable, TextInput, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { captureException } from '@/src/services/sentry';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText,
 } from '../ui';
@@ -137,6 +138,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
       if (eventId) {
         const allBlocks: any[] = [];
         let orderIdx = 0;
+        let failedUploads = 0;
 
         // Step 2: Upload each file direct-to-Supabase via signed-upload.
         for (const item of files) {
@@ -160,8 +162,20 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
               order_index: orderIdx++,
             });
           } catch (uploadErr) {
-            console.warn('signed-upload failed for', item.file.name, uploadErr);
+            // Report and count instead of only console.warn, so the user is told
+            // a file didn't save rather than it silently disappearing.
+            failedUploads += 1;
+            captureException(uploadErr, {
+              stage: 'capture-modal-upload',
+              extra: { name: item.file.name },
+            });
           }
+        }
+
+        if (failedUploads > 0) {
+          alert(
+            `${failedUploads} file${failedUploads > 1 ? 's' : ''} couldn't be uploaded and ${failedUploads > 1 ? 'were' : 'was'} not saved. Please try again.`,
+          );
         }
 
         // Step 3: Add text/link evidence blocks

@@ -60,6 +60,37 @@ function processQueue(error: unknown, token: string | null) {
   refreshQueue = [];
 }
 
+/**
+ * Refresh the access token using the in-memory/SecureStore refresh token (native)
+ * or the httpOnly refresh cookie (web), update tokenStore, and return the new
+ * access token — or null if the refresh failed.
+ *
+ * Shared so non-axios callers can recover from a 401 the same way the response
+ * interceptor does. The in-app bug reporter posts via raw `fetch` (axios mangles
+ * RN multipart), which means it bypasses the 401-refresh interceptor below; it
+ * uses this helper to refresh-and-retry instead.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const refreshToken = tokenStore.getRefreshToken();
+    // Web relies on the httpOnly cookie (sent via withCredentials); native must
+    // have a refresh token in SecureStore.
+    if (!refreshToken && Platform.OS !== 'web') {
+      return null;
+    }
+    const body = refreshToken ? { refresh_token: refreshToken } : {};
+    const { data } = await postRefreshWithRetry(body, {
+      post: (path, b) => api.post(path, b),
+    });
+    const newAccess = data.access_token;
+    const newRefresh = data.refresh_token;
+    await tokenStore.setTokens(newAccess, newRefresh);
+    return newAccess;
+  } catch {
+    return null;
+  }
+}
+
 // Request interceptor: attach Bearer token
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStore.getAccessToken();
@@ -323,24 +354,44 @@ export const bugReportAPI = {
    * `screenshot` is an optional native file ({ uri, name, type }).
    */
   submit: async (context: BugReportContext, screenshot?: { uri: string; name: string; type: string } | null) => {
-    const form = new FormData();
-    form.append('context', JSON.stringify(context));
-    if (screenshot) {
-      // React Native FormData accepts the { uri, name, type } file shape.
-      form.append('screenshot', screenshot as unknown as Blob);
-    }
+    // Build a fresh FormData per attempt: RN consumes the multipart body when it
+    // sends, so a retry needs its own instance.
+    const buildForm = () => {
+      const form = new FormData();
+      form.append('context', JSON.stringify(context));
+      if (screenshot) {
+        // React Native FormData accepts the { uri, name, type } file shape.
+        form.append('screenshot', screenshot as unknown as Blob);
+      }
+      return form;
+    };
     // NOTE: deliberately NOT axios. On React Native, posting FormData through
     // axios fails at the transport layer with ERR_NETWORK ("Network Error",
     // no status) — the request never leaves the device. RN's own fetch handles
     // multipart boundaries correctly (the same reason signedUpload uses XHR).
     // We attach the Bearer token manually and let fetch set Content-Type.
-    const token = tokenStore.getAccessToken();
-    const res = await fetch(`${API_URL}/api/bug-reports`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: form,
-      credentials: Platform.OS === 'web' ? 'include' : 'omit',
-    });
+    const doFetch = (token: string | null) =>
+      fetch(`${API_URL}/api/bug-reports`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: buildForm(),
+        credentials: Platform.OS === 'web' ? 'include' : 'omit',
+      });
+
+    let res = await doFetch(tokenStore.getAccessToken());
+
+    // This raw-fetch path bypasses the axios 401-refresh interceptor, so handle
+    // refresh here. The iOS failure mode (Sentry NODE-B): the in-memory access
+    // token expired while the app sat in the foreground, the report 401'd, and
+    // with no refresh-and-retry the user just saw "Could not send". Refresh once
+    // and retry before giving up.
+    if (res.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        res = await doFetch(refreshed);
+      }
+    }
+
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       const err = new Error(`Bug report failed (${res.status}) ${detail}`.trim()) as Error & {

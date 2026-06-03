@@ -13,6 +13,7 @@ import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
+import { captureException } from '@/src/services/sentry';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -219,32 +220,45 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const fallbackExt = (t: MediaItem['type']): string =>
       t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : 'm4a';
 
-    const uploadedFiles = (
-      await Promise.all(
-        items.map(async (item) => {
-          const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
-          const mimeType = mimeForType(item.type);
-          try {
-            const result = await uploadViaSignedUrl({
-              file: { uri: item.uri, name: filename, type: mimeType, size: item.fileSize ?? 0 },
-              initPath,
-              finalizePath,
-              blockType: item.type,
-            });
-            return {
-              block_type: item.type,
-              content: item.type === 'audio' && item.durationMs
-                ? { duration_ms: item.durationMs }
-                : {},
-              file_url: (result.file_url || result.url) as string,
-              file_name: (result.filename || result.file_name || filename) as string,
-            };
-          } catch {
-            return null;
-          }
-        }),
-      )
-    ).filter((x): x is { block_type: 'image' | 'video' | 'audio'; content: Record<string, unknown>; file_url: string; file_name: string } => Boolean(x));
+    const uploadResults = await Promise.all(
+      items.map(async (item) => {
+        const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
+        const mimeType = mimeForType(item.type);
+        try {
+          const result = await uploadViaSignedUrl({
+            file: { uri: item.uri, name: filename, type: mimeType, size: item.fileSize ?? 0 },
+            initPath,
+            finalizePath,
+            blockType: item.type,
+          });
+          return {
+            block_type: item.type,
+            content: item.type === 'audio' && item.durationMs
+              ? { duration_ms: item.durationMs }
+              : {},
+            file_url: (result.file_url || result.url) as string,
+            file_name: (result.filename || result.file_name || filename) as string,
+          };
+        } catch (uploadErr) {
+          // Don't swallow: report it and let the user know the file wasn't saved,
+          // instead of silently dropping it (the "uploads disappear" complaint).
+          captureException(uploadErr, {
+            stage: 'capture-evidence-upload',
+            extra: { type: item.type, name: filename },
+          });
+          return null;
+        }
+      }),
+    );
+    const uploadedFiles = uploadResults.filter(
+      (x): x is { block_type: 'image' | 'video' | 'audio'; content: Record<string, unknown>; file_url: string; file_name: string } => Boolean(x),
+    );
+    const failedUploads = uploadResults.length - uploadedFiles.length;
+    if (failedUploads > 0) {
+      toast.error(
+        `${failedUploads} file${failedUploads > 1 ? 's' : ''} couldn't be uploaded and ${failedUploads > 1 ? "weren't" : "wasn't"} saved. Please try again.`,
+      );
+    }
 
     if (uploadedFiles.length > 0) {
       const blocks = uploadedFiles.map((f, i) => ({

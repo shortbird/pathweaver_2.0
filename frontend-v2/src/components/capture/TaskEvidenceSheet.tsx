@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
+import { captureException } from '@/src/services/sentry';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
@@ -198,36 +199,42 @@ export function TaskEvidenceSheet({
     setSaving(true);
     try {
       // Upload media in parallel via the task's signed-upload endpoints.
-      const uploaded = (
-        await Promise.all(
-          media.map(async (item) => {
-            const mime =
-              item.type === 'video' ? 'video/mp4' :
-              item.type === 'audio' ? 'audio/m4a' :
-              'image/jpeg';
-            try {
-              const result = await uploadViaSignedUrl({
-                file: { uri: item.uri, name: item.name, type: mime, size: item.fileSize ?? 0 },
-                initPath,
-                finalizePath,
-                blockType: item.type,
-                extraInitBody,
-                extraFinalizeBody,
-              });
-              return {
-                type: item.type,
-                content: {
-                  url: (result.file_url || result.url) as string,
-                  filename: (result.filename || result.file_name || item.name) as string,
-                  ...(item.type === 'audio' && item.durationMs ? { duration_ms: item.durationMs } : {}),
-                },
-              };
-            } catch {
-              return null;
-            }
-          }),
-        )
-      ).filter((x): x is { type: string; content: Record<string, any> } => Boolean(x));
+      const uploadResults = await Promise.all(
+        media.map(async (item) => {
+          const mime =
+            item.type === 'video' ? 'video/mp4' :
+            item.type === 'audio' ? 'audio/m4a' :
+            'image/jpeg';
+          try {
+            const result = await uploadViaSignedUrl({
+              file: { uri: item.uri, name: item.name, type: mime, size: item.fileSize ?? 0 },
+              initPath,
+              finalizePath,
+              blockType: item.type,
+              extraInitBody,
+              extraFinalizeBody,
+            });
+            return {
+              type: item.type,
+              content: {
+                url: (result.file_url || result.url) as string,
+                filename: (result.filename || result.file_name || item.name) as string,
+                ...(item.type === 'audio' && item.durationMs ? { duration_ms: item.durationMs } : {}),
+              },
+            };
+          } catch (uploadErr) {
+            // Report instead of silently dropping, so a failed upload surfaces to
+            // the user rather than vanishing ("uploads disappear" complaint).
+            captureException(uploadErr, {
+              stage: 'task-evidence-upload',
+              extra: { type: item.type, name: item.name },
+            });
+            return null;
+          }
+        }),
+      );
+      const uploaded = uploadResults.filter((x): x is { type: string; content: Record<string, any> } => Boolean(x));
+      const failedUploads = uploadResults.length - uploaded.length;
 
       // Assemble the new block list: existing + media + text + link.
       const startIdx = existingBlocks.length;
@@ -252,8 +259,14 @@ export function TaskEvidenceSheet({
       }
 
       if (newBlocks.length === 0) {
-        // Nothing actually saved (e.g. all uploads failed).
-        Alert.alert('Nothing to save', 'Add some evidence and try again.');
+        // Nothing actually saved. Distinguish "user added nothing" from "every
+        // upload failed" so a failed upload doesn't read as an empty form.
+        Alert.alert(
+          failedUploads > 0 ? 'Upload failed' : 'Nothing to save',
+          failedUploads > 0
+            ? "Your evidence couldn't be uploaded. Check your connection and try again."
+            : 'Add some evidence and try again.',
+        );
         setSaving(false);
         return;
       }
@@ -273,6 +286,13 @@ export function TaskEvidenceSheet({
         });
       } else {
         throw new Error('TaskEvidenceSheet: either onSave or taskId is required.');
+      }
+      if (failedUploads > 0) {
+        // Partial success: the rest saved, but tell the user some files didn't.
+        Alert.alert(
+          'Some files not saved',
+          `${failedUploads} file${failedUploads > 1 ? 's' : ''} couldn't be uploaded. The rest of your evidence was saved.`,
+        );
       }
       haptic.success();
       reset();

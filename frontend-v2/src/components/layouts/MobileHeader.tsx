@@ -199,6 +199,20 @@ function AvatarMenu() {
             {/* Superadmin role preview controls */}
             {isSuperadmin && (
               <>
+                {/* Admin console — superadmin only. The admin tab is web-only in
+                    the tab bar; this is the native entry point to the same
+                    screen (users list, masquerade, user details). */}
+                <Pressable
+                  onPress={() => { setMenuOpen(false); router.push('/(app)/(tabs)/admin' as any); }}
+                  style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.surfaceMuted, marginTop: 4 }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={c.icon} />
+                    <UIText size="sm" style={{ color: c.text }} className="font-poppins-medium">
+                      Admin
+                    </UIText>
+                  </View>
+                </Pressable>
                 <View style={{ borderTopWidth: 1, borderTopColor: c.surfaceMuted, marginTop: 4, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
                   <UIText size="xs" style={{ color: c.textFaint, fontFamily: 'Poppins_600SemiBold', letterSpacing: 0.5, textTransform: 'uppercase' }}>
                     Preview as
