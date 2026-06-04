@@ -658,7 +658,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
 
       {/* New Topic Modal */}
       <Modal visible={newTopicVisible} transparent animationType="none" onRequestClose={() => setNewTopicVisible(false)}>
-        <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setNewTopicVisible(false)} />
           <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
             <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />

@@ -18,31 +18,18 @@ const MyClasses = () => {
   const loadClasses = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/api/users/dashboard')
-      const active = res.data?.active_quests || []
-      const classQuests = active.filter(
-        (uq) => (uq.quests?.quest_type || uq.quest_type) === 'class'
+      // Dedicated endpoint: includes credit-awarded (completed) classes, which the
+      // dashboard's active_quests filters out.
+      const res = await api.get('/api/quests/my-classes')
+      const list = res.data?.data?.classes || []
+      setClasses(
+        list.map((c) => ({
+          questId: c.quest_id,
+          title: c.title,
+          transcript_subject: c.transcript_subject,
+          progress: c,
+        }))
       )
-      const withProgress = await Promise.all(
-        classQuests.map(async (uq) => {
-          const quest = uq.quests || uq
-          const questId = uq.quest_id || quest.id || uq.id
-          let progress = null
-          try {
-            const p = await api.get(`/api/quests/${questId}/class-progress`)
-            progress = p.data?.data || null
-          } catch {
-            // progress is best-effort; the card still renders
-          }
-          return {
-            questId,
-            title: quest.title,
-            transcript_subject: quest.transcript_subject,
-            progress,
-          }
-        })
-      )
-      setClasses(withProgress)
     } catch {
       setClasses([])
     } finally {
@@ -101,9 +88,10 @@ const MyClasses = () => {
         <ul className="space-y-3">
           {classes.map((c) => {
             const p = c.progress
+            const awarded = p?.review_status === 'credit_awarded'
             const target = p?.target_xp || 1000
             const xpToNext = p?.xp_toward_next_credit ?? p?.approved_xp ?? 0
-            const percent = Math.min(100, Math.round((xpToNext / target) * 100))
+            const percent = awarded ? 100 : Math.min(100, Math.round((xpToNext / target) * 100))
             const subjectName =
               p?.transcript_subject_display || getSubjectName(c.transcript_subject)
             const reviewMeta = p?.review_status ? REVIEW_STATUS_LABEL[p.review_status] : null
@@ -133,7 +121,7 @@ const MyClasses = () => {
                             />
                           </div>
                           <p className="text-xs text-gray-400 mt-1">
-                            {xpToNext} / {target} XP toward next credit
+                            {awarded ? 'Credit earned' : `${xpToNext} / ${target} XP toward next credit`}
                           </p>
                         </div>
                       )}

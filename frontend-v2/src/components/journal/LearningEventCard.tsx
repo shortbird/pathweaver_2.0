@@ -81,17 +81,26 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   };
 
   const getBlockUrl = (b: any) => b?.file_url || b?.content?.url || b?.content?.items?.[0]?.url;
-  const imageBlock = event.evidence_blocks?.find((b) => b.block_type === 'image' && getBlockUrl(b));
-  const videoBlock = !imageBlock ? event.evidence_blocks?.find((b) => b.block_type === 'video' && getBlockUrl(b)) : null;
-  const heroBlock = imageBlock || videoBlock;
-  // Voice notes get an inline player; everything else (except the hero) shows as
-  // a small evidence-type icon badge.
+  // Render ALL image blocks, not just the first — a moment with multiple photos
+  // was only showing image #1 ("I uploaded two pictures but only one shows").
+  const imageBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'image' && getBlockUrl(b)) || [];
+  const imageUrls = Array.from(
+    new Set(
+      imageBlocks
+        .map((b) => displayImageUrl(getBlockUrl(b)))
+        .filter((u): u is string => !!u)
+    )
+  );
+  // Video is the hero only when there are no images to show.
+  const videoBlock = imageUrls.length === 0 ? event.evidence_blocks?.find((b) => b.block_type === 'video' && getBlockUrl(b)) : null;
+  // Voice notes get an inline player; everything else (except rendered media)
+  // shows as a small evidence-type icon badge.
   const audioBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'audio' && getBlockUrl(b)) || [];
   // PDFs/documents get an inline preview (DocumentViewer), so don't also reduce
   // them to a tiny type icon in the indicator row.
   const documentBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'document' && getBlockUrl(b)) || [];
   const otherEvidence = event.evidence_blocks?.filter(
-    (b) => b !== heroBlock && b.block_type !== 'audio' && b.block_type !== 'document',
+    (b) => b.block_type !== 'image' && b !== videoBlock && b.block_type !== 'audio' && b.block_type !== 'document',
   ) || [];
   const rawDate = event.event_date || event.created_at;
   // Append T12:00 to date-only strings to avoid UTC midnight → previous day in local timezone
@@ -203,19 +212,34 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     <Pressable onPress={() => { if (onPress) { onPress(); } else if (!readOnly) { setShowActions(!showActions); } }}>
       <Card variant="elevated" size="sm" className="overflow-hidden">
         {/* Media header */}
-        {imageBlock && getBlockUrl(imageBlock) ? (
+        {imageUrls.length === 1 ? (
           <View className="-mx-3 -mt-3 mb-3">
             <ExpoImage
-              // displayImageUrl rewrites HEIC/HEIF (iPhone photos) to Supabase's
-              // transcoding endpoint; without it those uploads render blank
-              // ("pictures not showing of uploaded images").
-              source={{ uri: displayImageUrl(getBlockUrl(imageBlock)) ?? undefined }}
+              // displayImageUrl (applied above) rewrites HEIC/HEIF (iPhone photos)
+              // to Supabase's transcoding endpoint; without it those uploads
+              // render blank ("pictures not showing of uploaded images").
+              source={{ uri: imageUrls[0] }}
               className="w-full h-40 rounded-t-xl"
               style={{ width: '100%', height: 160 }}
               contentFit="cover"
               cachePolicy="memory-disk"
               transition={150}
             />
+          </View>
+        ) : imageUrls.length > 1 ? (
+          // Multiple photos — 2-up grid so every image shows, not just the first.
+          <View className="-mx-3 -mt-3 mb-3 flex-row flex-wrap">
+            {imageUrls.map((uri, i) => (
+              <View key={`img-${i}`} style={{ width: '50%', padding: 1 }}>
+                <ExpoImage
+                  source={{ uri }}
+                  style={{ width: '100%', height: 120 }}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={150}
+                />
+              </View>
+            ))}
           </View>
         ) : videoBlock && getBlockUrl(videoBlock) ? (
           <View className="-mx-3 -mt-3 mb-3">

@@ -566,6 +566,77 @@ def register():
         raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
 
 
+@bp.route('/verify-email-otp', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=300)  # 10 attempts per 5 minutes
+def verify_email_otp():
+    """Confirm a signup with the 6-digit code emailed to the user (mobile flow).
+
+    The mobile app can't open the web confirmation link, so the signup email
+    surfaces a 6-digit `{{ .Token }}` and the app posts it here. Mirrors the OAuth
+    callbacks: on success we mint our own app JWTs + set cookies so the user is
+    logged straight in (no separate login step). The web flow keeps using the
+    link in the same email, so this is purely additive.
+    """
+    try:
+        data = request.json or {}
+        email = (data.get('email') or '').strip().lower()
+        token = (data.get('token') or '').strip()
+
+        if not email or not token:
+            raise ValidationError('Email and verification code are required.')
+
+        # admin client justified: pre-session confirmation; verifies the OTP and
+        # reads the users profile before any user session exists.
+        supabase = get_supabase_admin_client()
+
+        try:
+            # type 'signup' matches the confirmation email Supabase sends from
+            # auth.sign_up (same type used by /resend-verification above).
+            verify_response = supabase.auth.verify_otp({
+                'email': email,
+                'token': token,
+                'type': 'signup',
+            })
+        except Exception as verify_error:
+            err = str(verify_error).lower()
+            if 'expired' in err:
+                return jsonify({'error': 'code_expired',
+                                'message': 'That code has expired. Request a new one.'}), 400
+            return jsonify({'error': 'invalid_code',
+                            'message': 'That code is incorrect. Please check it and try again.'}), 400
+
+        if not verify_response or not verify_response.user:
+            return jsonify({'error': 'invalid_code',
+                            'message': 'That code is incorrect. Please check it and try again.'}), 400
+
+        user_id = verify_response.user.id
+
+        # The users profile row was already created during /register.
+        user_profile = supabase.table('users').select('*').eq('id', user_id).single().execute()
+
+        # Mint our own app tokens (Authorization header + httpOnly cookies),
+        # exactly like the login + OAuth callbacks do.
+        app_access_token = session_manager.generate_access_token(user_id)
+        app_refresh_token = session_manager.generate_refresh_token(user_id)
+
+        response_data = {
+            'user': user_profile.data if user_profile.data else verify_response.user.model_dump(),
+            'app_access_token': app_access_token,
+            'app_refresh_token': app_refresh_token,
+        }
+        response = make_response(jsonify(response_data), 200)
+        session_manager.set_auth_cookies(response, user_id, app_access_token, app_refresh_token)
+        logger.info(f"[OTP] Email confirmed via code for {mask_email(email)}")
+        return response
+
+    except ValidationError:
+        raise
+    except Exception as e:
+        logger.error(f"[OTP] verify-email-otp failed: {str(e)}")
+        return jsonify({'error': 'verification_failed',
+                        'message': 'Could not verify that code. Please try again.'}), 500
+
+
 @bp.route('/resend-verification', methods=['POST'])
 @rate_limit(max_requests=3, window_seconds=600)  # 3 resends per 10 minutes
 def resend_verification():

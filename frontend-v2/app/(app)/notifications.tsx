@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useNotifications } from '@/src/hooks/useNotifications';
+import { resolveDeepLink } from '@/src/services/deepLinkRouter';
 import api from '@/src/services/api';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
@@ -181,11 +182,20 @@ export default function NotificationsScreen() {
     if (!notification.is_read) {
       await markRead(notification.id);
     }
-    // Navigate to link if present
+    // Navigate via the SAME resolver the push-notification handler uses, so web
+    // links (e.g. "/communication?user=…", "/feed") map to their real mobile
+    // routes. The old code just prepended "/(app)" to the raw link, producing
+    // non-existent paths like "/(app)/communication" → the "Unmatched Route"
+    // (optio:///) screen for anything that isn't already a 1:1 mobile path.
     if (notification.link) {
-      const link = notification.link.startsWith('/') ? `/(app)${notification.link}` : notification.link;
+      const resolved = resolveDeepLink(notification.link);
+      const target = resolved?.target ?? '/(app)/notifications';
       try {
-        router.push(link as any);
+        if (resolved?.params) {
+          router.push({ pathname: target as any, params: resolved.params });
+        } else {
+          router.push(target as any);
+        }
       } catch {
         // Invalid route, just stay on page
       }

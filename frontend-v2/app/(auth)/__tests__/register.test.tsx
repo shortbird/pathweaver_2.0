@@ -84,7 +84,6 @@ describe('RegisterScreen', () => {
     fireEvent.changeText(getByPlaceholderText('First name'), 'Test');
     fireEvent.changeText(getByPlaceholderText('Last name'), 'User');
     fireEvent.changeText(getByPlaceholderText('you@email.com'), 'bademail');
-    fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2000-01-01');
     fireEvent.changeText(getByPlaceholderText('Create a password'), 'StrongPass123!');
     fireEvent.changeText(getByPlaceholderText('Re-enter password'), 'StrongPass123!');
 
@@ -118,8 +117,6 @@ describe('RegisterScreen', () => {
     fireEvent.changeText(getByPlaceholderText('First name'), 'Test');
     fireEvent.changeText(getByPlaceholderText('Last name'), 'User');
     fireEvent.changeText(getByPlaceholderText('you@email.com'), 'test@test.com');
-    // Use the native text input for DOB (non-web platform in tests)
-    fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2000-01-01');
     fireEvent.changeText(getByPlaceholderText('Create a password'), 'weak');
     fireEvent.changeText(getByPlaceholderText('Re-enter password'), 'weak');
 
@@ -137,7 +134,6 @@ describe('RegisterScreen', () => {
     fireEvent.changeText(getByPlaceholderText('First name'), 'Test');
     fireEvent.changeText(getByPlaceholderText('Last name'), 'User');
     fireEvent.changeText(getByPlaceholderText('you@email.com'), 'test@test.com');
-    fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2000-01-01');
     fireEvent.changeText(getByPlaceholderText('Create a password'), 'StrongPass123!');
     fireEvent.changeText(getByPlaceholderText('Re-enter password'), 'DifferentPass123!');
 
@@ -155,7 +151,6 @@ describe('RegisterScreen', () => {
     fireEvent.changeText(getByPlaceholderText('First name'), 'Test');
     fireEvent.changeText(getByPlaceholderText('Last name'), 'User');
     fireEvent.changeText(getByPlaceholderText('you@email.com'), 'test@test.com');
-    fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2000-01-01');
     fireEvent.changeText(getByPlaceholderText('Create a password'), 'StrongPass123!');
     fireEvent.changeText(getByPlaceholderText('Re-enter password'), 'StrongPass123!');
 

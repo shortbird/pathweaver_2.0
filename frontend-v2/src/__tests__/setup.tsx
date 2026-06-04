@@ -45,6 +45,30 @@ jest.mock('react-native-document-scanner-plugin', () => ({
   ScanDocumentResponseStatus: { Success: 'success', Cancel: 'cancel' },
 }), { virtual: true });
 
+// ── pdf-lib (scan pages → one multi-page PDF) ──
+// One stable `doc` reused across create() calls so tests can assert how many
+// pages/images were embedded via the exported `__mockDoc`.
+jest.mock('pdf-lib', () => {
+  const embedJpg = jest.fn(async () => ({ width: 800, height: 1000 }));
+  const embedPng = jest.fn(async () => ({ width: 800, height: 1000 }));
+  const addPage = jest.fn(() => ({ drawImage: jest.fn() }));
+  const saveAsBase64 = jest.fn(async () => 'UERGYmFzZTY0');
+  const doc = { embedJpg, embedPng, addPage, saveAsBase64 };
+  return {
+    __esModule: true,
+    PDFDocument: { create: jest.fn(async () => doc) },
+    __mockDoc: doc,
+  };
+});
+
+// ── expo-file-system/legacy (write the generated PDF to a local file) ──
+jest.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///cache/',
+  documentDirectory: 'file:///docs/',
+  EncodingType: { Base64: 'base64' },
+  writeAsStringAsync: jest.fn().mockResolvedValue(undefined),
+}), { virtual: true });
+
 // ── react-native-compressor (native video compression) ──
 // No-op in tests: hand back the original uri so the upload path is unchanged.
 jest.mock('react-native-compressor', () => ({

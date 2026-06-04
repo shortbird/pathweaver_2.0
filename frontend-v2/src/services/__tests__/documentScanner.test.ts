@@ -1,26 +1,30 @@
 /**
- * scanDocumentToPdf: OS scanner pages → one multi-page PDF via expo-print.
+ * scanDocumentToPdf: OS scanner pages → one multi-page PDF via pdf-lib.
  */
 
 import DocumentScanner from 'react-native-document-scanner-plugin';
-import * as Print from 'expo-print';
+import * as FileSystem from 'expo-file-system/legacy';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
+
+// Mocked in src/__tests__/setup.tsx; exposes the shared PDFDocument instance.
+const { __mockDoc } = require('pdf-lib');
 
 describe('scanDocumentToPdf', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('returns null when the user cancels (no PDF generated)', async () => {
+  it('returns null when the user cancels (no PDF written)', async () => {
     (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({ status: 'cancel' });
     expect(await scanDocumentToPdf()).toBeNull();
-    expect(Print.printToFileAsync).not.toHaveBeenCalled();
+    expect(FileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
 
   it('returns null when no pages were scanned', async () => {
     (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({ status: 'success', scannedImages: [] });
     expect(await scanDocumentToPdf()).toBeNull();
+    expect(FileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
 
-  it('assembles a single multi-page PDF from the scanned pages', async () => {
+  it('builds exactly one PDF page per scanned image (no overflow page)', async () => {
     (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({
       status: 'success',
       scannedImages: ['AAA', 'BBB', 'CCC'],
@@ -28,30 +32,23 @@ describe('scanDocumentToPdf', () => {
 
     const res = await scanDocumentToPdf();
 
-    expect(Print.printToFileAsync).toHaveBeenCalledTimes(1);
-    const html = (Print.printToFileAsync as jest.Mock).mock.calls[0][0].html as string;
-    // One page per scanned image, base64-embedded.
-    expect(html).toContain('data:image/jpeg;base64,AAA');
-    expect(html).toContain('data:image/jpeg;base64,BBB');
-    expect(html).toContain('data:image/jpeg;base64,CCC');
-    expect((html.match(/class="page"/g) || []).length).toBe(3);
-    // Regression: viewport-height pages overflowed to a blank 2nd page under
-    // expo-print (1 scan -> 2 PDF pages). Page count must equal image count.
-    expect(html).not.toContain('100vh');
-
-    expect(res?.uri).toBe('file:///tmp/scan.pdf');
+    // Regression: a portrait scan scaled to page width overflowed onto a blank
+    // 2nd page under expo-print. pdf-lib sizes each page to its image, so pages
+    // must equal images exactly — never 2x.
+    expect(__mockDoc.embedJpg).toHaveBeenCalledTimes(3);
+    expect(__mockDoc.addPage).toHaveBeenCalledTimes(3);
+    expect(FileSystem.writeAsStringAsync).toHaveBeenCalledTimes(1);
     expect(res?.pageCount).toBe(3);
+    expect(res?.uri).toMatch(/\.pdf$/);
     expect(res?.name).toMatch(/\.pdf$/);
   });
 
-  it('passes through an already-data-URI page without double-prefixing', async () => {
+  it('strips a data-URI prefix before embedding (no double-encoding)', async () => {
     (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({
       status: 'success',
       scannedImages: ['data:image/png;base64,ZZZ'],
     });
     await scanDocumentToPdf();
-    const html = (Print.printToFileAsync as jest.Mock).mock.calls[0][0].html as string;
-    expect(html).toContain('src="data:image/png;base64,ZZZ"');
-    expect(html).not.toContain('base64,data:');
+    expect(__mockDoc.embedPng).toHaveBeenCalledWith('ZZZ');
   });
 });

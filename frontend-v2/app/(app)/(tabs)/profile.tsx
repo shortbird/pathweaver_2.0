@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch } from 'react-native';
+import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
@@ -403,13 +403,18 @@ export default function ProfileScreen() {
                       {viewers.map((viewer: Viewer, idx: number) => (
                         <HStack key={`viewer-${idx}`} className="items-center justify-between py-2">
                           <HStack className="items-center gap-3 flex-1">
-                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: viewer.type === 'platform' ? '#6D469B15' : viewer.type === 'parent' ? '#3B82F615' : viewer.type === 'advisor' ? '#10B98115' : '#F59E0B15', alignItems: 'center', justifyContent: 'center' }}>
-                              <Ionicons
-                                name={viewer.type === 'platform' ? 'shield-checkmark' : viewer.type === 'parent' ? 'people' : viewer.type === 'advisor' ? 'school' : 'eye'}
-                                size={18}
-                                color={viewer.type === 'platform' ? '#6D469B' : viewer.type === 'parent' ? '#3B82F6' : viewer.type === 'advisor' ? '#10B981' : '#F59E0B'}
-                              />
-                            </View>
+                            {viewer.type === 'platform' ? (
+                              // Optio (the platform) shows as the logo, not a shield + the word "Optio".
+                              <Image source={require('@/assets/images/icon.png')} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                            ) : (
+                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: viewer.type === 'parent' ? '#3B82F615' : viewer.type === 'advisor' ? '#10B98115' : '#F59E0B15', alignItems: 'center', justifyContent: 'center' }}>
+                                <Ionicons
+                                  name={viewer.type === 'parent' ? 'people' : viewer.type === 'advisor' ? 'school' : 'eye'}
+                                  size={18}
+                                  color={viewer.type === 'parent' ? '#3B82F6' : viewer.type === 'advisor' ? '#10B981' : '#F59E0B'}
+                                />
+                              </View>
+                            )}
                             <VStack>
                               <UIText size="sm" className="font-poppins-medium">{viewer.name}</UIText>
                               <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{viewer.detail}</UIText>

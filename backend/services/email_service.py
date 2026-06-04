@@ -485,22 +485,6 @@ class EmailService(BaseService):
             }
         )
 
-    def send_confirmation_email(self, user_email: str, user_name: str, confirmation_link: str) -> bool:
-        """
-        Send signup confirmation email to new users.
-        Uses CRM template system (database override or YAML default).
-        """
-        return self.send_templated_email(
-            to_email=user_email,
-            subject="Confirm your Optio account",  # Can be overridden by template
-            template_name='email_confirmation',
-            context={
-                'user_name': user_name,
-                'first_name': user_name,  # For compatibility
-                'confirmation_link': confirmation_link
-            }
-        )
-
     def send_quest_completion_email(self, user_email: str, user_name: str, quest_title: str, xp_earned: int) -> bool:
         """Send email when user completes a quest"""
         return self.send_templated_email(
@@ -879,6 +863,14 @@ class EmailService(BaseService):
       There's nothing more you need to do right now. Closer to camp, we'll email you a link to
       set up your free Optio account so you can document your week and we can review your work for credit.
     </p>
+    <div style="background: #f5f3ff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin: 18px 0;">
+      <p style="margin: 0 0 6px; font-size: 15px; font-weight: bold; color: #6D469B;">Mark your calendar</p>
+      <p style="margin: 0; font-size: 15px; line-height: 1.6;">
+        We're hosting a short online info session before your POE to walk through how it works and
+        answer your questions: <strong>Wednesday, June 17 at 7 p.m. Eastern</strong>. It will be recorded
+        for anyone who can't attend, and we'll send an invitation with the link before the meeting.
+      </p>
+    </div>
     <p style="font-size: 15px; line-height: 1.6;">
       Questions? Just reply to this email.
     </p>
@@ -895,6 +887,10 @@ class EmailService(BaseService):
             "There's nothing more you need to do right now. Closer to camp, we'll email "
             "you a link to set up your free Optio account so you can document your week "
             "and we can review your work for credit.\n\n"
+            "Mark your calendar: we're hosting a short online info session before your POE "
+            "to walk through how it works and answer your questions on Wednesday, June 17 "
+            "at 7 p.m. Eastern. It will be recorded for anyone who can't attend, and we'll send "
+            "an invitation with the link before the meeting.\n\n"
             "Questions? Just reply to this email.\n\n"
             "— The Optio Team"
         )

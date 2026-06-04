@@ -218,6 +218,52 @@ export const AuthProvider = ({ children }) => {
   }
 
   /**
+   * Confirm a new signup with the 6-digit code emailed to the user, and log them
+   * in. The backend /api/auth/verify-email-otp endpoint sets httpOnly cookies and
+   * returns the same { user, app_access_token, app_refresh_token } shape as login,
+   * so this mirrors the login session-establishment exactly.
+   */
+  const verifyEmailOtp = async (email, token) => {
+    try {
+      const response = await api.post('/api/auth/verify-email-otp', { email, token })
+      const { user: verifiedUser, app_access_token, app_refresh_token } = response.data
+
+      if (app_access_token && app_refresh_token) {
+        await tokenStore.setTokens(app_access_token, app_refresh_token)
+      }
+
+      setSession({ authenticated: true })
+      setLoginTimestamp(Date.now())
+      queryClient.setQueryData(queryKeys.user.profile('current'), verifiedUser)
+      identifyUser(verifiedUser)
+
+      try {
+        localStorage.setItem('session_sync', JSON.stringify({
+          userId: verifiedUser.id,
+          displayName: verifiedUser.first_name || verifiedUser.display_name || verifiedUser.email,
+          action: 'login',
+          timestamp: Date.now()
+        }))
+      } catch { /* localStorage unavailable */ }
+
+      toast.success(verifiedUser.first_name ? `Welcome to Optio, ${verifiedUser.first_name}!` : 'Welcome to Optio!')
+
+      const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+      const redirectPath = verifiedUser.role === 'superadmin' || verifiedUser.role === 'parent' ? '/parent/dashboard'
+        : verifiedUser.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
+        : '/dashboard'
+      navigate(redirectPath)
+
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.message
+        || (typeof error.response?.data?.error === 'string' ? error.response.data.error : null)
+        || 'That code is incorrect or expired. Please try again.'
+      return { success: false, error: message }
+    }
+  }
+
+  /**
    * Login with username for organization students without email.
    * Uses org-specific login endpoint: POST /api/auth/login/org/:slug
    */
@@ -561,6 +607,7 @@ export const AuthProvider = ({ children }) => {
     login,
     loginWithUsername,
     register,
+    verifyEmailOtp,
     logout,
     refreshToken,
     updateUser,
