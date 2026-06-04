@@ -33,18 +33,27 @@ export default function AppLayout() {
 
   // Navigate to a deep link. resolveDeepLink never returns a non-existent
   // route, so navigation here can't land on the "no route" unmatched screen.
+  //
+  // Two hardening details against the native "IllegalStateException: child
+  // already has a parent" Fabric crash seen on notification taps:
+  //  - defer to the next tick so navigation never runs synchronously inside a
+  //    React commit (mounting a screen mid-commit is what double-inserts a view)
+  //  - use router.navigate (reuses the route if it's already in the stack)
+  //    instead of router.push (which stacks a duplicate on repeated taps)
   const navigateToLink = useCallback((link: string | null) => {
     const resolved = resolveDeepLink(link);
     const target = resolved?.target ?? '/(app)/notifications';
-    try {
-      if (resolved?.params) {
-        router.push({ pathname: target as any, params: resolved.params });
-      } else {
-        router.push(target as any);
+    setTimeout(() => {
+      try {
+        if (resolved?.params) {
+          router.navigate({ pathname: target as any, params: resolved.params });
+        } else {
+          router.navigate(target as any);
+        }
+      } catch {
+        try { router.navigate('/(app)/notifications' as any); } catch { /* give up silently */ }
       }
-    } catch {
-      router.push('/(app)/notifications' as any);
-    }
+    }, 0);
   }, []);
 
   // Live notification taps (app already foregrounded/backgrounded). If auth
@@ -95,6 +104,7 @@ export default function AppLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="post/[id]" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="quests/[id]" />

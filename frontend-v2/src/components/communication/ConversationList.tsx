@@ -385,7 +385,7 @@ export function ConversationList({
           <View className="items-center py-10 px-4">
             <Ionicons name="chatbubbles-outline" size={40} color={c.iconMuted} />
             <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3 text-center">
-              {search ? 'No contacts match your search' : 'No contacts yet'}
+              {search ? 'No contacts match your search' : 'You can message your connections as you add them.'}
             </UIText>
           </View>
         )}

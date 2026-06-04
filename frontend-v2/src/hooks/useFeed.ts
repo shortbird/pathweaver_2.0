@@ -79,6 +79,35 @@ interface UseFeedOptions {
   limit?: number;
 }
 
+/** Collapse duplicates in the feed:
+ *  - the same record returned twice (type + id), and
+ *  - a single parent-captured moment posted to several kids at once, which
+ *    creates distinct learning_events with identical content (bug: "following
+ *    all kids shows the same post for all of them — show as one"). Those are
+ *    matched on a content signature, keeping the first occurrence. */
+function dedupeFeed(list: FeedItem[]): FeedItem[] {
+  const seen = new Set<string>();
+  const out: FeedItem[] = [];
+  for (const it of list) {
+    const idKey = `${it.type}:${it.id}`;
+    const contentKey = it.type === 'learning_moment'
+      ? [
+          'lm',
+          it.moment?.title || '',
+          it.moment?.description || '',
+          it.evidence?.preview_text || '',
+          it.media?.[0]?.url || it.evidence?.url || '',
+          (it.timestamp || '').slice(0, 16), // minute precision — same-request posts share it
+        ].join('|')
+      : idKey;
+    if (seen.has(idKey) || seen.has(contentKey)) continue;
+    seen.add(idKey);
+    seen.add(contentKey);
+    out.push(it);
+  }
+  return out;
+}
+
 export function useFeed(options: UseFeedOptions = {}) {
   const { isAuthenticated, user } = useAuthStore();
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -119,9 +148,9 @@ export function useFeed(options: UseFeedOptions = {}) {
       const more = data.has_more || false;
 
       if (isLoadMore) {
-        setItems((prev) => [...prev, ...newItems]);
+        setItems((prev) => dedupeFeed([...prev, ...newItems]));
       } else {
-        setItems(newItems);
+        setItems(dedupeFeed(newItems));
       }
 
       cursorRef.current = nextCursor;

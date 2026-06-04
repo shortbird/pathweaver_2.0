@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Image, KeyboardAvoidingView, Platform, Pressable, Modal } from 'react-native';
+import { View, Image, KeyboardAvoidingView, Platform, Pressable, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -145,7 +145,15 @@ export default function LoginScreen() {
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View className="flex-1 items-center justify-center px-6">
+        {/* ScrollView so the form is reachable when the keyboard is up or the
+            screen is short (bug report: sign-in content cut off, couldn't
+            scroll after returning from forgot-password). */}
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <VStack className="w-full max-w-sm" space="lg">
             {/* Logo */}
             <View className="items-center mb-4">
@@ -261,7 +269,7 @@ export default function LoginScreen() {
               </VStack>
             </Card>
           </VStack>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Forgot Password Modal */}

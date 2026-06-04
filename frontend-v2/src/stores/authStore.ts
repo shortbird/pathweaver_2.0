@@ -64,6 +64,7 @@ interface AuthState {
     acceptedLegalTerms?: boolean;
     program_key?: string;
   }) => Promise<void>;
+  verifyEmailOtp: (email: string, token: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<string>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -426,6 +427,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (err: unknown) {
       const { message } = extractApiError(err, 'Registration failed. Please try again.');
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  // Mobile email-confirmation: verify the 6-digit code and log straight in (the
+  // backend mints app tokens on success, same shape as login).
+  verifyEmailOtp: async (email, token) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data } = await authAPI.verifyEmailOtp(email, token);
+      await tokenStore.setTokens(data.app_access_token, data.app_refresh_token);
+      let user = data.user as User;
+      try {
+        const { data: meData } = await authAPI.me();
+        user = meData as User;
+      } catch {
+        // fall back to the user returned by the verify endpoint
+      }
+      set({ user, isAuthenticated: true, isLoading: false, error: null });
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, 'Could not verify that code. Please try again.');
       set({ isLoading: false, error: message });
       throw err;
     }

@@ -140,8 +140,12 @@ export default function RegisterScreen() {
           ? '/(app)/oea/welcome'
           : state.user ? getRedirectForRole(state.user) : '/(app)/(tabs)/dashboard';
         router.replace(destination as any);
-      } else {
+      } else if (Platform.OS === 'web') {
+        // Web confirms via the email link.
         setVerificationSent(true);
+      } else {
+        // Mobile can't open the web link — confirm with the 6-digit code instead.
+        router.replace({ pathname: '/(auth)/verify-email', params: { email: email.trim() } } as any);
       }
     } catch {
       // Error set in store

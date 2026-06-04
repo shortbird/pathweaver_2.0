@@ -101,6 +101,9 @@ def register_all(app):
     from routes.admin import class_reviews as admin_class_reviews
     app.register_blueprint(admin_class_reviews.bp)
 
+    from routes.admin import poe as admin_poe
+    app.register_blueprint(admin_poe.bp)
+
     # Quest routes (refactored from quests.py mega-file into 4 modules)
     from routes.quest import register_quest_blueprints
     register_quest_blueprints(app)

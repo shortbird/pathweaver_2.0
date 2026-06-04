@@ -89,30 +89,32 @@ export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetch = useCallback(async () => {
+  // `silent` skips the loading flag so background polls don't flip the whole
+  // list to a spinner every 30s (bug: "Messages tab flashes and reloads").
+  const fetch = useCallback(async (silent = false) => {
     if (!isAuthenticated) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data } = await messageAPI.conversations();
       const d = data.data || data;
       setConversations(d.conversations || []);
     } catch {
       // non-critical
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [isAuthenticated]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // P1: poll every 30s ONLY while app is foregrounded.
+  // P1: poll every 30s ONLY while app is foregrounded (silent — no spinner).
   useEffect(() => {
     if (!isAuthenticated || !appActive) return;
-    const interval = setInterval(fetch, 30000);
+    const interval = setInterval(() => fetch(true), 30000);
     return () => clearInterval(interval);
   }, [isAuthenticated, appActive, fetch]);
 
-  return { conversations, loading, refetch: fetch };
+  return { conversations, loading, refetch: () => fetch(true) };
 }
 
 /** Fetch messages for a specific conversation */
@@ -122,30 +124,30 @@ export function useConversationMessages(conversationId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (silent = false) => {
     if (!isAuthenticated || !conversationId) { setLoading(false); return; }
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data } = await messageAPI.messages(conversationId);
       const d = data.data || data;
       setMessages(d.messages || []);
     } catch {
       // non-critical
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [isAuthenticated, conversationId]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // P1: poll every 15s ONLY while app is foregrounded.
+  // P1: poll every 15s ONLY while app is foregrounded (silent — no spinner flash).
   useEffect(() => {
     if (!isAuthenticated || !conversationId || !appActive) return;
-    const interval = setInterval(fetch, 15000);
+    const interval = setInterval(() => fetch(true), 15000);
     return () => clearInterval(interval);
   }, [isAuthenticated, conversationId, appActive, fetch]);
 
-  return { messages, loading, refetch: fetch, setMessages };
+  return { messages, loading, refetch: () => fetch(true), setMessages };
 }
 
 /** Fetch messaging contacts */
@@ -222,17 +224,17 @@ export function useGroups() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (silent = false) => {
     if (!isAuthenticated) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data } = await groupAPI.list();
       const d = data.data || data;
       setGroups(d.groups || []);
     } catch {
       // non-critical
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [isAuthenticated]);
 
@@ -240,11 +242,11 @@ export function useGroups() {
 
   useEffect(() => {
     if (!isAuthenticated || !appActive) return;
-    const interval = setInterval(fetch, 30000);
+    const interval = setInterval(() => fetch(true), 30000);
     return () => clearInterval(interval);
   }, [isAuthenticated, appActive, fetch]);
 
-  return { groups, loading, refetch: fetch };
+  return { groups, loading, refetch: () => fetch(true) };
 }
 
 /** Fetch group details with member list */
@@ -279,17 +281,17 @@ export function useGroupMessages(groupId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (silent = false) => {
     if (!isAuthenticated || !groupId) { setLoading(false); return; }
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data } = await groupAPI.messages(groupId);
       const d = data.data || data;
       setMessages(d.messages || []);
     } catch {
       // non-critical
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [isAuthenticated, groupId]);
 
@@ -297,11 +299,11 @@ export function useGroupMessages(groupId: string | null) {
 
   useEffect(() => {
     if (!isAuthenticated || !groupId || !appActive) return;
-    const interval = setInterval(fetch, 15000);
+    const interval = setInterval(() => fetch(true), 15000);
     return () => clearInterval(interval);
   }, [isAuthenticated, groupId, appActive, fetch]);
 
-  return { messages, loading, refetch: fetch, setMessages };
+  return { messages, loading, refetch: () => fetch(true), setMessages };
 }
 
 /** Send a group message (imperative) */

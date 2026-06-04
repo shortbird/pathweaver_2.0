@@ -4,8 +4,9 @@
  * Desktop: split-panel (list on left, chat on right).
  */
 
-import React, { useState, useEffect } from 'react';
-import { View } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, BackHandler } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, Heading } from '@/src/components/ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
@@ -82,6 +83,25 @@ export default function MessagesScreen() {
 
   const handleBack = () => setSelected(null);
 
+  // Android hardware back: a conversation/child-view is rendered in-place (local
+  // state, not a route), so without this the back press bubbles to the Tabs
+  // navigator, which jumps to the initial tab (Family for parents) and leaves
+  // the tab bar hidden. Instead, back should return to the conversation list and
+  // restore the bar — exactly what clearing `selected`/`showChildMessages` does
+  // (the tabBarHidden effect above re-runs and unhides it).
+  useFocusEffect(
+    useCallback(() => {
+      if (!isMobile) return;
+      const onBackPress = () => {
+        if (showChildMessages) { setShowChildMessages(false); return true; }
+        if (selected) { setSelected(null); return true; }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => sub.remove();
+    }, [isMobile, selected, showChildMessages])
+  );
+
   // ── Mobile: full-screen list or full-screen chat ──
   if (isMobile) {
     // Child message history view (parents, read-only)
@@ -92,7 +112,7 @@ export default function MessagesScreen() {
     // Chat view
     if (selected) {
       if (selected.type === 'dm' && selected.contact) {
-        return <ChatWindow contact={selected.contact} conversationId={selected.id} onBack={handleBack} />;
+        return <ChatWindow contact={selected.contact} conversationId={selected.id} onBack={handleBack} onRead={refetchConversations} />;
       }
       if (selected.type === 'group' && selected.group) {
         return (
@@ -153,7 +173,7 @@ export default function MessagesScreen() {
         {showChildMessages ? (
           <ChildMessagesView onBack={() => setShowChildMessages(false)} />
         ) : selected?.type === 'dm' && selected.contact ? (
-          <ChatWindow contact={selected.contact} conversationId={selected.id} />
+          <ChatWindow contact={selected.contact} conversationId={selected.id} onRead={refetchConversations} />
         ) : selected?.type === 'group' && selected.group ? (
           <GroupChatWindow
             group={selected.group}

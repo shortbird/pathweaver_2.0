@@ -25,6 +25,10 @@ interface Props {
   contact: Contact;
   conversationId: string;
   onBack?: () => void;
+  /** Fired after this view marks messages read, so the parent can refresh the
+   *  conversation list and clear its unread dot immediately (instead of waiting
+   *  for the next 30s poll). */
+  onRead?: () => void;
 }
 
 function getDisplayName(c: Contact) {
@@ -43,10 +47,14 @@ function formatTime(ts: string) {
   });
 }
 
-export function ChatWindow({ contact, conversationId, onBack }: Props) {
+export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
   const { messages, loading, refetch, setMessages } = useConversationMessages(conversationId);
+  // Held in a ref so the mark-read effect doesn't re-run when the parent passes
+  // a fresh onRead identity each render.
+  const onReadRef = useRef(onRead);
+  onReadRef.current = onRead;
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -69,14 +77,19 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
   const readAttemptsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!user?.id || !messages.length) return;
-    messages.forEach((m) => {
-      if (m.recipient_id === user.id && !m.read_at && !readAttemptsRef.current.has(m.id)) {
-        readAttemptsRef.current.add(m.id);
-        markMessageRead(m.id).catch(() => {
-          // Allow retry on next poll if it failed.
-          readAttemptsRef.current.delete(m.id);
-        });
-      }
+    const toMark = messages.filter(
+      (m) => m.recipient_id === user.id && !m.read_at && !readAttemptsRef.current.has(m.id),
+    );
+    if (!toMark.length) return;
+    toMark.forEach((m) => readAttemptsRef.current.add(m.id));
+    Promise.allSettled(toMark.map((m) => markMessageRead(m.id))).then((results) => {
+      // Roll back failures so the next poll retries them.
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') readAttemptsRef.current.delete(toMark[i].id);
+      });
+      // Clear the conversation-list unread dot right away instead of waiting for
+      // the next poll (bug: "unread icon stays after I've viewed the chat").
+      if (results.some((r) => r.status === 'fulfilled')) onReadRef.current?.();
     });
   }, [messages, user?.id]);
 
@@ -268,7 +281,7 @@ export function ChatWindow({ contact, conversationId, onBack }: Props) {
     return (
       <KeyboardAvoidingView
         className="flex-1 bg-white dark:bg-dark-surface-100"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
         {header}

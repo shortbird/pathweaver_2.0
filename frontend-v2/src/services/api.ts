@@ -295,6 +295,12 @@ export const authAPI = {
     api.post('/api/auth/login', { email, password }),
   register: (data: Record<string, unknown>) =>
     api.post('/api/auth/register', data),
+  // Mobile email-confirmation OTP: user types the 6-digit code from the signup
+  // email instead of opening the web link. Returns app tokens on success.
+  verifyEmailOtp: (email: string, token: string) =>
+    api.post('/api/auth/verify-email-otp', { email, token }),
+  resendVerification: (email: string) =>
+    api.post('/api/auth/resend-verification', { email }),
   me: () => api.get('/api/auth/me'),
   refresh: (refreshToken: string) =>
     api.post('/api/auth/refresh', { refresh_token: refreshToken }),

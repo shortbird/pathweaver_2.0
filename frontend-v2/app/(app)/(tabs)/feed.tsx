@@ -18,6 +18,7 @@ import { useObserverStudents } from '@/src/hooks/useObserverStudents';
 import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { FeedCard } from '@/src/components/feed/FeedCard';
+import { useFeedDetailStore } from '@/src/stores/feedDetailStore';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
   Avatar, AvatarFallbackText, AvatarImage, Skeleton,
@@ -401,13 +402,19 @@ export default function FeedScreen() {
     (item: any) => isParent && !!item?.student?.id && parentKidIdSet.has(item.student.id),
     [isParent, parentKidIdSet],
   );
+  const openPost = useCallback((item: any) => {
+    // Hand the loaded item to the detail route (the feed API has no fetch-one
+    // endpoint) and open the post on its own page.
+    useFeedDetailStore.getState().setItem(item);
+    router.push(`/(app)/post/${item.id}` as any);
+  }, []);
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
       <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
-        <FeedCard item={item} viewerCanModerate={canModerateItem(item)} isActive={viewableIds.has(item.id)} />
+        <FeedCard item={item} viewerCanModerate={canModerateItem(item)} isActive={viewableIds.has(item.id)} onPress={() => openPost(item)} />
       </View>
     ),
-    [isDesktop, canModerateItem, viewableIds],
+    [isDesktop, canModerateItem, viewableIds, openPost],
   );
 
   const renderHeader = () => (

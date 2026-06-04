@@ -108,6 +108,60 @@ def _compute_class_progress(supabase, quest_id: str, user_id: str, transcript_su
     return {'approved_xp': approved_xp, 'pending_xp': 0}
 
 
+@bp.route('/my-classes', methods=['GET'])
+@require_auth
+def list_my_classes(user_id: str):
+    """List the student's credit-classes (quest_type='class'), INCLUDING completed /
+    credit-awarded ones.
+
+    The /my-classes page can't source these from the dashboard's active_quests:
+    that list filters out completed enrollments (shared rule in
+    utils/quest_status), and a credit-awarded class is complete without a
+    completed_at — so credit-awarded classes (e.g. POE, where attendance awards
+    credit immediately) would silently disappear. This endpoint is enrollment-
+    based like the old behavior but does NOT drop completed classes.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        enrollments = supabase.table('user_quests') \
+            .select('quest_id, quests(id, title, transcript_subject, class_review_status, quest_type, is_active)') \
+            .eq('user_id', user_id) \
+            .execute().data or []
+
+        seen = set()
+        classes = []
+        for e in enrollments:
+            q = e.get('quests') or {}
+            qid = q.get('id')
+            if not qid or qid in seen:
+                continue
+            if q.get('quest_type') != 'class' or not q.get('is_active'):
+                continue
+            seen.add(qid)
+
+            subject = q.get('transcript_subject')
+            progress = _compute_class_progress(supabase, qid, user_id, subject) if subject else {'approved_xp': 0}
+            approved_xp = progress['approved_xp']
+            credits_earned = approved_xp // CLASS_TARGET_XP
+            classes.append({
+                'quest_id': qid,
+                'title': q.get('title'),
+                'transcript_subject': subject,
+                'transcript_subject_display': get_display_name(subject or ''),
+                'review_status': q.get('class_review_status'),
+                'target_xp': CLASS_TARGET_XP,
+                'approved_xp': approved_xp,
+                'credits_earned': credits_earned,
+                'xp_toward_next_credit': approved_xp - (credits_earned * CLASS_TARGET_XP),
+            })
+
+        return success_response(data={'classes': classes})
+
+    except Exception as e:
+        logger.error(f"list_my_classes failed: {e}", exc_info=True)
+        return error_response(code='FETCH_ERROR', message='Failed to load classes', status=500)
+
+
 @bp.route('/<quest_id>/class-progress', methods=['GET'])
 @require_auth
 def get_class_progress(user_id: str, quest_id: str):

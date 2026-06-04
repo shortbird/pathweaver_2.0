@@ -603,7 +603,7 @@ export default function QuestDetailScreen() {
             {/* Description — prefer big_idea (richer copy used on web v1) and
                 fall back to description. Many curated quests only fill one. */}
             {(quest.big_idea || quest.description) ? (
-              <UIText testID="quest-description" className="text-typo-500 dark:text-dark-typo-500 leading-6">
+              <UIText testID="quest-description" size="md" className="text-typo-700 dark:text-dark-typo-300 leading-6">
                 {quest.big_idea || quest.description}
               </UIText>
             ) : null}

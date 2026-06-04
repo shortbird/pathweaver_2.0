@@ -3,11 +3,19 @@
  *
  * Uses the OS document scanners (iOS VisionKit / Android ML Kit) via
  * react-native-document-scanner-plugin, which handle edge detection, perspective
- * correction and auto-brighten / shadow removal. We take the enhanced page
- * images and assemble ONE multi-page PDF with expo-print, which then flows into
- * the normal capture → signed-upload → `document` evidence-block pipeline.
+ * correction and auto-brighten / shadow removal. We then assemble ONE multi-page
+ * PDF with pdf-lib and flow it into the normal capture → signed-upload →
+ * `document` evidence-block pipeline.
  *
- * Native only (requires the dev/EAS build that includes the native module).
+ * Why pdf-lib and not expo-print/HTML: each scanned image becomes its OWN page
+ * sized to that image's exact pixel dimensions, so there is no fixed page box
+ * for a tall scan to overflow — one scan == exactly one page. The previous
+ * HTML/print approach scaled the image to the page WIDTH and let the height run
+ * free, so a portrait scan ran taller than the printable area and spilled its
+ * bottom strip onto a blank second page (bug report: "Scan is still putting onto
+ * 2 pages… 1 page per scan").
+ *
+ * Native only (requires the dev/EAS build that includes the native scanner).
  */
 
 import { Platform } from 'react-native';
@@ -21,31 +29,6 @@ export interface ScannedDocument {
   pageCount: number;
 }
 
-/** Build an HTML doc where each scanned page fills its own PDF page. */
-function buildPdfHtml(base64Images: string[]): string {
-  const pages = base64Images
-    .map((img) => {
-      const src = img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
-      return `<div class="page"><img src="${src}" /></div>`;
-    })
-    .join('');
-  // One scanned image == exactly one PDF page. We deliberately avoid `height:
-  // 100vh` here: under expo-print's paged media a viewport-height block is
-  // slightly taller than the printable area, so each page overflowed onto a
-  // blank second page — turning a 1-page scan into a 2-page PDF (bug report:
-  // "1 page per scan… make sure it doesnt turn 1 scan into two pages"). Letting
-  // the image size itself (`width:100%; height:auto`) with a page break after
-  // each keeps it to one physical page per scan.
-  return `<!DOCTYPE html><html><head><meta charset="utf-8" />
-    <style>
-      @page { margin: 0; }
-      html, body { margin: 0; padding: 0; }
-      .page { page-break-after: always; }
-      .page:last-child { page-break-after: auto; }
-      img { display: block; width: 100%; height: auto; }
-    </style></head><body>${pages}</body></html>`;
-}
-
 /**
  * Launch the OS document scanner and return a single PDF of the scanned pages.
  * Returns null if the user cancels or scans nothing. Throws if the scanner
@@ -56,24 +39,30 @@ export async function scanDocumentToPdf(): Promise<ScannedDocument | null> {
     throw new Error('Document scanning is only available in the mobile app.');
   }
 
-  // Lazy-require the native modules: importing them at module load would crash
-  // the whole capture sheet on a build that predates them ("Cannot find native
-  // module 'ExpoPrint'"). This way only the Scan action fails — gracefully,
-  // caught by the caller — until the app is rebuilt/updated.
+  // Lazy-require the native scanner: importing it at module load would crash the
+  // whole capture sheet on a build that predates it ("Cannot find native module").
+  // pdf-lib is pure JS but lazy-loaded here too so a single try/catch covers the
+  // whole "needs a newer build" path. This way only the Scan action fails —
+  // gracefully, caught by the caller — until the app is rebuilt/updated.
   let DocumentScanner: any;
   let ResponseType: any;
   let ScanDocumentResponseStatus: any;
-  let Print: any;
+  let PDFDocument: any;
+  let FileSystem: any;
   try {
     const scanner = require('react-native-document-scanner-plugin');
     DocumentScanner = scanner.default ?? scanner;
     ResponseType = scanner.ResponseType;
     ScanDocumentResponseStatus = scanner.ScanDocumentResponseStatus;
-    Print = require('expo-print');
+    PDFDocument = require('pdf-lib').PDFDocument;
+    // Legacy FS API: the new File/Directory API is preferred app-wide, but the
+    // classic base64 write is the most proven path for binary output and the
+    // `/legacy` subpath silences the SDK 55 deprecation warning.
+    FileSystem = require('expo-file-system/legacy');
   } catch {
     throw new Error('Document scanning needs the latest app version. Please update the app.');
   }
-  if (!DocumentScanner?.scanDocument || !Print?.printToFileAsync) {
+  if (!DocumentScanner?.scanDocument || !PDFDocument?.create || !FileSystem?.writeAsStringAsync) {
     throw new Error('Document scanning needs the latest app version. Please update the app.');
   }
 
@@ -87,12 +76,26 @@ export async function scanDocumentToPdf(): Promise<ScannedDocument | null> {
     return null;
   }
 
-  const html = buildPdfHtml(scannedImages);
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const pdf = await PDFDocument.create();
+  for (const img of scannedImages) {
+    // Strip any data-URI prefix; pdf-lib's embed* takes a bare base64 string.
+    const isPng = /^data:image\/png/i.test(img);
+    const base64 = img.includes('base64,') ? img.split('base64,')[1] : img;
+    const image = isPng ? await pdf.embedPng(base64) : await pdf.embedJpg(base64);
+    // Page == image size → the image fills the page 1:1, so nothing overflows
+    // and each scan is exactly one page regardless of aspect ratio.
+    const page = pdf.addPage([image.width, image.height]);
+    page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+  }
 
-  return {
-    uri,
-    name: `Scan-${Date.now()}.pdf`,
-    pageCount: scannedImages.length,
-  };
+  const ts = Date.now();
+  const name = `Scan-${ts}.pdf`;
+  const dir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+  const uri = `${dir}${name}`;
+  const pdfBase64 = await pdf.saveAsBase64();
+  await FileSystem.writeAsStringAsync(uri, pdfBase64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  return { uri, name, pageCount: scannedImages.length };
 }

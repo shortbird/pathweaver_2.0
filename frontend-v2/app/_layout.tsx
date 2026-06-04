@@ -124,6 +124,7 @@ export default function RootLayout() {
         <Stack.Screen name="invite/[code]" />
         <Stack.Screen name="terms" />
         <Stack.Screen name="privacy" />
+        <Stack.Screen name="+not-found" />
       </Stack>
       {/* Drive status-bar icon color off the theme so the clock/battery/signal
           stay legible — without this the system default rendered light icons on

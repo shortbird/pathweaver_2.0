@@ -39,6 +39,31 @@ function thumbUrl(url: string, width = 600): string {
   return url;
 }
 
+/** Feed image that renders at its natural aspect ratio so the WHOLE image
+ *  shows (bug: "Show the whole image in the feed post" — the old fixed-height
+ *  cover crop hid the top/bottom). Ratio is clamped so an extreme panorama or
+ *  very tall scan can't dominate the feed. */
+function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
+  const [ratio, setRatio] = useState(4 / 3);
+  return (
+    <Pressable onPress={onPress}>
+      <ExpoImage
+        source={{ uri: thumbUrl(uri) }}
+        className="w-full rounded-lg bg-surface-100 dark:bg-dark-surface-200"
+        style={{ width: '100%', aspectRatio: ratio }}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={150}
+        onLoad={(e: any) => {
+          const w = e?.source?.width;
+          const h = e?.source?.height;
+          if (w && h) setRatio(Math.max(0.5, Math.min(2.5, w / h)));
+        }}
+      />
+    </Pressable>
+  );
+}
+
 function ExpandableText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = text.length > 200;
@@ -72,15 +97,28 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
   // HEIC files may arrive as 'link' or 'document' type -- rescue them as images
   const topLevelIsHeic = isHeicUrl(evidence?.url);
 
-  const imageUrl = displayImageUrl(
-    allMedia.find((m) => m.type === 'image')?.url ||
-    allMedia.find((m) => m.type === 'image')?.preview ||
-    (evidence?.type === 'image' ? evidence?.url : null) ||
-    evidence?.blocks?.find((b) => b.type === 'image')?.url ||
-    (topLevelIsHeic ? evidence?.url : null) ||
-    evidence?.blocks?.find((b) => (b.type === 'document' || b.type === 'link') && isHeicUrl(b.url))?.url ||
-    null
+  // Collect ALL images, not just the first — a moment with multiple photos was
+  // only ever showing image #1 because this used .find(). Order: media images,
+  // top-level image evidence, image blocks, then HEIC files rescued from the
+  // top level / document / link blocks. Dedupe after normalizing each URL.
+  const rawImageUrls: (string | null | undefined)[] = [
+    ...allMedia.filter((m) => m.type === 'image').map((m) => m.url || m.preview),
+    evidence?.type === 'image' ? evidence?.url : null,
+    ...(evidence?.blocks?.filter((b) => b.type === 'image').map((b) => b.url) || []),
+    topLevelIsHeic ? evidence?.url : null,
+    ...(evidence?.blocks
+      ?.filter((b) => (b.type === 'document' || b.type === 'link') && isHeicUrl(b.url))
+      .map((b) => b.url) || []),
+  ];
+  const imageUrls = Array.from(
+    new Set(
+      rawImageUrls
+        .filter((u): u is string => !!u)
+        .map((u) => displayImageUrl(u))
+        .filter((u): u is string => !!u)
+    )
   );
+  const hasImage = imageUrls.length > 0;
 
   const videoUrl = allMedia.find((m) => m.type === 'video')?.url ||
     (evidence?.type === 'video' ? evidence?.url : null) ||
@@ -108,23 +146,44 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
 
   return (
     <VStack space="sm">
-      {/* Image - tappable for full screen, fills card width */}
-      {imageUrl && (
-        <Pressable onPress={() => setModal({ type: 'image', uri: imageUrl })}>
-          <ExpoImage
-            source={{ uri: thumbUrl(imageUrl) }}
-            className="w-full rounded-lg"
-            style={{ height: 280 }}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={150}
-          />
-        </Pressable>
+      {/* Single image - whole image at natural ratio, tap for full screen */}
+      {imageUrls.length === 1 && (
+        <FeedImage uri={imageUrls[0]} onPress={() => setModal({ type: 'image', uri: imageUrls[0] })} />
       )}
 
-      {/* Video - plays inline, tap for full screen */}
-      {videoUrl && !imageUrl && (
-        <VideoPlayer uri={videoUrl} isActive={isActive} />
+      {/* Multiple images - 2-up grid, each tappable for full screen */}
+      {imageUrls.length > 1 && (
+        <View className="flex-row flex-wrap" style={{ marginHorizontal: -2 }}>
+          {imageUrls.map((uri, i) => (
+            <View key={`img-${i}`} style={{ width: '50%', padding: 2 }}>
+              <Pressable onPress={() => setModal({ type: 'image', uri })}>
+                <ExpoImage
+                  source={{ uri: thumbUrl(uri) }}
+                  className="w-full rounded-lg"
+                  style={{ height: 160 }}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={150}
+                />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Video - plays inline; expand button opens the full-screen player */}
+      {videoUrl && !hasImage && (
+        <View>
+          <VideoPlayer uri={videoUrl} isActive={isActive} />
+          <Pressable
+            onPress={() => setModal({ type: 'video', uri: videoUrl })}
+            className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/50 items-center justify-center"
+            hitSlop={6}
+            accessibilityLabel="Full screen video"
+          >
+            <Ionicons name="expand" size={18} color="#fff" />
+          </Pressable>
+        </View>
       )}
 
       {/* Background upload still in flight — show progress so the moment doesn't
@@ -149,7 +208,7 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
       ))}
 
       {/* Text evidence - expandable (skip if same as description, shown above) */}
-      {textContent && !imageUrl && !videoUrl && textContent !== description && (
+      {textContent && !hasImage && !videoUrl && textContent !== description && (
         <ExpandableText text={textContent} />
       )}
 

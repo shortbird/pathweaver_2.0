@@ -323,21 +323,13 @@ export default function CreateBountyPage() {
               </HStack>
             </HStack>
 
+            {/* Show the reward total without the "/200" framing — the ceiling
+                read as a target ("implies they need to make bounties worth 200
+                XP"). Only surface the cap when they actually exceed it. */}
             {totalXP > 0 && (
               <UIText size="xs" className={totalXP > 200 ? 'text-red-500 font-poppins-bold' : 'text-typo-400 dark:text-dark-typo-400'}>
-                Total XP: {totalXP}/200
+                {totalXP > 200 ? `Total XP: ${totalXP} — max 200 per bounty` : `Total XP: ${totalXP}`}
               </UIText>
-            )}
-
-            {isObserver && totalXP > 0 && (
-              <Card variant="outline" size="sm" className="bg-amber-50 border-amber-200">
-                <HStack className="items-start gap-2">
-                  <Ionicons name="information-circle-outline" size={18} color="#B45309" style={{ marginTop: 2 }} />
-                  <UIText size="xs" style={{ color: '#92400E', flex: 1 }}>
-                    XP awarded by observers requires Optio approval before counting toward official totals. Your bounty can still be claimed and completed normally; the student's XP will sit in a pending state until reviewed.
-                  </UIText>
-                </HStack>
-              </Card>
             )}
 
             {rewards.map((r, i) => (
