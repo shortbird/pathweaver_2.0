@@ -50,7 +50,7 @@ function formatTime(ts: string) {
 export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
-  const { messages, loading, refetch, setMessages } = useConversationMessages(conversationId);
+  const { messages, loading, setMessages } = useConversationMessages(conversationId);
   // Held in a ref so the mark-read effect doesn't re-run when the parent passes
   // a fresh onRead identity each render.
   const onReadRef = useRef(onRead);
@@ -117,8 +117,17 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
 
     try {
       setSending(true);
-      await sendDirectMessage(contact.id, content);
-      refetch();
+      const sent = await sendDirectMessage(contact.id, content);
+      // Swap the optimistic bubble for the saved message IN PLACE. We used to
+      // refetch the whole list here, which briefly dropped the just-sent message
+      // (the server hadn't indexed it yet) so it flickered: appear -> disappear
+      // -> reappear on the next poll. Keeping it in place avoids the flicker; the
+      // 15s poll reconciles read receipts.
+      setMessages((prev) => prev.map((m) =>
+        m.id === optimisticMsg.id
+          ? { ...optimisticMsg, ...(sent && (sent as any).id ? (sent as Message) : {}), id: (sent && (sent as any).id) ? (sent as any).id : optimisticMsg.id, isOptimistic: false }
+          : m,
+      ));
     } catch {
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));

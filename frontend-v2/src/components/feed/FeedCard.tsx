@@ -294,6 +294,16 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const studentInitials = item.student?.display_name
     ?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 
+  // Multi-kid grouped post: a parent captured one moment for several kids, so we
+  // show every tagged kid (avatars + names) on a single card.
+  const feedStudents = (item.students && item.students.length > 0)
+    ? item.students
+    : (item.student ? [item.student] : []);
+  const isMultiStudent = feedStudents.length > 1;
+  const studentsLabel = isMultiStudent
+    ? feedStudents.map((s) => s.display_name || 'Student').join(', ')
+    : (item.student?.display_name || 'Student');
+
   const timeAgo = formatTimeAgo(item.timestamp);
 
   const handleShowViewers = async () => {
@@ -382,16 +392,33 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
           {/* Header: student + timestamp */}
           {showStudent && (
             <HStack className="items-center gap-3">
-              <Avatar size="sm">
-                {item.student?.avatar_url ? (
-                  <AvatarImage source={{ uri: item.student.avatar_url }} />
-                ) : (
-                  <AvatarFallbackText>{studentInitials}</AvatarFallbackText>
-                )}
-              </Avatar>
+              {isMultiStudent ? (
+                // Overlapping avatars for a moment shared across multiple kids.
+                <HStack>
+                  {feedStudents.slice(0, 3).map((s, i) => (
+                    <View key={s.id} style={{ marginLeft: i === 0 ? 0 : -10 }}>
+                      <Avatar size="sm">
+                        {s.avatar_url ? (
+                          <AvatarImage source={{ uri: s.avatar_url }} />
+                        ) : (
+                          <AvatarFallbackText>{(s.display_name || '?').charAt(0).toUpperCase()}</AvatarFallbackText>
+                        )}
+                      </Avatar>
+                    </View>
+                  ))}
+                </HStack>
+              ) : (
+                <Avatar size="sm">
+                  {item.student?.avatar_url ? (
+                    <AvatarImage source={{ uri: item.student.avatar_url }} />
+                  ) : (
+                    <AvatarFallbackText>{studentInitials}</AvatarFallbackText>
+                  )}
+                </Avatar>
+              )}
               <VStack className="flex-1">
-                <UIText size="sm" className="font-poppins-medium">
-                  {item.student?.display_name || 'Student'}
+                <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                  {studentsLabel}
                 </UIText>
                 <HStack className="items-center gap-2">
                   {isTask && item.completion_id && (

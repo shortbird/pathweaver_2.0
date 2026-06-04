@@ -241,6 +241,27 @@ class DirectMessageService(BaseService):
                         'unread_count': convo['unread_count_p2']
                     })
 
+            # Recompute unread from the ACTUAL unread messages rather than trusting
+            # the cached unread_count_p1/p2 counters, which drift out of sync (a
+            # missed decrement left a "ghost" unread badge after the user had
+            # already opened and read the conversation). One query, counted here.
+            try:
+                unread_resp = supabase.table('direct_messages') \
+                    .select('conversation_id') \
+                    .eq('recipient_id', user_id) \
+                    .is_('read_at', 'null') \
+                    .execute()
+                unread_by_convo: Dict[str, int] = {}
+                for row in (unread_resp.data or []):
+                    cid = row.get('conversation_id')
+                    if cid:
+                        unread_by_convo[cid] = unread_by_convo.get(cid, 0) + 1
+                for convo in all_conversations:
+                    convo['unread_count'] = unread_by_convo.get(convo['id'], 0)
+            except Exception as recount_err:
+                # Non-fatal: fall back to the cached counters already set above.
+                print(f"Unread recount failed (using cached counters): {recount_err}", file=sys.stderr, flush=True)
+
             # Sort by last_message_at descending
             all_conversations.sort(key=lambda x: x['last_message_at'], reverse=True)
 

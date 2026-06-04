@@ -130,11 +130,16 @@ const PoePage = () => {
       </Helmet>
 
       {/* ===== HERO ===== */}
-      <section className="bg-gradient-to-r from-optio-purple to-optio-pink">
-        <div className="max-w-4xl mx-auto px-4 py-20 sm:py-24 text-center text-white">
+      <section
+        className="relative bg-optio-purple"
+        style={{ backgroundImage: "url('/poe-hero.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        {/* Brand gradient overlay over the piano photo keeps the headline readable */}
+        <div className="absolute inset-0 bg-gradient-to-r from-optio-purple/75 to-optio-pink/65" aria-hidden="true" />
+        <div className="relative max-w-4xl mx-auto px-4 py-20 sm:py-24 text-center text-white">
           <p className="uppercase tracking-widest text-sm text-white/80 mb-3" style={POPPINS}>Pipe Organ Encounter · 2026</p>
           <h1 className="text-4xl sm:text-5xl font-bold mb-5 leading-tight" style={{ ...POPPINS, fontWeight: 700 }}>
-            Turn your POE into a high school fine arts class
+            Turn your POE into a high school Fine Arts class
           </h1>
           <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto mb-8" style={{ ...POPPINS, fontWeight: 500 }}>
             Document your experience in the Optio app and transfer class credit back to your high school. Free for 2026.

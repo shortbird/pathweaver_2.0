@@ -66,7 +66,7 @@ export function VideoPlayer({ uri, className = '', autoPlay = false, fillContain
   };
 
   return (
-    <View className={`w-full rounded-lg overflow-hidden ${className}`}>
+    <View className={`w-full rounded-lg overflow-hidden ${fillContainer ? 'flex-1' : ''} ${className}`}>
       <View className="w-full bg-black" style={fillContainer ? { flex: 1 } : { aspectRatio: 3 / 4, minHeight: 300 }}>
         <VideoView
           player={player}

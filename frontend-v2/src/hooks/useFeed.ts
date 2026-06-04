@@ -47,6 +47,10 @@ export interface FeedItem {
   learning_event_id?: string;
   timestamp: string;
   student: FeedStudent;
+  /** When a parent captures one moment for several kids, the sibling events are
+   *  grouped into a single card; this lists every tagged kid (the first is also
+   *  `student` for existing single-student logic). Length 1 for normal posts. */
+  students?: FeedStudent[];
   task?: {
     id: string;
     title: string;
@@ -79,33 +83,35 @@ interface UseFeedOptions {
   limit?: number;
 }
 
-/** Collapse duplicates in the feed:
- *  - the same record returned twice (type + id), and
- *  - a single parent-captured moment posted to several kids at once, which
- *    creates distinct learning_events with identical content (bug: "following
- *    all kids shows the same post for all of them — show as one"). Those are
- *    matched on a content signature, keeping the first occurrence. */
+/** Group the feed so a single parent-captured moment posted to several kids at
+ *  once shows as ONE card listing every tagged kid — instead of one card per kid
+ *  (bug: "following all kids shows the same post for each kid; collapse into one
+ *  with each kid listed"). The sibling events share title/description/preview and
+ *  the same minute but differ by student and media URL, so we key on content
+ *  (NOT media URL, NOT student) and merge the students of every match. Keeps the
+ *  first occurrence's order/media; `students` accumulates each distinct kid. */
 function dedupeFeed(list: FeedItem[]): FeedItem[] {
-  const seen = new Set<string>();
-  const out: FeedItem[] = [];
+  const byKey = new Map<string, FeedItem>();
+  const order: string[] = [];
   for (const it of list) {
-    const idKey = `${it.type}:${it.id}`;
-    const contentKey = it.type === 'learning_moment'
+    const key = it.type === 'learning_moment'
       ? [
           'lm',
           it.moment?.title || '',
           it.moment?.description || '',
           it.evidence?.preview_text || '',
-          it.media?.[0]?.url || it.evidence?.url || '',
           (it.timestamp || '').slice(0, 16), // minute precision — same-request posts share it
         ].join('|')
-      : idKey;
-    if (seen.has(idKey) || seen.has(contentKey)) continue;
-    seen.add(idKey);
-    seen.add(contentKey);
-    out.push(it);
+      : `${it.type}:${it.id}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { ...it, students: it.student ? [it.student] : [] });
+      order.push(key);
+    } else if (it.student && !(existing.students || []).some((s) => s.id === it.student.id)) {
+      existing.students = [...(existing.students || []), it.student];
+    }
   }
-  return out;
+  return order.map((k) => byKey.get(k)!);
 }
 
 export function useFeed(options: UseFeedOptions = {}) {

@@ -18,6 +18,12 @@ const LOGO_URI =
 const GOOGLE_ICON_URI =
   'https://developers.google.com/identity/images/g-logo.png';
 
+// Native-only system date picker (iOS spinner / Android dialog). Guarded so the
+// web bundle — which uses <input type="date"> — never imports the native module.
+const DateTimePicker = Platform.OS === 'web'
+  ? null
+  : require('@react-native-community/datetimepicker').default;
+
 const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
 const PASSWORD_RULES = [
@@ -74,6 +80,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
@@ -154,6 +161,30 @@ export default function RegisterScreen() {
 
   // Today's date as max for DOB input
   const today = new Date().toISOString().split('T')[0];
+
+  // Native date-picker helpers. maxDob caps at today; initialDob opens the
+  // picker near a plausible birth year so the user isn't scrolling decades.
+  const maxDob = useMemo(() => new Date(), []);
+  const initialDob = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 13);
+    return d;
+  }, []);
+  const formatDob = (iso: string) => {
+    if (!iso) return '';
+    return new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+  const onDobChange = (event: any, selected?: Date) => {
+    // Android shows a one-shot dialog; close it on any result. iOS keeps the
+    // inline spinner open until the user taps Done.
+    if (Platform.OS === 'android') setShowDobPicker(false);
+    if (event?.type === 'dismissed' || !selected) return;
+    const y = selected.getFullYear();
+    const m = String(selected.getMonth() + 1).padStart(2, '0');
+    const dd = String(selected.getDate()).padStart(2, '0');
+    clearFieldError('dob');
+    setDateOfBirth(`${y}-${m}-${dd}`);
+  };
 
   if (verificationSent) {
     return (
@@ -294,17 +325,33 @@ export default function RegisterScreen() {
                       }}
                     />
                   ) : (
-                    <Input className={fieldErrors.dob ? 'border-red-400' : ''}>
-                      <InputSlot className="ml-1">
-                        <InputIcon as="calendar-outline" />
-                      </InputSlot>
-                      <InputField
-                        placeholder="YYYY-MM-DD"
-                        value={dateOfBirth}
-                        onChangeText={(t) => { clearFieldError('dob'); setDateOfBirth(t); }}
-                        keyboardType="numbers-and-punctuation"
-                      />
-                    </Input>
+                    <>
+                      {/* Tapping opens the OS date picker (iOS spinner / Android dialog) */}
+                      <Pressable
+                        testID="dob-trigger"
+                        onPress={() => { clearFieldError('dob'); setShowDobPicker(true); }}
+                        className={`flex-row items-center rounded-lg border px-3 py-2.5 bg-white dark:bg-dark-surface-100 ${fieldErrors.dob ? 'border-red-400' : 'border-surface-300 dark:border-dark-surface-300'}`}
+                      >
+                        <Ionicons name="calendar-outline" size={18} color={c.iconMuted} style={{ marginRight: 8 }} />
+                        <UIText size="sm" style={{ color: dateOfBirth ? c.text : c.textFaint }}>
+                          {dateOfBirth ? formatDob(dateOfBirth) : 'Select your date of birth'}
+                        </UIText>
+                      </Pressable>
+                      {showDobPicker && DateTimePicker ? (
+                        <DateTimePicker
+                          value={dateOfBirth ? new Date(`${dateOfBirth}T12:00:00`) : initialDob}
+                          mode="date"
+                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          maximumDate={maxDob}
+                          onChange={onDobChange}
+                        />
+                      ) : null}
+                      {Platform.OS === 'ios' && showDobPicker ? (
+                        <Button size="sm" variant="outline" onPress={() => setShowDobPicker(false)} className="self-end mt-1">
+                          <ButtonText>Done</ButtonText>
+                        </Button>
+                      ) : null}
+                    </>
                   )}
                   {fieldErrors.dob ? <UIText size="xs" className="text-red-500">{fieldErrors.dob}</UIText> : null}
 
