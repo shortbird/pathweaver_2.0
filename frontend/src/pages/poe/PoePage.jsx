@@ -137,7 +137,16 @@ const PoePage = () => {
         {/* Brand gradient overlay over the piano photo keeps the headline readable */}
         <div className="absolute inset-0 bg-gradient-to-r from-optio-purple/75 to-optio-pink/65" aria-hidden="true" />
         <div className="relative max-w-4xl mx-auto px-4 py-20 sm:py-24 text-center text-white">
-          <p className="uppercase tracking-widest text-sm text-white/80 mb-3" style={POPPINS}>Pipe Organ Encounter · 2026</p>
+          {/* AGO POE logo (full color) on a white card — per brand guidelines, the
+              full-color logo needs a solid light layer for contrast, never placed
+              directly on a color/photo. */}
+          <div className="flex justify-center mb-6">
+            <img
+              src="/poe-logo-horizontal.jpg"
+              alt="American Guild of Organists — Pipe Organ Encounters"
+              className="h-32 sm:h-44 w-auto rounded-lg bg-white px-8 py-5 shadow-md"
+            />
+          </div>
           <h1 className="text-4xl sm:text-5xl font-bold mb-5 leading-tight" style={{ ...POPPINS, fontWeight: 700 }}>
             Turn your POE into a high school Fine Arts class
           </h1>
