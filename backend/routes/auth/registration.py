@@ -396,6 +396,19 @@ def register():
                 else:
                     logger.warning(f"[REGISTRATION] Ignoring unknown program_key: {program_key}")
 
+            # Standard parent signup. The mobile register screen lets the user
+            # pick "Parent / Guardian" vs "Student (13+)". Without this, platform
+            # signups default to 'student' and a parent's account can't manage a
+            # family ("new parent can't add a child"). Only honor an explicit
+            # account_type='parent' for platform (non-org) signups that are still
+            # the default student — org-managed / observer / promo / program_key
+            # roles set above always win. Strictly allowlisted to 'parent' so the
+            # client can never request a privileged role.
+            account_type = (data.get('account_type') or '').strip().lower()
+            if not org_slug and account_type == 'parent' and user_data.get('role', 'student') == 'student':
+                user_data['role'] = 'parent'
+                logger.info("[REGISTRATION] account_type=parent -> role=parent (platform signup)")
+
             # Use upsert to handle cases where auth user exists but profile doesn't
             # Retry logic for FK constraint errors (auth user may not be immediately visible)
             import time

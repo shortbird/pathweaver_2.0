@@ -63,6 +63,7 @@ interface AuthState {
     date_of_birth?: string;
     acceptedLegalTerms?: boolean;
     program_key?: string;
+    account_type?: 'parent' | 'student';
   }) => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<string>;

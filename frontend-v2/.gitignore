@@ -32,6 +32,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+# Sentry source-map upload secrets for local OTA publishing (SENTRY_AUTH_TOKEN etc.)
+.env.sentry-build-plugin
 maestro/.env.maestro
 maestro/*.apk
 

@@ -9,7 +9,7 @@
  * refetch the task's evidence after we add blocks to it.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Pressable, TextInput, Alert, ScrollView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -113,6 +113,40 @@ export function TaskEvidenceSheet({
     if (saving) return;
     reset();
     onClose();
+  };
+
+  // Native pickers must run with the sheet's Modal fully dismissed, or Android
+  // crashes with "unregistered ActivityResultLauncher" (and iOS can drop the
+  // first launch). Hide the sheet, launch once it's gone, then re-present.
+  // State is preserved because reset() only runs on an explicit handleClose.
+  const [pickerSuspended, setPickerSuspended] = useState(false);
+  const pendingPickerRef = useRef<null | (() => Promise<void>)>(null);
+
+  const runWithSheetHidden = (action: () => Promise<void>) => {
+    // Android-only close-then-launch dance (avoids the unregistered
+    // ActivityResultLauncher crash). On iOS, dismissing the Modal first makes
+    // the picker silently fail to present, so launch directly there.
+    if (Platform.OS !== 'android') {
+      action().catch((err) => captureException(err, { stage: 'task-evidence-picker-launch' }));
+      return;
+    }
+    pendingPickerRef.current = action;
+    setPickerSuspended(true);
+  };
+
+  const handleSheetClosed = () => {
+    const action = pendingPickerRef.current;
+    pendingPickerRef.current = null;
+    if (!action) return;
+    (async () => {
+      try {
+        await action();
+      } catch (err) {
+        captureException(err, { stage: 'task-evidence-picker-launch' });
+      } finally {
+        setPickerSuspended(false);
+      }
+    })();
   };
 
   const addMedia = (assets: ImagePicker.ImagePickerAsset[]) => {
@@ -308,7 +342,7 @@ export function TaskEvidenceSheet({
   };
 
   return (
-    <BottomSheet visible={visible} onClose={handleClose}>
+    <BottomSheet visible={visible && !pickerSuspended} onClose={handleClose} onClosed={handleSheetClosed}>
       <VStack space="md">
         {/* Header */}
         <HStack className="items-center justify-between">
@@ -431,7 +465,7 @@ export function TaskEvidenceSheet({
         {/* Attach buttons */}
         <HStack className="gap-3">
           <Pressable
-            onPress={openCamera}
+            onPress={() => runWithSheetHidden(openCamera)}
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
@@ -454,7 +488,7 @@ export function TaskEvidenceSheet({
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
           </Pressable>
           <Pressable
-            onPress={pickFiles}
+            onPress={() => runWithSheetHidden(pickFiles)}
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >

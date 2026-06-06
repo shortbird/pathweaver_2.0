@@ -187,7 +187,9 @@ export function useChildEngagement(studentId: string | null) {
     if (!isAuthenticated || !studentId) { setLoading(false); return; }
     (async () => {
       try {
-        const { data: result } = await api.get(`/api/parent/${studentId}/engagement`);
+        // 30s timeout: non-critical widget, tolerant of a cold Render backend
+        // (the 15s-timeout reports). Failure stays silent via the catch below.
+        const { data: result } = await api.get(`/api/parent/${studentId}/engagement`, { timeout: 30000 });
         setData(result.engagement || result);
       } catch {
         // Non-critical

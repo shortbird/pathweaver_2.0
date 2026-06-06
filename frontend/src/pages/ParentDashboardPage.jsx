@@ -66,7 +66,18 @@ const ParentDashboardPage = () => {
         ]);
 
         const childrenData = childrenResponse.data.children || [];
-        const dependentsData = dependentsResponse.dependents || [];
+        const dependentsRaw = dependentsResponse.dependents || [];
+
+        // get_parent_dependents (the my-dependents RPC) returns the UNION of
+        // true under-13 dependents AND approved parent_student_links, so every
+        // linked student also comes back in `dependentsRaw`. The web dashboard
+        // renders `children` and `dependents` as two separate tab lists, so a
+        // linked kid present in both arrays renders twice. Linked students are
+        // independent accounts (not managed dependents), so keep them in
+        // `children` (isDependent=false, diploma credits visible) and strip the
+        // overlap out of `dependents`, leaving only true under-13 dependents.
+        const childIds = new Set(childrenData.map((c) => c.student_id));
+        const dependentsData = dependentsRaw.filter((d) => !childIds.has(d.id));
 
         setChildren(childrenData);
         setDependents(dependentsData);

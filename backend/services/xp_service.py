@@ -330,10 +330,24 @@ class XPService(BaseService):
                 .execute()
             
             total_xp = sum(record.get('xp_amount', 0) for record in xp_records.data) if xp_records.data else 0
-            
+
+            # Keep the denormalized users.total_xp cache in sync with the
+            # authoritative per-pillar sum. award_xp() historically only wrote
+            # user_skill_xp + user_mastery, so users.total_xp drifted (it was
+            # stale and too low on profiles/dashboards — e.g. a student showing
+            # 6,600 when their real total was 12,475). Recompute-from-source on
+            # every award keeps it correct.
+            try:
+                self.supabase.table('users')\
+                    .update({'total_xp': total_xp})\
+                    .eq('id', user_id)\
+                    .execute()
+            except Exception as sync_err:
+                logger.error(f"Failed to sync users.total_xp for {user_id}: {sync_err}")
+
             # Simple level calculation (or remove if not needed)
             mastery_level = 1
-            
+
             # Check if user_mastery record exists
             existing = self.supabase.table('user_mastery')\
                 .select('id')\

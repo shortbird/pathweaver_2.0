@@ -13,7 +13,6 @@ const SECTION_LINKS = [
   { id: 'at-a-glance', label: 'Quick Facts' },
   { id: 'program', label: 'The Program' },
   { id: 'tuition', label: 'Tuition' },
-  { id: 'refunds', label: 'If Plans Change' },
   { id: 'admissions', label: 'How to Join' },
   { id: 'safety', label: 'Safety' },
   { id: 'contact', label: 'Contact' },
@@ -63,7 +62,6 @@ const AcademyPage = () => {
   const overviewRef = useSectionView('at_a_glance', PAGE)
   const programRef = useSectionView('program', PAGE)
   const tuitionRef = useSectionView('tuition', PAGE)
-  const refundsRef = useSectionView('refunds', PAGE)
   const admissionsRef = useSectionView('admissions', PAGE)
   const safetyRef = useSectionView('safety', PAGE)
   const contactRef = useSectionView('contact', PAGE)
@@ -343,32 +341,6 @@ const AcademyPage = () => {
           <p className="text-sm text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
             Every family gets the exact same program at the exact same price. No different tiers,
             no premium add-ons.
-          </p>
-        </div>
-      </SectionAnchor>
-
-      {/* ========== REFUND POLICY ========== */}
-      <SectionAnchor
-        id="refunds"
-        sectionRef={refundsRef}
-        kicker="If Plans Change"
-        title="Leaving Mid-Year Is Always Okay"
-        subtitle="Life happens. If Optio Academy isn't the right fit, here's exactly what that looks like."
-        bg="bg-gray-50"
-      >
-        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-            How Refunds Work
-          </h3>
-          <p className="text-gray-700 leading-relaxed mb-4">
-            If your student leaves Optio Academy before the school year ends, tuition is refunded
-            prorated by the number of months attended. You only pay for the months your student was
-            with us.
-          </p>
-          <p className="text-gray-700 leading-relaxed">
-            If your tuition was funded by a scholarship or other third-party program, the refund
-            flows back through that program rather than directly to your family — exactly the way
-            those programs are designed to work. We handle the paperwork on our end.
           </p>
         </div>
       </SectionAnchor>

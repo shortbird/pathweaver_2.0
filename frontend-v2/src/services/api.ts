@@ -387,6 +387,8 @@ export const bountyAPI = {
     api.delete(`/api/bounties/${id}`),
   claim: (id: string) =>
     api.post(`/api/bounties/${id}/claim`, {}),
+  abandon: (bountyId: string, claimId: string) =>
+    api.delete(`/api/bounties/${bountyId}/claims/${claimId}`),
   myClaims: () =>
     api.get('/api/bounties/my-claims'),
   myPosted: () =>

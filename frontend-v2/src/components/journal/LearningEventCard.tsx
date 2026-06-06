@@ -368,11 +368,19 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                       <Pressable
                         onPress={(e) => { e.stopPropagation?.(); handleCreateAndAssign(); }}
                         disabled={!newTopicName.trim() || creatingTopic}
+                        hitSlop={12}
+                        accessibilityRole="button"
+                        accessibilityLabel="Create topic"
                         style={{ opacity: !newTopicName.trim() || creatingTopic ? 0.4 : 1 }}
                       >
                         <Ionicons name="checkmark-circle" size={22} color="#6D469B" />
                       </Pressable>
-                      <Pressable onPress={(e) => { e.stopPropagation?.(); setShowNewTopic(false); setNewTopicName(''); }}>
+                      <Pressable
+                        onPress={(e) => { e.stopPropagation?.(); setShowNewTopic(false); setNewTopicName(''); }}
+                        hitSlop={12}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel new topic"
+                      >
                         <Ionicons name="close-circle" size={22} color={c.iconMuted} />
                       </Pressable>
                     </HStack>

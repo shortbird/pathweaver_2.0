@@ -1,0 +1,85 @@
+name: EAS Update (OTA)
+
+# Publishes an over-the-air JS bundle so fixes reach installed apps in minutes
+# without a new native build or store review.
+#
+#   push to develop -> publishes to the `preview` channel  (internal testers)
+#   push to main    -> publishes to the `production` channel (real users)
+#
+# Only JS/asset changes ship this way. If a push changed native code, the
+# fingerprint runtimeVersion won't match existing builds, so the update simply
+# isn't delivered to them (that's the safety guarantee of the `fingerprint`
+# policy) — those changes still need `eas build`.
+#
+# Required repo secrets:
+#   EXPO_TOKEN          - Expo robot access token (Expo dashboard > Access tokens)
+#   SENTRY_ORG          - optio-llc
+#   SENTRY_PROJECT      - node   (or the numeric project id)
+#   SENTRY_AUTH_TOKEN   - Sentry auth token with project:releases scope
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'frontend-v2/**'
+      - '.github/workflows/eas-update.yml'
+
+# One publish per branch at a time; newer pushes supersede in-flight ones.
+concurrency:
+  group: eas-update-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish OTA update
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend-v2/package-lock.json
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: frontend-v2
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $i failed; retrying..."
+            sleep 10
+          done
+          exit 1
+
+      - name: Publish OTA update
+        working-directory: frontend-v2
+        env:
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # Read the commit message via env, never interpolate it into the shell
+          # (avoids script injection from untrusted commit messages).
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          MSG="${COMMIT_MSG%%$'\n'*}"   # first line only
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            npm run ota:production -- -m "$MSG"
+          else
+            npm run ota:preview -- -m "$MSG"
+          fi

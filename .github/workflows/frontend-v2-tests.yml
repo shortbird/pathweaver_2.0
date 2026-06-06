@@ -60,40 +60,12 @@ jobs:
 
       - name: Run tests
         working-directory: frontend-v2
+        # The gate IS the exit code: jest exits non-zero on any failure, which
+        # fails this step and the job. The old "Check pass rate" step re-ran the
+        # whole suite to compute a 95% threshold that could never matter — this
+        # step already enforces 100%. Removed that second run (and the ungated
+        # coverage run) to cut CI time.
         run: npm run test:run
-
-      - name: Check pass rate
-        working-directory: frontend-v2
-        run: |
-          TEST_OUTPUT=$(npm run test:run 2>&1 || true)
-          echo "$TEST_OUTPUT"
-
-          PASSED=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= passed)' | tail -1)
-          FAILED=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || echo "0")
-          PASSED=${PASSED:-0}
-          FAILED=${FAILED:-0}
-          TOTAL=$((PASSED + FAILED))
-
-          if [ $TOTAL -eq 0 ]; then
-            echo "Error: No test results found"
-            exit 1
-          fi
-
-          PASS_RATE=$((PASSED * 100 / TOTAL))
-          echo "Pass Rate: $PASS_RATE% ($PASSED/$TOTAL)"
-          echo "Required: 95%"
-
-          if [ $PASS_RATE -lt 95 ]; then
-            echo "FAILED: Pass rate ($PASS_RATE%) below 95%"
-            exit 1
-          else
-            echo "PASSED: Pass rate ($PASS_RATE%) meets 95%"
-          fi
-
-      - name: Coverage report
-        if: github.event_name == 'pull_request'
-        working-directory: frontend-v2
-        run: npm run test:coverage || true
 
       - name: Test Results Summary
         if: always()
@@ -101,6 +73,6 @@ jobs:
           echo "## Frontend V2 Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Required Pass Rate:** 95%" >> $GITHUB_STEP_SUMMARY
+          echo "**Gate:** all tests must pass" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

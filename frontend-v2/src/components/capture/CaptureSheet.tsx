@@ -5,7 +5,7 @@
  * Creates moment via JSON, then uploads files individually.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Pressable, TextInput, Alert, ScrollView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -134,6 +134,47 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   useEffect(() => {
     if (!visible) reset();
   }, [visible, reset]);
+
+  // Native pickers (camera, photo library, document scanner) must run with the
+  // sheet's Modal fully dismissed. On Android, launching them while the RN Modal
+  // is mounted crashes with "Attempting to launch an unregistered
+  // ActivityResultLauncher" (the "Scan unavailable / Camera won't open / files
+  // won't open" reports); iOS can also drop the first launch. We hide the sheet,
+  // run the picker once it's fully gone (BottomSheet.onClosed), then re-present.
+  // The in-progress moment survives because reset() is keyed on the parent
+  // `visible` prop above, not this internal suspension.
+  const [pickerSuspended, setPickerSuspended] = useState(false);
+  const pendingPickerRef = useRef<null | (() => Promise<void>)>(null);
+
+  const runWithSheetHidden = (action: () => Promise<void>) => {
+    // Android needs the Modal fully dismissed before launching a native picker,
+    // or it crashes with "unregistered ActivityResultLauncher". iOS has no such
+    // problem, and dismissing first there introduces a "no view controller to
+    // present from" race that makes the picker silently fail to open (the sheet
+    // just closes). So only do the close-then-launch dance on Android; launch
+    // directly from the open sheet on iOS (the original, working behavior).
+    if (Platform.OS !== 'android') {
+      action().catch((err) => captureException(err, { stage: 'capture-picker-launch' }));
+      return;
+    }
+    pendingPickerRef.current = action;
+    setPickerSuspended(true);
+  };
+
+  const handleSheetClosed = () => {
+    const action = pendingPickerRef.current;
+    pendingPickerRef.current = null;
+    if (!action) return; // a real close, not a picker suspension
+    (async () => {
+      try {
+        await action();
+      } catch (err) {
+        captureException(err, { stage: 'capture-picker-launch' });
+      } finally {
+        setPickerSuspended(false); // re-present the sheet with state intact
+      }
+    })();
+  };
 
   const addMedia = (assets: ImagePicker.ImagePickerAsset[]) => {
     const newItems: MediaItem[] = [];
@@ -436,7 +477,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   const canSave = hasContent && hasStudentSelection;
 
   return (
-    <BottomSheet visible={visible} onClose={handleClose}>
+    <BottomSheet visible={visible && !pickerSuspended} onClose={handleClose} onClosed={handleSheetClosed}>
       <VStack space="md">
             {/* Header */}
             <HStack className="items-center justify-between">
@@ -472,7 +513,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                   </UIText>
                   {selectedStudentIds.length > 0 && (
                     <UIText size="xs" style={{ color: '#6D469B', fontFamily: 'Poppins_500Medium' }}>
-                      {selectedStudentIds.length} selected
+                      {selectedStudentIds.length} {selectedStudentIds.length === 1 ? 'kid' : 'kids'}
                     </UIText>
                   )}
                 </HStack>
@@ -675,7 +716,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             {/* Attach buttons */}
             <HStack className="gap-3">
               <Pressable
-                onPress={openCamera}
+                onPress={() => runWithSheetHidden(openCamera)}
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
@@ -701,7 +742,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
               </Pressable>
               <Pressable
-                onPress={pickFiles}
+                onPress={() => runWithSheetHidden(pickFiles)}
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
@@ -709,7 +750,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
               </Pressable>
               <Pressable
-                onPress={scanDocument}
+                onPress={() => runWithSheetHidden(scanDocument)}
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >

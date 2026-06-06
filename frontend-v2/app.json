@@ -4,7 +4,13 @@
     "slug": "optio",
     "version": "1.0.0",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b8abcb59-cb68-4f26-a25d-6de6fb9551e6",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

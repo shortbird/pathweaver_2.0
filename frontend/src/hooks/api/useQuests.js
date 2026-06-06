@@ -255,6 +255,28 @@ export const useQuestEngagement = (questId, options = {}) => {
 }
 
 /**
+ * Hook for fetching a child's quest-specific engagement, scoped to the child
+ * (not the logged-in parent). Used by the active-quest cards on the parent's
+ * Child Overview, where the self-scoped /api/quests/:id/engagement would query
+ * the parent's (empty) activity and always read "Ready to Begin".
+ */
+export const useStudentQuestEngagement = (studentId, questId, options = {}) => {
+  return useQuery({
+    queryKey: ['student-quest-engagement', studentId, questId],
+    queryFn: async () => {
+      const response = await api.get(`/api/parent/${studentId}/engagement`, {
+        params: { quest_id: questId },
+      })
+      return response.data.engagement
+    },
+    enabled: !!studentId && !!questId,
+    staleTime: 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
+    ...options,
+  })
+}
+
+/**
  * Hook for fetching global user engagement/rhythm metrics
  * Used on the dashboard for overall platform engagement
  */

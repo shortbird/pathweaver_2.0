@@ -148,6 +148,15 @@ class BountyRepository(BaseRepository):
             logger.error(f"Error fetching claim {claim_id}: {e}")
             raise DatabaseError("Failed to fetch claim") from e
 
+    def delete_claim(self, claim_id: str) -> None:
+        """Delete a bounty claim (used when a student drops/abandons it before
+        turning it in)."""
+        try:
+            self.client.table('bounty_claims').delete().eq('id', claim_id).execute()
+        except APIError as e:
+            logger.error(f"Error deleting claim {claim_id}: {e}")
+            raise DatabaseError("Failed to delete claim") from e
+
     def get_student_claims(self, student_id: str) -> List[Dict[str, Any]]:
         """Get all claims for a student."""
         try:
