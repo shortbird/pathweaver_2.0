@@ -133,14 +133,14 @@ describe('BountyDetailPage', () => {
     });
   });
 
-  it('shows Claim Bounty button for unclaimed bounty', async () => {
+  it('shows Start Bounty button for unclaimed bounty', async () => {
     const bounty = createMockBounty({ poster_id: 'someone-else' });
     (bountyAPI.get as jest.Mock).mockResolvedValueOnce({ data: { bounty } });
 
     const { getByText } = render(<BountyDetailPage />);
 
     await waitFor(() => {
-      expect(getByText('Claim Bounty')).toBeTruthy();
+      expect(getByText('Start Bounty')).toBeTruthy();
     });
   });
 });

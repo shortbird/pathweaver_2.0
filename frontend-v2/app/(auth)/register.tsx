@@ -84,6 +84,11 @@ export default function RegisterScreen() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
+  // Parent vs student (13+) signup. The backend defaults platform signups to
+  // 'student', so without this a parent's account couldn't manage a family
+  // ("new parent can't add a child"). Default to parent — this signup is
+  // family-oriented — and OEA is always a parent enrollment.
+  const [accountType, setAccountType] = useState<'parent' | 'student'>('parent');
 
   // Field-level errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -137,6 +142,7 @@ export default function RegisterScreen() {
         last_name: lastName.trim(),
         date_of_birth: dateOfBirth,
         acceptedLegalTerms: true,
+        account_type: isOEA ? 'parent' : accountType,
         ...(isOEA ? { program_key: OEA_PARTNER_KEY } : {}),
       });
       const state = useAuthStore.getState();
@@ -245,6 +251,33 @@ export default function RegisterScreen() {
                     ? 'Enroll your family in OpenEd Academy'
                     : 'Start your learning journey today'}
                 </UIText>
+
+                {/* Account type — parents get the family experience + can add
+                    children; students (13+) get their own learner account. OEA
+                    is always a parent enrollment, so the picker is hidden. */}
+                {!isOEA && (
+                  <VStack space="xs">
+                    <UIText size="sm" className="font-poppins-medium">I'm signing up as a…</UIText>
+                    <HStack className="gap-2">
+                      {(['parent', 'student'] as const).map((t) => {
+                        const active = accountType === t;
+                        return (
+                          <Pressable
+                            key={t}
+                            onPress={() => setAccountType(t)}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                            className={`flex-1 items-center py-3 rounded-xl border ${active ? 'bg-optio-purple border-optio-purple' : 'bg-surface-50 dark:bg-dark-surface-50 border-surface-200 dark:border-dark-surface-200'}`}
+                          >
+                            <UIText size="sm" className={active ? 'text-white font-poppins-semibold' : 'font-poppins-medium'}>
+                              {t === 'parent' ? 'Parent / Guardian' : 'Student (13+)'}
+                            </UIText>
+                          </Pressable>
+                        );
+                      })}
+                    </HStack>
+                  </VStack>
+                )}
 
                 {error && (
                   <View className="bg-red-50 p-3 rounded-lg">

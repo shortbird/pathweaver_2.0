@@ -154,6 +154,11 @@ export async function claimBounty(bountyId: string) {
   return data;
 }
 
+export async function abandonBounty(bountyId: string, claimId: string) {
+  const { data } = await bountyAPI.abandon(bountyId, claimId);
+  return data;
+}
+
 export async function toggleDeliverable(
   bountyId: string,
   claimId: string,

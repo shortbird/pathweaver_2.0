@@ -20,7 +20,7 @@ import { UserChatLogs } from '@/src/components/admin/UserChatLogs';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Input, InputField, InputSlot, InputIcon,
-  Avatar, AvatarFallbackText, AvatarImage, toast,
+  Avatar, AvatarFallbackText, AvatarImage, IconButton, toast,
 } from '@/src/components/ui';
 
 type AdminTab = 'users' | 'quests' | 'orgs' | 'emails' | 'bulk' | 'docs';
@@ -107,19 +107,24 @@ function UserCardMobile({ user, onMasquerade, onDelete, onSelect }: { user: Admi
                 <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{lastActive}</UIText>
               </HStack>
             </HStack>
-            <HStack className="gap-1">
-              <Pressable
-                onPress={onMasquerade}
-                className="w-8 h-8 rounded-lg bg-surface-100 items-center justify-center active:bg-surface-200 dark:bg-dark-surface-200"
-              >
-                <Ionicons name="eye-outline" size={16} color={c.icon} />
-              </Pressable>
-              <Pressable
-                onPress={onDelete}
-                className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950 items-center justify-center active:bg-red-100"
-              >
-                <Ionicons name="trash-outline" size={14} color="#EF4444" />
-              </Pressable>
+            {/* gap-3 (12px) deliberately separates the destructive Delete from
+                Masquerade so they aren't a 4px-apart mis-tap hazard. IconButton
+                gives each a >=48px touch target via hitSlop, and stopPropagation
+                keeps a tap off these from also opening the row detail. */}
+            <HStack className="gap-3">
+              <IconButton
+                name="eye-outline"
+                accessibilityLabel="View as this user"
+                iconSize={18}
+                onPress={(e) => { e?.stopPropagation?.(); onMasquerade(); }}
+              />
+              <IconButton
+                name="trash-outline"
+                tone="danger"
+                accessibilityLabel="Delete this user"
+                iconSize={18}
+                onPress={(e) => { e?.stopPropagation?.(); onDelete(); }}
+              />
             </HStack>
           </HStack>
         </VStack>

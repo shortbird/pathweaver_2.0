@@ -74,12 +74,16 @@ export function BottomSheet({
     if (visible) {
       setMounted(true);
       Animated.parallel([
-        Animated.spring(translateY, {
+        // Fast, predictable entrance instead of a slow spring. The spring took
+        // ~400ms to settle, so an early tap on a sheet option landed before the
+        // button had risen into place and was missed — the "tap the drawer
+        // option twice, the first tap doesn't register" report. A 220ms ease-out
+        // puts the sheet at its final (hit-testable) position almost immediately.
+        Animated.timing(translateY, {
           toValue: 0,
+          duration: 220,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
-          damping: 22,
-          stiffness: 240,
-          mass: 0.9,
         }),
         Animated.timing(sheetOpacity, {
           toValue: 1,

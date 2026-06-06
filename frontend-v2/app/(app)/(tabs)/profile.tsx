@@ -181,8 +181,9 @@ export default function ProfileScreen() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
+      // display_name is intentionally not sent — the backend derives it from
+      // first + last name so there's a single source of truth.
       await api.put('/api/users/profile', {
-        display_name: editDisplay.trim(),
         first_name: editFirst.trim(),
         last_name: editLast.trim(),
         bio: editBio.trim(),
@@ -507,17 +508,9 @@ export default function ProfileScreen() {
                   <Ionicons name="close" size={18} color={c.icon} />
                 </Pressable>
               </HStack>
-              <VStack space="xs">
-                <UIText size="sm" className="font-poppins-medium">Display Name</UIText>
-                <TextInput
-                  value={editDisplay}
-                  onChangeText={setEditDisplay}
-                  placeholder="Display name"
-                  placeholderTextColor={c.textFaint}
-                  className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
-                  style={{ fontFamily: 'Poppins_400Regular' }}
-                />
-              </VStack>
+              {/* Display name is derived from First + Last on the backend, so we
+                  don't expose a separate editable field here (it read as
+                  redundant: "Display name and first + last name is too much"). */}
               <HStack space="sm">
                 <VStack space="xs" className="flex-1">
                   <UIText size="sm" className="font-poppins-medium">First Name</UIText>

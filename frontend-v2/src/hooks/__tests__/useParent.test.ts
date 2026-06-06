@@ -108,7 +108,7 @@ describe('useChildEngagement', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(api.get).toHaveBeenCalledWith('/api/parent/child-13plus/engagement');
+    expect(api.get).toHaveBeenCalledWith('/api/parent/child-13plus/engagement', { timeout: 30000 });
   });
 });
 

@@ -13,7 +13,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
-import { useBountyDetail, useMyClaims, claimBounty, toggleDeliverable, turnInBounty, deleteEvidence } from '@/src/hooks/useBounties';
+import { useBountyDetail, useMyClaims, claimBounty, abandonBounty, toggleDeliverable, turnInBounty, deleteEvidence } from '@/src/hooks/useBounties';
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
 import { displayImageUrl } from '@/src/services/imageUrl';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -130,6 +130,7 @@ export default function BountyDetailPage() {
 
   const [claiming, setClaiming] = useState(false);
   const [turningIn, setTurningIn] = useState(false);
+  const [dropping, setDropping] = useState(false);
   const [evidenceTarget, setEvidenceTarget] = useState<{ deliverableId: string; text: string } | null>(null);
 
   const myClaim = useMemo(
@@ -198,6 +199,32 @@ export default function BountyDetailPage() {
       Alert.alert('Error', msg);
     } finally {
       setTurningIn(false);
+    }
+  };
+
+  const handleDrop = async () => {
+    if (!id || !myClaim) return;
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Drop this bounty?',
+        'Your progress on this bounty will be removed. You can start it again later.',
+        [
+          { text: 'Keep it', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Drop bounty', style: 'destructive', onPress: () => resolve(true) },
+        ],
+      );
+    });
+    if (!confirmed) return;
+    setDropping(true);
+    try {
+      await abandonBounty(id, myClaim.id);
+      await refetchClaims();
+      await refetch();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to drop bounty';
+      Alert.alert('Error', msg);
+    } finally {
+      setDropping(false);
     }
   };
 
@@ -411,7 +438,21 @@ export default function BountyDetailPage() {
               disabled={claiming}
               className="w-full"
             >
-              <ButtonText>Claim Bounty</ButtonText>
+              <ButtonText>Start Bounty</ButtonText>
+            </Button>
+          )}
+
+          {/* Drop a started bounty before turning it in. */}
+          {isClaimEditable && (
+            <Button
+              size="lg"
+              variant="outline"
+              onPress={handleDrop}
+              loading={dropping}
+              disabled={dropping}
+              className="w-full"
+            >
+              <ButtonText>{dropping ? 'Dropping…' : 'Drop bounty'}</ButtonText>
             </Button>
           )}
 

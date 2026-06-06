@@ -34,6 +34,23 @@ def enroll_in_quest(user_id: str, quest_id: str):
     """
     try:
         data = request.get_json() or {}
+        # Parent proxy: a parent can start a quest on behalf of their dependent
+        # child by passing acting_as_dependent_id. Verify the parent->child link,
+        # then operate as the child for the rest of this enrollment (mirrors the
+        # task-completion flow). Lets parents of under-13 kids run full quests.
+        acting_as_dependent_id = data.get('acting_as_dependent_id')
+        if acting_as_dependent_id and acting_as_dependent_id != user_id:
+            from routes.parent.dashboard_overview import verify_parent_access
+            from middleware.error_handler import AuthorizationError
+            try:
+                verify_parent_access(get_supabase_admin_client(), user_id, acting_as_dependent_id)
+            except AuthorizationError:
+                return error_response(
+                    code='NOT_AUTHORIZED',
+                    message='Not authorized to act for this child',
+                    status=403,
+                )
+            user_id = acting_as_dependent_id
         load_previous_tasks = data.get('load_previous_tasks', False)
         force_new = data.get('force_new', False)
         # Use admin client for reading quest data (public info, no RLS restrictions)

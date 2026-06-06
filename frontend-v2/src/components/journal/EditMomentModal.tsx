@@ -636,7 +636,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
   // Mobile: bottom sheet
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <Pressable
           className="flex-1"
           style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}

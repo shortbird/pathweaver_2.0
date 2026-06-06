@@ -1,8 +1,8 @@
 import '../global.css';
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View, Text, Pressable } from 'react-native';
 import { useColorScheme } from 'nativewind';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 // S4: Suppress React Native Web warnings for native-only props. Match exact,
@@ -51,12 +51,38 @@ import {
 import { useAuthStore } from '@/src/stores/authStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { loadPersistedTheme } from '@/src/stores/themeStore';
-import { initSentry } from '@/src/services/sentry';
+import { initSentry, captureException } from '@/src/services/sentry';
 import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 import { ToastHost } from '@/src/components/ui';
 import { UpdateBanner } from '@/src/components/layouts/UpdateBanner';
 
-export { ErrorBoundary } from 'expo-router';
+// Custom route error boundary. expo-router's default dropped the user to a bare
+// crash screen on a thrown render/navigation error — e.g. a bad deep link from a
+// tapped notification — which read as "the app logged me out and made me sign in
+// again". This catches the error, reports it, and offers an in-place retry.
+// Auth/session is never touched here, so the user stays signed in.
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  useEffect(() => {
+    captureException(error, { stage: 'route-error-boundary' });
+  }, [error]);
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#16162A' }}>
+      <Text style={{ color: '#F3F0F6', fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
+        Something went wrong
+      </Text>
+      <Text style={{ color: '#9A93A8', fontSize: 14, textAlign: 'center', marginBottom: 20 }}>
+        That screen hit an error. You're still signed in — try again.
+      </Text>
+      <Pressable
+        onPress={retry}
+        accessibilityRole="button"
+        style={{ backgroundColor: '#6D469B', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+      >
+        <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Try again</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 SplashScreen.preventAutoHideAsync();
 initSentry();

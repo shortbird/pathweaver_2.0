@@ -134,7 +134,7 @@ export function StartSomethingSheet({
             iconColor="#0F766E"
             iconBg="#0F766E1A"
             title="Earn a bounty"
-            subtitle="Claim a posted task for XP"
+            subtitle="Start a posted task for XP"
             onPress={() => {
               onClose();
               router.push('/(app)/(tabs)/bounties');

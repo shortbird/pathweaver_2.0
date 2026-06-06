@@ -574,7 +574,7 @@ export function BountiesView() {
             <Card variant="filled" size="lg" className="items-center py-10">
               <Ionicons name="hand-left-outline" size={40} color={c.iconMuted} />
               <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No active claims</Heading>
-              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">Claim a bounty to get started</UIText>
+              <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">Start a bounty to get started</UIText>
             </Card>
           )}
         </View>

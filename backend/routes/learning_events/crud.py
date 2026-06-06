@@ -27,6 +27,36 @@ def _validate_topics(topics):
 
 from routes.learning_events import learning_events_bp
 
+# Flat XP awarded per learning moment to a dependent child.
+DEPENDENT_MOMENT_XP = 25
+
+
+def _award_dependent_moment_xp(event):
+    """Award a flat 25 XP per learning moment to a DEPENDENT child (is_dependent).
+
+    Young, parent-managed kids (under 13) do fewer formal quests, so logging a
+    learning moment should still earn recognition. No-op for non-dependent users.
+    Best-effort: a failure here never blocks moment creation.
+    """
+    try:
+        owner_id = event.get('user_id') if isinstance(event, dict) else None
+        if not owner_id:
+            return
+        from database import get_supabase_admin_client
+        # admin client justified: server-side XP award keyed on the moment owner;
+        # ownership was already authorized by the calling route.
+        supabase = get_supabase_admin_client()
+        u = supabase.table('users').select('is_dependent').eq('id', owner_id).execute()
+        if not (u.data and u.data[0].get('is_dependent')):
+            return
+        pillars = event.get('pillars') or []
+        pillar = pillars[0] if pillars else 'stem'
+        from services.xp_service import XPService
+        XPService().award_xp(owner_id, pillar, DEPENDENT_MOMENT_XP, source='learning_moment')
+        logger.info(f"Awarded {DEPENDENT_MOMENT_XP} XP ({pillar}) to dependent {owner_id[:8]} for a learning moment")
+    except Exception as e:
+        logger.warning(f"Dependent moment XP award skipped: {e}")
+
 
 @learning_events_bp.route('/api/learning-events', methods=['POST'])
 @require_auth
@@ -93,6 +123,7 @@ def create_learning_event(user_id):
         )
 
         if result['success']:
+            _award_dependent_moment_xp(result['event'])
             return jsonify({
                 'success': True,
                 'event': result['event'],
@@ -155,6 +186,7 @@ def create_quick_learning_event(user_id):
             resp = supabase.table('learning_events').insert(event_data).execute()
             if not resp.data:
                 return jsonify({'success': False, 'error': 'Failed to capture moment'}), 500
+            _award_dependent_moment_xp(resp.data[0])
             return jsonify({'success': True, 'event': resp.data[0], 'message': 'Moment captured!'}), 201
 
         result = LearningEventsService.create_quick_moment(
@@ -166,6 +198,7 @@ def create_quick_learning_event(user_id):
         )
 
         if result['success']:
+            _award_dependent_moment_xp(result['event'])
             return jsonify({
                 'success': True,
                 'event': result['event'],

@@ -217,6 +217,23 @@ def turn_in_bounty(user_id, bounty_id, claim_id):
         return jsonify({'error': 'Failed to turn in bounty', 'message': str(e)}), 500
 
 
+@bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>', methods=['DELETE', 'OPTIONS'])
+@require_role('student', 'superadmin')
+def abandon_claim(user_id, bounty_id, claim_id):
+    """Student drops a bounty they claimed (before turning it in)."""
+    try:
+        service = BountyService()
+        service.abandon_claim(claim_id=claim_id, student_id=user_id, bounty_id=bounty_id)
+        return jsonify({'success': True}), 200
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'message': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'error': 'Not found', 'message': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error dropping bounty claim {claim_id}: {e}")
+        return jsonify({'error': 'Failed to drop bounty', 'message': str(e)}), 500
+
+
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/evidence/<deliverable_id>/<int:evidence_index>', methods=['DELETE', 'OPTIONS'])
 @require_role('student', 'superadmin')
 def delete_deliverable_evidence(user_id, bounty_id, claim_id, deliverable_id, evidence_index):

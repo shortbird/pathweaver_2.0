@@ -65,6 +65,15 @@ def update_profile(user_id):
     allowed_fields = ['first_name', 'last_name', 'bio', 'avatar_url', 'display_name', 'portfolio_slug']
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
 
+    # Derive display_name from first + last so there's a single source of truth.
+    # The mobile profile editor dropped its separate display_name field (it read
+    # as redundant); when names are sent, recompute display_name and ignore any
+    # client-provided value so the two can't diverge.
+    if 'first_name' in update_data and 'last_name' in update_data:
+        derived = f"{(update_data['first_name'] or '').strip()} {(update_data['last_name'] or '').strip()}".strip()
+        if derived:
+            update_data['display_name'] = derived
+
     if not update_data:
         raise ValidationError('No valid fields to update')
 

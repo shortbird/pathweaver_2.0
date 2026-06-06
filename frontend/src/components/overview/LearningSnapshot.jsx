@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
-import { useQuestEngagement } from '../../hooks/api/useQuests';
+import { useQuestEngagement, useStudentQuestEngagement } from '../../hooks/api/useQuests';
 import { useActingAs } from '../../contexts/ActingAsContext';
 
 // Simple engagement heatmap cell
@@ -95,8 +95,14 @@ const ActiveQuestCard = ({ quest, studentId, isDependent = false, dependentName 
   const { setActingAs } = useActingAs();
   const [switching, setSwitching] = useState(false);
 
-  // Fetch quest-specific engagement data
-  const { data: engagement } = useQuestEngagement(questId);
+  // Fetch quest-specific engagement data. In the parent view (studentId set),
+  // scope it to the child via the parent endpoint; the self-scoped quest
+  // endpoint would query the parent's own (empty) activity and always show
+  // "Ready to Begin".
+  const isParentView = !!studentId;
+  const { data: ownEngagement } = useQuestEngagement(questId, { enabled: !isParentView });
+  const { data: childEngagement } = useStudentQuestEngagement(studentId, questId, { enabled: isParentView });
+  const engagement = isParentView ? childEngagement : ownEngagement;
 
   // Get rhythm state from quest-specific engagement data
   const rhythmState = engagement?.rhythm?.state || 'ready_to_begin';

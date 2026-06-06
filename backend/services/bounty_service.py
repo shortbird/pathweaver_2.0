@@ -552,6 +552,19 @@ class BountyService(BaseService):
         updated = self.repository.update_claim_evidence(claim_id, evidence)
         return updated
 
+    def abandon_claim(self, claim_id: str, student_id: str, bounty_id: str) -> None:
+        """Student drops a bounty they claimed, before turning it in. Removes the
+        claim so the student is no longer signed up and capacity frees up."""
+        claim = self.repository.get_claim(claim_id)
+        if not claim:
+            raise NotFoundError(f"Claim {claim_id} not found")
+        if claim['student_id'] != student_id:
+            raise ValidationError("You can only drop your own claims")
+        if claim['status'] not in ('claimed', 'revision_requested'):
+            raise ValidationError(f"Can't drop a bounty that's already '{claim['status']}'")
+        self.repository.delete_claim(claim_id)
+        logger.info(f"Student {student_id[:8]} dropped claim {claim_id[:8]} on bounty {bounty_id[:8]}")
+
     def turn_in_bounty(self, claim_id: str, student_id: str, bounty_id: str) -> Dict[str, Any]:
         """Student explicitly turns in a bounty for review. All deliverables must be complete."""
         claim = self.repository.get_claim(claim_id)

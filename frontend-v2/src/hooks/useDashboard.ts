@@ -83,7 +83,9 @@ export function useGlobalEngagement() {
     if (!isAuthenticated) return;
     (async () => {
       try {
-        const { data: result } = await api.get('/api/users/me/engagement');
+        // 30s timeout: non-critical widget, cold-start tolerant (see note on
+        // useQuestEngagement). Failure stays silent via the catch below.
+        const { data: result } = await api.get('/api/users/me/engagement', { timeout: 30000 });
         setData(result.engagement || result);
       } catch {
         // Non-critical
@@ -105,7 +107,12 @@ export function useQuestEngagement(questId: string | null) {
     if (!isAuthenticated || !questId) { setLoading(false); return; }
     (async () => {
       try {
-        const { data: result } = await api.get(`/api/quests/${questId}/engagement`);
+        // Longer timeout than the 15s global default: engagement is a
+        // non-critical dashboard widget and is the first call to hit a cold
+        // Render backend, which can take >15s to wake (the "timeout of 15000ms
+        // exceeded" reports). 30s lets it load after a cold start instead of
+        // erroring; the catch below keeps any failure silent regardless.
+        const { data: result } = await api.get(`/api/quests/${questId}/engagement`, { timeout: 30000 });
         setData(result.engagement || result);
       } catch {
         // Non-critical

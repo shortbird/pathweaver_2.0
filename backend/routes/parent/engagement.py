@@ -3,7 +3,7 @@ Parent Student Engagement API endpoint.
 Provides rhythm/engagement metrics for a student, viewable by their parent.
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
@@ -131,6 +131,10 @@ def calculate_rhythm_state(activity_dates: list, today: date_type) -> dict:
 def get_student_engagement(user_id: str, student_id: str):
     """
     Get engagement metrics for a student, viewable by their parent.
+
+    Optional `quest_id` query param scopes the rhythm/calendar to a single
+    quest (used by the active-quest cards on the child overview). Without it,
+    the response covers all of the student's activity.
     """
     try:
         # admin client justified: rhythm/engagement metrics for a child; cross-user read gated by parent->child relationship verification
@@ -138,6 +142,8 @@ def get_student_engagement(user_id: str, student_id: str):
 
         # Verify parent has access to this student
         verify_parent_access(supabase, user_id, student_id)
+
+        quest_id = request.args.get('quest_id') or None
 
         today = datetime.now().date()
 
@@ -147,6 +153,7 @@ def get_student_engagement(user_id: str, student_id: str):
 
         result = supabase.rpc('get_engagement_summary', {
             'p_user_id': student_id,
+            'p_quest_id': quest_id,
             'p_since': twelve_weeks_ago.isoformat()
         }).execute()
 

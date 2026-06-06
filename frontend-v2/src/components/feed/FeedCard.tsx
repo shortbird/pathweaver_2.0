@@ -45,15 +45,24 @@ function thumbUrl(url: string, width = 600): string {
  *  very tall scan can't dominate the feed. */
 function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
   const [ratio, setRatio] = useState(4 / 3);
+  // Prefer the server-resized thumbnail (saves memory in the list). If the
+  // Supabase image-transform endpoint can't serve it (feature limits, or an
+  // unsupported source such as a HEIC photo from an iPhone), it returns an
+  // error and the image went permanently blank — "feed posts with images that
+  // don't show". On error, fall back to the original object URL via
+  // displayImageUrl (the same path the post-detail view uses, which works).
+  const [failed, setFailed] = useState(false);
+  const source = failed ? (displayImageUrl(uri) || uri) : thumbUrl(uri);
   return (
     <Pressable onPress={onPress}>
       <ExpoImage
-        source={{ uri: thumbUrl(uri) }}
+        source={{ uri: source }}
         className="w-full rounded-lg bg-surface-100 dark:bg-dark-surface-200"
         style={{ width: '100%', aspectRatio: ratio }}
         contentFit="cover"
         cachePolicy="memory-disk"
         transition={150}
+        onError={() => setFailed((prev) => prev || true)}
         onLoad={(e: any) => {
           const w = e?.source?.width;
           const h = e?.source?.height;
