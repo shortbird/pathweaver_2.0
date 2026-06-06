@@ -54,6 +54,7 @@ import { loadPersistedTheme } from '@/src/stores/themeStore';
 import { initSentry } from '@/src/services/sentry';
 import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 import { ToastHost } from '@/src/components/ui';
+import { UpdateBanner } from '@/src/components/layouts/UpdateBanner';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -132,6 +133,7 @@ export default function RootLayout() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <BugReportHost />
       <ToastHost />
+      <UpdateBanner />
     </>
   );
 }

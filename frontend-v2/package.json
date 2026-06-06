@@ -10,7 +10,11 @@
     "test": "jest --watchAll",
     "test:run": "jest --ci --forceExit",
     "test:coverage": "jest --coverage --ci --forceExit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ota:export": "expo export --source-maps --platform ios --platform android --output-dir dist",
+    "ota:sourcemaps": "sentry-expo-upload-sourcemaps dist",
+    "ota:preview": "npm run ota:export && npm run ota:sourcemaps && eas update --branch preview --skip-bundler --input-dir dist",
+    "ota:production": "npm run ota:export && npm run ota:sourcemaps && eas update --branch production --skip-bundler --input-dir dist"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",
@@ -47,6 +51,7 @@
     "expo-splash-screen": "~55.0.21",
     "expo-status-bar": "~55.0.6",
     "expo-symbols": "~55.0.9",
+    "expo-updates": "~55.0.24",
     "expo-video": "~55.0.17",
     "expo-web-browser": "~55.0.16",
     "lightningcss": "^1.32.0",
