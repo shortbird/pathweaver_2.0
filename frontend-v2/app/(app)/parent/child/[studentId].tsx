@@ -20,7 +20,7 @@ import { EngagementCalendar } from '@/src/components/engagement/EngagementCalend
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
 import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
-import { useChildOverview } from '@/src/hooks/useParent';
+import { useChildOverview, useChildJournal } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const PILLAR_LABELS: Record<string, string> = {
@@ -52,6 +52,7 @@ export default function ChildProfileScreen() {
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
   const c = useThemeColors();
   const { overview, loading } = useChildOverview(studentId || null);
+  const { topics: childTopics } = useChildJournal(studentId || null);
 
   const student = overview?.student;
   const dashboard = overview?.dashboard;
@@ -176,6 +177,33 @@ export default function ChildProfileScreen() {
                       ))}
                     </HStack>
                   </VStack>
+                </Card>
+              </VStack>
+            )}
+
+            {/* Journal Topics — tap through to the child's full journal */}
+            {childTopics.length > 0 && (
+              <VStack space="sm">
+                <HStack className="items-center justify-between">
+                  <Heading size="md">Journal Topics</Heading>
+                  <Pressable onPress={() => router.push(`/(app)/parent/journal/${studentId}` as any)} hitSlop={8}>
+                    <UIText size="sm" className="text-optio-purple font-poppins-medium">View all</UIText>
+                  </Pressable>
+                </HStack>
+                <Card variant="elevated" size="md">
+                  <HStack className="flex-wrap gap-2">
+                    {childTopics.map((t: any) => (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => router.push(`/(app)/parent/journal/${studentId}` as any)}
+                        className="flex-row items-center gap-1.5 px-3 py-2 rounded-full bg-surface-100 dark:bg-dark-surface-200"
+                        style={{ minHeight: 36 }}
+                      >
+                        <Ionicons name={(t.icon as any) || 'bookmark-outline'} size={14} color={t.color || '#6D469B'} />
+                        <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{t.name}</UIText>
+                      </Pressable>
+                    ))}
+                  </HStack>
                 </Card>
               </VStack>
             )}

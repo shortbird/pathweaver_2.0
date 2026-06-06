@@ -171,7 +171,14 @@ export function TaskCreationWizard({
         }
         interestsArg = combined;
       } else {
-        interestsArg = interests || undefined;
+        // Regular mode now uses the same tappable interest chips + freeform
+        // extras as class mode, combined into one comma-separated string.
+        // Pillar focus stays regular-only.
+        const chipLabels = Array.from(selectedInterestChips)
+          .map((id) => INTEREST_CHIPS.find((c) => c.id === id)?.label)
+          .filter(Boolean) as string[];
+        const combined = [...chipLabels, extraIdeas.trim()].filter(Boolean).join(', ');
+        interestsArg = combined || undefined;
         pillarArg = selectedPillar || undefined;
       }
       const tasks = await onGenerate(interestsArg, pillarArg, undefined);
@@ -527,14 +534,49 @@ export function TaskCreationWizard({
                   ) : (
                     <>
                       <VStack space="xs">
-                        <UIText size="sm" className="font-poppins-medium">What are you interested in?</UIText>
+                        <UIText size="sm" className="font-poppins-medium">
+                          What are you interested in?
+                        </UIText>
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                          Pick a few — we'll generate tasks that connect your interests to this quest.
+                        </UIText>
+                        <HStack className="flex-wrap gap-2 pt-1">
+                          {INTEREST_CHIPS.map((chip) => {
+                            const selected = selectedInterestChips.has(chip.id);
+                            return (
+                              <Pressable
+                                key={chip.id}
+                                onPress={() => {
+                                  setSelectedInterestChips((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(chip.id)) next.delete(chip.id);
+                                    else next.add(chip.id);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <View className={`flex-row items-center gap-1.5 px-3 py-2 rounded-full border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white dark:bg-dark-surface-100 border-surface-300 dark:border-dark-surface-300'}`}>
+                                  <UIText size="sm">{chip.icon}</UIText>
+                                  <UIText size="xs" className={`font-poppins-medium ${selected ? 'text-white' : 'text-typo-600 dark:text-dark-typo-600'}`}>
+                                    {chip.label}
+                                  </UIText>
+                                </View>
+                              </Pressable>
+                            );
+                          })}
+                        </HStack>
+                      </VStack>
+
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">Any specific ideas? (optional)</UIText>
                         <TextInput
-                          value={interests}
-                          onChangeText={setInterests}
-                          placeholder='e.g. "photography, cooking, robotics"'
+                          value={extraIdeas}
+                          onChangeText={setExtraIdeas}
+                          placeholder='e.g. "I play varsity basketball and want to track stats"'
                           placeholderTextColor={c.textFaint}
                           className="bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 rounded-xl p-3 text-sm"
                           style={{ fontFamily: 'Poppins_400Regular' }}
+                          multiline
                         />
                       </VStack>
 
