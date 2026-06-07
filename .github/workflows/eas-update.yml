@@ -1,10 +1,10 @@
-name: EAS Update (OTA)
+name: EAS Update (OTA preview)
 
-# Publishes an over-the-air JS bundle so fixes reach installed apps in minutes
-# without a new native build or store review.
+# Publishes a PREVIEW over-the-air JS bundle (develop -> `preview` channel) so
+# internal testers get changes in minutes without a new native build.
 #
-#   push to develop -> publishes to the `preview` channel  (internal testers)
-#   push to main    -> publishes to the `production` channel (real users)
+# The PRODUCTION OTA lives in release.yml (push to main), gated on the test jobs
+# so we never ship broken JS to real users. This workflow is develop-only.
 #
 # Only JS/asset changes ship this way. If a push changed native code, the
 # fingerprint runtimeVersion won't match existing builds, so the update simply
@@ -19,7 +19,7 @@ name: EAS Update (OTA)
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop]
     paths:
       - 'frontend-v2/**'
       - '.github/workflows/eas-update.yml'
@@ -67,7 +67,7 @@ jobs:
           done
           exit 1
 
-      - name: Publish OTA update
+      - name: Publish preview OTA
         working-directory: frontend-v2
         env:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
@@ -78,8 +78,4 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           MSG="${COMMIT_MSG%%$'\n'*}"   # first line only
-          if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            npm run ota:production -- -m "$MSG"
-          else
-            npm run ota:preview -- -m "$MSG"
-          fi
+          npm run ota:preview -- -m "$MSG"
