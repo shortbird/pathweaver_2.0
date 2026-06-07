@@ -297,8 +297,23 @@ jest.mock('react-native-reanimated', () => {
 // ── react-native-gesture-handler ──
 jest.mock('react-native-gesture-handler', () => {
   const { View, TouchableOpacity } = require('react-native');
+  // Modern Gesture API: every builder method is chainable and returns the same
+  // object, so `Gesture.Pan().activeOffsetX(...).onEnd(...)` works in tests.
+  const makeChainable = () => {
+    // Every property access returns a function that returns the SAME proxy, so
+    // arbitrarily long builder chains (.activeOffsetX().failOffsetY().onEnd()) work.
+    const p = new Proxy({}, { get() { return () => p; } });
+    return p;
+  };
   return {
     GestureHandlerRootView: View,
+    // GestureDetector just renders its children (View ignores the gesture prop).
+    GestureDetector: View,
+    Gesture: {
+      Pan: makeChainable, Tap: makeChainable, LongPress: makeChainable,
+      Fling: makeChainable, Pinch: makeChainable,
+      Race: (...gs) => gs[0], Simultaneous: (...gs) => gs[0], Exclusive: (...gs) => gs[0],
+    },
     PanGestureHandler: View,
     TapGestureHandler: View,
     TouchableOpacity,

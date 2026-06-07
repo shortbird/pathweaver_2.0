@@ -17,6 +17,7 @@ import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder, parentMobileTabOrder } from '@/src/config/navigation';
 import { useUIStore } from '@/src/stores/uiStore';
+import { useUnreadCount } from '@/src/hooks/useMessages';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
@@ -60,6 +61,8 @@ export default function TabsLayout() {
   // Quest detail screens publish their quest into this store while focused, so
   // the global Capture button can open the sheet pre-scoped to that quest.
   const questCaptureContext = useCaptureContextStore((s) => s.quest);
+  // Unread DM count -> badge on the Messages tab icon.
+  const { count: unreadMessages } = useUnreadCount();
 
   // Restore persisted preview state on first mount (web only)
   useEffect(() => {
@@ -142,6 +145,7 @@ export default function TabsLayout() {
                 name={item.key}
                 options={{
                   title: item.label,
+                  tabBarBadge: item.key === 'messages' && unreadMessages > 0 ? unreadMessages : undefined,
                   tabBarIcon: ({ color, size }) => (
                     <Ionicons name={item.icon} size={size} color={color} />
                   ),
@@ -272,6 +276,7 @@ export default function TabsLayout() {
                 name={item.key}
                 options={{
                   title: item.label,
+                  tabBarBadge: item.key === 'messages' && unreadMessages > 0 ? unreadMessages : undefined,
                   tabBarIcon: ({ color, size }) => (
                     <Ionicons name={item.icon} size={size} color={color} />
                   ),
@@ -376,6 +381,7 @@ export default function TabsLayout() {
               name={item.key}
               options={{
                 title: item.label,
+                tabBarBadge: item.key === 'messages' && unreadMessages > 0 ? unreadMessages : undefined,
                 tabBarIcon: ({ color, size }) => (
                   <Ionicons name={item.icon} size={size} color={color} />
                 ),

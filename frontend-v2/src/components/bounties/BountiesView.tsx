@@ -8,6 +8,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { View, Pressable, Platform, Alert } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -480,6 +482,28 @@ export function BountiesView() {
         { key: 'posted', label: 'Posted', count: posted.length || undefined },
       ];
 
+  // Swipe between tabs: left -> next, right -> previous (clamped to the ends).
+  // Clamp by reading the current tab's index off the tabs array at fire time.
+  const goToAdjacentTab = useCallback(
+    (direction: 1 | -1) => {
+      const idx = tabs.findIndex((t) => t.key === tab);
+      const next = idx + direction;
+      if (next >= 0 && next < tabs.length) setTab(tabs[next].key);
+    },
+    [tabs, tab],
+  );
+
+  // Only fire on a clearly horizontal fling past the threshold so it doesn't
+  // fight the vertical ScrollView/FlatList content.
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-12, 12])
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) > 60 && Math.abs(e.translationX) > Math.abs(e.translationY)) {
+        runOnJS(goToAdjacentTab)(e.translationX < 0 ? 1 : -1);
+      }
+    });
+
   return (
     <VStack space="md">
       {/* Tab switcher — single-tab layout for students (no chrome). */}
@@ -508,6 +532,8 @@ export function BountiesView() {
         </View>
       )}
 
+      <GestureDetector gesture={swipeGesture}>
+        <VStack space="md">
       {/* Browse */}
       {tab === 'browse' && (
         <VStack space="md">
@@ -657,6 +683,8 @@ export function BountiesView() {
           )}
         </View>
       )}
+        </VStack>
+      </GestureDetector>
     </VStack>
   );
 }

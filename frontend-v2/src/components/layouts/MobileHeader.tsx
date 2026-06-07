@@ -104,11 +104,6 @@ function AvatarMenu() {
 
   const menuItems: MenuItem[] = [
     ...(isParent ? [{
-      key: 'family',
-      label: 'Family Dashboard',
-      icon: 'people-outline' as keyof typeof Ionicons.glyphMap,
-      onPress: () => { setMenuOpen(false); router.push('/(app)/(tabs)/family' as any); },
-    }, {
       key: 'add-child',
       label: 'Add a child',
       icon: 'person-add-outline' as keyof typeof Ionicons.glyphMap,
@@ -181,7 +176,7 @@ function AvatarMenu() {
                 {user?.email}
               </UIText>
             </View>
-            {/* Items above the logout (profile, family dashboard) */}
+            {/* Items above the logout (e.g. add a child, settings) */}
             {menuItems.slice(0, -1).map((item) => (
               <Pressable
                 key={item.key}

@@ -53,7 +53,7 @@ function QuestCard({ quest, forChildName, onAdd, adding }: {
       <VStack space="sm">
         <Heading size="sm" numberOfLines={2}>{quest.title}</Heading>
         {quest.description ? (
-          <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600" numberOfLines={2}>
+          <UIText size="md" className="text-typo-700 dark:text-dark-typo-300" numberOfLines={2}>
             {quest.description}
           </UIText>
         ) : null}
@@ -77,7 +77,7 @@ function QuestCard({ quest, forChildName, onAdd, adding }: {
               <ButtonText>Add</ButtonText>
             </Button>
           ) : (
-            <Button size="sm" onPress={() => router.push(`/(app)/quests/${quest.id}`)}>
+            <Button size="md" onPress={() => router.push(`/(app)/quests/${quest.id}`)}>
               <ButtonText>View</ButtonText>
             </Button>
           )}

@@ -18,6 +18,7 @@ import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { captureException } from '@/src/services/sentry';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
+import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
@@ -30,10 +31,12 @@ const MAX_AUDIO_SIZE = 25 * 1024 * 1024;
 
 interface MediaItem {
   uri: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image' | 'video' | 'audio' | 'document';
   name: string;
   fileSize?: number;
   durationMs?: number;
+  /** Document only: scanned page count, for the preview label. */
+  pageCount?: number;
 }
 
 interface TaskEvidenceSheetProps {
@@ -221,6 +224,21 @@ export function TaskEvidenceSheet({
     }
   };
 
+  // Scan pages with the OS document scanner and attach as a single PDF.
+  const scanDocument = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Scan documents', 'Document scanning works in the mobile app — try it on iOS or Android.');
+      return;
+    }
+    try {
+      const doc = await scanDocumentToPdf();
+      if (!doc) return; // user cancelled / no pages
+      setMedia((prev) => [...prev, { uri: doc.uri, type: 'document', name: doc.name, pageCount: doc.pageCount }]);
+    } catch (err: any) {
+      Alert.alert('Scan unavailable', err?.message || 'Could not start the document scanner. Make sure the app has camera access.');
+    }
+  };
+
   const removeMedia = (idx: number) => {
     setMedia((prev) => prev.filter((_, i) => i !== idx));
   };
@@ -238,6 +256,7 @@ export function TaskEvidenceSheet({
           const mime =
             item.type === 'video' ? 'video/mp4' :
             item.type === 'audio' ? 'audio/m4a' :
+            item.type === 'document' ? 'application/pdf' :
             'image/jpeg';
           try {
             const result = await uploadViaSignedUrl({
@@ -405,6 +424,13 @@ export function TaskEvidenceSheet({
                         style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: c.surfaceMuted }}
                         resizeMode="cover"
                       />
+                    ) : item.type === 'document' ? (
+                      <View style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
+                        <Ionicons name="document-text" size={32} color="#FFFFFF" />
+                        <UIText size="xs" className="text-white font-poppins-medium mt-1">
+                          PDF{item.pageCount ? ` · ${item.pageCount}p` : ''}
+                        </UIText>
+                      </View>
                     ) : (
                       <View style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: '#1F1F2E', alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="play-circle" size={36} color="#FFFFFF" />
@@ -494,6 +520,14 @@ export function TaskEvidenceSheet({
           >
             <Ionicons name="images-outline" size={26} color="#6D469B" />
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
+          </Pressable>
+          <Pressable
+            onPress={() => runWithSheetHidden(scanDocument)}
+            className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
+            style={{ minHeight: 44 }}
+          >
+            <Ionicons name="scan-outline" size={26} color="#6D469B" />
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Scan</UIText>
           </Pressable>
         </HStack>
 
