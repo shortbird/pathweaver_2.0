@@ -26,33 +26,22 @@ import { CommentSheet } from './CommentSheet';
 import { FeedItemMenu } from './FeedItemMenu';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
-/** Request a server-resized thumbnail for Supabase storage URLs to save memory */
-function thumbUrl(url: string, width = 600): string {
-  if (!url) return url;
-  // Supabase storage URLs support /render/image/public with transform params
-  if (url.includes('.supabase.co/storage/v1/object/public/')) {
-    return url.replace(
-      '/storage/v1/object/public/',
-      `/storage/v1/render/image/public/`
-    ) + `?width=${width}&resize=contain`;
-  }
-  return url;
-}
-
 /** Feed image that renders at its natural aspect ratio so the WHOLE image
  *  shows (bug: "Show the whole image in the feed post" — the old fixed-height
  *  cover crop hid the top/bottom). Ratio is clamped so an extreme panorama or
  *  very tall scan can't dominate the feed. */
 function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
   const [ratio, setRatio] = useState(4 / 3);
-  // Prefer the server-resized thumbnail (saves memory in the list). If the
-  // Supabase image-transform endpoint can't serve it (feature limits, or an
-  // unsupported source such as a HEIC photo from an iPhone), it returns an
-  // error and the image went permanently blank — "feed posts with images that
-  // don't show". On error, fall back to the original object URL via
-  // displayImageUrl (the same path the post-detail view uses, which works).
+  // Use the SAME URL the full-screen preview uses: displayImageUrl returns the
+  // original object URL for web-safe images and only routes HEIC/HEIF through
+  // the Supabase render/transcode endpoint. The previous approach forced EVERY
+  // image through /render/image with a resize, which was flaky and returned
+  // blank-but-200 for some (so onError never fired) while the modal — using
+  // displayImageUrl — showed them fine. expo-image downscales to the display
+  // size on native, so dropping the server resize doesn't blow up memory.
+  // onError falls back to the raw URL as a last resort.
   const [failed, setFailed] = useState(false);
-  const source = failed ? (displayImageUrl(uri) || uri) : thumbUrl(uri);
+  const source = failed ? uri : (displayImageUrl(uri) || uri);
   return (
     <Pressable onPress={onPress}>
       <ExpoImage
@@ -167,7 +156,7 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
             <View key={`img-${i}`} style={{ width: '50%', padding: 2 }}>
               <Pressable onPress={() => setModal({ type: 'image', uri })}>
                 <ExpoImage
-                  source={{ uri: thumbUrl(uri) }}
+                  source={{ uri: displayImageUrl(uri) || uri }}
                   className="w-full rounded-lg"
                   style={{ height: 160 }}
                   contentFit="cover"
