@@ -67,6 +67,20 @@ jobs:
           done
           exit 1
 
+      # See release.yml for the full rationale: the gitignored google-services.json
+      # must be present so the Android OTA fingerprint matches the build, or the
+      # update never reaches Android devices. Same secret as the production job.
+      - name: Materialize google-services.json (Android OTA fingerprint parity)
+        working-directory: frontend-v2
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON_BASE64 secret is not set — the Android OTA fingerprint will diverge from the build and the update will not reach Android devices."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > google-services.json
+          echo "Wrote google-services.json ($(wc -c < google-services.json) bytes)"
       - name: Publish preview OTA
         working-directory: frontend-v2
         env:

@@ -269,7 +269,12 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       // size is backfilled by signedUpload's native pre-flight if omitted.
       setMedia((prev) => [...prev, { uri: doc.uri, type: 'document', name: doc.name, pageCount: doc.pageCount }]);
     } catch (err: any) {
-      Alert.alert('Scan unavailable', err?.message || 'Could not start the document scanner. Make sure the app has camera access.');
+      // Report the real native failure. Previously this catch only showed an
+      // Alert, so device-side scanner failures (e.g. build 19 "Could not start
+      // document scanner") reached Sentry as a vague user bug report with no
+      // stack — we had no idea WHY the ML Kit scanner rejected. Capture it.
+      captureException(err, { stage: 'capture-document-scan' });
+      Alert.alert('Scan unavailable', err?.message || 'Could not start the document scanner. Please try again, or add the photo from Files.');
     }
   };
 

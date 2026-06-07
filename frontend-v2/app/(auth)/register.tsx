@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Image, KeyboardAvoidingView, Platform, ScrollView, Pressable, Linking } from 'react-native';
+import { View, Image, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore, User } from '@/src/stores/authStore';
@@ -9,6 +9,8 @@ import {
   Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { safeOpenURL } from '@/src/utils/linking';
+import { toast } from '@/src/stores/toastStore';
 
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
@@ -36,6 +38,19 @@ const PASSWORD_RULES = [
 
 const TERMS_URL = 'https://www.optioeducation.com/terms';
 const PRIVACY_URL = 'https://www.optioeducation.com/privacy';
+
+// Open a legal page: in-app route on web, external browser on native. Native
+// goes through safeOpenURL (canOpenURL-guarded) so a device with no browser /
+// unroutable URL surfaces a toast instead of crashing with the unhandled
+// "Unable to open URL" rejection that was hitting Sentry.
+async function openLegal(url: string, webPath: string) {
+  if (Platform.OS === 'web') {
+    router.push(webPath as any);
+    return;
+  }
+  const opened = await safeOpenURL(url);
+  if (!opened) toast.error("Couldn't open the page. You can find it at optioeducation.com.");
+}
 
 // Marketplace partner keys. A parent arriving from the OpenEd Academy tile lands
 // here as /signup?partner=opened-academy (or /register?partner=...): we brand the
@@ -461,7 +476,7 @@ export default function RegisterScreen() {
                     <UIText
                       size="xs"
                       className="text-optio-purple underline"
-                      onPress={() => Platform.OS === 'web' ? router.push('/terms' as any) : Linking.openURL(TERMS_URL)}
+                      onPress={() => openLegal(TERMS_URL, '/terms')}
                     >
                       Terms of Service
                     </UIText>
@@ -469,7 +484,7 @@ export default function RegisterScreen() {
                     <UIText
                       size="xs"
                       className="text-optio-purple underline"
-                      onPress={() => Platform.OS === 'web' ? router.push('/privacy' as any) : Linking.openURL(PRIVACY_URL)}
+                      onPress={() => openLegal(PRIVACY_URL, '/privacy')}
                     >
                       Privacy Policy
                     </UIText>
