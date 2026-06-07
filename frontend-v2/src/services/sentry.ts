@@ -80,9 +80,38 @@ export function initSentry(): void {
       },
     });
     impl = Sentry as SentryShim;
+    tagOtaContext(Sentry);
   } catch {
     // Module not installed yet — silently fall back.
     impl = makeNoopShim();
+  }
+}
+
+/**
+ * Tag every event with which JS bundle the device is actually running: the
+ * embedded build vs a downloaded OTA update (and its id/channel/runtime). This
+ * is how we tell, from a real device, whether an OTA "stuck" — if a session that
+ * just tapped the reload banner still reports `ota_embedded: true`, the update
+ * rolled back. Also tags the bundle onto the document-scanner failures so we know
+ * which version produced them. All reads are guarded; expo-updates is absent in
+ * Expo Go / web preview.
+ */
+function tagOtaContext(Sentry: any): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Updates = require('expo-updates');
+    const tags: Record<string, string> = {
+      ota_enabled: String(!!Updates.isEnabled),
+      ota_embedded: String(!!Updates.isEmbeddedLaunch),
+      ota_update_id: Updates.updateId ?? 'embedded',
+      ota_channel: Updates.channel ?? 'unknown',
+      ota_runtime: Updates.runtimeVersion ?? 'unknown',
+    };
+    if (typeof Sentry.setTag === 'function') {
+      for (const [k, v] of Object.entries(tags)) Sentry.setTag(k, v);
+    }
+  } catch {
+    // expo-updates not available (Expo Go / web) — skip.
   }
 }
 

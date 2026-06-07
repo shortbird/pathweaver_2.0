@@ -50,7 +50,7 @@ import {
 } from '@expo-google-fonts/poppins';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
-import { loadPersistedTheme } from '@/src/stores/themeStore';
+import { loadPersistedTheme, applyColorScheme } from '@/src/stores/themeStore';
 import { initSentry, captureException } from '@/src/services/sentry';
 import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 import { ToastHost } from '@/src/components/ui';
@@ -94,7 +94,7 @@ const SPLASH_TIMEOUT_MS = 5000;
 
 export default function RootLayout() {
   const loadUser = useAuthStore((s) => s.loadUser);
-  const { colorScheme, setColorScheme } = useColorScheme();
+  const { colorScheme } = useColorScheme();
 
   const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular,
@@ -103,17 +103,22 @@ export default function RootLayout() {
     Poppins_700Bold,
   });
   const [splashTimedOut, setSplashTimedOut] = useState(false);
+  // Gate the first render until the persisted theme is applied. Without this the
+  // tree paints with NativeWind's default (device) scheme before the async
+  // SecureStore read resolves — most visibly on the OTA reloadAsync path, where
+  // it stuck on the device theme. applyColorScheme drives NativeWind's rendered
+  // value directly (see themeStore), so first paint is the user's saved theme.
+  const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
     // Restore acting-as state from sessionStorage before loading user
     useActingAsStore.getState().restore();
     loadUser();
-    // Restore persisted theme preference
-    loadPersistedTheme().then((mode) => {
-      if (mode === 'dark' || mode === 'light') {
-        setColorScheme(mode);
-      }
-    });
+    // Restore persisted theme preference (robust to the reloadAsync path).
+    loadPersistedTheme()
+      .then((mode) => applyColorScheme(mode))
+      .catch(() => {})
+      .finally(() => setThemeReady(true));
 
     const timer = setTimeout(() => {
       setSplashTimedOut(true);
@@ -132,7 +137,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded && !splashTimedOut) return null;
+  if ((!fontsLoaded || !themeReady) && !splashTimedOut) return null;
 
   return (
     <>

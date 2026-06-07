@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from 'nativewind';
-import { saveTheme } from '@/src/stores/themeStore';
+import { saveTheme, applyColorScheme } from '@/src/stores/themeStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -38,7 +38,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export default function SettingsScreen() {
   const c = useThemeColors();
   const { logout } = useAuthStore();
-  const { colorScheme, setColorScheme } = useColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
 
   const [deletionStatus, setDeletionStatus] = useState<DeletionStatus>({ deletion_status: 'none' });
@@ -118,7 +118,7 @@ export default function SettingsScreen() {
                 value={isDark}
                 onValueChange={(val) => {
                   const mode = val ? 'dark' : 'light';
-                  setColorScheme(mode);
+                  applyColorScheme(mode);
                   saveTheme(mode);
                 }}
                 trackColor={{ false: c.border, true: '#6D469B' }}

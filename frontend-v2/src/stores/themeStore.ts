@@ -8,12 +8,42 @@
  * This store only manages persistence so the preference survives app restarts.
  */
 
-import { Platform } from 'react-native';
+import { Platform, Appearance } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { colorScheme as nativewindColorScheme } from 'nativewind';
 
 const THEME_KEY = 'optio_theme';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+
+/**
+ * Apply a theme to NativeWind, robust to the OTA reloadAsync path.
+ *
+ * Background: NativeWind renders its internal `systemColorScheme` observable.
+ * `setColorScheme(mode)` only sets a native Appearance OVERRIDE and relies on an
+ * `appearanceChanged` event to push the value into that observable — but RN's
+ * `Appearance.setColorScheme` doesn't emit that event, and NativeWind's listener
+ * is guarded on `AppState === 'active'`. After `Updates.reloadAsync()` the
+ * observable re-initialises to the DEVICE scheme and is never corrected, so the
+ * app stuck on the device theme (dark) and the toggle was dead — even though the
+ * override said light. (Verified on a Release sim build: post-reload nw=dark while
+ * the override read light; `setColorScheme` did nothing; setting systemColorScheme
+ * fixed it.) So we set the override AND push the resolved value straight into the
+ * observable NativeWind actually renders.
+ */
+export function applyColorScheme(mode: ThemeMode): void {
+  nativewindColorScheme.set(mode);
+  if (Platform.OS === 'web') return; // web colorScheme has no systemColorScheme observable
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { systemColorScheme } = require('react-native-css-interop/dist/runtime/native/appearance-observables');
+    const resolved = mode === 'system' ? (Appearance.getColorScheme() ?? 'light') : mode;
+    systemColorScheme.set(resolved);
+  } catch {
+    // NativeWind internal path changed in an upgrade — the override above still
+    // applies on the next system read; we only lose the immediate push.
+  }
+}
 
 async function persist(mode: ThemeMode): Promise<void> {
   if (Platform.OS === 'web') {
