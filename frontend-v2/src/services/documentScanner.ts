@@ -79,9 +79,20 @@ export async function scanDocumentToPdf(): Promise<ScannedDocument | null> {
   const pdf = await PDFDocument.create();
   for (const img of scannedImages) {
     // Strip any data-URI prefix; pdf-lib's embed* takes a bare base64 string.
-    const isPng = /^data:image\/png/i.test(img);
     const base64 = img.includes('base64,') ? img.split('base64,')[1] : img;
-    const image = isPng ? await pdf.embedPng(base64) : await pdf.embedJpg(base64);
+    // Detect the real format. responseType=Base64 returns RAW base64 with no
+    // data-URI prefix, so we can't rely on a "data:image/png" header — the OS
+    // scanner (esp. Android ML Kit) often returns PNG, and feeding PNG bytes to
+    // embedJpg throws "Input is not a valid JPEG" ("Scan unavailable / invalid
+    // jpeg"). Sniff the base64 magic bytes: JPEG -> "/9j/", PNG -> "iVBOR".
+    const looksPng = /^data:image\/png/i.test(img) || base64.startsWith('iVBOR');
+    let image;
+    try {
+      image = looksPng ? await pdf.embedPng(base64) : await pdf.embedJpg(base64);
+    } catch {
+      // Magic-byte guess was wrong (or an odd encoder) — try the other format.
+      image = looksPng ? await pdf.embedJpg(base64) : await pdf.embedPng(base64);
+    }
     // Page == image size → the image fills the page 1:1, so nothing overflows
     // and each scan is exactly one page regardless of aspect ratio.
     const page = pdf.addPage([image.width, image.height]);
