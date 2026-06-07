@@ -7,11 +7,11 @@
 ## Critical Rules (Read First)
 
 1. **LOCAL VERIFICATION REQUIRED** - Never commit until user confirms fix works at http://localhost:3000
-2. **Commit to `develop` only** - After user verification
+2. **Commit only after user verification** - `develop` (dev deploy + preview OTA) or `main` (prod). Prod is now direct-push-to-`main` (no PR) — see Git Configuration. Confirm with the user before pushing to `main`.
 3. **No emojis** - Professional tone
 4. **Verify DB schema first** - Use Supabase MCP before ANY query (table names change)
 5. **Use Optio brand colors** - `optio-purple`/`optio-pink` (NOT `purple-600`/`pink-600`)
-6. **Run tests before production** - 95%+ pass rate required before merging to `main`
+6. **Run tests before production** - `release.yml` runs them on push to `main`; Render deploys + the production OTA publishes only if they pass. Don't push known-failing code to `main`.
 7. **Include superadmin in role checks** - When creating new routes with role-based authorization, ALWAYS include `superadmin` in the allowed roles list.
 8. **API keys via Config class only** - All API keys and secrets must be accessed via `Config` from `app_config.py`, never `os.getenv()` directly. See `backend/docs/ENV_KEYS_REFERENCE.md`.
 
@@ -274,52 +274,40 @@ powershell.exe -Command "Get-NetTCPConnection -LocalPort 5001 -ErrorAction Silen
 - Remote: `https://github.com/shortbird/pathweaver_2.0.git` (HTTPS)
 - Auth: Git Credential Manager (`credential.helper = manager`)
 
-**Dev workflow (unchanged):**
+**Dev workflow:**
 ```bash
-git push origin develop    # Auto-deploys to Render dev
+git push origin develop    # Auto-deploys to Render dev + publishes the preview OTA
 ```
 
-**Prod workflow (gated, as of 2026-04-14):**
+**Prod workflow (direct-to-main, as of 2026-06-07):**
 
-`main` is protected by a GitHub ruleset and Render prod services are set to
-"Deploy after CI checks pass". Never push directly to `main`, and never click
-"Merge pull request" in the GitHub web UI — always use the API so the flow is
-auditable and scriptable.
-
-Required CI checks (must all be green before merge):
-- `Jest Integration Tests` (frontend-v2-tests.yml)
-- `Vitest + coverage gate` (frontend-tests.yml)
-- `test` (backend-tests.yml)
-
-The merge flow Claude Code should use:
+There is **no PR gate** — `main` is not branch-protected (the `main-protection`
+ruleset is disabled), so you push **directly to `main`**:
 
 ```bash
-# 1. Get the stored token from Git Credential Manager.
-TOKEN=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill 2>/dev/null \
-  | awk -F= '/^password=/ {print $2}')
-
-# 2. Open PR from develop -> main.
-curl -sS -X POST "https://api.github.com/repos/shortbird/pathweaver_2.0/pulls" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  -d '{"title":"...","head":"develop","base":"main","body":"..."}'
-
-# 3. Poll required check runs until all three pass.
-curl -sS -H "Authorization: Bearer $TOKEN" \
-  "https://api.github.com/repos/shortbird/pathweaver_2.0/commits/<sha>/check-runs"
-
-# 4. Merge only when green.
-curl -sS -X PUT "https://api.github.com/repos/shortbird/pathweaver_2.0/pulls/<N>/merge" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  -d '{"merge_method":"merge"}'
+git push origin main
 ```
 
-Once the merge commit lands on `main`, Render prod services wait for its
-status checks to finish, then auto-deploy. No manual deploy trigger needed.
+A single workflow `.github/workflows/release.yml` runs on push to `main`:
+- jobs `backend`, `web` (v1 + coverage gate), `mobile` (v2) run in parallel
+- job `ota` (`needs: [backend, web, mobile]`) publishes the **production OTA**
+  only if all three test jobs pass
 
-If the merge returns `"message": "Repository rule violations found"`, one of
-the required checks is red — fix first, don't try to bypass.
+Render prod (web + backend) is "Deploy after CI checks pass", so it watches
+those job checks on the commit and **deploys only when they're green**. GitHub
+can't block a direct push before it lands (checks run on the pushed commit), so
+"only deploy if tests pass" is enforced at the **Render / OTA-gate layer**, not
+by GitHub. Bad code can land on `main` but won't *deploy* or *OTA*.
+
+So the prod ship is just: `git push origin main` → watch `Release (main)` →
+Render deploys + production OTA publishes when tests pass.
+
+> History: this replaced the old develop→PR→main flow (which double-ran every
+> test: once on the develop push, once on the PR). The 3 separate test
+> workflows were consolidated into `release.yml`; the OTA pipeline is described
+> under "EAS Update / OTA" — `eas-update.yml` is now develop-only (preview).
+> Note: the apex domain optioeducation.com may still be served by Vercel —
+> verify the host before assuming a Render deploy is what users see.
 
 **IMPORTANT: When the user says "push", always stage and commit ALL outstanding changes (staged, unstaged, and untracked relevant files) before pushing. Never selectively unstage files -- push everything.**
 

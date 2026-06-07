@@ -573,10 +573,14 @@ export default function FeedScreen() {
           refreshing={false}
           onRefresh={refetch}
           showsVerticalScrollIndicator={false}
-          windowSize={3}
-          maxToRenderPerBatch={3}
-          removeClippedSubviews={Platform.OS !== 'web'}
-          initialNumToRender={4}
+          // removeClippedSubviews detaches off-screen rows; with variable-height
+          // feed images that made images flash in then blank out on scroll
+          // (RN re-clips on the aspect-ratio layout pass). Keep it off and hold a
+          // few more rows mounted so scrolling back doesn't remount/reload them.
+          windowSize={7}
+          maxToRenderPerBatch={5}
+          removeClippedSubviews={false}
+          initialNumToRender={5}
           updateCellsBatchingPeriod={100}
           scrollEventThrottle={64}
         />

@@ -46,6 +46,7 @@ function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
     <Pressable onPress={onPress}>
       <ExpoImage
         source={{ uri: source }}
+        recyclingKey={uri}
         className="w-full rounded-lg bg-surface-100 dark:bg-dark-surface-200"
         style={{ width: '100%', aspectRatio: ratio }}
         contentFit="cover"
@@ -157,6 +158,7 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
               <Pressable onPress={() => setModal({ type: 'image', uri })}>
                 <ExpoImage
                   source={{ uri: displayImageUrl(uri) || uri }}
+                  recyclingKey={uri}
                   className="w-full rounded-lg"
                   style={{ height: 160 }}
                   contentFit="cover"

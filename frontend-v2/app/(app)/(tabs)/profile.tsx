@@ -9,6 +9,8 @@ import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from 'nativewind';
+import * as Updates from 'expo-updates';
+import * as Application from 'expo-application';
 import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import { saveTheme } from '@/src/stores/themeStore';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -204,6 +206,19 @@ export default function ProfileScreen() {
     ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '';
   const maxPillarXP = Math.max(...pillarXP.map((p) => p.xp), 1);
+
+  // Build + OTA indicator (see footer). "base build" = running the binary's
+  // bundled JS (no OTA applied yet); "update <id>" = an OTA is live; "dev" = Metro.
+  const appVersion = Application.nativeApplicationVersion || '?';
+  const buildNumber = Application.nativeBuildVersion || '?';
+  const otaLabel = !Updates.isEnabled
+    ? 'dev'
+    : Updates.isEmbeddedLaunch
+      ? 'base build'
+      : `update ${(Updates.updateId || '').slice(0, 8)}`;
+  const otaMeta = (Updates.isEnabled && !Updates.isEmbeddedLaunch)
+    ? [Updates.channel, Updates.createdAt ? Updates.createdAt.toLocaleString() : null].filter(Boolean).join(' · ')
+    : '';
 
   if (loading) {
     return (
@@ -463,6 +478,18 @@ export default function ProfileScreen() {
           {/* Notifications, Account Settings (dark mode + account deletion) and
               Report a Bug now live in the kebab → Settings screen, so they're
               intentionally not duplicated here. */}
+
+          {/* Build + OTA indicator — lets us confirm which JS a device is
+              actually running: "base build" = the binary's bundled JS (no OTA
+              applied yet), "update <id>" = an OTA is live, "dev" = Metro. */}
+          <View className="items-center pt-2 pb-4">
+            <UIText size="xs" className="text-typo-300 dark:text-dark-typo-400">
+              Optio v{appVersion} ({buildNumber}) · {otaLabel}
+            </UIText>
+            {otaMeta ? (
+              <UIText size="xs" className="text-typo-300 dark:text-dark-typo-400">{otaMeta}</UIText>
+            ) : null}
+          </View>
         </VStack>
       </ScrollView>
 
