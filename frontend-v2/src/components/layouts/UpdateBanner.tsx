@@ -29,10 +29,20 @@ import { UIText } from '@/src/components/ui/text';
 import { captureException } from '@/src/services/sentry';
 
 export function UpdateBanner() {
-  const { isUpdatePending } = Updates.useUpdates();
+  const { isUpdatePending, checkError, downloadError } = Updates.useUpdates();
   const insets = useSafeAreaInsets();
   const [dismissed, setDismissed] = useState(false);
   const [reloading, setReloading] = useState(false);
+
+  // Report update check/download failures so a device that can't fetch or apply
+  // an OTA tells us why (part of the OTA diagnostics; pairs with the
+  // isEmergencyLaunch reporter in sentry.ts and the Profile diagnostics modal).
+  useEffect(() => {
+    if (checkError) captureException(checkError, { context: 'Updates.checkError' });
+  }, [checkError]);
+  useEffect(() => {
+    if (downloadError) captureException(downloadError, { context: 'Updates.downloadError' });
+  }, [downloadError]);
 
   // Re-check for an update whenever the app comes back to the foreground, then
   // fetch it in the background. A successful fetch flips `isUpdatePending` and

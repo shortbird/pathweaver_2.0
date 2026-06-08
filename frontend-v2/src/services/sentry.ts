@@ -106,9 +106,36 @@ function tagOtaContext(Sentry: any): void {
       ota_update_id: Updates.updateId ?? 'embedded',
       ota_channel: Updates.channel ?? 'unknown',
       ota_runtime: Updates.runtimeVersion ?? 'unknown',
+      ota_emergency: String(!!Updates.isEmergencyLaunch),
     };
     if (typeof Sentry.setTag === 'function') {
       for (const [k, v] of Object.entries(tags)) Sentry.setTag(k, v);
+    }
+
+    // OTA-rollback diagnostic: if the previously-applied update failed to launch,
+    // expo-updates falls back to the embedded bundle and sets isEmergencyLaunch
+    // with a reason. That's exactly the "OTA applies then reverts to base build"
+    // symptom — surface it as its own Sentry event WITH the native update log, so
+    // we can see the rollback reason without device access. (Self-fingerprinted so
+    // it doesn't merge into other captureMessage issues.)
+    if (Updates.isEmergencyLaunch) {
+      const reason = Updates.emergencyLaunchReason || 'unknown';
+      const send = (log: string) =>
+        captureMessage(`[OTA] emergency launch — rolled back to embedded: ${reason}`, {
+          level: 'error',
+          fingerprint: ['ota-emergency-launch'],
+          tags: { feature: 'ota_diagnostics' },
+          extra: { emergencyLaunchReason: reason, updateLog: log.slice(0, 6000) },
+        });
+      if (typeof Updates.readLogEntriesAsync === 'function') {
+        Updates.readLogEntriesAsync(86_400_000)
+          .then((entries: any[]) =>
+            send((entries || []).map((e) => `${e.timestamp} ${e.level}/${e.code}: ${e.message}`).join('\n')),
+          )
+          .catch(() => send('(readLogEntriesAsync failed)'));
+      } else {
+        send('(readLogEntriesAsync unavailable)');
+      }
     }
   } catch {
     // expo-updates not available (Expo Go / web) — skip.

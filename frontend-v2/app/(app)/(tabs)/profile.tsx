@@ -10,6 +10,7 @@ import { useScrollToTop } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from 'nativewind';
 import * as Updates from 'expo-updates';
+import { UpdateDiagnosticsModal } from '@/src/components/debug/UpdateDiagnosticsModal';
 import * as Application from 'expo-application';
 import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import { saveTheme } from '@/src/stores/themeStore';
@@ -92,6 +93,7 @@ export default function ProfileScreen() {
   const [editBio, setEditBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [inviteObserverVisible, setInviteObserverVisible] = useState(false);
+  const [otaDebugVisible, setOtaDebugVisible] = useState(false);
   const [observerEmail, setObserverEmail] = useState('');
   const [invitingObserver, setInvitingObserver] = useState(false);
   const [deletionRequesting, setDeletionRequesting] = useState(false);
@@ -482,16 +484,20 @@ export default function ProfileScreen() {
           {/* Build + OTA indicator — lets us confirm which JS a device is
               actually running: "base build" = the binary's bundled JS (no OTA
               applied yet), "update <id>" = an OTA is live, "dev" = Metro. */}
-          <View className="items-center pt-2 pb-4">
+          <Pressable className="items-center pt-2 pb-4" onPress={() => setOtaDebugVisible(true)} accessibilityLabel="Open OTA diagnostics">
             <UIText size="xs" className="text-typo-300 dark:text-dark-typo-400">
               Optio v{appVersion} ({buildNumber}) · {otaLabel}
             </UIText>
             {otaMeta ? (
               <UIText size="xs" className="text-typo-300 dark:text-dark-typo-400">{otaMeta}</UIText>
             ) : null}
-          </View>
+          </Pressable>
         </VStack>
       </ScrollView>
+
+      {otaDebugVisible && (
+        <UpdateDiagnosticsModal visible onClose={() => setOtaDebugVisible(false)} />
+      )}
 
       {/* Invite Observer Modal */}
       <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={() => setInviteObserverVisible(false)}>
