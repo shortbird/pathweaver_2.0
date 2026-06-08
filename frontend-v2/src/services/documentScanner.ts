@@ -18,7 +18,7 @@
  * Native only (requires the dev/EAS build that includes the native scanner).
  */
 
-import { Platform } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
 
 export interface ScannedDocument {
   /** Local file URI of the generated PDF. */
@@ -37,6 +37,24 @@ export interface ScannedDocument {
 export async function scanDocumentToPdf(): Promise<ScannedDocument | null> {
   if (Platform.OS === 'web') {
     throw new Error('Document scanning is only available in the mobile app.');
+  }
+
+  // Android: the OS document scanner runs inside Google Play Services, which by
+  // itself does NOT require the app to hold CAMERA permission. BUT because this
+  // app DECLARES `android.permission.CAMERA` in its manifest (expo-camera + the
+  // explicit android.permissions list), ML Kit gates the scanner on that
+  // permission actually being GRANTED at runtime — otherwise GmsDocumentScanning
+  // .getStartScanIntent() fails with "Could not start document scanner. Make sure
+  // app has camera access." (the exact error testers hit on Android, build 19).
+  // Unlike the camera/library pickers this sheet also offers, the scan action had
+  // no permission pre-flight, so a user who never used the in-app camera would
+  // tap Scan with CAMERA still un-granted and hit that failure. Request it first.
+  // iOS VisionKit prompts for camera access itself, so this is Android-only.
+  if (Platform.OS === 'android') {
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+    if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+      throw new Error('Camera access is needed to scan documents. Enable it for Optio in Settings, then try again.');
+    }
   }
 
   // Lazy-require the native scanner: importing it at module load would crash the

@@ -2,6 +2,7 @@
  * scanDocumentToPdf: OS scanner pages → one multi-page PDF via pdf-lib.
  */
 
+import { Platform, PermissionsAndroid } from 'react-native';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as FileSystem from 'expo-file-system/legacy';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
@@ -11,6 +12,29 @@ const { __mockDoc } = require('pdf-lib');
 
 describe('scanDocumentToPdf', () => {
   beforeEach(() => jest.clearAllMocks());
+
+  describe('Android camera-permission pre-flight', () => {
+    const originalOS = Platform.OS;
+    afterEach(() => { (Platform as any).OS = originalOS; });
+
+    it('requests CAMERA on Android before launching the scanner', async () => {
+      (Platform as any).OS = 'android';
+      (PermissionsAndroid.request as jest.Mock) = jest.fn().mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+      (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({ status: 'cancel' });
+
+      await scanDocumentToPdf();
+
+      expect(PermissionsAndroid.request).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.CAMERA);
+    });
+
+    it('throws (and never launches the scanner) when CAMERA is denied', async () => {
+      (Platform as any).OS = 'android';
+      (PermissionsAndroid.request as jest.Mock) = jest.fn().mockResolvedValue(PermissionsAndroid.RESULTS.DENIED);
+
+      await expect(scanDocumentToPdf()).rejects.toThrow(/camera access/i);
+      expect(DocumentScanner.scanDocument).not.toHaveBeenCalled();
+    });
+  });
 
   it('returns null when the user cancels (no PDF written)', async () => {
     (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({ status: 'cancel' });
