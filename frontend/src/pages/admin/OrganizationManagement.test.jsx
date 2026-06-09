@@ -22,8 +22,11 @@ vi.mock('../../services/api', () => ({
 // Mock tab components
 vi.mock('../../components/organization', () => ({
   SettingsTab: ({ orgId }) => <div data-testid="settings-tab">Settings for {orgId}</div>,
-  PeopleTab: ({ orgId }) => <div data-testid="people-tab">People for {orgId}</div>,
-  ContentTab: ({ orgId }) => <div data-testid="content-tab">Content for {orgId}</div>
+  PeopleTab: ({ orgId }) => <div data-testid="people-tab">People for {orgId}</div>
+}))
+
+vi.mock('../../components/organization/OrgCoursesTab', () => ({
+  default: ({ orgId }) => <div data-testid="courses-tab">Courses for {orgId}</div>
 }))
 
 vi.mock('../../components/classes', () => ({
@@ -90,8 +93,9 @@ describe('OrganizationManagement', () => {
       await waitFor(() => {
         expect(screen.getByText('Settings')).toBeInTheDocument()
         expect(screen.getByText('People')).toBeInTheDocument()
-        expect(screen.getByText('Classes')).toBeInTheDocument()
-        expect(screen.getByText('Content')).toBeInTheDocument()
+        expect(screen.getByText('Courses')).toBeInTheDocument()
+        expect(screen.getByText('Bounties')).toBeInTheDocument()
+        expect(screen.getByText('Credit Review')).toBeInTheDocument()
       })
     })
 
@@ -117,29 +121,16 @@ describe('OrganizationManagement', () => {
       })
     })
 
-    it('switches to Classes tab', async () => {
+    it('switches to Courses tab', async () => {
       renderOrgManagement()
       await waitFor(() => {
-        expect(screen.getByText('Classes')).toBeInTheDocument()
+        expect(screen.getByText('Courses')).toBeInTheDocument()
       })
 
-      fireEvent.click(screen.getByText('Classes'))
+      fireEvent.click(screen.getByText('Courses'))
 
       await waitFor(() => {
-        expect(screen.getByTestId('class-list')).toBeInTheDocument()
-      })
-    })
-
-    it('switches to Content tab', async () => {
-      renderOrgManagement()
-      await waitFor(() => {
-        expect(screen.getByText('Content')).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByText('Content'))
-
-      await waitFor(() => {
-        expect(screen.getByTestId('content-tab')).toBeInTheDocument()
+        expect(screen.getByTestId('courses-tab')).toBeInTheDocument()
       })
     })
   })

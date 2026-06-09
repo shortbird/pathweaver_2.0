@@ -221,6 +221,12 @@ export default function StudentFeedbackPage() {
                         alt="Optio"
                         className="w-7 h-7 shrink-0"
                       />
+                    ) : viewer.image_url ? (
+                      <img
+                        src={viewer.image_url}
+                        alt={viewer.name}
+                        className="w-7 h-7 rounded-full object-contain bg-white shrink-0"
+                      />
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
                         <span className="text-gray-600 text-[10px] font-bold">

@@ -125,7 +125,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
                     className="!bg-emerald-500 hover:!bg-emerald-600 !min-w-[120px] !min-h-[44px]"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate('/diploma');
+                      navigate('/overview');
                     }}
                   >
                     <CheckCircleIcon className="w-4 h-4 mr-1" />

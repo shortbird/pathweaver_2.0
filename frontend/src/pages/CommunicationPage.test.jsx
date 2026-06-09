@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import CommunicationPage from './CommunicationPage'
 
@@ -7,10 +7,6 @@ let authState = {}
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState
-}))
-
-vi.mock('../contexts/AIAccessContext', () => ({
-  useAIAccess: () => ({ canUseChatbot: true, loading: false })
 }))
 
 vi.mock('../hooks/api/useDirectMessages', () => ({
@@ -114,15 +110,6 @@ describe('CommunicationPage', () => {
     it('renders create group button in conversation list', () => {
       renderCommunication()
       expect(screen.getByTestId('create-group-btn')).toBeInTheDocument()
-    })
-  })
-
-  describe('OptioBot auto-select', () => {
-    it('shows OptioBot in chat window by default when chatbot enabled', async () => {
-      renderCommunication()
-      await waitFor(() => {
-        expect(screen.getByText('OptioBot')).toBeInTheDocument()
-      })
     })
   })
 })

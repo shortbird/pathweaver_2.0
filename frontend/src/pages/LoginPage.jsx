@@ -8,7 +8,7 @@ import { observerAPI } from '../services/api'
 
 const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
-  const { login, isAuthenticated, user, loading: authLoading } = useAuth()
+  const { login, isAuthenticated, user, effectiveRole, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -96,11 +96,12 @@ const LoginPage = () => {
     const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
     // Marketing accounts (can_view_showcase=true and not actively a student/parent/etc.)
     // get bounced straight to the showcase page on login.
-    const showcaseOnly = user.can_view_showcase === true && user.role === 'student' && !user.has_dependents && !user.has_linked_students
-    const defaultPath = user.role === 'superadmin' ? '/parent/dashboard'
+    const showcaseOnly = user.can_view_showcase === true && effectiveRole === 'student' && !user.has_dependents && !user.has_linked_students
+    const defaultPath = effectiveRole === 'org_admin' ? '/organization'
+      : effectiveRole === 'superadmin' ? '/parent/dashboard'
       : showcaseOnly ? '/showcase'
-      : user.role === 'parent' ? '/parent/dashboard'
-      : user.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
+      : effectiveRole === 'parent' ? '/parent/dashboard'
+      : effectiveRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
       : '/dashboard'
     const redirectPath = fromPath || defaultPath
 

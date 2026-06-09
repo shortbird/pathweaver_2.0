@@ -16,7 +16,7 @@ const MessageInput = ({ onSendMessage, disabled = false, placeholder = "Type a m
     }
   }
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
@@ -40,7 +40,7 @@ const MessageInput = ({ onSendMessage, disabled = false, placeholder = "Type a m
             ref={textareaRef}
             value={message}
             onChange={handleChange}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"

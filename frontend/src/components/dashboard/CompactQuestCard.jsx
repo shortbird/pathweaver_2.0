@@ -112,7 +112,7 @@ const CompactQuestCard = memo(({ quest }) => {
 
   const handleClick = () => {
     if (isCompleted) {
-      navigate('/diploma');
+      navigate('/overview');
     } else {
       navigate(`/quests/${questId}`);
     }

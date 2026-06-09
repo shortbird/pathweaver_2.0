@@ -249,7 +249,7 @@ const PortfolioSection = ({
 
       {/* View Full Portfolio Link */}
       <Link
-        to="/diploma"
+        to="/overview"
         className="text-sm text-optio-purple hover:text-purple-700 font-medium flex items-center gap-1"
       >
         View Full

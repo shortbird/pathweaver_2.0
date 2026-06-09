@@ -11,7 +11,6 @@ import {
   PlusIcon,
   Cog6ToothIcon,
   UserGroupIcon,
-  NewspaperIcon,
   RocketLaunchIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
@@ -346,14 +345,6 @@ const ParentDashboardPage = () => {
               Create Family Quest
             </button>
           )}
-          <button
-            onClick={() => navigate('/observer/feed')}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-optio-purple/5 transition-colors min-h-[44px] text-sm sm:text-base"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-          >
-            <NewspaperIcon className="w-5 h-5" />
-            Activity Feed
-          </button>
           <button
             onClick={() => setShowFamilySettingsModal(true)}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px] text-sm sm:text-base"

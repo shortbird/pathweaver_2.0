@@ -95,7 +95,7 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
             <Button
               variant="primary"
               className="flex-1 min-h-[44px]"
-              onClick={() => navigate('/diploma')}
+              onClick={() => navigate('/overview')}
             >
               View Diploma
             </Button>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
-const PrivateRoute = ({ requiredRole }) => {
+const PrivateRoute = ({ requiredRole, blockRoles }) => {
   const { isAuthenticated, user, effectiveRole, loading } = useAuth()
   const location = useLocation()
 
@@ -56,6 +56,17 @@ const PrivateRoute = ({ requiredRole }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
+
+  // blockRoles: deny these effective roles and bounce them to their own home.
+  // Used to keep parents/observers out of student-only surfaces (quests,
+  // student dashboard, personal journal) without changing access for students,
+  // advisors, org_admins, or superadmin. Superadmin is never blocked.
+  if (blockRoles && effectiveRole !== 'superadmin' && blockRoles.includes(effectiveRole)) {
+    const redirectPath = effectiveRole === 'parent' ? '/parent/dashboard'
+      : effectiveRole === 'observer' ? '/observer/feed'
+      : '/dashboard'
+    return <Navigate to={redirectPath} replace />
   }
 
   if (requiredRole) {

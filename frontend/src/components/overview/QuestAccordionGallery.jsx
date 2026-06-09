@@ -216,9 +216,9 @@ const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) =
                 onClick={() => handleQuestClick(group)}
                 className="w-full text-left"
               >
-                <div className="relative h-32 overflow-hidden">
+                <div className="relative h-32 overflow-hidden bg-gray-50">
                   {group.imageUrl ? (
-                    <img src={group.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    <img src={group.imageUrl} alt="" className="w-full h-full object-contain" loading="lazy" />
                   ) : (
                     <div className={`w-full h-full bg-gradient-to-br ${gradientClass}`} />
                   )}
@@ -397,9 +397,9 @@ const QuestDetailModal = ({ group, onClose, formatDate }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal header */}
-        <div className="relative h-44 flex-shrink-0 overflow-hidden">
+        <div className="relative h-44 flex-shrink-0 overflow-hidden bg-gray-50">
           {group.imageUrl ? (
-            <img src={group.imageUrl} alt="" className="w-full h-full object-cover" />
+            <img src={group.imageUrl} alt="" className="w-full h-full object-contain" />
           ) : (
             <div className={`w-full h-full bg-gradient-to-br ${gradientClass}`} />
           )}

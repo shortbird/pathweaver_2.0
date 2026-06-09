@@ -305,9 +305,19 @@ const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
 const BountyBoardPage = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { user } = useAuth()
+  const { user, effectiveRole } = useAuth()
   const [filterPillar, setFilterPillar] = useState(null)
-  const [tab, setTab] = useState(() => searchParams.get('tab') || 'browse')
+  // Parents are posters, not claimers: land them on their own bounties (posts +
+  // review queue) rather than the student-style browse-to-claim board. Students,
+  // advisors, and superadmin keep the Browse default.
+  // Only honor a ?tab= param that names one of this page's own tabs -- when
+  // embedded in /organization the URL carries ?tab=bounties (the org page's
+  // tab), which would otherwise leave this board on an unknown tab and blank.
+  const [tab, setTab] = useState(() => {
+    const urlTab = searchParams.get('tab')
+    if (['browse', 'active', 'my-bounties'].includes(urlTab)) return urlTab
+    return effectiveRole === 'parent' ? 'my-bounties' : 'browse'
+  })
 
   const isStudent = user?.role === 'student' || user?.org_role === 'student'
   const canPost = !isStudent || user?.role === 'superadmin'

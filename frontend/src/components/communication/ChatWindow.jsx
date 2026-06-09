@@ -1,29 +1,28 @@
-import React, { useState, useEffect } from 'react'
-import { UserIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
+import React, { useEffect } from 'react'
+import { ChatBubbleLeftRightIcon, ArrowLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useConversationMessages, useSendMessage, useMarkAsRead } from '../../hooks/api/useDirectMessages'
-import ChatInterface from '../tutor/ChatInterface'
 import MessageThread from './MessageThread'
 import MessageInput from './MessageInput'
-import toast from 'react-hot-toast'
 
-const ChatWindow = ({ conversation, onConversationCreate, onBack }) => {
+const ChatWindow = ({ conversation, onBack }) => {
   const { user } = useAuth()
-  const [tutorConversationId, setTutorConversationId] = useState(null)
 
   // Determine chat type
-  const chatType = conversation?.type // 'advisor', 'bot', 'friend'
+  const chatType = conversation?.type // 'advisor', 'friend'
   const otherUser = conversation?.other_user
 
   // For direct messages (advisor, friend)
   const {
     data: messagesData,
-    isLoading: messagesLoading
+    isLoading: messagesLoading,
+    error: messagesError,
+    refetch: refetchMessages
   } = useConversationMessages(
-    chatType !== 'bot' ? conversation?.id : null,
+    conversation?.id,
     user?.id,
     {
-      enabled: !!conversation && chatType !== 'bot'
+      enabled: !!conversation
     }
   )
 
@@ -32,7 +31,7 @@ const ChatWindow = ({ conversation, onConversationCreate, onBack }) => {
 
   // Mark messages as read when conversation opens
   useEffect(() => {
-    if (messagesData?.messages && messagesData.messages.length > 0 && chatType !== 'bot') {
+    if (messagesData?.messages && messagesData.messages.length > 0) {
       const unreadMessages = messagesData.messages.filter(
         m => m.recipient_id === user?.id && !m.read_at
       )
@@ -41,14 +40,9 @@ const ChatWindow = ({ conversation, onConversationCreate, onBack }) => {
         markAsReadMutation.mutate(message.id)
       })
     }
-  }, [messagesData?.messages, user?.id, chatType])
+  }, [messagesData?.messages, user?.id])
 
   const handleSendMessage = async (content) => {
-    if (chatType === 'bot') {
-      // For bot, the ChatInterface handles sending
-      return
-    }
-
     try {
       await sendMessageMutation.mutateAsync({
         targetUserId: otherUser.id,
@@ -63,54 +57,24 @@ const ChatWindow = ({ conversation, onConversationCreate, onBack }) => {
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-gray-50">
-        <UserIcon className="w-20 h-20 text-gray-300 mb-4" />
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">No conversation selected</h2>
-        <p className="text-gray-500">
-          Select a conversation from the list to start messaging
+      <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center mb-4">
+          <ChatBubbleLeftRightIcon className="w-9 h-9 text-white" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-800 mb-1" style={{ fontFamily: 'Poppins' }}>Your messages</h2>
+        <p className="text-gray-500 max-w-xs">
+          Pick a conversation from the list, or choose a contact to start a new one.
         </p>
       </div>
     )
   }
 
-  // Render OptioBot chat
-  if (chatType === 'bot') {
-    return (
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile-only back button */}
-        {onBack && (
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-white md:hidden">
-            <button
-              onClick={onBack}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-full"
-            >
-              <ArrowLeftIcon className="w-5 h-5" />
-            </button>
-            <span className="font-medium text-gray-700">Back</span>
-          </div>
-        )}
-        <ChatInterface
-          conversationId={conversation?.tutorConversationId || tutorConversationId}
-          currentQuest={null}
-          currentTask={null}
-          onClose={null}
-          hideHeader={false}
-          className="h-full border-0 shadow-none rounded-none flex-1"
-          onConversationCreate={(convId) => {
-            setTutorConversationId(convId)
-            if (onConversationCreate) {
-              onConversationCreate(convId)
-            }
-          }}
-        />
-      </div>
-    )
-  }
-
-  // Render advisor or friend chat
+  // Render advisor / support / friend chat
   const isAdvisor = chatType === 'advisor'
+  const isSupport = chatType === 'support' || conversation?.relationshipTypes?.includes('support')
   const displayName = `${otherUser?.first_name || ''} ${otherUser?.last_name || ''}`.trim() || otherUser?.display_name || 'Unknown'
   const initial = displayName?.charAt(0)?.toUpperCase() || '?'
+  const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
   return (
     <div className="flex-1 flex flex-col">
@@ -126,7 +90,13 @@ const ChatWindow = ({ conversation, onConversationCreate, onBack }) => {
               <ArrowLeftIcon className="w-5 h-5" />
             </button>
           )}
-          {otherUser?.avatar_url ? (
+          {isSupport ? (
+            <img
+              src={OPTIO_LOGO_URL}
+              alt="Optio Support"
+              className="w-12 h-12 rounded-full object-contain bg-white border border-gray-100"
+            />
+          ) : otherUser?.avatar_url ? (
             <img
               src={otherUser.avatar_url}
               alt={displayName}
@@ -138,32 +108,39 @@ const ChatWindow = ({ conversation, onConversationCreate, onBack }) => {
             </div>
           )}
           <div>
-            <div className="flex items-center space-x-2">
-              <h2 className="text-lg font-semibold text-gray-900">{displayName}</h2>
-              {isAdvisor && (
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                  Advisor
-                </span>
-              )}
-            </div>
+            <h2 className="text-lg font-semibold text-gray-900">{displayName}</h2>
             <p className="text-sm text-gray-500">
-              {isAdvisor ? 'Your teacher' : 'Friend'}
+              {isAdvisor ? 'Your teacher' : isSupport ? 'We usually reply within a day' : 'Direct message'}
             </p>
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <MessageThread
-        messages={messagesData?.messages || []}
-        otherUser={otherUser}
-        isLoading={messagesLoading}
-      />
+      {messagesError ? (
+        <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+          <ExclamationTriangleIcon className="w-12 h-12 text-amber-500 mb-3" />
+          <h3 className="text-base font-semibold text-gray-800 mb-1">Couldn't load messages</h3>
+          <p className="text-sm text-gray-500 mb-4">Something went wrong. Please try again.</p>
+          <button
+            onClick={() => refetchMessages()}
+            className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-medium hover:shadow-lg transition-shadow"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <MessageThread
+          messages={messagesData?.messages || []}
+          otherUser={otherUser}
+          isLoading={messagesLoading}
+        />
+      )}
 
       {/* Input */}
       <MessageInput
         onSendMessage={handleSendMessage}
-        disabled={sendMessageMutation.isPending}
+        disabled={sendMessageMutation.isPending || !!messagesError}
         placeholder={`Message ${displayName}...`}
       />
     </div>

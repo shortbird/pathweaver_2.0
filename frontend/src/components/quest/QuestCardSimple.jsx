@@ -156,8 +156,16 @@ const QuestCardSimple = ({ quest }) => {
         ) : (
           /* Regular Quest: Background image with overlay */
           <>
-            {/* Background Image */}
-            {quest.image_url || quest.header_image_url ? (
+            {/* Background Image. Org-branded course quests (e.g. OpenEd Academy)
+                show the full logo centered (object-contain on white) instead of a
+                cropped object-cover fill. */}
+            {quest.metadata?.header_style === 'org_logo' && quest.header_image_url ? (
+              <img
+                src={quest.header_image_url}
+                alt={`Quest: ${quest.title}`}
+                className="w-full h-full object-contain bg-white p-3"
+              />
+            ) : quest.image_url || quest.header_image_url ? (
               <img
                 src={quest.image_url || quest.header_image_url}
                 alt={`Quest: ${quest.title}`}
@@ -194,7 +202,7 @@ const QuestCardSimple = ({ quest }) => {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate('/diploma');
+              navigate('/overview');
             }}
             className="mt-auto w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold transition-all duration-200 flex items-center justify-center gap-2"
           >

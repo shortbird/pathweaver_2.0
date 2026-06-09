@@ -55,6 +55,10 @@ const QuestDiscovery = lazy(() => import('./pages/QuestDiscovery'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
 const ConstellationPage = lazy(() => import('./pages/ConstellationPage'))
+// OpenEd Academy (OEA) diploma program — school-specific tab (/opened-academy)
+const OpenEdAcademyPage = lazy(() => import('./pages/oea/OpenEdAcademyPage'))
+const OEASelectPathwayPage = lazy(() => import('./pages/oea/OEASelectPathwayPage'))
+const OEACreditsPage = lazy(() => import('./pages/oea/OEACreditsPage'))
 // Credit & Transcript Pages
 const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
 const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
@@ -436,13 +440,17 @@ function App() {
                 {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
-                <Route path="dashboard" element={<DashboardPage />} />
-                {/* Quest Routes */}
-                <Route path="quests" element={<QuestDiscovery />} />
-                <Route path="quests/:id" element={<QuestDetail />} />
-                <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
-                <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
-                <Route path="constellation" element={<ConstellationPage />} />
+                {/* Student-only surfaces: parents/observers are bounced to their
+                    own home. Students, advisors, org_admins, superadmin unaffected. */}
+                <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  {/* Quest Routes */}
+                  <Route path="quests" element={<QuestDiscovery />} />
+                  <Route path="quests/:id" element={<QuestDetail />} />
+                  <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
+                  <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
+                  <Route path="constellation" element={<ConstellationPage />} />
+                </Route>
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
                 <Route path="courses/:courseId" element={<CourseHomepage />} />
@@ -462,8 +470,14 @@ function App() {
                 <Route path="profile" element={<Navigate to="/overview" replace />} />
                 <Route path="friends" element={<Navigate to="/dashboard" replace />} />
                 <Route path="connections" element={<Navigate to="/dashboard" replace />} />
-                <Route path="communication" element={<CommunicationPage />} />
-                <Route path="learning-journal" element={<LearningJournalPage />} />
+                <Route path="messages" element={<CommunicationPage />} />
+                {/* Old /communication URL retired — redirect to /messages. */}
+                <Route path="communication" element={<Navigate to="/messages" replace />} />
+                {/* Personal student journal — parents use the child journal at
+                    /parent/child/:childId/journal instead. */}
+                <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
+                  <Route path="learning-journal" element={<LearningJournalPage />} />
+                </Route>
                 {/* LMS Features */}
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
@@ -483,6 +497,12 @@ function App() {
                 <Route path="bounties/:bountyId/edit" element={<BountyCreatePage />} />
                 <Route path="bounties/:bountyId" element={<BountyDetailPage />} />
                 <Route path="buddy" element={<BuddyPage />} />
+                {/* OpenEd Academy diploma program (gated in the sidebar by
+                    users.program_key; the page branches parent vs student and
+                    writes are enforced server-side). */}
+                <Route path="opened-academy" element={<OpenEdAcademyPage />} />
+                <Route path="opened-academy/student/:studentId/pathway" element={<OEASelectPathwayPage />} />
+                <Route path="opened-academy/student/:studentId/credits" element={<OEACreditsPage />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
@@ -546,7 +566,8 @@ function App() {
             <Route path="docs/:categorySlug/:articleSlug" element={<DocsArticlePage />} />
 
             {/* Full-screen diploma routes (no Layout wrapper) */}
-            <Route path="diploma" element={<DiplomaPage />} />
+            {/* /diploma retired — the overview page is the student's diploma/portfolio now. */}
+            <Route path="diploma" element={<Navigate to="/overview" replace />} />
             <Route path="portfolio/:slug" element={<DiplomaPage />} />
             <Route path="public/diploma/:userId" element={<DiplomaPage />} />
             <Route path="public/transcript/:userId" element={<PublicTranscriptPage />} />

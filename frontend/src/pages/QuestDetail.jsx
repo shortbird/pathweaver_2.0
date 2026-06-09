@@ -227,7 +227,7 @@ const QuestDetail = () => {
 
     endQuestMutation.mutate(id, {
       onSuccess: () => {
-        navigate('/');
+        navigate('/dashboard');
       },
       onError: (error) => {
         console.error('Error ending quest:', error);

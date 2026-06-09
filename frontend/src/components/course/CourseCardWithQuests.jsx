@@ -171,7 +171,7 @@ const CourseCardWithQuests = ({ course }) => {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate('/diploma');
+              navigate('/overview');
             }}
             className="mt-auto w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold transition-all duration-200 flex items-center justify-center gap-2"
           >

@@ -154,7 +154,7 @@ const QuestCardV3 = memo(({ quest, onEnroll }) => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate('/diploma');
+                      navigate('/overview');
                     }}
                     className="flex-1 bg-gradient-to-r from-emerald-500 to-green-500 text-white py-2 px-4 rounded-[20px] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold"
                   >

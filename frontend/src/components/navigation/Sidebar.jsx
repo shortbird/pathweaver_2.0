@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOrganization } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
 import ActingAsBanner from '../parent/ActingAsBanner'
 import MasqueradeBanner from '../admin/MasqueradeBanner'
@@ -9,9 +10,27 @@ import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeSer
 import api from '../../services/api'
 import { toast } from 'react-hot-toast'
 
+// School-specific program tabs, keyed by the member organization's slug. Each
+// microschool that gets a custom in-app implementation adds an entry here; the
+// tab shows only for members of that organization. First school: OpenEd Academy.
+const ORG_PROGRAM_TABS = {
+  oea: {
+    name: 'OpenEd Academy',
+    path: '/opened-academy',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7" />
+      </svg>
+    )
+  }
+}
+
 const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
-  const { user, logout, isAuthenticated } = useAuth()
+  const { user, logout, isAuthenticated, effectiveRole } = useAuth()
+  const { organization } = useOrganization()
   const { actingAsDependent, clearActingAs } = useActingAs()
   const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
@@ -96,7 +115,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // Base navigation items for all users
   const baseNavItems = [
     {
-      name: 'Bounty Board',
+      name: 'Bounties',
       path: '/bounties',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,23 +134,17 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     //   )
     // },
     {
-      name: 'Communication',
-      path: '/communication',
+      name: 'Messages',
+      path: '/messages',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
         </svg>
       )
     },
-    {
-      name: 'Journal',
-      path: '/learning-journal',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      )
-    },
+    // Journal is a student learning surface. Parents don't keep a personal
+    // journal -- they capture for a child from the Family dashboard -- so it's
+    // hidden from parents (added conditionally below).
     // Profile nav item removed (March 2026 - accessed via user name in top-right header)
     // {
     //   name: 'Profile',
@@ -145,7 +158,28 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   ]
 
   // Start with base navigation items
-  const navItems = [...baseNavItems]
+  let navItems = [...baseNavItems]
+
+  // Org admins reach bounties (view + create for their org's students) from a
+  // tab inside /organization, so it's kept out of their sidebar.
+  if (effectiveRole === 'org_admin') {
+    navItems = navItems.filter(item => item.path !== '/bounties')
+  }
+
+  // Journal: a student learning surface. Hidden from parents (they capture for
+  // a child from the Family dashboard) and org admins (they manage their org,
+  // not a personal journal).
+  if (effectiveRole !== 'parent' && effectiveRole !== 'org_admin') {
+    navItems.push({
+      name: 'Journal',
+      path: '/learning-journal',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      )
+    })
+  }
 
   // Helper to check if user has a role (supports org_roles array)
   const userHasRole = (role) => {
@@ -185,6 +219,16 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // School-specific program tab — shown to members of a partner organization
+  // that has a custom in-app implementation (keyed by org slug). First school:
+  // OpenEd Academy (/opened-academy), where parents manage their students'
+  // pathways/credits and students see a read-only view of their own diploma.
+  // Org admins manage the program from /organization, so it's hidden from them.
+  const programTab = organization?.slug ? ORG_PROGRAM_TABS[organization.slug] : null
+  if (programTab && effectiveRole !== 'org_admin') {
+    navItems.push(programTab)
+  }
+
   // Buddy nav - superadmin only for now
   if (user?.role === 'superadmin') {
     navItems.push({
@@ -202,7 +246,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const isStudent = user?.role === 'student' || user?.org_role === 'student' || (user?.org_roles && user.org_roles.includes('student'))
   if (isStudent) {
     navItems.push({
-      name: 'Activity Feed',
+      name: 'Feed',
       path: '/feedback',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,7 +261,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const hasParentRelationships = user?.has_dependents || user?.has_linked_students || userHasRole('parent')
   if (hasParentRelationships) {
     navItems.push({
-      name: 'Parent',
+      name: 'Family',
       path: '/parent/dashboard',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -270,9 +314,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
-  // Credit Review link — org_admins review their org's student credit
-  // requests; superadmins also use it as part of the Optio review step.
-  if (userHasRole('org_admin') || user?.role === 'superadmin') {
+  // Credit Review link — superadmins use it as part of the Optio review step.
+  // Org admins reach the same dashboard as a tab inside /organization instead,
+  // so it's kept out of their sidebar.
+  if (user?.role === 'superadmin') {
     navItems.push({
       name: 'Credit Review',
       path: '/credit-dashboard',
@@ -321,7 +366,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   if (hasObserverAccess) {
     navItems.push({
-      name: 'Observer',
+      name: 'Feed',
       path: '/observer/feed',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

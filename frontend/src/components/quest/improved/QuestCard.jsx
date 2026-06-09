@@ -158,7 +158,7 @@ const QuestCard = ({ quest, onEnroll }) => {
               className="flex-1 !bg-gradient-to-r !from-amber-600 !to-yellow-500 sm:hover:!from-amber-700 sm:hover:!to-yellow-600 !min-h-[44px] touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate('/diploma');
+                navigate('/overview');
               }}
             >
               <CheckCircleIcon className="w-4 h-4 mr-2 flex-shrink-0" />

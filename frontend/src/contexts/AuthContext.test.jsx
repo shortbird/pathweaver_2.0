@@ -201,6 +201,28 @@ describe('AuthContext', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
     })
 
+    it('navigates org-managed parent to /parent/dashboard', async () => {
+      api.post.mockResolvedValue({
+        data: {
+          // Org parents have role 'org_managed'; effective role comes from org_role
+          user: { id: '1', role: 'org_managed', org_role: 'parent', first_name: 'P', created_at: new Date(Date.now() - 86400000).toISOString() },
+          session: { authenticated: true },
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
+      })
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.login('p@test.com', 'pass')
+      })
+
+      expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+    })
+
     it('navigates new observer to /observer/welcome', async () => {
       localStorage.removeItem('observerWelcomeSeen')
       api.post.mockResolvedValue({

@@ -186,7 +186,7 @@ const QuestCompletionCelebration = ({
           {!isEmptyQuest && (
             <div className="text-center mt-6">
               <button
-                onClick={() => navigate('/diploma')}
+                onClick={() => navigate('/overview')}
                 className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink transition-colors font-medium"
                 style={{ fontFamily: 'Poppins' }}
               >

@@ -228,6 +228,7 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
           description: questData.description || questData.big_idea,
           image_url: questData.image_url,
           header_image_url: questData.header_image_url,
+          metadata: questData.metadata,
           user_enrollment: true,
           completed_enrollment: quest.status === 'completed' || (!quest.is_active && quest.completed_at),
           progress: {
@@ -353,15 +354,6 @@ const DashboardPage = () => {
               'Choose a quest that calls to you and see where it leads.'}
           </p>
         </div>
-        <Link
-          to="/diploma"
-          className="self-start bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-all duration-300 flex items-center gap-2 font-medium text-sm min-h-[44px]"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          View Portfolio
-        </Link>
         {/* Deprecated: Capture Moment button - keeping for potential future use
         <button
           onClick={() => setShowLearningEventModal(true)}
@@ -459,6 +451,7 @@ const DashboardPage = () => {
                   description: questData.description || questData.big_idea,
                   image_url: questData.image_url,
                   header_image_url: questData.header_image_url,
+                  metadata: questData.metadata,
                   user_enrollment: true,
                   completed_enrollment: true,
                   progress: {

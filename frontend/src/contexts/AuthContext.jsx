@@ -167,10 +167,12 @@ export const AuthProvider = ({ children }) => {
         toast.success('Welcome back!')
       }
 
-      // Redirect based on user role
+      // Redirect based on user role (effective role handles org_managed users)
       const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-      const redirectPath = loginUser.role === 'superadmin' || loginUser.role === 'parent' ? '/parent/dashboard'
-        : loginUser.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
+      const loginRole = getEffectiveRole(loginUser)
+      const redirectPath = loginRole === 'org_admin' ? '/organization'
+        : loginRole === 'superadmin' || loginRole === 'parent' ? '/parent/dashboard'
+        : loginRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
       navigate(redirectPath)
 
@@ -249,8 +251,10 @@ export const AuthProvider = ({ children }) => {
       toast.success(verifiedUser.first_name ? `Welcome to Optio, ${verifiedUser.first_name}!` : 'Welcome to Optio!')
 
       const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-      const redirectPath = verifiedUser.role === 'superadmin' || verifiedUser.role === 'parent' ? '/parent/dashboard'
-        : verifiedUser.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
+      const verifiedRole = getEffectiveRole(verifiedUser)
+      const redirectPath = verifiedRole === 'org_admin' ? '/organization'
+        : verifiedRole === 'superadmin' || verifiedRole === 'parent' ? '/parent/dashboard'
+        : verifiedRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
       navigate(redirectPath)
 
@@ -306,10 +310,12 @@ export const AuthProvider = ({ children }) => {
         toast.success('Welcome back!')
       }
 
-      // Redirect based on user role
+      // Redirect based on user role (effective role handles org_managed users)
       const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-      const redirectPath = loginUser.role === 'superadmin' || loginUser.role === 'parent' ? '/parent/dashboard'
-        : loginUser.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
+      const loginRole = getEffectiveRole(loginUser)
+      const redirectPath = loginRole === 'org_admin' ? '/organization'
+        : loginRole === 'superadmin' || loginRole === 'parent' ? '/parent/dashboard'
+        : loginRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
       navigate(redirectPath)
 
@@ -412,10 +418,12 @@ export const AuthProvider = ({ children }) => {
 
         toast.success('Account created successfully!')
 
-        // Redirect based on user role
+        // Redirect based on user role (effective role handles org_managed users)
         const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-        const redirectPath = user.role === 'superadmin' || user.role === 'parent' ? '/parent/dashboard'
-          : user.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
+        const effectiveRole = getEffectiveRole(user)
+        const redirectPath = effectiveRole === 'org_admin' ? '/organization'
+          : effectiveRole === 'superadmin' || effectiveRole === 'parent' ? '/parent/dashboard'
+          : effectiveRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
           : '/dashboard'
         navigate(redirectPath)
       } else {

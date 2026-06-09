@@ -4,9 +4,14 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 let authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+let orgState = { organization: null }
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState,
+}))
+
+vi.mock('../../contexts/OrganizationContext', () => ({
+  useOrganization: () => orgState,
 }))
 
 vi.mock('../../contexts/ActingAsContext', () => ({
@@ -43,6 +48,7 @@ function renderSidebar() {
 describe('Sidebar — Credit Review link visibility', () => {
   beforeEach(() => {
     authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
   })
 
   it('shows Credit Review link for superadmin', () => {
@@ -57,7 +63,7 @@ describe('Sidebar — Credit Review link visibility', () => {
     expect(link).toHaveAttribute('href', '/credit-dashboard')
   })
 
-  it('shows Credit Review link for org_admin', () => {
+  it('does NOT show Credit Review link for org_admin (moved to /organization tab)', () => {
     authState.user = {
       id: 'u1',
       role: 'org_managed',
@@ -67,8 +73,8 @@ describe('Sidebar — Credit Review link visibility', () => {
     }
     renderSidebar()
     expect(
-      screen.getByRole('link', { name: /credit review/i }),
-    ).toBeInTheDocument()
+      screen.queryByRole('link', { name: /credit review/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('does NOT show Credit Review link for plain students', () => {
@@ -93,5 +99,33 @@ describe('Sidebar — Credit Review link visibility', () => {
     expect(
       screen.queryByRole('link', { name: /credit review/i }),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('Sidebar — school-specific program tab (org-gated)', () => {
+  beforeEach(() => {
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
+  })
+
+  it('shows the OpenEd Academy tab for members of the oea org', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'student', organization_id: 'org-oea', email: 's@example.com' }
+    orgState = { organization: { id: 'org-oea', slug: 'oea', name: 'OpenEd Academy' } }
+    renderSidebar()
+    const link = screen.getByRole('link', { name: /openEd academy/i })
+    expect(link).toHaveAttribute('href', '/opened-academy')
+  })
+
+  it('does NOT show the tab for users in a different org', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'student', organization_id: 'org-x', email: 's@example.com' }
+    orgState = { organization: { id: 'org-x', slug: 'someschool', name: 'Some School' } }
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /openEd academy/i })).not.toBeInTheDocument()
+  })
+
+  it('does NOT show the tab for users with no organization', () => {
+    authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /openEd academy/i })).not.toBeInTheDocument()
   })
 })

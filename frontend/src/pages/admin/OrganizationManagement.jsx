@@ -3,51 +3,39 @@ import { useParams, useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
-import { SettingsTab, PeopleTab, ContentTab } from '../../components/organization'
+import { SettingsTab, PeopleTab } from '../../components/organization'
 import OrgCoursesTab from '../../components/organization/OrgCoursesTab'
-import { ClassList, ClassDetailPage } from '../../components/classes'
+import CreditReviewDashboardPage from '../CreditReviewDashboardPage'
+import BountyBoardPage from '../BountyBoardPage'
 
 const TABS = [
   { id: 'settings', label: 'Settings' },
   { id: 'people', label: 'People' },
   { id: 'courses', label: 'Courses' },
-  { id: 'classes', label: 'Classes' },
-  { id: 'content', label: 'Content' }
+  { id: 'bounties', label: 'Bounties' },
+  { id: 'credit-review', label: 'Credit Review' }
 ]
 
-// Map old tab names to new ones for URL compatibility
+// One-line guidance shown under the tab bar so org admins know what each tab is
+// for. Keyed by tab id.
+const TAB_DESCRIPTIONS = {
+  settings: "Manage your organization's name, branding, and account settings.",
+  people: 'Add and manage your students, parents, and advisors. Invite new members and set their roles.',
+  courses: 'Assign courses to your students and build new course content for your organization.',
+  bounties: 'View the bounties available to your students and post new ones to encourage their learning.',
+  'credit-review': "Review your students' completed work and approve the credit they've earned.",
+}
+
+// Map old tab names to new ones for URL compatibility. Removed tabs (classes,
+// content) aren't listed -- getResolvedTab falls back to 'settings' for any id
+// not in TABS, so old bookmarks land somewhere valid.
 const TAB_REDIRECTS = {
   'overview': 'settings',
   'users': 'people',
   'connections': 'people',
-  'quests': 'content',
+  'quests': 'courses',
   'advisors': 'people',
   'progress': 'settings'
-}
-
-/**
- * ClassesTab - Wrapper component for organization classes management
- */
-function ClassesTab({ orgId, orgData }) {
-  const [selectedClass, setSelectedClass] = useState(null)
-
-  if (selectedClass) {
-    return (
-      <ClassDetailPage
-        classId={selectedClass.id}
-        orgId={orgId}
-        onBack={() => setSelectedClass(null)}
-      />
-    )
-  }
-
-  return (
-    <ClassList
-      orgId={orgId}
-      isAdvisorView={false}
-      onSelectClass={setSelectedClass}
-    />
-  )
 }
 
 export default function OrganizationManagement() {
@@ -186,6 +174,12 @@ export default function OrganizationManagement() {
         </nav>
       </div>
 
+      {TAB_DESCRIPTIONS[activeTab] && (
+        <p className="text-sm text-gray-500 mb-6 -mt-2">
+          {TAB_DESCRIPTIONS[activeTab]}
+        </p>
+      )}
+
       {activeTab === 'settings' && (
         <SettingsTab
           orgId={orgId}
@@ -208,20 +202,12 @@ export default function OrganizationManagement() {
         <OrgCoursesTab orgId={orgId} orgData={orgData} />
       )}
 
-      {activeTab === 'classes' && (
-        <ClassesTab
-          orgId={orgId}
-          orgData={orgData}
-        />
+      {activeTab === 'bounties' && (
+        <BountyBoardPage />
       )}
 
-      {activeTab === 'content' && (
-        <ContentTab
-          orgId={orgId}
-          orgData={orgData}
-          onUpdate={fetchOrganizationData}
-          siteSettings={siteSettings}
-        />
+      {activeTab === 'credit-review' && (
+        <CreditReviewDashboardPage />
       )}
 
     </div>

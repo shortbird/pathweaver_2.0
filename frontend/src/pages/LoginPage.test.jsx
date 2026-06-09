@@ -257,6 +257,7 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'student', first_name: 'Alice' },
+        effectiveRole: 'student',
         loading: false
       }
       renderLoginPage()
@@ -272,6 +273,7 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'student', first_name: 'Alice' },
+        effectiveRole: 'student',
         loading: false
       }
       renderLoginPage()
@@ -285,6 +287,22 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'parent', first_name: 'Bob' },
+        effectiveRole: 'parent',
+        loading: false
+      }
+      renderLoginPage()
+
+      fireEvent.click(screen.getByText('Continue as Bob'))
+      expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+    })
+
+    it('navigates to parent dashboard when Continue is clicked (org-managed parent)', async () => {
+      authState = {
+        login: mockLogin,
+        isAuthenticated: true,
+        // Org parents have role 'org_managed'; effectiveRole resolves org_role
+        user: { id: '1', role: 'org_managed', org_role: 'parent', first_name: 'Bob' },
+        effectiveRole: 'parent',
         loading: false
       }
       renderLoginPage()
@@ -299,6 +317,7 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'observer', first_name: 'Carol' },
+        effectiveRole: 'observer',
         loading: false
       }
       renderLoginPage()
@@ -313,6 +332,7 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'observer', first_name: 'Carol' },
+        effectiveRole: 'observer',
         loading: false
       }
       renderLoginPage()
@@ -326,6 +346,7 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'student', first_name: 'Alice' },
+        effectiveRole: 'student',
         loading: false
       }
       renderLoginPage()
@@ -343,6 +364,7 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'student', first_name: 'Alice' },
+        effectiveRole: 'student',
         loading: false
       }
       renderLoginPage()
@@ -370,6 +392,7 @@ describe('LoginPage', () => {
         login: mockLogin,
         isAuthenticated: true,
         user: { id: '1', role: 'student', first_name: 'Test' },
+        effectiveRole: 'student',
         loading: false
       }
       renderLoginPage()

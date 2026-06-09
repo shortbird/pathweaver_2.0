@@ -709,4 +709,38 @@ export const transferCreditsAPI = {
   deleteAll: (userId) => api.delete(`/api/admin/transfer-credits/${userId}`),
 }
 
+// OpenEd Academy (OEA) diploma program. Backs the /opened-academy tab.
+// Reads (pathways, enrollments, credits) work for the managing parent and,
+// for self-targeting routes, the student viewing their own diploma. Writes
+// are parent-only (enforced server-side in backend/routes/oea.py).
+export const oeaAPI = {
+  // The three fixed diploma pathway definitions for the selection UX.
+  pathways: () => api.get('/api/oea/pathways'),
+
+  // All enrollments managed by the acting parent.
+  enrollments: () => api.get('/api/oea/enrollments'),
+
+  // One student's current enrollment (or null). Self-readable.
+  studentEnrollment: (studentId) => api.get(`/api/oea/enrollments/${studentId}`),
+
+  // Select or change a student's diploma pathway (parent only).
+  selectPathway: (studentId, pathwayKey) =>
+    api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
+
+  // Credits + computed pathway progress + GPA for a student. Self-readable.
+  credits: (studentId) => api.get(`/api/oea/students/${studentId}/credits`),
+
+  // Add a course credit to a pathway requirement slot (parent only).
+  addCredit: (studentId, body) => api.post(`/api/oea/students/${studentId}/credits`, body),
+
+  // Update a credit: rename / mark complete / grade / honors weighting (parent only).
+  updateCredit: (creditId, body) => api.patch(`/api/oea/credits/${creditId}`, body),
+
+  // Delete a credit (parent only).
+  deleteCredit: (creditId) => api.delete(`/api/oea/credits/${creditId}`),
+
+  // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
+  ensureCreditQuest: (creditId) => api.post(`/api/oea/credits/${creditId}/quest`, {}),
+}
+
 export default api

@@ -207,7 +207,7 @@ describe('DashboardPage', () => {
       expect(screen.getByText(/Browse All Quests/)).toBeInTheDocument()
     })
 
-    it('renders View Portfolio link', () => {
+    it('does not render the removed View Portfolio link (overview replaces /diploma)', () => {
       dashboardHookData = {
         data: { active_quests: [], enrolled_courses: [], stats: {} },
         isLoading: false,
@@ -215,7 +215,7 @@ describe('DashboardPage', () => {
         refetch: vi.fn()
       }
       renderDashboard()
-      expect(screen.getByText('View Portfolio')).toBeInTheDocument()
+      expect(screen.queryByText('View Portfolio')).not.toBeInTheDocument()
     })
   })
 

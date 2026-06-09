@@ -60,6 +60,12 @@ const QuestDetailHeader = ({
   // Get quest header image
   const questImage = quest?.image_url || quest?.header_image_url || getQuestHeaderImageSync(quest?.quest_type);
 
+  // Org-branded quests (e.g. OpenEd Academy course quests) render the school's
+  // logo as a contained banner behind the title — like the Spark branch below —
+  // instead of cropping it full-bleed. Flagged by metadata.header_style.
+  const isOrgLogoBanner =
+    quest?.metadata?.header_style === 'org_logo' && !!quest?.header_image_url && !imageError;
+
   // Check if this is a Spark LMS quest
   const isSparkQuest = quest?.lms_platform === 'spark';
   const sparkLogoUrl = 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png';
@@ -125,7 +131,21 @@ const QuestDetailHeader = ({
       {/* Hero Section with Image and Overlaid Content */}
       <div className="relative w-full min-h-[150px] sm:min-h-[175px] md:min-h-[200px] overflow-hidden">
         {/* Background Image */}
-        {isSparkQuest ? (
+        {isOrgLogoBanner ? (
+          <div className="absolute inset-0 bg-white">
+            {/* Pin the logo to a fixed-height region anchored at the top (matching
+                the collapsed hero height) so it stays put when the hero grows —
+                e.g. when "Show journey" expands the content below. */}
+            <div className="absolute inset-x-0 top-0 h-[150px] sm:h-[175px] md:h-[200px] flex items-center justify-center">
+              <img
+                src={quest.header_image_url}
+                alt={`${quest?.title || 'Course'} banner`}
+                className="h-1/2 max-h-24 max-w-[40%] object-contain"
+                onError={() => setImageError(true)}
+              />
+            </div>
+          </div>
+        ) : isSparkQuest ? (
           <div className="absolute inset-0 bg-gradient-to-r from-orange-50 to-amber-50">
             <img
               src={sparkLogoUrl}
@@ -145,8 +165,12 @@ const QuestDetailHeader = ({
           <div className={`absolute inset-0 bg-gradient-to-br ${getPillarGradient()}`} />
         )}
 
-        {/* Gradient overlay - fades from white on left to transparent on right */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-transparent sm:via-white/90 sm:to-white/20" />
+        {/* Gradient overlay - fades from white on left to transparent on right.
+            Skipped for the org-logo banner, which sits on a plain background and
+            would otherwise wash out the centered logo. */}
+        {!isOrgLogoBanner && (
+          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-transparent sm:via-white/90 sm:to-white/20" />
+        )}
 
         {/* Content overlay */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
@@ -164,7 +188,7 @@ const QuestDetailHeader = ({
           <div className="absolute top-3 right-4 sm:right-6 lg:right-8 flex items-center gap-2">
             {(isEnrolled || isQuestCompleted) && (
               <button
-                onClick={() => navigate('/diploma')}
+                onClick={() => navigate('/overview')}
                 className="flex items-center gap-1.5 px-3 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border border-purple-200 rounded-full hover:bg-white transition-all text-sm font-medium shadow-sm min-h-[44px] touch-manipulation"
                 style={{ fontFamily: 'Poppins' }}
               >

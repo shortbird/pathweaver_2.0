@@ -33,13 +33,17 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
     await logout()
   }
 
-  // Hide Dashboard/Quests toggle on observer feed page
+  // Hide Dashboard/Quests toggle on observer feed pages, and for parents and
+  // org admins -- both destinations (student dashboard + quests) are student
+  // surfaces these roles don't work in, so the toggle has nowhere valid to go.
   const hideToggle = location.pathname.startsWith('/observer/')
+    || effectiveRole === 'parent'
+    || effectiveRole === 'org_admin'
 
   const isActiveToggle = (path) => {
-    // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /overview, /admin, /communication, /calendar, /organization
+    // Dashboard toggle should be active for: /dashboard, /connections, /profile, /overview, /admin, /messages, /calendar, /organization
     if (path === '/dashboard') {
-      return ['/dashboard', '/connections', '/diploma', '/profile', '/overview', '/admin', '/communication', '/calendar', '/organization'].some(route =>
+      return ['/dashboard', '/connections', '/profile', '/overview', '/admin', '/messages', '/calendar', '/organization'].some(route =>
         location.pathname === route || location.pathname.startsWith(route + '/')
       )
     }

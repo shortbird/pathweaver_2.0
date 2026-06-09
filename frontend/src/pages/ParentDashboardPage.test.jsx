@@ -210,10 +210,10 @@ describe('ParentDashboardPage', () => {
       })
     })
 
-    it('renders Activity Feed button', async () => {
+    it('does not render an Activity Feed button (removed)', async () => {
       renderParentDashboard()
       await waitFor(() => {
-        expect(screen.getByText('Activity Feed')).toBeInTheDocument()
+        expect(screen.queryByText('Activity Feed')).not.toBeInTheDocument()
       })
     })
 

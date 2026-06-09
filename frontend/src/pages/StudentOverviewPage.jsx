@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
-import api from '../services/api';
+import api, { oeaAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { buildQuestOrbs, PILLAR_DEFINITIONS } from '../utils/pillarHelpers';
@@ -56,6 +56,10 @@ const StudentOverviewPage = () => {
   const [completedQuests, setCompletedQuests] = useState([]);
   const [subjectXp, setSubjectXp] = useState({});
   const [pendingSubjectXp, setPendingSubjectXp] = useState({});
+  // OEA diploma progress (only present for OpenEd Academy students with a chosen
+  // pathway). When set, the Skills & Growth panel shows OEA pathway progress
+  // instead of Optio's XP-based diploma credits.
+  const [oea, setOea] = useState(null);
   const [learningEvents, setLearningEvents] = useState([]);
 
   // Constellation data
@@ -85,7 +89,8 @@ const StudentOverviewPage = () => {
         subjectXpResult,
         learningEventsResult,
         visibilityResult,
-        engagementResult
+        engagementResult,
+        oeaResult
       ] = await Promise.allSettled([
         api.get('/api/users/profile'),
         api.get('/api/users/dashboard'),
@@ -93,7 +98,10 @@ const StudentOverviewPage = () => {
         api.get('/api/users/subject-xp'),
         api.get('/api/learning-events'),
         api.get(`/api/portfolio/user/${effectiveUser.id}/visibility-status`),
-        api.get('/api/users/me/engagement')
+        api.get('/api/users/me/engagement'),
+        // OEA students: their real diploma is the pathway, not Optio XP credits.
+        // 403/404 (non-OEA or no access) is fine — falls back to Optio credits.
+        oeaAPI.credits(effectiveUser.id)
       ]);
 
       // Process profile
@@ -158,6 +166,15 @@ const StudentOverviewPage = () => {
         });
         setSubjectXp(subjectXpMap);
         setPendingSubjectXp(pendingMap);
+      }
+
+      // OEA diploma progress. Store the whole response (includes is_oea_student)
+      // so Skills & Growth can show pathway progress, a choose-pathway prompt for
+      // OEA students without a pathway yet, or fall back to Optio credits.
+      if (oeaResult.status === 'fulfilled') {
+        setOea(oeaResult.value.data || null);
+      } else {
+        setOea(null);
       }
 
       // Process learning events
@@ -275,6 +292,7 @@ const StudentOverviewPage = () => {
     xpByPillar: dashboardData.xpByPillar,
     subjectXp,
     pendingSubjectXp,
+    oea,
     totalXp: dashboardData.totalXp,
     pillarsData,
     questOrbs,
