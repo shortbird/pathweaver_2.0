@@ -697,29 +697,39 @@ export default function QuestDetailScreen() {
                   classSubject={quest.quest_type === 'class' ? (quest.transcript_subject || null) : null}
                 />
 
-                {/* Leave Quest */}
+                {/* Leave Quest — "End Class" for class-type quests */}
                 <Divider className="mt-4" />
                 <Pressable
                   onPress={() => {
+                    const isClass = quest.quest_type === 'class';
+                    const confirmMsg = isClass
+                      ? 'End this class? Your completed tasks will be preserved.'
+                      : 'Leave this quest? Your completed tasks will be preserved.';
                     if (Platform.OS === 'web') {
-                      if (window.confirm('Leave this quest? Your completed tasks will be preserved.')) {
+                      if (window.confirm(confirmMsg)) {
                         handleLeaveQuest();
                       }
                       return;
                     }
                     Alert.alert(
-                      'Leave Quest?',
+                      isClass ? 'End Class?' : 'Leave Quest?',
                       'Your completed tasks will be preserved. You can re-enroll later.',
                       [
                         { text: 'Cancel', style: 'cancel' },
-                        { text: 'Leave', style: 'destructive', onPress: handleLeaveQuest },
+                        {
+                          text: isClass ? 'End Class' : 'Leave',
+                          style: 'destructive',
+                          onPress: handleLeaveQuest,
+                        },
                       ],
                     );
                   }}
                   className="py-3 items-center"
                   style={{ minHeight: 44, justifyContent: 'center' }}
                 >
-                  <UIText size="sm" className="text-red-400">Leave Quest</UIText>
+                  <UIText size="sm" className="text-red-400">
+                    {quest.quest_type === 'class' ? 'End Class' : 'Leave Quest'}
+                  </UIText>
                 </Pressable>
               </VStack>
             )}

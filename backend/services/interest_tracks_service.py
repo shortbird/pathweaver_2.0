@@ -19,6 +19,7 @@ from services.base_service import BaseService
 from database import get_supabase_admin_client, get_user_client
 
 from utils.logger import get_logger
+from utils.quest_status import is_class_credit_awarded
 
 logger = get_logger(__name__)
 
@@ -1049,7 +1050,7 @@ class InterestTracksService(BaseService):
             # Get active quests with enrollment info
             # Active = is_active=true AND status='picked_up'
             response = supabase.table('user_quests') \
-                .select('id, quest_id, quests(id, title, image_url, description, quest_type, transcript_subject)') \
+                .select('id, quest_id, quests(id, title, image_url, description, quest_type, transcript_subject, class_review_status)') \
                 .eq('user_id', user_id) \
                 .eq('is_active', True) \
                 .eq('status', 'picked_up') \
@@ -1061,6 +1062,11 @@ class InterestTracksService(BaseService):
 
             for enrollment in (response.data or []):
                 quest = enrollment.get('quests')
+                # A credit-awarded class is complete (utils/quest_status) even
+                # though its enrollment stays is_active=true; don't surface it as
+                # an active journal topic. Matches the dashboard's active list.
+                if is_class_credit_awarded(quest):
+                    continue
                 if quest and quest['id'] not in seen_quest_ids:
                     seen_quest_ids.add(quest['id'])
                     quest_data[quest['id']] = {
