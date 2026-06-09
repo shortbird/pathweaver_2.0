@@ -2,7 +2,6 @@
  * scanDocumentToPdf: OS scanner pages → one multi-page PDF via pdf-lib.
  */
 
-import { Platform, PermissionsAndroid } from 'react-native';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import * as FileSystem from 'expo-file-system/legacy';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
@@ -13,27 +12,18 @@ const { __mockDoc } = require('pdf-lib');
 describe('scanDocumentToPdf', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  describe('Android camera-permission pre-flight', () => {
-    const originalOS = Platform.OS;
-    afterEach(() => { (Platform as any).OS = originalOS; });
-
-    it('requests CAMERA on Android before launching the scanner', async () => {
-      (Platform as any).OS = 'android';
-      (PermissionsAndroid.request as jest.Mock) = jest.fn().mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
-      (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({ status: 'cancel' });
-
-      await scanDocumentToPdf();
-
-      expect(PermissionsAndroid.request).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.CAMERA);
+  it('strips Base64.DEFAULT newlines before embedding (no "not a valid JPEG/PNG")', async () => {
+    // Android's native scanner encodes with Base64.DEFAULT, which wraps the
+    // output with a newline every 76 chars. pdf-lib chokes on those, so they
+    // must be removed before embedding (build-22 "Scan unavailable" regression).
+    (DocumentScanner.scanDocument as jest.Mock).mockResolvedValueOnce({
+      status: 'success',
+      scannedImages: ['/9j/AAAA\nBBBB\nCCCC\n'],
     });
 
-    it('throws (and never launches the scanner) when CAMERA is denied', async () => {
-      (Platform as any).OS = 'android';
-      (PermissionsAndroid.request as jest.Mock) = jest.fn().mockResolvedValue(PermissionsAndroid.RESULTS.DENIED);
+    await scanDocumentToPdf();
 
-      await expect(scanDocumentToPdf()).rejects.toThrow(/camera access/i);
-      expect(DocumentScanner.scanDocument).not.toHaveBeenCalled();
-    });
+    expect(__mockDoc.embedJpg).toHaveBeenCalledWith('/9j/AAAABBBBCCCC');
   });
 
   it('returns null when the user cancels (no PDF written)', async () => {

@@ -18,7 +18,7 @@
  * Native only (requires the dev/EAS build that includes the native scanner).
  */
 
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform } from 'react-native';
 
 export interface ScannedDocument {
   /** Local file URI of the generated PDF. */
@@ -37,24 +37,6 @@ export interface ScannedDocument {
 export async function scanDocumentToPdf(): Promise<ScannedDocument | null> {
   if (Platform.OS === 'web') {
     throw new Error('Document scanning is only available in the mobile app.');
-  }
-
-  // Android: the OS document scanner runs inside Google Play Services, which by
-  // itself does NOT require the app to hold CAMERA permission. BUT because this
-  // app DECLARES `android.permission.CAMERA` in its manifest (expo-camera + the
-  // explicit android.permissions list), ML Kit gates the scanner on that
-  // permission actually being GRANTED at runtime — otherwise GmsDocumentScanning
-  // .getStartScanIntent() fails with "Could not start document scanner. Make sure
-  // app has camera access." (the exact error testers hit on Android, build 19).
-  // Unlike the camera/library pickers this sheet also offers, the scan action had
-  // no permission pre-flight, so a user who never used the in-app camera would
-  // tap Scan with CAMERA still un-granted and hit that failure. Request it first.
-  // iOS VisionKit prompts for camera access itself, so this is Android-only.
-  if (Platform.OS === 'android') {
-    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-    if (result !== PermissionsAndroid.RESULTS.GRANTED) {
-      throw new Error('Camera access is needed to scan documents. Enable it for Optio in Settings, then try again.');
-    }
   }
 
   // Lazy-require the native scanner: importing it at module load would crash the
@@ -97,7 +79,15 @@ export async function scanDocumentToPdf(): Promise<ScannedDocument | null> {
   const pdf = await PDFDocument.create();
   for (const img of scannedImages) {
     // Strip any data-URI prefix; pdf-lib's embed* takes a bare base64 string.
-    const base64 = img.includes('base64,') ? img.split('base64,')[1] : img;
+    // Then strip ALL whitespace: Android's native scanner encodes with
+    // `Base64.DEFAULT`, which wraps the output with a newline every 76 chars.
+    // pdf-lib's decoder chokes on those embedded newlines and the resulting bytes
+    // fail BOTH the JPEG and PNG signature checks — so embedJpg throws "not a
+    // valid JPEG", the fallback embedPng throws "The input is not a PNG file!",
+    // and the whole scan dies with a messageless error (the on-device "Scan
+    // unavailable / Could not start the document scanner" report on build 22).
+    // Removing the line breaks gives pdf-lib clean, decodable base64.
+    const base64 = (img.includes('base64,') ? img.split('base64,')[1] : img).replace(/\s/g, '');
     // Detect the real format. responseType=Base64 returns RAW base64 with no
     // data-URI prefix, so we can't rely on a "data:image/png" header — the OS
     // scanner (esp. Android ML Kit) often returns PNG, and feeding PNG bytes to
