@@ -98,4 +98,11 @@ jobs:
           # Without this the OTA bundle has an empty supabaseUrl and crashes on
           # launch with "supabaseUrl is required", looping back to the embedded
           # build. See the matching note in release.yml (production OTA).
-          eas env:exec preview --non-interactive 'npm run ota:preview -- -m "$MSG"'
+          #
+          # GUARD: abort if the required public env is empty (the `${VAR:?msg}`
+          # idiom fails the shell), so a crash-on-launch OTA can never publish.
+          eas env:exec preview --non-interactive '
+            : "${EXPO_PUBLIC_SUPABASE_URL:?OTA env guard - EXPO_PUBLIC_SUPABASE_URL is empty, bundle would crash on launch, aborting publish}"
+            : "${EXPO_PUBLIC_SUPABASE_ANON_KEY:?OTA env guard - EXPO_PUBLIC_SUPABASE_ANON_KEY is empty, aborting publish}"
+            npm run ota:preview -- -m "$MSG"
+          '

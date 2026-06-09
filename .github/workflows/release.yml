@@ -207,4 +207,14 @@ jobs:
           # module load — the update launches, crashes, and expo-updates rolls
           # back to the embedded build (silent OTA loop; no emergency flag). The
           # build itself was fine because EAS Build injects these automatically.
-          eas env:exec production --non-interactive 'npm run ota:production -- -m "$MSG"'
+          #
+          # GUARD: fail loudly here if the required public env is empty, so a
+          # crash-on-launch OTA can never be published again (the bug was silent —
+          # it only surfaced via adb logcat). `${VAR:?msg}` aborts the shell when
+          # VAR is unset/empty. Only vars without a safe runtime fallback are
+          # guarded (API_URL falls back to prod in api.ts; Sentry DSN just no-ops).
+          eas env:exec production --non-interactive '
+            : "${EXPO_PUBLIC_SUPABASE_URL:?OTA env guard - EXPO_PUBLIC_SUPABASE_URL is empty, bundle would crash on launch, aborting publish}"
+            : "${EXPO_PUBLIC_SUPABASE_ANON_KEY:?OTA env guard - EXPO_PUBLIC_SUPABASE_ANON_KEY is empty, aborting publish}"
+            npm run ota:production -- -m "$MSG"
+          '
