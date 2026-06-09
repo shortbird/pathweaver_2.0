@@ -168,6 +168,12 @@ class OEARepository:
             .eq('id', student_id).execute()
         org_id = student.data[0].get('organization_id') if student.data else None
 
+        # Brand the course quest with the school's logo as the header image
+        # instead of the default Optio gradient. header_image_url takes
+        # precedence in the quest header renderer (frontend questSourceConfig.js).
+        # Falls back to NULL (default gradient) when the org has no logo.
+        header_image_url = self._org_logo_url(org_id)
+
         description = f"OpenEd Academy course: {course_name}"
         if subject_label:
             description += f" ({subject_label})"
@@ -180,10 +186,48 @@ class OEARepository:
             'is_active': True,
             'is_public': False,
             'organization_id': org_id,
+            'header_image_url': header_image_url,
         }, student_id)
+
+        # Flag the quest so the header renders the org logo as a contained banner
+        # (see frontend QuestDetailHeader) rather than a cropped full-bleed image.
+        if header_image_url:
+            self.client.table('quests') \
+                .update({'metadata': {'header_style': 'org_logo'}}) \
+                .eq('id', quest['id']).execute()
+
         quest_repo.enroll_user(student_id, quest['id'])
         logger.info(f"Created OEA course quest {quest['id']} for student {student_id}")
         return quest['id']
+
+    def set_course_quest_completed(self, student_id: str, quest_id: str, completed: bool) -> None:
+        """
+        Mark (or reopen) the student's enrollment in an OEA course quest to mirror
+        the credit's completion state.
+
+        Uses the same user_quests columns the dashboard's active-quest filter reads
+        (is_active + completed_at), so completing drops the quest off the student's
+        current quests and reverting returns it.
+        """
+        from datetime import datetime
+        if completed:
+            update = {'is_active': False, 'completed_at': datetime.utcnow().isoformat()}
+        else:
+            update = {'is_active': True, 'completed_at': None}
+        self.client.table('user_quests') \
+            .update(update) \
+            .eq('user_id', student_id) \
+            .eq('quest_id', quest_id) \
+            .execute()
+
+    def _org_logo_url(self, org_id: Optional[str]) -> Optional[str]:
+        """Return the organization's logo (branding_config.logo_url), or None."""
+        if not org_id:
+            return None
+        org = self.client.table('organizations') \
+            .select('branding_config').eq('id', org_id).execute()
+        branding = (org.data[0].get('branding_config') or {}) if org.data else {}
+        return branding.get('logo_url') or None
 
     # ── Credit evidence (proof attached to a credit) ─────────────────────────
 

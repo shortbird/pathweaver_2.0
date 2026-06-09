@@ -303,7 +303,7 @@ def get_child_overview(user_id, student_id):
         # 6. Get completed quests with task evidence (for constellation)
         completed_quests_response = supabase.table('user_quests').select('''
             quest_id, completed_at,
-            quests!inner(id, title, image_url)
+            quests!inner(id, title, image_url, header_image_url)
         ''').eq('user_id', student_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
 
         completed_quests = []
@@ -373,7 +373,7 @@ def get_child_overview(user_id, student_id):
                 'id': quest_id,
                 'quest_id': quest_id,
                 'title': quest['title'],
-                'image_url': quest.get('image_url'),
+                'image_url': quest.get('image_url') or quest.get('header_image_url'),
                 'completed_at': cq['completed_at'],
                 'task_evidence': task_evidence,
                 'total_xp_earned': total_quest_xp,
@@ -381,7 +381,7 @@ def get_child_overview(user_id, student_id):
                 'quest': {
                     'id': quest_id,
                     'title': quest['title'],
-                    'image_url': quest.get('image_url')
+                    'image_url': quest.get('image_url') or quest.get('header_image_url')
                 },
                 'status': 'completed'
             })
@@ -423,7 +423,7 @@ def get_child_overview(user_id, student_id):
 
             quest_details = {}
             if evidence_quest_ids:
-                quests_response = supabase.table('quests').select('id, title, image_url').in_('id', evidence_quest_ids).execute()
+                quests_response = supabase.table('quests').select('id, title, image_url, header_image_url').in_('id', evidence_quest_ids).execute()
                 quest_details = {q['id']: q for q in quests_response.data}
 
             task_details = {}
@@ -469,13 +469,13 @@ def get_child_overview(user_id, student_id):
                     'id': quest_id,
                     'quest_id': quest_id,
                     'title': quest.get('title', 'Quest'),
-                    'image_url': quest.get('image_url'),
+                    'image_url': quest.get('image_url') or quest.get('header_image_url'),
                     'task_evidence': task_evidence,
                     'total_xp_earned': total_quest_xp,
                     'quest': {
                         'id': quest_id,
                         'title': quest.get('title', 'Quest'),
-                        'image_url': quest.get('image_url')
+                        'image_url': quest.get('image_url') or quest.get('header_image_url')
                     },
                     'status': 'in_progress'  # These are from in-progress quests
                 })

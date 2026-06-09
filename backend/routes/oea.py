@@ -18,7 +18,7 @@ from database import get_supabase_admin_client
 from repositories.oea_repository import OEARepository
 from repositories.base_repository import NotFoundError, ValidationError as RepoValidationError
 from utils.auth.decorators import require_auth, validate_uuid_param
-from utils.oea_pathways import list_pathways, get_pathway
+from utils.oea_pathways import list_pathways, get_pathway, PROGRAM_KEY
 from utils.oea_grades import compute_gpa, compute_progress, GRADE_POINTS
 from utils.roles import UserRole
 from middleware.error_handler import ValidationError, AuthorizationError
@@ -29,17 +29,32 @@ logger = get_logger(__name__)
 bp = Blueprint('oea', __name__, url_prefix='/api/oea')
 
 
-def _verify_manages_student(parent_id: str, student_id: str):
+def _verify_manages_student(parent_id: str, student_id: str, allow_self: bool = False):
     """
-    Confirm the acting user may manage this OEA student.
+    Confirm the acting user may access this OEA student's data.
 
-    Allowed when the user is superadmin, or the student is a dependent with
-    managed_by_parent_id == parent_id.
+    Allowed when the user is superadmin, the student is a dependent with
+    managed_by_parent_id == parent_id, the caller is a parent with an approved
+    parent_student_link to the student, or (when allow_self is True) the caller
+    is the student viewing their own record.
+
+    The link case supports OEA org students: they keep their own login and a
+    parent is connected via the platform's standard request/approve flow
+    (parent_student_links, status='approved'), rather than being a managed
+    dependent.
+
+    allow_self is used by the read-only endpoints so an OEA student can view
+    their own diploma (pathway / credits / GPA). Writes never pass allow_self —
+    only a managing/connected parent or superadmin may modify a student's record.
 
     Raises:
-        AuthorizationError: caller is not permitted to manage this student.
+        AuthorizationError: caller is not permitted to access this student.
         NotFoundError: student does not exist.
     """
+    # A student may read their own record when the endpoint opts in.
+    if allow_self and parent_id == student_id:
+        return
+
     # admin client justified: this lookup IS the auth check (reads users to
     # determine the manages-student relationship); mirrors routes/dependents.py.
     supabase = get_supabase_admin_client()
@@ -53,8 +68,45 @@ def _verify_manages_student(parent_id: str, student_id: str):
     if not student.data:
         raise NotFoundError("Student not found")
 
-    if student.data[0].get('managed_by_parent_id') != parent_id:
-        raise AuthorizationError("You do not manage this student")
+    # Managing parent of a dependent.
+    if student.data[0].get('managed_by_parent_id') == parent_id:
+        return
+
+    # Connected parent via an approved parent<->student link (org students).
+    link = supabase.table('parent_student_links') \
+        .select('id') \
+        .eq('parent_user_id', parent_id) \
+        .eq('student_user_id', student_id) \
+        .eq('status', 'approved') \
+        .limit(1).execute()
+    if link.data:
+        return
+
+    raise AuthorizationError("You do not manage this student")
+
+
+def _is_oea_student(student_id: str) -> bool:
+    """
+    Whether a student belongs to the OpenEd Academy program — by program_key
+    ('opened-academy', set for partner-signup families) or by membership in the
+    OEA organization (slug 'oea', for org-managed students whose program_key is
+    null). Used so the overview can show OEA diploma progress / a choose-pathway
+    prompt instead of Optio's XP-based credits.
+    """
+    supabase = get_supabase_admin_client()
+    u = supabase.table('users') \
+        .select('program_key, organization_id').eq('id', student_id).execute()
+    if not u.data:
+        return False
+    row = u.data[0]
+    if row.get('program_key') == PROGRAM_KEY:
+        return True
+    org_id = row.get('organization_id')
+    if org_id:
+        org = supabase.table('organizations').select('slug').eq('id', org_id).execute()
+        if org.data and org.data[0].get('slug') == 'oea':
+            return True
+    return False
 
 
 def _ensure_course_quest(repo, credit):
@@ -115,7 +167,7 @@ def get_enrollments(user_id):
 def get_student_enrollment(user_id, student_id):
     """Return one student's OEA enrollment (current pathway), or null if none."""
     try:
-        _verify_manages_student(user_id, student_id)
+        _verify_manages_student(user_id, student_id, allow_self=True)
 
         # admin client justified: cross-user parent -> student enrollment read.
         supabase = get_supabase_admin_client()
@@ -190,7 +242,7 @@ def get_student_credits(user_id, student_id):
     when the student has no pathway selected yet.
     """
     try:
-        _verify_manages_student(user_id, student_id)
+        _verify_manages_student(user_id, student_id, allow_self=True)
 
         # admin client justified: cross-user parent -> student credit reads.
         supabase = get_supabase_admin_client()
@@ -217,6 +269,7 @@ def get_student_credits(user_id, student_id):
             'credits': credits,
             'progress': progress,
             'gpa': gpa,
+            'is_oea_student': _is_oea_student(student_id),
         }), 200
     except AuthorizationError as e:
         return jsonify({'success': False, 'error': str(e)}), 403
@@ -348,6 +401,17 @@ def update_student_credit(user_id, credit_id):
             raise ValidationError("No valid fields to update")
 
         credit = repo.update_credit(credit_id, fields)
+
+        # Keep the student's linked course quest in sync with the credit's
+        # completion: completing the credit marks the quest done (drops it off
+        # their current quests); reverting reopens it.
+        if 'status' in fields and existing.get('quest_id'):
+            repo.set_course_quest_completed(
+                existing['student_id'],
+                existing['quest_id'],
+                completed=(fields['status'] == 'complete'),
+            )
+
         return jsonify({'success': True, 'credit': credit}), 200
     except AuthorizationError as e:
         return jsonify({'success': False, 'error': str(e)}), 403
@@ -437,7 +501,7 @@ def list_credit_evidence(user_id, credit_id):
         credit = repo.get_credit(credit_id)
         if not credit:
             raise NotFoundError("Credit not found")
-        _verify_manages_student(user_id, credit['student_id'])
+        _verify_manages_student(user_id, credit['student_id'], allow_self=True)
 
         return jsonify({'success': True, 'evidence': repo.get_credit_evidence(credit_id)}), 200
     except AuthorizationError as e:

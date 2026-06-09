@@ -362,6 +362,18 @@ export default function BountyDetailPage() {
               )}
             </HStack>
 
+            {/* State-aware student hint: what to do with these deliverables. */}
+            {isStudent && !myClaim && bounty.status === 'active' && (
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
+                Start this bounty, then check off each step with your proof.
+              </UIText>
+            )}
+            {isClaimEditable && (
+              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
+                Add proof for each step — a photo, video, link, or a few words.
+              </UIText>
+            )}
+
             {/* Progress bar (only when claimed) */}
             {myClaim && totalCount > 0 && (
               <View className="h-2 bg-surface-200 dark:bg-dark-surface-300 rounded-full overflow-hidden">
@@ -457,18 +469,23 @@ export default function BountyDetailPage() {
           )}
 
           {isClaimEditable && allComplete && (
-            <Button
-              size="lg"
-              onPress={handleTurnIn}
-              loading={turningIn}
-              disabled={turningIn}
-              className="w-full"
-              style={{ backgroundColor: undefined }}
-            >
-              <View className="w-full py-0.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink">
-                <ButtonText className="text-center">{turningIn ? 'Turning in...' : 'Turn In Bounty'}</ButtonText>
-              </View>
-            </Button>
+            <VStack space="xs">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">
+                Turning in sends your work for review. You'll get your reward once it's approved.
+              </UIText>
+              <Button
+                size="lg"
+                onPress={handleTurnIn}
+                loading={turningIn}
+                disabled={turningIn}
+                className="w-full"
+                style={{ backgroundColor: undefined }}
+              >
+                <View className="w-full py-0.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink">
+                  <ButtonText className="text-center">{turningIn ? 'Turning in...' : 'Turn In Bounty'}</ButtonText>
+                </View>
+              </Button>
+            </VStack>
           )}
 
         </VStack>

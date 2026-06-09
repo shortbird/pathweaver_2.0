@@ -30,6 +30,10 @@ const DESKTOP_BREAKPOINT = 768;
 
 const OPTIO_ICON_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
+// Local PNG logo. The SVG URI above does NOT render in React Native's <Image>
+// (no SVG support), so welcome modals showed blank space where the logo should
+// be — use the bundled app-icon PNG instead.
+const OPTIO_LOGO = require('@/assets/images/icon.png');
 
 function relativeTime(iso?: string | null): string {
   if (!iso) return 'No activity yet';
@@ -123,9 +127,75 @@ function StudentsList({ isDesktop }: { isDesktop: boolean }) {
   );
 }
 
+// What an observer can actually DO — shown first (the functional orientation),
+// as real labelled rows rather than decorative chips.
+const OBSERVER_CAPABILITIES = [
+  {
+    icon: 'newspaper-outline' as const,
+    color: '#3B82F6',
+    bg: 'bg-blue-50',
+    title: 'See their work',
+    body: 'Everything they capture or complete shows up in your feed.',
+  },
+  {
+    icon: 'chatbubble-outline' as const,
+    color: '#E85D8A',
+    bg: 'bg-optio-pink/5',
+    title: 'Cheer them on',
+    body: 'Leave a comment on anything they share.',
+  },
+  {
+    icon: 'trophy-outline' as const,
+    color: '#6D469B',
+    bg: 'bg-optio-purple/10',
+    title: 'Set bounties',
+    body: 'Post a challenge they can take on — you review it and grant the reward.',
+  },
+];
+
+// Coaching prompts for step 2 — the encouragement style Optio is built around.
+const OBSERVER_FEEDBACK_TIPS = [
+  { color: '#6D469B', title: 'Celebrate effort', example: '"I love how you tried a new approach."' },
+  { color: '#E85D8A', title: 'Ask about the process', example: '"What was the most challenging part?"' },
+  { color: '#3B82F6', title: 'Show genuine interest', example: '"Tell me more about this project."' },
+  { color: '#10B981', title: 'Acknowledge growth', example: '"I can see how much you\'ve learned."' },
+];
+
+/**
+ * Observer welcome — a two-step, skimmable intro shown on first observer login
+ * (and re-openable via the "Tips" button in the feed header). Step 1 leads with
+ * what an observer can DO; step 2 is how to give great feedback. A sticky footer
+ * keeps the progress dots + primary action in view, and the hero is personalized
+ * to the student(s) they're linked to.
+ */
 function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const c = useThemeColors();
+  // Only fetch the linked students while the modal is actually open.
+  const { students } = useObserverStudents(visible);
+  const [step, setStep] = useState(0);
+
+  // Restart at step 1 each time it opens (incl. re-open via the Tips button).
+  useEffect(() => { if (visible) setStep(0); }, [visible]);
+
   if (!visible) return null;
+
+  const names = students
+    .map((s) => s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim())
+    .filter(Boolean);
+  const heroName =
+    names.length === 0 ? null
+      : names.length === 1 ? names[0]
+        : `${names[0]} + ${names.length - 1} more`;
+  const singleStudent = students.length === 1 ? students[0] : null;
+  const singleName = singleStudent
+    ? (singleStudent.first_name || singleStudent.display_name || 'their')
+    : null;
+
+  const finish = () => {
+    onClose();
+    // With exactly one linked student, drop straight into their activity.
+    if (singleStudent) router.push(`/(app)/observers/student/${singleStudent.id}` as any);
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -136,108 +206,105 @@ function ObserverWelcomeModal({ visible, onClose }: { visible: boolean; onClose:
           maxWidth: 480,
           width: '92%',
           maxHeight: '85%',
+          overflow: 'hidden',
         }}>
+          {/* Fixed hero */}
+          <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 12 }}>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              style={{ position: 'absolute', right: 16, top: 16, zIndex: 10 }}
+            >
+              <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
+                <Ionicons name="close" size={18} color={c.icon} />
+              </View>
+            </Pressable>
+            <VStack space="sm" className="items-center">
+              <Image source={OPTIO_LOGO} style={{ width: 64, height: 64, borderRadius: 16 }} resizeMode="cover" />
+              <Heading size="2xl" className="text-center">
+                {heroName ? `You're observing ${heroName}` : "You're an observer"}
+              </Heading>
+              <UIText size="md" className="text-typo-500 text-center leading-6 dark:text-dark-typo-500">
+                Cheer them on and set challenges as they learn. Optio is about the process, not grades.
+              </UIText>
+            </VStack>
+          </View>
+
+          {/* Scrollable step body */}
           <ScrollView
+            style={{ flexShrink: 1 }}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ padding: 24 }}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 8 }}
           >
-            <VStack space="lg">
-              {/* Close button */}
-              <Pressable
-                onPress={onClose}
-                style={{ position: 'absolute', right: 0, top: 0, zIndex: 10, padding: 4 }}
-              >
-                <View className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center dark:bg-dark-surface-200">
-                  <Ionicons name="close" size={18} color={c.icon} />
-                </View>
-              </Pressable>
-
-              {/* Hero */}
-              <VStack space="sm" className="items-center pt-2">
-                <Image
-                  source={{ uri: OPTIO_ICON_URI }}
-                  style={{ width: 48, height: 48 }}
-                  resizeMode="contain"
-                />
-                <Heading size="xl" className="text-center">Welcome to Optio!</Heading>
-                <UIText size="sm" className="text-typo-500 text-center dark:text-dark-typo-500">
-                  Here's how you can support and celebrate the student's learning journey.
-                </UIText>
+            {step === 0 ? (
+              <VStack space="lg">
+                <Heading size="lg">What you can do</Heading>
+                {OBSERVER_CAPABILITIES.map((cap) => (
+                  <HStack key={cap.title} className="items-start gap-3.5">
+                    <View className={`w-12 h-12 rounded-full items-center justify-center ${cap.bg}`}>
+                      <Ionicons name={cap.icon} size={24} color={cap.color} />
+                    </View>
+                    <VStack className="flex-1 min-w-0">
+                      <UIText size="md" className="font-poppins-semibold">{cap.title}</UIText>
+                      <UIText size="sm" className="text-typo-500 leading-6 dark:text-dark-typo-500">{cap.body}</UIText>
+                    </VStack>
+                  </HStack>
+                ))}
               </VStack>
-
-              {/* Philosophy */}
-              <VStack space="xs">
-                <Heading size="md">The Process Is The Goal</Heading>
-                <UIText size="sm" className="text-typo-500 leading-5 dark:text-dark-typo-500">
-                  We celebrate curiosity, effort, and growth - not grades or test scores.
-                  Students learn by doing self-directed quests that build real-world skills.
-                </UIText>
-              </VStack>
-
-              <Divider />
-
-              {/* Tips */}
-              <VStack space="xs">
-                <Heading size="md">Observer Tips</Heading>
-                <VStack space="sm" className="mt-1">
-                  <HStack className="items-start gap-3">
-                    <View style={{ width: 4, backgroundColor: '#6D469B', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
-                    <VStack className="flex-1">
-                      <UIText size="sm" className="font-poppins-semibold">Celebrate Effort</UIText>
-                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"I love how you tried a new approach!"</UIText>
-                    </VStack>
-                  </HStack>
-                  <HStack className="items-start gap-3">
-                    <View style={{ width: 4, backgroundColor: '#E85D8A', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
-                    <VStack className="flex-1">
-                      <UIText size="sm" className="font-poppins-semibold">Ask Process Questions</UIText>
-                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"What was the most challenging part?"</UIText>
-                    </VStack>
-                  </HStack>
-                  <HStack className="items-start gap-3">
-                    <View style={{ width: 4, backgroundColor: '#3B82F6', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
-                    <VStack className="flex-1">
-                      <UIText size="sm" className="font-poppins-semibold">Show Genuine Interest</UIText>
-                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"Tell me more about this project!"</UIText>
-                    </VStack>
-                  </HStack>
-                  <HStack className="items-start gap-3">
-                    <View style={{ width: 4, backgroundColor: '#10B981', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
-                    <VStack className="flex-1">
-                      <UIText size="sm" className="font-poppins-semibold">Acknowledge Growth</UIText>
-                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">"I can see how much you've learned!"</UIText>
-                    </VStack>
-                  </HStack>
+            ) : (
+              <VStack space="lg">
+                <VStack space="xs">
+                  <Heading size="lg">Giving great feedback</Heading>
+                  <UIText size="sm" className="text-typo-500 leading-6 dark:text-dark-typo-500">
+                    A few words from you go a long way. Focus on the effort, not the outcome.
+                  </UIText>
+                </VStack>
+                <VStack space="md">
+                  {OBSERVER_FEEDBACK_TIPS.map((tip) => (
+                    <HStack key={tip.title} className="items-start gap-3.5">
+                      <View style={{ width: 4, backgroundColor: tip.color, borderRadius: 2, minHeight: 38, marginTop: 2 }} />
+                      <VStack className="flex-1">
+                        <UIText size="md" className="font-poppins-semibold">{tip.title}</UIText>
+                        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">{tip.example}</UIText>
+                      </VStack>
+                    </HStack>
+                  ))}
                 </VStack>
               </VStack>
-
-              <Divider />
-
-              {/* What You Can Do */}
-              <VStack space="xs">
-                <Heading size="md">What You Can Do</Heading>
-                <HStack className="flex-wrap gap-2 mt-1">
-                  <HStack className="items-center gap-2 bg-optio-pink/5 rounded-lg px-3 py-2">
-                    <Ionicons name="chatbubble-outline" size={16} color="#E85D8A" />
-                    <UIText size="xs" className="font-poppins-medium">Comment</UIText>
-                  </HStack>
-                  <HStack className="items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
-                    <Ionicons name="newspaper-outline" size={16} color="#3B82F6" />
-                    <UIText size="xs" className="font-poppins-medium">View Feed</UIText>
-                  </HStack>
-                  <HStack className="items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
-                    <Ionicons name="share-outline" size={16} color="#10B981" />
-                    <UIText size="xs" className="font-poppins-medium">Share</UIText>
-                  </HStack>
-                </HStack>
-              </VStack>
-
-              {/* CTA */}
-              <Button size="lg" onPress={onClose} className="w-full mt-2">
-                <ButtonText>Got It</ButtonText>
-              </Button>
-            </VStack>
+            )}
           </ScrollView>
+
+          {/* Sticky footer: progress dots + actions (always in view) */}
+          <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24, borderTopWidth: 1, borderTopColor: c.border }}>
+            <HStack className="items-center justify-center gap-1.5 mb-3">
+              {[0, 1].map((i) => (
+                <View
+                  key={i}
+                  style={{
+                    width: i === step ? 18 : 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: i === step ? '#6D469B' : c.border,
+                  }}
+                />
+              ))}
+            </HStack>
+            {step === 0 ? (
+              <Button size="lg" onPress={() => setStep(1)} className="w-full">
+                <ButtonText>Next</ButtonText>
+              </Button>
+            ) : (
+              <HStack className="gap-3">
+                <Button size="lg" variant="outline" onPress={() => setStep(0)} className="flex-1">
+                  <ButtonText>Back</ButtonText>
+                </Button>
+                <Button size="lg" onPress={finish} className="flex-1">
+                  <ButtonText>{singleName ? `View ${singleName}'s work` : 'Get started'}</ButtonText>
+                </Button>
+              </HStack>
+            )}
+          </View>
         </View>
       </View>
     </Modal>
@@ -295,7 +362,7 @@ function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: (
                     <View style={{ width: 4, backgroundColor: '#E85D8A', borderRadius: 2, minHeight: 32, marginTop: 2 }} />
                     <VStack className="flex-1">
                       <UIText size="sm" className="font-poppins-semibold">Post bounties</UIText>
-                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Challenge your kid with a real-world task and reward (XP or $).</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Challenge your kid with a real-world task and a reward.</UIText>
                     </VStack>
                   </HStack>
                   <HStack className="items-start gap-3">

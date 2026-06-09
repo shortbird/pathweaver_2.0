@@ -13,5 +13,6 @@ export { Skeleton } from './skeleton';
 export { PillarBadge } from './pillar-badge';
 export { BrandHeader } from './BrandHeader';
 export { BottomSheet } from './bottom-sheet';
+export { ActionSheet, type ActionSheetAction } from './action-sheet';
 export { IconButton } from './icon-button';
 export { ToastHost, toast } from './toast';

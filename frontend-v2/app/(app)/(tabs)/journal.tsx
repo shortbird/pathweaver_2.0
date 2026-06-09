@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider, Skeleton,
+  ActionSheet, type ActionSheetAction,
 } from '@/src/components/ui';
 import { TopicsSidebar } from '@/src/components/journal/TopicsSidebar';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
@@ -179,6 +180,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
 
   const [editingTopicName, setEditingTopicName] = useState(false);
   const [editTopicValue, setEditTopicValue] = useState('');
+  const [topicActionsOpen, setTopicActionsOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const contentScrollRef = useRef<ScrollView>(null);
   useScrollToTop(contentScrollRef);
@@ -262,9 +264,23 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
                 <UIText size="sm" className="text-typo-500">{activeSubtitle}</UIText>
               ) : null}
             </VStack>
-            <Pressable onPress={refetchCurrentView} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
-              <Ionicons name="refresh-outline" size={16} color="#6B7280" />
-            </Pressable>
+            <HStack className="items-center gap-2">
+              {/* Topic actions behind a single "⋯" affordance (parent view is
+                  read-only for topics). */}
+              {!isParent && (selectedType === 'topic' || selectedType === 'track') && track && !editingTopicName ? (
+                <Pressable
+                  onPress={() => setTopicActionsOpen(true)}
+                  className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+                  accessibilityRole="button"
+                  accessibilityLabel="Topic actions"
+                >
+                  <Ionicons name="ellipsis-horizontal" size={18} color="#6B7280" />
+                </Pressable>
+              ) : null}
+              <Pressable onPress={refetchCurrentView} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+                <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+              </Pressable>
+            </HStack>
           </HStack>
 
           {/* Track color bar */}
@@ -275,29 +291,16 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
             />
           )}
 
-          {/* Topic actions (edit / delete) — parent view is read-only for topics */}
-          {!isParent && (selectedType === 'topic' || selectedType === 'track') && track && (
-            <HStack className="gap-2 mt-2">
-              <Pressable
-                onPress={handleStartEditTopic}
-                hitSlop={8}
-                style={{ minHeight: 36 }}
-                className="flex-row items-center gap-1.5 px-3 py-2 bg-surface-100 rounded-lg active:bg-surface-200"
-              >
-                <Ionicons name="create-outline" size={16} color="#6D469B" />
-                <UIText size="xs" className="text-optio-purple font-poppins-medium">Rename</UIText>
-              </Pressable>
-              <Pressable
-                onPress={handleDeleteTopic}
-                hitSlop={8}
-                style={{ minHeight: 36 }}
-                className="flex-row items-center gap-1.5 px-3 py-2 bg-red-50 rounded-lg active:bg-red-100"
-              >
-                <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                <UIText size="xs" className="text-red-500 font-poppins-medium">Delete</UIText>
-              </Pressable>
-            </HStack>
-          )}
+          {/* Topic actions sheet (Rename / Delete) — Delete isolated in red. */}
+          <ActionSheet
+            visible={topicActionsOpen}
+            onClose={() => setTopicActionsOpen(false)}
+            title={track?.name}
+            actions={[
+              { key: 'rename', label: 'Rename', icon: 'create-outline', onPress: handleStartEditTopic },
+              { key: 'delete', label: 'Delete topic', icon: 'trash-outline', destructive: true, onPress: handleDeleteTopic },
+            ] as ActionSheetAction[]}
+          />
 
           {/* Rename topic inline */}
           {editingTopicName ? (

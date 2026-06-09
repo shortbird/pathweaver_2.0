@@ -21,6 +21,7 @@ import {
   Skeleton, PillarBadge,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { BountyHowItWorks } from '@/src/components/bounties/BountyHowItWorks';
 
 type Tab = 'browse' | 'claims' | 'posted';
 
@@ -228,6 +229,7 @@ interface PosterBountyViewProps {
 function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLoading, role }: PosterBountyViewProps) {
   const c = useThemeColors();
   const studentNoun = role === 'observer' ? 'student' : 'kid';
+  // Role-aware "how bounties work" explainer at the top of the poster experience.
   // Flatten all "submitted" claims from posted bounties — those are the ones
   // sitting in the parent's review inbox right now.
   const pendingReviews = (posted || []).flatMap((b: any) =>
@@ -238,6 +240,8 @@ function PosterBountyView({ posted, postedLoading, refetchPosted, ideas, ideasLo
 
   return (
     <VStack space="md" className="px-5 md:px-8">
+      <BountyHowItWorks role={role} />
+
       {/* Primary action — Post a new bounty. Always visible, not buried in a tab. */}
       <Button
         size="lg"
@@ -506,6 +510,11 @@ export function BountiesView() {
 
   return (
     <VStack space="md">
+      {/* Role-aware "how bounties work" explainer (student framing here). */}
+      <View className="px-5 md:px-8">
+        <BountyHowItWorks role={effectiveRole} />
+      </View>
+
       {/* Tab switcher — single-tab layout for students (no chrome). */}
       {tabs.length > 1 && (
         <View className="px-5 md:px-8">
@@ -575,8 +584,12 @@ export function BountiesView() {
             ) : (
               <Card variant="filled" size="lg" className="items-center py-10">
                 <Ionicons name="trophy-outline" size={40} color={c.iconMuted} />
-                <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No bounties available</Heading>
-                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">Check back later for new bounties</UIText>
+                <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No bounties yet</Heading>
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1 text-center">
+                  {isStudent
+                    ? 'New challenges show up here — check back soon, or ask a parent or mentor to post one for you.'
+                    : 'Check back later for new bounties.'}
+                </UIText>
               </Card>
             )}
           </View>

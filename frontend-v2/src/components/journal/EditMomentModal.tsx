@@ -2,7 +2,6 @@
  * EditMomentModal - Full editing interface for a learning moment.
  *
  * Allows editing title, description, pillars, event date, and topic assignment.
- * Includes AI suggestions for title + pillars from the description.
  * Shows attached evidence (images, videos, text, links, documents) inline.
  * Works on both web (centered dialog) and mobile (bottom sheet).
  */
@@ -22,7 +21,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/useJournal';
 import {
-  updateLearningEvent, getAiSuggestions, assignMomentToTopic,
+  updateLearningEvent, assignMomentToTopic,
   updateChildLearningEvent, assignChildMomentToTopic, createTopic,
 } from '@/src/hooks/useJournal';
 
@@ -33,9 +32,8 @@ interface EditMomentModalProps {
   onClose: () => void;
   onSaved: () => void;
   /** When set, the moment belongs to this child and edits route through the
-   *  parent-scoped endpoints. Pillar editing + AI suggestions are hidden in
-   *  this mode because the parent endpoint only persists title/description/
-   *  date/topic. */
+   *  parent-scoped endpoints. Pillar editing is hidden in this mode because the
+   *  parent endpoint only persists title/description/date/topic. */
   childId?: string;
 }
 
@@ -159,8 +157,6 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
   const [eventDate, setEventDate] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiSuggested, setAiSuggested] = useState(false);
   const [showTopicPicker, setShowTopicPicker] = useState(false);
   // Inline "create new topic" inside the picker.
   const [showCreateTopic, setShowCreateTopic] = useState(false);
@@ -180,7 +176,6 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       setEventDate(event.event_date ? event.event_date.split('T')[0] : '');
       const trackTopic = event.topics?.find((t) => t.type === 'topic');
       setSelectedTopicId(trackTopic?.id || event.track_id || null);
-      setAiSuggested(false);
       setShowTopicPicker(false);
       setShowCreateTopic(false);
       setNewTopicName('');
@@ -192,30 +187,6 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
     setSelectedPillars((prev) =>
       prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]
     );
-  };
-
-  const handleAiSuggest = async () => {
-    if (!description.trim() || description.trim().length < 30) {
-      Alert.alert('More detail needed', 'Write at least 30 characters for AI suggestions.');
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const data = await getAiSuggestions(description.trim());
-      if (data.success && data.suggestions) {
-        if (data.suggestions.title) {
-          setTitle(data.suggestions.title);
-        }
-        if (data.suggestions.pillars?.length > 0) {
-          setSelectedPillars(data.suggestions.pillars);
-        }
-        setAiSuggested(true);
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to get AI suggestions.');
-    } finally {
-      setAiLoading(false);
-    }
   };
 
   const handleSave = async () => {
@@ -320,7 +291,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
           <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">Description</UIText>
           <TextInput
             value={description}
-            onChangeText={(text) => { setDescription(text); setAiSuggested(false); }}
+            onChangeText={setDescription}
             placeholder="What did you learn?"
             placeholderTextColor={c.textFaint}
             multiline
@@ -337,44 +308,6 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
             }}
           />
         </VStack>
-
-        {/* AI Suggestions (self-edit only — parent endpoint can't save pillars) */}
-        {!childId && (
-        <Pressable
-          onPress={handleAiSuggest}
-          disabled={aiLoading || description.trim().length < 30}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-            backgroundColor: aiSuggested ? '#F0FDF4' : '#F5F0FF',
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: aiSuggested ? '#BBF7D0' : '#E8DFFB',
-            opacity: description.trim().length < 30 ? 0.5 : 1,
-            alignSelf: 'flex-start',
-          }}
-        >
-          {aiLoading ? (
-            <ActivityIndicator size="small" color="#6D469B" />
-          ) : (
-            <Ionicons
-              name={aiSuggested ? 'checkmark-circle' : 'sparkles'}
-              size={18}
-              color={aiSuggested ? '#16A34A' : '#6D469B'}
-            />
-          )}
-          <UIText
-            size="sm"
-            className="font-poppins-medium"
-            style={{ color: aiSuggested ? '#16A34A' : '#6D469B' }}
-          >
-            {aiLoading ? 'Thinking...' : aiSuggested ? 'Suggestions applied' : 'AI suggest title & pillars'}
-          </UIText>
-        </Pressable>
-        )}
 
         {!childId && <Divider />}
 

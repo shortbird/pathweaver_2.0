@@ -96,7 +96,7 @@ export function InlineQuestTaskPicker({
   if (quests.length === 0) {
     return (
       <View className="py-6 items-center px-4">
-        <Ionicons name="flag-outline" size={28} color={c.iconMuted} />
+        <Ionicons name="rocket-outline" size={28} color={c.iconMuted} />
         <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">
           You don't have any active quests yet.
         </UIText>

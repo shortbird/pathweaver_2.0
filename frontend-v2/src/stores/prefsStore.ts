@@ -46,4 +46,8 @@ export const PrefsKeys = {
   OnboardingSeen: 'optio_onboarding_seen',
   ObserverWelcomeSeen: 'optio_observer_welcome_seen',
   ParentWelcomeSeen: 'optio_parent_welcome_seen',
+  // "How bounties work" explainer card on the Bounties screen — true once the
+  // user has collapsed it, so it stays collapsed across launches (re-openable
+  // by tapping the header again). Expanded by default on first visit.
+  BountyGuideCollapsed: 'optio_bounty_guide_collapsed',
 } as const;

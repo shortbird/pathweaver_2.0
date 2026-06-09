@@ -14,10 +14,30 @@ from flask import jsonify, request
 from utils.auth.decorators import require_auth
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.quest_status import is_class_credit_awarded
 
 from routes.learning_events import learning_events_bp
 
 logger = get_logger(__name__)
+
+
+def _select_in_chunks(make_query, ids, chunk_size=100):
+    """Run an ``.in_(col, ids)`` select over chunks of ids and concat results.
+
+    PostgREST encodes ``in_`` filters in the URL, so a few hundred UUIDs (e.g.
+    a test account enrolled in 200+ course projects) overflows the request URL
+    and 400s. Chunking keeps each request bounded.
+
+    ``make_query(chunk)`` must build and ``.execute()`` the query for one chunk.
+    """
+    rows = []
+    for start in range(0, len(ids), chunk_size):
+        chunk = ids[start:start + chunk_size]
+        if not chunk:
+            continue
+        resp = make_query(chunk)
+        rows.extend(resp.data or [])
+    return rows
 
 
 def _task_is_pending(supabase, user_quest_task_id: str) -> bool:
@@ -261,13 +281,19 @@ def list_attachable_tasks(user_id):
                 scope_id = requested_student
 
         enrollments = supabase.table('user_quests') \
-            .select('id, quest_id') \
+            .select('id, quest_id, quests(quest_type, class_review_status)') \
             .eq('user_id', scope_id) \
             .eq('is_active', True) \
             .is_('completed_at', 'null') \
             .execute()
 
-        enrollment_rows = enrollments.data or []
+        # A credit-awarded class stays is_active with no completed_at (see
+        # utils/quest_status), so it slips past the filter above. It's complete
+        # — exclude it so you can't attach new evidence to a finished class.
+        enrollment_rows = [
+            r for r in (enrollments.data or [])
+            if not is_class_credit_awarded(r.get('quests'))
+        ]
         if not enrollment_rows:
             return jsonify({'quests': []}), 200
 
@@ -279,12 +305,15 @@ def list_attachable_tasks(user_id):
         # Exclude quests that belong to a course — students see those tasks
         # via the course's own surface, and including them here makes the
         # attach picker show way more quests than they're "really" active in.
-        course_quest_rows = supabase.table('course_quests') \
-            .select('quest_id') \
-            .in_('quest_id', quest_ids) \
-            .execute()
+        course_quest_rows = _select_in_chunks(
+            lambda chunk: supabase.table('course_quests')
+                .select('quest_id')
+                .in_('quest_id', chunk)
+                .execute(),
+            quest_ids,
+        )
         course_quest_ids = {
-            r['quest_id'] for r in (course_quest_rows.data or []) if r.get('quest_id')
+            r['quest_id'] for r in course_quest_rows if r.get('quest_id')
         }
         if course_quest_ids:
             quest_ids = [qid for qid in quest_ids if qid not in course_quest_ids]
@@ -296,20 +325,25 @@ def list_attachable_tasks(user_id):
         # enrollment.id -> quest_id, so we can route tasks back to their quest
         enrollment_to_quest = {r['id']: r['quest_id'] for r in enrollment_rows if r.get('id')}
 
-        quest_titles_resp = supabase.table('quests') \
-            .select('id, title') \
-            .in_('id', quest_ids) \
-            .execute()
-        quest_titles = {q['id']: q['title'] for q in (quest_titles_resp.data or [])}
+        quest_titles_rows = _select_in_chunks(
+            lambda chunk: supabase.table('quests')
+                .select('id, title')
+                .in_('id', chunk)
+                .execute(),
+            quest_ids,
+        )
+        quest_titles = {q['id']: q['title'] for q in quest_titles_rows}
 
         # Same shape the quest-detail screen pulls — scope by enrollment FK
         # and require approved tasks.
-        tasks_resp = supabase.table('user_quest_tasks') \
-            .select('id, user_quest_id, title, pillar, xp_value, order_index') \
-            .in_('user_quest_id', enrollment_ids) \
-            .eq('approval_status', 'approved') \
-            .execute()
-        all_tasks = tasks_resp.data or []
+        all_tasks = _select_in_chunks(
+            lambda chunk: supabase.table('user_quest_tasks')
+                .select('id, user_quest_id, title, pillar, xp_value, order_index')
+                .in_('user_quest_id', chunk)
+                .eq('approval_status', 'approved')
+                .execute(),
+            enrollment_ids,
+        )
         task_ids = [t['id'] for t in all_tasks]
 
         # Fetch completions / attachments scoped to this user (small result

@@ -28,6 +28,8 @@ import {
   type AttachableTask, type AttachableQuest,
 } from '../journal/TaskPickerSheet';
 import { InlineQuestTaskPicker } from './InlineQuestTaskPicker';
+import { InlineTopicPicker } from './InlineTopicPicker';
+import { assignMomentToTopic, type UnifiedTopic } from '@/src/hooks/useJournal';
 import { VoiceRecorder, AudioClipPreview, type RecordedClip } from './VoiceRecorder';
 
 // File size limits (must match backend constants).
@@ -69,6 +71,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   const [selectedTask, setSelectedTask] = useState<{ task: AttachableTask; questTitle: string } | null>(null);
   // "Add as new task in <quest>" intent — mutually exclusive with selectedTask.
   const [pendingNewTask, setPendingNewTask] = useState<AttachableQuest | null>(null);
+  const [topicOpen, setTopicOpen] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<UnifiedTopic | null>(null);
   const [recording, setRecording] = useState(false);
   // Video transcode runs after the picker closes; surface progress so the UI
   // doesn't appear frozen during the (multi-second) compression.
@@ -116,6 +120,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setSelectedTask(null);
     setPendingNewTask(null);
     setAttachOpen(false);
+    setSelectedTopic(null);
+    setTopicOpen(false);
     setSelectedStudentIds([]);
     setRecording(false);
     setCompressPct(null);
@@ -398,6 +404,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const mediaSnapshot = media;
     const taskSnapshot = selectedTask;
     const newTaskSnapshot = pendingNewTask;
+    const topicSnapshot = selectedTopic;
     const studentIdsSnapshot = effectiveStudentIds;
     const hasMedia = mediaSnapshot.length > 0;
 
@@ -428,6 +435,13 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             });
           } catch {
             toast.info('Moment saved, but couldn\'t add it as a new task. You can do that from the journal.', { title: 'Heads up' });
+          }
+        }
+        if (eventId && topicSnapshot) {
+          try {
+            await assignMomentToTopic(eventId, 'track', topicSnapshot.id, 'add');
+          } catch {
+            toast.info('Moment saved, but couldn\'t attach to the topic. You can attach it from the journal.', { title: 'Heads up' });
           }
         }
       }
@@ -783,7 +797,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                   style={{ minHeight: 44 }}
                 >
                   <HStack className="items-center gap-2 flex-1 min-w-0">
-                    <Ionicons name="flag-outline" size={16} color="#6D469B" />
+                    <Ionicons name="rocket-outline" size={16} color="#6D469B" />
                     {selectedTask ? (
                       <VStack className="flex-1 min-w-0">
                         <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">
@@ -837,6 +851,59 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                   onPickNewTask={(quest) => {
                     setPendingNewTask(quest);
                     setSelectedTask(null);
+                  }}
+                />
+              </VStack>
+            )}
+
+            {/* Attach to a journal topic — self-capture only (parent flows
+                attach via the kid's journal). Lists the student's journal
+                topics; tagging a moment to one files it under that topic. */}
+            {!pickStudents && (!studentIds || studentIds.length === 0) && (
+              <VStack space="xs">
+                <Pressable
+                  onPress={() => setTopicOpen((v) => !v)}
+                  className="flex-row items-center justify-between gap-2 py-3 px-3 rounded-xl border border-dashed border-surface-300 dark:border-dark-surface-300 active:bg-surface-50"
+                  style={{ minHeight: 44 }}
+                >
+                  <HStack className="items-center gap-2 flex-1 min-w-0">
+                    <Ionicons name="book-outline" size={16} color="#6D469B" />
+                    {selectedTopic ? (
+                      <VStack className="flex-1 min-w-0">
+                        <UIText size="xs" className="text-optio-purple font-poppins-semibold uppercase tracking-wider">
+                          Attaching to topic
+                        </UIText>
+                        <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                          {selectedTopic.name}
+                        </UIText>
+                      </VStack>
+                    ) : (
+                      <UIText size="sm" className="text-optio-purple font-poppins-medium">
+                        Attach to a journal topic
+                      </UIText>
+                    )}
+                  </HStack>
+                  {selectedTopic && (
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        setSelectedTopic(null);
+                      }}
+                      hitSlop={8}
+                      className="w-7 h-7 rounded-full bg-white dark:bg-dark-surface-100 items-center justify-center"
+                    >
+                      <Ionicons name="close" size={14} color={c.icon} />
+                    </Pressable>
+                  )}
+                  <Ionicons name={topicOpen ? 'chevron-up' : 'chevron-down'} size={16} color={c.iconMuted} />
+                </Pressable>
+
+                <InlineTopicPicker
+                  visible={topicOpen}
+                  selectedTopicId={selectedTopic?.id || null}
+                  onPickTopic={(topic) => {
+                    setSelectedTopic(topic);
+                    setTopicOpen(false);
                   }}
                 />
               </VStack>

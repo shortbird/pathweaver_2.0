@@ -38,7 +38,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                 id, title, description, big_idea, header_image_url, image_url,
                 material_link, quest_type, transcript_subject,
                 class_review_status, class_review_submitted_at, class_review_notes,
-                approach_examples, is_active,
+                approach_examples, is_active, metadata,
                 organization_id, lms_course_id, lms_platform, xp_threshold,
                 created_at,
                 course_quests(course_id, courses(id, cover_image_url))

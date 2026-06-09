@@ -236,6 +236,26 @@ def register_routes(bp):
                 .single() \
                 .execute()
 
+            # Organization admin team — org students' work is visible to their
+            # school's admins. Shown as a non-removable viewer so the student
+            # knows their organization can see their work.
+            if student.data and student.data.get('organization_id'):
+                org = supabase.table('organizations') \
+                    .select('name, branding_config') \
+                    .eq('id', student.data['organization_id']) \
+                    .single() \
+                    .execute()
+                if org.data:
+                    org_name = org.data.get('name') or 'Your school'
+                    logo_url = (org.data.get('branding_config') or {}).get('logo_url')
+                    viewers.append({
+                        'type': 'org_admin',
+                        'name': org_name,
+                        'detail': 'School Admin Team',
+                        'image_url': logo_url,
+                        'removable': False
+                    })
+
             parent_ids = set()
             if student.data and student.data.get('managed_by_parent_id'):
                 parent_ids.add(student.data['managed_by_parent_id'])

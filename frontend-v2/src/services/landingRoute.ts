@@ -24,5 +24,8 @@ export function isParentUser(user: User | null | undefined): boolean {
 
 /** expo-router href for the user's home tab. */
 export function landingRouteForUser(user: User | null | undefined): string {
+  // Superadmins default into the Student preview shell (see previewRoleStore),
+  // so they land on the student dashboard even if the account has dependents.
+  if (user?.role === 'superadmin') return '/(app)/(tabs)/dashboard';
   return isParentUser(user) ? '/(app)/(tabs)/family' : '/(app)/(tabs)/dashboard';
 }

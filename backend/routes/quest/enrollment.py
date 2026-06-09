@@ -11,6 +11,7 @@ from database import get_supabase_admin_client
 from repositories.quest_repository import QuestRepository, QuestTaskRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 from utils.auth.decorators import require_auth
+from utils.roles import get_effective_role
 from middleware.idempotency import require_idempotency
 from utils.logger import get_logger
 from utils.api_response_v1 import success_response, error_response, created_response
@@ -51,6 +52,22 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     status=403,
                 )
             user_id = acting_as_dependent_id
+        else:
+            # Self-enrollment. Only learners enroll themselves; parents and
+            # observers manage/observe but never become learners. A parent who
+            # wants to start a quest must do it on behalf of a child via
+            # acting_as_dependent_id (handled above).
+            caller = get_supabase_admin_client().table('users')\
+                .select('role, org_role, org_roles')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+            if caller.data and get_effective_role(caller.data) in ('parent', 'observer'):
+                return error_response(
+                    code='ROLE_NOT_ALLOWED',
+                    message='Parents and observers cannot enroll themselves in quests. Start a quest on behalf of a child instead.',
+                    status=403,
+                )
         load_previous_tasks = data.get('load_previous_tasks', False)
         force_new = data.get('force_new', False)
         # Use admin client for reading quest data (public info, no RLS restrictions)

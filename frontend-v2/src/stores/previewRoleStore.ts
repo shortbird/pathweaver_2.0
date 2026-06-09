@@ -17,7 +17,13 @@ export type PreviewRole = 'parent' | 'student' | 'observer';
 interface PreviewRoleState {
   previewRole: PreviewRole | null;
   setPreviewRole: (role: PreviewRole | null) => void;
-  restore: () => void;
+  /**
+   * Hydrate the preview role on app entry. Pass the user's REAL role so a
+   * superadmin with no stored preference defaults into the Student shell
+   * (the role they spend the most time previewing). Non-superadmins are
+   * unaffected — every consumer ignores previewRole unless role==='superadmin'.
+   */
+  restore: (realRole?: string | null) => void;
 }
 
 const STORAGE_KEY = 'optio_preview_role';
@@ -49,8 +55,17 @@ export const usePreviewRoleStore = create<PreviewRoleState>((set) => ({
     writeStorage(role);
     set({ previewRole: role });
   },
-  restore: () => {
+  restore: (realRole) => {
     const stored = readStorage();
-    if (stored) set({ previewRole: stored });
+    if (stored) {
+      set({ previewRole: stored });
+      return;
+    }
+    // Superadmins land in the Student shell by default. Not persisted — storage
+    // holds only explicit choices, so "Exit preview" / picking another role
+    // still wins for the session and across reloads on web.
+    if (realRole === 'superadmin') {
+      set({ previewRole: 'student' });
+    }
   },
 }));

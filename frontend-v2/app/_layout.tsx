@@ -4,6 +4,7 @@ import { Platform, View, Text, Pressable } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // S4: Suppress React Native Web warnings for native-only props. Match exact,
 // known-benign warning prefixes rather than substrings so genuine errors that
@@ -140,7 +141,11 @@ export default function RootLayout() {
   if ((!fontsLoaded || !themeReady) && !splashTimedOut) return null;
 
   return (
-    <>
+    // Root gesture provider — REQUIRED ancestor for any react-native-gesture-handler
+    // GestureDetector (e.g. the swipe-between-tabs gesture in BountiesView). Without
+    // it the new architecture (Fabric) throws "GestureDetector must be used as a
+    // descendant of GestureHandlerRootView" and the screen fails to render.
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -165,6 +170,6 @@ export default function RootLayout() {
       <BugReportHost />
       <ToastHost />
       <UpdateBanner />
-    </>
+    </GestureHandlerRootView>
   );
 }

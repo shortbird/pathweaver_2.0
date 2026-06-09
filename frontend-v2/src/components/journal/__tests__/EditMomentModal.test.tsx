@@ -10,14 +10,13 @@ jest.mock('@/src/services/api', () =>
 jest.mock('@/src/hooks/useJournal', () => ({
   ...jest.requireActual('@/src/hooks/useJournal'),
   updateLearningEvent: jest.fn(),
-  getAiSuggestions: jest.fn(),
   assignMomentToTopic: jest.fn(),
 }));
 
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { EditMomentModal } from '../EditMomentModal';
-import { updateLearningEvent, getAiSuggestions, assignMomentToTopic } from '@/src/hooks/useJournal';
+import { updateLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
 import { createMockLearningEvent, createMockTopic } from '@/src/__tests__/utils/mockFactories';
 
 const mockOnClose = jest.fn();
@@ -87,39 +86,6 @@ describe('EditMomentModal', () => {
       }));
       expect(mockOnSaved).toHaveBeenCalled();
       expect(mockOnClose).toHaveBeenCalled();
-    });
-  });
-
-  it('AI suggestions button requests suggestions and applies them', async () => {
-    const eventNoTitle = createMockLearningEvent({
-      id: 'evt-2',
-      title: '',
-      description: 'I built a small robot that follows a line using sensors and Arduino',
-      pillars: [],
-    });
-
-    (getAiSuggestions as jest.Mock).mockResolvedValueOnce({
-      success: true,
-      suggestions: {
-        title: 'Line-Following Robot Build',
-        pillars: ['stem'],
-      },
-    });
-
-    const { getByText } = render(
-      <EditMomentModal visible={true} event={eventNoTitle} topics={topics} onClose={mockOnClose} onSaved={mockOnSaved} />
-    );
-
-    fireEvent.press(getByText('AI suggest title & pillars'));
-
-    await waitFor(() => {
-      expect(getAiSuggestions).toHaveBeenCalledWith(
-        'I built a small robot that follows a line using sensors and Arduino'
-      );
-    });
-
-    await waitFor(() => {
-      expect(getByText('Suggestions applied')).toBeTruthy();
     });
   });
 

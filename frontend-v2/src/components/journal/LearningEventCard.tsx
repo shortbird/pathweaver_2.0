@@ -8,7 +8,7 @@ import React, { memo, useState } from 'react';
 import { View, Pressable, Alert, Platform, TextInput } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { HStack, VStack, UIText, Card, PillarBadge } from '../ui';
+import { HStack, VStack, UIText, Card, PillarBadge, ActionSheet, type ActionSheetAction } from '../ui';
 import type { LearningEvent, UnifiedTopic } from '@/src/hooks/useJournal';
 import { deleteLearningEvent, assignMomentToTopic, deleteChildLearningEvent } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
@@ -47,7 +47,7 @@ interface LearningEventCardProps {
 
 function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned, childId, readOnly }: LearningEventCardProps) {
   const c = useThemeColors();
-  const [showActions, setShowActions] = useState(false);
+  const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
   // Background video upload progress for this moment (if one is in flight).
   const uploadingPct = useMediaUploadStore((s) => s.uploads[event.id]);
   const [deleting, setDeleting] = useState(false);
@@ -62,7 +62,6 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     try {
       await attachMomentToTask(event.id, taskId);
       setTaskPickerVisible(false);
-      setShowActions(false);
       await onAssigned?.();
     } catch {
       Alert.alert('Error', 'Failed to attach moment to task.');
@@ -73,7 +72,6 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     try {
       await detachMomentFromTask(event.id);
       setTaskPickerVisible(false);
-      setShowActions(false);
       await onAssigned?.();
     } catch {
       Alert.alert('Error', 'Failed to detach moment.');
@@ -140,7 +138,6 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       setNewTopicName('');
       setShowNewTopic(false);
       setShowTopicMenu(false);
-      setShowActions(false);
       await onAssigned?.();
     } catch {
       Alert.alert('Error', 'Failed to create topic.');
@@ -161,7 +158,6 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
         await assignMomentToTopic(event.id, 'track', topicId, 'add');
       }
       setShowTopicMenu(false);
-      setShowActions(false);
       await onAssigned?.();
     } catch {
       Alert.alert('Error', 'Failed to assign to topic.');
@@ -208,8 +204,28 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     }
   };
 
+  // Secondary actions live behind a single "⋯" affordance / card tap, surfaced
+  // as an ActionSheet (≥44pt rows, Delete isolated in red) — replaces the old
+  // cramped inline button row.
+  const actions: ActionSheetAction[] = [];
+  if (onEdit) {
+    actions.push({ key: 'edit', label: 'Edit', icon: 'create-outline', onPress: () => onEdit(event) });
+  }
+  if (!childId && (availableTracks.length > 0 || availableQuests.length > 0)) {
+    actions.push({ key: 'assign', label: 'Assign to topic', icon: 'folder-outline', onPress: () => setShowTopicMenu(true) });
+  }
+  if (!childId) {
+    actions.push({
+      key: 'attach',
+      label: event.attached_task ? 'Change task' : 'Attach task',
+      icon: 'rocket-outline',
+      onPress: () => setTaskPickerVisible(true),
+    });
+  }
+  actions.push({ key: 'delete', label: 'Delete', icon: 'trash-outline', destructive: true, disabled: deleting, onPress: handleDelete });
+
   return (
-    <Pressable onPress={() => { if (onPress) { onPress(); } else if (!readOnly) { setShowActions(!showActions); } }}>
+    <Pressable onPress={() => { if (onPress) { onPress(); } else if (!readOnly) { setActionsSheetOpen(true); } }}>
       <Card variant="elevated" size="sm" className="overflow-hidden">
         {/* Media header */}
         {imageUrls.length === 1 ? (
@@ -276,58 +292,32 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
             <UIText size="sm" className="font-poppins-semibold flex-1">
               {event.title || event.description || 'Learning Moment'}
             </UIText>
-            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-2 flex-shrink-0">{dateStr}</UIText>
+            <HStack className="items-center gap-1 ml-2 flex-shrink-0">
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{dateStr}</UIText>
+              {!readOnly && !onPress && actions.length > 0 ? (
+                <Pressable
+                  onPress={(e) => { e.stopPropagation?.(); setActionsSheetOpen(true); }}
+                  hitSlop={10}
+                  className="w-8 h-8 rounded-full items-center justify-center active:bg-surface-100 dark:active:bg-dark-surface-200"
+                  accessibilityRole="button"
+                  accessibilityLabel="Moment actions"
+                >
+                  <Ionicons name="ellipsis-horizontal" size={18} color={c.iconMuted} />
+                </Pressable>
+              ) : null}
+            </HStack>
           </HStack>
 
-          {/* Action menu */}
-          {showActions ? (
+          {/* Assign-to-topic picker — opened from the actions sheet. */}
+          {showTopicMenu ? (
             <VStack space="xs" className="py-1">
-              <HStack className="gap-2">
-                {onEdit ? (
-                  <Pressable
-                    onPress={(e) => { e.stopPropagation?.(); setShowActions(false); onEdit(event); }}
-                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-lg"
-                  >
-                    <Ionicons name="create-outline" size={14} color="#6D469B" />
-                    <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit</UIText>
+              <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg p-2 border border-surface-200 dark:border-dark-surface-300">
+                <HStack className="items-center justify-between px-2 pb-1">
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">Assign to topic</UIText>
+                  <Pressable onPress={(e) => { e.stopPropagation?.(); setShowTopicMenu(false); }} hitSlop={10}>
+                    <Ionicons name="close" size={16} color={c.iconMuted} />
                   </Pressable>
-                ) : null}
-                {!childId && (availableTracks.length > 0 || availableQuests.length > 0) ? (
-                  <Pressable
-                    onPress={(e) => { e.stopPropagation?.(); setShowTopicMenu(!showTopicMenu); }}
-                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-lg"
-                  >
-                    <Ionicons name="folder-outline" size={14} color="#6D469B" />
-                    <UIText size="xs" className="text-optio-purple font-poppins-medium">Assign</UIText>
-                  </Pressable>
-                ) : null}
-                {!childId ? (
-                  <Pressable
-                    onPress={(e) => { e.stopPropagation?.(); setTaskPickerVisible(true); }}
-                    className="flex-row items-center gap-1.5 px-3 py-1.5 bg-surface-100 dark:bg-dark-surface-200 rounded-lg"
-                  >
-                    <Ionicons name="flag-outline" size={14} color="#6D469B" />
-                    <UIText size="xs" className="text-optio-purple font-poppins-medium">
-                      {event.attached_task ? 'Change task' : 'Attach task'}
-                    </UIText>
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  onPress={(e) => { e.stopPropagation?.(); setShowActions(false); handleDelete(); }}
-                  disabled={deleting}
-                  className="flex-row items-center gap-1.5 px-3 py-1.5 bg-red-50 rounded-lg"
-                  style={{ opacity: deleting ? 0.5 : 1 }}
-                >
-                  <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                  <UIText size="xs" className="text-red-500 font-poppins-medium">
-                    {deleting ? 'Deleting...' : 'Delete'}
-                  </UIText>
-                </Pressable>
-              </HStack>
-
-              {/* Inline topic picker */}
-              {showTopicMenu ? (
-                <View className="bg-surface-50 dark:bg-dark-surface-50 rounded-lg p-2 border border-surface-200 dark:border-dark-surface-300">
+                </HStack>
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); handleAssignToTopic(null); }}
                     className={`flex-row items-center gap-2 px-2 py-1.5 rounded ${!currentTopicId ? 'bg-surface-200 dark:bg-dark-surface-300' : ''}`}
@@ -426,7 +416,6 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
                     </>
                   ) : null}
                 </View>
-              ) : null}
             </VStack>
           ) : null}
 
@@ -512,6 +501,12 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
         currentTaskId={event.attached_task_id || null}
         allowDetach={!!event.attached_task_id}
         onDetach={handleDetachTask}
+      />
+
+      <ActionSheet
+        visible={actionsSheetOpen}
+        onClose={() => setActionsSheetOpen(false)}
+        actions={actions}
       />
     </Pressable>
   );

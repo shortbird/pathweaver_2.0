@@ -54,6 +54,7 @@ export default function TabsLayout() {
   const isObserver = useIsObserver();
   const isParent = useIsParent();
   const restorePreviewRole = usePreviewRoleStore((s) => s.restore);
+  const userRole = useAuthStore((s) => s.user?.role);
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const c = useThemeColors();
@@ -64,10 +65,13 @@ export default function TabsLayout() {
   // Unread DM count -> badge on the Messages tab icon.
   const { count: unreadMessages } = useUnreadCount();
 
-  // Restore persisted preview state on first mount (web only)
+  // Restore persisted preview state on entry. Passing the real role lets a
+  // superadmin default into the Student shell when they have no stored choice.
+  // Keyed on userRole so it runs once the user is loaded (and re-resolves if
+  // the account changes), but never re-fires on an in-session "Exit preview".
   useEffect(() => {
-    restorePreviewRole();
-  }, [restorePreviewRole]);
+    restorePreviewRole(userRole);
+  }, [restorePreviewRole, userRole]);
 
   // ── Observer: feed + center "+" + bounties, minimal chrome ──
   // The center Optio button routes straight to /bounties/create. Observers'

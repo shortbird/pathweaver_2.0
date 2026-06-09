@@ -108,7 +108,7 @@ describe('BountiesScreen', () => {
 
     const { getByText } = render(<BountiesScreen />);
 
-    expect(getByText('No bounties available')).toBeTruthy();
+    expect(getByText('No bounties yet')).toBeTruthy();
   });
 
   it('shows XP reward for bounties with xp_reward > 0', () => {

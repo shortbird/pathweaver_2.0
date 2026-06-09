@@ -32,4 +32,9 @@ describe('landingRouteForUser', () => {
     expect(landingRouteForUser({ ...base, role: 'student' })).toBe('/(app)/(tabs)/dashboard');
     expect(landingRouteForUser(null)).toBe('/(app)/(tabs)/dashboard');
   });
+
+  it('sends superadmins to the dashboard even with dependents (default Student preview shell)', () => {
+    expect(landingRouteForUser({ ...base, role: 'superadmin' })).toBe('/(app)/(tabs)/dashboard');
+    expect(landingRouteForUser({ ...base, role: 'superadmin', has_dependents: true })).toBe('/(app)/(tabs)/dashboard');
+  });
 });

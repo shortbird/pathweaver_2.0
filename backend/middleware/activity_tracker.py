@@ -223,8 +223,8 @@ class ActivityTracker:
         if '/dashboard' in path and method == 'GET':
             return 'dashboard_viewed'
 
-        # Portfolio/Diploma events
-        if '/portfolio' in path or '/diploma' in path:
+        # Portfolio events
+        if '/portfolio' in path:
             return 'portfolio_viewed'
 
         # Parent dashboard events
