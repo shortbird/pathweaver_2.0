@@ -482,7 +482,15 @@ class DirectMessageService(BaseService):
 
     def get_unread_count(self, user_id: str) -> int:
         """
-        Get total unread message count for a user
+        Get total unread message count for a user (drives the Messages tab badge).
+
+        Counts the ACTUAL unread messages (direct_messages.read_at IS NULL) rather
+        than summing the cached unread_count_p1/p2 counters on message_conversations.
+        Those counters drift out of sync — _decrement_unread_count is a racy
+        read-modify-write and a missed decrement leaves a "ghost" count, so the
+        badge would stick at e.g. 1 forever even after every message was read.
+        get_user_conversations() already recounts from direct_messages for the same
+        reason; this makes the badge agree with the conversation list.
 
         Args:
             user_id: UUID of the user
@@ -492,25 +500,13 @@ class DirectMessageService(BaseService):
         """
         try:
             supabase = self._get_client()
-            total_unread = 0
+            resp = supabase.table('direct_messages').select(
+                'id', count='exact'
+            ).eq('recipient_id', user_id).is_('read_at', 'null').execute()
 
-            # Get unread count where user is participant_1
-            convos_p1 = supabase.table('message_conversations').select(
-                'unread_count_p1'
-            ).eq('participant_1_id', user_id).execute()
-
-            if convos_p1.data:
-                total_unread += sum(c['unread_count_p1'] for c in convos_p1.data)
-
-            # Get unread count where user is participant_2
-            convos_p2 = supabase.table('message_conversations').select(
-                'unread_count_p2'
-            ).eq('participant_2_id', user_id).execute()
-
-            if convos_p2.data:
-                total_unread += sum(c['unread_count_p2'] for c in convos_p2.data)
-
-            return total_unread
+            if resp.count is not None:
+                return resp.count
+            return len(resp.data or [])
 
         except Exception as e:
             print(f"Error getting unread count: {str(e)}", file=sys.stderr, flush=True)
