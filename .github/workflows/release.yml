@@ -199,4 +199,12 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           MSG="${COMMIT_MSG%%$'\n'*}"
-          npm run ota:production -- -m "$MSG"
+          export MSG
+          # Run the export under the production EAS environment so `expo export`
+          # inlines EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY (stored as EAS env vars,
+          # NOT in eas.json). Without this the OTA bundle ships an empty
+          # supabaseUrl, so `createClient('')` throws "supabaseUrl is required" at
+          # module load — the update launches, crashes, and expo-updates rolls
+          # back to the embedded build (silent OTA loop; no emergency flag). The
+          # build itself was fine because EAS Build injects these automatically.
+          eas env:exec production --non-interactive 'npm run ota:production -- -m "$MSG"'

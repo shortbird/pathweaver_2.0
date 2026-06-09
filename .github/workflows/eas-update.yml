@@ -92,4 +92,10 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           MSG="${COMMIT_MSG%%$'\n'*}"   # first line only
-          npm run ota:preview -- -m "$MSG"
+          export MSG
+          # Export under the preview EAS environment so `expo export` inlines
+          # EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY (EAS env vars, not in eas.json).
+          # Without this the OTA bundle has an empty supabaseUrl and crashes on
+          # launch with "supabaseUrl is required", looping back to the embedded
+          # build. See the matching note in release.yml (production OTA).
+          eas env:exec preview --non-interactive 'npm run ota:preview -- -m "$MSG"'
