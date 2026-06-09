@@ -26,6 +26,9 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "android": {
+        "gradleCommand": ":app:bundleRelease --stacktrace --warning-mode all"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.optioeducation.com",
         "EXPO_PUBLIC_SENTRY_DSN": "https://0d3fe6921fd977abf5ac7219d6c6c94e@o4511491445817344.ingest.us.sentry.io/4511491457155072"
@@ -36,7 +39,8 @@
       "environment": "production",
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease --stacktrace --warning-mode all"
       }
     }
   },
