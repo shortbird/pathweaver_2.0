@@ -59,6 +59,13 @@ const ConstellationPage = lazy(() => import('./pages/ConstellationPage'))
 const OpenEdAcademyPage = lazy(() => import('./pages/oea/OpenEdAcademyPage'))
 const OEASelectPathwayPage = lazy(() => import('./pages/oea/OEASelectPathwayPage'))
 const OEACreditsPage = lazy(() => import('./pages/oea/OEACreditsPage'))
+
+// The Treehouse program — microschool tab (/treehouse), branches student vs facilitator
+const TreehousePage = lazy(() => import('./pages/treehouse/TreehousePage'))
+const TreehouseFacilitatorPage = lazy(() => import('./pages/treehouse/TreehouseFacilitatorPage'))
+const TreehouseBrowsePage = lazy(() => import('./pages/treehouse/TreehouseBrowsePage'))
+const TreehouseShowcasePage = lazy(() => import('./pages/treehouse/TreehouseShowcasePage'))
+const TreehouseKioskPage = lazy(() => import('./pages/treehouse/TreehouseKioskPage'))
 // Credit & Transcript Pages
 const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
 const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
@@ -503,6 +510,12 @@ function App() {
                 <Route path="opened-academy" element={<OpenEdAcademyPage />} />
                 <Route path="opened-academy/student/:studentId/pathway" element={<OEASelectPathwayPage />} />
                 <Route path="opened-academy/student/:studentId/credits" element={<OEACreditsPage />} />
+                {/* The Treehouse program (gated in the sidebar by org slug; the
+                    page branches student vs facilitator, enforced server-side). */}
+                <Route path="treehouse" element={<TreehousePage />} />
+                <Route path="treehouse/browse" element={<TreehouseBrowsePage />} />
+                <Route path="treehouse/showcase" element={<TreehouseShowcasePage />} />
+                <Route path="treehouse/facilitator" element={<TreehouseFacilitatorPage />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
@@ -571,6 +584,10 @@ function App() {
             <Route path="portfolio/:slug" element={<DiplomaPage />} />
             <Route path="public/diploma/:userId" element={<DiplomaPage />} />
             <Route path="public/transcript/:userId" element={<PublicTranscriptPage />} />
+
+            {/* The Treehouse kiosk — shared-device passwordless student login
+                (no auth required; gated by a device token). */}
+            <Route path="treehouse-kiosk" element={<TreehouseKioskPage />} />
 
             {/* Public evidence report view (no auth required) */}
             <Route path="report/:token" element={<PublicEvidenceReport />} />

@@ -179,6 +179,9 @@ class BountyService(BaseService):
             'allowed_student_ids': allowed_student_ids,
             'sponsored_reward': sponsor,
             'organization_id': data.get('organization_id'),
+            # Optional cohort restriction (The Treehouse "differentiate boards by
+            # cohort"): when set, only students enrolled in this org_class see it.
+            'cohort_class_id': data.get('cohort_class_id') or None,
         }
 
         bounty = self.repository.create_bounty(bounty_data)
@@ -236,6 +239,9 @@ class BountyService(BaseService):
 
         if 'max_participants' in data:
             updates['max_participants'] = max(0, int(data['max_participants']))
+
+        if 'cohort_class_id' in data:
+            updates['cohort_class_id'] = data['cohort_class_id'] or None
 
         if 'visibility' in data:
             if data['visibility'] not in ('public', 'organization', 'family'):
@@ -386,6 +392,25 @@ class BountyService(BaseService):
                 visible.append(b)
             elif is_superadmin:
                 visible.append(b)
+
+        # Cohort restriction (The Treehouse): a bounty tagged with cohort_class_id
+        # is only shown to students enrolled in that org_class. The poster and
+        # superadmin always see it. Bounties with no cohort are unaffected.
+        cohort_ids = {b['cohort_class_id'] for b in visible if b.get('cohort_class_id')}
+        if cohort_ids:
+            try:
+                enr = self.repository.client.table('class_enrollments')\
+                    .select('class_id').eq('student_id', user_id).eq('status', 'active').execute()
+                my_cohorts = {e['class_id'] for e in (enr.data or [])}
+            except Exception:
+                my_cohorts = set()
+            visible = [
+                b for b in visible
+                if not b.get('cohort_class_id')
+                or is_superadmin
+                or b['poster_id'] == user_id
+                or b['cohort_class_id'] in my_cohorts
+            ]
 
         return visible
 

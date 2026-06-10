@@ -1,0 +1,629 @@
+Student User Experience (Ages 5–9)
+
+Overview
+
+As a young student, I want a simple, visual, low-reading interface that helps me independently choose projects, track progress, ask for help, and celebrate my learning so that I can confidently participate in self-directed learning without becoming overwhelmed.
+
+(All of this hinges on a child being able to easily access the platform from a shared touchscreen device (widget). If they have to wait for a facilitator's phone, they will move on too quickly. We have a rhythm of catching photos throughout the day of things kids do and uploading them to our portfolio building platform, but we don't have a place where kids set and track goals)
+
+---
+
+Epic 1: Young Learner Login & Navigation Experience
+
+User Story 7.1 — Simple Touchscreen Login
+
+As a young student (ages 5–9), I want to select my profile from a touchscreen device so that I can log in independently without passwords or complicated navigation.
+
+Acceptance Criteria
+
+Platform supports kiosk mode on:
+
+Shared Chromebook
+
+Tablet
+
+Touchscreen devices
+
+
+Login screen displays:
+
+Student photo
+
+Student first name
+
+
+No passwords required for young learners.
+
+Interface minimizes distractions:
+
+No avatar creation/customization
+
+No unnecessary menus
+
+Limited text
+
+No access to editing my full portfolio or any account features
+
+
+Large touch-friendly buttons optimized for young users.
+
+
+
+---
+
+User Story 1.2 — Clean Young Learner Home Screen
+
+As a young student, I want a very simple dashboard so I can quickly choose what I want to work on.
+
+Home Screen Options
+
+Large visual buttons for:
+
+My Current Quests
+
+Find a New Quest
+
+Showcase Project
+
+School Jobs (Bounties)
+
+
+Acceptance Criteria
+
+Interface uses:
+
+Large icons
+
+Minimal reading
+
+Simple vocabulary
+
+Visual cues
+
+
+Most important actions are accessible within one tap.
+
+Interface avoids clutter and excessive scrolling.
+
+
+
+---
+
+Epic 2: Young Learner Quest Selection & Task Experience
+
+User Story 2.1 — Browse Badge/Pin Quests by Category
+
+As a young student, I want to browse quests visually by category so I can choose projects that excite me.
+
+Quest Categories
+
+Creative Expression (Art)
+
+STEM
+
+Wellness
+
+Communication
+
+Civics
+
+
+Acceptance Criteria
+
+Categories display with:
+
+Icons
+
+Images
+
+Color-coded visual sections
+
+
+Preloaded badge/pin quests appear as visual cards.
+
+Students can:
+
+Tap a category
+
+Browse quest badges
+
+Select a quest
+
+
+“Custom Quest” option available.
+
+
+
+---
+
+User Story 2.2 — Add Selected Quest to Current Quest Board
+
+As a young student, I want selected quests to automatically appear in my active quest area so I can begin working immediately.
+
+Acceptance Criteria
+
+Selecting a quest automatically:
+
+Adds it to Current Quests
+
+Generates accessible task list
+
+Saves progress automatically
+
+
+Students can have multiple active quests.
+
+
+
+---
+
+User Story 2.3 — Age-Appropriate Task Lists
+
+As a young student, I want tasks to feel manageable and understandable so I can work independently with confidence.
+
+Acceptance Criteria
+
+Task lists include:
+
+Visual icons
+
+Simple wording
+
+Small manageable steps
+
+Skill-level appropriate vocabulary
+
+Optional audio read-aloud support (future enhancement)
+
+
+AI-generated tasks account for:
+
+Reading level
+
+Attention span
+
+Executive functioning support needs
+
+Preference for quick wins/small successes
+
+
+Students can:
+
+Start tasks in any order
+
+Move between projects freely
+
+
+
+---
+
+Epic 3: Help Requests & Momentum Support
+
+User Story 3.1 — Request Facilitator Help
+
+As a young student, I want to easily request help when I feel stuck so I can keep moving forward without frustration.
+
+Acceptance Criteria
+
+Each task includes a visible “I Need Help” button.
+
+When pressed:
+
+Facilitator receives notification
+
+Student enters facilitator help queue
+
+
+Notification includes:
+
+Student name
+
+Quest/task name
+
+Time requested
+
+
+
+
+---
+
+User Story 3.2 — Encourage Productive Waiting
+
+As a young student, I want encouragement while waiting for help so I can stay engaged instead of feeling stuck.
+
+Acceptance Criteria
+
+After requesting help, platform suggests:
+
+Start another task
+
+Explore another quest
+
+Ask a friend for help
+
+Work on a bounty/job
+
+Continue showcase project
+
+
+Messaging should:
+
+Feel encouraging
+
+Promote autonomy
+
+Reduce frustration
+
+
+
+---
+
+Epic 4: Lightweight Task Completion & Celebration
+
+User Story 4.1 — Quick Task Completion Flow
+
+As a young student, I want to quickly mark tasks complete so I can easily track my progress.
+
+Acceptance Criteria
+
+Student logs in with:
+
+Face/photo button
+
+Name selection
+
+
+“Most Recently Started Task” appears at top of dashboard.
+
+Student can:
+
+Open task quickly
+
+Mark complete with one tap
+
+Immediately view next suggested task
+
+
+
+No facilitator approval required for basic task completion.
+
+
+---
+
+User Story 4.2 — Facilitator Celebration Notifications
+
+As a young student, I want my facilitator to notice and celebrate my progress so my work feels meaningful and encouraging.
+
+Acceptance Criteria
+
+When task is completed:
+
+Facilitator receives notification.
+
+Facilitator can quickly:
+
+Celebrate progress
+
+Take/upload photo
+
+Add observation notes
+
+Attach portfolio evidence
+
+
+
+Documentation workflow optimized for mobile phone use.
+
+Goal:
+
+Preserve student momentum
+
+Avoid interruptive “pass off” systems
+
+Keep facilitator focused on relationship and curiosity
+
+
+
+---
+
+Epic 5: Young Learner Showcase Experience
+
+User Story 5.1 — Showcase Invitation & Theme Display
+
+As a young student, I want to see the current showcase theme and project ideas so I can decide whether I want to participate.
+
+Acceptance Criteria
+
+Showcase section displays:
+
+Current theme
+
+Showcase date
+
+Countdown/timeline
+
+Suggested project ideas
+
+Visual inspiration/examples
+
+
+Students can:
+
+Choose suggested project
+
+Create custom project
+
+
+
+---
+
+User Story 5.2 — Scaffolded Showcase Task Planning
+
+As a young student, I want my showcase project broken into smaller deadlines so I can finish my project in time.
+
+Acceptance Criteria
+
+AI-generated showcase tasks include:
+
+Small manageable steps
+
+Suggested completion dates
+
+Progress reminders
+
+Visual timeline/checkpoints
+
+
+Tasks scaffold backward from showcase date.
+
+
+---
+
+User Story 5.3 — Showcase Presenter Notifications
+
+As a facilitator, I want notifications when students commit to showcase projects so I can plan presentation logistics appropriately.
+
+Acceptance Criteria
+
+When student joins showcase:
+
+Facilitator receives notification with:
+
+Student name
+
+Project title
+
+Project category/domain
+
+
+Student automatically added to:
+
+Presenter roster
+
+Showcase planning dashboard
+
+
+
+Facilitator dashboard supports:
+
+Presenter count
+
+Estimated setup needs
+
+Venue planning
+
+Time planning for presentations
+
+Epic 6: Student Pride Sharing & Facilitator Reflection Support
+
+User Story 6.1 — “I’m Proud of This” Sharing Button
+
+As a young student, I want an easy way to tell my facilitator when I finish something I’m proud of so my learning can be celebrated and added to my portfolio.
+
+Acceptance Criteria
+
+Students can tap a large, visible button labeled:
+
+“I’m Proud of This!”
+
+or equivalent child-friendly wording
+
+
+Button available from:
+
+Task pages
+
+Quest pages
+
+Showcase projects
+
+Bounty completions
+
+
+Trigger sends facilitator notification including:
+
+Student name
+
+Related quest/project
+
+Timestamp
+
+
+
+
+---
+
+User Story 6.2 — Quick Celebration & Documentation Flow
+
+As a facilitator, I want a fast and relationship-centered documentation process so I can celebrate student growth without disrupting momentum.
+
+Acceptance Criteria
+
+Notification opens a quick mobile-friendly workflow allowing facilitator to:
+
+Take/upload photo
+
+Record short observation
+
+Add voice-to-text notes
+
+Tag related learning domains
+
+Save directly to portfolio
+
+
+Entire process designed to take under 1–2 minutes.
+
+
+---
+
+User Story 6.3 — AI-Suggested Reflection Prompts for Facilitators
+
+As a facilitator, I want simple curiosity-driven prompts so I can quickly gather meaningful context about student learning.
+
+Acceptance Criteria
+
+When documenting student work, platform provides optional prompts such as:
+
+“What are you most proud of?”
+
+“What was tricky about this?”
+
+“What did you learn while making this?”
+
+“What would you try next time?”
+
+“Did anyone help you with this?”
+
+“What part took the longest?”
+
+“Why did you choose this project?”
+
+“How did you solve problems while working?”
+
+
+Prompts should:
+
+Be age-appropriate
+
+Encourage reflection without feeling evaluative
+
+Support authentic conversation
+
+
+
+---
+
+User Story 6.4 — AI-Assisted Portfolio Context Generation
+
+As a facilitator, I want AI to help organize and contextualize student reflections so portfolio documentation remains meaningful but lightweight.
+
+Acceptance Criteria
+
+AI analyzes:
+
+Facilitator observations
+
+Student responses
+
+Project/task metadata
+
+Photos and tags
+
+
+AI suggests:
+
+Relevant skill areas
+
+Portfolio domain alignment
+
+Evidence of growth traits such as:
+
+Persistence
+
+Creativity
+
+Collaboration
+
+Initiative
+
+Problem solving
+
+Communication
+
+
+
+Facilitator can:
+
+Accept/edit/remove suggestions
+
+Approve final portfolio entry before publishing
+
+
+
+---
+
+User Story 6.5 — Preserve Student Momentum During Documentation
+
+As a facilitator, I want documentation to feel celebratory and conversational rather than evaluative so students stay excited and engaged in their learning.
+
+Acceptance Criteria
+
+System design prioritizes:
+
+Quick interactions
+
+Minimal required fields
+
+Mobile-first documentation
+
+Natural conversation flow
+
+Celebration over assessment
+
+
+Documentation process should:
+
+Avoid requiring formal “pass offs”
+
+Avoid interrupting active engagement
+
+Encourage students to continue working after sharing accomplishments
+
+
+
+---
+
+UX Design Notes
+
+Student Experience Goals
+
+The “I’m Proud of This” feature should:
+
+Feel emotionally rewarding
+
+Encourage ownership of learning
+
+Reinforce intrinsic motivation
+
+Build portfolio habits naturally
+
+
+
+---
+
+Facilitator Experience Goals
+
+The facilitator workflow should:
+
+Support authentic observation
+
+Reduce administrative burden
+
+Capture meaningful context quickly
+
+Function effectively during active school facilitation
+
+Encourage frequent documentation through simplicity
+
+

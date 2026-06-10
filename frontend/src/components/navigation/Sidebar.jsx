@@ -24,6 +24,16 @@ const ORG_PROGRAM_TABS = {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7" />
       </svg>
     )
+  },
+  treehouse: {
+    name: 'The Treehouse',
+    path: '/treehouse',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l4 5h-3v3h2l4 6H7l4-6h2V8h-3l2-5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17v4" />
+      </svg>
+    )
   }
 }
 
@@ -224,9 +234,18 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // OpenEd Academy (/opened-academy), where parents manage their students'
   // pathways/credits and students see a read-only view of their own diploma.
   // Org admins manage the program from /organization, so it's hidden from them.
+  // OEA hides the tab from org_admins (they manage from /organization). The
+  // Treehouse program page branches student vs facilitator in-page, so its tab
+  // shows to facilitators (org_admin/advisor) too.
   const programTab = organization?.slug ? ORG_PROGRAM_TABS[organization.slug] : null
-  if (programTab && effectiveRole !== 'org_admin') {
-    navItems.push(programTab)
+  if (programTab && (organization?.slug === 'treehouse' || effectiveRole !== 'org_admin')) {
+    // Use the org's uploaded logo (branding_config.logo_url, set via /organization)
+    // as the tab icon when present; otherwise fall back to the built-in icon.
+    const orgLogoUrl = organization?.branding_config?.logo_url
+    const tab = orgLogoUrl
+      ? { ...programTab, icon: <img src={orgLogoUrl} alt="" className="w-5 h-5 object-contain rounded" /> }
+      : programTab
+    navItems.push(tab)
   }
 
   // Buddy nav - superadmin only for now

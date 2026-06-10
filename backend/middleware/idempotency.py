@@ -97,7 +97,7 @@ class IdempotencyCache:
         redis = self._get_redis()
 
         if redis:
-            return self._get_redis(redis, key)
+            return self._get_from_redis(redis, key)
         else:
             return self._get_memory(key)
 
@@ -117,7 +117,7 @@ class IdempotencyCache:
         else:
             self._set_memory(key, response_data, ttl_seconds)
 
-    def _get_redis(self, redis, key: str) -> Optional[dict]:
+    def _get_from_redis(self, redis, key: str) -> Optional[dict]:
         """Get from Redis"""
         try:
             redis_key = f"idempotency:{key}"

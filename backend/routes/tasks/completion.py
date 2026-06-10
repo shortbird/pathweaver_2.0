@@ -103,9 +103,20 @@ def complete_task(user_id: str, task_id: str):
                 status=400
             )
 
+        # The Treehouse: young learners may complete tasks without evidence — the
+        # facilitator captures photos/notes later (post-hoc). Gated to Treehouse org
+        # members on the EFFECTIVE (student) user, so the platform-wide "evidence
+        # required" rule is unchanged for everyone else. XP is evidence-independent
+        # and the completion row already allows null evidence.
+        from utils.treehouse import is_treehouse_member
+        skip_evidence = bool(
+            not request.form.get('evidence_type')
+            and is_treehouse_member(admin_supabase, effective_user_id)
+        )
+
         # Get evidence from request
         evidence_type = request.form.get('evidence_type')
-        if not evidence_type:
+        if not evidence_type and not skip_evidence:
             return error_response(
                 code='VALIDATION_ERROR',
                 message='Evidence type is required',
@@ -164,14 +175,15 @@ def complete_task(user_id: str, task_id: str):
             evidence_data['validated_extension'] = result.filename.rsplit('.', 1)[1].lower() if '.' in result.filename else ''
             evidence_content = result.file_url
 
-        # Validate evidence
-        is_valid, error_msg = evidence_service.validate_evidence(evidence_type, evidence_data)
-        if not is_valid:
-            return error_response(
-                code='VALIDATION_ERROR',
-                message=error_msg,
-                status=400
-            )
+        # Validate evidence (skipped for evidence-optional Treehouse completions)
+        if not skip_evidence:
+            is_valid, error_msg = evidence_service.validate_evidence(evidence_type, evidence_data)
+            if not is_valid:
+                return error_response(
+                    code='VALIDATION_ERROR',
+                    message=error_msg,
+                    status=400
+                )
 
         # Get base XP from task
         base_xp = task_data.get('xp_value', 100)
@@ -184,8 +196,8 @@ def complete_task(user_id: str, task_id: str):
                 'quest_id': quest_id,
                 'task_id': task_id,
                 'user_quest_task_id': task_id,  # Reference to personalized task
-                'evidence_text': evidence_content if evidence_type == 'text' else None,
-                'evidence_url': evidence_content if evidence_type != 'text' else None,
+                'evidence_text': None if skip_evidence else (evidence_content if evidence_type == 'text' else None),
+                'evidence_url': None if skip_evidence else (evidence_content if evidence_type != 'text' else None),
                 'is_confidential': is_confidential,
                 'xp_awarded': final_xp,
                 'diploma_status': 'none',  # Student must explicitly request diploma credit
@@ -302,6 +314,23 @@ def complete_task(user_id: str, task_id: str):
             )
         except Exception as webhook_error:
             logger.warning(f"Failed to emit task.completed webhook: {str(webhook_error)}")
+
+        # The Treehouse: notify facilitators so they can celebrate + document. Gated
+        # to Treehouse students; a no-op for everyone else.
+        try:
+            from utils.treehouse import is_treehouse_member, get_treehouse_org_id, notify_facilitators_of_completion
+            from services.notification_service import NotificationService
+            if is_treehouse_member(admin_supabase, effective_user_id):
+                quest_title = None
+                if quest_completed:
+                    q = admin_supabase.table('quests').select('title').eq('id', quest_id).limit(1).execute()
+                    quest_title = q.data[0].get('title') if q.data else None
+                notify_facilitators_of_completion(
+                    admin_supabase, NotificationService(), effective_user_id,
+                    get_treehouse_org_id(admin_supabase),
+                    task_data.get('title'), quest_completed, quest_title)
+        except Exception as notify_error:
+            logger.warning(f"Treehouse completion notify failed: {notify_error}")
 
         return success_response(
             data={

@@ -152,6 +152,28 @@ def generate_tasks(user_id: str, quest_id: str):
         exclude_tasks = data.get('exclude_tasks', [])
         additional_feedback = data.get('additional_feedback', '')
 
+        # The Treehouse: tailor task difficulty/reading-level to the learner's age.
+        # Explicit body value wins; otherwise derive from the student's cohort
+        # ('Littles (5-7)' / 'Bigs (8-13)'). No-op for non-Treehouse users.
+        age_band = data.get('age_band')
+        if not age_band:
+            try:
+                from utils.treehouse import is_treehouse_member
+                _admin = get_supabase_admin_client()
+                if is_treehouse_member(_admin, user_id):
+                    enr = _admin.table('class_enrollments').select('class_id') \
+                        .eq('student_id', user_id).eq('status', 'active').limit(1).execute()
+                    if enr.data:
+                        cls = _admin.table('org_classes').select('name') \
+                            .eq('id', enr.data[0]['class_id']).limit(1).execute()
+                        name = (cls.data[0]['name'] if cls.data else '') or ''
+                        if '5-7' in name:
+                            age_band = '5-7'
+                        elif '8-13' in name:
+                            age_band = '8-13'
+            except Exception as e:
+                logger.warning(f"Treehouse age_band derivation failed: {e}")
+
         # Fetch user's learning vision (bio field) for AI context
         vision_statement = ''
         try:
@@ -187,7 +209,8 @@ def generate_tasks(user_id: str, quest_id: str):
             cross_curricular_subjects=cross_curricular_subjects,
             exclude_tasks=exclude_tasks,
             additional_feedback=additional_feedback,
-            vision_statement=vision_statement
+            vision_statement=vision_statement,
+            age_band=age_band
         )
 
         if not result['success']:

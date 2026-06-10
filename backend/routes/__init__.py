@@ -284,6 +284,10 @@ def register_all(app):
     from routes import oea
     app.register_blueprint(oea.bp)
 
+    # ── The Treehouse program (microschool partner integration) ────────────────
+    from routes import treehouse
+    app.register_blueprint(treehouse.bp)
+
     # ── Credit dashboard / pillars / analytics / activity ─────────────────────
     from routes.credit_dashboard import bp as credit_dashboard_bp
     app.register_blueprint(credit_dashboard_bp)

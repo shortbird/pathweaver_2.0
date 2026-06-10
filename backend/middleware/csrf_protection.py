@@ -75,6 +75,10 @@ def init_csrf(app):
         'lti.lti_launch',
         'lti.exchange_auth_code',
         'lti.deep_link_submit',
+        # The Treehouse kiosk: pre-session, shared-device endpoints gated by a
+        # device token (not a user session), so no CSRF cookie exists yet.
+        'treehouse.kiosk_roster',
+        'treehouse.kiosk_login',
     ]
 
     for endpoint in exempt_endpoints:

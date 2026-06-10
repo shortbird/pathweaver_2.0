@@ -1,13 +1,56 @@
 import React, { useState, useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import Sidebar from './navigation/Sidebar'
 import TopNavbar from './navigation/TopNavbar'
+import { isFocusMode, setFocusMode, FOCUS_EVENT } from '../utils/treehouseFocus'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
 const Layout = () => {
   const { isAuthenticated, effectiveRole } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // The Treehouse focus/fullscreen mode hides all app chrome so young students
+  // see only the page. Reacts to toggles from anywhere via a window event.
+  const [focus, setFocus] = useState(isFocusMode())
+  useEffect(() => {
+    const sync = () => setFocus(isFocusMode())
+    window.addEventListener(FOCUS_EVENT, sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener(FOCUS_EVENT, sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+
+  if (focus) {
+    const onHome = location.pathname === '/treehouse'
+    return (
+      <div className="min-h-screen bg-neutral-50">
+        <main id="main-content" className="min-h-screen pb-28">
+          <Outlet />
+        </main>
+        {/* Large, easy-to-reach Back button on every non-home page */}
+        {!onHome && (
+          <button
+            onClick={() => navigate('/treehouse')}
+            className="fixed bottom-6 left-6 z-50 flex items-center gap-2 rounded-full bg-optio-purple text-white text-xl font-bold px-8 py-5 shadow-lg active:scale-95 transition"
+          >
+            ← Back
+          </button>
+        )}
+        {/* Subtle exit-fullscreen for facilitators (students stay in focus mode) */}
+        <button
+          onClick={() => setFocusMode(false)}
+          className="fixed top-3 right-3 z-50 text-xs text-neutral-400 hover:text-neutral-600 bg-white/70 rounded-full px-3 py-1"
+        >
+          Exit fullscreen
+        </button>
+      </div>
+    )
+  }
   const [siteSettings, setSiteSettings] = React.useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 

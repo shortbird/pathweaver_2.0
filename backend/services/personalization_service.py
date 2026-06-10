@@ -207,9 +207,14 @@ class PersonalizationService(BaseService):
         cross_curricular_subjects: List[str],
         exclude_tasks: List[str] = None,
         additional_feedback: str = '',
-        vision_statement: str = ''
+        vision_statement: str = '',
+        age_band: str = None
     ) -> Dict[str, Any]:
-        """Generate AI task suggestions with caching"""
+        """Generate AI task suggestions with caching.
+
+        age_band (optional, e.g. '5-7' / '8-13') tailors task difficulty + reading
+        level for young learners; omitted preserves the default behavior.
+        """
         try:
             # Always fold the student's CURRENT tasks for this quest into the
             # exclusion list so the AI never re-suggests what they already have.
@@ -291,7 +296,8 @@ class PersonalizationService(BaseService):
                 cross_curricular_subjects,
                 exclude_tasks=exclude_tasks or [],
                 additional_feedback=additional_feedback,
-                vision_statement=vision_statement
+                vision_statement=vision_statement,
+                age_band=age_band
             )
 
             # Generate tasks using AI service
@@ -636,9 +642,15 @@ class PersonalizationService(BaseService):
         cross_curricular_subjects: List[str],
         exclude_tasks: List[str] = None,
         additional_feedback: str = '',
-        vision_statement: str = ''
+        vision_statement: str = '',
+        age_band: str = None
     ) -> str:
-        """Build AI prompt for personalized task generation"""
+        """Build AI prompt for personalized task generation.
+
+        age_band (optional) tailors developmental difficulty + reading level for
+        young learners (e.g. The Treehouse). When omitted the default high-school
+        guidance is used, so existing behavior is unchanged.
+        """
 
         quest_title = quest['title']
         quest_description = quest.get('big_idea') or quest.get('description', '')
@@ -683,6 +695,30 @@ PRIORITY REQUIREMENT: The student specifically wants to earn diploma credits in 
 - Only 2-3 tasks should focus on other subjects for variety
 """
 
+        # Age-band guidance for young learners (The Treehouse). Overrides the
+        # default "high school unit project" difficulty when provided.
+        age_guidance = ''
+        difficulty_line = '1. Are equivalent to high school unit projects (not final projects, not quick worksheets)'
+        if age_band:
+            age_profiles = {
+                '5-7': ("ages 5-7 (early elementary, emerging or early readers)",
+                        "very short, hands-on, playful steps a 5-7 year old can do mostly independently or with a quick adult hand-off",
+                        "almost no reading; rely on doing, making, drawing, and showing. One simple instruction per task."),
+                '8-13': ("ages 8-13 (upper elementary / middle), independent readers",
+                         "concrete, hands-on activities with a clear single outcome, finishable in one or two short sessions",
+                         "short, plain sentences; a 3rd-5th grade reading level"),
+            }
+            who, shape, reading = age_profiles.get(age_band, age_profiles['8-13'])
+            age_guidance = (
+                f"\nAGE-APPROPRIATE REQUIREMENT (IMPORTANT): This learner is {who}.\n"
+                f"- Tasks must be {shape}.\n"
+                f"- {reading}.\n"
+                f"- Favor quick wins and small successes; keep each task to a few simple steps.\n"
+                f"- Do NOT use advanced/abstract academic framing. (e.g. for a 6-year-old learning about light, "
+                f"'Shine a flashlight through water and see the rainbow' — NOT 'Experiment with light refraction'.)\n"
+            )
+            difficulty_line = '1. Are small, age-appropriate activities sized for this learner (NOT high-school-level projects)'
+
         return f"""
 You are helping a student personalize their learning quest: "{quest_title}".
 
@@ -693,10 +729,10 @@ Student's Selected Approach: {approach_desc}
 Student's Interests: {interests_text}
 
 Student's Selected Diploma Subjects: {subjects_text}
-{priority_subjects_instruction}{vision_text}{exclude_text}{feedback_text}
+{age_guidance}{priority_subjects_instruction}{vision_text}{exclude_text}{feedback_text}
 
 Generate 6-10 tasks that:
-1. Are equivalent to high school unit projects (not final projects, not quick worksheets)
+{difficulty_line}
 2. At least 50% of tasks should be worth exactly 100 XP
 3. Other tasks can range from 50-150 XP based on complexity
 4. Each task must be assigned to ONE of these pillars (use exact lowercase names):

@@ -54,18 +54,23 @@ class BaseRepository:
     table_name: str = None
     id_column: str = 'id'
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self, user_id: Optional[str] = None, client=None):
         """
         Initialize repository with optional user context.
 
         Args:
             user_id: UUID of the authenticated user (for RLS enforcement)
+            client: Optional pre-built Supabase client to inject. When provided it
+                is used as-is (the `client` property's lazy fallback is skipped).
+                This matches the documented ``Repo(client=supabase)`` usage and the
+                pattern several call sites (e.g. routes/tasks/completion.py) already
+                rely on. When omitted, behavior is unchanged (client derived lazily).
         """
         if not self.table_name:
             raise NotImplementedError("Subclasses must define table_name")
 
         self.user_id = user_id
-        self._client = None
+        self._client = client
 
     @property
     def client(self):

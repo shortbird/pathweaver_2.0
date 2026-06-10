@@ -1,0 +1,780 @@
+User Story: Teacher/Facilitator Experience for Quest-Based Learning Platform
+
+Overview
+
+As a teacher/facilitator in a self-directed learning environment, I want to guide students through personalized, interest-led learning journeys so that I can support autonomy, track progress, scaffold learning appropriately, and celebrate growth across projects, portfolios, and community contributions.
+
+
+---
+
+Epic 1: Student Quest Planning & Management
+
+User Story 1.1 — Create Personalized Learning Quests
+
+As a facilitator, I want to sit with a student one-on-one to identify their interests, strengths, and learning goals so that the platform can generate personalized project-based learning quests.
+
+Acceptance Criteria
+
+Facilitator can create or edit a student profile.
+
+Facilitator can input:
+
+Student interests
+
+Learning goals
+
+Skill level/age cohort
+
+Learning supports/preferences
+
+
+AI generates suggested project ideas and task lists.
+
+Student and facilitator can:
+
+Accept tasks
+
+Reject tasks
+
+Regenerate alternatives
+
+Add custom tasks manually
+
+
+Quests remain editable over time.
+
+
+
+---
+
+User Story 1.2 — Differentiate AI Task Generation
+
+As a facilitator, I want AI-generated tasks to reflect a student’s developmental and learning needs so that tasks feel accessible and achievable.
+
+Acceptance Criteria
+
+Facilitator can select supports such as:
+
+Smaller task chunks
+
+Quick wins
+
+Minimal reading
+
+More visual/hands-on tasks
+
+Longer-term challenge projects
+
+Independent vs collaborative work
+
+
+AI adapts:
+
+Vocabulary complexity
+
+Task length
+
+Reading demands
+
+Suggested pacing
+
+Number of steps
+
+
+AI also considers:
+
+Student age cohort
+
+Previous quest completion history
+
+Skill level
+
+
+
+---
+
+User Story 1.3 — Track Multiple Active Projects
+
+As a facilitator, I want students to pause and resume quests while exploring multiple interests so that learning remains flexible and student-driven.
+
+Acceptance Criteria
+
+Students can have multiple active quests.
+
+Quests can be:
+
+Active
+
+Paused
+
+Completed
+
+
+Students can switch between projects without losing progress.
+
+Progress is automatically saved.
+
+Facilitator dashboard shows:
+
+Current active quests
+
+Paused quests
+
+Completion percentage
+
+Last activity/check-in date
+
+
+
+
+---
+
+Epic 2: Badge & Pin Quest System
+
+User Story 2.1 — Preloaded Badge-Based Quests for Younger Students
+
+As a facilitator, I want to preload curated quests for younger students so they can choose learning experiences visually and independently.
+
+Acceptance Criteria
+
+Facilitator can create reusable “badge” or “pin” quests.
+
+Each badge includes:
+
+Icon/image
+
+Title
+
+Description
+
+Domain/category
+
+Recommended age group
+
+
+Younger students can browse quests visually by badge icon.
+
+Students can select quests independently.
+
+
+
+---
+
+User Story 2.2 — Categorize Badge Quests
+
+As a facilitator, I want badges categorized by learning domain so students can easily explore areas of interest.
+
+Categories
+
+Wellness
+
+Creative Expression (Art)
+
+STEM
+
+Communication
+
+Civics
+
+
+Acceptance Criteria
+
+Badges are filterable by category.
+
+Facilitator can create new categories.
+
+Student dashboard supports visual browsing by domain.
+
+
+
+---
+
+User Story 2.3 — Completed Pin Tracking
+
+As a facilitator, I want completed quests collected in one location so I can prepare physical pins/badges before celebrations.
+
+Acceptance Criteria
+
+Completed quests automatically move into a “Pins Ready to Create” queue.
+
+Dashboard shows:
+
+Student name
+
+Badge earned
+
+Completion date
+
+Portfolio artifacts/photos
+
+
+Facilitators can batch mark pins as created/distributed.
+
+
+
+---
+
+Epic 3: Facilitator Dashboard & Notifications
+
+User Story 3.1 — Facilitator Progress Dashboard
+
+As a facilitator, I want a high-level dashboard view so I can quickly identify which students need support or celebration.
+
+Dashboard Displays
+
+Active quests by student
+
+Days since last check-in
+
+Days since last task completion
+
+Recently completed tasks
+
+Recently completed quests
+
+Students needing facilitator review
+
+Showcase project progress
+
+
+Acceptance Criteria
+
+Dashboard updates in real time.
+
+Facilitator can filter by:
+
+Cohort
+
+Student
+
+Quest status
+
+Domain/category
+
+
+
+
+---
+
+User Story 3.2 — Task Completion Notifications
+
+As a facilitator, I want notifications when students complete tasks so that I can document and celebrate progress.
+
+Acceptance Criteria
+
+Notification triggers when a student marks a task complete.
+
+Notification includes:
+
+Student name
+
+Quest name
+
+Task completed
+
+
+Facilitator can:
+
+Add notes
+
+Upload photos
+
+Approve completion
+
+Add portfolio documentation
+
+
+
+
+---
+
+User Story 3.3 — Quest Completion Notifications
+
+As a facilitator, I want notifications when a quest is completed so I can recognize student achievement and prepare badges/pins.
+
+Acceptance Criteria
+
+Notification triggers on quest completion.
+
+Completed quests automatically:
+
+Move to completed portfolio
+
+Enter pin-creation queue
+
+Trigger celebration reminder
+
+
+
+
+---
+
+Epic 4: Bounty Board (School Jobs & Community Contributions)
+
+User Story 4.1 — Create and Manage Bounties
+
+As a facilitator, I want to create school/community jobs that students can complete for credits toward project materials.
+
+Acceptance Criteria
+
+Facilitator can create bounties with:
+
+Title
+
+Description
+
+Reward amount
+
+Cohort eligibility
+
+Repeatable or one-time status
+
+Due date (optional)
+
+Max participants (optional)
+
+
+
+---
+
+User Story 4.2 — Differentiate Bounty Boards by Cohort
+
+As a facilitator, I want separate or filtered bounty boards for different age groups so students only see developmentally appropriate responsibilities.
+
+Acceptance Criteria
+
+Facilitator can:
+
+Create separate boards
+
+Filter by cohort
+
+Assign age restrictions
+
+
+Students only see eligible bounties.
+
+
+
+---
+
+User Story 4.3 — Reward Student Accounts
+
+As a facilitator, I want students to earn credits for completed bounties so they can purchase project materials.
+
+Acceptance Criteria
+
+Completed bounties automatically add credits to student accounts after facilitator approval.
+
+Student dashboard displays:
+
+Current balance
+
+Earnings history
+
+Material purchases
+
+
+Facilitator can manually adjust balances if needed.
+
+
+
+---
+
+Epic 5: Showcase Project System
+
+User Story 5.1 — Session Theme Management
+
+As a facilitator, I want to preload showcase themes and dates so students can build projects connected to community presentations.
+
+Acceptance Criteria
+
+Facilitator can create:
+
+Showcase title/theme
+
+Description
+
+Showcase date
+
+Suggested project prompts
+
+Example ideas/resources
+
+
+
+---
+
+User Story 5.2 — Guided Showcase Project Creation
+
+As a student, I want help designing a showcase project so I can break a large idea into manageable steps.
+
+Acceptance Criteria
+
+Student portal displays:
+
+Current showcase theme
+
+Countdown to showcase date
+
+Invitation to create a showcase project
+
+
+AI generates:
+
+Project ideas
+
+Task lists
+
+Suggested milestones
+
+Recommended deadlines
+
+
+Students can customize task lists.
+
+
+
+---
+
+User Story 5.3 — Showcase Deadline Scaffolding
+
+As a facilitator, I want showcase projects scaffolded with pacing suggestions so students can complete projects on time without overwhelm.
+
+Acceptance Criteria
+
+AI-generated tasks include suggested deadlines.
+
+Tasks are automatically spaced backward from showcase date.
+
+Facilitator can adjust pacing manually.
+
+Students receive reminders for upcoming milestones.
+
+
+
+---
+
+Suggested Roles & Permissions
+
+Facilitator
+
+Create/edit quests
+
+Approve tasks
+
+Create badges
+
+Manage bounty boards
+
+View analytics/dashboard
+
+Upload portfolio evidence
+
+
+Student
+
+Accept/reject tasks
+
+Start/pause/resume quests
+
+Claim bounties
+
+Track rewards
+
+Upload project evidence
+
+
+Parent (Optional Future Role)
+
+View progress
+
+View portfolio
+
+Celebrate milestones
+
+Track showcase participation
+
+
+
+---
+
+Suggested Future Enhancements
+
+Portfolio generation for ESA compliance/reporting
+
+AI-generated reflections/interview prompts
+
+Peer collaboration quests
+
+Mentor/community volunteer roles
+
+Student-led proposal system for custom quests
+
+Marketplace for redeeming earned credits
+
+QR code system for physical badges/pins
+
+Habit/routine tracking
+
+Emotional check-in system
+
+Learning analytics and engagement trends
+
+
+Additional Epic: Portfolio Documentation & Observation Journaling
+
+Epic 6: Facilitator Observation & Portfolio Documentation
+
+
+---
+
+User Story 6.1 — Social-Style Observation Posting
+
+As a facilitator, I want to quickly document meaningful moments of student learning during free exploration so that authentic learning can be captured without interrupting engagement.
+
+Acceptance Criteria
+
+Facilitator can create a journal entry using:
+
+Photos
+
+Video clips (future enhancement)
+
+Written captions/observations
+
+
+Posting flow feels lightweight and fast, similar to creating a social media post.
+
+Facilitator can:
+
+Tag one or multiple students
+
+Add hashtags/tags/categories
+
+Select related learning domains
+
+
+One post automatically populates in all tagged students’ portfolios.
+
+Entries are timestamped and organized chronologically.
+
+
+
+---
+
+User Story 6.2 — AI-Assisted Portfolio Analysis
+
+As a facilitator, I want AI to analyze my observation captions so that student portfolios can identify patterns of engagement, growth, and skill development without requiring extensive manual documentation.
+
+Acceptance Criteria
+
+AI analyzes:
+
+Caption text
+
+Selected tags/categories
+
+Quest associations
+
+Portfolio domain relevance
+
+
+AI automatically:
+
+Suggests relevant skill tags
+
+Identifies recurring interests/themes
+
+Maps observations to portfolio domains:
+
+Wellness
+
+Creative Expression
+
+STEM
+
+Communication
+
+Civics
+
+
+Detects patterns of engagement over time
+
+Suggests evidence of:
+
+Collaboration
+
+Leadership
+
+Problem solving
+
+Creativity
+
+Persistence
+
+Communication skills
+
+Initiative
+
+
+
+
+---
+
+User Story 6.3 — Lightweight Documentation Workflow
+
+As a facilitator, I want documentation to happen naturally during the school day so that portfolio creation does not become administratively overwhelming.
+
+Acceptance Criteria
+
+Journal entries can be created in under 1 minute.
+
+Mobile-friendly interface optimized for quick uploads.
+
+Facilitator can:
+
+Snap photo
+
+Add quick caption
+
+Tag students
+
+Post immediately
+
+
+Draft saving available for unfinished entries.
+
+Voice-to-text caption support available.
+
+
+
+---
+
+User Story 6.4 — Student Portfolio Growth Tracking
+
+As a facilitator, I want portfolios to accumulate authentic evidence of student interests and competencies over time so I can better support learning pathways and showcase growth.
+
+Acceptance Criteria
+
+Student portfolios automatically organize:
+
+Quest completions
+
+Badge/pin achievements
+
+Bounty participation
+
+Showcase projects
+
+Observation journal entries
+
+Tagged learning domains
+
+Skill trends over time
+
+
+Portfolio dashboard includes:
+
+Frequently observed interests
+
+Emerging strengths
+
+Most active learning domains
+
+Collaboration patterns
+
+Timeline of engagement
+
+
+
+---
+
+User Story 6.5 — AI-Generated Portfolio Insights
+
+As a facilitator, I want AI-generated summaries of student engagement patterns so I can more easily prepare conferences, reports, and personalized guidance.
+
+Acceptance Criteria
+
+AI can generate:
+
+Quarterly engagement summaries
+
+Strength-based observations
+
+Interest trend summaries
+
+Suggested next quest categories
+
+Suggested showcase project ideas
+
+Portfolio highlight reels
+
+
+Facilitator can:
+
+Edit AI summaries before publishing
+
+Approve/reject suggested insights
+
+Export summaries for families or reporting purposes
+
+
+
+---
+
+Suggested Technical Notes for Development Team
+
+Portfolio Data Architecture
+
+Observation entries should support:
+
+Many-to-many student tagging
+
+AI-generated metadata
+
+Manual facilitator tags
+
+Domain classification
+
+Media attachments
+
+Search/filter capability
+
+
+
+---
+
+Suggested AI Features
+
+Potential AI analysis outputs:
+
+Skill clustering
+
+Interest frequency analysis
+
+Sentiment/engagement analysis
+
+Portfolio domain weighting
+
+Longitudinal growth tracking
+
+
+
+---
+
+Suggested UX Goals
+
+The portfolio system should:
+
+Feel inspirational rather than administrative
+
+Reduce documentation burden
+
+Prioritize quick capture of authentic learning
+
+Encourage facilitators to document often
+
+Function effectively from mobile devices during active school hours
+
+

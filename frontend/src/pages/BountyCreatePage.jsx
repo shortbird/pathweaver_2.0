@@ -56,12 +56,14 @@ const BountyCreatePage = () => {
     description: '',
     max_participants: 0,
     visibility: 'public',
+    cohort_class_id: '', // optional: limit a bounty to one cohort/class
   })
   const [deliverables, setDeliverables] = useState([''])
   const [rewards, setRewards] = useState([])
   const [errors, setErrors] = useState({})
   const [dependents, setDependents] = useState([])
   const [selectedKids, setSelectedKids] = useState([]) // empty = all kids
+  const [cohorts, setCohorts] = useState([]) // org classes (cohorts) for optional restriction
 
   // Fetch dependents + linked students for family visibility
   useEffect(() => {
@@ -103,6 +105,15 @@ const BountyCreatePage = () => {
     fetchChildren()
   }, [])
 
+  // Fetch the org's cohorts (classes) so a bounty can optionally be limited to one.
+  // Only org_admin/advisor can list these; silently no-op for everyone else.
+  useEffect(() => {
+    if (!user?.organization_id) return
+    api.get(`/api/organizations/${user.organization_id}/classes`)
+      .then(res => setCohorts(res.data?.classes || []))
+      .catch(() => setCohorts([]))
+  }, [user?.organization_id])
+
   // Populate form when editing
   useEffect(() => {
     if (!existingBounty) return
@@ -111,6 +122,7 @@ const BountyCreatePage = () => {
       description: existingBounty.description || '',
       max_participants: existingBounty.max_participants || 0,
       visibility: existingBounty.visibility || 'public',
+      cohort_class_id: existingBounty.cohort_class_id || '',
     })
     const dels = (existingBounty.deliverables || []).map(d => d.text || d)
     setDeliverables(dels.length > 0 ? dels : [''])
@@ -206,6 +218,8 @@ const BountyCreatePage = () => {
       rewards: validRewards,
       // Send selected kids for family visibility; empty/null = all kids
       allowed_student_ids: formData.visibility === 'family' && selectedKids.length > 0 ? selectedKids : null,
+      // Optional cohort restriction (only students in this class see the bounty)
+      cohort_class_id: formData.cohort_class_id || null,
     }
 
     if (isEdit) {
@@ -494,6 +508,24 @@ const BountyCreatePage = () => {
           />
           <p className="text-xs text-gray-400 mt-1">{formData.max_participants === 0 ? 'No limit' : `${formData.max_participants} max`}</p>
         </div>
+
+        {/* Cohort restriction (only shown when the org has cohorts/classes) */}
+        {cohorts.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Limit to cohort</label>
+            <select
+              value={formData.cohort_class_id}
+              onChange={(e) => handleChange('cohort_class_id', e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            >
+              <option value="">All students</option>
+              {cohorts.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Only students in the chosen cohort will see this job.</p>
+          </div>
+        )}
 
         {/* Sponsor preview */}
         {(() => {
