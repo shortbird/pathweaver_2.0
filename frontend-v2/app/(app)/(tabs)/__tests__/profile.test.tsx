@@ -20,6 +20,7 @@ jest.mock('@/src/hooks/useProfile', () => ({
 }));
 jest.mock('@/src/hooks/useDashboard', () => ({
   useGlobalEngagement: jest.fn(),
+  useDashboard: jest.fn(),
 }));
 jest.mock('@/src/components/engagement/EngagementCalendar', () => ({
   EngagementCalendar: () => null,
@@ -41,13 +42,14 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import ProfileScreen from '../profile';
 import { useProfile } from '@/src/hooks/useProfile';
-import { useGlobalEngagement } from '@/src/hooks/useDashboard';
+import { useGlobalEngagement, useDashboard } from '@/src/hooks/useDashboard';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 
 beforeEach(() => {
   setAuthAsStudent();
   jest.clearAllMocks();
   (useGlobalEngagement as jest.Mock).mockReturnValue({ data: null, loading: false });
+  (useDashboard as jest.Mock).mockReturnValue({ data: null, loading: false });
 });
 
 afterEach(() => {

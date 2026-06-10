@@ -15,6 +15,7 @@ import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { treehouseAPI } from '../../services/api'
 import { isFocusMode, setFocusMode } from '../../utils/treehouseFocus'
+import ModalOverlay from '../../components/ui/ModalOverlay'
 
 const isFacilitatorRole = (role, user) => {
   const roles = new Set([role, user?.org_role, ...(user?.org_roles || [])])
@@ -174,10 +175,11 @@ function StudentHome() {
         </button>
       </div>
 
-      {/* Productive-waiting panel — encourage momentum while help is on the way */}
+      {/* Productive-waiting panel — encourage momentum while help is on the way.
+          ModalOverlay portals to <body> (avoids the transformed-ancestor backdrop bug). */}
       {helpWaiting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setHelpWaiting(false)}>
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+        <ModalOverlay onClose={() => setHelpWaiting(false)}>
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center">
             <p className="text-2xl font-bold text-neutral-900">A grown-up is on the way! 🙋</p>
             <p className="text-neutral-500 mt-1">While you wait, you could…</p>
             <div className="grid gap-3 mt-5">
@@ -189,7 +191,7 @@ function StudentHome() {
             <p className="text-neutral-400 text-sm mt-4">You can also ask a friend for help!</p>
             <button onClick={() => setHelpWaiting(false)} className="mt-4 text-neutral-500 font-semibold">Keep waiting here</button>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   )
