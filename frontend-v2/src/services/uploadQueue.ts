@@ -42,6 +42,11 @@ interface UploadJob {
   eventId: string;
   studentId?: string;
   items: QueuedMediaItem[];
+  /** Non-media evidence blocks (e.g. a link) to save alongside the uploaded
+   *  media in the SAME evidence POST. The evidence endpoint replaces a moment's
+   *  blocks, so a link must ride along with the media or one would clobber the
+   *  other. */
+  extraBlocks?: Array<Record<string, unknown>>;
   attempts: number;
   createdAt: number;
 }
@@ -162,8 +167,8 @@ function fallbackExt(t: QueuedMediaType): string {
  * backend side: the evidence endpoint replaces a moment's blocks, so a retry
  * after a partial failure re-uploads and re-attaches cleanly.
  */
-async function runJob(job: { eventId: string; studentId?: string; items: QueuedMediaItem[] }): Promise<void> {
-  const { eventId, studentId, items } = job;
+async function runJob(job: { eventId: string; studentId?: string; items: QueuedMediaItem[]; extraBlocks?: Array<Record<string, unknown>> }): Promise<void> {
+  const { eventId, studentId, items, extraBlocks } = job;
   const initPath = studentId
     ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-init`
     : `/api/learning-events/${eventId}/upload-init`;
@@ -200,8 +205,13 @@ async function runJob(job: { eventId: string; studentId?: string; items: QueuedM
         content: item.type === 'audio' && item.durationMs ? { duration_ms: item.durationMs } : {},
         file_url: (result.file_url || result.url) as string,
         file_name: (result.filename || result.file_name || filename) as string,
-        order_index: index,
+        order_index: blocks.length,
       });
+    }
+    // Non-media blocks (links) ride in the same POST so the replace-style
+    // evidence endpoint doesn't clobber them.
+    for (const eb of extraBlocks || []) {
+      blocks.push({ ...eb, order_index: blocks.length });
     }
     if (blocks.length > 0) {
       await api.post(evidencePath, { blocks });
@@ -225,8 +235,9 @@ export async function enqueueUpload(args: {
   eventId: string;
   studentId?: string;
   items: QueuedMediaItem[];
+  extraBlocks?: Array<Record<string, unknown>>;
 }): Promise<void> {
-  if (!args.items.length) return;
+  if (!args.items.length && !args.extraBlocks?.length) return;
 
   if (!persistent) {
     // Web / no FileSystem: run inline, surface terminal failures.
@@ -261,6 +272,7 @@ export async function enqueueUpload(args: {
       eventId: args.eventId,
       studentId: args.studentId,
       items: persistedItems,
+      extraBlocks: args.extraBlocks,
       attempts: 0,
       createdAt: Date.now(),
     });

@@ -178,15 +178,29 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
           );
         }
 
-        // Step 3: Add text/link evidence blocks
-        evidenceBlocks.forEach((block) => {
-          if (!block.content.trim()) return;
+        // Step 3: Add text/link evidence blocks. A lone note + link become ONE
+        // labeled link block (the note is the link's title) — keeping them
+        // separate splits them into two cards in the feed (one per block).
+        const nonEmpty = evidenceBlocks.filter((b) => b.content.trim().length > 0);
+        const texts = nonEmpty.filter((b) => b.type === 'text');
+        const links = nonEmpty.filter((b) => b.type === 'link');
+        if (texts.length === 1 && links.length === 1) {
           allBlocks.push({
-            block_type: block.type,
-            content: block.type === 'link' ? { url: block.content.trim() } : { text: block.content.trim() },
+            block_type: 'link',
+            content: { url: links[0].content.trim(), title: texts[0].content.trim() },
             order_index: orderIdx++,
           });
-        });
+        } else {
+          nonEmpty.forEach((block) => {
+            allBlocks.push({
+              block_type: block.type,
+              content: block.type === 'link'
+                ? { url: block.content.trim(), title: block.content.trim() }
+                : { text: block.content.trim() },
+              order_index: orderIdx++,
+            });
+          });
+        }
 
         // Save all evidence blocks
         if (allBlocks.length > 0) {

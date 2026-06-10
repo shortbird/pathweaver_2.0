@@ -295,18 +295,22 @@ export function TaskEvidenceSheet({
         ...b,
         order_index: startIdx + i,
       }));
-      if (textNote.trim()) {
-        newBlocks.push({
-          type: 'text',
-          content: { text: textNote.trim() },
-          order_index: startIdx + newBlocks.length,
-        });
-      }
-      if (linkUrl.trim()) {
-        const url = linkUrl.trim();
+      // A link plus its note is ONE labeled link block, not a separate text +
+      // link pair. The feed renders one card per evidence block, so two blocks
+      // split into two cards ("Working with Gemini" + the bare URL); folding the
+      // note in as the link's title keeps them as a single labeled link.
+      const note = textNote.trim();
+      const url = linkUrl.trim();
+      if (url) {
         newBlocks.push({
           type: 'link',
-          content: { url, title: url },
+          content: { url, title: note || url },
+          order_index: startIdx + newBlocks.length,
+        });
+      } else if (note) {
+        newBlocks.push({
+          type: 'text',
+          content: { text: note },
           order_index: startIdx + newBlocks.length,
         });
       }

@@ -67,6 +67,7 @@ interface CaptureSheetProps {
 export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStudents = false, questContext }: CaptureSheetProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -119,6 +120,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   const reset = useCallback(() => {
     setTitle('');
     setDescription('');
+    setLinkUrl('');
     setMedia([]);
     setSelectedTask(null);
     setPendingNewTask(null);
@@ -305,7 +307,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       : (pickStudents ? selectedStudentIds : undefined);
 
   const handleSave = async () => {
-    if (!description.trim() && media.length === 0) return;
+    if (!description.trim() && !title.trim() && media.length === 0 && !linkUrl.trim()) return;
     if (pickStudents && (!effectiveStudentIds || effectiveStudentIds.length === 0)) {
       Alert.alert('Pick a child', 'Select at least one child to capture this moment for.');
       return;
@@ -319,6 +321,13 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     const topicSnapshot = selectedTopic;
     const studentIdsSnapshot = effectiveStudentIds;
     const hasMedia = mediaSnapshot.length > 0;
+    // A link is part of the SAME moment as its title/description — saved as one
+    // link evidence block on the event (not a separate item).
+    const linkSnapshot = linkUrl.trim();
+    const extraBlocks = linkSnapshot
+      ? [{ block_type: 'link', content: { url: linkSnapshot, title: linkSnapshot } }]
+      : [];
+    const hasAttachables = hasMedia || extraBlocks.length > 0;
 
     try {
       // Phase 1 (awaited, fast): create the moment(s) + any task link, and
@@ -329,11 +338,11 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       if (studentIdsSnapshot && studentIdsSnapshot.length > 0) {
         for (const sid of studentIdsSnapshot) {
           const eventId = await createMoment(sid);
-          if (eventId && hasMedia) jobs.push({ eventId, studentId: sid });
+          if (eventId && hasAttachables) jobs.push({ eventId, studentId: sid });
         }
       } else {
         const eventId = await createMoment();
-        if (eventId && hasMedia) jobs.push({ eventId });
+        if (eventId && hasAttachables) jobs.push({ eventId });
         if (eventId && taskSnapshot) {
           try {
             await attachMomentToTask(eventId, taskSnapshot.task.id);
@@ -382,6 +391,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
           eventId: job.eventId,
           studentId: job.studentId,
           items: mediaSnapshot,
+          extraBlocks,
         });
       }
     } catch (err: any) {
@@ -394,7 +404,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     }
   };
 
-  const hasContent = description.trim().length > 0 || media.length > 0;
+  const hasContent = description.trim().length > 0 || title.trim().length > 0 || media.length > 0 || linkUrl.trim().length > 0;
   const hasStudentSelection = !pickStudents || selectedStudentIds.length > 0;
   const canSave = hasContent && hasStudentSelection;
 
@@ -536,6 +546,22 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
               className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins text-typo dark:text-dark-typo min-h-[80px]"
               style={{ textAlignVertical: 'top' }}
             />
+
+            {/* Optional link — saved as a single link evidence block on THIS
+                moment (with its title/description), not a separate item. */}
+            <View className="flex-row items-center gap-2 bg-surface-50 dark:bg-dark-surface-50 rounded-xl px-3">
+              <Ionicons name="link-outline" size={16} color="#6D469B" />
+              <TextInput
+                value={linkUrl}
+                onChangeText={setLinkUrl}
+                placeholder="Add a link (optional)"
+                placeholderTextColor={c.textFaint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                className="flex-1 py-3 text-base font-poppins text-typo dark:text-dark-typo"
+              />
+            </View>
 
             {/* Media previews — real thumbnails / audio playback chips */}
             {media.length > 0 && (
