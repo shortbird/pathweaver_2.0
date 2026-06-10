@@ -28,6 +28,7 @@ import {
   deleteInterestTrack, updateInterestTrack, evolveTrackToQuest,
 } from '@/src/hooks/useJournal';
 import type { LearningEvent } from '@/src/hooks/useJournal';
+import { onUploadComplete } from '@/src/services/uploadQueue';
 import api from '@/src/services/api';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
@@ -141,6 +142,13 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
       refetchTopics(),
     ]);
   };
+
+  // Refresh the journal when a background media upload finishes (durable queue),
+  // so a captured video appears without a manual pull. refetchCurrentView isn't
+  // memoized, so call the latest via a ref and register the listener once.
+  const refetchViewRef = useRef(refetchCurrentView);
+  refetchViewRef.current = refetchCurrentView;
+  useEffect(() => onUploadComplete(() => { void refetchViewRef.current(); }), []);
 
   const handleEvolve = async () => {
     if (!selectedId) return;

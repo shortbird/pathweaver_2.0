@@ -19,6 +19,7 @@ import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { useFeedDetailStore } from '@/src/stores/feedDetailStore';
+import { onUploadComplete } from '@/src/services/uploadQueue';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
   Avatar, AvatarFallbackText, AvatarImage, Skeleton,
@@ -443,6 +444,11 @@ export default function FeedScreen() {
       return () => sub.remove();
     }, [refetch]),
   );
+
+  // When a background media upload finishes (durable upload queue), refetch so
+  // the real video/photo replaces the "Uploading…" placeholder without a manual
+  // pull-to-refresh.
+  useEffect(() => onUploadComplete(() => refetch()), [refetch]);
 
   // Auto-show on first visit for observers (cross-platform via prefsStore)
   useEffect(() => {

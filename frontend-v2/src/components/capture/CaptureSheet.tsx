@@ -17,6 +17,7 @@ import { captureException } from '@/src/services/sentry';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
+import { enqueueUpload } from '@/src/services/uploadQueue';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
@@ -286,115 +287,6 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     }
   };
 
-  const uploadAndAttach = async (eventId: string, items: MediaItem[], studentId?: string) => {
-    // Upload each item direct-to-Supabase via signed-upload, then save as
-    // evidence blocks on the event. Uploads in parallel.
-    const initPath = studentId
-      ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-init`
-      : `/api/learning-events/${eventId}/upload-init`;
-    const finalizePath = studentId
-      ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload-finalize`
-      : `/api/learning-events/${eventId}/upload-finalize`;
-
-    const mimeForType = (t: MediaItem['type']): string => {
-      if (t === 'video') return 'video/mp4';
-      if (t === 'audio') return 'audio/m4a';
-      if (t === 'document') return 'application/pdf';
-      return 'image/jpeg';
-    };
-    const fallbackExt = (t: MediaItem['type']): string =>
-      t === 'image' ? 'jpg' : t === 'video' ? 'mp4' : t === 'document' ? 'pdf' : 'm4a';
-
-    // Publish upload progress (video only — images/audio are quick) so the
-    // optimistically-shown moment card can display "Uploading video… N%"
-    // instead of looking like it failed.
-    const hasVideo = items.some((it) => it.type === 'video');
-    const uploadStore = useMediaUploadStore.getState();
-    if (hasVideo) uploadStore.start(eventId);
-    const itemPct = new Array(items.length).fill(0);
-    const reportProgress = (index: number, pct: number) => {
-      itemPct[index] = pct;
-      uploadStore.setProgress(eventId, Math.round(itemPct.reduce((a, b) => a + b, 0) / itemPct.length));
-    };
-
-    const uploadResults = await Promise.all(
-      items.map(async (item, index) => {
-        const filename = item.name || item.uri.split('/').pop() || `capture.${fallbackExt(item.type)}`;
-        const mimeType = mimeForType(item.type);
-        try {
-          const result = await uploadViaSignedUrl({
-            file: { uri: item.uri, name: filename, type: mimeType, size: item.fileSize ?? 0 },
-            initPath,
-            finalizePath,
-            blockType: item.type,
-            onProgress: hasVideo ? (pct) => reportProgress(index, pct) : undefined,
-          });
-          return {
-            block_type: item.type,
-            content: item.type === 'audio' && item.durationMs
-              ? { duration_ms: item.durationMs }
-              : {},
-            file_url: (result.file_url || result.url) as string,
-            file_name: (result.filename || result.file_name || filename) as string,
-          };
-        } catch (uploadErr) {
-          // Don't swallow: report it and let the user know the file wasn't saved,
-          // instead of silently dropping it (the "uploads disappear" complaint).
-          captureException(uploadErr, {
-            stage: 'capture-evidence-upload',
-            extra: { type: item.type, name: filename },
-          });
-          return null;
-        }
-      }),
-    );
-    const uploadedFiles = uploadResults.filter(
-      (x): x is { block_type: 'image' | 'video' | 'audio'; content: Record<string, unknown>; file_url: string; file_name: string } => Boolean(x),
-    );
-    const failedUploads = uploadResults.length - uploadedFiles.length;
-    if (failedUploads > 0) {
-      toast.error(
-        `${failedUploads} file${failedUploads > 1 ? 's' : ''} couldn't be uploaded and ${failedUploads > 1 ? "weren't" : "wasn't"} saved. Please try again.`,
-      );
-    }
-
-    if (uploadedFiles.length > 0) {
-      const blocks = uploadedFiles.map((f, i) => ({
-        ...f,
-        order_index: i,
-      }));
-      // For a parent-captured moment the event is owned by the CHILD, so the
-      // self-scoped evidence endpoint rejects the caller and the blocks are
-      // silently dropped (empty moment). Use the parent-scoped endpoint, which
-      // authorizes via captured_by_user_id.
-      const evidencePath = studentId
-        ? `/api/parent/children/${studentId}/learning-moments/${eventId}/evidence`
-        : `/api/learning-events/${eventId}/evidence`;
-      // The files are already in storage; this call links them to the moment.
-      // If it fails (network/timeout/backend), the video "uploads but never
-      // attaches" — the exact silent failure behind the video-attach reports.
-      // Surface it loudly and rethrow so the outer background-upload catch also
-      // flags it, instead of leaving an empty moment.
-      try {
-        await api.post(evidencePath, { blocks });
-      } catch (attachErr) {
-        captureException(attachErr, {
-          stage: 'capture-evidence-attach',
-          extra: { eventId, blockCount: uploadedFiles.length },
-        });
-        toast.error(
-          "Your media uploaded but couldn't be attached to the moment. Reopen the moment and add it again.",
-          { title: 'Attachment failed' },
-        );
-        throw attachErr;
-      }
-    }
-
-    // Clear the progress indicator — the real media block is attached now (or
-    // the upload failed and the toast above explained it).
-    if (hasVideo) uploadStore.finish(eventId);
-  };
-
   const createMoment = async (studentId?: string) => {
     const body: Record<string, any> = {
       description: description.trim() || 'Learning moment',
@@ -480,26 +372,17 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       onClose();
       onCaptured?.();
 
-      // Phase 2 (background, not awaited): upload + attach the media, then
-      // refresh again so it shows. uploadAndAttach surfaces per-file failures.
-      if (jobs.length > 0) {
-        (async () => {
-          try {
-            for (const job of jobs) {
-              try {
-                await uploadAndAttach(job.eventId, mediaSnapshot, job.studentId);
-              } finally {
-                // Always clear the progress indicator, even if the upload threw,
-                // so a card can't get stuck showing "Uploading…".
-                useMediaUploadStore.getState().finish(job.eventId);
-              }
-            }
-            onCaptured?.();
-          } catch (e) {
-            captureException(e, { stage: 'capture-background-upload' });
-            toast.error('Some media couldn\'t be uploaded. Open the moment to try again.', { title: 'Upload failed' });
-          }
-        })();
+      // Phase 2 (background, DURABLE): hand each moment's media to the persistent
+      // upload queue. It copies the files to persistent storage and retries on
+      // app start / foreground, so a video can't be lost if the app is killed or
+      // the network blips mid-upload (the video-attach reliability fix). The
+      // queue notifies registered screens to refetch when an upload completes.
+      for (const job of jobs) {
+        void enqueueUpload({
+          eventId: job.eventId,
+          studentId: job.studentId,
+          items: mediaSnapshot,
+        });
       }
     } catch (err: any) {
       // Moment creation failed — keep the sheet open so the user can retry.

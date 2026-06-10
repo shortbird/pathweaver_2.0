@@ -8,7 +8,9 @@ import {
   getInitialNotificationLink,
 } from '@/src/services/pushNotifications';
 import { resolveDeepLink } from '@/src/services/deepLinkRouter';
-import { View, ActivityIndicator } from 'react-native';
+import { processUploadQueue } from '@/src/services/uploadQueue';
+import { UploadStatusPill } from '@/src/components/ui/UploadStatusPill';
+import { View, ActivityIndicator, AppState } from 'react-native';
 
 // Configure notification display once at module load
 configurePushNotifications();
@@ -30,6 +32,19 @@ export default function AppLayout() {
     if (!isAuthenticated || !user?.id) return;
     registerForPushNotifications();
   }, [isAuthenticated, user?.id]);
+
+  // Resume durable media uploads that were interrupted (app killed / network
+  // blip) the moment we're authenticated, and again every time the app returns
+  // to the foreground. This is what makes a captured video eventually attach
+  // even if the original upload didn't finish in-session.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    processUploadQueue();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') processUploadQueue();
+    });
+    return () => sub.remove();
+  }, [isAuthenticated]);
 
   // Navigate to a deep link. resolveDeepLink never returns a non-existent
   // route, so navigation here can't land on the "no route" unmatched screen.
@@ -102,6 +117,7 @@ export default function AppLayout() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="post/[id]" />
@@ -117,5 +133,7 @@ export default function AppLayout() {
       <Stack.Screen name="oea/credits" />
       <Stack.Screen name="view-on-web" />
     </Stack>
+    <UploadStatusPill />
+    </View>
   );
 }
