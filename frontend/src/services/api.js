@@ -241,12 +241,16 @@ api.interceptors.response.use(
         const isDocsPage = currentPath.startsWith('/docs')
         const isPublicTranscript = currentPath.startsWith('/public/transcript/')
         const isPromoPage = currentPath.startsWith('/for-students')
-        const isMarketingPage = currentPath === '/philosophy' || currentPath === '/for-families' || currentPath === '/for-schools'
+        const isMarketingPage = currentPath === '/philosophy' || currentPath === '/for-families' || currentPath === '/for-schools' || currentPath === '/classes' || currentPath === '/academy' || currentPath === '/how-it-works'
         // Canvas LTI iframe pages — a refresh failure here should never
         // navigate to /login; the iframe lives in someone else's chrome.
         const isLtiPage = currentPath.startsWith('/lti-')
+        // The Treehouse kiosk is a public, token-gated shared-device page; a 401
+        // (e.g. right after a student logs out to hand off the device) must keep
+        // us on the kiosk picker, not bounce to /login.
+        const isTreehouseKiosk = currentPath.startsWith('/treehouse-kiosk')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk) {
           window.location.href = '/login'
         }
 
@@ -741,6 +745,41 @@ export const oeaAPI = {
 
   // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
   ensureCreditQuest: (creditId) => api.post(`/api/oea/credits/${creditId}/quest`, {}),
+}
+
+// ── The Treehouse program API ────────────────────────────────────────────────
+// Program-specific tab gated server-side by org slug 'treehouse'. Student-facing
+// reads + signals, facilitator queues/showcase/balance, and kiosk login.
+export const treehouseAPI = {
+  // Student home payload (most-recent active quest + next task, counts).
+  home: () => api.get('/api/treehouse/home'),
+  // Visual quest/badge browse grouped by pillar/category.
+  quests: () => api.get('/api/treehouse/quests'),
+
+  // Student raises a help/proud signal. type: 'help' | 'proud'.
+  createSignal: (body) => api.post('/api/treehouse/signals', body),
+  // Facilitator: open signal queue.
+  signals: () => api.get('/api/treehouse/signals'),
+  resolveSignal: (signalId) => api.post(`/api/treehouse/signals/${signalId}/resolve`, {}),
+
+  // Facilitator: roster, pin queue, spendable-XP balance.
+  students: () => api.get('/api/treehouse/students'),
+  pins: () => api.get('/api/treehouse/pins'),
+  markPins: (items, status) => api.post('/api/treehouse/pins/mark', { items, status }),
+  balance: (studentId) => api.get(`/api/treehouse/students/${studentId}/balance`),
+  adjustBalance: (studentId, amount) => api.post(`/api/treehouse/students/${studentId}/balance/adjust`, { amount }),
+
+  // Showcase events.
+  showcaseEvents: () => api.get('/api/treehouse/showcase/events'),
+  createShowcase: (body) => api.post('/api/treehouse/showcase/events', body),
+  updateShowcase: (eventId, body) => api.patch(`/api/treehouse/showcase/events/${eventId}`, body),
+  showcaseRoster: (eventId) => api.get(`/api/treehouse/showcase/events/${eventId}/roster`),
+  joinShowcase: (eventId, body) => api.post(`/api/treehouse/showcase/events/${eventId}/join`, body),
+
+  // Kiosk (facilitator provisioning; the login endpoints are unauthenticated + token-gated).
+  createKioskDevice: (label) => api.post('/api/treehouse/kiosk/devices', { label }),
+  kioskRoster: (deviceToken) => api.post('/api/treehouse/kiosk/roster', { device_token: deviceToken }),
+  kioskLogin: (deviceToken, studentId) => api.post('/api/treehouse/kiosk/login', { device_token: deviceToken, student_id: studentId }),
 }
 
 export default api
