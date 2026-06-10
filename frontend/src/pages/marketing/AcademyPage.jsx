@@ -72,12 +72,12 @@ const AcademyPage = () => {
         <title>Optio Academy | A Fully Online Private School</title>
         <meta
           name="description"
-          content="Optio Academy is a fully online private school. Daily contact with a dedicated teacher, personalized curriculum, and a diploma path built around your student."
+          content="Optio Academy is a fully online private school. Live daily one-on-one instruction with a dedicated teacher, close mentorship and accountability, and a personalized path to a diploma."
         />
         <meta property="og:title" content="Optio Academy | Fully Online Private School" />
         <meta
           property="og:description"
-          content="A fully online private school with daily teacher contact and personalized curriculum."
+          content="A fully online private school built on live daily one-on-one teacher instruction, close mentorship, and real accountability."
         />
         <meta property="og:url" content="https://www.optioeducation.com/academy" />
         <link rel="canonical" href="https://www.optioeducation.com/academy" />
@@ -103,8 +103,9 @@ const AcademyPage = () => {
               className="text-xl sm:text-2xl text-white/85 max-w-3xl mx-auto leading-relaxed mb-8"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
-              A real high school, built around your student. Daily 1-on-1 mentorship. Personalized
-              curriculum. A diploma earned by doing the work that matters.
+              A real high school, built around your student. Live, one-on-one instruction with a
+              dedicated teacher every day. Ongoing mentorship, close accountability, and a
+              personalized path to a diploma.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a
@@ -162,7 +163,7 @@ const AcademyPage = () => {
                 {
                   label: 'How It\'s Delivered',
                   value: 'Fully online',
-                  detail: 'Daily contact with a teacher, plus personalized project work in between.',
+                  detail: 'Live daily one-on-one instruction with a dedicated teacher who guides your student, reviews their work, and keeps them on track.',
                 },
                 {
                   label: 'School Year',
@@ -226,8 +227,8 @@ const AcademyPage = () => {
         id="program"
         sectionRef={programRef}
         kicker="The Program"
-        title="A School Day That Actually Fits Your Student"
-        subtitle="Every Optio Academy student meets with a dedicated teacher one-on-one, every weekday. The rest of the day belongs to your student — diving deep into projects they actually care about."
+        title="A Dedicated Teacher, Every Single Day"
+        subtitle="Every Optio Academy student works directly with a dedicated teacher through live, one-on-one instruction every weekday — setting goals, learning new material together, and reviewing progress. That close, daily relationship is the heart of the program and keeps your student supported, challenged, and accountable."
         bg="bg-gray-50"
       >
         <div className="grid lg:grid-cols-2 gap-8 mb-8">
@@ -237,10 +238,10 @@ const AcademyPage = () => {
             </h3>
             <ul className="space-y-3">
               {[
-                'Daily contact with a teacher',
-                'Personalized project work between sessions, on your student\'s schedule',
-                'Regular online showcases where students share what they\'ve been building',
-                'Always-on portfolio that tracks every piece of work as it happens',
+                'Live one-on-one instruction with a dedicated teacher every weekday',
+                'Guided project work with goals, deadlines, and check-ins set by the teacher',
+                'Regular progress reviews and online showcases that keep students accountable',
+                'A real-time portfolio the teacher and family follow as work happens',
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3">
                   <Check />
@@ -283,15 +284,19 @@ const AcademyPage = () => {
             The Teacher Is the Difference
           </h3>
           <p className="text-gray-700 leading-relaxed mb-4" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            Every weekday, your student sits down with the same teacher. They set goals together,
-            review yesterday's work, learn new concepts, and figure out what's next. It's the kind of
-            attention most students never get in a classroom of thirty.
+            Every weekday, your student meets live, one-on-one, with the same dedicated teacher.
+            Together they set goals, review the previous day's work, learn new concepts, and map out
+            what comes next. Your student is never left to figure it out alone — the teacher stays
+            involved throughout the week, monitors progress, and holds them accountable for their
+            goals. It's the kind of individual attention and follow-through most students never get
+            in a classroom of thirty.
           </p>
           <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            Between sessions, students work on personalized "quests" — projects that turn what they
-            love into real coursework. Build a game and earn a computer science credit. Train for a
-            half-marathon and earn PE. Run a community fundraiser and earn civics. Real interests,
-            real credit, real diploma.
+            Between sessions, students work on personalized projects their teacher helps design and
+            reviews — coursework that turns what they love into real credit. Build a game and earn a
+            computer science credit. Train for a half-marathon and earn PE. Run a community
+            fundraiser and earn civics. Real interests, real credit, real diploma — with a teacher
+            guiding every step.
           </p>
         </div>
       </SectionAnchor>
@@ -331,8 +336,8 @@ const AcademyPage = () => {
               during the school year
             </p>
             <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Daily mentor time, all curriculum, the Optio platform, and your student's transcript —
-              all included. No enrollment fee, no materials fee, no testing fee.
+              Live daily one-on-one instruction, all curriculum, the Optio platform, and your
+              student's transcript — all included. No enrollment fee, no materials fee, no testing fee.
             </p>
           </div>
         </div>
@@ -363,7 +368,7 @@ const AcademyPage = () => {
                 'Reach out using the form below, or email us directly.',
                 'Have a discovery call with Optio Academy and your student.',
                 'Review the enrollment paperwork — we walk you through it.',
-                'Daily mentor sessions begin on the start date you choose.',
+                'Live daily one-on-one instruction begins on the start date you choose.',
               ].map((step) => (
                 <li key={step} className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                   <span className="ml-1">{step}</span>
