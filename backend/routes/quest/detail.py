@@ -88,7 +88,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             enrollment_to_use = active_enrollment or completed_enrollment
             # Get user's personalized tasks (select only needed columns)
             user_tasks = supabase.table('user_quest_tasks')\
-                .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id')\
+                .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id, source_moment_id')\
                 .eq('user_quest_id', enrollment_to_use['id'])\
                 .eq('approval_status', 'approved')\
                 .order('order_index')\
@@ -262,8 +262,23 @@ def get_quest_detail(user_id: str, quest_id: str):
             # Get existing task IDs to avoid counting moments in progress twice
             existing_task_ids = {t['id'] for t in quest_data.get('quest_tasks', [])}
 
+            # Moments that have already been promoted to a real task (via
+            # convert-to-task) carry source_moment_id on that task. Skip injecting
+            # them as virtual moment-tasks or the quest shows the moment AND the
+            # task side by side (bug #12: "adds the moment to the quest and also
+            # creates a redundant task"). get_quest_moments only flags COMPLETED
+            # conversions; a just-converted task is still incomplete, so we dedupe
+            # against every real task here, complete or not.
+            converted_moment_ids = {
+                t['source_moment_id']
+                for t in quest_data.get('quest_tasks', [])
+                if t.get('source_moment_id')
+            }
+
             moment_tasks = []
             for m in quest_moments:
+                if m.get('id') in converted_moment_ids:
+                    continue
                 # get_quest_moments() returns a combined list of raw moments
                 # AND completed-task rows (item_type='completed_task'). Only
                 # the raw moments should be injected as virtual tasks here —

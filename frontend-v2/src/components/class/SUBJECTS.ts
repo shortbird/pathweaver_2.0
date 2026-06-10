@@ -4,7 +4,7 @@
  * transcript line reads the same on web and mobile.
  *
  * Mobile naming choices vs marketing copy:
- *   - "Language Arts" includes English / Reading / Writing (marketing: English)
+ *   - "Language Arts" includes English / Reading / Writing + world-language study (marketing: English)
  *   - "Social Studies" covers history / civics / geography / world languages
  *   - "Fine Arts" covers visual art, music, theater, dance (marketing: Visual Arts + Music)
  *   - Other six (PE, Math, Science, CTE, Financial Literacy, Health, Digital Literacy, Electives) match
@@ -40,7 +40,7 @@ export const SUBJECTS: SubjectMeta[] = [
   {
     key: 'language_arts',
     name: 'Language Arts',
-    description: 'Reading, writing, storytelling, journalism',
+    description: 'Reading, writing, storytelling, journalism, world languages',
     icon: 'book-outline',
     accent: '#6D469B',
   },

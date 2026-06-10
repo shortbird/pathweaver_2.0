@@ -7,10 +7,10 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView } from 'react-native';
+import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useScrollToTop } from '@react-navigation/native';
+import { useScrollToTop, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -425,6 +425,24 @@ export default function FeedScreen() {
     },
   ).current;
   useScrollToTop(studentsScrollRef);
+
+  // Auto-refresh the feed when the app returns to the foreground while the feed
+  // tab is open (bug #4: "no way to refresh the feed when I reopen the app after
+  // a while"). Scoped to focus via useFocusEffect so switching tabs doesn't reset
+  // scroll, and so a reopen on another tab doesn't refetch here. Pull-to-refresh
+  // still covers the manual case.
+  const appStateRef = useRef(AppState.currentState);
+  useFocusEffect(
+    useCallback(() => {
+      const sub = AppState.addEventListener('change', (next) => {
+        if (appStateRef.current.match(/inactive|background/) && next === 'active') {
+          refetch();
+        }
+        appStateRef.current = next;
+      });
+      return () => sub.remove();
+    }, [refetch]),
+  );
 
   // Auto-show on first visit for observers (cross-platform via prefsStore)
   useEffect(() => {

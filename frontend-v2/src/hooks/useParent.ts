@@ -75,6 +75,19 @@ export function useMyChildren() {
       const merged: Child[] = [];
       const seen = new Set<string>();
 
+      // Students never have dependents/advisees. CaptureSheet mounts this hook
+      // on every role, so without this gate a student opening the capture sheet
+      // fires GET /api/dependents/my-dependents and gets a guaranteed 403
+      // ("Only parent accounts can manage dependent profiles") — pure wasted
+      // round-trips and Sentry noise (NODE-7). Skip the call entirely for them.
+      if (effectiveRole === 'student') {
+        if (!cancelled) {
+          setChildren([]);
+          setLoading(false);
+        }
+        return;
+      }
+
       if (effectiveRole === 'observer') {
         try {
           const { data } = await api.get('/api/observers/my-students');

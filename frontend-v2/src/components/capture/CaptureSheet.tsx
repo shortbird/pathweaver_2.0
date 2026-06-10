@@ -64,6 +64,7 @@ interface CaptureSheetProps {
 }
 
 export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStudents = false, questContext }: CaptureSheetProps) {
+  const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -115,6 +116,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   }, [visible, pickStudents, studentIds, eligibleChildren]);
 
   const reset = useCallback(() => {
+    setTitle('');
     setDescription('');
     setMedia([]);
     setSelectedTask(null);
@@ -368,7 +370,24 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       const evidencePath = studentId
         ? `/api/parent/children/${studentId}/learning-moments/${eventId}/evidence`
         : `/api/learning-events/${eventId}/evidence`;
-      await api.post(evidencePath, { blocks });
+      // The files are already in storage; this call links them to the moment.
+      // If it fails (network/timeout/backend), the video "uploads but never
+      // attaches" — the exact silent failure behind the video-attach reports.
+      // Surface it loudly and rethrow so the outer background-upload catch also
+      // flags it, instead of leaving an empty moment.
+      try {
+        await api.post(evidencePath, { blocks });
+      } catch (attachErr) {
+        captureException(attachErr, {
+          stage: 'capture-evidence-attach',
+          extra: { eventId, blockCount: uploadedFiles.length },
+        });
+        toast.error(
+          "Your media uploaded but couldn't be attached to the moment. Reopen the moment and add it again.",
+          { title: 'Attachment failed' },
+        );
+        throw attachErr;
+      }
     }
 
     // Clear the progress indicator — the real media block is attached now (or
@@ -381,6 +400,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       description: description.trim() || 'Learning moment',
       source_type: studentId ? 'parent' : 'realtime',
     };
+    if (title.trim()) body.title = title.trim();
     if (studentId) body.student_id = studentId;
     const { data } = await api.post('/api/learning-events/quick', body);
     return data.event?.id;
@@ -609,6 +629,18 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 </UIText>
               </View>
             )}
+
+            {/* Optional title — gives the moment (and any task it's promoted to)
+                a real name instead of defaulting to "Learning moment"
+                (bug #13/#14). */}
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Title (optional)"
+              placeholderTextColor={c.textFaint}
+              maxLength={120}
+              className="bg-surface-50 dark:bg-dark-surface-50 rounded-xl p-4 text-base font-poppins-semibold text-typo dark:text-dark-typo"
+            />
 
             {/* Text input */}
             <TextInput

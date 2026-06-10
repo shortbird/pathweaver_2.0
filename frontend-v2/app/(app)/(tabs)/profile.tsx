@@ -19,10 +19,11 @@ import { useBugReportStore } from '@/src/stores/bugReportStore';
 import { useProfile, Viewer } from '@/src/hooks/useProfile';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
-import { useGlobalEngagement } from '@/src/hooks/useDashboard';
+import { useGlobalEngagement, useDashboard } from '@/src/hooks/useDashboard';
 import { useIsParent } from '@/src/hooks/useStartSomething';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
+import { pillars as pillarConfig } from '@/src/config/pillars';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Avatar, AvatarFallbackText, AvatarImage,
@@ -82,6 +83,10 @@ export default function ProfileScreen() {
   const c = useThemeColors();
   const { pillarXP, momentsCount, achievements, subjectXP, viewers, deletionStatus, portfolioPublic: hookPortfolioPublic, setPortfolioPublic: setHookPortfolioPublic, portfolioSlug, loading, refetch } = useProfile();
   const { data: engagement } = useGlobalEngagement();
+  // Active quests with task-completion counts, surfaced on the profile
+  // (bug #5: "I want to see active quests here that also show completed tasks").
+  const { data: dashboardData } = useDashboard();
+  const activeQuests = dashboardData?.active_quests || [];
   // Family Dashboard is parent-only. useIsParent respects the superadmin role
   // selector (previewRole), so previewing as Student/Observer correctly hides it.
   const isParent = useIsParent();
@@ -293,21 +298,54 @@ export default function ProfileScreen() {
             </Card>
           </CollapsibleSection>
 
-          {/* Pillar XP */}
+          {/* Active Quests — each with its task-completion count (bug #5) */}
+          {activeQuests.length > 0 && (
+            <CollapsibleSection title="Active Quests">
+              <Card variant="elevated" size="md">
+                <VStack space="sm">
+                  {activeQuests.map((uq: any) => {
+                    const q = uq.quests || uq;
+                    const total = q.task_count ?? (q.quest_tasks?.length || 0);
+                    const done = uq.completed_tasks ?? 0;
+                    return (
+                      <Pressable
+                        key={uq.id}
+                        onPress={() => router.push(`/(app)/quests/${q.id}`)}
+                        className="flex-row items-center justify-between p-3 rounded-lg bg-surface-50 dark:bg-dark-surface-100"
+                      >
+                        <VStack className="flex-1 pr-3">
+                          <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{q.title || 'Quest'}</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                            {total > 0 ? `${done} of ${total} tasks complete` : 'No tasks yet'}
+                          </UIText>
+                        </VStack>
+                        <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
+                      </Pressable>
+                    );
+                  })}
+                </VStack>
+              </Card>
+            </CollapsibleSection>
+          )}
+
+          {/* Pillar XP — radar chart with pillar ICONS at each vertex (bug #22),
+              with an icon legend below mapping each icon to its XP. */}
           {pillarXP.length > 0 && (
             <CollapsibleSection title="Pillar Breakdown">
               <Card variant="elevated" size="md">
-                <VStack space="sm" className="items-center">
+                <VStack space="md" className="items-center">
                   <PillarRadar data={pillarXP} />
-                  <HStack className="flex-wrap gap-3 justify-center">
-                    {pillarXP.map(({ pillar, xp }, idx) => (
-                      <HStack key={`${pillar}-${idx}`} className="items-center gap-1">
-                        <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">
-                          {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
-                        </UIText>
-                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xp.toLocaleString()}</UIText>
-                      </HStack>
-                    ))}
+                  <HStack className="flex-wrap gap-x-4 gap-y-2 justify-center">
+                    {pillarXP.map(({ pillar, xp }, idx) => {
+                      const pc = pillarConfig[pillar];
+                      return (
+                        <HStack key={`${pillar}-${idx}`} className="items-center gap-1.5">
+                          <Ionicons name={pc?.iconFilled || 'ellipse'} size={14} color={pc?.color || '#6D469B'} />
+                          <UIText size="xs" className="font-poppins-medium text-typo-500 dark:text-dark-typo-500">{pc?.label || pillar}</UIText>
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xp.toLocaleString()}</UIText>
+                        </HStack>
+                      );
+                    })}
                   </HStack>
                 </VStack>
               </Card>

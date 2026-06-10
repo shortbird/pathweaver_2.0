@@ -16,6 +16,7 @@ import { Heading, UIText } from '@/src/components/ui';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { useFeedDetailStore } from '@/src/stores/feedDetailStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { safeOpenURL } from '@/src/utils/linking';
 
 export default function PostDetailScreen() {
   const item = useFeedDetailStore((s) => s.item);
@@ -34,6 +35,20 @@ export default function PostDetailScreen() {
         <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
           <View className="max-w-2xl w-full mx-auto">
             <FeedCard item={item} showStudent />
+            {/* View portfolio — opens the student's public web portfolio
+                (bug #11). Only shown when the feed payload includes a slug. */}
+            {item.student?.portfolio_slug ? (
+              <Pressable
+                onPress={() => safeOpenURL(`https://www.optioeducation.com/portfolio/${item.student.portfolio_slug}`)}
+                className="mt-4 flex-row items-center justify-center gap-2 py-3 rounded-xl bg-optio-purple/10 active:bg-optio-purple/20"
+                style={{ minHeight: 44 }}
+              >
+                <Ionicons name="person-circle-outline" size={18} color="#6D469B" />
+                <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+                  View {item.student.display_name || 'student'}'s portfolio
+                </UIText>
+              </Pressable>
+            ) : null}
           </View>
         </ScrollView>
       ) : (

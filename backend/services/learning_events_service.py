@@ -320,6 +320,7 @@ class LearningEventsService(BaseService):
     def create_quick_moment(
         user_id: str,
         description: str,
+        title: Optional[str] = None,
         topics: Optional[List[Dict[str, str]]] = None,
         parent_moment_id: Optional[str] = None,
         event_date: Optional[str] = None
@@ -329,6 +330,7 @@ class LearningEventsService(BaseService):
         return LearningEventsService.create_learning_event(
             user_id=user_id,
             description=description,
+            title=title,
             topics=topics,
             parent_moment_id=parent_moment_id,
             source_type='realtime',

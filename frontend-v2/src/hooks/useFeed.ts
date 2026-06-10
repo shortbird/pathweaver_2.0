@@ -15,6 +15,9 @@ export interface FeedStudent {
   id: string;
   display_name: string;
   avatar_url: string | null;
+  /** Public portfolio slug, used to open the student's web portfolio from a
+   *  post (bug #11). Absent for older responses / students without one. */
+  portfolio_slug?: string | null;
 }
 
 export interface FeedEvidence {
@@ -65,6 +68,9 @@ export interface FeedItem {
     pillars: string[];
     topic_name?: string;
     source_type?: string;
+    /** Set when a parent captured the moment for the child — who shared it
+     *  (bug #27). Null/absent when the student posted it themselves. */
+    posted_by?: { id: string; display_name: string; avatar_url: string | null } | null;
   };
   evidence: FeedEvidence;
   media?: FeedMedia[];

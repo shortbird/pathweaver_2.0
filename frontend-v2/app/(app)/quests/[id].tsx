@@ -24,6 +24,8 @@ import { AudioClipPreview } from '@/src/components/capture/VoiceRecorder';
 import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import { ClassDetailHeader } from '@/src/components/class/ClassDetailHeader';
 import { getSubject } from '@/src/components/class/SUBJECTS';
+import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
+import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -59,10 +61,17 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
   const content = block.content || {};
   const c = useThemeColors();
 
-  if (blockType === 'image' && content.url) {
+  // Learning-moment evidence (scans, photos) stores the URL/name in the
+  // file_url/file_name COLUMNS with an empty content {}, while task evidence
+  // stores them inside content. Resolve from both or moment scans render blank
+  // in the quest task dropdown (bug #15/#16).
+  const url = content.url || block.file_url || content.value || content.items?.[0]?.url;
+  const filename = content.filename || content.title || block.file_name || 'Document';
+
+  if (blockType === 'image' && url) {
     return (
       <View className="rounded-xl overflow-hidden bg-surface-100 dark:bg-dark-surface-200">
-        <Image source={{ uri: content.url }} style={{ width: '100%', height: 200 }} resizeMode="cover" />
+        <Image source={{ uri: url }} style={{ width: '100%', height: 200 }} resizeMode="cover" />
         {content.caption && (
           <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 px-2 py-1.5">{content.caption}</UIText>
         )}
@@ -70,9 +79,9 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (blockType === 'video' && content.url) {
+  if (blockType === 'video' && url) {
     return (
-      <Pressable onPress={() => safeOpenURL(content.url)}>
+      <Pressable onPress={() => safeOpenURL(url)}>
         <View
           className="rounded-xl overflow-hidden items-center justify-center"
           style={{ height: 160, backgroundColor: '#1F1F2E' }}
@@ -84,8 +93,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (blockType === 'link' && (content.url || content.value)) {
-    const url = content.url || content.value;
+  if (blockType === 'link' && url) {
     return (
       <Pressable
         onPress={() => safeOpenURL(url)}
@@ -115,16 +123,16 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (blockType === 'document' && content.url) {
+  if (blockType === 'document' && url) {
     return (
       <Pressable
-        onPress={() => safeOpenURL(content.url)}
+        onPress={() => safeOpenURL(url)}
         className="active:opacity-70"
       >
         <HStack className="items-center gap-2 p-3 bg-surface-100 dark:bg-dark-surface-200 rounded-lg">
           <Ionicons name="document-attach" size={18} color={c.icon} />
           <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>
-            {content.filename || content.title || 'Document'}
+            {filename}
           </UIText>
           <Ionicons name="open-outline" size={14} color={c.iconMuted} />
         </HStack>
@@ -132,14 +140,14 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (blockType === 'audio' && content.url) {
+  if (blockType === 'audio' && url) {
     // Use the same playback chip we use in capture previews — gives the student
     // a real Play/Pause + scrubber so they can confirm what was recorded.
     return (
       <AudioClipPreview
         clip={{
-          uri: content.url,
-          name: content.filename || 'voice-note',
+          uri: url,
+          name: filename || 'voice-note',
           fileSize: 0,
           durationMs: content.duration_ms || 0,
         }}
@@ -154,11 +162,14 @@ function TaskItem({
   task,
   onComplete,
   onDelete,
+  onEditMoment,
   classSubject,
 }: {
   task: any;
   onComplete: (taskId: string) => void;  // just update local state, no API call
   onDelete: (taskId: string) => void;
+  /** Open the moment editor for an is_moment task (bug #16). */
+  onEditMoment?: (task: any) => void;
   /** When set, this task belongs to a class quest — render the transcript
    *  subject + attributed credit XP in place of the pillar badge. */
   classSubject?: string | null;
@@ -358,6 +369,19 @@ function TaskItem({
                 </UIText>
               )}
 
+              {/* Edit a journal moment in place — add a title/details/more
+                  evidence without leaving the quest (bug #16). */}
+              {task.is_moment && onEditMoment && (
+                <Pressable
+                  onPress={(e) => { e.stopPropagation(); onEditMoment(task); }}
+                  className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-optio-purple/10 active:bg-optio-purple/20"
+                  style={{ minHeight: 44 }}
+                >
+                  <Ionicons name="pencil-outline" size={16} color="#6D469B" />
+                  <UIText size="sm" className="text-optio-purple font-poppins-semibold">Edit moment</UIText>
+                </Pressable>
+              )}
+
               {/* Primary action: full-width Complete. Remove is demoted to a
                   muted text link with a confirmation dialog. */}
               {!task.is_completed && (
@@ -430,7 +454,23 @@ export default function QuestDetailScreen() {
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [restartModalVisible, setRestartModalVisible] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  // Moment being edited via the in-quest "Edit moment" button (bug #16). We
+  // fetch the FULL learning_event first — the quest's moment-task is a reduced
+  // shape, and EditMomentModal writes back the full form, so editing the
+  // partial would wipe pillars/event_date.
+  const [editMomentEvent, setEditMomentEvent] = useState<LearningEvent | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
+
+  const handleEditMoment = async (task: any) => {
+    const eventId = String(task.id || '').replace(/^moment-/, '');
+    if (!eventId) return;
+    try {
+      const { data } = await api.get(`/api/learning-events/${eventId}`);
+      if (data?.event) setEditMomentEvent(data.event);
+    } catch {
+      Alert.alert('Could not open', 'This moment could not be loaded for editing.');
+    }
+  };
 
   // Publish quest context to the global Capture button while this screen is
   // focused, so the center "+" knows to scope the task picker to this quest.
@@ -582,7 +622,9 @@ export default function QuestDetailScreen() {
 
             {/* Title + engagement */}
             <VStack testID="quest-detail-header" space="sm">
-              <Heading testID="quest-title" size="2xl">{quest.title}</Heading>
+              {/* leading-snug: the default RN line height clipped descenders
+                  (the "g" in a title got cut off — bug #2). */}
+              <Heading testID="quest-title" size="2xl" className="leading-snug">{quest.title}</Heading>
               {isEnrolled && engagement?.rhythm && (
                 <HStack className="items-center gap-3">
                   <RhythmBadge rhythm={engagement.rhythm} compact />
@@ -676,6 +718,7 @@ export default function QuestDetailScreen() {
                           refetch();
                         }}
                         onDelete={deleteTask}
+                        onEditMoment={handleEditMoment}
                       />
                     ))}
                   </VStack>
@@ -773,6 +816,15 @@ export default function QuestDetailScreen() {
           </Card>
         </View>
       )}
+
+      {/* In-quest moment editor (bug #16) */}
+      <EditMomentModal
+        visible={!!editMomentEvent}
+        event={editMomentEvent}
+        topics={[]}
+        onClose={() => setEditMomentEvent(null)}
+        onSaved={() => { setEditMomentEvent(null); refetch(); }}
+      />
     </SafeAreaView>
   );
 }

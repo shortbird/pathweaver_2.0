@@ -407,8 +407,9 @@ def list_attachable_tasks(user_id):
                 by_quest.get(qid, []),
                 key=lambda t: (t['order_index'], t['title'])
             )
-            if not tasks:
-                continue
+            # Keep quests with zero pending tasks too: the picker offers an
+            # "Add as new task in this quest" action (bug #12 in the Unassigned
+            # Moments drawer), which must work even when a quest has no tasks yet.
             quests_out.append({
                 'id': qid,
                 'title': quest_titles.get(qid) or 'Quest',

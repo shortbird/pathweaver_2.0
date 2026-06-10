@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useDashboard } from '@/src/hooks/useDashboard';
+import { useUnifiedTopics } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
 import type { EngagementData } from '@/src/hooks/useDashboard';
@@ -219,6 +220,8 @@ export default function DashboardScreen() {
   // skeleton — otherwise hook order changes between renders and React
   // throws "Rendered more hooks than during the previous render."
   const { claims: bountyClaims, refetch: refetchClaims } = useMyClaims();
+  // Journal topics surfaced on Home (bug #34) — same source as the Journal tab.
+  const { topics: journalTopics } = useUnifiedTopics();
   const [refreshing, setRefreshing] = useState(false);
   // The role-aware "Optio button" action — same flow as the mobile center tab.
   const startSomething = useStartSomething();
@@ -341,6 +344,46 @@ export default function DashboardScreen() {
               </Pressable>
             )}
           </VStack>
+
+          {/* Journal Topics (bug #34: "Could journal topics be included here?").
+              Shows the student's topics/tracks on Home so learning moments are
+              reachable even with no active quests. Quests/courses are excluded —
+              they already appear in "What you're working on" above. */}
+          {(() => {
+            const homeTopics = (journalTopics || []).filter(
+              (t) => t.type === 'topic' || t.type === 'track',
+            );
+            if (homeTopics.length === 0) return null;
+            return (
+              <VStack space="sm">
+                <HStack className="items-center justify-between">
+                  <Heading size="md">Journal topics</Heading>
+                  <Pressable onPress={() => router.push('/(app)/(tabs)/journal')} hitSlop={8}>
+                    <UIText size="sm" className="text-optio-purple font-poppins-medium">See all</UIText>
+                  </Pressable>
+                </HStack>
+                {/* flex-row flex-wrap WITHOUT a bare `flex` class: on native
+                    NativeWind's `flex` => flex:1, which collapses to 0 height in
+                    a ScrollView, so the row showed on web but vanished on mobile
+                    (bug #34 "shows in browser, not in mobile app"). */}
+                <View className="flex-row flex-wrap gap-2">
+                  {homeTopics.map((t) => (
+                    <Pressable
+                      key={t.id}
+                      onPress={() => router.push({ pathname: '/(app)/(tabs)/journal', params: { topicId: t.id, topicType: t.type } })}
+                      className="flex-row items-center gap-2 px-3 py-2 rounded-full bg-white dark:bg-dark-surface-100 border border-surface-200 dark:border-dark-surface-300"
+                    >
+                      <Ionicons name={(t.icon as any) || 'folder-outline'} size={14} color={t.color || '#6D469B'} />
+                      <UIText size="sm" className="font-poppins-medium">{t.name}</UIText>
+                      {typeof t.moment_count === 'number' && t.moment_count > 0 && (
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{t.moment_count}</UIText>
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              </VStack>
+            );
+          })()}
 
         </VStack>
       </ScrollView>

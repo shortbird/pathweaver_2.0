@@ -326,10 +326,27 @@ def register_routes(bp):
             students_map = {}
             if students_lookup_ids:
                 students = supabase.table('users') \
-                    .select('id, display_name, first_name, last_name, avatar_url') \
+                    .select('id, display_name, first_name, last_name, avatar_url, portfolio_slug') \
                     .in_('id', students_lookup_ids) \
                     .execute()
                 students_map = {s['id']: s for s in students.data}
+
+            # Resolve capturers (a parent who posted a moment for their child) so
+            # the post can show "Posted by <parent>" (bug #27). Only fetch ids we
+            # don't already have.
+            capturer_ids = {
+                e.get('captured_by_user_id')
+                for e in (learning_events.data or [])
+                if e.get('captured_by_user_id') and e.get('captured_by_user_id') not in students_map
+            }
+            capturer_ids.discard(None)
+            if capturer_ids:
+                capturers = supabase.table('users') \
+                    .select('id, display_name, first_name, last_name, avatar_url') \
+                    .in_('id', list(capturer_ids)) \
+                    .execute()
+                for u in (capturers.data or []):
+                    students_map.setdefault(u['id'], u)
 
             # Build a (task_id, user_id) -> completion lookup so block items can attach
             # completion_id for views/comments counts when a completion exists.
@@ -676,6 +693,21 @@ def register_routes(bp):
                 if item.get('item_type') == 'learning_moment':
                     # Learning moment feed item
                     le_id = item['learning_event_id']
+                    # "Posted by" — set only when a parent captured the moment for
+                    # the child (capturer != the student) so the post can show who
+                    # shared it (bug #27).
+                    capturer_id = item.get('captured_by_user_id')
+                    posted_by = None
+                    if capturer_id and capturer_id != item['student_id']:
+                        cap = students_map.get(capturer_id)
+                        if cap:
+                            posted_by = {
+                                'id': capturer_id,
+                                'display_name': cap.get('display_name')
+                                    or f"{cap.get('first_name', '')} {cap.get('last_name', '')}".strip()
+                                    or 'Parent',
+                                'avatar_url': cap.get('avatar_url'),
+                            }
                     feed_items.append({
                         'type': 'learning_moment',
                         'id': item['id'],
@@ -684,7 +716,8 @@ def register_routes(bp):
                         'student': {
                             'id': item['student_id'],
                             'display_name': item['student_name'],
-                            'avatar_url': item['student_avatar']
+                            'avatar_url': item['student_avatar'],
+                            'portfolio_slug': students_map.get(item['student_id'], {}).get('portfolio_slug'),
                         },
                         'moment': {
                             'title': item['event_title'],
@@ -692,7 +725,8 @@ def register_routes(bp):
                             'pillars': item['event_pillars'],
                             'topic_name': item.get('topic_name'),
                             'source_type': item['source_type'],
-                            'captured_by_user_id': item.get('captured_by_user_id')
+                            'captured_by_user_id': item.get('captured_by_user_id'),
+                            'posted_by': posted_by,
                         },
                         'evidence': {
                             'type': item['evidence_type'],
@@ -726,7 +760,8 @@ def register_routes(bp):
                         'student': {
                             'id': item['student_id'],
                             'display_name': item['student_name'],
-                            'avatar_url': item['student_avatar']
+                            'avatar_url': item['student_avatar'],
+                            'portfolio_slug': students_map.get(item['student_id'], {}).get('portfolio_slug'),
                         },
                         'task': {
                             'id': item.get('task_id'),

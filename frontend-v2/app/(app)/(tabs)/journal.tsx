@@ -5,7 +5,7 @@
  * Mobile: toggle between topics list and moment detail view.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, ScrollView, useWindowDimensions, Platform, Pressable, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +21,6 @@ import { LearningEventCard } from '@/src/components/journal/LearningEventCard';
 import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { useFeed } from '@/src/hooks/useFeed';
-import { QuestTasksSection } from '@/src/components/journal/QuestTasksSection';
 import { GenerateTasksModal } from '@/src/components/journal/GenerateTasksModal';
 import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import {
@@ -30,7 +29,7 @@ import {
 } from '@/src/hooks/useJournal';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { useAuthStore } from '@/src/stores/authStore';
 
@@ -56,6 +55,10 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ViewType>('unassigned');
   const [mobileTab, setMobileTab] = useState<MobileTab>('topics');
+  // When the Journal is opened by tapping a topic chip on Home, jump straight
+  // into that topic and make the header back-arrow return to Home (bug #34).
+  const { topicId: paramTopicId, topicType: paramTopicType } = useLocalSearchParams<{ topicId?: string; topicType?: string }>();
+  const [cameFromHome, setCameFromHome] = useState(false);
   const [captureVisible, setCaptureVisible] = useState(false);
   const [newTopicVisible, setNewTopicVisible] = useState(false);
   const [newTopicName, setNewTopicName] = useState('');
@@ -216,6 +219,29 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
     if (!isDesktop) setMobileTab('detail');
   };
 
+  // Deep-link from a Home topic chip: open that topic directly, flag that we
+  // came from Home (so the back arrow returns there), then consume the params
+  // so re-focusing the Journal tab doesn't re-trigger this.
+  useEffect(() => {
+    if (!paramTopicId) return;
+    setSelectedId(paramTopicId);
+    setSelectedType((paramTopicType as ViewType) || 'track');
+    if (!isDesktop) setMobileTab('detail');
+    setCameFromHome(true);
+    router.setParams({ topicId: '', topicType: '' });
+  }, [paramTopicId, paramTopicType, isDesktop]);
+
+  // Back arrow on a topic opened from Home returns to Home; otherwise it goes
+  // back to the mobile topics list.
+  const handleHeaderBack = () => {
+    if (cameFromHome) {
+      setCameFromHome(false);
+      router.push('/(app)/(tabs)/dashboard');
+    } else {
+      setMobileTab('topics');
+    }
+  };
+
   // Determine which moments to show
   let activeMoments: any[] = [];
   let activeTitle = 'Unassigned Moments';
@@ -254,7 +280,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         <VStack>
           <HStack className="items-center justify-between">
             {!isDesktop && (
-              <Pressable onPress={() => setMobileTab('topics')} className="mr-3">
+              <Pressable onPress={handleHeaderBack} className="mr-3" accessibilityLabel={cameFromHome ? 'Back to Home' : 'Back to topics'}>
                 <Ionicons name="arrow-back" size={22} color="#6D469B" />
               </Pressable>
             )}
@@ -364,27 +390,11 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           </View>
         )}
 
-        {/* Quest tasks (above moments when viewing a quest) */}
-        {selectedType === 'quest' && selectedId && (
-          <QuestTasksSection
-            tasks={questTasks}
-            loading={questTasksLoading}
-            onGenerateTasks={() => setGenerateModalVisible(true)}
-            questId={selectedId}
-          />
-        )}
-
-        {/* Divider between tasks and moments */}
-        {selectedType === 'quest' && questTasks.length > 0 && activeMoments.length > 0 && (
-          <VStack className="mt-2">
-            <HStack className="items-center gap-2 mb-1">
-              <Ionicons name="journal-outline" size={14} color="#6B6280" />
-              <UIText size="xs" className="text-typo-400 font-poppins-medium uppercase tracking-wider">
-                Moments
-              </UIText>
-            </HStack>
-          </VStack>
-        )}
+        {/* Tasks intentionally NOT shown on the journal page (bug #7: "Remove
+            tasks from this page"). The journal is moments + topics only; task
+            management (incl. Generate Task Ideas) lives on the quest detail
+            screen. questTasks is still fetched for the has-task dedupe but no
+            longer rendered here. */}
 
         {/* Moments grid */}
         {!activeLoading && activeMoments.length > 0 && (

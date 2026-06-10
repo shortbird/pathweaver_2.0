@@ -154,6 +154,11 @@ def create_quick_learning_event(user_id):
         if not description or not description.strip():
             return jsonify({'error': 'Description is required'}), 400
 
+        # Optional short title (bug #13/#14: capture flow needs a title field,
+        # esp. for moments promoted to tasks). Normalized to None when blank.
+        title = data.get('title')
+        title = title.strip() if isinstance(title, str) and title.strip() else None
+
         topics = data.get('topics')
         ok, err = _validate_topics(topics)
         if not ok:
@@ -178,6 +183,7 @@ def create_quick_learning_event(user_id):
                 'user_id': student_id,
                 'captured_by_user_id': user_id,
                 'description': description.strip(),
+                'title': title,
                 'source_type': 'parent_captured',
                 'pillars': [],
             }
@@ -192,6 +198,7 @@ def create_quick_learning_event(user_id):
         result = LearningEventsService.create_quick_moment(
             user_id=user_id,
             description=description.strip(),
+            title=title,
             topics=topics,
             parent_moment_id=parent_moment_id,
             event_date=event_date

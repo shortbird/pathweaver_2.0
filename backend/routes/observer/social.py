@@ -105,7 +105,7 @@ def register_routes(bp):
             col = 'completion_id' if target_type == 'completion' else 'learning_event_id'
 
             views = supabase.table('feed_item_views') \
-                .select('viewer_id, viewed_at, users:viewer_id(id, display_name, first_name, last_name, avatar_url)') \
+                .select('viewer_id, viewed_at, users:viewer_id(id, display_name, first_name, last_name, avatar_url, role)') \
                 .eq(col, target_id) \
                 .order('viewed_at', desc=True) \
                 .execute()
@@ -113,6 +113,18 @@ def register_routes(bp):
             viewers = []
             for v in (views.data or []):
                 user_info = v.get('users', {})
+                # Superadmin reviews are surfaced to students/parents as "Optio",
+                # not the admin's personal name (bug #3: a student saw "Tanner
+                # Bowman" viewed their evidence; it should read as the platform).
+                # Avatar dropped so it falls back to the "O" initial.
+                if user_info.get('role') == 'superadmin':
+                    viewers.append({
+                        'id': v['viewer_id'],
+                        'display_name': 'Optio',
+                        'avatar_url': None,
+                        'viewed_at': v['viewed_at'],
+                    })
+                    continue
                 viewers.append({
                     'id': v['viewer_id'],
                     'display_name': user_info.get('display_name') or

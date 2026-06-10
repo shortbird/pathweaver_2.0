@@ -6,7 +6,7 @@
  */
 
 import React, { memo, useState } from 'react';
-import { View, Pressable, Platform, Share } from 'react-native';
+import { View, Pressable, Platform, Share, ScrollView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '../ui';
@@ -60,6 +60,42 @@ function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
         }}
       />
     </Pressable>
+  );
+}
+
+/** Swipeable image carousel (Instagram-style) for moments with multiple photos.
+ *  Replaces the old 2-up collage grid. Each page shows the whole image at its
+ *  natural ratio; tap opens the full-screen viewer. Page dots track position. */
+function ImageCarousel({ uris, onPress }: { uris: string[]; onPress: (uri: string) => void }) {
+  const [width, setWidth] = useState(0);
+  const [index, setIndex] = useState(0);
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {width > 0 && (
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+        >
+          {uris.map((uri, i) => (
+            <View key={`carousel-${i}`} style={{ width }}>
+              <FeedImage uri={uri} onPress={() => onPress(uri)} />
+            </View>
+          ))}
+        </ScrollView>
+      )}
+      {/* Page dots */}
+      <HStack className="items-center justify-center gap-1.5 mt-2">
+        {uris.map((_, i) => (
+          <View
+            key={`dot-${i}`}
+            style={{ width: 6, height: 6, borderRadius: 3 }}
+            className={i === index ? 'bg-optio-purple' : 'bg-surface-300 dark:bg-dark-surface-300'}
+          />
+        ))}
+      </HStack>
+    </View>
   );
 }
 
@@ -150,31 +186,17 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
         <FeedImage uri={imageUrls[0]} onPress={() => setModal({ type: 'image', uri: imageUrls[0] })} />
       )}
 
-      {/* Multiple images - 2-up grid, each tappable for full screen */}
+      {/* Multiple images - swipeable carousel, each tappable for full screen */}
       {imageUrls.length > 1 && (
-        <View className="flex-row flex-wrap" style={{ marginHorizontal: -2 }}>
-          {imageUrls.map((uri, i) => (
-            <View key={`img-${i}`} style={{ width: '50%', padding: 2 }}>
-              <Pressable onPress={() => setModal({ type: 'image', uri })}>
-                <ExpoImage
-                  source={{ uri: displayImageUrl(uri) || uri }}
-                  recyclingKey={uri}
-                  className="w-full rounded-lg"
-                  style={{ height: 160 }}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  transition={150}
-                />
-              </Pressable>
-            </View>
-          ))}
-        </View>
+        <ImageCarousel uris={imageUrls} onPress={(uri) => setModal({ type: 'image', uri })} />
       )}
 
       {/* Video - plays inline; expand button opens the full-screen player */}
       {videoUrl && !hasImage && (
         <View>
-          <VideoPlayer uri={videoUrl} isActive={isActive} />
+          {/* Pause the inline player while the full-screen player is open so
+              you don't hear the audio twice (bug #29). */}
+          <VideoPlayer uri={videoUrl} isActive={isActive && modal?.type !== 'video'} />
           <Pressable
             onPress={() => setModal({ type: 'video', uri: videoUrl })}
             className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/50 items-center justify-center"
@@ -430,6 +452,12 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                       : 'Learning moment'} · {timeAgo}
                   </UIText>
                 </HStack>
+                {/* Who shared it, when a parent posted for the child (bug #27). */}
+                {!isTask && item.moment?.posted_by && (
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
+                    Posted by {item.moment.posted_by.display_name}
+                  </UIText>
+                )}
               </VStack>
               {!isOwnPost && (
                 <Pressable

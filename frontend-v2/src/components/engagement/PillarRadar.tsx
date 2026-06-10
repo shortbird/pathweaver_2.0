@@ -5,8 +5,10 @@
 
 import React from 'react';
 import { View } from 'react-native';
-import Svg, { Polygon, Line, Circle, Text as SvgText } from 'react-native-svg';
+import Svg, { Polygon, Line, Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { pillars as pillarConfig } from '@/src/config/pillars';
 
 const PILLARS = [
   { key: 'stem', label: 'STEM', color: '#2469D1' },
@@ -81,8 +83,8 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
   });
 
   return (
-    <View style={{ alignItems: 'center' }}>
-      <Svg width={size} height={size}>
+    <View style={{ width: size, height: size, alignSelf: 'center' }}>
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
         {/* Grid rings */}
         {rings.map((points, i) => (
           <Polygon
@@ -128,22 +130,31 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
           />
         ))}
 
-        {/* Labels */}
-        {axes.map((a) => (
-          <SvgText
-            key={`label-${a.key}`}
-            x={a.labelPos.x}
-            y={a.labelPos.y}
-            fontSize={11}
-            fontFamily="Poppins_500Medium"
-            fill={c.textMuted}
-            textAnchor="middle"
-            alignmentBaseline="middle"
-          >
-            {a.label}
-          </SvgText>
-        ))}
       </Svg>
+
+      {/* Axis labels as pillar ICONS (not words) overlaid on the chart
+          (bug #22: "use the icons instead of the words for the chart"). SVG
+          can't embed an icon font cleanly, so absolutely-position them. */}
+      {axes.map((a) => (
+        <View
+          key={`icon-${a.key}`}
+          style={{
+            position: 'absolute',
+            left: a.labelPos.x - 10,
+            top: a.labelPos.y - 10,
+            width: 20,
+            height: 20,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons
+            name={pillarConfig[a.key]?.iconFilled || 'ellipse'}
+            size={16}
+            color={a.color}
+          />
+        </View>
+      ))}
     </View>
   );
 }

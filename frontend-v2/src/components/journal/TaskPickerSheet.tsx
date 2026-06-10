@@ -34,6 +34,9 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onPicked: (task: AttachableTask, quest: AttachableQuest) => void | Promise<void>;
+  /** Add the moment as a NEW task on a quest (convert-to-task), not just attach
+   *  to an existing one (bug #12 parity with the capture flow). */
+  onAddAsNewTask?: (quest: AttachableQuest) => void | Promise<void>;
   /** Moment currently being attached — its existing attachment is highlighted */
   currentTaskId?: string | null;
   /** Show a "Detach" option at the top when true (editing an existing attachment) */
@@ -47,6 +50,7 @@ export function TaskPickerSheet({
   visible,
   onClose,
   onPicked,
+  onAddAsNewTask,
   currentTaskId,
   allowDetach,
   onDetach,
@@ -57,6 +61,17 @@ export function TaskPickerSheet({
   const [loading, setLoading] = useState(false);
   const [expandedQuestId, setExpandedQuestId] = useState<string | null>(null);
   const [pickingId, setPickingId] = useState<string | null>(null);
+  const [addingQuestId, setAddingQuestId] = useState<string | null>(null);
+
+  const handleAddNew = async (quest: AttachableQuest) => {
+    if (!onAddAsNewTask) return;
+    setAddingQuestId(quest.id);
+    try {
+      await onAddAsNewTask(quest);
+    } finally {
+      setAddingQuestId(null);
+    }
+  };
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -126,7 +141,7 @@ export function TaskPickerSheet({
             <View className="py-8 items-center">
               <Ionicons name="flag-outline" size={32} color={c.border} />
               <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-2 text-center">
-                No active quests with pending tasks.
+                {onAddAsNewTask ? 'No active quests yet.' : 'No active quests with pending tasks.'}
               </UIText>
             </View>
           ) : (
@@ -156,6 +171,25 @@ export function TaskPickerSheet({
 
                     {expanded && (
                       <VStack space="xs" className="p-2 bg-white dark:bg-dark-surface-100">
+                        {/* Add this moment as a brand-new task on the quest
+                            (convert-to-task), parity with the capture flow. */}
+                        {onAddAsNewTask && (
+                          <Pressable
+                            onPress={() => handleAddNew(quest)}
+                            disabled={addingQuestId === quest.id}
+                            className="flex-row items-center gap-3 px-3 py-3 rounded-lg border border-dashed border-optio-purple/40 bg-optio-purple/5"
+                            style={{ opacity: addingQuestId === quest.id ? 0.5 : 1 }}
+                          >
+                            {addingQuestId === quest.id ? (
+                              <ActivityIndicator size="small" color="#6D469B" />
+                            ) : (
+                              <Ionicons name="add-circle-outline" size={18} color="#6D469B" />
+                            )}
+                            <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+                              Add as new task in this quest
+                            </UIText>
+                          </Pressable>
+                        )}
                         {quest.tasks.map((task) => {
                           const isCurrent = currentTaskId === task.id;
                           const occupied = !!task.attached_moment_id && !isCurrent;

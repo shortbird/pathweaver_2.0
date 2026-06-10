@@ -16,6 +16,7 @@ import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './Tas
 import { AudioClipPreview } from '../capture/VoiceRecorder';
 import { VideoPlayer } from '../feed/VideoPlayer';
 import { DocumentViewer } from '../feed/DocumentViewer';
+import { safeOpenURL } from '@/src/utils/linking';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { displayImageUrl } from '@/src/services/imageUrl';
@@ -78,6 +79,19 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     }
   };
 
+  // Add this moment as a brand-new task on a quest (convert-to-task), the same
+  // capability the capture flow has (bug #12 parity in the Unassigned Moments
+  // drawer). The quest's detail screen dedupes the moment vs the new task.
+  const handleAddAsNewTask = async (questId: string) => {
+    try {
+      await api.post(`/api/learning-events/${event.id}/convert-to-task`, { quest_id: questId });
+      setTaskPickerVisible(false);
+      await onAssigned?.();
+    } catch {
+      Alert.alert('Error', 'Failed to add the moment as a new task.');
+    }
+  };
+
   const getBlockUrl = (b: any) => b?.file_url || b?.content?.url || b?.content?.items?.[0]?.url;
   // Render ALL image blocks, not just the first — a moment with multiple photos
   // was only showing image #1 ("I uploaded two pictures but only one shows").
@@ -97,8 +111,13 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   // PDFs/documents get an inline preview (DocumentViewer), so don't also reduce
   // them to a tiny type icon in the indicator row.
   const documentBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'document' && getBlockUrl(b)) || [];
+  // Links render inline as a real, tappable row (with the description as their
+  // context) — NOT as a tiny icon — so a link + its context read as one item
+  // instead of looking like two (bug #6).
+  const getLinkUrl = (b: any) => getBlockUrl(b) || b?.content?.url || b?.content?.value;
+  const linkBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'link' && getLinkUrl(b)) || [];
   const otherEvidence = event.evidence_blocks?.filter(
-    (b) => b.block_type !== 'image' && b !== videoBlock && b.block_type !== 'audio' && b.block_type !== 'document',
+    (b) => b.block_type !== 'image' && b !== videoBlock && b.block_type !== 'audio' && b.block_type !== 'document' && b.block_type !== 'link',
   ) || [];
   const rawDate = event.event_date || event.created_at;
   // Append T12:00 to date-only strings to avoid UTC midnight → previous day in local timezone
@@ -446,6 +465,32 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
             </Pressable>
           ))}
 
+          {/* Links — inline tappable row (the moment's description above is the
+              context for the link, so they read as one item — bug #6). */}
+          {linkBlocks.map((b, i) => {
+            const linkUrl = getLinkUrl(b)!;
+            const linkTitle = (b as any).content?.title;
+            return (
+              <Pressable
+                key={`link-${i}`}
+                onPress={(e) => { e.stopPropagation?.(); safeOpenURL(linkUrl); }}
+                className="active:opacity-70"
+                style={{ marginTop: 2 }}
+              >
+                <HStack className="items-center gap-2 p-3 bg-surface-100 dark:bg-dark-surface-200 rounded-lg">
+                  <Ionicons name="link" size={16} color="#2469D1" />
+                  <VStack className="flex-1 min-w-0">
+                    {linkTitle && linkTitle !== linkUrl ? (
+                      <UIText size="xs" className="font-poppins-medium" numberOfLines={1}>{linkTitle}</UIText>
+                    ) : null}
+                    <UIText size="xs" className="text-pillar-stem" numberOfLines={1}>{linkUrl}</UIText>
+                  </VStack>
+                  <Ionicons name="open-outline" size={14} color={c.iconMuted} />
+                </HStack>
+              </Pressable>
+            );
+          })}
+
           {/* Pillars + evidence indicators */}
           <HStack className="items-center gap-2 flex-wrap">
             {(event.pillars || []).map((p) => (
@@ -498,6 +543,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
         visible={taskPickerVisible}
         onClose={() => setTaskPickerVisible(false)}
         onPicked={(task) => handleAttachTask(task.id)}
+        onAddAsNewTask={(quest) => handleAddAsNewTask(quest.id)}
         currentTaskId={event.attached_task_id || null}
         allowDetach={!!event.attached_task_id}
         onDetach={handleDetachTask}
