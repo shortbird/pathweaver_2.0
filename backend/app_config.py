@@ -223,6 +223,12 @@ class Config:
     CANVAS_LTI_PRIVATE_KEY_PEM = os.getenv('CANVAS_LTI_PRIVATE_KEY_PEM')
     CANVAS_LTI_PUBLIC_KID = os.getenv('CANVAS_LTI_PUBLIC_KID')
 
+    # Sentry error tracking (backend project: optio-llc/optio-backend).
+    # Unset → Sentry is a no-op (local dev). SENTRY_ENVIRONMENT distinguishes
+    # the prod and dev Render services in the same Sentry project.
+    SENTRY_DSN = os.getenv('SENTRY_DSN')
+    SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT')
+
     # File upload paths (M5) — UPLOAD_FOLDER below is the global default;
     # this is the evidence-specific subfolder used by routes/evidence_documents.
     EVIDENCE_UPLOAD_FOLDER = os.getenv('EVIDENCE_UPLOAD_FOLDER', 'uploads/evidence')

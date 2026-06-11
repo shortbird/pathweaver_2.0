@@ -40,10 +40,19 @@ MAX_VIDEO_INLINE_PROCESSING_BYTES = 50 * 1024 * 1024  # 50MB
 
 # Allowed File Extensions (by type)
 ALLOWED_FILE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.doc', '.docx', '.txt', '.webp', '.mov', '.webm', '.mp3', '.wav', '.ogg', '.heic', '.heif', '.tiff', '.tif', '.bmp', '.avif', '.jfif'}
+# SVG is deliberately excluded: it can embed scripts, and evidence files are
+# served from auth.optioeducation.com (same registrable domain as the app), so
+# a direct-navigation to a student-uploaded SVG would be a stored-XSS vector.
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'tiff', 'tif', 'bmp', 'avif', 'jfif'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
-ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
-ALLOWED_VIDEO_MIME_TYPES = {'video/mp4', 'video/quicktime'}
+# Any standard consumer video format. Browsers can't play all of these inline
+# (avi/mkv/wmv render as a download), but they're still valid evidence.
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', 'mpg', 'mpeg', '3gp', 'wmv', 'ogv'}
+ALLOWED_VIDEO_MIME_TYPES = {
+    'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
+    'video/x-msvideo', 'video/avi', 'video/x-matroska', 'video/mpeg',
+    'video/3gpp', 'video/x-ms-wmv', 'video/ogg',
+}
 # Voice notes — m4a is the iOS default (AAC in MP4 container); mp3/wav/aac for cross-platform.
 ALLOWED_AUDIO_EXTENSIONS = {'m4a', 'mp3', 'wav', 'aac', 'ogg'}
 ALLOWED_AUDIO_MIME_TYPES = {'audio/m4a', 'audio/mp4', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/ogg'}
@@ -78,7 +87,7 @@ EVIDENCE_ALLOWED_EXTENSIONS = {
 # Human-readable format labels for error messages
 IMAGE_FORMAT_LABEL = 'JPG, JPEG, PNG, GIF, WebP, HEIC, HEIF, TIFF, BMP, AVIF'
 DOCUMENT_FORMAT_LABEL = 'PDF, DOC, DOCX, TXT'
-VIDEO_FORMAT_LABEL = 'MP4, MOV'
+VIDEO_FORMAT_LABEL = 'MP4, MOV, WebM, M4V, AVI, MKV, MPG, MPEG, 3GP, WMV, OGV'
 AUDIO_FORMAT_LABEL = 'M4A, MP3, WAV, AAC, OGG'
 
 # Video thumbnail settings

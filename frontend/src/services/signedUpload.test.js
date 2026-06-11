@@ -145,6 +145,27 @@ describe('uploadViaSignedUrl', () => {
     expect(api.post).toHaveBeenCalledTimes(1)
   })
 
+  it('replaces the generic axios message with the backend error on 4xx', async () => {
+    api.post.mockImplementation(async () => {
+      const err = new Error('Request failed with status code 400')
+      err.response = {
+        status: 400,
+        data: { error: '"x.xyz" is not a supported video format. Supported: MP4, MOV' },
+      }
+      throw err
+    })
+    installFakeXHR()
+
+    await expect(
+      uploadViaSignedUrl({
+        file: makeFile(),
+        initPath: '/init',
+        finalizePath: '/finalize',
+        maxAttempts: 3,
+      }),
+    ).rejects.toThrow(/not a supported video format/)
+  })
+
   it('retries on PUT network failure and succeeds on later attempt', async () => {
     let xhrCalls = 0
     // Fresh XHR per call: first fails with error, second succeeds.

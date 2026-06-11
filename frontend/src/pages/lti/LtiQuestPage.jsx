@@ -85,6 +85,19 @@ export default function LtiQuestPage() {
     }
   }, [quest])
 
+  // The iframe may be scrolled deep into a long task list when the wizard
+  // opens. Reset our own scroll and ask Canvas to scroll the parent page to
+  // the iframe top so the student sees the wizard's first step.
+  useEffect(() => {
+    if (!showWizard) return
+    window.scrollTo(0, 0)
+    try {
+      window.parent.postMessage({ subject: 'lti.scrollToTop' }, '*')
+    } catch {
+      /* non-fatal outside Canvas */
+    }
+  }, [showWizard])
+
   const handlePersonalizationComplete = async () => {
     setShowWizard(false)
     await fetchQuest()
@@ -187,6 +200,24 @@ export default function LtiQuestPage() {
       subtitle={quest.description || undefined}
       maxWidthClassName="max-w-3xl"
     >
+      {/* The wizard replaces the task list while open (focused single-step
+          iframe UX) and renders in-flow via `embedded` — a fixed-position
+          modal clips inside the frameResized Canvas iframe. */}
+      {showWizard ? (
+        <Suspense fallback={<Spinner />}>
+          <div className="bg-white rounded-xl shadow-md">
+            <QuestPersonalizationWizard
+              questId={quest.id}
+              questTitle={quest.title}
+              onComplete={handlePersonalizationComplete}
+              onCancel={handlePersonalizationCancel}
+              hideLibraryOption
+              hideDiplomaSubjects
+              embedded
+            />
+          </div>
+        </Suspense>
+      ) : (
       <div className="space-y-6">
         {submitted ? (
           <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
@@ -293,22 +324,6 @@ export default function LtiQuestPage() {
           </div>
         )}
       </div>
-
-      {showWizard && (
-        <Suspense fallback={<Spinner />}>
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-              <QuestPersonalizationWizard
-                questId={quest.id}
-                questTitle={quest.title}
-                onComplete={handlePersonalizationComplete}
-                onCancel={handlePersonalizationCancel}
-                hideLibraryOption
-                hideDiplomaSubjects
-              />
-            </div>
-          </div>
-        </Suspense>
       )}
     </LtiShell>
   )

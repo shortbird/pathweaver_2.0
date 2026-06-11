@@ -1034,11 +1034,14 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
                 .insert(blocks_to_insert)\
                 .execute()
 
-        # Sync paired learning_event for the journal (failure here must not block save)
+        # Sync paired learning_event for the journal (failure here must not
+        # block save). error-level on purpose: this failing silently for weeks
+        # (source_type check constraint, fixed 2026-06-11) is exactly what
+        # Sentry should page on if it regresses.
         try:
             _sync_paired_learning_event(supabase, document_id)
         except Exception as sync_err:
-            logger.warning(f"Failed to sync paired learning_event for doc {document_id}: {sync_err}")
+            logger.error(f"Failed to sync paired learning_event for doc {document_id}: {sync_err}")
 
     except Exception as e:
         logger.error(f"Error updating document blocks: {str(e)}")

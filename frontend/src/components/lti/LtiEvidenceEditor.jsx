@@ -68,6 +68,13 @@ export default function LtiEvidenceEditor({
   const initPath = `/api/evidence/documents/${taskId}/upload-init`
   const finalizePath = `/api/evidence/documents/${taskId}/upload-finalize`
 
+  // Backend errors arrive as a string or as {message}; never render an object.
+  const errText = (e, fallback) => {
+    const raw = e?.response?.data?.error
+    if (typeof raw === 'string') return raw
+    return raw?.message || e?.message || fallback
+  }
+
   const add = (b) => setBlocks((prev) => [...prev, b])
   const removeAt = (i) => setBlocks((prev) => prev.filter((_, idx) => idx !== i))
 
@@ -78,12 +85,32 @@ export default function LtiEvidenceEditor({
     setTextDraft('')
   }
 
+  // Students paste bare domains ("example.com") — store a usable URL.
+  const normalizeUrl = (u) => (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u) ? u : `https://${u}`)
+
   const addLink = () => {
     const u = linkDraft.trim()
     if (!u) return
-    add({ type: 'link', content: { url: u } })
+    add({ type: 'link', content: { url: normalizeUrl(u) } })
     setLinkDraft('')
   }
+
+  /**
+   * Anything typed but not yet "Add"-ed is included on submit. Without this,
+   * pasting a link and clicking Save (instead of "Add link" first) silently
+   * dropped the link — the exact failure Williamsburg hit in testing.
+   */
+  const blocksWithDrafts = () => {
+    const out = [...blocks]
+    const t = textDraft.trim()
+    if (t) out.push({ type: 'text', content: { text: t } })
+    const u = linkDraft.trim()
+    if (u) out.push({ type: 'link', content: { url: normalizeUrl(u) } })
+    return out
+  }
+
+  const pendingCount =
+    blocks.length + (textDraft.trim() ? 1 : 0) + (linkDraft.trim() ? 1 : 0)
 
   const uploadAndAdd = async (file, blockType) => {
     setErr(null)
@@ -114,7 +141,10 @@ export default function LtiEvidenceEditor({
         file_name: fileName,
       })
     } catch (e) {
-      setErr(e?.message || 'Upload failed')
+      // signedUpload enriches err.message with the backend's explanation
+      // (e.g. unsupported format, file too large); read .response directly
+      // too in case the error came from elsewhere in the chain.
+      setErr(errText(e, 'Upload failed'))
     } finally {
       setBusy(null)
     }
@@ -259,14 +289,20 @@ export default function LtiEvidenceEditor({
           ) : null}
           <button
             type="button"
-            disabled={submitting || blocks.length === 0}
+            disabled={submitting || busy !== null || pendingCount === 0}
             onClick={async () => {
               setErr(null)
               setSubmitting(true)
               try {
-                await onComplete(blocks)
+                const finalBlocks = blocksWithDrafts()
+                await onComplete(finalBlocks)
+                // Drafts are saved now — clear them so a re-render of the
+                // editor (edit flow) doesn't double-add them.
+                setBlocks(finalBlocks)
+                setTextDraft('')
+                setLinkDraft('')
               } catch (e) {
-                setErr(e?.message || 'Could not submit evidence')
+                setErr(errText(e, 'Could not submit evidence'))
               } finally {
                 setSubmitting(false)
               }
@@ -275,7 +311,9 @@ export default function LtiEvidenceEditor({
           >
             {submitting
               ? 'Saving…'
-              : `${submitLabel || (isEdit ? 'Save' : 'Mark complete')} (${blocks.length})`}
+              : busy !== null
+                ? 'Uploading…'
+                : `${submitLabel || (isEdit ? 'Save' : 'Mark complete')} (${pendingCount})`}
           </button>
         </div>
       </div>

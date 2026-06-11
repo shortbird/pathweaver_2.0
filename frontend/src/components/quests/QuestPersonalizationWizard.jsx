@@ -59,6 +59,12 @@ const DIPLOMA_SUBJECTS = [
  *     • the "Diploma Credits" picker on the interests step
  *     • the pillar badge + diploma-credits row on the review step
  *   The "Any specific ideas?" textarea stays visible regardless.
+ * @param embedded              When true, render in-flow instead of as a
+ *   fixed-position modal. Inside the Canvas LTI iframe the page height is
+ *   content-driven (LtiShell frameResize), so `fixed inset-0` centers the
+ *   dialog against the full — possibly very tall — iframe and clips it out
+ *   of the visible viewport. Embedded mode drops the overlay, the viewport
+ *   max-height, and the inner scrollbar; the iframe just grows.
  */
 export default function QuestPersonalizationWizard({
   questId,
@@ -67,6 +73,7 @@ export default function QuestPersonalizationWizard({
   onCancel,
   hideLibraryOption = false,
   hideDiplomaSubjects = false,
+  embedded = false,
 }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -320,9 +327,21 @@ export default function QuestPersonalizationWizard({
   const totalSteps = creationMethod === 'ai' ? 4 : 3; // AI: path selection, interests, generation, review. Manual: path selection, skip interests, manual creator
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-2xl max-w-full sm:max-w-5xl mx-2 sm:mx-0 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto pb-safe-bottom w-full">
-        <div className="p-4 sm:p-8">
+    <div
+      className={
+        embedded
+          ? 'w-full'
+          : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4'
+      }
+    >
+      <div
+        className={
+          embedded
+            ? 'bg-white rounded-2xl w-full'
+            : 'bg-white rounded-2xl max-w-full sm:max-w-5xl mx-2 sm:mx-0 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto pb-safe-bottom w-full'
+        }
+      >
+        <div className={embedded ? 'p-4 sm:p-6' : 'p-4 sm:p-8'}>
           {/* Progress indicator - hide for manual path step 3 (full-screen component) */}
           {!(creationMethod === 'manual' && step === 3) && (
             <div className="mb-6 sm:mb-8">
@@ -735,10 +754,23 @@ export default function QuestPersonalizationWizard({
         </div>
       )}
 
-      {/* Flag Modal */}
+      {/* Flag Modal — in-flow card in embedded (LTI iframe) mode, where a
+          fixed overlay would center against the full iframe height and clip */}
       {showFlagModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
+        <div
+          className={
+            embedded
+              ? 'my-4'
+              : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'
+          }
+        >
+          <div
+            className={
+              embedded
+                ? 'bg-white rounded-2xl p-6 max-w-md w-full mx-auto border-2 border-yellow-300'
+                : 'bg-white rounded-2xl p-8 max-w-md w-full'
+            }
+          >
             <h3 id="flag-modal-title" className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
               Flag This Task
             </h3>

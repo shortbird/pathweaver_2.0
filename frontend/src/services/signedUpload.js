@@ -81,24 +81,38 @@ export async function uploadViaSignedUrl({
       const finalizeResp = await api.post(finalizePath, finalizeBody)
       return finalizeResp.data
     } catch (err) {
-      lastError = err
+      lastError = enrichUploadError(err)
       const status = err?.response?.status
 
       // Pre-flight or auth rejection — no point retrying; bubble up.
       if (status && status >= 400 && status < 500 && status !== 408) {
-        throw err
+        throw lastError
       }
 
       logger.warn(
         `[signedUpload] attempt ${attempt}/${maxAttempts} failed`,
-        err?.message || err,
+        lastError?.message || lastError,
       )
-      if (attempt === maxAttempts) throw err
+      if (attempt === maxAttempts) throw lastError
       // Brief backoff before retry; signed URL is single-use so we'll request a new one.
       await new Promise((r) => setTimeout(r, 300 * attempt))
     }
   }
   throw lastError
+}
+
+/**
+ * Replace axios's generic "Request failed with status code N" message with
+ * the backend's human-readable error (e.g. '"clip.xyz" is not a supported
+ * video format. Supported: …') so callers showing err.message give the user
+ * something actionable. The error object (and .response) is otherwise intact.
+ */
+function enrichUploadError(err) {
+  const backendMsg = err?.response?.data?.error
+  if (backendMsg && typeof backendMsg === 'string') {
+    err.message = backendMsg
+  }
+  return err
 }
 
 /**

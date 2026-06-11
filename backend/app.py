@@ -51,6 +51,21 @@ except RuntimeError as e:
     logger.error(f"Configuration validation failed: {e}")
     raise
 
+# Sentry error tracking — no-op unless SENTRY_DSN is set (Render prod/dev).
+# The Flask + logging integrations are enabled automatically: unhandled
+# exceptions and logger.error()/exception() calls become Sentry issues
+# (warnings/infos stay as breadcrumbs). PII stays off: student platform.
+if Config.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=Config.SENTRY_DSN,
+        environment=Config.SENTRY_ENVIRONMENT
+        or os.environ.get('FLASK_ENV', 'development'),
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+    )
+    logger.info("Sentry error tracking enabled")
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = Config.SECRET_KEY
 app.config['MAX_CONTENT_LENGTH'] = Config.MAX_CONTENT_LENGTH

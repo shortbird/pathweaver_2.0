@@ -146,7 +146,6 @@ const BASELINE = [
   'src/pages/admin/OrganizationDashboard.jsx',
   'src/pages/courses/CourseHomepage.jsx',
   'src/pages/curriculum/CurriculumPage.jsx',
-  'src/pages/lti/LtiQuestPage.jsx',
 ]
 
 describe('modal portal guard', () => {
