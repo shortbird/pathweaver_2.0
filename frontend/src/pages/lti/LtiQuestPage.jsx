@@ -218,9 +218,9 @@ export default function LtiQuestPage() {
           </div>
         </Suspense>
       ) : (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {submitted ? (
-          <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+          <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
             <div>
               <h2 className="font-semibold text-gray-900">Submitted to your teacher</h2>
               <p className="mt-2 text-sm text-gray-600">
@@ -244,7 +244,7 @@ export default function LtiQuestPage() {
             </div>
           </div>
         ) : tasks.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+          <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
             <div>
               <h2 className="font-semibold text-gray-900">Plan your approach</h2>
               <p className="mt-1 text-sm text-gray-600">
@@ -262,7 +262,7 @@ export default function LtiQuestPage() {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {tasks.map((task) => (
               <TaskRow
                 key={task.id}
@@ -272,7 +272,7 @@ export default function LtiQuestPage() {
               />
             ))}
             {(canSubmit || xpThreshold > 0) && !submitted && (
-              <div className="bg-white rounded-xl shadow-md p-6 space-y-3">
+              <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
                 <div>
                   <h2 className="font-semibold text-gray-900">
                     {canSubmit ? 'Ready to submit?' : 'Keep going'}

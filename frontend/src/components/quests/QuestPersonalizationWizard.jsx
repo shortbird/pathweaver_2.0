@@ -326,6 +326,36 @@ export default function QuestPersonalizationWizard({
   const currentTask = generatedTasks[currentTaskIndex];
   const totalSteps = creationMethod === 'ai' ? 4 : 3; // AI: path selection, interests, generation, review. Manual: path selection, skip interests, manual creator
 
+  // Compact sizing for the embedded (Canvas iframe) mode. Students are often
+  // on small Chromebook screens inside an already-chromed Canvas page, so the
+  // full-app type scale and padding force constant vertical scrolling there.
+  // Keyed map instead of inline ternaries so the two scales stay comparable.
+  const sz = embedded
+    ? {
+        heading: 'text-xl font-bold mb-1',
+        subheading: 'text-sm text-gray-600 mb-4',
+        sectionTitle: 'font-semibold text-sm mb-0.5',
+        sectionHint: 'text-gray-500 text-xs mb-2',
+        section: 'mb-4',
+        progressWrap: 'mb-4',
+        progressLabel: 'text-xs font-bold uppercase tracking-wide',
+        progressBar: 'h-2',
+        navBtn: 'px-4 py-2 text-sm border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-all min-h-[40px] w-full sm:w-auto',
+        primaryBtn: 'px-4 py-2 text-sm bg-gradient-primary text-white rounded-lg disabled:opacity-50 font-bold hover:shadow-lg transition-all min-h-[40px] w-full sm:w-auto',
+      }
+    : {
+        heading: 'text-3xl sm:text-4xl font-bold mb-4',
+        subheading: 'text-gray-600 mb-8 max-w-2xl mx-auto text-lg',
+        sectionTitle: 'font-semibold text-lg mb-1',
+        sectionHint: 'text-gray-500 text-sm mb-3',
+        section: 'mb-8',
+        progressWrap: 'mb-6 sm:mb-8',
+        progressLabel: 'text-sm font-bold uppercase tracking-wide',
+        progressBar: 'h-3',
+        navBtn: 'px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-all min-h-[44px] w-full sm:w-auto',
+        primaryBtn: 'px-6 py-3 bg-gradient-primary text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all min-h-[44px] w-full sm:w-auto',
+      };
+
   return (
     <div
       className={
@@ -341,18 +371,18 @@ export default function QuestPersonalizationWizard({
             : 'bg-white rounded-2xl max-w-full sm:max-w-5xl mx-2 sm:mx-0 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto pb-safe-bottom w-full'
         }
       >
-        <div className={embedded ? 'p-4 sm:p-6' : 'p-4 sm:p-8'}>
+        <div className={embedded ? 'p-3 sm:p-4' : 'p-4 sm:p-8'}>
           {/* Progress indicator - hide for manual path step 3 (full-screen component) */}
           {!(creationMethod === 'manual' && step === 3) && (
-            <div className="mb-6 sm:mb-8">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
-                <span className="text-sm font-bold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+            <div className={sz.progressWrap}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
+                <span className={sz.progressLabel} style={{ fontFamily: 'Poppins' }}>
                   Step {step} of {totalSteps}
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
+              <div className={`w-full bg-gray-200 rounded-full ${sz.progressBar}`}>
                 <div
-                  className="bg-gradient-primary h-3 rounded-full transition-all duration-300"
+                  className={`bg-gradient-primary ${sz.progressBar} rounded-full transition-all duration-300`}
                   style={{ width: `${(step / totalSteps) * 100}%` }}
                 />
               </div>
@@ -360,7 +390,7 @@ export default function QuestPersonalizationWizard({
           )}
 
       {error && (
-        <div className="mb-6 p-5 bg-red-50 border-2 border-red-200 rounded-xl text-red-700">
+        <div className={embedded ? 'mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-lg text-red-700 text-sm' : 'mb-6 p-5 bg-red-50 border-2 border-red-200 rounded-xl text-red-700'}>
           <p className="font-semibold" style={{ fontFamily: 'Poppins' }}>{error}</p>
         </div>
       )}
@@ -368,28 +398,34 @@ export default function QuestPersonalizationWizard({
       {/* Step 1: Choose Creation Method */}
       {step === 1 && (
         <div className="text-center">
-          <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+          <h2 className={sz.heading} style={{ fontFamily: 'Poppins' }}>
             How would you like to create tasks?
           </h2>
-          <p className="text-gray-600 mb-8 max-w-2xl mx-auto text-lg" style={{ fontFamily: 'Poppins' }}>
+          <p className={sz.subheading} style={{ fontFamily: 'Poppins' }}>
             Choose how you want to build your quest for "{questTitle}"
           </p>
 
-          <div className={`grid ${canUseTaskGeneration ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md'} gap-6 max-w-3xl mx-auto mb-6`}>
+          <div className={`grid ${canUseTaskGeneration ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md'} ${embedded ? 'gap-3 mb-3' : 'gap-6 mb-6'} max-w-3xl mx-auto`}>
             {/* AI Generation Option */}
             {canUseTaskGeneration && (
               <button
                 onClick={() => startSession('ai')}
                 disabled={loading}
-                className="group p-6 sm:p-8 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:shadow-xl transition-all text-left disabled:opacity-50 min-h-[44px]"
+                className={`group border-2 border-gray-300 hover:border-purple-500 transition-all text-left disabled:opacity-50 min-h-[44px] ${
+                  embedded
+                    ? 'p-3 rounded-lg flex items-center gap-3 hover:shadow-md'
+                    : 'p-6 sm:p-8 rounded-xl hover:shadow-xl'
+                }`}
               >
-                <div className="text-4xl sm:text-5xl mb-4">✨</div>
-                <h3 className="text-xl sm:text-2xl font-bold mb-2 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
-                  AI Generate
-                </h3>
-                <p className="text-sm sm:text-base text-gray-600" style={{ fontFamily: 'Poppins' }}>
-                  Let AI create personalized tasks based on your interests and learning style
-                </p>
+                <div className={embedded ? 'text-2xl shrink-0' : 'text-4xl sm:text-5xl mb-4'}>✨</div>
+                <div>
+                  <h3 className={`${embedded ? 'text-base font-bold' : 'text-xl sm:text-2xl font-bold mb-2'} group-hover:text-optio-purple transition-colors`} style={{ fontFamily: 'Poppins' }}>
+                    AI Generate
+                  </h3>
+                  <p className={embedded ? 'text-xs text-gray-600' : 'text-sm sm:text-base text-gray-600'} style={{ fontFamily: 'Poppins' }}>
+                    Let AI create personalized tasks based on your interests and learning style
+                  </p>
+                </div>
               </button>
             )}
 
@@ -397,15 +433,21 @@ export default function QuestPersonalizationWizard({
             <button
               onClick={() => startSession('manual')}
               disabled={loading}
-              className="group p-6 sm:p-8 border-2 border-gray-300 rounded-xl hover:border-pink-500 hover:shadow-xl transition-all text-left disabled:opacity-50 min-h-[44px]"
+              className={`group border-2 border-gray-300 hover:border-pink-500 transition-all text-left disabled:opacity-50 min-h-[44px] ${
+                embedded
+                  ? 'p-3 rounded-lg flex items-center gap-3 hover:shadow-md'
+                  : 'p-6 sm:p-8 rounded-xl hover:shadow-xl'
+              }`}
             >
-              <div className="text-4xl sm:text-5xl mb-4">✍️</div>
-              <h3 className="text-xl sm:text-2xl font-bold mb-2 group-hover:text-optio-pink transition-colors" style={{ fontFamily: 'Poppins' }}>
-                Write My Own
-              </h3>
-              <p className="text-sm sm:text-base text-gray-600" style={{ fontFamily: 'Poppins' }}>
-                Create custom tasks based on your own ideas and interests
-              </p>
+              <div className={embedded ? 'text-2xl shrink-0' : 'text-4xl sm:text-5xl mb-4'}>✍️</div>
+              <div>
+                <h3 className={`${embedded ? 'text-base font-bold' : 'text-xl sm:text-2xl font-bold mb-2'} group-hover:text-optio-pink transition-colors`} style={{ fontFamily: 'Poppins' }}>
+                  Write My Own
+                </h3>
+                <p className={embedded ? 'text-xs text-gray-600' : 'text-sm sm:text-base text-gray-600'} style={{ fontFamily: 'Poppins' }}>
+                  Create custom tasks based on your own ideas and interests
+                </p>
+              </div>
             </button>
           </div>
 
@@ -454,34 +496,36 @@ export default function QuestPersonalizationWizard({
       {/* Step 2: Select Interests & Subjects (previously Step 3) */}
       {step === 2 && (
         <div>
-          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+          <h2 className={sz.heading} style={{ fontFamily: 'Poppins' }}>
             Personalize Your Tasks
           </h2>
-          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>
+          <p className={embedded ? sz.subheading : 'text-gray-600 mb-6 text-lg'} style={{ fontFamily: 'Poppins' }}>
             {hideDiplomaSubjects
               ? 'Pick interests and add any specific ideas to generate tasks'
               : 'Select interests or diploma subjects to generate personalized tasks'}
           </p>
 
           {/* Interests */}
-          <div className="mb-8">
-            <h3 className="font-semibold text-lg mb-1" style={{ fontFamily: 'Poppins' }}>Your Interests (Optional)</h3>
-            <p className="text-gray-500 text-sm mb-3" style={{ fontFamily: 'Poppins' }}>
+          <div className={sz.section}>
+            <h3 className={sz.sectionTitle} style={{ fontFamily: 'Poppins' }}>Your Interests (Optional)</h3>
+            <p className={sz.sectionHint} style={{ fontFamily: 'Poppins' }}>
               Choose topics you enjoy to make tasks more engaging
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className={embedded ? 'grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2' : 'grid grid-cols-2 md:grid-cols-5 gap-3'}>
               {INTEREST_OPTIONS.map(interest => (
                 <button
                   key={interest.id}
                   onClick={() => toggleInterest(interest.id)}
-                  className={`p-4 border-2 rounded-xl text-center transition-all hover:shadow-lg min-h-[44px] ${
+                  className={`border-2 text-center transition-all min-h-[44px] ${
+                    embedded ? 'p-2 rounded-lg hover:shadow-md' : 'p-4 rounded-xl hover:shadow-lg'
+                  } ${
                     selectedInterests.includes(interest.id)
                       ? 'border-optio-pink bg-pink-50 shadow-lg'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className="text-3xl mb-2">{interest.icon}</div>
-                  <div className="text-sm font-medium" style={{ fontFamily: 'Poppins' }}>{interest.label}</div>
+                  <div className={embedded ? 'text-xl mb-0.5' : 'text-3xl mb-2'}>{interest.icon}</div>
+                  <div className={embedded ? 'text-xs font-medium leading-tight' : 'text-sm font-medium'} style={{ fontFamily: 'Poppins' }}>{interest.label}</div>
                 </button>
               ))}
             </div>
@@ -592,8 +636,8 @@ export default function QuestPersonalizationWizard({
           )}
 
           {/* Additional Feedback */}
-          <div className="mb-8">
-            <h3 id="additional-feedback-label" className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>
+          <div className={sz.section}>
+            <h3 id="additional-feedback-label" className={sz.sectionTitle} style={{ fontFamily: 'Poppins' }}>
               Any specific ideas? (Optional)
             </h3>
             <textarea
@@ -601,8 +645,10 @@ export default function QuestPersonalizationWizard({
               value={additionalFeedback}
               onChange={(e) => setAdditionalFeedback(e.target.value)}
               placeholder="Tell us more about what you'd like to learn..."
-              className="w-full p-4 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px]"
-              rows={4}
+              className={`w-full border-2 border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] ${
+                embedded ? 'p-2 rounded-lg text-sm' : 'p-4 rounded-xl'
+              }`}
+              rows={embedded ? 2 : 4}
               style={{ fontFamily: 'Poppins' }}
               aria-labelledby="additional-feedback-label"
             />
@@ -611,7 +657,7 @@ export default function QuestPersonalizationWizard({
           <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
             <button
               onClick={() => setStep(1)}
-              className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-all min-h-[44px] w-full sm:w-auto"
+              className={sz.navBtn}
               style={{ fontFamily: 'Poppins' }}
             >
               Back
@@ -619,7 +665,7 @@ export default function QuestPersonalizationWizard({
             <button
               onClick={generateTasks}
               disabled={loading}
-              className="px-6 py-3 bg-gradient-primary text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all min-h-[44px] w-full sm:w-auto"
+              className={sz.primaryBtn}
               style={{ fontFamily: 'Poppins' }}
             >
               {loading ? 'Generating Tasks...' : 'Generate Tasks'}
@@ -641,10 +687,10 @@ export default function QuestPersonalizationWizard({
       {/* Step 4: One-at-a-Time Task Review (AI path only) */}
       {step === 4 && creationMethod === 'ai' && currentTask && (
         <div>
-          <div className="mb-6">
+          <div className={embedded ? 'mb-3' : 'mb-6'}>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-3xl font-bold" style={{ fontFamily: 'Poppins' }}>Review Tasks</h2>
-              <span className="text-lg font-semibold text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              <h2 className={embedded ? 'text-xl font-bold' : 'text-3xl font-bold'} style={{ fontFamily: 'Poppins' }}>Review Tasks</h2>
+              <span className={embedded ? 'text-sm font-semibold text-gray-600' : 'text-lg font-semibold text-gray-600'} style={{ fontFamily: 'Poppins' }}>
                 Task {currentTaskIndex + 1} of {generatedTasks.length}
               </span>
             </div>
@@ -657,10 +703,14 @@ export default function QuestPersonalizationWizard({
           </div>
 
           {/* Task Card */}
-          <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 sm:p-8 mb-8 shadow-lg relative">
+          <div className={`bg-white border-2 border-gray-200 relative ${
+            embedded ? 'rounded-xl p-4 mb-3 shadow' : 'rounded-2xl p-4 sm:p-8 mb-8 shadow-lg'
+          }`}>
             {/* XP Badge - Top Right */}
-            <div className="absolute top-3 right-3 sm:top-6 sm:right-6 flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-green-100 text-green-800 rounded-full">
-              <span className="text-sm sm:text-base font-semibold" style={{ fontFamily: 'Poppins' }}>
+            <div className={`absolute flex items-center gap-2 bg-green-100 text-green-800 rounded-full ${
+              embedded ? 'top-3 right-3 px-2.5 py-1' : 'top-3 right-3 sm:top-6 sm:right-6 px-3 py-1.5 sm:px-4 sm:py-2'
+            }`}>
+              <span className={embedded ? 'text-xs font-semibold' : 'text-sm sm:text-base font-semibold'} style={{ fontFamily: 'Poppins' }}>
                 {currentTask.xp_value} XP
               </span>
             </div>
@@ -675,11 +725,11 @@ export default function QuestPersonalizationWizard({
               <FlagIcon className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
             </button>
 
-            <div className="mb-6 pr-20 sm:pr-24 pl-10 sm:pl-12">
-              <h3 className="text-xl sm:text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+            <div className={embedded ? 'mb-2 pr-16 pl-9' : 'mb-6 pr-20 sm:pr-24 pl-10 sm:pl-12'}>
+              <h3 className={embedded ? 'text-base font-bold mb-1.5' : 'text-xl sm:text-2xl font-bold mb-4'} style={{ fontFamily: 'Poppins' }}>
                 {currentTask.title}
               </h3>
-              <p className="text-gray-700 text-base sm:text-lg leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+              <p className={embedded ? 'text-gray-700 text-sm leading-snug' : 'text-gray-700 text-base sm:text-lg leading-relaxed'} style={{ fontFamily: 'Poppins' }}>
                 {currentTask.description}
               </p>
             </div>
@@ -718,15 +768,17 @@ export default function QuestPersonalizationWizard({
           </div>
 
           {/* Action Buttons - 2 Column Layout */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className={embedded ? 'grid grid-cols-2 gap-3 mb-3' : 'grid grid-cols-2 gap-4 mb-6'}>
             {/* Skip Button */}
             <button
               onClick={handleSkipTask}
               disabled={loading}
-              className="flex flex-col items-center justify-center p-6 border-2 border-red-300 bg-red-50 rounded-xl hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50"
+              className={`items-center justify-center border-2 border-red-300 bg-red-50 hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50 ${
+                embedded ? 'flex flex-row gap-2 p-2.5 rounded-lg min-h-[44px]' : 'flex flex-col p-6 rounded-xl'
+              }`}
             >
-              <XMarkIcon className="w-12 h-12 text-red-600 mb-2" />
-              <span className="font-bold text-lg text-red-700" style={{ fontFamily: 'Poppins' }}>
+              <XMarkIcon className={embedded ? 'w-5 h-5 text-red-600' : 'w-12 h-12 text-red-600 mb-2'} />
+              <span className={embedded ? 'font-bold text-sm text-red-700' : 'font-bold text-lg text-red-700'} style={{ fontFamily: 'Poppins' }}>
                 Skip
               </span>
             </button>
@@ -735,18 +787,20 @@ export default function QuestPersonalizationWizard({
             <button
               onClick={handleAcceptTask}
               disabled={loading}
-              className="flex flex-col items-center justify-center p-6 border-2 border-green-300 bg-green-50 rounded-xl hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50"
+              className={`items-center justify-center border-2 border-green-300 bg-green-50 hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50 ${
+                embedded ? 'flex flex-row gap-2 p-2.5 rounded-lg min-h-[44px]' : 'flex flex-col p-6 rounded-xl'
+              }`}
             >
-              <CheckIcon className="w-12 h-12 text-green-600 mb-2" />
-              <span className="font-bold text-lg text-green-700" style={{ fontFamily: 'Poppins' }}>
+              <CheckIcon className={embedded ? 'w-5 h-5 text-green-600' : 'w-12 h-12 text-green-600 mb-2'} />
+              <span className={embedded ? 'font-bold text-sm text-green-700' : 'font-bold text-lg text-green-700'} style={{ fontFamily: 'Poppins' }}>
                 {loading ? 'Adding...' : 'Add'}
               </span>
             </button>
           </div>
 
           {/* Progress Summary */}
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5">
-            <p className="text-sm text-blue-900" style={{ fontFamily: 'Poppins' }}>
+          <div className={embedded ? 'bg-blue-50 border border-blue-200 rounded-lg p-2.5' : 'bg-blue-50 border-2 border-blue-200 rounded-xl p-5'}>
+            <p className={embedded ? 'text-xs text-blue-900' : 'text-sm text-blue-900'} style={{ fontFamily: 'Poppins' }}>
               💡 <strong>Progress:</strong> You've accepted {acceptedTasks.length} task{acceptedTasks.length !== 1 ? 's' : ''} so far.
               {currentTaskIndex === generatedTasks.length - 1 && ' This is the last task!'}
             </p>
@@ -771,10 +825,10 @@ export default function QuestPersonalizationWizard({
                 : 'bg-white rounded-2xl p-8 max-w-md w-full'
             }
           >
-            <h3 id="flag-modal-title" className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+            <h3 id="flag-modal-title" className={embedded ? 'text-lg font-bold mb-2' : 'text-2xl font-bold mb-4'} style={{ fontFamily: 'Poppins' }}>
               Flag This Task
             </h3>
-            <p id="flag-modal-description" className="text-gray-600 mb-4" style={{ fontFamily: 'Poppins' }}>
+            <p id="flag-modal-description" className={embedded ? 'text-gray-600 text-sm mb-3' : 'text-gray-600 mb-4'} style={{ fontFamily: 'Poppins' }}>
               Help us improve by reporting tasks that don't make sense or are inappropriate.
             </p>
             <textarea
@@ -782,8 +836,10 @@ export default function QuestPersonalizationWizard({
               value={flagReason}
               onChange={(e) => setFlagReason(e.target.value)}
               placeholder="Why are you flagging this task? (optional)"
-              className="w-full p-4 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent mb-4 min-h-[44px]"
-              rows={4}
+              className={`w-full border-2 border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent mb-4 min-h-[44px] ${
+                embedded ? 'p-2 rounded-lg text-sm' : 'p-4 rounded-xl'
+              }`}
+              rows={embedded ? 2 : 4}
               style={{ fontFamily: 'Poppins' }}
               aria-labelledby="flag-modal-title"
               aria-describedby="flag-modal-description"
@@ -813,7 +869,7 @@ export default function QuestPersonalizationWizard({
       )}
 
       {/* Cancel button (always visible) */}
-      <div className="mt-8 text-center">
+      <div className={embedded ? 'mt-4 text-center' : 'mt-8 text-center'}>
         <button
           onClick={onCancel}
           className="text-gray-500 hover:text-gray-700 text-sm min-h-[44px]"

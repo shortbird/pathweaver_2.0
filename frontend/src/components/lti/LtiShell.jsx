@@ -88,15 +88,17 @@ export default function LtiShell({
   }
 
   return (
-    <div className="min-h-screen bg-white px-4 py-5">
+    <div className="min-h-screen bg-white px-3 py-3 sm:px-4">
       <div ref={rootRef} className={`w-full mx-auto ${maxWidthClassName}`}>
         {(title || subtitle) && !loading && !error ? (
-          <div className="mb-4 space-y-1">
+          <div className="mb-3 space-y-0.5">
             {title ? (
-              <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+              <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
             ) : null}
             {subtitle ? (
-              <p className="text-sm text-gray-500">{subtitle}</p>
+              // Quest descriptions can run long — Canvas already shows the
+              // assignment context, so clamp instead of pushing tasks down.
+              <p className="text-xs text-gray-500 line-clamp-2">{subtitle}</p>
             ) : null}
           </div>
         ) : null}
