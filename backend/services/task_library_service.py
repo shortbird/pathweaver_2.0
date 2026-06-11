@@ -17,8 +17,21 @@ class TaskLibraryService(BaseService):
 
     def __init__(self):
         super().__init__()
-        # supabase client is available via self.supabase property from BaseService
         self.logger = logging.getLogger(__name__)
+
+    @property
+    def supabase(self):
+        """DB client for all library operations.
+
+        BaseService dropped its `self.supabase` (Dec 2025, P1-ARCH-4), which
+        broke every method here with AttributeError until 2026-06-11
+        (Sentry OPTIO-BACKEND-1). Restored as a service-local property.
+        admin client justified: quest_sample_tasks is shared cross-user
+        library content (not caller-owned rows); usage/flag counters must be
+        writable for any authenticated student. All entry points sit behind
+        @require_auth routes.
+        """
+        return get_supabase_admin_client()
 
     def get_library_tasks(self, quest_id: str, user_id: str = None, limit: int = 20) -> List[Dict]:
         """
@@ -249,18 +262,14 @@ class TaskLibraryService(BaseService):
             True if successful, False otherwise
         """
         try:
-            self.logger.info(f"User {user_id} flagging task {sample_task_id}")
-
-            # Insert flag record
-            flag_data = {
-                'sample_task_id': sample_task_id,
-                'user_id': user_id,
-                'flag_reason': reason
-            }
-
-            self.supabase.table('quest_task_flags') \
-                .insert(flag_data) \
-                .execute()
+            # quest_task_flags (the per-flag detail table) was dropped in the
+            # Mar 2026 audit — the count + is_flagged on quest_sample_tasks is
+            # the surviving flag state. Keep the reason in the logs so admin
+            # triage isn't completely blind to why a task was flagged.
+            self.logger.warning(
+                f"User {user_id} flagged task {sample_task_id}"
+                + (f" — reason: {reason}" if reason else " (no reason given)")
+            )
 
             # Get current task data
             task_response = self.supabase.table('quest_sample_tasks') \
@@ -335,22 +344,16 @@ class TaskLibraryService(BaseService):
         Returns:
             List of flag report dictionaries
         """
-        try:
-            self.logger.info(f"Getting flag reports for task {sample_task_id}")
-
-            response = self.supabase.table('quest_task_flags') \
-                .select('*, users(display_name, email)') \
-                .eq('sample_task_id', sample_task_id) \
-                .order('created_at', desc=True) \
-                .execute()
-
-            flags = response.data if response.data else []
-            self.logger.info(f"Found {len(flags)} flag reports")
-            return flags
-
-        except Exception as e:
-            self.logger.error(f"Error getting task flags: {str(e)}")
-            return []
+        # Per-flag reports lived in quest_task_flags, dropped in the Mar 2026
+        # audit. Only the aggregate flag_count / is_flagged on
+        # quest_sample_tasks survives (see get_flagged_tasks); individual
+        # reasons are in the application logs (flag_task). Returning [] keeps
+        # the admin endpoint functional with an empty detail list.
+        self.logger.info(
+            f"Flag detail requested for task {sample_task_id} — "
+            "quest_task_flags table was dropped; returning empty list"
+        )
+        return []
 
     def approve_task(self, sample_task_id: str) -> bool:
         """
