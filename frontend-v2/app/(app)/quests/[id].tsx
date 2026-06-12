@@ -285,12 +285,24 @@ function TaskItem({
               </Pressable>
             )}
             <VStack className="flex-1 min-w-0">
-              <UIText
-                size="sm"
-                className={`font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}
-              >
-                {task.title}
-              </UIText>
+              <HStack className="items-center gap-2">
+                <UIText
+                  size="sm"
+                  className={`flex-1 font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}
+                >
+                  {task.title}
+                </UIText>
+                {/* Edit pillar + diploma subjects — sits next to the title. */}
+                {!task.is_moment && !isClassTask && onEditTask && (
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation(); onEditTask(task); }}
+                    hitSlop={8}
+                    accessibilityLabel="Edit pillar and subjects"
+                  >
+                    <Ionicons name="pencil-outline" size={15} color="#6D469B" />
+                  </Pressable>
+                )}
+              </HStack>
               <HStack className="items-center gap-2">
                 {isClassTask && subjectMeta ? (
                   <View
@@ -347,19 +359,6 @@ function TaskItem({
                     </Badge>
                   ))}
                 </HStack>
-              )}
-
-              {/* Edit pillar + diploma subjects (regular tasks only; class tasks
-                  carry a fixed transcript subject, moments use the moment editor). */}
-              {!task.is_moment && !isClassTask && onEditTask && (
-                <Pressable
-                  onPress={(e) => { e.stopPropagation(); onEditTask(task); }}
-                  className="flex-row items-center gap-1.5 self-start"
-                  hitSlop={8}
-                >
-                  <Ionicons name="pencil-outline" size={13} color="#6D469B" />
-                  <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit pillar & subjects</UIText>
-                </Pressable>
               )}
 
               {/* Evidence display */}

@@ -112,10 +112,13 @@ export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModal
               })}
             </HStack>
 
-            {/* Diploma subjects — multi select */}
+            {/* Diploma subjects — multi select. Include any subject the task
+                already carries even if it isn't in the canonical list (e.g.
+                legacy "Electives" vs "Elective"), so the current value always
+                shows as selected and is editable. */}
             <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-semibold mb-2">DIPLOMA SUBJECTS</UIText>
             <HStack className="flex-wrap gap-2 mb-2">
-              {DIPLOMA_SUBJECTS.map((s) => {
+              {[...DIPLOMA_SUBJECTS, ...subjects.filter((s) => !DIPLOMA_SUBJECTS.includes(s))].map((s) => {
                 const selected = subjects.includes(s);
                 return (
                   <Pressable
