@@ -297,9 +297,19 @@ def get_quest_detail(user_id: str, quest_id: str):
                 except (ValueError, Exception):
                     pillar = 'art'
 
+                # Title fallback: many captured moments have a NULL title, and
+                # m.get('title', default) returns None (not the default) for an
+                # explicit null — which rendered as a blank task title. Fall back
+                # to the first line of the description, else a generic label.
+                moment_title = (m.get('title') or '').strip()
+                if not moment_title:
+                    desc_line = (m.get('description') or '').strip().splitlines()[0:1]
+                    desc_line = desc_line[0].strip() if desc_line else ''
+                    moment_title = (desc_line[:60] + ('…' if len(desc_line) > 60 else '')) or 'Learning Moment'
+
                 moment_tasks.append({
                     'id': moment_id,
-                    'title': m.get('title', 'Learning Moment'),
+                    'title': moment_title,
                     'description': m.get('description', ''),
                     'pillar': pillar,
                     'xp_value': 50,
