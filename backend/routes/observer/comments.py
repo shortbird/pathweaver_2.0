@@ -114,10 +114,12 @@ def register_routes(bp):
             student_id = data['student_id']
             can_comment = False
 
-            # Check if superadmin (superadmins have full access)
+            # Check if superadmin (directly or masquerading as another user, so
+            # an admin acting-as a student keeps full comment access)
+            from utils.auth.decorators import caller_is_superadmin
             user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
             user_role = user_result.data.get('role') if user_result.data else None
-            if user_role == 'superadmin':
+            if user_role == 'superadmin' or caller_is_superadmin(supabase, observer_id):
                 can_comment = True
 
             # Verify observer has access and comment permission

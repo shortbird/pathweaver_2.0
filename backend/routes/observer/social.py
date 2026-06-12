@@ -181,10 +181,11 @@ def register_routes(bp):
             if user_id != student_id:
                 has_access = False
 
-                # Check if superadmin
+                # Check if superadmin (directly or masquerading as another user)
+                from utils.auth.decorators import caller_is_superadmin
                 user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
                 user_role = user_result.data.get('role') if user_result.data else None
-                if user_role == 'superadmin':
+                if user_role == 'superadmin' or caller_is_superadmin(supabase, user_id):
                     has_access = True
 
                 # Check observer_student_links
@@ -248,7 +249,16 @@ def register_routes(bp):
                 observer_map = {obs['id']: obs for obs in observers.data}
 
                 for comment in comments_data:
-                    comment['observer'] = observer_map.get(comment['observer_id'], {})
+                    obs = observer_map.get(comment['observer_id'], {})
+                    comment['observer'] = obs
+                    # The app renders `user_display_name` — populate it (and avatar)
+                    # so comments show the author's name, not a generic "User".
+                    comment['user_display_name'] = (
+                        obs.get('display_name')
+                        or f"{obs.get('first_name', '')} {obs.get('last_name', '')}".strip()
+                        or 'User'
+                    )
+                    comment['user_avatar_url'] = obs.get('avatar_url')
 
             return jsonify({'comments': comments_data}), 200
 
@@ -293,10 +303,11 @@ def register_routes(bp):
             if user_id != student_id:
                 has_access = False
 
-                # Check if superadmin (superadmins have full access)
+                # Check if superadmin (directly or masquerading as another user)
+                from utils.auth.decorators import caller_is_superadmin
                 user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
                 user_role = user_result.data.get('role') if user_result.data else None
-                if user_role == 'superadmin':
+                if user_role == 'superadmin' or caller_is_superadmin(supabase, user_id):
                     has_access = True
 
                 # Check observer_student_links
@@ -344,7 +355,16 @@ def register_routes(bp):
                 observer_map = {obs['id']: obs for obs in observers.data}
 
                 for comment in comments_data:
-                    comment['observer'] = observer_map.get(comment['observer_id'], {})
+                    obs = observer_map.get(comment['observer_id'], {})
+                    comment['observer'] = obs
+                    # The app renders `user_display_name` — populate it (and avatar)
+                    # so comments show the author's name, not a generic "User".
+                    comment['user_display_name'] = (
+                        obs.get('display_name')
+                        or f"{obs.get('first_name', '')} {obs.get('last_name', '')}".strip()
+                        or 'User'
+                    )
+                    comment['user_avatar_url'] = obs.get('avatar_url')
 
             return jsonify({'comments': comments_data}), 200
 

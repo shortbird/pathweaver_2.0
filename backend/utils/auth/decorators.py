@@ -55,6 +55,26 @@ def has_role_or_admin(effective_role: str, *allowed_roles) -> bool:
         return True
     return False
 
+def caller_is_superadmin(supabase, effective_user_id: str) -> bool:
+    """True if the request is from a superadmin — directly, OR a superadmin
+    masquerading as another user. @require_auth hands endpoints the masquerade
+    TARGET, so a superadmin acting-as a student would otherwise lose their
+    privileges; this also checks the actual admin behind the masquerade so
+    admins keep full functionality while acting-as."""
+    from utils.session_manager import session_manager
+    candidate_ids = {effective_user_id}
+    try:
+        actual = session_manager.get_actual_admin_id()
+        if actual:
+            candidate_ids.add(actual)
+    except Exception:
+        pass
+    try:
+        res = supabase.table('users').select('id, role').in_('id', list(candidate_ids)).execute()
+        return any(r.get('role') == 'superadmin' for r in (res.data or []))
+    except Exception:
+        return False
+
 def require_auth(f):
     """
     Decorator to require authentication for routes.
