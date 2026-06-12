@@ -74,8 +74,8 @@ class SubjectClassificationService(BaseAIService):
 
     def classify_task_subjects(
         self,
-        task_title: str,
-        task_description: str,
+        title: str,
+        description: str,
         pillar: str,
         xp_value: int
     ) -> Dict[str, int]:
@@ -83,8 +83,8 @@ class SubjectClassificationService(BaseAIService):
         Use AI to determine which school subjects a task aligns with and distribute XP.
 
         Args:
-            task_title: Title of the task
-            task_description: Description of the task
+            title: Title of the task
+            description: Description of the task
             pillar: Learning pillar (stem, art, wellness, communication, civics)
             xp_value: Total XP value for the task
 
@@ -96,8 +96,8 @@ class SubjectClassificationService(BaseAIService):
             ValidationError: If inputs are invalid
         """
         # Validate inputs
-        if not task_title or not isinstance(task_title, str):
-            raise ValidationError("task_title is required and must be a string")
+        if not title or not isinstance(title, str):
+            raise ValidationError("title is required and must be a string")
 
         if not isinstance(xp_value, int) or xp_value <= 0:
             raise ValidationError(f"xp_value must be positive integer, got: {xp_value}")
@@ -105,18 +105,18 @@ class SubjectClassificationService(BaseAIService):
         # If Gemini API not available, use fallback mapping
         if not self._model_available:
             logger.warning("Gemini API not available, using fallback subject mapping")
-            return self._fallback_subject_mapping(pillar, xp_value, task_title)
+            return self._fallback_subject_mapping(pillar, xp_value, title)
 
         try:
             # Build prompt for Gemini
             prompt = self._build_classification_prompt(
-                task_title,
-                task_description,
+                title,
+                description,
                 pillar,
                 xp_value
             )
 
-            logger.info(f"Classifying task: {task_title}")
+            logger.info(f"Classifying task: {title}")
 
             # Use inherited generate method with deterministic preset
             # (classification should be consistent and reproducible)
@@ -135,7 +135,7 @@ class SubjectClassificationService(BaseAIService):
         except Exception as e:
             logger.error(f"Error in AI classification: {str(e)}")
             # Fall back to rule-based mapping on error
-            return self._fallback_subject_mapping(pillar, xp_value, task_title)
+            return self._fallback_subject_mapping(pillar, xp_value, title)
 
     def _build_classification_prompt(
         self,
