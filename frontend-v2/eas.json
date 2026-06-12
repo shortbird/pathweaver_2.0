@@ -52,7 +52,7 @@
         "appleTeamId": "88S884U8AR"
       },
       "android": {
-        "track": "internal",
+        "track": "production",
         "releaseStatus": "draft"
       }
     }
