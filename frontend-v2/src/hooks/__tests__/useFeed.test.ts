@@ -152,10 +152,11 @@ describe('postComment', () => {
   it('POST /api/observers/comments with correct payload', async () => {
     (api.post as jest.Mock).mockResolvedValueOnce({ data: { comment: { id: 'c1' } } });
 
-    await postComment('completion-123', null, 'Great work!');
+    await postComment({ studentId: 'student-1', completionId: 'completion-123', text: 'Great work!' });
 
     expect(api.post).toHaveBeenCalledWith('/api/observers/comments', {
-      completion_id: 'completion-123',
+      student_id: 'student-1',
+      task_completion_id: 'completion-123',
       learning_event_id: null,
       comment_text: 'Great work!',
     });

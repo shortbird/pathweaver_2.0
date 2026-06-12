@@ -58,6 +58,53 @@ export const TOPIC_TAXONOMY: Record<string, string[]> = {
   Games: ['Board Games', 'Video Games', 'Game Design', 'Puzzles', 'Strategy', 'Esports'],
 };
 
+// ── Recommended ordering ──────────────────────────────────────────────────
+// Feature: "We need really good ones at the top. Can we cycle through ideas so
+// people don't see the same ones each time?" We rank the first page by curation
+// signals (so well-built quests float up) and break ties with a per-day seed so
+// equally-good quests rotate daily — the list looks fresh on each visit without
+// jumping around mid-scroll (later pages are appended in their server order).
+
+function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Curation score — higher = more complete/polished quest. */
+function questQualityScore(q: any): number {
+  let score = 0;
+  if (q.header_image_url || q.image_url) score += 3;
+  if (q.big_idea) score += 2;
+  if ((q.description || '').length >= 120) score += 1;
+  if (Array.isArray(q.approach_examples) && q.approach_examples.length > 0) score += 1;
+  return score;
+}
+
+/** Stable daily rotation: order by quality desc, then a per-day hash of the id. */
+export function rankRecommendedQuests<T extends { id: string }>(list: T[], daySeed: string): T[] {
+  return [...list]
+    .map((q, idx) => ({
+      q,
+      idx,
+      score: questQualityScore(q),
+      rot: hashString(`${q.id}:${daySeed}`),
+    }))
+    .sort((a, b) => (b.score - a.score) || (a.rot - b.rot) || (a.idx - b.idx))
+    .map((x) => x.q);
+}
+
+function todaySeed(): string {
+  try {
+    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  } catch {
+    return 'static';
+  }
+}
+
 export function useQuestDiscovery() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -112,7 +159,11 @@ export function useQuestDiscovery() {
           return [...prev, ...unique];
         });
       } else {
-        setQuests(newQuests);
+        // Surface the best quests first and rotate them daily — only for the
+        // unfiltered catalog (a search/topic filter implies the user wants
+        // relevance/server order, not the rotating "recommended" view).
+        const isUnfiltered = !debouncedSearch && !selectedTopic && !selectedSubtopic;
+        setQuests(isUnfiltered ? rankRecommendedQuests(newQuests, todaySeed()) : newQuests);
       }
       setHasMore(pageNum < totalPages);
       setPage(pageNum);

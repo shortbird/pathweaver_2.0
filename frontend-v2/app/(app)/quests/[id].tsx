@@ -21,10 +21,12 @@ import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
 import { useCaptureContextStore } from '@/src/stores/captureContextStore';
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
 import { AudioClipPreview } from '@/src/components/capture/VoiceRecorder';
+import { DocumentViewer } from '@/src/components/feed/DocumentViewer';
 import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import { ClassDetailHeader } from '@/src/components/class/ClassDetailHeader';
 import { getSubject } from '@/src/components/class/SUBJECTS';
 import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
+import { TaskEditModal } from '@/src/components/tasks/TaskEditModal';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
@@ -124,6 +126,13 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
   }
 
   if (blockType === 'document' && url) {
+    // Scans/PDFs are the most common moment evidence; render an actual inline
+    // page preview (DocumentViewer) instead of a bare "tap to open" chip so the
+    // student sees the file here, not just the moment text (bug: "I should see
+    // the actual files/image preview here").
+    if (url.toLowerCase().includes('.pdf')) {
+      return <DocumentViewer uri={url} title={filename} />;
+    }
     return (
       <Pressable
         onPress={() => safeOpenURL(url)}
@@ -163,6 +172,7 @@ function TaskItem({
   onComplete,
   onDelete,
   onEditMoment,
+  onEditTask,
   classSubject,
 }: {
   task: any;
@@ -170,6 +180,8 @@ function TaskItem({
   onDelete: (taskId: string) => void;
   /** Open the moment editor for an is_moment task (bug #16). */
   onEditMoment?: (task: any) => void;
+  /** Open the task editor (pillar + diploma subjects) for a regular task. */
+  onEditTask?: (task: any) => void;
   /** When set, this task belongs to a class quest — render the transcript
    *  subject + attributed credit XP in place of the pillar badge. */
   classSubject?: string | null;
@@ -337,6 +349,19 @@ function TaskItem({
                 </HStack>
               )}
 
+              {/* Edit pillar + diploma subjects (regular tasks only; class tasks
+                  carry a fixed transcript subject, moments use the moment editor). */}
+              {!task.is_moment && !isClassTask && onEditTask && (
+                <Pressable
+                  onPress={(e) => { e.stopPropagation(); onEditTask(task); }}
+                  className="flex-row items-center gap-1.5 self-start"
+                  hitSlop={8}
+                >
+                  <Ionicons name="pencil-outline" size={13} color="#6D469B" />
+                  <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit pillar & subjects</UIText>
+                </Pressable>
+              )}
+
               {/* Evidence display */}
               {evidenceBlocks.length > 0 && (
                 <VStack space="sm">
@@ -459,6 +484,9 @@ export default function QuestDetailScreen() {
   // shape, and EditMomentModal writes back the full form, so editing the
   // partial would wipe pillars/event_date.
   const [editMomentEvent, setEditMomentEvent] = useState<LearningEvent | null>(null);
+  // Regular task being edited (pillar + diploma subjects) via the in-quest
+  // "Edit pillar & subjects" button.
+  const [editTask, setEditTask] = useState<any | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
 
   const handleEditMoment = async (task: any) => {
@@ -719,6 +747,7 @@ export default function QuestDetailScreen() {
                         }}
                         onDelete={deleteTask}
                         onEditMoment={handleEditMoment}
+                        onEditTask={setEditTask}
                       />
                     ))}
                   </VStack>
@@ -824,6 +853,14 @@ export default function QuestDetailScreen() {
         topics={[]}
         onClose={() => setEditMomentEvent(null)}
         onSaved={() => { setEditMomentEvent(null); refetch(); }}
+      />
+
+      {/* In-quest task editor — pillar + diploma subjects */}
+      <TaskEditModal
+        visible={!!editTask}
+        task={editTask}
+        onClose={() => setEditTask(null)}
+        onSaved={() => { setEditTask(null); refetch(); }}
       />
     </SafeAreaView>
   );

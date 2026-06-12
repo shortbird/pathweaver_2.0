@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { postComment, getComments } from '@/src/hooks/useFeed';
 import type { FeedItem } from '@/src/hooks/useFeed';
+import { extractApiError } from '@/src/services/apiError';
 import {
   VStack, HStack, UIText, Heading, Avatar, AvatarFallbackText,
 } from '../ui';
@@ -34,6 +35,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const c = useThemeColors();
 
   const isTask = item.type === 'task_completed';
@@ -59,18 +61,22 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
 
   const handlePost = async () => {
     if (!text.trim() || posting) return;
+    setError(null);
     setPosting(true);
     try {
-      await postComment(
-        isTask ? cleanId : null,
-        isTask ? null : cleanId,
-        text.trim(),
-      );
+      // Use the canonical completion/learning-event handle the feed provides
+      // (item.id can be a composite "<completionId>_<blockId>" that isn't a real id).
+      await postComment({
+        studentId: item.student.id,
+        completionId: isTask ? (item.completion_id || cleanId) : null,
+        learningEventId: isTask ? null : (item.learning_event_id || cleanId),
+        text: text.trim(),
+      });
       setText('');
       await fetchComments();
       onCommentPosted?.();
-    } catch {
-      // Error handled silently
+    } catch (e) {
+      setError(extractApiError(e, 'Could not post comment. Please try again.').message);
     } finally {
       setPosting(false);
     }
@@ -86,7 +92,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <KeyboardAvoidingView
         className="flex-1 justify-end"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Backdrop */}
         <Pressable
@@ -153,6 +159,13 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
               }}
             />
           )}
+
+          {/* Error */}
+          {error ? (
+            <View className="px-6 pb-1">
+              <UIText size="xs" className="text-error-600 dark:text-error-400">{error}</UIText>
+            </View>
+          ) : null}
 
           {/* Input */}
           <HStack className="px-4 py-3 border-t border-surface-100 dark:border-dark-surface-300 items-end gap-2" style={{ paddingBottom: Platform.OS === 'ios' ? 32 : 16 }}>

@@ -523,40 +523,41 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
             </HStack>
           )}
 
-          {/* Social actions */}
-          <HStack className="items-center gap-4 pt-1 border-t border-surface-100 dark:border-dark-surface-300 mt-1">
-            <Pressable onPress={handleShowViewers} className="flex-row items-center gap-1.5 py-1">
+          {/* Social actions — bigger icons + tap targets so comment/views/share
+              are easy to hit (bug: "buttons need to be bigger"). */}
+          <HStack className="items-center gap-5 pt-1 border-t border-surface-100 dark:border-dark-surface-300 mt-1">
+            <Pressable onPress={handleShowViewers} hitSlop={8} accessibilityLabel="Viewers" className="flex-row items-center gap-1.5 py-2">
               <Ionicons
                 name="eye-outline"
-                size={18}
+                size={24}
                 color={showViewersList ? '#6D469B' : c.iconMuted}
               />
               {viewsCount > 0 && (
-                <UIText size="xs" className={showViewersList ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'}>
+                <UIText size="sm" className={showViewersList ? 'text-optio-purple' : 'text-typo-400 dark:text-dark-typo-400'}>
                   {viewsCount}
                 </UIText>
               )}
             </Pressable>
 
-            <Pressable onPress={() => setShowComments(true)} className="flex-row items-center gap-1.5 py-1">
-              <Ionicons name="chatbubble-outline" size={16} color={c.iconMuted} />
+            <Pressable onPress={() => setShowComments(true)} hitSlop={8} accessibilityLabel="Comments" className="flex-row items-center gap-1.5 py-2">
+              <Ionicons name="chatbubble-outline" size={22} color={c.iconMuted} />
               {commentsCount > 0 && (
-                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{commentsCount}</UIText>
+                <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">{commentsCount}</UIText>
               )}
             </Pressable>
 
             {canShare && (
-              <Pressable onPress={handleShare} disabled={sharing} accessibilityLabel="Share" className="flex-row items-center gap-1.5 py-1" style={{ opacity: sharing ? 0.5 : 1 }}>
-                <Ionicons name="share-outline" size={16} color={isConfidential ? c.border : c.iconMuted} />
+              <Pressable onPress={handleShare} disabled={sharing} hitSlop={8} accessibilityLabel="Share" className="flex-row items-center gap-1.5 py-2" style={{ opacity: sharing ? 0.5 : 1 }}>
+                <Ionicons name="share-outline" size={22} color={isConfidential ? c.border : c.iconMuted} />
               </Pressable>
             )}
 
             {/* Visibility toggle - owner always; parents on kid posts via prop */}
             {canTogglePrivacy && (
-              <Pressable onPress={handleToggleVisibility} className="flex-row items-center gap-1.5 py-1 ml-auto">
+              <Pressable onPress={handleToggleVisibility} hitSlop={8} className="flex-row items-center gap-1.5 py-2 ml-auto">
                 <Ionicons
                   name={isConfidential ? 'eye-off-outline' : 'eye-outline'}
-                  size={16}
+                  size={22}
                   color={isConfidential ? '#EF597B' : c.iconMuted}
                 />
                 <UIText size="xs" className={isConfidential ? 'text-optio-pink' : 'text-typo-400 dark:text-dark-typo-400'}>

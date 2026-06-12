@@ -399,9 +399,17 @@ def register_routes(bp):
                     return True
                 return bool(evidence_permissions.get(post_student_id))
 
-            # Build feed items - one per evidence block.
-            # Items appear as soon as a block is uploaded; no completion record required.
+            # Build feed items from task-evidence blocks. ALL blocks belonging to
+            # the same task+student (one capture / one evidence document) are
+            # collapsed into a SINGLE feed card carrying every block in
+            # `evidence.blocks` — otherwise a task with two uploaded files showed
+            # up as two separate posts (bug: "these two posts should be 1 post").
+            # The frontend FeedCard already renders images/video/audio/docs/links
+            # from evidence.blocks, the same way grouped learning moments do.
             raw_feed_items = []
+            task_groups = {}        # (task_id, user_id) -> aggregated feed item
+            task_group_order = []   # preserve first-seen (newest-first) order
+
             for block in evidence_block_rows:
                 doc = block.get('user_task_evidence_documents') or {}
                 doc_user_id = doc.get('user_id')
@@ -412,59 +420,76 @@ def register_routes(bp):
                 if not can_view:
                     continue
 
-                student_info = students_map.get(doc_user_id, {})
-                task_info = tasks_map.get(doc_task_id, {})
-                quest_info = quests_map.get(doc_quest_id, {})
-                completion = completion_by_task_user.get((doc_task_id, doc_user_id))
+                content = block.get('content', {}) or {}
+                bt = block.get('block_type')
+                block_url = get_content_url(content) or block.get('file_url')
 
-                content = block.get('content', {})
-                evidence_type = None
-                evidence_preview = None
-                evidence_title = None
+                # Shape each block exactly like the frontend expects in
+                # evidence.blocks ({type, url, title, content}). Text carries its
+                # string in `content`; audio carries {duration_ms} in `content`.
+                fe_block = None
+                if bt == 'image' and block_url:
+                    fe_block = {'type': 'image', 'url': block_url}
+                elif bt == 'video' and block_url:
+                    fe_block = {'type': 'video', 'url': block_url, 'title': content.get('title')}
+                elif bt == 'link' and block_url:
+                    fe_block = {'type': 'link', 'url': block_url, 'title': content.get('title')}
+                elif bt == 'text':
+                    text_val = content.get('text', '')
+                    if text_val:
+                        fe_block = {'type': 'text', 'content': text_val}
+                elif bt == 'document' and block_url:
+                    fe_block = {'type': 'document', 'url': block_url,
+                                'title': content.get('title') or content.get('filename') or block.get('file_name')}
+                elif bt == 'audio' and block_url:
+                    fe_block = {'type': 'audio', 'url': block_url,
+                                'title': content.get('filename') or block.get('file_name'),
+                                'content': {'duration_ms': content.get('duration_ms')}}
 
-                if block['block_type'] == 'image':
-                    evidence_type = 'image'
-                    evidence_preview = get_content_url(content)
-                elif block['block_type'] == 'video':
-                    evidence_type = 'video'
-                    evidence_preview = get_content_url(content)
-                    evidence_title = content.get('title')
-                elif block['block_type'] == 'link':
-                    evidence_type = 'link'
-                    evidence_preview = get_content_url(content)
-                    evidence_title = content.get('title')
-                elif block['block_type'] == 'text':
-                    evidence_type = 'text'
-                    evidence_preview = content.get('text', '')
-                elif block['block_type'] == 'document':
-                    evidence_type = 'document'
-                    evidence_preview = get_content_url(content)
-                    evidence_title = content.get('title') or content.get('filename')
-
-                if not evidence_type:
+                if not fe_block:
                     continue
 
-                student_name = student_info.get('display_name') or \
-                    f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
+                key = (doc_task_id, doc_user_id)
+                group = task_groups.get(key)
+                if group is None:
+                    student_info = students_map.get(doc_user_id, {})
+                    task_info = tasks_map.get(doc_task_id, {})
+                    quest_info = quests_map.get(doc_quest_id, {})
+                    completion = completion_by_task_user.get((doc_task_id, doc_user_id))
+                    student_name = student_info.get('display_name') or \
+                        f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
 
-                raw_feed_items.append({
-                    'id': f"{(completion or {}).get('id', doc.get('id'))}_{block['id']}",
-                    'completion_id': completion['id'] if completion else None,
-                    'block_id': block['id'],
-                    'timestamp': block.get('created_at'),
-                    'student_id': doc_user_id,
-                    'student_name': student_name,
-                    'student_avatar': student_info.get('avatar_url'),
-                    'task_id': doc_task_id,
-                    'task_title': task_info.get('title', 'Task'),
-                    'task_pillar': task_info.get('pillar'),
-                    'task_xp': task_info.get('xp_value', 0),
-                    'quest_id': doc_quest_id,
-                    'quest_title': quest_info.get('title', 'Quest'),
-                    'evidence_type': evidence_type,
-                    'evidence_preview': evidence_preview,
-                    'evidence_title': evidence_title
-                })
+                    group = {
+                        # evidence_block_rows are newest-first, so the first block
+                        # we see for a task is the most recent → its timestamp sorts
+                        # the whole card.
+                        'id': f"{(completion or {}).get('id', doc.get('id'))}",
+                        'completion_id': completion['id'] if completion else None,
+                        'block_id': block['id'],  # first block (draft block-scoped actions)
+                        'timestamp': block.get('created_at'),
+                        'student_id': doc_user_id,
+                        'student_name': student_name,
+                        'student_avatar': student_info.get('avatar_url'),
+                        'task_id': doc_task_id,
+                        'task_title': task_info.get('title', 'Task'),
+                        'task_pillar': task_info.get('pillar'),
+                        'task_xp': task_info.get('xp_value', 0),
+                        'quest_id': doc_quest_id,
+                        'quest_title': quest_info.get('title', 'Quest'),
+                        # 'document_blocks' is a non-singular type so the frontend
+                        # renders from evidence.blocks instead of a single preview.
+                        'evidence_type': 'document_blocks',
+                        'evidence_preview': None,
+                        'evidence_title': None,
+                        'evidence_blocks': [],
+                    }
+                    task_groups[key] = group
+                    task_group_order.append(key)
+
+                group['evidence_blocks'].append(fe_block)
+
+            for key in task_group_order:
+                raw_feed_items.append(task_groups[key])
 
             # Legacy: emit completions that have only evidence_text/evidence_url (no document).
             # Skip any completion whose task already has document-driven block items above.
@@ -775,9 +800,12 @@ def register_routes(bp):
                         },
                         'evidence': {
                             'type': item['evidence_type'],
-                            'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
+                            'url': item['evidence_preview'] if item['evidence_type'] not in ('text', 'document_blocks') else None,
                             'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
-                            'title': item.get('evidence_title')
+                            'title': item.get('evidence_title'),
+                            # All blocks for grouped multi-file task evidence; the
+                            # frontend renders images/video/audio/docs/links from here.
+                            'blocks': item.get('evidence_blocks'),
                         },
                         'xp_awarded': item.get('task_xp', 0),
                         'views_count': views_count.get(item.get('completion_id'), 0),

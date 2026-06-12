@@ -236,15 +236,20 @@ export async function getViewers(type: 'task_completed' | 'learning_moment', id:
   return data as { viewers: Array<{ id: string; display_name: string; avatar_url: string | null; viewed_at: string }>; total: number };
 }
 
-export async function postComment(
-  completionId: string | null,
-  learningEventId: string | null,
-  text: string,
-) {
+export async function postComment(args: {
+  studentId: string;
+  completionId?: string | null;
+  learningEventId?: string | null;
+  text: string;
+}) {
+  // The backend (/api/observers/comments) requires `student_id` and addresses the
+  // completion via `task_completion_id` — sending `completion_id` with no student id
+  // (the old payload) always 400'd, so comments silently never posted.
   const { data } = await api.post('/api/observers/comments', {
-    completion_id: completionId,
-    learning_event_id: learningEventId,
-    comment_text: text,
+    student_id: args.studentId,
+    task_completion_id: args.completionId ?? null,
+    learning_event_id: args.learningEventId ?? null,
+    comment_text: args.text,
   });
   return data;
 }

@@ -465,7 +465,7 @@ class DailySummaryService(BaseService):
                 return {}
 
             response = self.client.table('user_quests')\
-                .select('user_id, quest_id, started_at, quests(id, title)')\
+                .select('id, user_id, quest_id, started_at, quests(id, title)')\
                 .in_('user_id', student_ids)\
                 .eq('is_active', True)\
                 .is_('completed_at', 'null')\
@@ -479,8 +479,10 @@ class DailySummaryService(BaseService):
                 if student_id not in quests_by_student:
                     quests_by_student[student_id] = []
 
-                # Calculate progress percentage
-                progress = self._calculate_quest_progress(uq.get('quest_id'), student_id)
+                # Calculate progress percentage (pass the enrollment id we already
+                # hold so we don't re-query user_quests — a student can have more
+                # than one row per quest, which made the old .single() throw)
+                progress = self._calculate_quest_progress(uq['id'])
 
                 quests_by_student[student_id].append({
                     'quest_id': uq['quest_id'],
@@ -494,21 +496,11 @@ class DailySummaryService(BaseService):
             logger.error(f"Error fetching active quests: {e}")
             return {}
 
-    def _calculate_quest_progress(self, quest_id: str, user_id: str) -> int:
-        """Calculate completion percentage for a quest."""
+    def _calculate_quest_progress(self, user_quest_id: str) -> int:
+        """Calculate completion percentage for a single quest enrollment."""
         try:
-            # Get user_quest_id
-            uq_result = self.client.table('user_quests')\
-                .select('id')\
-                .eq('quest_id', quest_id)\
-                .eq('user_id', user_id)\
-                .single()\
-                .execute()
-
-            if not uq_result.data:
+            if not user_quest_id:
                 return 0
-
-            user_quest_id = uq_result.data['id']
 
             # Get total tasks
             tasks_result = self.client.table('user_quest_tasks')\

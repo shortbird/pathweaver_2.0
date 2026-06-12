@@ -202,6 +202,22 @@ def update_task(user_id: str, task_id: str):
         if 'is_required' in data:
             update_payload['is_required'] = bool(data['is_required'])
 
+        # Diploma (transcript) subjects this task contributes toward. Students can
+        # retag a task's subject(s) from the quest screen (feature: "edit the
+        # pillar and diploma subject on a task").
+        if 'diploma_subjects' in data:
+            subjects = data['diploma_subjects'] or []
+            if not isinstance(subjects, list) or not all(isinstance(s, str) for s in subjects):
+                return jsonify({
+                    'success': False,
+                    'error': 'diploma_subjects must be a list of subject names'
+                }), 400
+            cleaned = [s.strip() for s in subjects if s and s.strip()]
+            # Dedupe (preserve order) and cap to a sane count.
+            seen = set()
+            deduped = [s for s in cleaned if not (s in seen or seen.add(s))]
+            update_payload['diploma_subjects'] = deduped[:10]
+
         if not update_payload:
             return jsonify({
                 'success': False,

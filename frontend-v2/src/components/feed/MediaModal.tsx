@@ -10,6 +10,7 @@ import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-g
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoPlayer } from './VideoPlayer';
+import { DocumentViewer } from './DocumentViewer';
 
 interface MediaModalProps {
   visible: boolean;
@@ -136,8 +137,16 @@ export function MediaModal({ visible, onClose, type, uri, title }: MediaModalPro
 
           {/* Media */}
           <View className="flex-1 items-center justify-center">
-            {(type === 'image' || type === 'document') && (
+            {type === 'image' && (
               <ZoomableImage uri={uri} width={mediaW} height={mediaH} />
+            )}
+
+            {/* PDFs/documents render page-by-page via DocumentViewer; the old
+                code fed them to <Image> (ZoomableImage), which showed nothing. */}
+            {type === 'document' && (
+              <View style={{ width: Math.min(mediaW, 560), paddingHorizontal: 16 }}>
+                <DocumentViewer uri={uri} title={title} />
+              </View>
             )}
 
             {type === 'video' && (
