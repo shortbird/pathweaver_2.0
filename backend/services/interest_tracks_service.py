@@ -939,6 +939,99 @@ class InterestTracksService(BaseService):
             return 0
 
     @staticmethod
+    def sync_promoted_task_evidence(moment_id: str) -> int:
+        """Copy a moment's file evidence onto any quest task it was promoted to.
+
+        Promotion seeds a task's evidence once, but media (scans/photos/video)
+        often finishes uploading to the moment a few SECONDS after the task is
+        created, so the file never reaches the task. Call this after evidence is
+        added to a moment: it idempotently copies any of the moment's
+        file-bearing blocks the task's evidence document doesn't already have
+        (matched by URL). Safe to call repeatedly. Returns blocks copied.
+        """
+        try:
+            supabase = get_supabase_admin_client()
+            tasks = supabase.table('user_quest_tasks') \
+                .select('id, user_id, quest_id') \
+                .eq('source_moment_id', moment_id) \
+                .execute()
+            if not tasks.data:
+                return 0
+
+            moment_blocks = supabase.table('learning_event_evidence_blocks') \
+                .select('block_type, content, file_url, file_name, file_size, order_index') \
+                .eq('learning_event_id', moment_id) \
+                .order('order_index') \
+                .execute()
+            file_blocks = [
+                b for b in (moment_blocks.data or [])
+                if b.get('block_type') in ('image', 'video', 'document', 'audio', 'link')
+                and ((b.get('content') or {}).get('url') or b.get('file_url'))
+            ]
+            if not file_blocks:
+                return 0
+
+            copied = 0
+            for task in tasks.data:
+                # Get or create the task's evidence document.
+                doc = supabase.table('user_task_evidence_documents') \
+                    .select('id') \
+                    .eq('task_id', task['id']) \
+                    .limit(1) \
+                    .execute()
+                if doc.data:
+                    doc_id = doc.data[0]['id']
+                else:
+                    created = supabase.table('user_task_evidence_documents').insert({
+                        'user_id': task['user_id'],
+                        'quest_id': task['quest_id'],
+                        'task_id': task['id'],
+                        'status': 'draft',
+                    }).execute()
+                    if not created.data:
+                        continue
+                    doc_id = created.data[0]['id']
+
+                existing = supabase.table('evidence_document_blocks') \
+                    .select('content, order_index') \
+                    .eq('document_id', doc_id) \
+                    .execute()
+                existing_urls = {(e.get('content') or {}).get('url') for e in (existing.data or [])}
+                next_order = max([e.get('order_index', -1) for e in (existing.data or [])], default=-1) + 1
+
+                to_insert = []
+                for b in file_blocks:
+                    content = dict(b.get('content') or {})
+                    url = content.get('url') or b.get('file_url')
+                    if not url or url in existing_urls:
+                        continue
+                    content['url'] = url
+                    if b.get('file_name'):
+                        content.setdefault('filename', b['file_name'])
+                    if b.get('file_size'):
+                        content.setdefault('file_size', b['file_size'])
+                    to_insert.append({
+                        'document_id': doc_id,
+                        'block_type': b.get('block_type', 'document'),
+                        'content': content,
+                        'order_index': next_order,
+                        'is_private': False,
+                        'uploaded_by_user_id': task['user_id'],
+                        'uploaded_by_role': 'student',
+                    })
+                    existing_urls.add(url)
+                    next_order += 1
+
+                if to_insert:
+                    supabase.table('evidence_document_blocks').insert(to_insert).execute()
+                    copied += len(to_insert)
+
+            return copied
+        except Exception as e:
+            logger.warning(f"sync_promoted_task_evidence failed for moment {moment_id}: {e}")
+            return 0
+
+    @staticmethod
     def _transfer_moment_evidence_to_task(
         supabase,
         user_id: str,

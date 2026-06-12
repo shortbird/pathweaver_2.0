@@ -248,6 +248,22 @@ def register_routes(bp):
             # Get a primary topic name for each learning event from the junction table.
             # Used only as a display label on the feed card — first topic wins.
             event_ids_for_topics = [e['id'] for e in (learning_events.data or [])]
+
+            # Moments promoted to a quest task already appear in the feed as that
+            # task's evidence card, so suppress the standalone moment item — the
+            # same practice log was showing as two posts ("these two should be 1
+            # post"). The task card carries the moment's evidence (seeded at
+            # promotion + backfilled), so nothing is lost.
+            promoted_moment_ids = set()
+            if event_ids_for_topics:
+                promoted = supabase.table('user_quest_tasks') \
+                    .select('source_moment_id') \
+                    .in_('source_moment_id', event_ids_for_topics) \
+                    .execute()
+                promoted_moment_ids = {
+                    r['source_moment_id'] for r in (promoted.data or []) if r.get('source_moment_id')
+                }
+
             event_track_label = {}  # event_id -> track name
             if event_ids_for_topics:
                 junction = supabase.table('learning_event_topics') \
@@ -552,6 +568,10 @@ def register_routes(bp):
 
             # Build feed items for learning moments - group all media into single items
             for event in (learning_events.data or []):
+                # Skip moments already surfaced as their promoted task's card.
+                if event['id'] in promoted_moment_ids:
+                    continue
+
                 student_info = students_map.get(event['user_id'], {})
                 can_view = True if is_superadmin_global else evidence_permissions.get(event['user_id'], False)
 

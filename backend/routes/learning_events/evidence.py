@@ -45,6 +45,14 @@ def save_evidence_blocks(user_id, event_id):
         )
 
         if result['success']:
+            # If this moment was promoted to a quest task, push the (possibly
+            # newly added) file evidence onto that task too — promotion only
+            # seeds once, and media often lands on the moment afterward.
+            try:
+                from services.interest_tracks_service import InterestTracksService
+                InterestTracksService.sync_promoted_task_evidence(event_id)
+            except Exception as sync_err:
+                logger.warning(f"sync_promoted_task_evidence (save_evidence_blocks) failed: {sync_err}")
             return jsonify({
                 'success': True,
                 'blocks': result['blocks'],
@@ -106,6 +114,13 @@ def upload_event_file(user_id, event_id):
             'file_size': result.file_size,
             'content_type': result.content_type,
         }
+        # Mirror a late-arriving upload onto any task this moment was promoted to
+        # (media often finalizes seconds after the task was created).
+        try:
+            from services.interest_tracks_service import InterestTracksService
+            InterestTracksService.sync_promoted_task_evidence(event_id)
+        except Exception as sync_err:
+            logger.warning(f"sync_promoted_task_evidence (upload) failed: {sync_err}")
         if result.thumbnail_url:
             response_data['thumbnail_url'] = result.thumbnail_url
         if result.duration_seconds is not None:
@@ -211,6 +226,13 @@ def finalize_event_signed_upload(user_id, event_id):
             'file_size': result.file_size,
             'content_type': result.content_type,
         }
+        # Mirror a late-arriving upload onto any task this moment was promoted to
+        # (media often finalizes seconds after the task was created).
+        try:
+            from services.interest_tracks_service import InterestTracksService
+            InterestTracksService.sync_promoted_task_evidence(event_id)
+        except Exception as sync_err:
+            logger.warning(f"sync_promoted_task_evidence (upload) failed: {sync_err}")
         if result.thumbnail_url:
             response_data['thumbnail_url'] = result.thumbnail_url
         if result.duration_seconds is not None:
