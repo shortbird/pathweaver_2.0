@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { copyFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
@@ -42,7 +43,18 @@ export default defineConfig(({ mode }) => {
           console.log('Copied index.html as 404.html for SPA routing')
         }
       }
-    }
+    },
+    // Upload source maps to Sentry, then delete them from dist so the source is
+    // never publicly served (we build with sourcemap:'hidden' below). Only runs
+    // when SENTRY_AUTH_TOKEN is present in the build env, so dev builds are
+    // unaffected. Must be last so it sees the final bundle + maps.
+    process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+      telemetry: false,
+    }),
   ],
   server: {
     port: 3000,
@@ -70,8 +82,11 @@ export default defineConfig(({ mode }) => {
   },
   build: {
     outDir: 'dist',
-    // Disable source maps in production to prevent source code exposure
-    sourcemap: !isProduction,
+    // Dev: full inline maps. Prod: only generate 'hidden' maps when we have a
+    // Sentry token to upload + delete them (the plugin removes them from dist
+    // after upload, so source is never publicly served). Without the token,
+    // keep prod maps off entirely — no exposure.
+    sourcemap: isProduction ? (process.env.SENTRY_AUTH_TOKEN ? 'hidden' : false) : true,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {

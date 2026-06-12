@@ -1,5 +1,6 @@
 import React from 'react';
 import { captureError } from '../services/posthog';
+import { captureException } from '../services/sentry';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -21,8 +22,9 @@ class ErrorBoundary extends React.Component {
     // Log error to console in development
     console.error('Error caught by ErrorBoundary:', error, errorInfo);
 
-    // Send to PostHog for correlation with session replays
+    // Send to PostHog (session-replay correlation) and Sentry (alerting).
     captureError(error, errorInfo);
+    captureException(error, { componentStack: errorInfo?.componentStack });
 
     // Update state with error details
     this.setState(prevState => ({

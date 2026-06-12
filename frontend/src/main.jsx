@@ -6,6 +6,10 @@ import '@fontsource/poppins/400.css'
 import '@fontsource/poppins/600.css'
 import App from './App'
 import './index.css'
+import { initSentry } from './services/sentry'
+
+// Initialize error tracking as early as possible (no-op without VITE_SENTRY_DSN).
+initSentry()
 
 // Register service worker for push notifications
 if ('serviceWorker' in navigator) {

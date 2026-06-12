@@ -1028,7 +1028,10 @@ class InterestTracksService(BaseService):
 
             return copied
         except Exception as e:
-            logger.warning(f"sync_promoted_task_evidence failed for moment {moment_id}: {e}")
+            # Real data-sync failure (a promoted task silently misses its
+            # evidence) — surface it to Sentry, not just the logs.
+            from utils.error_reporting import report_error
+            report_error(e, "sync_promoted_task_evidence failed", moment_id=moment_id)
             return 0
 
     @staticmethod

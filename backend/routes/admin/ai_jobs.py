@@ -275,8 +275,9 @@ def trigger_advisor_summary_job():
     # Check for cron secret OR superadmin auth
     cron_secret = request.headers.get('X-Cron-Secret')
     expected_secret = Config.CRON_SECRET
+    is_cron = bool(cron_secret and expected_secret and cron_secret == expected_secret)
 
-    if cron_secret and expected_secret and cron_secret == expected_secret:
+    if is_cron:
         # Valid cron request
         logger.info("Advisor summary triggered via cron")
     else:
@@ -285,6 +286,41 @@ def trigger_advisor_summary_job():
         user = get_current_user()
         if not user or get_effective_role(user) != 'superadmin':
             return jsonify({'error': 'Unauthorized'}), 401
+
+    # Sentry Cron monitoring (only for the real scheduled run, not manual tests):
+    # alerts if the daily job stops firing or errors. Schedule/timezone are a
+    # best-guess (documented 5 AM) — adjust the monitor in Sentry if it differs.
+    check_in_id = None
+    if is_cron:
+        try:
+            import sentry_sdk
+            check_in_id = sentry_sdk.crons.capture_checkin(
+                monitor_slug='advisor-daily-summary',
+                status='in_progress',
+                monitor_config={
+                    'schedule': {'type': 'crontab', 'value': '0 5 * * *'},
+                    'timezone': 'UTC',
+                    'checkin_margin': 60,
+                    'max_runtime': 30,
+                    'failure_issue_threshold': 1,
+                    'recovery_threshold': 1,
+                },
+            )
+        except Exception:
+            check_in_id = None
+
+    def _checkin(status):
+        if not check_in_id:
+            return
+        try:
+            import sentry_sdk
+            sentry_sdk.crons.capture_checkin(
+                monitor_slug='advisor-daily-summary',
+                check_in_id=check_in_id,
+                status=status,
+            )
+        except Exception:
+            pass
 
     try:
         from jobs.daily_advisor_summary import DailyAdvisorSummaryJob
@@ -301,11 +337,13 @@ def trigger_advisor_summary_job():
         # running stale pending jobs of other types
         result = DailyAdvisorSummaryJob.execute(job_data)
 
+        _checkin('ok')
         return jsonify({
             'message': 'Daily advisor summary job triggered',
             'result': result
         }), 200
 
     except Exception as e:
+        _checkin('error')
         logger.error(f"Error triggering advisor summary job: {e}")
         return jsonify({'error': str(e)}), 500

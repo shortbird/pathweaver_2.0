@@ -61,8 +61,16 @@ if Config.SENTRY_DSN:
         dsn=Config.SENTRY_DSN,
         environment=Config.SENTRY_ENVIRONMENT
         or os.environ.get('FLASK_ENV', 'development'),
+        # Tie every issue to the deploy that produced it (Render sets
+        # RENDER_GIT_COMMIT) so regressions point at a commit and
+        # "resolved in next release" works. SENTRY_RELEASE overrides.
+        release=os.environ.get('SENTRY_RELEASE')
+        or os.environ.get('RENDER_GIT_COMMIT')
+        or None,
         send_default_pii=False,
-        traces_sample_rate=0.0,
+        # Light performance tracing: surfaces slow endpoints / N+1 without
+        # burning quota. Override via SENTRY_TRACES_SAMPLE_RATE.
+        traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.05')),
     )
     logger.info("Sentry error tracking enabled")
 

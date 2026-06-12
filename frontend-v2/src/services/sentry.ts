@@ -142,6 +142,26 @@ function tagOtaContext(Sentry: any): void {
   }
 }
 
+/**
+ * Wrap the app root with Sentry so React render errors are caught and
+ * navigation/time-to-display instrumentation is enabled. Falls back to the
+ * component unchanged if @sentry/react-native isn't available (keeps the
+ * no-hard-dependency contract). Safe regardless of DSN — event delivery is
+ * still gated by `enabled` in init().
+ */
+export function wrapWithSentry<T>(Component: T): T {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Sentry = require('@sentry/react-native');
+    if (typeof Sentry.wrap === 'function') {
+      return Sentry.wrap(Component as any) as T;
+    }
+  } catch {
+    // Module not installed — return as-is.
+  }
+  return Component;
+}
+
 export function captureException(err: unknown, extras?: Extras): void {
   (impl ?? makeNoopShim()).captureException(err, extras);
 }

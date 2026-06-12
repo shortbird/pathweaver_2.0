@@ -9,6 +9,7 @@ import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCoo
 import { clearMasqueradeData } from '../services/masqueradeService'
 import logger from '../utils/logger'
 import { identifyUser, resetUser, captureEvent } from '../services/posthog'
+import { setSentryUser } from '../services/sentry'
 
 const AuthContext = createContext()
 
@@ -40,6 +41,12 @@ export const AuthProvider = ({ children }) => {
     cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     retry: 1, // Only retry once for auth checks
   })
+
+  // Keep Sentry's user context in sync so issues show who/how many were
+  // affected (id only — no PII). Clears on logout when `user` becomes null.
+  useEffect(() => {
+    setSentryUser(user || null)
+  }, [user])
 
   useEffect(() => {
     // ✅ SAFARI FIX + P0 SECURITY FIX: Detect browser and initialize secure token storage

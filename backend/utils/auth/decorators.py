@@ -100,10 +100,23 @@ def require_auth(f):
 
         # Store user_id in request context for error logging
         request.user_id = user_id
+        # Attach the user (id only — no PII) to the Sentry scope so issues show
+        # how many users are affected and can be filtered by user. No-op when
+        # Sentry isn't initialized (local dev).
+        _set_sentry_user(user_id)
 
         return f(user_id, *args, **kwargs)
 
     return decorated_function
+
+
+def _set_sentry_user(user_id: str) -> None:
+    """Best-effort: tag the current Sentry scope with the request's user id."""
+    try:
+        import sentry_sdk
+        sentry_sdk.set_user({'id': user_id})
+    except Exception:
+        pass
 
 def require_admin(f):
     """
@@ -130,6 +143,7 @@ def require_admin(f):
 
         # Store user_id in request context
         request.user_id = user_id
+        _set_sentry_user(user_id)
 
         # Verify superadmin status with retry logic (use admin client to bypass RLS)
         from database import get_supabase_admin_client

@@ -52,7 +52,7 @@ import {
 import { useAuthStore } from '@/src/stores/authStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { loadPersistedTheme, applyColorScheme } from '@/src/stores/themeStore';
-import { initSentry, captureException } from '@/src/services/sentry';
+import { initSentry, captureException, wrapWithSentry } from '@/src/services/sentry';
 import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 import { ToastHost } from '@/src/components/ui';
 import { UpdateBanner } from '@/src/components/layouts/UpdateBanner';
@@ -93,7 +93,7 @@ initSentry();
 // into the app instead of trapping them on the logo.
 const SPLASH_TIMEOUT_MS = 5000;
 
-export default function RootLayout() {
+function RootLayout() {
   const loadUser = useAuthStore((s) => s.loadUser);
   const { colorScheme } = useColorScheme();
 
@@ -173,3 +173,7 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Wrap the root so Sentry catches render errors + adds navigation/TTID
+// instrumentation (no-op without @sentry/react-native).
+export default wrapWithSentry(RootLayout);
