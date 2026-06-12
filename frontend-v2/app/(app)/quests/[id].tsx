@@ -285,15 +285,17 @@ function TaskItem({
               </Pressable>
             )}
             <VStack className="flex-1 min-w-0">
-              <HStack className="items-center gap-2">
+              <HStack className="items-center gap-1.5">
                 <UIText
                   size="sm"
-                  className={`flex-1 font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}
+                  numberOfLines={1}
+                  className={`flex-shrink font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}
                 >
                   {task.title}
                 </UIText>
-                {/* Edit pillar + diploma subjects — sits next to the title. */}
-                {!task.is_moment && !isClassTask && onEditTask && (
+                {/* Edit pillar + diploma subjects — sits just right of the title,
+                    only while expanded. */}
+                {expanded && !task.is_moment && !isClassTask && onEditTask && (
                   <Pressable
                     onPress={(e) => { e.stopPropagation(); onEditTask(task); }}
                     hitSlop={8}
