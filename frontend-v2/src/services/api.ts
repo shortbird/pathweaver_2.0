@@ -129,7 +129,7 @@ function logApiCall(config: InternalAxiosRequestConfig | undefined, status: numb
 //   404 → a missing optional resource (the caller treats it as "none")
 // All three were the bulk of the Sentry noise (NODE-7 etc). Genuine contract
 // bugs (400/405/409/422) and 5xx/network errors are still reported.
-const SILENCED_API_STATUSES = new Set([401, 403, 404]);
+export const SILENCED_API_STATUSES = new Set([401, 403, 404]);
 
 /**
  * Collapse a request path into a stable fingerprint key by replacing volatile
@@ -158,7 +158,7 @@ export function fingerprintPath(url?: string): string {
  * - Other 4xx (400/405/409/422 — contract/validation bugs) are surfaced at
  *   `warning` level so they're visible without drowning out genuine crashes.
  */
-function reportApiError(error: AxiosError, status: number | null) {
+export function reportApiError(error: AxiosError, status: number | null) {
   if (axios.isCancel(error)) return;
   if (status !== null && SILENCED_API_STATUSES.has(status)) return;
   const cfg = error.config;
