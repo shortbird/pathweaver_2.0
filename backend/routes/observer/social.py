@@ -287,14 +287,17 @@ def register_routes(bp):
             # admin client justified: explicit relationship gate below (observer/advisor/superadmin) controls cross-user comment access on quest_task_completions
             supabase = get_supabase_admin_client()
 
-            # Get completion info
+            # Get completion info. Use maybe_single(): the feed groups multiple
+            # completions into one card, so the client can pass a synthetic or
+            # stale completion_id that matches 0 rows. single() raised a coerce
+            # error (500 -> Sentry) on that; maybe_single() returns a clean 404.
             completion = supabase.table('quest_task_completions') \
                 .select('user_id') \
                 .eq('id', completion_id) \
-                .single() \
+                .maybe_single() \
                 .execute()
 
-            if not completion.data:
+            if not completion or not completion.data:
                 return jsonify({'error': 'Completion not found'}), 404
 
             student_id = completion.data['user_id']

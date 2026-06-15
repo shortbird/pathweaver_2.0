@@ -5,6 +5,7 @@ Handles quest progress tracking, completion, and task management.
 Part of the quests.py refactoring (P2-ARCH-1).
 """
 
+import uuid
 from flask import Blueprint, request, jsonify, g
 from datetime import datetime
 from database import get_supabase_admin_client, get_user_client
@@ -716,6 +717,23 @@ def reorder_quest_tasks(user_id: str, quest_id: str):
 
         if not task_ids:
             return jsonify({'error': 'task_ids is required'}), 400
+
+        # The quest detail screen injects synthetic moment-task rows whose ids
+        # are not real user_quest_tasks UUIDs (e.g. "moment-<uuid>"). Those must
+        # never reach the uuid column or Postgres raises "invalid input syntax
+        # for type uuid" and the whole reorder 500s. Persist order only for the
+        # real task rows; synthetic entries keep their derived ordering.
+        def _is_uuid(value):
+            try:
+                uuid.UUID(str(value))
+                return True
+            except (ValueError, AttributeError, TypeError):
+                return False
+
+        task_ids = [tid for tid in task_ids if _is_uuid(tid)]
+
+        if not task_ids:
+            return jsonify({'success': True, 'message': 'No persistable tasks to reorder'}), 200
 
         # Use admin client to bypass RLS for updates
         # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth; cross-table writes to RLS-protected XP tables
