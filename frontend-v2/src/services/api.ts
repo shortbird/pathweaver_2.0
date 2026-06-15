@@ -177,7 +177,13 @@ function reportApiError(error: AxiosError, status: number | null) {
       fingerprint: ['api-error', method ?? 'UNKNOWN', fingerprintPath(cfg?.url), String(status ?? 'network')],
     });
   } else {
-    captureMessage(`API ${status} ${method} ${cfg?.url}`, { level: 'warning', extra });
+    // Fingerprint per endpoint+status (like the 5xx branch) so 4xx warnings
+    // don't all collapse into one meaningless "captureMessage" bucket (NODE-7).
+    captureMessage(`API ${status} ${method} ${fingerprintPath(cfg?.url)}`, {
+      level: 'warning',
+      extra,
+      fingerprint: ['api-warning', method ?? 'UNKNOWN', fingerprintPath(cfg?.url), String(status)],
+    });
   }
 }
 
