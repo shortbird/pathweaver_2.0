@@ -16,7 +16,6 @@ import { useQuestDetail, PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestD
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
 import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
-import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
 import { useCaptureContextStore } from '@/src/stores/captureContextStore';
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
@@ -587,7 +586,6 @@ export default function QuestDetailScreen() {
   const earnedXP = tasks.filter((t) => t.is_completed).reduce((sum, t) => sum + (t.xp_value || t.xp_amount || 0), 0);
   const allComplete = tasks.length > 0 && completedCount === tasks.length;
   const imageUrl = quest.header_image_url || quest.image_url;
-  const calendarDays = engagement?.calendar?.days || [];
 
   // XP by pillar
   const pillarXP = tasks.reduce((acc, t) => {
@@ -654,10 +652,11 @@ export default function QuestDetailScreen() {
               {/* leading-snug: the default RN line height clipped descenders
                   (the "g" in a title got cut off — bug #2). */}
               <Heading testID="quest-title" size="2xl" className="leading-snug">{quest.title}</Heading>
+              {/* Only the compact rhythm state here; the heatmap lives in the
+                  QuestEngagement card below (was duplicated in both — bug). */}
               {isEnrolled && engagement?.rhythm && (
                 <HStack className="items-center gap-3">
                   <RhythmBadge rhythm={engagement.rhythm} compact />
-                  {calendarDays.length > 0 && <MiniHeatmap days={calendarDays} />}
                 </HStack>
               )}
             </VStack>

@@ -21,6 +21,7 @@ import api, { uploadChildAvatar } from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useAddKidStore } from '@/src/stores/addKidStore';
 import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
+import { onUploadComplete } from '@/src/services/uploadQueue';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Divider, Avatar, AvatarFallbackText, AvatarImage, Skeleton,
@@ -354,6 +355,11 @@ export default function ParentDashboardPage() {
   const refetchRef = useRef(refetch);
   refetchRef.current = refetch;
   useFocusEffect(useCallback(() => { refetchRef.current(); }, []));
+
+  // A backgrounded video upload finishes after the sheet closes; without this
+  // the moment only appears on the next focus ("pics/audio show here but video
+  // appears later"). Refetch when any queued upload completes, like the feed does.
+  useEffect(() => onUploadComplete(() => refetchRef.current()), []);
 
   // ── Parent action state ──
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);

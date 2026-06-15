@@ -464,7 +464,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     return (
       <KeyboardAvoidingView
         className="flex-1 bg-white dark:bg-dark-surface-100"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
         {header}
