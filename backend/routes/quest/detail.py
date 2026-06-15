@@ -279,6 +279,16 @@ def get_quest_detail(user_id: str, quest_id: str):
             for m in quest_moments:
                 if m.get('id') in converted_moment_ids:
                     continue
+                # Evidence-for-a-task moments (auto-created when a student adds
+                # evidence to a task — description "Evidence for: <task>") are
+                # already represented by the task they're attached to. Injecting
+                # them as their own virtual task showed the real task AND an
+                # "Evidence for: <task>" row side by side (bug: "Reharmonize a
+                # hymn" + "Evidence for: Reharmonize a hymn"). Skip when the
+                # attached task is already in this quest's task list.
+                attached_task_id = m.get('attached_task_id')
+                if attached_task_id and attached_task_id in existing_task_ids:
+                    continue
                 # get_quest_moments() returns a combined list of raw moments
                 # AND completed-task rows (item_type='completed_task'). Only
                 # the raw moments should be injected as virtual tasks here —

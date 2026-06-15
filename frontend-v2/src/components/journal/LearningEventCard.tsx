@@ -133,6 +133,23 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       ? { type: 'document', uri: getBlockUrl(documentBlocks[0]), title: documentBlocks[0]?.content?.name || documentBlocks[0]?.file_name }
       : null;
 
+  // Task-evidence moments get an auto description "Evidence for: <task>" and no
+  // real title, which then echoes the attached-task chip — so the moment and its
+  // task read as two items ("X" + "Evidence for: X"). Strip the prefix so the
+  // heading IS the task, and show only quest context in the chip (the heading
+  // already carries the task), collapsing them into one thing.
+  const EVIDENCE_PREFIX = 'Evidence for: ';
+  const isAutoEvidence = !event.title && !!event.description?.startsWith(EVIDENCE_PREFIX);
+  const displayTitle =
+    event.title ||
+    (isAutoEvidence ? event.description!.slice(EVIDENCE_PREFIX.length) : event.description) ||
+    'Learning Moment';
+  const taskChipText = event.attached_task
+    ? isAutoEvidence
+      ? event.attached_task.quest_title || null
+      : `${event.attached_task.quest_title ? `${event.attached_task.quest_title}: ` : ''}${event.attached_task.title}`
+    : null;
+
   const rawDate = event.event_date || event.created_at;
   // Append T12:00 to date-only strings to avoid UTC midnight → previous day in local timezone
   const parsedDate = rawDate && !rawDate.includes('T') ? new Date(rawDate + 'T12:00:00') : new Date(rawDate);
@@ -327,7 +344,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
           {/* Title + date */}
           <HStack className="items-start justify-between">
             <UIText size="sm" className="font-poppins-semibold flex-1">
-              {event.title || event.description || 'Learning Moment'}
+              {displayTitle}
             </UIText>
             <HStack className="items-center gap-1 ml-2 flex-shrink-0">
               <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{dateStr}</UIText>
@@ -528,13 +545,14 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
             ) : null}
           </HStack>
 
-          {/* Attached task chip */}
-          {event.attached_task ? (
+          {/* Attached task chip — quest/task context badge. For auto-evidence
+              moments the heading already shows the task, so this shows only the
+              quest (or is hidden) to avoid repeating it. */}
+          {taskChipText ? (
             <HStack className="items-center gap-1.5 px-2 py-1 rounded-lg bg-optio-purple/5 border border-optio-purple/20 self-start">
               <Ionicons name="flag" size={12} color="#6D469B" />
               <UIText size="xs" className="text-optio-purple font-poppins-medium" numberOfLines={1}>
-                {event.attached_task.quest_title ? `${event.attached_task.quest_title}: ` : ''}
-                {event.attached_task.title}
+                {taskChipText}
               </UIText>
             </HStack>
           ) : null}

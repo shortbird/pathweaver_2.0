@@ -27,6 +27,7 @@ ENROLLMENT_ID = '33333333-3333-3333-3333-333333333333'
 TASK_ID = '44444444-4444-4444-4444-444444444444'
 COMPLETION_ID = '55555555-5555-5555-5555-555555555555'
 MOMENT_ID = '66666666-6666-6666-6666-666666666666'
+EVIDENCE_MOMENT_ID = '77777777-7777-7777-7777-777777777777'
 
 
 def _chain(execute_result):
@@ -159,6 +160,40 @@ def _call_endpoint(client):
         ],
         2,
         'mixed_only_moments_injected',
+    ),
+    # Regression: an "Evidence for: <task>" moment is auto-created when a
+    # student adds evidence to a task; it carries attached_task_id pointing at
+    # that real task. It must NOT be injected as a separate virtual task — the
+    # task already represents it (bug: "Reharmonize a hymn" shown alongside
+    # "Evidence for: Reharmonize a hymn"). Only the real task remains -> 1.
+    (
+        [{'id': EVIDENCE_MOMENT_ID, 'item_type': 'moment',
+          'title': None, 'description': 'Evidence for: Real completed task',
+          'pillars': ['stem'], 'attached_task_id': TASK_ID,
+          'event_date': '2026-04-16T00:00:00+00:00',
+          'created_at': '2026-04-16T00:00:00+00:00',
+          'evidence_blocks': []}],
+        1,
+        'evidence_moment_for_existing_task_not_injected',
+    ),
+    # Mixed: a genuine journal moment (no attached task) + an evidence moment
+    # attached to the real task. Only the genuine moment is injected -> 2.
+    (
+        [
+            {'id': MOMENT_ID, 'item_type': 'moment',
+             'title': 'Journal moment', 'description': 'd', 'pillars': ['art'],
+             'event_date': '2026-04-16T00:00:00+00:00',
+             'created_at': '2026-04-16T00:00:00+00:00',
+             'evidence_blocks': []},
+            {'id': EVIDENCE_MOMENT_ID, 'item_type': 'moment',
+             'title': None, 'description': 'Evidence for: Real completed task',
+             'pillars': ['stem'], 'attached_task_id': TASK_ID,
+             'event_date': '2026-04-16T00:00:00+00:00',
+             'created_at': '2026-04-16T00:00:00+00:00',
+             'evidence_blocks': []},
+        ],
+        2,
+        'evidence_moment_deduped_genuine_moment_kept',
     ),
 ])
 def test_quest_detail_does_not_duplicate_completed_tasks_via_moments(
