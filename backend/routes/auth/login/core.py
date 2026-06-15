@@ -106,7 +106,7 @@ def register_routes(bp):
                     if response_data.get('organization_id'):
                         try:
                             org_data = admin_client.table('organizations')\
-                                .select('id, name, slug, branding_config, quest_visibility_policy')\
+                                .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags')\
                                 .eq('id', response_data['organization_id'])\
                                 .single()\
                                 .execute()
@@ -339,13 +339,12 @@ def register_routes(bp):
         except Exception as e:
             error_message = str(e)
 
-            # Log with context for debugging
-            logger.error(f"Login error for {mask_email(email)}: {error_message}", extra={
-                'email_masked': mask_email(email),
-                'error_type': type(e).__name__,
-            })
-
-            # Parse error for specific cases
+            # Classify below. Expected auth failures (wrong password, unconfirmed
+            # email, unknown user, rate limit) are NOT application errors — they
+            # are routine 401s. Logging them at error level captured every wrong
+            # password as a Sentry event (OPTIO-BACKEND-D noise). Each branch
+            # logs at the right level; only genuinely unhandled errors log at
+            # error level (the else branch), so only those reach Sentry.
             error_lower = error_message.lower()
 
             if "invalid login credentials" in error_lower or "invalid credentials" in error_lower:
@@ -436,7 +435,11 @@ def register_routes(bp):
                         status=429
                     )
             else:
-                logger.warning(f"Unhandled login error for {mask_email(email)}: {error_message}")
+                # Genuinely unexpected — this IS worth surfacing in Sentry.
+                logger.error(f"Unhandled login error for {mask_email(email)}: {error_message}", extra={
+                    'email_masked': mask_email(email),
+                    'error_type': type(e).__name__,
+                })
                 return error_response(
                     code='LOGIN_ERROR',
                     message='Login failed. Please check your email and password. If you continue having trouble, try using "Forgot Password?" or contact support.',
@@ -671,8 +674,9 @@ def register_routes(bp):
 
         except Exception as e:
             error_message = str(e)
-            logger.error(f"Org login error for {username} in {org_slug}: {error_message}")
-
+            # Expected auth failures are classified below; only genuinely
+            # unhandled errors log at error level (else branch), so wrong
+            # passwords don't become Sentry events (see OPTIO-BACKEND-D).
             error_lower = error_message.lower()
 
             if "invalid login credentials" in error_lower or "invalid credentials" in error_lower:
@@ -703,6 +707,10 @@ def register_routes(bp):
                             status=401
                         )
             else:
+                # Genuinely unexpected — surface this in Sentry.
+                logger.error(f"Unhandled org login error for {username} in {org_slug}: {error_message}", extra={
+                    'error_type': type(e).__name__,
+                })
                 return error_response(
                     code='LOGIN_ERROR',
                     message='Login failed. Please check your username and password and try again.',
