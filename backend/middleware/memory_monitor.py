@@ -6,6 +6,8 @@ Tracks memory usage and provides cleanup triggers to prevent memory exhaustion.
 import psutil
 import gc
 import os
+import time
+import threading
 from flask import request, g
 from datetime import datetime
 import logging
@@ -149,6 +151,119 @@ class MemoryMonitor:
                 'error': str(e),
                 'timestamp': datetime.utcnow().isoformat()
             }
+
+    # ── Background watchdog ────────────────────────────────────────────────
+    # The per-request hooks above only fire while a request is in flight. The
+    # OOM kill (SIGKILL) can't reach Sentry — there's no exception — so we poll
+    # memory on a background thread and capture a Sentry alert *before* the cap
+    # is hit. This is the only way a near-OOM shows up in Sentry instead of just
+    # a Render email. See memory: project_prod_backend_oom_history.
+
+    def _read_cgroup_memory(self):
+        """Container memory (usage_bytes, limit_bytes) from cgroup, else (None, None).
+
+        cgroup is the right signal — it's the total the OOM killer watches
+        (all workers + master), not a single process's RSS.
+        """
+        # cgroup v2
+        try:
+            with open('/sys/fs/cgroup/memory.current') as f:
+                usage = int(f.read().strip())
+            limit = None
+            try:
+                with open('/sys/fs/cgroup/memory.max') as f:
+                    raw = f.read().strip()
+                    limit = None if raw == 'max' else int(raw)
+            except Exception:
+                pass
+            return usage, limit
+        except Exception:
+            pass
+        # cgroup v1
+        try:
+            with open('/sys/fs/cgroup/memory/memory.usage_in_bytes') as f:
+                usage = int(f.read().strip())
+            limit = None
+            try:
+                with open('/sys/fs/cgroup/memory/memory.limit_in_bytes') as f:
+                    limit = int(f.read().strip())
+                    if limit > (1 << 60):  # v1 sentinel for "unlimited"
+                        limit = None
+            except Exception:
+                pass
+            return usage, limit
+        except Exception:
+            return None, None
+
+    def start_watchdog(self):
+        """Start the background memory watchdog (idempotent, daemon thread).
+
+        Started per worker (preload_app is off, so app.py imports per worker).
+        If preload is ever enabled, move this to gunicorn's post_fork hook so it
+        runs in the worker, not the master.
+        """
+        if os.getenv('MEMORY_WATCHDOG_ENABLED', 'true').lower() != 'true':
+            return
+        if getattr(self, '_watchdog_started', False):
+            return
+        self._watchdog_started = True
+        t = threading.Thread(target=self._watchdog_loop, name='memory-watchdog', daemon=True)
+        t.start()
+        logger.info("Memory watchdog started")
+
+    def _watchdog_loop(self):
+        interval = int(os.getenv('MEMORY_WATCHDOG_INTERVAL', '15'))
+        threshold = float(os.getenv('MEMORY_WATCHDOG_THRESHOLD', '0.85'))
+        cooldown = int(os.getenv('MEMORY_WATCHDOG_COOLDOWN', '300'))
+        fallback_cap = int(os.getenv('MEMORY_LIMIT_MB', '512')) * 1024 * 1024
+        last_alert = 0.0
+        over = False
+        while True:
+            try:
+                time.sleep(interval)
+                cg_usage, cg_limit = self._read_cgroup_memory()
+                rss = self.get_memory_usage().get('rss', 0)
+                # Prefer the container total (what the OOM killer watches); fall
+                # back to this process's RSS when cgroup isn't readable (e.g. dev).
+                usage = cg_usage if cg_usage else rss
+                cap = cg_limit if cg_limit else fallback_cap
+                pct = (usage / cap) if cap else 0.0
+                if pct >= threshold:
+                    now = time.monotonic()
+                    if not over or (now - last_alert) >= cooldown:
+                        over = True
+                        last_alert = now
+                        self._alert_high_memory(usage, cap, pct, rss)
+                    # Try to relieve pressure regardless of alert cooldown.
+                    self.force_cleanup()
+                else:
+                    over = False
+            except Exception as e:
+                logger.error(f"Memory watchdog error: {e}")
+
+    def _alert_high_memory(self, usage, cap, pct, rss):
+        msg = (f"Memory at {usage / 1024 / 1024:.0f}MB / {cap / 1024 / 1024:.0f}MB "
+               f"({pct * 100:.0f}%) — nearing OOM")
+        logger.warning(f"[memory-watchdog] {msg}")
+        try:
+            import sentry_sdk
+            with sentry_sdk.new_scope() as scope:
+                scope.set_tag('memory_watchdog', 'true')
+                scope.set_tag('pid', str(os.getpid()))
+                # One issue for all near-OOM events, not one per MB value.
+                scope.fingerprint = ['memory-watchdog-near-oom']
+                scope.set_context('memory', {
+                    'container_usage_mb': round(usage / 1024 / 1024, 1),
+                    'cap_mb': round(cap / 1024 / 1024, 1),
+                    'percent': round(pct * 100, 1),
+                    'process_rss_mb': round(rss / 1024 / 1024, 1),
+                    'gc_counts': gc.get_count(),
+                    'threads': threading.active_count(),
+                })
+                sentry_sdk.capture_message(f"[memory-watchdog] {msg}", level='warning')
+        except Exception:
+            pass
+
 
 # Global instance
 memory_monitor = MemoryMonitor()

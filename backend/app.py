@@ -98,6 +98,9 @@ error_handler.init_app(app)
 
 # Configure memory monitoring
 memory_monitor.init_app(app)
+# Background watchdog: alerts Sentry just before an OOM (the SIGKILL itself can't
+# be captured). Runs per worker (preload is off). Gate via MEMORY_WATCHDOG_ENABLED.
+memory_monitor.start_watchdog()
 
 # Configure activity tracking middleware
 activity_tracker.init_app(app)

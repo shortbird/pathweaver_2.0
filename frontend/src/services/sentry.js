@@ -34,9 +34,13 @@ export function initSentry() {
       // masked by default so we never record student PII.
       Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
     ],
-    // Light tracing — surfaces slow routes / requests without burning quota.
-    tracesSampleRate: 0.1,
-    replaysSessionSampleRate: 0.1,
+    // Light tracing — kept low to stay within the free-plan performance quota.
+    tracesSampleRate: 0.05,
+    // Error-only replay: the free Developer plan caps replays at 50/month, so we
+    // don't record random sessions (PostHog handles general session replay on a
+    // far larger free tier). We only spend a replay when an error happens — the
+    // valuable ones — which stays well under the cap at current scale.
+    replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
   });
 }

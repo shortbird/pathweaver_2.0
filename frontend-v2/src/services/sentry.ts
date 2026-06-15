@@ -60,11 +60,12 @@ export function initSentry(): void {
       // and still report normally.
       enabled: !__DEV__,
       enableAutoSessionTracking: true,
-      tracesSampleRate: __DEV__ ? 1.0 : 0.1,
-      // Session Replay: record 10% of all sessions and 100% of sessions that hit
-      // an error. The SDK masks all text/images/vectors by default (privacy-safe);
-      // mobileReplayIntegration keeps that default masking.
-      replaysSessionSampleRate: 0.1,
+      tracesSampleRate: __DEV__ ? 1.0 : 0.05,
+      // Error-only replay: the free Developer plan caps replays at 50/month, so
+      // we don't record random sessions (PostHog covers general session replay
+      // on a far larger free tier) — only sessions that hit an error, which are
+      // the valuable ones and stay under the cap. Masked by default (privacy).
+      replaysSessionSampleRate: 0,
       replaysOnErrorSampleRate: 1.0,
       integrations: [Sentry.mobileReplayIntegration()],
       // Last-line filter for known-benign transport noise that can still slip
