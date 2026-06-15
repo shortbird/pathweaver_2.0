@@ -9,6 +9,7 @@ Provides database operations for:
 """
 
 from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
 from repositories.base_repository import BaseRepository
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -268,14 +269,89 @@ class ClassRepository(BaseRepository):
 
     # ===== Quest Management =====
 
-    def get_class_quests(self, class_id: str) -> List[Dict[str, Any]]:
-        """Get all quests assigned to a class"""
-        response = self.admin_client.table('class_quests')\
+    def get_class_quests(self, class_id: str, only_published: bool = False) -> List[Dict[str, Any]]:
+        """
+        Get all quests assigned to a class.
+
+        Args:
+            class_id: Class ID
+            only_published: When True (student view), hide quests whose publish_at is
+                still in the future. A NULL publish_at always counts as visible now.
+                Teachers/admins pass False to see scheduled quests too.
+        """
+        query = self.admin_client.table('class_quests')\
             .select('*, quests(id, title, description, quest_type, is_active)')\
-            .eq('class_id', class_id)\
-            .order('sequence_order')\
-            .execute()
+            .eq('class_id', class_id)
+
+        if only_published:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            query = query.or_(f'publish_at.is.null,publish_at.lte.{now_iso}')
+
+        response = query.order('sequence_order').execute()
         return response.data if response.data else []
+
+    def set_quest_schedule(self, class_id: str, quest_id: str, publish_at: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Set or clear (publish_at=None) the scheduled publish time for a class quest."""
+        response = self.admin_client.table('class_quests')\
+            .update({'publish_at': publish_at})\
+            .eq('class_id', class_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+        return response.data[0] if response.data else None
+
+    def set_quest_due_date(self, class_id: str, quest_id: str, due_date: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Set or clear (due_date=None) the due date for a class quest."""
+        response = self.admin_client.table('class_quests')\
+            .update({'due_date': due_date})\
+            .eq('class_id', class_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+        return response.data[0] if response.data else None
+
+    def get_student_agenda(self, student_id: str) -> List[Dict[str, Any]]:
+        """
+        Upcoming due dates for a student across their active class enrollments.
+
+        Only includes quests that are visible to the student (publish_at NULL or
+        already passed) and that have a due_date. Sorted by due date ascending.
+        """
+        enrollments = self.admin_client.table('class_enrollments')\
+            .select('class_id')\
+            .eq('student_id', student_id)\
+            .eq('status', 'active')\
+            .execute()
+        class_ids = [e['class_id'] for e in (enrollments.data or [])]
+        if not class_ids:
+            return []
+
+        classes = self.admin_client.table('org_classes')\
+            .select('id, name')\
+            .in_('id', class_ids)\
+            .execute()
+        class_names = {c['id']: c['name'] for c in (classes.data or [])}
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        rows = self.admin_client.table('class_quests')\
+            .select('class_id, quest_id, due_date, publish_at, quests(id, title, description, header_image_url)')\
+            .in_('class_id', class_ids)\
+            .not_.is_('due_date', 'null')\
+            .or_(f'publish_at.is.null,publish_at.lte.{now_iso}')\
+            .order('due_date')\
+            .execute()
+
+        agenda = []
+        for r in (rows.data or []):
+            quest = r.get('quests') or {}
+            agenda.append({
+                'class_id': r['class_id'],
+                'class_name': class_names.get(r['class_id']),
+                'quest_id': r['quest_id'],
+                'title': quest.get('title'),
+                'description': quest.get('description'),
+                'header_image_url': quest.get('header_image_url'),
+                'due_date': r.get('due_date'),
+            })
+        return agenda
 
     def add_quest(
         self,

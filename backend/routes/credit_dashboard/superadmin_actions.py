@@ -17,6 +17,7 @@ from flask import request
 from database import get_supabase_admin_singleton
 from utils.auth.decorators import require_role
 from utils.api_response_v1 import success_response, error_response
+from utils.roles import get_effective_role
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -273,11 +274,20 @@ def grow_this(user_id: str, completion_id: str):
             quest_id = completion_data.get('quest_id', '')
             task_id_for_link = completion_data.get('user_quest_task_id', '')
             notification_link = f'/quests/{quest_id}?task={task_id_for_link}' if quest_id else '/dashboard'
+            reviewer = admin_supabase.table('users').select(
+                'display_name, first_name, last_name, role, org_role, org_roles'
+            ).eq('id', user_id).single().execute().data or {}
+            reviewer_label = 'Optio' if get_effective_role(reviewer) == 'superadmin' else (
+                reviewer.get('display_name')
+                or ' '.join(filter(None, [reviewer.get('first_name'), reviewer.get('last_name')])).strip()
+                or 'Your teacher'
+            )
+            grow_title = 'Grow This: Optio Feedback' if reviewer_label == 'Optio' else f'Grow This: Feedback from {reviewer_label}'
             notification_service.create_notification(
                 user_id=student_id,
                 notification_type='diploma_credit_grow_this',
-                title='Grow This: Reviewer Feedback',
-                message=f'A reviewer has feedback on "{task_data.get("title", "a task")}". Review and resubmit when ready.',
+                title=grow_title,
+                message=f'{reviewer_label} has feedback on "{task_data.get("title", "a task")}". Review and resubmit when ready.',
                 link=notification_link,
                 metadata={
                     'task_id': completion_data.get('user_quest_task_id'),

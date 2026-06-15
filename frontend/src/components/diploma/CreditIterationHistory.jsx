@@ -7,6 +7,7 @@ import {
   ArrowPathIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
+import CreditFeedbackThread from '../credit/CreditFeedbackThread';
 
 export default function CreditIterationHistory({ taskId, completionId, compact = false }) {
   const [rounds, setRounds] = useState([]);
@@ -147,6 +148,8 @@ export default function CreditIterationHistory({ taskId, completionId, compact =
           ))}
         </div>
       )}
+
+      {completionId && <CreditFeedbackThread completionId={completionId} />}
     </div>
   );
 }

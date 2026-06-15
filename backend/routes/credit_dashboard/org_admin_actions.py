@@ -397,11 +397,20 @@ def org_grow_this(user_id: str, completion_id: str):
             quest_id = completion.data.get('quest_id', '')
             task_id_for_link = completion.data.get('user_quest_task_id', '')
             notification_link = f'/quests/{quest_id}?task={task_id_for_link}' if quest_id else '/dashboard'
+            reviewer = admin_supabase.table('users').select(
+                'display_name, first_name, last_name, role, org_role, org_roles'
+            ).eq('id', user_id).single().execute().data or {}
+            reviewer_label = 'Optio' if get_effective_role(reviewer) == 'superadmin' else (
+                reviewer.get('display_name')
+                or ' '.join(filter(None, [reviewer.get('first_name'), reviewer.get('last_name')])).strip()
+                or 'Your teacher'
+            )
+            grow_title = 'Grow This: Optio Feedback' if reviewer_label == 'Optio' else f'Grow This: Feedback from {reviewer_label}'
             notification_service.create_notification(
                 user_id=student_id,
                 notification_type='diploma_credit_grow_this',
-                title='Grow This: Org Admin Feedback',
-                message=f'Your organization admin has feedback on "{task_data.get("title", "a task")}". Review and resubmit when ready.',
+                title=grow_title,
+                message=f'{reviewer_label} has feedback on "{task_data.get("title", "a task")}". Review and resubmit when ready.',
                 link=notification_link,
                 metadata={
                     'task_id': completion.data.get('user_quest_task_id'),

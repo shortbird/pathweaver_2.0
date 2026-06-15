@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
 import StatusTimeline from './StatusTimeline'
+import CreditFeedbackThread from '../credit/CreditFeedbackThread'
 import { toast } from 'react-hot-toast'
 import {
   computeEvidenceDiff,
@@ -551,6 +552,9 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           </div>
         </div>
       )}
+
+      {/* Two-way feedback thread with the student */}
+      {item?.completion_id && <CreditFeedbackThread completionId={item.completion_id} />}
 
       {/* Action panel. On mobile this sticks to the bottom of the scrolling
           detail panel so the reviewer can always reach Approve / Grow This

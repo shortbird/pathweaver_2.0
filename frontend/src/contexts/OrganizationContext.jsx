@@ -62,3 +62,13 @@ export const OrganizationProvider = ({ children }) => {
     </OrganizationContext.Provider>
   );
 };
+
+/**
+ * Convenience hook for per-org feature flags (organizations.feature_flags).
+ * Returns true only when the current org has the named flag enabled.
+ * Lets a capability be gated per-org without hardcoding the org slug.
+ */
+export const useOrgFeature = (flag) => {
+  const { organization } = useOrganization();
+  return Boolean(organization?.feature_flags?.[flag]);
+};

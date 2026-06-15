@@ -5,12 +5,16 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
 import { SettingsTab, PeopleTab } from '../../components/organization'
 import OrgCoursesTab from '../../components/organization/OrgCoursesTab'
+import OrgClassesTab from '../../components/organization/OrgClassesTab'
+import AnnouncementsTab from '../../components/organization/AnnouncementsTab'
 import CreditReviewDashboardPage from '../CreditReviewDashboardPage'
 import BountyBoardPage from '../BountyBoardPage'
 
 const TABS = [
   { id: 'settings', label: 'Settings' },
   { id: 'people', label: 'People' },
+  { id: 'classes', label: 'Classes' },
+  { id: 'announcements', label: 'Announcements' },
   { id: 'courses', label: 'Courses' },
   { id: 'bounties', label: 'Bounties' },
   { id: 'credit-review', label: 'Credit Review' }
@@ -21,14 +25,16 @@ const TABS = [
 const TAB_DESCRIPTIONS = {
   settings: "Manage your organization's name, branding, and account settings.",
   people: 'Add and manage your students, parents, and advisors. Invite new members and set their roles.',
+  classes: 'Group students into classes, assign quests, and schedule when each quest becomes available to the class.',
+  announcements: 'Send a notification through Optio to everyone in your organization — students, advisors, and parents.',
   courses: 'Assign courses to your students and build new course content for your organization.',
   bounties: 'View the bounties available to your students and post new ones to encourage their learning.',
   'credit-review': "Review your students' completed work and approve the credit they've earned.",
 }
 
-// Map old tab names to new ones for URL compatibility. Removed tabs (classes,
-// content) aren't listed -- getResolvedTab falls back to 'settings' for any id
-// not in TABS, so old bookmarks land somewhere valid.
+// Map old tab names to new ones for URL compatibility. getResolvedTab falls back
+// to 'settings' for any id not in TABS, so old bookmarks land somewhere valid.
+// ('classes' is a live tab again as of 2026-06-15 — class management + quest scheduling.)
 const TAB_REDIRECTS = {
   'overview': 'settings',
   'users': 'people',
@@ -196,6 +202,14 @@ export default function OrganizationManagement() {
           users={orgData.users}
           onUpdate={fetchOrganizationData}
         />
+      )}
+
+      {activeTab === 'classes' && (
+        <OrgClassesTab orgId={orgId} />
+      )}
+
+      {activeTab === 'announcements' && (
+        <AnnouncementsTab orgId={orgId} />
       )}
 
       {activeTab === 'courses' && (

@@ -17,10 +17,13 @@ import { useAuth } from '../../contexts/AuthContext'
  * Uses URL params for class selection (/classes/:classId) so
  * back navigation from quests can return directly to the class.
  */
-export default function StudentClassesView() {
+export default function StudentClassesView({ basePath = null } = {}) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const { classId } = useParams()
+  // basePath lets this view be mounted under a branded route (e.g. /gryffin) and keep
+  // its list/detail navigation self-contained. Defaults preserve the /org-classes flow.
+  const listPath = basePath || '/org-classes'
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -61,7 +64,8 @@ export default function StudentClassesView() {
       <StudentClassDetail
         classData={selectedClass}
         orgId={selectedClass.organization_id || user?.organization_id}
-        onBack={() => navigate('/org-classes')}
+        basePath={basePath}
+        onBack={() => navigate(listPath)}
       />
     )
   }
@@ -72,7 +76,8 @@ export default function StudentClassesView() {
       <StudentClassDetail
         classId={classId}
         orgId={user?.organization_id}
-        onBack={() => navigate('/org-classes')}
+        basePath={basePath}
+        onBack={() => navigate(listPath)}
       />
     )
   }
@@ -96,7 +101,7 @@ export default function StudentClassesView() {
               <StudentClassCard
                 key={cls.id}
                 classData={cls}
-                onClick={() => navigate(`/classes/${cls.id}`)}
+                onClick={() => navigate(basePath ? `${basePath}/${cls.id}` : `/classes/${cls.id}`)}
               />
             ))}
           </div>
@@ -172,7 +177,7 @@ function StudentClassCard({ classData, onClick }) {
  *
  * Can receive classData from parent (fast path) or classId to fetch independently.
  */
-function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack }) {
+function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack, basePath = null }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [quests, setQuests] = useState([])
@@ -319,7 +324,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
                 <button
                   key={quest.id}
                   onClick={() => {
-                    sessionStorage.setItem('classReturnPath', `/classes/${classId}`)
+                    sessionStorage.setItem('classReturnPath', basePath ? `${basePath}/${classId}` : `/classes/${classId}`)
                     navigate(`/quests/${quest.id}`)
                   }}
                   className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm hover:border-optio-purple/30 transition-all w-full text-left"
@@ -333,6 +338,11 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
                       <p className="text-sm text-gray-500 truncate">{quest.description}</p>
                     )}
                   </div>
+                  {cq.due_date && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded whitespace-nowrap flex-shrink-0">
+                      Due {new Date(cq.due_date).toLocaleDateString()}
+                    </span>
+                  )}
                   <span className="text-sm text-optio-purple font-medium flex-shrink-0">
                     View Quest
                   </span>

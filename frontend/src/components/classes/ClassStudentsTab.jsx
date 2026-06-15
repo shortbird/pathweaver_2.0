@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   PlusIcon,
   TrashIcon,
   MagnifyingGlassIcon,
   CheckCircleIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
@@ -14,10 +16,12 @@ import StudentProgressCard from './StudentProgressCard'
  * ClassStudentsTab - Manage students enrolled in a class
  */
 export default function ClassStudentsTab({ orgId, classId, classData, onUpdate }) {
+  const navigate = useNavigate()
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [creatingGroup, setCreatingGroup] = useState(false)
 
   useEffect(() => {
     fetchStudents()
@@ -77,6 +81,24 @@ export default function ClassStudentsTab({ orgId, classId, classData, onUpdate }
     }
   }
 
+  const handleCreateGroupChat = async () => {
+    try {
+      setCreatingGroup(true)
+      const response = await classService.createClassGroupChat(orgId, classId)
+      if (response.success && response.group_id) {
+        toast.success(response.created ? 'Class group chat created' : 'Class group chat updated')
+        navigate(`/communication?group=${response.group_id}`)
+      } else {
+        toast.error(response.error || 'Failed to create group chat')
+      }
+    } catch (error) {
+      console.error('Failed to create class group chat:', error)
+      toast.error(error.response?.data?.error || 'Failed to create group chat')
+    } finally {
+      setCreatingGroup(false)
+    }
+  }
+
   const filteredStudents = students.filter((s) => {
     if (!searchTerm) return true
     const student = s.student || {}
@@ -116,13 +138,24 @@ export default function ClassStudentsTab({ orgId, classId, classData, onUpdate }
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
           />
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
-        >
-          <PlusIcon className="w-5 h-5" />
-          Add Students
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCreateGroupChat}
+            disabled={creatingGroup || students.length === 0}
+            className="flex items-center gap-2 px-4 py-2 text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Create a group chat with this class's students and advisors"
+          >
+            <ChatBubbleLeftRightIcon className="w-5 h-5" />
+            {creatingGroup ? 'Working…' : 'Group chat'}
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
+          >
+            <PlusIcon className="w-5 h-5" />
+            Add Students
+          </button>
+        </div>
       </div>
 
       {/* Empty State */}

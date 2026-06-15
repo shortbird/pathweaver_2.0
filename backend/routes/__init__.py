@@ -288,6 +288,14 @@ def register_all(app):
     from routes import treehouse
     app.register_blueprint(treehouse.bp)
 
+    # ── Credit Review feedback thread (two-way) ────────────────────────────────
+    from routes import credit_messages
+    app.register_blueprint(credit_messages.bp)
+
+    # ── Organization announcements / broadcast ─────────────────────────────────
+    from routes import announcements
+    app.register_blueprint(announcements.bp)
+
     # ── Credit dashboard / pillars / analytics / activity ─────────────────────
     from routes.credit_dashboard import bp as credit_dashboard_bp
     app.register_blueprint(credit_dashboard_bp)

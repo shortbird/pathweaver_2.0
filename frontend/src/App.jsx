@@ -66,6 +66,8 @@ const TreehouseFacilitatorPage = lazy(() => import('./pages/treehouse/TreehouseF
 const TreehouseBrowsePage = lazy(() => import('./pages/treehouse/TreehouseBrowsePage'))
 const TreehouseShowcasePage = lazy(() => import('./pages/treehouse/TreehouseShowcasePage'))
 const TreehouseKioskPage = lazy(() => import('./pages/treehouse/TreehouseKioskPage'))
+// Gryffin Learning Center — microschool tab (/gryffin); students see their enrolled classes
+const GryffinPage = lazy(() => import('./pages/gryffin/GryffinPage'))
 // Credit & Transcript Pages
 const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
 const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
@@ -516,6 +518,10 @@ function App() {
                 <Route path="treehouse/browse" element={<TreehouseBrowsePage />} />
                 <Route path="treehouse/showcase" element={<TreehouseShowcasePage />} />
                 <Route path="treehouse/facilitator" element={<TreehouseFacilitatorPage />} />
+                {/* Gryffin Learning Center (gated in the sidebar by org slug). Students
+                    see their enrolled classes; :classId opens a class's quests. */}
+                <Route path="gryffin" element={<GryffinPage />} />
+                <Route path="gryffin/:classId" element={<GryffinPage />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>

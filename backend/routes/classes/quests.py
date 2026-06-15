@@ -64,7 +64,10 @@ def get_class_quests(user_id, org_id, class_id):
         if not service.can_access_class(class_id, user_id, effective_role, user_org_id):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
-        quests = service.get_class_quests(class_id)
+        # Students only see quests whose scheduled publish time has arrived (or that
+        # have no schedule). Teachers/admins/superadmin see scheduled quests too.
+        only_published = (effective_role == 'student')
+        quests = service.get_class_quests(class_id, only_published=only_published)
 
         return jsonify({
             'success': True,
@@ -148,7 +151,21 @@ def add_class_quest(user_id, org_id, class_id):
                     'error': 'Quest is not accessible to this organization'
                 }), 403
 
+        # Optional scheduled publish time — validate and gate (org feature flag) before assigning
+        publish_at = data.get('publish_at')
+        if publish_at:
+            from utils.org_features import org_has_feature
+            if effective_role != 'superadmin' and not org_has_feature(class_org_id, 'scheduled_publish'):
+                return jsonify({'success': False, 'error': 'Scheduled publishing is not enabled for this organization'}), 403
+            try:
+                datetime.fromisoformat(str(publish_at).replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({'success': False, 'error': 'publish_at must be an ISO datetime string'}), 400
+
         result = service.add_quest(class_id, quest_id, user_id, sequence_order)
+
+        if publish_at:
+            result = service.set_quest_schedule(class_id, quest_id, publish_at, user_id)
 
         return jsonify({
             'success': True,
@@ -205,6 +222,125 @@ def remove_class_quest(user_id, org_id, class_id, quest_id):
             'success': False,
             'error': 'Failed to remove quest'
         }), 500
+
+
+@bp.route('/organizations/<org_id>/classes/<class_id>/quests/<quest_id>/schedule', methods=['PUT'])
+@require_role('org_admin', 'advisor', 'superadmin')
+def set_class_quest_schedule(user_id, org_id, class_id, quest_id):
+    """
+    Set or clear the scheduled publish time for a quest in a class.
+
+    Request body:
+        { "publish_at": "2026-09-01T08:00:00Z" }   # ISO datetime, or null to clear (visible now)
+
+    A future publish_at hides the quest from the class's students until that time;
+    teachers/admins still see it. Gated by the org feature flag `scheduled_publish`
+    (superadmin bypass).
+    """
+    try:
+        effective_role, user_org_id = get_user_info(user_id)
+
+        service = ClassService()
+
+        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        cls = service.get_class(class_id)
+        class_org_id = cls.get('organization_id') if cls else None
+
+        from utils.org_features import org_has_feature
+        if effective_role != 'superadmin' and not org_has_feature(class_org_id, 'scheduled_publish'):
+            return jsonify({'success': False, 'error': 'Scheduled publishing is not enabled for this organization'}), 403
+
+        data = request.json or {}
+        publish_at = data.get('publish_at')
+
+        if publish_at in (None, ''):
+            publish_at = None
+        elif isinstance(publish_at, str):
+            try:
+                datetime.fromisoformat(publish_at.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({'success': False, 'error': 'publish_at must be an ISO datetime string or null'}), 400
+        else:
+            return jsonify({'success': False, 'error': 'publish_at must be an ISO datetime string or null'}), 400
+
+        result = service.set_quest_schedule(class_id, quest_id, publish_at, user_id)
+        if result is None:
+            return jsonify({'success': False, 'error': 'Quest not found in class'}), 404
+
+        return jsonify({'success': True, 'assignment': result})
+
+    except Exception as e:
+        logger.error(f"Error scheduling class quest: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to schedule quest'}), 500
+
+
+@bp.route('/organizations/<org_id>/classes/<class_id>/quests/<quest_id>/due-date', methods=['PUT'])
+@require_role('org_admin', 'advisor', 'superadmin')
+def set_class_quest_due_date(user_id, org_id, class_id, quest_id):
+    """
+    Set or clear the due date for a quest in a class.
+
+    Request body:
+        { "due_date": "2026-09-15T23:59:00Z" }   # ISO datetime, or null to clear
+
+    Informational only (does not hide the quest). Gated by the org feature flag
+    `due_dates` (superadmin bypass).
+    """
+    try:
+        effective_role, user_org_id = get_user_info(user_id)
+
+        service = ClassService()
+
+        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        cls = service.get_class(class_id)
+        class_org_id = cls.get('organization_id') if cls else None
+
+        from utils.org_features import org_has_feature
+        if effective_role != 'superadmin' and not org_has_feature(class_org_id, 'due_dates'):
+            return jsonify({'success': False, 'error': 'Due dates are not enabled for this organization'}), 403
+
+        data = request.json or {}
+        due_date = data.get('due_date')
+
+        if due_date in (None, ''):
+            due_date = None
+        elif isinstance(due_date, str):
+            try:
+                datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({'success': False, 'error': 'due_date must be an ISO datetime string or null'}), 400
+        else:
+            return jsonify({'success': False, 'error': 'due_date must be an ISO datetime string or null'}), 400
+
+        result = service.set_quest_due_date(class_id, quest_id, due_date, user_id)
+        if result is None:
+            return jsonify({'success': False, 'error': 'Quest not found in class'}), 404
+
+        return jsonify({'success': True, 'assignment': result})
+
+    except Exception as e:
+        logger.error(f"Error setting class quest due date: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to set due date'}), 500
+
+
+@bp.route('/student/agenda', methods=['GET'])
+@require_role('student', 'superadmin')
+def get_student_agenda(user_id):
+    """
+    Upcoming class-quest due dates for the calling student across their enrolled
+    classes (only quests already visible to them, with a due date).
+    """
+    try:
+        service = ClassService()
+        agenda = service.get_student_agenda(user_id)
+        return jsonify({'success': True, 'agenda': agenda})
+    except Exception as e:
+        logger.error(f"Error fetching student agenda: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to load agenda'}), 500
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests/reorder', methods=['PUT'])

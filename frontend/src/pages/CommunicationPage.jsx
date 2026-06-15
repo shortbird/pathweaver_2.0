@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useConversations } from '../hooks/api/useDirectMessages'
 import { useGroups } from '../hooks/api/useGroupMessages'
@@ -10,8 +11,10 @@ import PushNotificationBanner from '../components/notifications/PushNotification
 
 const CommunicationPage = () => {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const [selectedConversation, setSelectedConversation] = useState(null)
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
+  const groupParamHandled = useRef(false)
 
   // React Query hook for conversations
   const {
@@ -34,6 +37,18 @@ const CommunicationPage = () => {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
+
+  // Deep-link: ?group=<id> opens that group chat (e.g. from a class roster).
+  useEffect(() => {
+    const groupId = searchParams.get('group')
+    if (!groupId || groupParamHandled.current) return
+    const groups = groupsData?.groups || (Array.isArray(groupsData) ? groupsData : [])
+    const match = groups.find((g) => g.id === groupId)
+    if (match) {
+      groupParamHandled.current = true
+      setSelectedConversation({ ...match, type: 'group' })
+    }
+  }, [searchParams, groupsData])
 
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation)

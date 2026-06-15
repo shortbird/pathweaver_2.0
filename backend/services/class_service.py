@@ -332,10 +332,41 @@ class ClassService(BaseService):
 
         return success
 
-    def get_class_quests(self, class_id: str) -> List[Dict[str, Any]]:
-        """Get all quests for a class"""
+    def get_class_quests(self, class_id: str, only_published: bool = False) -> List[Dict[str, Any]]:
+        """Get all quests for a class. only_published hides future-scheduled quests (student view)."""
         self.validate_required(class_id=class_id)
-        return self.class_repo.get_class_quests(class_id)
+        return self.class_repo.get_class_quests(class_id, only_published=only_published)
+
+    def set_quest_schedule(
+        self,
+        class_id: str,
+        quest_id: str,
+        publish_at: Optional[str],
+        updated_by: str
+    ) -> Optional[Dict[str, Any]]:
+        """Set or clear (publish_at=None) the scheduled publish time for a class quest."""
+        self.validate_required(class_id=class_id, quest_id=quest_id, updated_by=updated_by)
+        result = self.class_repo.set_quest_schedule(class_id, quest_id, publish_at)
+        logger.info(f"Quest {quest_id} schedule set to {publish_at} in class {class_id} by {updated_by}")
+        return result
+
+    def set_quest_due_date(
+        self,
+        class_id: str,
+        quest_id: str,
+        due_date: Optional[str],
+        updated_by: str
+    ) -> Optional[Dict[str, Any]]:
+        """Set or clear (due_date=None) the due date for a class quest."""
+        self.validate_required(class_id=class_id, quest_id=quest_id, updated_by=updated_by)
+        result = self.class_repo.set_quest_due_date(class_id, quest_id, due_date)
+        logger.info(f"Quest {quest_id} due date set to {due_date} in class {class_id} by {updated_by}")
+        return result
+
+    def get_student_agenda(self, student_id: str) -> List[Dict[str, Any]]:
+        """Upcoming due dates for a student across their active class enrollments."""
+        self.validate_required(student_id=student_id)
+        return self.class_repo.get_student_agenda(student_id)
 
     def reorder_quests(
         self,

@@ -202,6 +202,52 @@ const classService = {
   },
 
   /**
+   * Set or clear the scheduled publish time for a class quest.
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   * @param {string} questId - Quest ID
+   * @param {string|null} publishAt - ISO datetime, or null to clear (visible now)
+   */
+  setClassQuestSchedule: async (orgId, classId, questId, publishAt) => {
+    const response = await api.put(
+      `/api/organizations/${orgId}/classes/${classId}/quests/${questId}/schedule`,
+      { publish_at: publishAt || null }
+    )
+    return response.data
+  },
+
+  /**
+   * Set or clear the due date for a class quest.
+   * @param {string|null} dueDate - ISO datetime, or null to clear
+   */
+  setClassQuestDueDate: async (orgId, classId, questId, dueDate) => {
+    const response = await api.put(
+      `/api/organizations/${orgId}/classes/${classId}/quests/${questId}/due-date`,
+      { due_date: dueDate || null }
+    )
+    return response.data
+  },
+
+  /**
+   * Get the calling student's upcoming class-quest due dates (agenda).
+   */
+  getStudentAgenda: async () => {
+    const response = await api.get('/api/student/agenda')
+    return response.data
+  },
+
+  /**
+   * Create (or sync) a group chat from a class roster. Returns { group_id }.
+   */
+  createClassGroupChat: async (orgId, classId) => {
+    const response = await api.post(
+      `/api/organizations/${orgId}/classes/${classId}/messaging-group`,
+      {}
+    )
+    return response.data
+  },
+
+  /**
    * Remove a quest from a class
    * @param {string} orgId - Organization ID
    * @param {string} classId - Class ID
