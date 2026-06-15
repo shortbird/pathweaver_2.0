@@ -531,6 +531,11 @@ def delete_quest(user_id, quest_id):
             if quest.data.get('is_active'):
                 return jsonify({'success': False, 'error': 'Cannot delete published quests'}), 403
 
+        # Step 0: Reverse denormalized aggregate XP before deleting completions
+        # (completions carry no xp_awarded; XP is derived from xp_value).
+        from utils.xp_reversal import reverse_quest_xp
+        reverse_quest_xp(supabase, quest_id)
+
         # Step 1: Delete quest_task_completions (blocks user_quest_tasks deletion)
         # This has NO ACTION constraint on user_quest_task_id
         supabase.table('quest_task_completions')\

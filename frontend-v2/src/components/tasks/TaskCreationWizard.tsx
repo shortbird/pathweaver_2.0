@@ -23,7 +23,9 @@ const pillarColors: Record<string, { bg: string; text: string }> = {
 };
 
 const XP_OPTIONS = [
+  { value: 25, label: '25 XP', desc: 'Quick task' },
   { value: 50, label: '50 XP', desc: 'Small task' },
+  { value: 75, label: '75 XP', desc: 'Light task' },
   { value: 100, label: '100 XP', desc: 'Medium task' },
   { value: 150, label: '150 XP', desc: 'Large task' },
   { value: 200, label: '200 XP', desc: 'Major task' },

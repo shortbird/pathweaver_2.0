@@ -94,10 +94,10 @@ TASK GENERATION RULES:
 - Tasks should be things the learner can continue working on
 
 XP Guidelines:
-- Combined small discoveries: 50-100 XP
-- Medium project/skill development: 100-150 XP
-- Significant creation/accomplishment: 150-250 XP
-- Major milestone: 250-300 XP
+- Combined small discoveries: 25-50 XP
+- Medium project/skill development: 50-75 XP
+- Significant creation/accomplishment: 75-125 XP
+- Major milestone: 125-150 XP
 
 {PILLAR_DEFINITIONS}
 

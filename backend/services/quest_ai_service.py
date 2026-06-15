@@ -293,7 +293,7 @@ Return ONLY valid JSON (no markdown code blocks):
               BAD: "Synthesize research from multiple sources to formulate a comprehensive analysis of the subject matter."
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-            - xp_value: XP points (50-300 based on complexity)
+            - xp_value: XP points (25-150 based on complexity)
             - evidence_prompt: Simple options for showing work (writing, video, poster, project, etc.)
 
             Tasks should:
@@ -429,7 +429,7 @@ Return ONLY valid JSON (no markdown code blocks):
           BAD: "Create a comprehensive visual representation synthesizing the fundamental concepts."
         - pillar: One of [{', '.join(self.valid_pillars)}] that best matches the lesson content
         - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-        - xp_value: XP points (50-300 based on complexity and time required)
+        - xp_value: XP points (25-150 based on complexity and time required)
         - evidence_prompt: Simple options for showing work (writing, video, poster, project, etc.)
 
         Tasks should:
@@ -464,7 +464,7 @@ Return ONLY valid JSON (no markdown code blocks):
                 'description': 'Read through the lesson materials carefully and take notes on key concepts.',
                 'pillar': pillar or 'stem',
                 'school_subjects': subjects,
-                'xp_value': 50,
+                'xp_value': 25,
                 'evidence_prompt': 'Share your notes or a summary of what you learned',
                 'order_index': 1
             },
@@ -473,7 +473,7 @@ Return ONLY valid JSON (no markdown code blocks):
                 'description': 'Choose one concept from the lesson and create something that demonstrates your understanding.',
                 'pillar': pillar or 'stem',
                 'school_subjects': subjects,
-                'xp_value': 100,
+                'xp_value': 50,
                 'evidence_prompt': 'Show your work through writing, video, diagram, or practical example',
                 'order_index': 2
             }
@@ -631,7 +631,7 @@ Return ONLY valid JSON (no markdown code blocks):
              BAD: "Synthesize your conceptual understanding to formulate a comprehensive project plan."
            - pillar: One of [{', '.join(self.valid_pillars)}]
            - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-           - xp_value: Points 50-300 based on how hard it is
+           - xp_value: Points 25-150 based on how hard it is
            - evidence_prompt: Simple options for showing work (writing, video, poster, photos, etc.)
            - order_index: Sequential number starting from 1
 
@@ -639,7 +639,7 @@ Return ONLY valid JSON (no markdown code blocks):
         - Use simple words a 10-year-old would know
         - The TASK can be challenging, but the WORDS should be simple
         - Tasks should build on each other
-        - Total XP should be 400-1200 points
+        - Total XP should be 200-600 points
 
         Return as valid JSON with exact field names shown above.
         """
@@ -854,13 +854,6 @@ Return ONLY valid JSON (no markdown code blocks):
         # Return validated subjects or pillar-based fallback if none were valid
         return validated_subjects if validated_subjects else get_pillar_fallback(pillar)
     
-    def _validate_xp(self, xp_value: Any) -> int:
-        """Validate and normalize XP value"""
-        try:
-            xp = int(xp_value) if xp_value else 100
-            return max(50, min(500, xp))  # Clamp between 50-500
-        except (ValueError, TypeError):
-            return 100
     def _calculate_credit_distribution(self, tasks: List[Dict]) -> Dict[str, float]:
         """
         Calculate how quest tasks map to diploma credits.
@@ -1084,10 +1077,10 @@ Generate 4 approaches, each with 3-4 tasks.
         """Validate and normalize XP value"""
         try:
             xp = int(xp_value)
-            # Clamp to reasonable range
-            return max(25, min(200, xp))
+            # Clamp to reasonable range (halved scale)
+            return max(25, min(150, xp))
         except (ValueError, TypeError):
-            return 100
+            return 50
 
     def clone_quest_to_optio(self, source_quest: Dict) -> Dict[str, Any]:
         """

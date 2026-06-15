@@ -294,6 +294,7 @@ export const AddTaskWizard = ({
                   onChange={(e) => setManualTask(prev => ({ ...prev, xp_value: parseInt(e.target.value) }))}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                 >
+                  <option value={25}>25 XP</option>
                   <option value={50}>50 XP</option>
                   <option value={75}>75 XP</option>
                   <option value={100}>100 XP</option>

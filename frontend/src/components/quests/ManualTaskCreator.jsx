@@ -62,7 +62,9 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     task.diploma_subject || pillarDefaultSubject[task.pillar] || 'Electives';
 
   const xpOptions = [
+    { value: 25, label: '25 XP - Quick task' },
     { value: 50, label: '50 XP - Small task' },
+    { value: 75, label: '75 XP - Light task' },
     { value: 100, label: '100 XP - Medium task' },
     { value: 150, label: '150 XP - Large task' },
     { value: 200, label: '200 XP - Major task' }

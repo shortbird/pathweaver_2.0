@@ -38,22 +38,22 @@ class QuestValidator:
             'beginner': {
                 'min_tasks': 2,
                 'max_tasks': 4,
-                'min_xp_per_task': 50,
-                'max_xp_per_task': 100,
+                'min_xp_per_task': 25,
+                'max_xp_per_task': 50,
                 'max_description_length': 500
             },
             'intermediate': {
                 'min_tasks': 3,
                 'max_tasks': 5,
-                'min_xp_per_task': 100,
-                'max_xp_per_task': 150,
+                'min_xp_per_task': 50,
+                'max_xp_per_task': 75,
                 'max_description_length': 750
             },
             'advanced': {
                 'min_tasks': 3,
                 'max_tasks': 6,
-                'min_xp_per_task': 150,
-                'max_xp_per_task': 200,
+                'min_xp_per_task': 75,
+                'max_xp_per_task': 100,
                 'max_description_length': 1000
             }
         }

@@ -810,6 +810,11 @@ class QuestRepository(BaseRepository):
         admin = get_supabase_admin_client()
 
         try:
+            # Reverse denormalized aggregate XP before the completions are gone
+            # (completions carry no xp_awarded; XP is derived from xp_value).
+            from utils.xp_reversal import reverse_quest_xp
+            reverse_quest_xp(admin, quest_id)
+
             # Delete in order to respect FK constraints
             admin.table('quest_task_completions').delete().eq('quest_id', quest_id).execute()
             admin.table('user_task_evidence_documents').delete().eq('quest_id', quest_id).execute()

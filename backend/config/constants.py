@@ -137,9 +137,9 @@ MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION = 30 * 60  # 30 minutes in seconds
 LOCKOUT_DURATION_MINUTES = 30  # Legacy compatibility (same as LOCKOUT_DURATION / 60)
 
-# Default XP Values
-DEFAULT_TASK_XP = 50
-DEFAULT_QUEST_XP = 100
+# Default XP Values (halved scale as of 2026-06-15 to slow class pacing)
+DEFAULT_TASK_XP = 25
+DEFAULT_QUEST_XP = 50
 MAX_QUEST_XP = 1000
 
 # Quest Validation

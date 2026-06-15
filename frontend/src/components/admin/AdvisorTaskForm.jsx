@@ -407,7 +407,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                     step="25"
                   />
                   <p className="text-sm text-gray-500 mt-1">
-                    Recommended: 25-100 XP for small tasks, 100-250 XP for medium tasks, 250-500 XP for large tasks
+                    Recommended: 25-50 XP for small tasks, 50-125 XP for medium tasks, 125-250 XP for large tasks
                   </p>
                   {errors.xp && (
                     <p className="text-red-600 text-sm mt-1 flex items-center">

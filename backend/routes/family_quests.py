@@ -417,7 +417,9 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
             return jsonify({'success': False, 'error': 'This action is only allowed for managed dependents'}), 403
 
         # Find the completion record
-        completion = supabase.table('quest_task_completions').select('id, xp_awarded').eq(
+        # Note: quest_task_completions has no xp_awarded column; XP is derived from
+        # the task's current xp_value, which is what we reverse below.
+        completion = supabase.table('quest_task_completions').select('id').eq(
             'user_id', child_id
         ).eq('user_quest_task_id', task_id).execute()
 
@@ -425,7 +427,6 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
             return jsonify({'success': False, 'error': 'Task completion not found'}), 404
 
         completion_id = completion.data[0]['id']
-        xp_awarded = completion.data[0].get('xp_awarded', 0)
 
         # Get task details for pillar info
         task = supabase.table('user_quest_tasks').select('pillar, xp_value').eq('id', task_id).single().execute()
@@ -433,7 +434,7 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
             return jsonify({'success': False, 'error': 'Task not found'}), 404
 
         pillar = task.data['pillar']
-        xp_to_remove = xp_awarded or task.data.get('xp_value', 0)
+        xp_to_remove = task.data.get('xp_value', 0)
 
         # Reverse pillar XP from user_skill_xp
         if xp_to_remove > 0 and pillar:
