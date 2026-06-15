@@ -23,6 +23,12 @@ logger = get_logger(__name__)
 def get_credit_status(user_id: str, task_id: str):
     """Get the diploma credit status for a completed task."""
     try:
+        # Virtual moment-tasks (id "moment-<uuid>") aren't real completion rows —
+        # querying the uuid column with that value throws Postgres 22P02. They
+        # never carry diploma credit, so report no completion.
+        if str(task_id).startswith('moment-'):
+            return success_response(data={'has_completion': False, 'diploma_status': None})
+
         # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
         completion = admin_supabase.table('quest_task_completions')\

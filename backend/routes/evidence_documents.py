@@ -56,6 +56,12 @@ def get_evidence_document(user_id: str, task_id: str):
     Returns the document with all content blocks.
     """
     try:
+        # Virtual moment-tasks (id "moment-<uuid>") have no evidence document of
+        # their own (their evidence is served inline with the quest); querying the
+        # uuid column with that value throws Postgres 22P02. Return an empty doc.
+        if str(task_id).startswith('moment-'):
+            return jsonify({'success': True, 'document': None, 'blocks': []})
+
         # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
         # admin client justified: evidence document reads scoped to caller (self) under @require_auth
         supabase = get_supabase_admin_client()
