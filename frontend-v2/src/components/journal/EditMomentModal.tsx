@@ -11,8 +11,10 @@ import {
   View, Modal, Pressable, TextInput, ScrollView, Platform,
   KeyboardAvoidingView, ActivityIndicator, Alert, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { safeOpenURL } from '@/src/utils/linking';
 import { Ionicons } from '@expo/vector-icons';
+import { enqueueUpload, type QueuedMediaItem } from '@/src/services/uploadQueue';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, Card, Divider,
 } from '../ui';
@@ -157,6 +159,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
   const [eventDate, setEventDate] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [addingEvidence, setAddingEvidence] = useState(false);
   const [showTopicPicker, setShowTopicPicker] = useState(false);
   // Inline "create new topic" inside the picker.
   const [showCreateTopic, setShowCreateTopic] = useState(false);
@@ -232,6 +235,45 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       Alert.alert('Error', msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Attach more evidence to an existing moment. The learning-event evidence
+  // endpoint REPLACES a moment's blocks, so we resend every existing block as
+  // extraBlocks alongside the newly picked media — otherwise the existing
+  // evidence would be wiped. The upload runs in the durable background queue;
+  // the new blocks land on the moment once it finishes (journal/feed refetch
+  // via onUploadComplete), so we leave the modal open and just confirm.
+  const handleAddEvidence = async () => {
+    if (!event) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    setAddingEvidence(true);
+    try {
+      const items: QueuedMediaItem[] = result.assets.map((a) => ({
+        uri: a.uri,
+        type: a.type === 'video' ? 'video' : 'image',
+        name: a.fileName || a.uri.split('/').pop() || `evidence.${a.type === 'video' ? 'mp4' : 'jpg'}`,
+        fileSize: a.fileSize,
+      }));
+      const extraBlocks = (event.evidence_blocks || []).map((b) => ({
+        block_type: b.block_type,
+        content: b.content ?? {},
+        file_url: b.file_url,
+        file_name: b.file_name,
+      }));
+      await enqueueUpload({ eventId: event.id, studentId: childId, items, extraBlocks });
+      onSaved();
+      Alert.alert('Adding evidence', 'Your evidence is uploading and will appear on the moment shortly.');
+    } catch {
+      Alert.alert('Error', 'Could not add evidence. Please try again.');
+    } finally {
+      setAddingEvidence(false);
     }
   };
 
@@ -500,22 +542,40 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
           )}
         </VStack>
 
-        {/* Evidence — show actual content */}
-        {event.evidence_blocks && event.evidence_blocks.length > 0 && (
-          <>
-            <Divider />
-            <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">
-                Attachments ({event.evidence_blocks.length})
+        {/* Evidence — show actual content + allow attaching more */}
+        <>
+          <Divider />
+          <VStack space="sm">
+            {event.evidence_blocks && event.evidence_blocks.length > 0 && (
+              <>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium">
+                  Attachments ({event.evidence_blocks.length})
+                </UIText>
+                {event.evidence_blocks
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map((block, i) => (
+                    <EvidenceBlockView key={block.id || i} block={block} />
+                  ))}
+              </>
+            )}
+            <Pressable
+              onPress={handleAddEvidence}
+              disabled={addingEvidence}
+              className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-optio-purple/50"
+              accessibilityRole="button"
+              accessibilityLabel="Add photo or video evidence"
+            >
+              {addingEvidence ? (
+                <ActivityIndicator size="small" color="#6D469B" />
+              ) : (
+                <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
+              )}
+              <UIText size="sm" className="text-optio-purple font-poppins-medium">
+                {addingEvidence ? 'Adding…' : 'Add photo or video'}
               </UIText>
-              {event.evidence_blocks
-                .sort((a, b) => a.order_index - b.order_index)
-                .map((block, i) => (
-                  <EvidenceBlockView key={block.id || i} block={block} />
-                ))}
-            </VStack>
-          </>
-        )}
+            </Pressable>
+          </VStack>
+        </>
 
         {/* Save button */}
         <Button

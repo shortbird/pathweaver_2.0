@@ -16,6 +16,7 @@ import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './Tas
 import { AudioClipPreview } from '../capture/VoiceRecorder';
 import { VideoPlayer } from '../feed/VideoPlayer';
 import { DocumentViewer } from '../feed/DocumentViewer';
+import { MediaModal } from '../feed/MediaModal';
 import { safeOpenURL } from '@/src/utils/linking';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
@@ -58,6 +59,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   const [newTopicName, setNewTopicName] = useState('');
   const [creatingTopic, setCreatingTopic] = useState(false);
   const [taskPickerVisible, setTaskPickerVisible] = useState(false);
+  const [mediaModal, setMediaModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
 
   const handleAttachTask = async (taskId: string) => {
     try {
@@ -119,6 +121,18 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   const otherEvidence = event.evidence_blocks?.filter(
     (b) => b.block_type !== 'image' && b !== videoBlock && b.block_type !== 'audio' && b.block_type !== 'document' && b.block_type !== 'link',
   ) || [];
+  // Primary attachment for a card tap: open it full-screen ("tapping the item
+  // should bring up the full view of the attachment"; the 3-dot button is the
+  // menu). Falls back to the actions sheet when the moment has no media.
+  const primaryMedia: { type: 'image' | 'video' | 'document'; uri: string; title?: string } | null =
+    imageUrls.length > 0
+      ? { type: 'image', uri: imageUrls[0] }
+      : videoBlock && getBlockUrl(videoBlock)
+      ? { type: 'video', uri: getBlockUrl(videoBlock) }
+      : documentBlocks.length > 0 && getBlockUrl(documentBlocks[0])
+      ? { type: 'document', uri: getBlockUrl(documentBlocks[0]), title: documentBlocks[0]?.content?.name || documentBlocks[0]?.file_name }
+      : null;
+
   const rawDate = event.event_date || event.created_at;
   // Append T12:00 to date-only strings to avoid UTC midnight → previous day in local timezone
   const parsedDate = rawDate && !rawDate.includes('T') ? new Date(rawDate + 'T12:00:00') : new Date(rawDate);
@@ -244,7 +258,11 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   actions.push({ key: 'delete', label: 'Delete', icon: 'trash-outline', destructive: true, disabled: deleting, onPress: handleDelete });
 
   return (
-    <Pressable onPress={() => { if (onPress) { onPress(); } else if (!readOnly) { setActionsSheetOpen(true); } }}>
+    <Pressable onPress={() => {
+      if (onPress) { onPress(); }
+      else if (primaryMedia) { setMediaModal(primaryMedia); }
+      else if (!readOnly) { setActionsSheetOpen(true); }
+    }}>
       <Card variant="elevated" size="sm" className="overflow-hidden">
         {/* Media header */}
         {imageUrls.length === 1 ? (
@@ -293,13 +311,13 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
             )}
           </View>
         ) : uploadingPct !== undefined ? (
-          // Video still uploading in the background — show progress so it doesn't
-          // look like the attachment failed.
+          // Media still uploading in the background — show progress so it doesn't
+          // look like the attachment failed (covers image/audio/doc/video).
           <View className="-mx-3 -mt-3 mb-3">
             <View className="w-full h-40 bg-surface-100 dark:bg-dark-surface-200 rounded-t-xl items-center justify-center">
               <Ionicons name="cloud-upload-outline" size={28} color="#6D469B" />
               <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2 font-poppins-medium">
-                Uploading video… {uploadingPct}%
+                Uploading… {uploadingPct}%
               </UIText>
             </View>
           </View>
@@ -553,6 +571,14 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
         visible={actionsSheetOpen}
         onClose={() => setActionsSheetOpen(false)}
         actions={actions}
+      />
+
+      <MediaModal
+        visible={!!mediaModal}
+        onClose={() => setMediaModal(null)}
+        type={mediaModal?.type ?? 'image'}
+        uri={mediaModal?.uri ?? ''}
+        title={mediaModal?.title}
       />
     </Pressable>
   );

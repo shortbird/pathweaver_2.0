@@ -8,6 +8,7 @@
 import React, { memo, useState } from 'react';
 import { View, Pressable, Platform, Share, ScrollView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '../ui';
 import { VideoPlayer } from './VideoPlayer';
@@ -214,7 +215,7 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
         <View className="w-full rounded-lg bg-surface-100 dark:bg-dark-surface-200 items-center justify-center" style={{ height: 160 }}>
           <Ionicons name="cloud-upload-outline" size={28} color="#6D469B" />
           <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-2 font-poppins-medium">
-            Uploading video… {uploadingPct}%
+            Uploading… {uploadingPct}%
           </UIText>
         </View>
       )}
@@ -315,6 +316,19 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
 
   const studentInitials = item.student?.display_name
     ?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+  // Tap a student's avatar/name to open their profile. Route by the viewer's
+  // effective role: own post -> the Profile tab; observers -> the observer
+  // student overview; everyone else (parent/superadmin) -> the parent-style
+  // child profile. Org users carry their real role in org_role.
+  const effectiveRole = user?.org_role || user?.role;
+  const goToProfile = () => {
+    const sid = item.student?.id;
+    if (!sid) return;
+    if (isOwnPost) { router.push('/(app)/(tabs)/profile'); return; }
+    if (effectiveRole === 'observer') { router.push(`/observers/student/${sid}`); return; }
+    router.push(`/parent/child/${sid}`);
+  };
 
   // Multi-kid grouped post: a parent captured one moment for several kids, so we
   // show every tagged kid (avatars + names) on a single card.
@@ -430,18 +444,28 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                   ))}
                 </HStack>
               ) : (
-                <Avatar size="sm">
-                  {item.student?.avatar_url ? (
-                    <AvatarImage source={{ uri: item.student.avatar_url }} />
-                  ) : (
-                    <AvatarFallbackText>{studentInitials}</AvatarFallbackText>
-                  )}
-                </Avatar>
+                <Pressable onPress={(e) => { e.stopPropagation?.(); goToProfile(); }} hitSlop={6} accessibilityRole="button" accessibilityLabel={`View ${studentsLabel}'s profile`}>
+                  <Avatar size="sm">
+                    {item.student?.avatar_url ? (
+                      <AvatarImage source={{ uri: item.student.avatar_url }} />
+                    ) : (
+                      <AvatarFallbackText>{studentInitials}</AvatarFallbackText>
+                    )}
+                  </Avatar>
+                </Pressable>
               )}
               <VStack className="flex-1">
-                <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
-                  {studentsLabel}
-                </UIText>
+                {isMultiStudent ? (
+                  <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                    {studentsLabel}
+                  </UIText>
+                ) : (
+                  <Pressable onPress={(e) => { e.stopPropagation?.(); goToProfile(); }}>
+                    <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                      {studentsLabel}
+                    </UIText>
+                  </Pressable>
+                )}
                 <HStack className="items-center gap-2">
                   {isTask && item.completion_id && (
                     <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
