@@ -27,6 +27,7 @@ import { toast } from 'react-hot-toast'
 // Always-loaded components (critical for initial render)
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
+import MetaPixelTracker from './components/MetaPixelTracker'
 import HomePage from './pages/marketing/HomePage'
 import LoginPage from './pages/LoginPage'
 import OrgLoginPage from './pages/auth/OrgLoginPage'
@@ -289,6 +290,7 @@ function AppContent() {
   return (
     <>
       <ScrollToTop />
+      <MetaPixelTracker />
       {/* Masquerade Banner - Only show fixed version on mobile, sidebar handles desktop */}
       {masqueradeState && (
         <div className="lg:hidden">

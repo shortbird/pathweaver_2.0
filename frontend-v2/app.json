@@ -181,7 +181,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Optio uses the microphone so you can record voice notes as learning moments."
+          "microphonePermission": "Optio uses the microphone so you can record voice notes as learning moments.",
+          "enableBackgroundPlayback": false
         }
       ],
       "expo-secure-store",

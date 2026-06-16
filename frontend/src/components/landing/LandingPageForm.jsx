@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CheckIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { trackEvent } from '../../utils/metaPixel'
 
 const LandingPageForm = ({
   campaignSource,
@@ -51,14 +52,12 @@ const LandingPageForm = ({
       const result = await response.json()
 
       if (response.ok) {
-        // Meta Pixel tracking (if available)
-        if (typeof fbq !== 'undefined') {
-          fbq('track', 'Lead', {
-            content_name: `${campaignSource} Landing Page`,
-            value: 0.00,
-            currency: 'USD'
-          })
-        }
+        // Meta Pixel Lead event (PII-free; see utils/metaPixel)
+        trackEvent('Lead', {
+          content_name: `${campaignSource} Landing Page`,
+          value: 0.00,
+          currency: 'USD',
+        })
 
         setIsSubmitting(false)
         setSubmitted(true)

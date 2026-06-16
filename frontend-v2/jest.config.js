@@ -6,6 +6,7 @@ module.exports = {
     '<rootDir>/app/**/*.test.{ts,tsx}',
   ],
   moduleNameMapper: {
+    '^@legal/(.*)$': '<rootDir>/../shared/legal/$1',
     '^@/(.*)$': '<rootDir>/$1',
   },
   setupFiles: [

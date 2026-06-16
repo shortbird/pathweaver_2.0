@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import api, { tokenStore } from '../services/api'
 import { retryWithBackoff } from '../utils/retryHelper'
 import { queryKeys } from '../utils/queryKeys'
+import { trackEvent } from '../utils/metaPixel'
 import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCookieSupport, logBrowserInfo } from '../utils/browserDetection'
 import { clearMasqueradeData } from '../services/masqueradeService'
 import logger from '../utils/logger'
@@ -410,18 +411,12 @@ export const AuthProvider = ({ children }) => {
           }))
         } catch { /* localStorage unavailable */ }
 
-        // Track registration completion for Meta Pixel
-        try {
-          if (typeof fbq !== 'undefined') {
-            fbq('track', 'CompleteRegistration', {
-              content_name: 'User Registration',
-              value: 0.00,
-              currency: 'USD'
-            });
-          }
-        } catch (error) {
-          console.error('Meta Pixel tracking error:', error);
-        }
+        // Track registration completion for Meta Pixel (PII-free; see utils/metaPixel)
+        trackEvent('CompleteRegistration', {
+          content_name: 'User Registration',
+          value: 0.00,
+          currency: 'USD',
+        })
 
         toast.success('Account created successfully!')
 

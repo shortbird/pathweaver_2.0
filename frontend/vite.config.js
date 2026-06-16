@@ -56,8 +56,18 @@ export default defineConfig(({ mode }) => {
       telemetry: false,
     }),
   ],
+  resolve: {
+    alias: {
+      // Shared legal content (single source of truth for Terms/Privacy,
+      // also consumed by the v2 mobile app). Lives outside the frontend root.
+      '@legal': join(process.cwd(), '..', 'shared', 'legal'),
+    },
+  },
   server: {
     port: 3000,
+    // Allow Vite's dev server to read the shared/ folder, which sits one level
+    // above the frontend root (needed for the @legal alias above).
+    fs: { allow: ['..'] },
     // Tunnel hosts allowed during LTI testing. ngrok-free.dev is our stable
     // dev URL; trycloudflare.com is the legacy quick-tunnel fallback. Remove
     // these entries after the LTI rollout is done.

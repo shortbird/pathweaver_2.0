@@ -153,3 +153,6 @@ test_video.mp4
 
 # Android bug-report artifacts (never commit)
 frontend-v2/bugreport-*.zip
+
+# Marketing PII export — never commit
+facebook_custom_audience.csv
