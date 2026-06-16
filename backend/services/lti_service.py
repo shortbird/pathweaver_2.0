@@ -640,6 +640,43 @@ def _is_valid_email(value: str) -> bool:
     return bool(_EMAIL_RE.match((value or "").strip()))
 
 
+def _attach_existing_user_to_org(
+    supabase,
+    user_id: str,
+    org_role: str,
+    organization_id: str,
+) -> None:
+    """Bind an already-existing Optio user to the registration's org.
+
+    LTI users are org-managed: the `direct_role_no_org_role` CHECK
+    (role = 'org_managed' OR org_role IS NULL) means we can't set `org_role`
+    on a row that still carries a direct platform role. So whenever we reuse
+    an existing account via Canvas — whether matched by the lms_integrations
+    link or by email — we flip role/org_role/organization_id together, exactly
+    like the create path does, rather than touching `org_role` alone (which
+    crashed pre-existing platform users with a 23514 constraint violation).
+
+    Superadmin is exempt: a superadmin who happens to launch from Canvas must
+    never be demoted to org_managed or pinned to an org.
+    """
+    current = (
+        supabase.table("users")
+        .select("role")
+        .eq("id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if current.data and current.data[0].get("role") == "superadmin":
+        return
+    supabase.table("users").update(
+        {
+            "role": "org_managed",
+            "org_role": org_role,
+            "organization_id": organization_id,
+        }
+    ).eq("id", user_id).execute()
+
+
 def provision_lti_user(claims: Dict[str, Any], registration: LtiRegistration) -> str:
     """Find or create the Optio user behind this Canvas user.
 
@@ -689,10 +726,11 @@ def provision_lti_user(claims: Dict[str, Any], registration: LtiRegistration) ->
     )
     if integration.data:
         user_id = integration.data[0]["user_id"]
-        # Keep org_role fresh in case the teacher promoted/demoted them.
-        supabase.table("users").update(
-            {"org_role": org_role}
-        ).eq("id", user_id).execute()
+        # Keep role/org_role fresh in case the teacher promoted/demoted them
+        # (and to repair platform accounts that predate org binding).
+        _attach_existing_user_to_org(
+            supabase, user_id, org_role, registration.organization_id
+        )
         return user_id
 
     # 2. Email merge — only for real, platform-provided emails. Synthetic
@@ -705,6 +743,9 @@ def provision_lti_user(claims: Dict[str, Any], registration: LtiRegistration) ->
         if existing.data:
             user_id = existing.data[0]["id"]
             logger.info(f"[LTI provision] Linking existing user {user_id} to Canvas")
+            _attach_existing_user_to_org(
+                supabase, user_id, org_role, registration.organization_id
+            )
 
     # 3. Create
     if not user_id:
