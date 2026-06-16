@@ -95,7 +95,7 @@ def create_announcement(user_id):
                 'organization_id': org_id,
                 'author_id': user_id,
                 'title': title,
-                'content': content,
+                'message': content,
                 'target_audience': ('everyone' if set(audiences) == ROLE_AUDIENCES else ','.join(sorted(audiences))),
             }).execute()
             announcement_id = ins.data[0]['id'] if ins.data else None
@@ -140,7 +140,7 @@ def list_announcements(user_id):
             return jsonify({'success': True, 'announcements': []})
 
         rows = admin.table('announcements')\
-            .select('id, title, content, target_audience, author_id, created_at')\
+            .select('id, title, content:message, target_audience, author_id, created_at')\
             .eq('organization_id', org_id)\
             .order('created_at', desc=True)\
             .limit(50).execute()

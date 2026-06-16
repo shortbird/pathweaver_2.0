@@ -289,7 +289,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   // Background video upload progress for this moment (if any in flight).
   const uploadingPct = useMediaUploadStore((s) =>
     item.learning_event_id ? s.uploads[item.learning_event_id] : undefined);
-  const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null }>>([]);
+  const [viewers, setViewers] = useState<Array<{ id: string; display_name: string; avatar_url: string | null; is_platform?: boolean }>>([]);
   const [showViewersList, setShowViewersList] = useState(false);
   const [loadingViewers, setLoadingViewers] = useState(false);
   const [commentsCount, setCommentsCount] = useState(item.comments_count);
@@ -602,7 +602,9 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                   {viewers.map((v) => (
                     <HStack key={v.id} className="items-center gap-2">
                       <Avatar size="xs">
-                        {v.avatar_url ? (
+                        {v.is_platform ? (
+                          <ExpoImage source={require('@/assets/images/icon.png')} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                        ) : v.avatar_url ? (
                           <AvatarImage source={{ uri: v.avatar_url }} />
                         ) : (
                           <AvatarFallbackText>{v.display_name?.charAt(0) || '?'}</AvatarFallbackText>

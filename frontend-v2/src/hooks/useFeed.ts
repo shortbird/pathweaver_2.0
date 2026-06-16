@@ -233,7 +233,7 @@ export async function getViewers(type: 'task_completed' | 'learning_moment', id:
   const dbId = cleanId.includes('_') ? cleanId.split('_')[0] : cleanId;
   const targetType = type === 'task_completed' ? 'completion' : 'learning_event';
   const { data } = await api.get(`/api/observers/views/${targetType}/${dbId}`);
-  return data as { viewers: Array<{ id: string; display_name: string; avatar_url: string | null; viewed_at: string }>; total: number };
+  return data as { viewers: Array<{ id: string; display_name: string; avatar_url: string | null; is_platform?: boolean; viewed_at: string }>; total: number };
 }
 
 export async function postComment(args: {

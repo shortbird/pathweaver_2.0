@@ -116,12 +116,14 @@ def register_routes(bp):
                 # Superadmin reviews are surfaced to students/parents as "Optio",
                 # not the admin's personal name (bug #3: a student saw "Tanner
                 # Bowman" viewed their evidence; it should read as the platform).
-                # Avatar dropped so it falls back to the "O" initial.
+                # is_platform tells the client to render the Optio logo instead
+                # of an avatar/initial (matches the profile "Viewed by" pattern).
                 if user_info.get('role') == 'superadmin':
                     viewers.append({
                         'id': v['viewer_id'],
                         'display_name': 'Optio',
                         'avatar_url': None,
+                        'is_platform': True,
                         'viewed_at': v['viewed_at'],
                     })
                     continue
