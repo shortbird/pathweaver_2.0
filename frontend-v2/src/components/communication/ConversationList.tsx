@@ -31,6 +31,8 @@ interface Props {
   loading: boolean;
   canCreateGroups: boolean;
   isMobile?: boolean;
+  /** Compose button opens the contact picker for a new DM. */
+  onCompose?: () => void;
   /** When provided, shows a "My children's messages" entry point (parents). */
   onViewChildMessages?: () => void;
   /** Title for the child-messages entry point; defaults to the generic label. */
@@ -77,6 +79,7 @@ export function ConversationList({
   loading,
   canCreateGroups,
   isMobile,
+  onCompose,
   onViewChildMessages,
   childMessagesLabel,
 }: Props) {
@@ -86,54 +89,78 @@ export function ConversationList({
   // Tap the active Messages tab to scroll the conversation list back to top.
   useScrollToTop(scrollRef);
 
-  // Merge contacts with conversation data (for last message preview / unread)
-  const contactsWithMeta = useMemo(() => {
-    const convoMap = new Map<string, any>();
-    (conversations || []).forEach((c: any) => {
-      if (c.other_user?.id) convoMap.set(c.other_user.id, c);
-    });
+  // Active DMs: derived from `conversations` (always loaded first) and enriched
+  // with contact metadata (relationship chip, is_support flag) when contacts is
+  // available. Optio Support pinned at the top even without a thread.
+  //
+  // The full contact directory is reached via the compose button -> ComposeSheet
+  // — rendering every contact inline made the Messages screen feel heavy and
+  // unlike WhatsApp/Messages.
+  const activeContacts = useMemo(() => {
+    const contactMap = new Map<string, Contact>();
+    contacts.forEach((c) => { contactMap.set(c.id, c); });
 
-    return contacts.map((contact) => {
-      const convo = convoMap.get(contact.id);
-      return {
-        ...contact,
-        last_message_at: convo?.last_message_at || null,
-        last_message_preview: convo?.last_message_preview || null,
-        unread_count: convo?.unread_count || 0,
-        conversation_id: convo?.id || contact.id,
-      };
-    }).sort((a, b) => {
-      // Unread first, then by recent message
+    const items = (conversations || [])
+      .filter((c: any) => c.other_user?.id)
+      .map((c: any): any => {
+        const contact = contactMap.get(c.other_user.id);
+        return {
+          id: c.other_user.id,
+          display_name: c.other_user.display_name,
+          first_name: c.other_user.first_name,
+          last_name: c.other_user.last_name,
+          avatar_url: c.other_user.avatar_url,
+          role: c.other_user.role,
+          relationship: contact?.relationship || '',
+          is_support: contact?.is_support || false,
+          last_message_at: c.last_message_at,
+          last_message_preview: c.last_message_preview,
+          unread_count: c.unread_count || 0,
+          conversation_id: c.id,
+        };
+      });
+
+    items.sort((a, b) => {
       if (a.unread_count && !b.unread_count) return -1;
       if (!a.unread_count && b.unread_count) return 1;
       if (a.last_message_at && b.last_message_at) {
         return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
       }
-      if (a.last_message_at) return -1;
-      if (b.last_message_at) return 1;
-      return getDisplayName(a).localeCompare(getDisplayName(b));
+      return 0;
     });
+
+    // Pin Optio Support to the top even without a thread, so support is always
+    // one tap away. Only possible once contacts has loaded.
+    const support = contacts.find((c) => c.is_support);
+    const hasSupportThread = items.some((i) => i.is_support);
+    if (support && !hasSupportThread) {
+      items.unshift({
+        id: support.id,
+        display_name: support.display_name,
+        first_name: support.first_name,
+        last_name: support.last_name,
+        avatar_url: support.avatar_url,
+        role: support.role,
+        relationship: support.relationship,
+        is_support: true,
+        last_message_at: null,
+        last_message_preview: null,
+        unread_count: 0,
+        conversation_id: support.id,
+      });
+    }
+
+    return items;
   }, [contacts, conversations]);
 
   // Filter by search
   const filteredContacts = useMemo(() => {
-    if (!search.trim()) return contactsWithMeta;
+    if (!search.trim()) return activeContacts;
     const q = search.toLowerCase().trim();
-    return contactsWithMeta.filter((c) =>
+    return activeContacts.filter((c) =>
       getDisplayName(c).toLowerCase().includes(q)
     );
-  }, [contactsWithMeta, search]);
-
-  // Split into contacts with an existing conversation vs. contacts you can start
-  // a new conversation with. This answers "how do I message someone".
-  const activeContacts = useMemo(
-    () => filteredContacts.filter((c) => !!c.last_message_at),
-    [filteredContacts]
-  );
-  const newContacts = useMemo(
-    () => filteredContacts.filter((c) => !c.last_message_at),
-    [filteredContacts]
-  );
+  }, [activeContacts, search]);
 
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
@@ -237,14 +264,19 @@ export function ConversationList({
       {isMobile ? (
         <PageHeader title="Messages" />
       ) : (
-        <View className="p-4 border-b border-surface-200 dark:border-dark-surface-300">
+        <View className="p-4 border-b border-surface-200 dark:border-dark-surface-300 flex-row items-center justify-between">
           <Heading size="lg">Messages</Heading>
+          {onCompose && (
+            <Pressable onPress={onCompose} accessibilityLabel="New message" hitSlop={8} className="p-1">
+              <Ionicons name="create-outline" size={22} color="#6D469B" />
+            </Pressable>
+          )}
         </View>
       )}
 
-      {/* Search */}
-      <View className="px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300">
-        <View className="flex-row items-center bg-surface-100 dark:bg-dark-surface-200 rounded-xl px-3 py-2.5">
+      {/* Search + compose */}
+      <View className="px-4 py-3 border-b border-surface-200 dark:border-dark-surface-300 flex-row items-center gap-2">
+        <View className="flex-1 flex-row items-center bg-surface-100 dark:bg-dark-surface-200 rounded-xl px-3 py-2.5">
           <Ionicons name="search-outline" size={18} color={c.iconMuted} />
           <TextInput
             value={search}
@@ -260,6 +292,16 @@ export function ConversationList({
             </Pressable>
           )}
         </View>
+        {isMobile && onCompose && (
+          <Pressable
+            onPress={onCompose}
+            accessibilityLabel="New message"
+            hitSlop={8}
+            className="w-10 h-10 rounded-full items-center justify-center bg-optio-purple/10 active:bg-optio-purple/20"
+          >
+            <Ionicons name="create-outline" size={20} color="#6D469B" />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView ref={scrollRef} className="flex-1" showsVerticalScrollIndicator={false}>
@@ -354,8 +396,9 @@ export function ConversationList({
           </Pressable>
         )}
 
-        {/* Direct Messages Section — existing conversations */}
-        {activeContacts.length > 0 && (
+        {/* Direct Messages Section — existing conversations (+ Optio Support pinned).
+            The full contact directory is reached via the compose button (top-right). */}
+        {filteredContacts.length > 0 && (
           <View>
             <View className="flex-row items-center px-4 py-2 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
               <Ionicons name="chatbubble-outline" size={14} color={c.icon} />
@@ -363,29 +406,16 @@ export function ConversationList({
                 Direct Messages
               </UIText>
             </View>
-            {activeContacts.map(renderContact)}
+            {filteredContacts.map(renderContact)}
           </View>
         )}
 
-        {/* Start a Conversation Section — contacts with no thread yet */}
-        {newContacts.length > 0 && (
-          <View>
-            <View className="flex-row items-center px-4 py-2 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
-              <Ionicons name="add-circle-outline" size={14} color={c.icon} />
-              <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 uppercase tracking-wider ml-1.5">
-                Start a conversation
-              </UIText>
-            </View>
-            {newContacts.map(renderContact)}
-          </View>
-        )}
-
-        {/* Empty state — should be rare since Optio Support is always present */}
-        {activeContacts.length === 0 && newContacts.length === 0 && (
+        {/* Empty state */}
+        {filteredContacts.length === 0 && filteredGroups.length === 0 && (
           <View className="items-center py-10 px-4">
             <Ionicons name="chatbubbles-outline" size={40} color={c.iconMuted} />
             <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3 text-center">
-              {search ? 'No contacts match your search' : 'You can message your connections as you add them.'}
+              {search ? 'No conversations match your search' : 'No conversations yet. Tap the compose button to start one.'}
             </UIText>
           </View>
         )}

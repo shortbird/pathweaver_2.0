@@ -26,6 +26,7 @@ import { ChatWindow } from '@/src/components/communication/ChatWindow';
 import { GroupChatWindow } from '@/src/components/communication/GroupChatWindow';
 import { CreateGroupModal } from '@/src/components/communication/CreateGroupModal';
 import { ChildMessagesView } from '@/src/components/communication/ChildMessagesView';
+import { ComposeSheet } from '@/src/components/communication/ComposeSheet';
 
 interface SelectedConversation {
   id: string;
@@ -54,6 +55,7 @@ export default function MessagesScreen() {
   const [selected, setSelected] = useState<SelectedConversation | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showChildMessages, setShowChildMessages] = useState(false);
+  const [showCompose, setShowCompose] = useState(false);
   const setTabBarHidden = useUIStore((s) => s.setTabBarHidden);
 
   // Always show the entry for parents; for superadmins only when they actually
@@ -135,8 +137,9 @@ export default function MessagesScreen() {
           selected={null}
           onSelect={setSelected}
           onCreateGroup={() => setShowCreateGroup(true)}
-          loading={convoLoading || contactsLoading || groupsLoading}
+          loading={convoLoading || groupsLoading}
           canCreateGroups={canCreateGroups}
+          onCompose={() => setShowCompose(true)}
           onViewChildMessages={canViewChildMessages ? () => setShowChildMessages(true) : undefined}
           childMessagesLabel={childMessagesLabel}
           isMobile
@@ -145,6 +148,20 @@ export default function MessagesScreen() {
           visible={showCreateGroup}
           onClose={() => setShowCreateGroup(false)}
           onCreated={handleGroupCreated}
+        />
+        <ComposeSheet
+          visible={showCompose}
+          onClose={() => setShowCompose(false)}
+          contacts={contacts}
+          loading={contactsLoading}
+          onSelect={(contact) => {
+            setShowCompose(false);
+            // Match an existing conversation if present so the chat opens with
+            // its real id; otherwise fall back to the contact id (the chat
+            // window will create one on first send).
+            const convo = conversations.find((c: any) => c.other_user?.id === contact.id);
+            setSelected({ id: convo?.id || contact.id, type: 'dm', contact });
+          }}
         />
       </>
     );
@@ -161,8 +178,9 @@ export default function MessagesScreen() {
         selected={selected}
         onSelect={(conv) => { setShowChildMessages(false); setSelected(conv); }}
         onCreateGroup={() => setShowCreateGroup(true)}
-        loading={convoLoading || contactsLoading || groupsLoading}
+        loading={convoLoading || groupsLoading}
         canCreateGroups={canCreateGroups}
+        onCompose={() => setShowCompose(true)}
         onViewChildMessages={canViewChildMessages ? () => { setSelected(null); setShowChildMessages(true); } : undefined}
         childMessagesLabel={childMessagesLabel}
       />
@@ -198,6 +216,20 @@ export default function MessagesScreen() {
         visible={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
         onCreated={handleGroupCreated}
+      />
+
+      {/* Compose new DM (contact picker) */}
+      <ComposeSheet
+        visible={showCompose}
+        onClose={() => setShowCompose(false)}
+        contacts={contacts}
+        loading={contactsLoading}
+        onSelect={(contact) => {
+          setShowCompose(false);
+          const convo = conversations.find((c: any) => c.other_user?.id === contact.id);
+          setShowChildMessages(false);
+          setSelected({ id: convo?.id || contact.id, type: 'dm', contact });
+        }}
       />
     </View>
   );

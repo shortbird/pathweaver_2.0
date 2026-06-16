@@ -461,7 +461,7 @@ export default function ProfileScreen() {
                           <HStack className="items-center gap-3 flex-1">
                             {viewer.type === 'platform' ? (
                               // Optio (the platform) shows as the logo, not a shield + the word "Optio".
-                              <Image source={require('@/assets/images/icon.png')} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                              <Image source={require('@/assets/images/icon.png')} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff' }} />
                             ) : (
                               <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: viewer.type === 'parent' ? '#3B82F615' : viewer.type === 'advisor' ? '#10B98115' : '#F59E0B15', alignItems: 'center', justifyContent: 'center' }}>
                                 <Ionicons

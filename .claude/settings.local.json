@@ -44,7 +44,8 @@
       "Read(//c/Users/tanne/**)",
       "Bash(python -c \"import ast; ast.parse\\(open\\('routes/bug_reports.py'\\).read\\(\\)\\); ast.parse\\(open\\('repositories/bug_report_repository.py'\\).read\\(\\)\\); print\\('syntax ok'\\)\")",
       "Bash(sed -n '158,175p' utils/roles.py)",
-      "Bash(git commit -q -m 'OEA: OpenEd Academy naming + Family-tab entry into pathway flow *)"
+      "Bash(git commit -q -m 'OEA: OpenEd Academy naming + Family-tab entry into pathway flow *)",
+      "mcp__supabase-optio__execute_sql"
     ]
   }
 }

@@ -603,7 +603,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                     <HStack key={v.id} className="items-center gap-2">
                       <Avatar size="xs">
                         {v.is_platform ? (
-                          <ExpoImage source={require('@/assets/images/icon.png')} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                          <ExpoImage source={require('@/assets/images/icon.png')} style={{ width: '100%', height: '100%', backgroundColor: '#fff' }} contentFit="cover" />
                         ) : v.avatar_url ? (
                           <AvatarImage source={{ uri: v.avatar_url }} />
                         ) : (

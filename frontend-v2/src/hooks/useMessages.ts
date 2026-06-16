@@ -150,14 +150,18 @@ export function useConversationMessages(conversationId: string | null) {
   return { messages, loading, refetch: () => fetch(true), setMessages };
 }
 
-/** Fetch messaging contacts */
-export function useContacts() {
+/** Fetch messaging contacts.
+ *  `enabled` defers the request — the conversation list no longer renders the
+ *  full directory inline, so contacts are only needed when the user opens the
+ *  compose sheet. Cuts a Messages-screen cold-start request that previously
+ *  fanned out into one row per contact. */
+export function useContacts(enabled: boolean = true) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
 
   const fetch = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !enabled) { setLoading(false); return; }
     try {
       setLoading(true);
       const { data } = await messageAPI.contacts();
@@ -168,7 +172,7 @@ export function useContacts() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, enabled]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
