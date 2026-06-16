@@ -2,7 +2,6 @@ import React, { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import MarketingNav from './MarketingNav'
 import MarketingFooter from './MarketingFooter'
-import AnnouncementBanner from './AnnouncementBanner'
 import { captureEvent } from '../../services/posthog'
 
 const MarketingLayout = ({ children }) => {
@@ -61,10 +60,9 @@ const MarketingLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <AnnouncementBanner />
       <MarketingNav />
-      {/* pt-[104px] offsets the fixed banner (40px) + fixed nav (64px) */}
-      <main className="flex-1 pt-[104px]">
+      {/* pt-16 offsets the fixed nav (64px) */}
+      <main className="flex-1 pt-16">
         {children}
       </main>
       <MarketingFooter />

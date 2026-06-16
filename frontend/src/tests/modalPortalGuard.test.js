@@ -114,7 +114,6 @@ const BASELINE = [
   'src/components/interest-tracks/CreateTrackModal.jsx',
   'src/components/interest-tracks/EvolveTopicModal.jsx',
   'src/components/interest-tracks/InterestTrackDetail.jsx',
-  'src/components/marketing/AnnouncementBanner.jsx',
   'src/components/marketing/FreeClassModal.jsx',
   'src/components/marketing/PhilosophyModal.jsx',
   'src/components/notifications/SendNotificationModal.jsx',
