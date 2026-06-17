@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
 import { useDeleteEnrollment } from '../hooks/api/useQuests';
+import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
 
 // Lazy load heavy components
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
@@ -508,8 +509,6 @@ const QuestDetail = () => {
         isQuestCompleted={isQuestCompleted}
         onEndQuest={handleEndQuest}
         endQuestMutation={endQuestMutation}
-        onDeleteEnrollment={handleDeleteEnrollment}
-        deleteEnrollmentMutation={deleteEnrollmentMutation}
       />
 
       {/* Main Content */}
@@ -581,6 +580,26 @@ const QuestDetail = () => {
                 onClose={() => setSelectedTask(null)}
               />
             </Suspense>
+          </div>
+        )}
+
+        {/* End quest/class - bottom action */}
+        {quest.user_enrollment && !isQuestCompleted && !quest?.lms_platform &&
+          !sessionStorage.getItem('courseTaskReturnInfo') && (
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={handleEndQuest}
+              disabled={endQuestMutation?.isPending}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
+              style={{ fontFamily: 'Poppins' }}
+            >
+              <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+              <span>
+                {endQuestMutation?.isPending
+                  ? 'Ending...'
+                  : quest.quest_type === 'class' ? 'End class' : 'End quest'}
+              </span>
+            </button>
           </div>
         )}
       </div>

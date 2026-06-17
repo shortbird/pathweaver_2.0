@@ -9,16 +9,13 @@ import EngagementCalendar from './EngagementCalendar';
 import RhythmExplainerModal from './RhythmExplainerModal';
 import {
   ArrowTopRightOnSquareIcon,
-  BookOpenIcon,
   ArrowLeftIcon,
   AcademicCapIcon,
   PencilSquareIcon,
   ChevronDownIcon,
-  ArrowRightStartOnRectangleIcon,
   ClockIcon,
   FireIcon,
-  MapPinIcon,
-  TrashIcon
+  MapPinIcon
 } from '@heroicons/react/24/outline';
 
 const stripHtml = (html) => {
@@ -38,9 +35,7 @@ const QuestDetailHeader = ({
   earnedXP,
   isQuestCompleted,
   onEndQuest,
-  endQuestMutation,
-  onDeleteEnrollment,
-  deleteEnrollmentMutation
+  endQuestMutation
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -63,8 +58,12 @@ const QuestDetailHeader = ({
   // Org-branded quests (e.g. OpenEd Academy course quests) render the school's
   // logo as a contained banner behind the title — like the Spark branch below —
   // instead of cropping it full-bleed. Flagged by metadata.header_style.
+  // When the quest also has a distinct cover photo (image_url), prefer that as a
+  // full-bleed background here and let the logo live on the card instead (e.g.
+  // POE: AGO logo on the card, hero photo on the quest page).
   const isOrgLogoBanner =
-    quest?.metadata?.header_style === 'org_logo' && !!quest?.header_image_url && !imageError;
+    quest?.metadata?.header_style === 'org_logo' && !!quest?.header_image_url &&
+    !quest?.image_url && !imageError;
 
   // Check if this is a Spark LMS quest
   const isSparkQuest = quest?.lms_platform === 'spark';
@@ -183,47 +182,6 @@ const QuestDetailHeader = ({
             <ArrowLeftIcon className="w-4 h-4" />
             <span>Back</span>
           </button>
-
-          {/* Action buttons - absolute positioned top right */}
-          <div className="absolute top-3 right-4 sm:right-6 lg:right-8 flex items-center gap-2">
-            {(isEnrolled || isQuestCompleted) && (
-              <button
-                onClick={() => navigate('/overview')}
-                className="flex items-center gap-1.5 px-3 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border border-purple-200 rounded-full hover:bg-white transition-all text-sm font-medium shadow-sm min-h-[44px] touch-manipulation"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                <BookOpenIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">Diploma</span>
-              </button>
-            )}
-
-            {isEnrolled && !isQuestCompleted && !quest?.lms_platform &&
-              !sessionStorage.getItem('courseTaskReturnInfo') && (
-                <button
-                  onClick={onEndQuest}
-                  disabled={endQuestMutation?.isPending}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{endQuestMutation?.isPending ? '...' : 'End'}</span>
-                </button>
-            )}
-
-            {/* Delete enrollment - visible whenever user has any enrollment */}
-            {(isEnrolled || isQuestCompleted) &&
-              !quest?.lms_platform && !quest?.active_course_enrollment && onDeleteEnrollment && (
-              <button
-                onClick={onDeleteEnrollment}
-                disabled={deleteEnrollmentMutation?.isPending}
-                className="flex items-center gap-1.5 px-3 py-2 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                <TrashIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">{deleteEnrollmentMutation?.isPending ? '...' : 'Delete'}</span>
-              </button>
-            )}
-          </div>
 
           {/* Title and XP badge - pt-14 clears the absolute positioned back button */}
           <div className="max-w-xl sm:max-w-2xl pt-14 pb-2">
