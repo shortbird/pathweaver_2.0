@@ -156,3 +156,10 @@ frontend-v2/bugreport-*.zip
 
 # Marketing PII export — never commit
 facebook_custom_audience.csv
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+frontend/.ds-styles.css
+frontend/.ds-brand-safelist.html

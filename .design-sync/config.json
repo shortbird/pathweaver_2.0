@@ -1,0 +1,38 @@
+{
+  "projectId": "555f6160-6060-498a-bbea-959f54e5b042",
+  "shape": "package",
+  "pkg": "optio-design-system",
+  "globalName": "OptioUI",
+  "srcDir": "src/components/ui",
+  "cssEntry": ".ds-styles.css",
+  "runtimeFontPrefixes": ["Poppins", "Inter"],
+  "readmeHeader": ".design-sync/conventions.md",
+  "componentSrcMap": {
+    "Alert": "src/components/ui/Alert.jsx",
+    "Button": "src/components/ui/Button.jsx",
+    "Card": "src/components/ui/Card.jsx",
+    "Input": "src/components/ui/Input.jsx",
+    "Textarea": "src/components/ui/Input.jsx",
+    "Select": "src/components/ui/Input.jsx",
+    "Modal": "src/components/ui/Modal.jsx",
+    "ModalOverlay": "src/components/ui/ModalOverlay.jsx",
+    "FormField": "src/components/ui/FormField.jsx",
+    "FormFooter": "src/components/ui/FormFooter.jsx",
+    "StatusBadge": "src/components/ui/StatusBadge.jsx",
+    "PhilosophyCard": "src/components/ui/PhilosophyCard.jsx",
+    "SkeletonCard": "src/components/ui/Skeleton.jsx",
+    "SkeletonDiplomaHeader": "src/components/ui/Skeleton.jsx",
+    "SkeletonStats": "src/components/ui/Skeleton.jsx"
+  },
+  "overrides": {
+    "Modal": { "cardMode": "single", "primaryStory": "Default", "viewport": "680x460" },
+    "ModalOverlay": { "cardMode": "single", "primaryStory": "Centered", "viewport": "680x460" },
+    "Alert": { "cardMode": "column" },
+    "Card": { "cardMode": "column" },
+    "FormField": { "cardMode": "column" },
+    "FormFooter": { "cardMode": "column" },
+    "Input": { "cardMode": "column" },
+    "Select": { "cardMode": "column" },
+    "Textarea": { "cardMode": "column" }
+  }
+}
