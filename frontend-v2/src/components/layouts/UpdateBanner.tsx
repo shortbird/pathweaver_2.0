@@ -26,7 +26,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
 import { UIText } from '@/src/components/ui/text';
-import { captureException } from '@/src/services/sentry';
+import { captureException, captureMessage } from '@/src/services/sentry';
+
+// Report an OTA check/download failure as a deduped warning rather than an
+// exception. expo-updates hands these back as plain `{ message }` objects, and
+// the same failed fetch re-fires on every foreground re-check — passing that
+// non-Error object to captureException produced an "Object captured as
+// exception" issue that escalated to 18 events on a single flaky device
+// (NODE-4B). These are transient network conditions, not crashes, so we keep
+// the diagnostic but at warning level with a stable fingerprint so a flapping
+// device collapses into one issue.
+function reportOtaIssue(kind: 'check' | 'download', err: unknown): void {
+  const message =
+    err instanceof Error ? err.message : String((err as { message?: unknown })?.message ?? err);
+  captureMessage(`[OTA] ${kind} failed: ${message}`, {
+    level: 'warning',
+    fingerprint: [`ota-${kind}-error`],
+    tags: { feature: 'ota_diagnostics' },
+    extra: { kind, message },
+  });
+}
 
 export function UpdateBanner() {
   const { isUpdatePending, checkError, downloadError } = Updates.useUpdates();
@@ -38,10 +57,10 @@ export function UpdateBanner() {
   // an OTA tells us why (part of the OTA diagnostics; pairs with the
   // isEmergencyLaunch reporter in sentry.ts and the Profile diagnostics modal).
   useEffect(() => {
-    if (checkError) captureException(checkError, { context: 'Updates.checkError' });
+    if (checkError) reportOtaIssue('check', checkError);
   }, [checkError]);
   useEffect(() => {
-    if (downloadError) captureException(downloadError, { context: 'Updates.downloadError' });
+    if (downloadError) reportOtaIssue('download', downloadError);
   }, [downloadError]);
 
   // Re-check for an update whenever the app comes back to the foreground, then
