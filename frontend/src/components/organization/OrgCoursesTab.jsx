@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import CourseEnrollmentManager from '../admin/CourseEnrollmentManager'
 import {
   MagnifyingGlassIcon,
   UsersIcon,
-  BookOpenIcon
+  BookOpenIcon,
+  UserPlusIcon
 } from '@heroicons/react/24/outline'
 
 /**
  * OrgCoursesTab - Allows org_admins to browse Optio courses and enroll their students.
  * Shows published Optio platform courses available to the organization.
+ *
+ * The "Register a Student" action links to the standalone /enroll-students form,
+ * which creates the account + enrolls in one or more courses in a single step.
  */
 export default function OrgCoursesTab({ orgId, orgData }) {
   const [courses, setCourses] = useState([])
@@ -67,15 +72,24 @@ export default function OrgCoursesTab({ orgId, orgData }) {
             Enroll your students in published Optio platform courses
           </p>
         </div>
-        <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search courses..."
-            className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg w-64 text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search courses..."
+              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg w-64 text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+            />
+          </div>
+          <Link
+            to="/enroll-students"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm whitespace-nowrap"
+          >
+            <UserPlusIcon className="w-4 h-4" />
+            Register a Student
+          </Link>
         </div>
       </div>
 

@@ -442,6 +442,15 @@ def register():
             # Ensure diploma and skills are initialized (backup to database trigger)
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
 
+            # POE pilot: if this email is on a POE interest list, auto-provision
+            # their Pipe Organ Encounter class (quest + per-day tasks). No-op for
+            # everyone else; never fails registration.
+            try:
+                from routes.admin.poe import auto_link_poe_on_register
+                auto_link_poe_on_register(auth_response.user.id, email)
+            except Exception as poe_err:
+                logger.error(f"[REGISTRATION] POE auto-link error (continuing): {poe_err}")
+
             # Invite-flow signup: enroll the new user in the class and increment the invite's uses_count
             if invite_record and invite_course_id:
                 try:

@@ -206,6 +206,16 @@ def apple_oauth_callback():
                     user_data = result.data[0] if result.data else user_data
                     profile_created = True
                     ensure_user_diploma_and_skills(admin_client, user_id, first_name, last_name)
+
+                    # POE pilot: auto-provision the Pipe Organ Encounter class if
+                    # this email is on a POE interest list. No-op otherwise. (Apple
+                    # private-relay emails simply won't match a signup.)
+                    try:
+                        from routes.admin.poe import auto_link_poe_on_register
+                        auto_link_poe_on_register(user_id, email)
+                    except Exception as poe_err:
+                        logger.error(f"[APPLE_OAUTH] POE auto-link error (continuing): {poe_err}")
+
                     logger.info(f"[APPLE_OAUTH] New user created (pending TOS): {mask_user_id(user_id)}")
                     break
                 except Exception as insert_error:

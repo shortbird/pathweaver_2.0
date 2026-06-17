@@ -295,6 +295,14 @@ def google_oauth_callback():
                     # Initialize diploma and skills for new user
                     ensure_user_diploma_and_skills(admin_client, user_id, first_name, last_name)
 
+                    # POE pilot: auto-provision the Pipe Organ Encounter class if
+                    # this email is on a POE interest list. No-op otherwise.
+                    try:
+                        from routes.admin.poe import auto_link_poe_on_register
+                        auto_link_poe_on_register(user_id, email)
+                    except Exception as poe_err:
+                        logger.error(f"[GOOGLE_OAUTH] POE auto-link error (continuing): {poe_err}")
+
                     logger.info(f"[GOOGLE_OAUTH] New user created (pending TOS): {mask_user_id(user_id)}")
                     break
 

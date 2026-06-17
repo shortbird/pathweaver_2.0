@@ -18,6 +18,7 @@ from services.organization_service import OrganizationService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.validation.password_validator import validate_password_strength
+from datetime import datetime, date
 import re
 import secrets
 
@@ -1014,6 +1015,308 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
 
     except Exception as e:
         logger.error(f"Error creating username student in org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+# Pillars used to initialize a new student's skill XP rows
+SKILL_PILLARS = [
+    'Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
+    'Language & Communication', 'Society & Culture'
+]
+
+
+def generate_email_temp_password(length=12):
+    """Generate a secure temporary password for an email-based account."""
+    import string
+    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _join_titles(titles):
+    """Join titles into a readable phrase: 'A', 'A and B', or 'A, B, and C'."""
+    titles = [t for t in titles if t]
+    if not titles:
+        return ''
+    if len(titles) == 1:
+        return titles[0]
+    if len(titles) == 2:
+        return f"{titles[0]} and {titles[1]}"
+    return f"{', '.join(titles[:-1])}, and {titles[-1]}"
+
+
+@bp.route('/<org_id>/register-student-for-course', methods=['POST'])
+@require_org_admin
+def register_student_for_course(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Register a student into the organization and enroll them in one or more
+    Optio courses in a single step.
+
+    Designed for partner programs that sell one-off course purchases: the
+    partner's org_admin fills out a simple form (student details + a multi-select
+    of courses) after a purchase.
+
+    Handles both cases:
+      - New student: creates an org-managed account with a temporary password and
+        emails the family their login plus a "how Optio works" overview.
+      - Returning student (e.g. a second purchase months later): finds the
+        existing account by email and enrolls it in the newly selected courses,
+        skipping any they are already in. No new password is issued.
+
+    Request body:
+        first_name: str (required)
+        last_name: str (required)
+        student_email: str (required) - the student's login
+        course_ids: list[str] (required) - one or more published courses
+                    (a single course_id string is also accepted)
+        date_of_birth: str (optional, YYYY-MM-DD)
+        family_email: str (optional) - where the email is sent (defaults to student_email)
+    """
+    try:
+        # Verify access - org admin can only register into their own org
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        first_name = (data.get('first_name') or '').strip()
+        last_name = (data.get('last_name') or '').strip()
+        student_email = (data.get('student_email') or '').strip().lower()
+        dob = (data.get('date_of_birth') or '').strip()
+
+        # Accept either a list of course_ids or a single course_id
+        course_ids = data.get('course_ids')
+        if not course_ids:
+            single = (data.get('course_id') or '').strip()
+            course_ids = [single] if single else []
+        # Normalize: stringify, strip, drop blanks, de-duplicate (order preserved)
+        seen = set()
+        course_ids = [c for c in (str(cid).strip() for cid in course_ids)
+                      if c and not (c in seen or seen.add(c))]
+
+        # Validate required fields
+        if not first_name:
+            return jsonify({'error': 'first_name is required'}), 400
+        if not last_name:
+            return jsonify({'error': 'last_name is required'}), 400
+        if not student_email or not EMAIL_PATTERN.match(student_email):
+            return jsonify({'error': 'A valid student_email is required'}), 400
+        if not course_ids:
+            return jsonify({'error': 'Select at least one course'}), 400
+
+        # Validate date of birth if provided
+        dob_iso = None
+        requires_parental_consent = False
+        if dob:
+            try:
+                dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'error': 'date_of_birth must be in YYYY-MM-DD format'}), 400
+            if dob_date > date.today():
+                return jsonify({'error': 'date_of_birth cannot be in the future'}), 400
+            dob_iso = dob_date.isoformat()
+            if (date.today() - dob_date).days / 365.25 < 13:
+                requires_parental_consent = True
+
+        # admin client justified: admin-only route (@require_org_admin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+
+        # Verify organization exists
+        org_result = client.table('organizations').select('id, slug, name').eq('id', org_id).single().execute()
+        if not org_result.data:
+            return jsonify({'error': 'Organization not found'}), 404
+        org_name = org_result.data.get('name')
+
+        # Verify every selected course exists and is published
+        courses_result = client.table('courses').select('id, title, status').in_('id', course_ids).execute()
+        found = {c['id']: c for c in (courses_result.data or [])}
+        missing = [cid for cid in course_ids if cid not in found]
+        if missing:
+            return jsonify({'error': 'One or more selected courses were not found'}), 404
+        unpublished = [found[cid]['title'] for cid in course_ids if found[cid].get('status') != 'published']
+        if unpublished:
+            return jsonify({'error': f"These courses are not published: {', '.join(unpublished)}"}), 400
+        ordered_courses = [found[cid] for cid in course_ids]  # preserve requested order
+
+        # Look up an existing account by email
+        existing = client.table('users').select('id, organization_id, role, org_role').eq('email', student_email).execute()
+        existing_user = existing.data[0] if existing.data else None
+        is_new_account = existing_user is None
+        temp_password = None
+        user_record = None
+
+        if existing_user:
+            existing_org = existing_user.get('organization_id')
+            # Only an account already in THIS org counts as a returning student.
+            # Never adopt or modify an account that belongs to another org or to no
+            # org at all (a platform user, or staff such as an advisor/superadmin) -
+            # doing so could overwrite their role. Refuse and let a human sort it out.
+            if existing_org != org_id:
+                return jsonify({
+                    'error': (
+                        f"An account already exists for {student_email} outside this program, "
+                        f"so it can't be registered here. Use a different email, or contact "
+                        f"support to add this course to that account."
+                    )
+                }), 409
+            user_id = existing_user['id']
+        else:
+            # Create the Supabase Auth account with a temporary password
+            temp_password = generate_email_temp_password()
+            try:
+                auth_response = client.auth.admin.create_user({
+                    'email': student_email,
+                    'password': temp_password,
+                    'email_confirm': True,
+                    'user_metadata': {
+                        'first_name': first_name,
+                        'last_name': last_name,
+                        'organization_id': org_id,
+                        'created_via': 'org_course_registration'
+                    }
+                })
+            except Exception as auth_error:
+                error_str = str(auth_error).lower()
+                if 'already registered' in error_str or 'already exists' in error_str:
+                    return jsonify({
+                        'error': f'An account already exists for {student_email}. Try again, or use the enrollment manager.'
+                    }), 409
+                logger.error(f"Failed to create auth account for {student_email}: {auth_error}")
+                return jsonify({'error': 'Failed to create student account'}), 500
+
+            if not auth_response.user:
+                return jsonify({'error': 'Failed to create student account'}), 500
+            user_id = auth_response.user.id
+
+            user_data = {
+                'id': user_id,
+                'email': student_email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'display_name': f"{first_name} {last_name}",
+                'organization_id': org_id,
+                'role': 'org_managed',
+                'org_role': 'student',
+                'total_xp': 0,
+                'level': 1,
+                'streak_days': 0
+            }
+            if dob_iso:
+                user_data['date_of_birth'] = dob_iso
+            if requires_parental_consent:
+                user_data['requires_parental_consent'] = True
+
+            try:
+                profile_result = client.table('users').insert(user_data).execute()
+                if not profile_result.data:
+                    raise Exception('Profile insert returned no data')
+                user_record = profile_result.data[0]
+            except Exception as profile_error:
+                try:
+                    client.auth.admin.delete_user(user_id)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to clean up auth user {user_id} after profile failure: {cleanup_error}")
+                logger.error(f"Failed to create profile for {student_email}: {profile_error}")
+                return jsonify({'error': 'Failed to create student profile'}), 500
+
+            # Initialize skill XP rows (best-effort)
+            try:
+                client.table('user_skill_xp').upsert(
+                    [{'user_id': user_id, 'pillar': pillar, 'xp_amount': 0} for pillar in SKILL_PILLARS],
+                    on_conflict='user_id,pillar'
+                ).execute()
+            except Exception as skill_error:
+                logger.warning(f"Failed to initialize skill XP for {user_id}: {skill_error}")
+
+        # Enroll the student in each selected course
+        from services.course_enrollment_service import CourseEnrollmentService
+        enrollment_service = CourseEnrollmentService(client)
+
+        course_results = []
+        newly_enrolled_titles = []
+        for course in ordered_courses:
+            result = enrollment_service.enroll_user(user_id, course['id'])
+            status = result.get('status', 'failed') if result.get('success') else 'failed'
+            course_results.append({
+                'course_id': course['id'],
+                'course_title': course['title'],
+                'status': status,
+                'quests_enrolled': result.get('quests_enrolled', 0) if result.get('success') else 0,
+                'error': None if result.get('success') else result.get('error')
+            })
+            if status in ('enrolled', 'reactivated'):
+                newly_enrolled_titles.append(course['title'])
+
+        any_enrolled = any(r['status'] in ('enrolled', 'reactivated', 'already_enrolled') for r in course_results)
+        if is_new_account and not any_enrolled:
+            logger.error(f"Created student {user_id} but no course enrollment succeeded: {course_results}")
+            return jsonify({
+                'error': 'The account was created but course enrollment failed. Enroll them manually from the enrollment manager.',
+                'user_id': user_id,
+                'courses': course_results
+            }), 500
+
+        # Human-readable course phrase for the email
+        email_titles = newly_enrolled_titles if newly_enrolled_titles else [c['title'] for c in ordered_courses]
+        courses_sentence = _join_titles(email_titles)
+
+        # Send the appropriate email (best-effort; never fail the request on email)
+        email_sent = False
+        try:
+            from app_config import Config
+            from services.email_service import email_service
+            frontend_url = (Config.FRONTEND_URL or '').rstrip('/')
+            login_url = f"{frontend_url}/login"
+            if is_new_account:
+                email_sent = email_service.send_org_course_welcome_email(
+                    to_email=student_email,
+                    student_name=first_name,
+                    student_email=student_email,
+                    temp_password=temp_password,
+                    org_name=org_name,
+                    courses_sentence=courses_sentence,
+                    course_count=len(email_titles),
+                    login_url=login_url
+                )
+            elif newly_enrolled_titles:
+                email_sent = email_service.send_org_courses_added_email(
+                    to_email=student_email,
+                    student_name=first_name,
+                    org_name=org_name,
+                    courses_sentence=courses_sentence,
+                    course_count=len(newly_enrolled_titles),
+                    login_url=login_url
+                )
+        except Exception as email_error:
+            logger.warning(f"Welcome/added email to {student_email} failed: {email_error}")
+
+        logger.info(
+            f"{'Created' if is_new_account else 'Updated'} student {user_id} ({student_email}) in org {org_id}; "
+            f"courses={[r['status'] for r in course_results]}; email_sent={email_sent} by {current_user_id}"
+        )
+
+        response = {
+            'success': True,
+            'is_new_account': is_new_account,
+            'user_id': user_id,
+            'courses': course_results,
+            'email_to': student_email,
+            'email_sent': email_sent,
+        }
+        if user_record is not None:
+            response['user'] = user_record
+        if is_new_account:
+            response['login_credentials'] = {'email': student_email, 'password': temp_password}
+            response['message'] = 'Student registered and enrolled. A welcome email was sent to the family.'
+        else:
+            response['message'] = 'Existing student enrolled in the selected course(s).'
+        return jsonify(response), 201
+
+    except Exception as e:
+        logger.error(f"Error registering student for courses in org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 

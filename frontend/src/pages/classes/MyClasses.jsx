@@ -27,6 +27,7 @@ const MyClasses = () => {
           questId: c.quest_id,
           title: c.title,
           transcript_subject: c.transcript_subject,
+          image: c.header_image_url || c.image_url || null,
           progress: c,
         }))
       )
@@ -102,6 +103,15 @@ const MyClasses = () => {
                   className="block p-4 border border-gray-200 rounded-lg bg-white hover:border-optio-purple transition"
                 >
                   <div className="flex items-start justify-between">
+                    {c.image && (
+                      <div className="mr-3 flex-shrink-0 w-20 h-14 rounded-md border border-gray-100 bg-white flex items-center justify-center overflow-hidden">
+                        <img
+                          src={c.image}
+                          alt={`${c.title} logo`}
+                          className="max-w-full max-h-full object-contain p-1"
+                        />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <h2 className="font-semibold text-gray-900 truncate">{c.title}</h2>
                       <div className="mt-1 text-xs text-gray-500 flex items-center gap-3">

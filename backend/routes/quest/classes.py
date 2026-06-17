@@ -124,7 +124,7 @@ def list_my_classes(user_id: str):
     try:
         supabase = get_supabase_admin_client()
         enrollments = supabase.table('user_quests') \
-            .select('quest_id, quests(id, title, transcript_subject, class_review_status, quest_type, is_active)') \
+            .select('quest_id, quests(id, title, transcript_subject, class_review_status, quest_type, is_active, header_image_url, image_url, metadata)') \
             .eq('user_id', user_id) \
             .execute().data or []
 
@@ -148,6 +148,9 @@ def list_my_classes(user_id: str):
                 'title': q.get('title'),
                 'transcript_subject': subject,
                 'transcript_subject_display': get_display_name(subject or ''),
+                'header_image_url': q.get('header_image_url'),
+                'image_url': q.get('image_url'),
+                'header_style': (q.get('metadata') or {}).get('header_style'),
                 'review_status': q.get('class_review_status'),
                 'target_xp': CLASS_TARGET_XP,
                 'approved_xp': approved_xp,

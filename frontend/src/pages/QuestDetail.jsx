@@ -100,6 +100,7 @@ const QuestDetail = () => {
   const [droppingTaskId, setDroppingTaskId] = React.useState(null);
   const [showMobileDrawer, setShowMobileDrawer] = React.useState(false);
   const [classProgressKey, setClassProgressKey] = React.useState(0);
+  const [submittingClassReview, setSubmittingClassReview] = React.useState(false);
   const { earnedXP } = xpData;
 
   // Handle enrollment
@@ -265,6 +266,29 @@ const QuestDetail = () => {
   const handleFinishQuestFromCelebration = () => {
     setShowQuestCompletionCelebration(false);
     handleEndQuest();
+  };
+
+  // Class quests: submit to Optio for the final credit review (same endpoint the
+  // class progress panel uses). Closes the celebration and refreshes progress so
+  // the "Submitted for review" state shows everywhere.
+  const handleSubmitClassForReview = async () => {
+    if (submittingClassReview) return;
+    setSubmittingClassReview(true);
+    try {
+      await api.post(`/api/quests/${quest.id}/submit-class-for-review`, {});
+      toast.success('Submitted to Optio for review');
+      setShowQuestCompletionCelebration(false);
+      setClassProgressKey((k) => k + 1);
+      refetchQuest();
+    } catch (err) {
+      const msg =
+        err.response?.data?.error?.message ||
+        err.response?.data?.error ||
+        'Could not submit your class for review.';
+      toast.error(typeof msg === 'string' ? msg : 'Could not submit your class.');
+    } finally {
+      setSubmittingClassReview(false);
+    }
   };
 
   const handleTaskUpdate = (updatedTask) => {
@@ -705,6 +729,9 @@ const QuestDetail = () => {
             onAddMoreTasks={handleAddMoreTasks}
             onFinishQuest={handleFinishQuestFromCelebration}
             onClose={() => setShowQuestCompletionCelebration(false)}
+            isClass={quest.quest_type === 'class'}
+            onSubmitForReview={handleSubmitClassForReview}
+            submitting={submittingClassReview}
           />
         </Suspense>
       )}

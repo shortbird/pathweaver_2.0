@@ -1012,6 +1012,68 @@ class EmailService(BaseService):
             }
         )
 
+    def send_org_course_welcome_email(
+        self,
+        to_email: str,
+        student_name: str,
+        student_email: str,
+        temp_password: str,
+        org_name: str,
+        courses_sentence: str,
+        course_count: int,
+        login_url: str
+    ) -> bool:
+        """
+        Send a welcome email when a partner org_admin registers a NEW student for
+        one or more purchased courses. Includes login credentials (temp password)
+        and an overview of how Optio courses work.
+        """
+        course_word = 'course' if course_count == 1 else 'courses'
+        return self.send_templated_email(
+            to_email=to_email,
+            subject="Welcome to Optio - your account is ready",
+            template_name='org_course_welcome',
+            context={
+                'student_name': student_name,
+                'student_email': student_email,
+                'temp_password': temp_password,
+                'org_name': org_name,
+                'courses_sentence': courses_sentence,
+                'course_count': course_count,
+                'course_word': course_word,
+                'login_url': login_url
+            }
+        )
+
+    def send_org_courses_added_email(
+        self,
+        to_email: str,
+        student_name: str,
+        org_name: str,
+        courses_sentence: str,
+        course_count: int,
+        login_url: str
+    ) -> bool:
+        """
+        Send an email when an EXISTING student is enrolled in additional purchased
+        courses (e.g. a repeat purchase). No login credentials - the student
+        already has an account.
+        """
+        course_word = 'course' if course_count == 1 else 'courses'
+        return self.send_templated_email(
+            to_email=to_email,
+            subject=f"New {course_word} added to your Optio account",
+            template_name='org_courses_added',
+            context={
+                'student_name': student_name,
+                'org_name': org_name,
+                'courses_sentence': courses_sentence,
+                'course_count': course_count,
+                'course_word': course_word,
+                'login_url': login_url
+            }
+        )
+
     def send_daily_advisor_summary(
         self,
         advisor_email: str,

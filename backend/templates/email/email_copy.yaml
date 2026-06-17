@@ -586,6 +586,48 @@ emails:
     closing_paragraph: "Take it one step at a time. Open your first project, read the first lesson, and try a task. You've got this."
     signature: "team"
 
+  # Sent when a partner program's admin registers a NEW student for one or more
+  # purchased courses. Goes to the family with login credentials + how Optio works.
+  org_course_welcome:
+    subject: "Welcome to Optio - your account is ready"
+    title: "Welcome to Optio"
+    greeting: "Hi {{ student_name }},"
+    paragraphs:
+      - "{{ org_name }} set you up with an Optio account and enrolled you in <strong>{{ courses_sentence }}</strong>. Here's how it works:"
+    bullet_points:
+      - "Each course is a set of hands-on projects with a real goal."
+      - "Lessons are short, so you spend your time doing the work."
+      - "You earn XP as you finish tasks, and complete a course by reaching its XP goal."
+      - "Everything you create is saved to your portfolio."
+    highlight_box:
+      title: "Your login details"
+      content: "Log in with this email and temporary password, then set your own password from your profile."
+      bullet_points:
+        - "Email: {{ student_email }}"
+        - "Temporary password: {{ temp_password }}"
+    closing_paragraphs:
+      - "Your purchase includes 6 months of individual support. If you have any questions, concerns, or run into trouble with the class, an Optio teacher will help - just reply to this email."
+      - "Log in, open your first course, and start with the first task."
+    cta:
+      text: "Log in to Optio"
+      url: "{{ login_url }}"
+    signature: "team"
+    footer_extra: "If this wasn't expected, you can ignore this email or reply to let us know."
+
+  # Sent when an EXISTING student is enrolled in additional purchased courses
+  # (e.g. a repeat purchase months later). No login credentials.
+  org_courses_added:
+    subject: "New course added to your Optio account"
+    title: "New {{ course_word }} ready for you"
+    greeting: "Hi {{ student_name }},"
+    paragraphs:
+      - "{{ org_name }} added a new {{ course_word }} to your Optio account: <strong>{{ courses_sentence }}</strong>."
+      - "Log in with your usual email and password to get started. If you've forgotten your password, use the \"Forgot password\" link on the login page."
+    cta:
+      text: "Log in to Optio"
+      url: "{{ login_url }}"
+    signature: "team"
+
   # Daily Advisor Summary (Morning Briefing)
   # V2 Enhancement: Now includes cohort summary, milestones, check-in data,
   # and per-student engagement metrics (rhythm states, streaks, pillar balance)

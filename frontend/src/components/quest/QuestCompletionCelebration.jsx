@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpenIcon, CheckCircleIcon, PlusIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { AcademicCapIcon, BookOpenIcon, CheckCircleIcon, PaperAirplaneIcon, PlusIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
+import { getSubjectName } from '../../constants/subjects';
 
 const QuestCompletionCelebration = ({
   quest,
@@ -9,13 +10,22 @@ const QuestCompletionCelebration = ({
   totalXP,
   onAddMoreTasks,
   onFinishQuest,
-  onClose
+  onClose,
+  isClass = false,
+  onSubmitForReview,
+  submitting = false
 }) => {
   const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
 
   // Detect empty quest (no tasks remaining) vs all tasks completed
   const isEmptyQuest = !quest?.quest_tasks?.length;
+
+  // Class quests aren't "complete" when tasks are done — they're ready to submit
+  // to Optio for a final review that issues the transcript credit. Distinct copy
+  // + actions from a regular quest. (Empty quests keep the generic flow.)
+  const isClassReady = isClass && !isEmptyQuest;
+  const subjectName = getSubjectName(quest?.transcript_subject || '') || 'this';
 
   useEffect(() => {
     // Skip confetti for empty quests
@@ -92,6 +102,10 @@ const QuestCompletionCelebration = ({
               <div className="w-24 h-24 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center shadow-lg">
                 <BookOpenIcon className="w-14 h-14 text-white" />
               </div>
+            ) : isClassReady ? (
+              <div className="w-24 h-24 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center shadow-lg">
+                <AcademicCapIcon className="w-14 h-14 text-white" />
+              </div>
             ) : (
               <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
                 <TrophyIcon className="w-14 h-14 text-white" />
@@ -111,6 +125,18 @@ const QuestCompletionCelebration = ({
                 </p>
                 <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
                   This quest doesn't have any tasks yet. Add some tasks to get started, or finish the quest.
+                </p>
+              </>
+            ) : isClassReady ? (
+              <>
+                <h2 className="text-4xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent mb-3" style={{ fontFamily: 'Poppins' }}>
+                  All tasks complete!
+                </h2>
+                <p className="text-2xl font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+                  {quest?.title || 'Your Class'}
+                </p>
+                <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
+                  Great work! You've finished every task in this class.
                 </p>
               </>
             ) : (
@@ -153,37 +179,62 @@ const QuestCompletionCelebration = ({
           {/* Question prompt */}
           <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 mb-6 border-2 border-optio-purple/20">
             <p className="text-center text-lg font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
-              What would you like to do next?
+              {isClassReady ? 'Ready to submit for credit?' : 'What would you like to do next?'}
             </p>
             <p className="text-center text-gray-600 text-sm" style={{ fontFamily: 'Poppins' }}>
-              {isEmptyQuest
-                ? 'Add tasks to personalize your quest, or finish and return to your dashboard.'
-                : 'Add more tasks to keep learning, or finish this quest and return to your dashboard.'}
+              {isClassReady
+                ? `An Optio teacher will review your work. If a task needs more evidence, they'll send it back with notes. Once it's approved, your ${subjectName} credit is added to your transcript.`
+                : isEmptyQuest
+                  ? 'Add tasks to personalize your quest, or finish and return to your dashboard.'
+                  : 'Add more tasks to keep learning, or finish this quest and return to your dashboard.'}
             </p>
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-4">
-            <button
-              onClick={handleAddMore}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              <PlusIcon className="w-5 h-5" />
-              {isEmptyQuest ? 'Add Tasks' : 'Add More Tasks'}
-            </button>
-            <button
-              onClick={handleFinishClick}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              <CheckCircleIcon className="w-5 h-5" />
-              Finish Quest
-            </button>
-          </div>
+          {isClassReady ? (
+            <div className="flex gap-4">
+              <button
+                onClick={onSubmitForReview}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-60 disabled:hover:scale-100"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <PaperAirplaneIcon className="w-5 h-5" />
+                {submitting ? 'Submitting…' : 'Submit to Optio'}
+              </button>
+              <button
+                onClick={onClose}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-60"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <PlusIcon className="w-5 h-5" />
+                Continue working
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-4">
+              <button
+                onClick={handleAddMore}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <PlusIcon className="w-5 h-5" />
+                {isEmptyQuest ? 'Add Tasks' : 'Add More Tasks'}
+              </button>
+              <button
+                onClick={handleFinishClick}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <CheckCircleIcon className="w-5 h-5" />
+                Finish Quest
+              </button>
+            </div>
+          )}
 
-          {/* View diploma link - only show when there are completed tasks */}
-          {!isEmptyQuest && (
+          {/* View diploma link - only for regular completed quests (not class review) */}
+          {!isEmptyQuest && !isClassReady && (
             <div className="text-center mt-6">
               <button
                 onClick={() => navigate('/overview')}

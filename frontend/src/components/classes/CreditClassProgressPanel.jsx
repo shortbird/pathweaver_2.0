@@ -143,16 +143,22 @@ const CreditClassProgressPanel = ({ questId, transcriptSubject, refreshKey = 0 }
 
       <div className="mt-4">
         {progress.can_submit_for_review ? (
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg disabled:opacity-50 hover:opacity-90 transition"
-          >
-            {submitting ? 'Submitting…' : 'Submit class for review'}
-          </button>
+          <>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="w-full px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg disabled:opacity-50 hover:opacity-90 transition"
+            >
+              {submitting ? 'Submitting…' : 'Submit to Optio'}
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              An Optio teacher reviews your work and may send a task back if it needs more evidence.
+              You can keep working until you submit.
+            </p>
+          </>
         ) : reviewStatus === 'submitted_for_review' ? (
           <p className="text-sm text-gray-500 text-center">
-            Your class is being reviewed by Optio.
+            Submitted to Optio — your class is being reviewed. We'll let you know when your credit is awarded.
           </p>
         ) : awarded ? null : (
           <p className="text-sm text-gray-500 text-center">
