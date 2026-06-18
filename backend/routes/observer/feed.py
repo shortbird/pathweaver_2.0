@@ -44,6 +44,11 @@ def register_routes(bp):
         student_id_filter = request.args.get('student_id')
         limit = min(int(request.args.get('limit', 20)), 50)
         cursor = request.args.get('cursor')
+        # Highlight reel filter: superadmin-curated subset of feed items
+        # (feed_highlights table). When on, only highlighted items are returned;
+        # otherwise every item is annotated with `is_highlighted` so the
+        # FeedCard star button can reflect the current state.
+        highlights_only = request.args.get('highlights_only', '').lower() in ('1', 'true', 'yes')
 
         try:
             # admin client justified: observer feed aggregates across observer_student_links + advisor_student_assignments + parent_student_links + own activity; cross-user reads gated by per-row can_view_evidence permission filter
@@ -147,6 +152,33 @@ def register_routes(bp):
                     student_ids = [student_id_filter]
                     evidence_permissions.setdefault(student_id_filter, True)
 
+            # Resolve highlight reel up front when filtering to it, plus collect
+            # the highlighted completion (task_id, user_id) pairs so the
+            # evidence-block path can be filtered to highlighted items.
+            highlight_completion_ids: set = set()
+            highlight_event_ids: set = set()
+            highlight_completion_taskuser: set = set()  # (task_id, user_id) pairs
+            if highlights_only:
+                h_rows = supabase.table('feed_highlights') \
+                    .select('target_type, target_id, created_at') \
+                    .order('created_at', desc=True) \
+                    .execute()
+                for r in (h_rows.data or []):
+                    if r['target_type'] == 'task_completed':
+                        highlight_completion_ids.add(r['target_id'])
+                    elif r['target_type'] == 'learning_moment':
+                        highlight_event_ids.add(r['target_id'])
+                if not highlight_completion_ids and not highlight_event_ids:
+                    return jsonify({'items': [], 'has_more': False}), 200
+                if highlight_completion_ids:
+                    c_rows = supabase.table('quest_task_completions') \
+                        .select('id, user_quest_task_id, user_id') \
+                        .in_('id', list(highlight_completion_ids)) \
+                        .execute()
+                    for cr in (c_rows.data or []):
+                        if cr.get('user_quest_task_id'):
+                            highlight_completion_taskuser.add((cr['user_quest_task_id'], cr['user_id']))
+
             # Evidence is surfaced on upload (block.created_at), not on task completion.
             # Drive document-evidence items from evidence_document_blocks; quest_task_completions
             # is only needed for legacy non-document completions and for view/comment counts.
@@ -211,6 +243,19 @@ def register_routes(bp):
                         b['user_task_evidence_documents'] = doc
                         evidence_block_rows.append(b)
 
+            # Highlights filter: keep only blocks whose (task_id, user_id) matches
+            # a highlighted completion. Done here so both the superadmin-global
+            # branch and the linked-students branch share the filter.
+            if highlights_only:
+                evidence_block_rows = [
+                    b for b in evidence_block_rows
+                    if (
+                        ((b.get('user_task_evidence_documents') or {}).get('task_id'),
+                         (b.get('user_task_evidence_documents') or {}).get('user_id'))
+                        in highlight_completion_taskuser
+                    )
+                ]
+
             # Build query for legacy task completions (evidence_text / evidence_url with no document).
             # These predate the multi-format evidence document system.
             completions_query = supabase.table('quest_task_completions') \
@@ -225,7 +270,14 @@ def register_routes(bp):
             if cursor:
                 completions_query = completions_query.lt('completed_at', cursor)
 
-            completions = completions_query.execute()
+            if highlights_only:
+                if not highlight_completion_ids:
+                    completions = type('R', (), {'data': []})()
+                else:
+                    completions_query = completions_query.in_('id', list(highlight_completion_ids))
+                    completions = completions_query.execute()
+            else:
+                completions = completions_query.execute()
 
             # Learning events for moments that aren't task evidence.
             # Task-attached learning_events (attached_task_id IS NOT NULL) represent the
@@ -243,7 +295,14 @@ def register_routes(bp):
             if cursor:
                 learning_events_query = learning_events_query.lt('created_at', cursor)
 
-            learning_events = learning_events_query.execute()
+            if highlights_only:
+                if not highlight_event_ids:
+                    learning_events = type('R', (), {'data': []})()
+                else:
+                    learning_events_query = learning_events_query.in_('id', list(highlight_event_ids))
+                    learning_events = learning_events_query.execute()
+            else:
+                learning_events = learning_events_query.execute()
 
             # Get a primary topic name for each learning event from the junction table.
             # Used only as a display label on the feed card — first topic wins.
@@ -732,6 +791,34 @@ def register_routes(bp):
             except Exception as comments_error:
                 logger.warning(f"Could not fetch observer_comments for learning events: {comments_error}")
 
+            # Highlighted state for each item, so the FeedCard star button can
+            # reflect the current pin/unpin status. In highlights_only mode the
+            # set is just whatever made it through the filter above; in the
+            # regular feed we look up matching rows from feed_highlights.
+            highlighted_completions: set = set()
+            highlighted_events: set = set()
+            try:
+                if highlights_only:
+                    highlighted_completions = {cid for cid in completion_ids if cid in highlight_completion_ids}
+                    highlighted_events = {eid for eid in le_ids if eid in highlight_event_ids}
+                else:
+                    if completion_ids:
+                        h_c = supabase.table('feed_highlights') \
+                            .select('target_id') \
+                            .eq('target_type', 'task_completed') \
+                            .in_('target_id', completion_ids) \
+                            .execute()
+                        highlighted_completions = {r['target_id'] for r in (h_c.data or [])}
+                    if le_ids:
+                        h_e = supabase.table('feed_highlights') \
+                            .select('target_id') \
+                            .eq('target_type', 'learning_moment') \
+                            .in_('target_id', le_ids) \
+                            .execute()
+                        highlighted_events = {r['target_id'] for r in (h_e.data or [])}
+            except Exception as h_err:
+                logger.warning(f"Could not resolve highlight state: {h_err}")
+
             # Build final feed items in the expected format
             feed_items = []
             for item in paginated_items:
@@ -786,6 +873,7 @@ def register_routes(bp):
                         # A learning moment is always shareable via its event id,
                         # subject to the viewer's permission.
                         'can_share': viewer_can_share(item['student_id']),
+                        'is_highlighted': le_id in highlighted_events,
                     })
                 else:
                     # Task-attached evidence item — either a real completion
@@ -835,6 +923,7 @@ def register_routes(bp):
                         # Draft helper-evidence blocks with no completion yet
                         # aren't shareable.
                         'can_share': bool(item.get('completion_id')) and viewer_can_share(item['student_id']),
+                        'is_highlighted': bool(item.get('completion_id')) and item['completion_id'] in highlighted_completions,
                     })
 
             # Log feed access

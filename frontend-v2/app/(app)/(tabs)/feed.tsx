@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { useScrollToTop, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
+import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useObserverStudents } from '@/src/hooks/useObserverStudents';
 import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
@@ -50,7 +51,7 @@ function relativeTime(iso?: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-type FeedSegment = 'feed' | 'students';
+type FeedSegment = 'feed' | 'students' | 'highlights';
 
 function StudentsList({ isDesktop }: { isDesktop: boolean }) {
   const { students, loading } = useObserverStudents(true);
@@ -405,10 +406,14 @@ export default function FeedScreen() {
   const [segment, setSegment] = useState<FeedSegment>('feed');
   // Parent-only: which kid is the feed scoped to. null = all kids.
   const [selectedKidId, setSelectedKidId] = useState<string | null>(null);
+  // Superadmin gets a Highlights segment that flips the feed source to the
+  // curated highlight reel.
+  const isSuperadmin = useAuthStore((s) => s.user?.role) === 'superadmin';
   // When a parent filters to a specific kid, pass studentId so the feed
   // scopes to that kid's activity only. null → unfiltered (all kids + own).
-  const { items, loading, loadingMore, hasMore, loadMore, refetch } = useFeed({
+  const { items, loading, loadingMore, hasMore, loadMore, refetch, setHighlighted } = useFeed({
     studentId: selectedKidId || undefined,
+    highlightsOnly: segment === 'highlights',
   });
   const { children: parentKids } = useMyChildren();
   const listRef = useRef<FlatList<any>>(null);
@@ -502,10 +507,16 @@ export default function FeedScreen() {
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
       <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
-        <FeedCard item={item} viewerCanModerate={canModerateItem(item)} isActive={viewableIds.has(item.id)} onPress={() => openPost(item)} />
+        <FeedCard
+          item={item}
+          viewerCanModerate={canModerateItem(item)}
+          isActive={viewableIds.has(item.id)}
+          onPress={() => openPost(item)}
+          onHighlightChange={(id, on) => setHighlighted(id, on)}
+        />
       </View>
     ),
-    [isDesktop, canModerateItem, viewableIds, openPost],
+    [isDesktop, canModerateItem, viewableIds, openPost, setHighlighted],
   );
 
   const renderHeader = () => (
@@ -546,6 +557,29 @@ export default function FeedScreen() {
                 >
                   <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
                     {s === 'feed' ? 'Feed' : 'Students'}
+                  </UIText>
+                </Pressable>
+              );
+            })}
+          </HStack>
+        </View>
+      )}
+      {isSuperadmin && (
+        <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+          <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200">
+            {(['feed', 'highlights'] as FeedSegment[]).map((s) => {
+              const active = segment === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => setSegment(s)}
+                  className={`flex-1 py-2.5 rounded-lg items-center flex-row gap-1.5 justify-center ${active ? 'bg-white dark:bg-dark-surface-100' : ''}`}
+                >
+                  {s === 'highlights' && (
+                    <Ionicons name={active ? 'star' : 'star-outline'} size={14} color={active ? '#FF9028' : c.iconMuted} />
+                  )}
+                  <UIText size="sm" className={active ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>
+                    {s === 'feed' ? 'Feed' : 'Highlights'}
                   </UIText>
                 </Pressable>
               );

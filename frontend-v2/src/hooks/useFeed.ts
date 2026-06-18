@@ -82,11 +82,17 @@ export interface FeedItem {
    *  responses — treated as shareable to avoid hiding the button on version
    *  skew (see FeedCard). */
   can_share?: boolean;
+  /** Superadmin pinned this item to the highlight reel. Drives the star
+   *  toggle on FeedCard and the Highlights feed segment. */
+  is_highlighted?: boolean;
 }
 
 interface UseFeedOptions {
   studentId?: string;
   limit?: number;
+  /** When true, returns only items the superadmin has pinned to the highlight
+   *  reel (the "show-off" feed). */
+  highlightsOnly?: boolean;
 }
 
 /** Group the feed so a single parent-captured moment posted to several kids at
@@ -149,6 +155,9 @@ export function useFeed(options: UseFeedOptions = {}) {
       if (options.studentId) {
         params.student_id = options.studentId;
       }
+      if (options.highlightsOnly) {
+        params.highlights_only = 'true';
+      }
 
       if (cursor) params.cursor = cursor;
       if (options.limit) params.limit = String(options.limit);
@@ -192,7 +201,7 @@ export function useFeed(options: UseFeedOptions = {}) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [isAuthenticated, user?.id, options.studentId, options.limit]);
+  }, [isAuthenticated, user?.id, options.studentId, options.limit, options.highlightsOnly]);
 
   useEffect(() => {
     cursorRef.current = null;
@@ -219,12 +228,39 @@ export function useFeed(options: UseFeedOptions = {}) {
     ));
   }, []);
 
-  return { items, loading, loadingMore, hasMore, error, loadMore, refetch, removeByLearningEventId };
+  // Optimistic highlight toggle: updates the local list, then drops the item
+  // entirely when we're in highlights-only mode and the toggle turns it off.
+  const setHighlighted = useCallback((id: string, on: boolean) => {
+    setItems((prev) => {
+      const updated = prev.map((it) => (it.id === id ? { ...it, is_highlighted: on } : it));
+      if (options.highlightsOnly && !on) {
+        return updated.filter((it) => it.id !== id);
+      }
+      return updated;
+    });
+  }, [options.highlightsOnly]);
+
+  return { items, loading, loadingMore, hasMore, error, loadMore, refetch, removeByLearningEventId, setHighlighted };
 }
 
 export async function recordViews(items: Array<{ type: string; id: string }>) {
   const { data } = await api.post('/api/observers/feed/record-views', { items });
   return data;
+}
+
+/** Superadmin only: pin/unpin a feed item to the highlight reel. Idempotent —
+ *  pass an explicit `on` to set the desired state, or omit to toggle. */
+export async function toggleFeedHighlight(args: {
+  type: 'task_completed' | 'learning_moment';
+  id: string;
+  on?: boolean;
+}): Promise<{ is_highlighted: boolean }> {
+  const { data } = await api.post('/api/observers/feed/highlights/toggle', {
+    target_type: args.type,
+    target_id: args.id,
+    on: args.on,
+  });
+  return { is_highlighted: !!data.is_highlighted };
 }
 
 export async function getViewers(type: 'task_completed' | 'learning_moment', id: string) {

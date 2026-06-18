@@ -17,7 +17,7 @@ import { MediaModal } from './MediaModal';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { AudioClipPreview } from '../capture/VoiceRecorder';
 import type { FeedItem } from '@/src/hooks/useFeed';
-import { getViewers, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
+import { getViewers, createShareLink, toggleVisibility, toggleFeedHighlight } from '@/src/hooks/useFeed';
 import { haptic } from '@/src/utils/haptics';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
@@ -282,9 +282,13 @@ interface FeedCardProps {
   /** False when the card is scrolled out of view — pauses inline video so it
    *  doesn't keep playing off-screen. Defaults to true. */
   isActive?: boolean;
+  /** Called after a superadmin toggles this item on/off the highlight reel,
+   *  so the host screen can mutate its list (e.g. drop it from the Highlights
+   *  feed when unhighlighted). */
+  onHighlightChange?: (id: string, on: boolean) => void;
 }
 
-function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = false, isActive = true }: FeedCardProps) {
+function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = false, isActive = true, onHighlightChange }: FeedCardProps) {
   const [viewsCount, setViewsCount] = useState(item.views_count || 0);
   // Background video upload progress for this moment (if any in flight).
   const uploadingPct = useMediaUploadStore((s) =>
@@ -299,8 +303,30 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const [shareToast, setShareToast] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [isHighlighted, setIsHighlighted] = useState(!!item.is_highlighted);
+  const [togglingHighlight, setTogglingHighlight] = useState(false);
   const { user } = useAuthStore();
   const c = useThemeColors();
+  const canHighlight = user?.role === 'superadmin';
+
+  const handleToggleHighlight = async () => {
+    if (togglingHighlight) return;
+    const next = !isHighlighted;
+    setIsHighlighted(next);
+    setTogglingHighlight(true);
+    try {
+      const id = item.type === 'learning_moment'
+        ? (item.learning_event_id || item.id.replace(/^le_/, ''))
+        : (item.completion_id || item.id);
+      const res = await toggleFeedHighlight({ type: item.type, id, on: next });
+      setIsHighlighted(res.is_highlighted);
+      onHighlightChange?.(item.id, res.is_highlighted);
+    } catch {
+      setIsHighlighted(!next);
+    } finally {
+      setTogglingHighlight(false);
+    }
+  };
 
   const isTask = item.type === 'task_completed';
   const isOwnPost = user?.id === item.student?.id;
@@ -576,9 +602,27 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
               </Pressable>
             )}
 
+            {/* Superadmin: pin/unpin to the highlight reel */}
+            {canHighlight && (
+              <Pressable
+                onPress={handleToggleHighlight}
+                disabled={togglingHighlight}
+                hitSlop={12}
+                accessibilityLabel={isHighlighted ? 'Remove from highlights' : 'Add to highlights'}
+                className="flex-row items-center gap-1.5 py-2.5 ml-auto"
+                style={{ opacity: togglingHighlight ? 0.5 : 1 }}
+              >
+                <Ionicons
+                  name={isHighlighted ? 'star' : 'star-outline'}
+                  size={26}
+                  color={isHighlighted ? '#FF9028' : c.iconMuted}
+                />
+              </Pressable>
+            )}
+
             {/* Visibility toggle - owner always; parents on kid posts via prop */}
             {canTogglePrivacy && (
-              <Pressable onPress={handleToggleVisibility} hitSlop={12} className="flex-row items-center gap-1.5 py-2.5 ml-auto">
+              <Pressable onPress={handleToggleVisibility} hitSlop={12} className={`flex-row items-center gap-1.5 py-2.5 ${canHighlight ? '' : 'ml-auto'}`}>
                 <Ionicons
                   name={isConfidential ? 'eye-off-outline' : 'eye-outline'}
                   size={26}

@@ -40,6 +40,7 @@ from . import family
 from . import pending
 from . import sharing
 from . import learning_moments
+from . import highlights
 
 # Register all routes
 student_invitations.register_routes(bp)
@@ -54,3 +55,4 @@ family.register_routes(bp)
 pending.register_routes(bp)
 sharing.register_routes(bp)
 learning_moments.register_routes(bp)
+highlights.register_routes(bp)

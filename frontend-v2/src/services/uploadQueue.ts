@@ -225,13 +225,33 @@ async function runJob(job: { eventId: string; studentId?: string; items: QueuedM
 // ── Public API ─────────────────────────────────────────────────────────────
 
 let processing = false;
+// Serializes concurrent enqueueUpload calls so the manifest read-modify-write
+// is atomic. Without this, a parent capturing one moment for two kids fired two
+// concurrent enqueues that both read an empty manifest, both pushed their job,
+// and the second writeManifest overwrote the first — the losing job's media
+// files sat orphaned in upload-queue/ and never uploaded, so one kid's card
+// rendered the image and the other's didn't (bug #7a546d75).
+let enqueueChain: Promise<void> = Promise.resolve();
 
 /**
  * Queue a moment's media for durable upload. On native the files are copied to
  * persistent storage and recorded in the manifest before this resolves, so the
  * upload survives an immediate app kill. On web it runs inline (no persistence).
  */
-export async function enqueueUpload(args: {
+export function enqueueUpload(args: {
+  eventId: string;
+  studentId?: string;
+  items: QueuedMediaItem[];
+  extraBlocks?: Array<Record<string, unknown>>;
+}): Promise<void> {
+  // .then(run, run) so a rejected earlier enqueue doesn't block later ones.
+  const next = enqueueChain.then(() => _enqueueUploadImpl(args), () => _enqueueUploadImpl(args));
+  // Keep the chain itself swallow-only — callers still see their own rejection.
+  enqueueChain = next.then(() => undefined, () => undefined);
+  return next;
+}
+
+async function _enqueueUploadImpl(args: {
   eventId: string;
   studentId?: string;
   items: QueuedMediaItem[];
