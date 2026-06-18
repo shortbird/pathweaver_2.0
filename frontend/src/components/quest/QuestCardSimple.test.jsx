@@ -19,7 +19,8 @@ vi.mock('../../hooks/api/useQuests', () => ({
       rhythm: { state: 'building', state_display: 'Building Momentum' },
       calendar: { days: [] }
     }
-  })
+  }),
+  useArchiveEnrollment: () => ({ mutateAsync: vi.fn(() => Promise.resolve({})), isPending: false }),
 }))
 
 // Mock heroicons

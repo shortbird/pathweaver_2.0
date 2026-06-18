@@ -198,6 +198,88 @@ class BaseAIService(BaseService):
             return self._model_override
         return self._model_name or self.DEFAULT_MODEL
 
+    # Substrings that mark a transient/overload error worth falling back on.
+    _TRANSIENT_ERROR_MARKERS = (
+        '503', '500', '429', 'overloaded', 'high demand', 'unavailable',
+        'resource exhausted', 'resourceexhausted', 'rate limit', 'deadline',
+        'try again later', 'internal error', 'temporarily',
+    )
+
+    @classmethod
+    def _is_transient_ai_error(cls, error: Exception) -> bool:
+        """Whether an exception looks like a transient model/capacity error."""
+        msg = str(error).lower()
+        return any(marker in msg for marker in cls._TRANSIENT_ERROR_MARKERS)
+
+    def _get_model_by_name(self, model_name: str):
+        """Return the model instance for a given name (primary or alternative)."""
+        if model_name == self.model_name:
+            return self.model
+        self._ensure_alt_model_initialized(model_name)
+        return self._alt_models[model_name]
+
+    def generate_with_fallback(self, prompt: Any, *, fallback_models: Optional[List[str]] = None, **kwargs) -> Any:
+        """
+        Generate content with resilience to transient model errors.
+
+        Tries the primary model first; on a transient error (e.g. a 503
+        "high demand" / overloaded response) it immediately falls back to the
+        next configured model rather than surfacing the error to the user.
+        Non-transient errors are raised immediately.
+
+        Args:
+            prompt: Prompt passed through to generate_with_timeout.
+            fallback_models: Ordered list of fallback model names. Defaults to
+                Config.GEMINI_FALLBACK_MODELS.
+            **kwargs: Forwarded to generate_with_timeout (e.g. timeout).
+
+        Returns:
+            The model response from the first model that succeeds.
+
+        Raises:
+            The last error if every model fails.
+        """
+        from services.ai_gen import generate_with_timeout
+
+        fallbacks = fallback_models if fallback_models is not None else (Config.GEMINI_FALLBACK_MODELS or [])
+        # Primary first, then fallbacks; de-duplicate while preserving order.
+        candidates: List[str] = []
+        for name in [self.model_name, *fallbacks]:
+            if name and name not in candidates:
+                candidates.append(name)
+
+        last_error: Optional[Exception] = None
+        for idx, model_name in enumerate(candidates):
+            try:
+                model = self._get_model_by_name(model_name)
+            except Exception as init_error:
+                logger.warning(f"Could not initialize fallback model {model_name}: {init_error}")
+                last_error = init_error
+                continue
+
+            try:
+                response = generate_with_timeout(model, prompt, **kwargs)
+                if idx > 0:
+                    logger.info(f"AI generation succeeded on fallback model '{model_name}' (primary unavailable)")
+                return response
+            except Exception as e:
+                last_error = e
+                is_transient = self._is_transient_ai_error(e)
+                has_more = idx < len(candidates) - 1
+                if is_transient and has_more:
+                    logger.warning(
+                        f"Transient AI error on model '{model_name}': {e}. "
+                        f"Falling back to '{candidates[idx + 1]}'."
+                    )
+                    continue
+                # Non-transient, or no fallback left: stop trying.
+                raise
+
+        # Should only reach here if every candidate failed to initialize.
+        if last_error:
+            raise last_error
+        raise AIServiceError("No AI model available for generation")
+
     @property
     def safety_service(self):
         """Lazy-load SafetyService only when needed."""

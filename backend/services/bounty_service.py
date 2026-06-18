@@ -412,6 +412,24 @@ class BountyService(BaseService):
                 or b['cohort_class_id'] in my_cohorts
             ]
 
+        # L1 (org setting): an org can hide platform-wide "public" bounties from its
+        # students so School Jobs shows only org/cohort-scoped jobs. The poster and
+        # superadmin are never filtered. Bounties from the user's own org stay visible.
+        if user_org_id and not is_superadmin:
+            try:
+                org = self.repository.client.table('organizations')\
+                    .select('feature_flags').eq('id', user_org_id).single().execute()
+                flags = (org.data or {}).get('feature_flags') or {}
+            except Exception:
+                flags = {}
+            if flags.get('hide_public_bounties'):
+                visible = [
+                    b for b in visible
+                    if b.get('visibility') != 'public'
+                    or b.get('organization_id') == user_org_id
+                    or b['poster_id'] == user_id
+                ]
+
         return visible
 
     def get_my_posted(self, poster_id: str) -> List[Dict[str, Any]]:

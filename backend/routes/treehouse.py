@@ -21,7 +21,9 @@ from flask import Blueprint, request, jsonify, make_response
 
 from database import get_supabase_admin_client
 from repositories.treehouse_repository import TreehouseRepository
+from repositories.class_repository import ClassRepository
 from services.notification_service import NotificationService
+from utils.treehouse import facilitators_for_student
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.session_manager import SessionManager
 from utils.logger import get_logger
@@ -97,6 +99,85 @@ def _org_student_ids(admin, org_id):
 def _student_in_org(admin, student_id, org_id):
     res = admin.table('users').select('id, organization_id').eq('id', student_id).limit(1).execute()
     return bool(res.data) and res.data[0].get('organization_id') == org_id
+
+
+def _roles_of(user):
+    roles = set()
+    if user and user.get('org_role'):
+        roles.add(user['org_role'])
+    if user and isinstance(user.get('org_roles'), list):
+        roles.update(user['org_roles'])
+    return roles
+
+
+def _is_admin(ctx):
+    """Treehouse admin = org_admin (or superadmin). Used for cohort management + add-student."""
+    return ctx['is_superadmin'] or 'org_admin' in _roles_of(ctx['user'])
+
+
+def _cohort_student_ids(admin, class_ids):
+    """Active-enrollment student ids across the given org_class ids."""
+    if not class_ids:
+        return []
+    res = (admin.table('class_enrollments').select('student_id')
+           .in_('class_id', class_ids).eq('status', 'active').execute())
+    return list({r['student_id'] for r in (res.data or [])})
+
+
+def _advisor_class_ids(admin, advisor_id):
+    """org_class ids this advisor is actively assigned to."""
+    res = (admin.table('class_advisors').select('class_id')
+           .eq('advisor_id', advisor_id).eq('is_active', True).execute())
+    return [r['class_id'] for r in (res.data or [])]
+
+
+def _scoped_student_ids(admin, ctx, cohort_id=None):
+    """
+    Which Treehouse students a facilitator should see (A1 — cohort scoping).
+
+    - cohort_id given     -> just that cohort's students (intersected with the org).
+    - org_admin/superadmin -> all org students.
+    - advisor             -> students across their assigned cohorts; if the advisor
+                             has no cohort assignment yet, fall back to ALL org
+                             students so initial setup isn't a dead end.
+    """
+    org_ids = set(_org_student_ids(admin, ctx['org_id']))
+    if cohort_id:
+        return list(set(_cohort_student_ids(admin, [cohort_id])) & org_ids)
+    if _is_admin(ctx):
+        return list(org_ids)
+    my_classes = _advisor_class_ids(admin, ctx['user']['id'])
+    if not my_classes:
+        return list(org_ids)
+    return list(set(_cohort_student_ids(admin, my_classes)) & org_ids)
+
+
+@bp.route('/me', methods=['GET'])
+@require_auth
+def treehouse_me(user_id):
+    """
+    Lightweight Treehouse profile for the frontend to gate UI (F1/F2):
+    membership, facilitator/admin role, and whether the student should get the
+    simplified 'littles' UI (enrolled in a cohort with ui_mode='simple').
+    """
+    ctx = _context(user_id)
+    simplified = False
+    if ctx['is_member'] and not ctx['is_facilitator']:
+        admin = get_supabase_admin_client()
+        enr = (admin.table('class_enrollments').select('class_id')
+               .eq('student_id', user_id).eq('status', 'active').execute().data or [])
+        class_ids = [e['class_id'] for e in enr]
+        if class_ids:
+            modes = (admin.table('org_classes').select('ui_mode')
+                     .in_('id', class_ids).execute().data or [])
+            simplified = any((m.get('ui_mode') == 'simple') for m in modes)
+    return jsonify({
+        'success': True,
+        'is_member': ctx['is_member'],
+        'is_facilitator': ctx['is_facilitator'],
+        'is_admin': _is_admin(ctx),
+        'simplified': simplified,
+    }), 200
 
 
 # ── student: home ────────────────────────────────────────────────────────────
@@ -220,25 +301,21 @@ def create_signal(user_id):
         'note': (data.get('note') or '').strip() or None,
     })
 
-    # Notify facilitators (org_admins + advisors of the org).
+    # Notify the student's facilitators (cohort-scoped; A1).
     student_name = ctx['user'].get('first_name') or ctx['user'].get('display_name') or 'A student'
-    facs = (admin.table('users').select('id, org_role, org_roles')
-            .eq('organization_id', ctx['org_id']).execute()).data or []
     verb = 'needs help' if signal_type == 'help' else 'is proud of their work'
     ntype = 'treehouse_help' if signal_type == 'help' else 'treehouse_proud'
     title = f"{student_name} {verb}"
-    for f in facs:
-        roles = set([f.get('org_role')]) | set(f.get('org_roles') or [])
-        if roles & {'org_admin', 'advisor'}:
-            try:
-                _notifications.create_notification(
-                    user_id=f['id'], notification_type=ntype, title=title,
-                    message=(data.get('note') or '').strip() or title,
-                    link='/treehouse/facilitator', organization_id=ctx['org_id'],
-                    metadata={'signal_id': row.get('id'), 'student_id': user_id},
-                )
-            except Exception as e:
-                logger.warning(f"Treehouse signal notify failed for {f['id']}: {e}")
+    for fid in facilitators_for_student(admin, ctx['org_id'], user_id):
+        try:
+            _notifications.create_notification(
+                user_id=fid, notification_type=ntype, title=title,
+                message=(data.get('note') or '').strip() or title,
+                link='/treehouse/facilitator', organization_id=ctx['org_id'],
+                metadata={'signal_id': row.get('id'), 'student_id': user_id},
+            )
+        except Exception as e:
+            logger.warning(f"Treehouse signal notify failed for {fid}: {e}")
     return jsonify({'success': True, 'signal': row}), 201
 
 
@@ -251,7 +328,10 @@ def list_signals(user_id):
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
-    signals = repo.list_open_signals(ctx['org_id'])
+    # Cohort scoping (A1): advisors see only their cohorts' students by default;
+    # an explicit ?cohort_id= narrows to one cohort.
+    allowed = set(_scoped_student_ids(admin, ctx, request.args.get('cohort_id') or None))
+    signals = [s for s in repo.list_open_signals(ctx['org_id']) if s['student_id'] in allowed]
     sids = list({s['student_id'] for s in signals})
     names = {}
     if sids:
@@ -283,14 +363,17 @@ def resolve_signal(user_id, signal_id):
 @bp.route('/students', methods=['GET'])
 @require_auth
 def list_students(user_id):
-    """Facilitator: Treehouse student roster (id, name, avatar, total_xp)."""
+    """Facilitator: Treehouse student roster (id, name, avatar, total_xp), cohort-scoped."""
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
     admin = get_supabase_admin_client()
+    allowed = _scoped_student_ids(admin, ctx, request.args.get('cohort_id') or None)
+    if not allowed:
+        return jsonify({'success': True, 'students': []}), 200
     res = (admin.table('users')
            .select('id, first_name, last_name, display_name, avatar_url, total_xp')
-           .eq('organization_id', ctx['org_id']).eq('org_role', 'student').execute())
+           .in_('id', allowed).execute())
     return jsonify({'success': True, 'students': res.data or []}), 200
 
 
@@ -308,7 +391,7 @@ def list_pins(user_id):
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     org_id = ctx['org_id']
-    student_ids = _org_student_ids(admin, org_id)
+    student_ids = _scoped_student_ids(admin, ctx, request.args.get('cohort_id') or None)
     org_quest_ids = [q['id'] for q in (admin.table('quests').select('id')
                      .eq('organization_id', org_id).execute().data or [])]
 
@@ -402,6 +485,11 @@ def adjust_balance(user_id, student_id):
         return jsonify({'success': False, 'error': 'amount must be an integer'}), 400
     from repositories.yeti_repository import YetiRepository
     yeti = YetiRepository()  # no user_id -> admin client (BaseRepository default)
+    # K1 fix: add_spendable_xp is a no-op when the student has no Yeti pet (most
+    # Treehouse students, who never opened the pet UI). Create one so the balance
+    # actually persists — otherwise the adjust silently reverts on refresh.
+    if not yeti.get_pet_by_user_id(student_id):
+        yeti.create_pet(student_id, 'Coin Jar')
     yeti.add_spendable_xp(student_id, amount)
     logger.info(f"Treehouse balance adjust {amount} for {student_id[:8]} by {user_id[:8]}")
     return jsonify({'success': True, 'spendable_xp': yeti.get_spendable_xp_balance(student_id)}), 200
@@ -417,13 +505,22 @@ def list_showcase(user_id):
     admin = get_supabase_admin_client()
     repo = TreehouseRepository(admin)
     events = repo.list_events(ctx['org_id'])
+    # J2: flag events whose date has passed so the UI can keep the dashboard
+    # focused on upcoming/today by default. ?scope=upcoming|past|all (default upcoming).
+    today = datetime.now(timezone.utc).date().isoformat()
+    scope = (request.args.get('scope') or 'upcoming').lower()
     for e in events:
         participants = repo.list_participants(e['id'])
         e['participant_count'] = len(participants)
+        e['is_past'] = bool(e.get('showcase_date')) and e['showcase_date'] < today
         # The caller's own signup for this event (lets the student UI show
         # "You're signed up!" + their project title instead of a join button).
         mine = next((p for p in participants if p['student_id'] == user_id), None)
         e['my_participation'] = {'project_title': mine.get('project_title')} if mine else None
+    if scope == 'upcoming':
+        events = [e for e in events if not e['is_past']]
+    elif scope == 'past':
+        events = [e for e in events if e['is_past']]
     return jsonify({'success': True, 'events': events}), 200
 
 
@@ -519,20 +616,244 @@ def join_showcase(user_id, event_id):
     # Notify facilitators a student committed to a project.
     sname = (admin.table('users').select('first_name, display_name').eq('id', student_id).limit(1).execute().data or [{}])
     sname = sname[0].get('first_name') or sname[0].get('display_name') or 'A student'
-    facs = (admin.table('users').select('id, org_role, org_roles').eq('organization_id', ctx['org_id']).execute().data or [])
-    for f in facs:
-        roles = set([f.get('org_role')]) | set(f.get('org_roles') or [])
-        if roles & {'org_admin', 'advisor'}:
-            try:
-                _notifications.create_notification(
-                    user_id=f['id'], notification_type='treehouse_showcase_joined',
-                    title=f"{sname} joined the showcase",
-                    message=f"Project: {participant.get('project_title') or 'TBD'}",
-                    link='/treehouse/facilitator', organization_id=ctx['org_id'],
-                    metadata={'event_id': event_id, 'student_id': student_id})
-            except Exception:
-                pass
+    for fid in facilitators_for_student(admin, ctx['org_id'], student_id):
+        try:
+            _notifications.create_notification(
+                user_id=fid, notification_type='treehouse_showcase_joined',
+                title=f"{sname} joined the showcase",
+                message=f"Project: {participant.get('project_title') or 'TBD'}",
+                link='/treehouse/facilitator', organization_id=ctx['org_id'],
+                metadata={'event_id': event_id, 'student_id': student_id})
+        except Exception:
+            pass
     return jsonify({'success': True, 'participant': participant}), 201
+
+
+# ── cohorts: assign facilitators + enroll students (A1) ──────────────────────
+@bp.route('/cohorts', methods=['GET'])
+@require_auth
+def list_cohorts(user_id):
+    """
+    Cohorts for the org with their advisors + student counts. Any facilitator can
+    read (powers the dashboard cohort filter); management actions below are admin-only.
+    """
+    ctx = _context(user_id)
+    if not ctx['is_facilitator']:
+        return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    repo = ClassRepository()
+    classes = repo.list_org_classes(ctx['org_id'], status='active')
+    out = []
+    for c in classes:
+        advisors = repo.get_class_advisors(c['id'])
+        students = repo.get_class_students(c['id'])
+        out.append({
+            'id': c['id'], 'name': c.get('name'), 'description': c.get('description'),
+            'ui_mode': c.get('ui_mode'),
+            'advisors': [{'id': a.get('advisor_id'), **(a.get('users') or {})} for a in advisors],
+            'student_count': len(students),
+            'student_ids': [s.get('student_id') for s in students],
+        })
+    return jsonify({'success': True, 'cohorts': out}), 200
+
+
+@bp.route('/cohorts', methods=['POST'])
+@require_auth
+def create_cohort(user_id):
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    name = ((request.get_json() or {}).get('name') or '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': 'name is required'}), 400
+    body = request.get_json() or {}
+    ui_mode = body.get('ui_mode') if body.get('ui_mode') in ('simple', None) else None
+    repo = ClassRepository()
+    cohort = repo.create_class({
+        'organization_id': ctx['org_id'], 'name': name,
+        'description': (body.get('description') or '').strip() or None,
+        'ui_mode': ui_mode, 'created_by': user_id, 'status': 'active',
+    })
+    return jsonify({'success': True, 'cohort': cohort}), 201
+
+
+@bp.route('/cohorts/<class_id>', methods=['PATCH'])
+@require_auth
+@validate_uuid_param('class_id')
+def update_cohort(user_id, class_id):
+    """Update a cohort's name/description/ui_mode (admin)."""
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    repo = ClassRepository()
+    if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
+        return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    body = request.get_json() or {}
+    updates = {}
+    if 'name' in body and (body.get('name') or '').strip():
+        updates['name'] = body['name'].strip()
+    if 'description' in body:
+        updates['description'] = (body.get('description') or '').strip() or None
+    if 'ui_mode' in body:
+        updates['ui_mode'] = 'simple' if body.get('ui_mode') == 'simple' else None
+    if not updates:
+        return jsonify({'success': False, 'error': 'No valid fields'}), 400
+    return jsonify({'success': True, 'cohort': repo.update_class(class_id, updates)}), 200
+
+
+def _verify_cohort_in_org(repo, class_id, org_id):
+    c = repo.get_class_with_details(class_id)
+    return bool(c) and c.get('organization_id') == org_id
+
+
+@bp.route('/cohorts/<class_id>/advisors', methods=['POST'])
+@require_auth
+@validate_uuid_param('class_id')
+def assign_cohort_advisor(user_id, class_id):
+    """Assign a facilitator to a cohort. Body: {advisor_id}."""
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    repo = ClassRepository()
+    if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
+        return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    advisor_id = (request.get_json() or {}).get('advisor_id')
+    if not advisor_id:
+        return jsonify({'success': False, 'error': 'advisor_id is required'}), 400
+    return jsonify({'success': True, 'advisor': repo.add_advisor(class_id, advisor_id, user_id)}), 201
+
+
+@bp.route('/cohorts/<class_id>/advisors/<advisor_id>', methods=['DELETE'])
+@require_auth
+@validate_uuid_param('class_id')
+@validate_uuid_param('advisor_id')
+def remove_cohort_advisor(user_id, class_id, advisor_id):
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    repo = ClassRepository()
+    if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
+        return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    return jsonify({'success': repo.remove_advisor(class_id, advisor_id)}), 200
+
+
+@bp.route('/cohorts/<class_id>/students', methods=['POST'])
+@require_auth
+@validate_uuid_param('class_id')
+def enroll_cohort_students(user_id, class_id):
+    """Bulk-enroll students into a cohort. Body: {student_ids: [...]}."""
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    repo = ClassRepository()
+    if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
+        return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    student_ids = (request.get_json() or {}).get('student_ids') or []
+    # Only enroll students who actually belong to this org.
+    org_ids = set(_org_student_ids(get_supabase_admin_client(), ctx['org_id']))
+    student_ids = [s for s in student_ids if s in org_ids]
+    if not student_ids:
+        return jsonify({'success': True, 'enrolled': []}), 200
+    return jsonify({'success': True, 'enrolled': repo.enroll_students_bulk(class_id, student_ids, user_id)}), 201
+
+
+@bp.route('/cohorts/<class_id>/students/<student_id>', methods=['DELETE'])
+@require_auth
+@validate_uuid_param('class_id')
+@validate_uuid_param('student_id')
+def withdraw_cohort_student(user_id, class_id, student_id):
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    repo = ClassRepository()
+    if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
+        return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    return jsonify({'success': repo.withdraw_student(class_id, student_id)}), 200
+
+
+# ── facilitator: phone capture → tag one or many students (G1) ───────────────
+def _evidence_block(event_id, idx, media_item):
+    """Build a learning_event_evidence_blocks row from a capture media item."""
+    mtype = media_item.get('type', 'image')
+    if mtype == 'link':
+        return {'learning_event_id': event_id, 'block_type': 'link', 'order_index': idx,
+                'content': {'url': media_item.get('url'), 'title': media_item.get('title', ''), 'caption': ''}}
+    common = {
+        'learning_event_id': event_id, 'order_index': idx,
+        'file_url': media_item.get('file_url'), 'file_name': media_item.get('file_name'),
+        'file_size': media_item.get('file_size', 0),
+    }
+    if mtype in ('document', 'video'):
+        return {**common, 'block_type': mtype,
+                'content': {'url': media_item.get('file_url'), 'filename': media_item.get('file_name', ''), 'caption': ''}}
+    return {**common, 'block_type': 'image',
+            'content': {'url': media_item.get('file_url'), 'caption': '', 'alt_text': media_item.get('file_name', '')}}
+
+
+@bp.route('/capture', methods=['POST'])
+@require_auth
+def facilitator_capture(user_id):
+    """
+    G1 — facilitator captures one photo + caption on their phone and tags it to one
+    OR many students. Creates a learning_event per student (their portfolio/journal)
+    with the media as evidence blocks. Optionally attaches to one student's task.
+
+    Body: {student_ids:[...], description?, attached_task_id?,
+           media:[{type:'image'|'video'|'document'|'link', file_url, file_name, file_size, url, title}]}
+    """
+    ctx = _context(user_id)
+    if not ctx['is_facilitator']:
+        return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
+    data = request.get_json() or {}
+    student_ids = [s for s in (data.get('student_ids') or []) if s]
+    description = (data.get('description') or '').strip()
+    media = data.get('media') or []
+    attached_task_id = data.get('attached_task_id')
+    if not student_ids:
+        return jsonify({'success': False, 'error': 'Tag at least one student'}), 400
+    if not description and not media:
+        return jsonify({'success': False, 'error': 'Add a caption or a photo'}), 400
+
+    admin = get_supabase_admin_client()
+    org_ids = set(_org_student_ids(admin, ctx['org_id']))
+    created = []
+    for sid in student_ids:
+        if sid not in org_ids:
+            continue
+        event_data = {
+            'user_id': sid, 'captured_by_user_id': user_id,
+            'description': description or 'Captured by facilitator',
+            'source_type': 'advisor_captured', 'pillars': [],
+        }
+        # Only attach a task when it genuinely belongs to this student.
+        if attached_task_id:
+            owns = (admin.table('user_quest_tasks').select('id')
+                    .eq('id', attached_task_id).eq('user_id', sid).limit(1).execute())
+            if owns.data:
+                event_data['attached_task_id'] = attached_task_id
+        ev = admin.table('learning_events').insert(event_data).execute()
+        if not ev.data:
+            continue
+        eid = ev.data[0]['id']
+        blocks = [_evidence_block(eid, i, m) for i, m in enumerate(media)]
+        if blocks:
+            admin.table('learning_event_evidence_blocks').insert(blocks).execute()
+        created.append({'student_id': sid, 'event_id': eid})
+    return jsonify({'success': True, 'created': created, 'count': len(created)}), 201
+
+
+@bp.route('/facilitators', methods=['GET'])
+@require_auth
+def list_facilitators(user_id):
+    """Org facilitators (org_admin/advisor) for the cohort-assignment dropdown."""
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    admin = get_supabase_admin_client()
+    rows = (admin.table('users')
+            .select('id, first_name, last_name, display_name, org_role, org_roles')
+            .eq('organization_id', ctx['org_id']).execute().data or [])
+    facs = [r for r in rows if ({r.get('org_role')} | set(r.get('org_roles') or [])) & {'org_admin', 'advisor'}]
+    return jsonify({'success': True, 'facilitators': facs}), 200
 
 
 # ── kiosk: device provisioning + passwordless student login ──────────────────

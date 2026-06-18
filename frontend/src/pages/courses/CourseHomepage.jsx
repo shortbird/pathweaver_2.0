@@ -15,6 +15,7 @@ import {
   PlusIcon,
   ClipboardDocumentListIcon,
   SparklesIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
@@ -261,6 +262,8 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
 const CourseTaskItem = ({ task, onComplete, onRemove }) => {
   const [expanded, setExpanded] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [evidenceBlocks, setEvidenceBlocks] = useState([])
   const [evidenceLoaded, setEvidenceLoaded] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -344,6 +347,17 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
       await api.post(`/api/evidence/documents/${task.id}`, { blocks: updated.map(b => ({ ...b, type: b.type || b.block_type })), status: 'draft' })
       setEvidenceBlocks(updated)
     } catch { /* error */ }
+  }
+
+  const handleRemove = async () => {
+    if (!onRemove) return
+    setRemoving(true)
+    try {
+      await onRemove(task.id)
+    } finally {
+      setRemoving(false)
+      setConfirmingRemove(false)
+    }
   }
 
   return (
@@ -459,6 +473,41 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
               Completed {new Date(task.completed_at).toLocaleDateString()}
             </p>
           )}
+
+          {/* Remove task */}
+          {onRemove && (
+            <div className="pt-2 border-t border-gray-100">
+              {confirmingRemove ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-gray-600">Remove this task from your project?</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => setConfirmingRemove(false)}
+                      disabled={removing}
+                      className="text-xs px-2 py-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleRemove}
+                      disabled={removing}
+                      className="text-xs px-2 py-1 font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                    >
+                      {removing ? 'Removing...' : 'Remove'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingRemove(true)}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                  Remove task
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -468,13 +517,13 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
 /**
  * ProjectView - Task-first project content view
  */
-const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, questTasksLoading, onTaskComplete, onAcceptSuggestion, onWizardComplete, refetchCourse }) => {
+const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, questTasksLoading, onTaskComplete, onTaskRemove, onAcceptSuggestion, onWizardComplete, refetchCourse }) => {
   const isCompleted = quest.progress?.is_completed
   const hasLessons = quest.lessons && quest.lessons.length > 0
   const headerImage = quest.header_image_url || quest.image_url || fallbackImageUrl
   const totalXp = quest.progress?.total_xp || 0
   const earnedXp = quest.progress?.earned_xp || 0
-  const [lessonsExpanded, setLessonsExpanded] = useState(false)
+  const [lessonsExpanded, setLessonsExpanded] = useState(true)
   const [addedSuggestionIds, setAddedSuggestionIds] = useState(new Set())
   const [showWizard, setShowWizard] = useState(false)
   const [localEarnedXp, setLocalEarnedXp] = useState(earnedXp)
@@ -483,7 +532,7 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
   useEffect(() => {
     setLocalEarnedXp(quest.progress?.earned_xp || 0)
     setAddedSuggestionIds(new Set())
-    setLessonsExpanded(false)
+    setLessonsExpanded(true)
   }, [quest.id])
 
   const tasks = questTasks || []
@@ -554,139 +603,29 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
               style={{ width: `${Math.min(100, pct)}%` }}
             />
           </div>
-        </div>
-      )}
 
-      {/* How it works callout */}
-      {!isCompleted && totalXp > 0 && (
-        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-lg mb-6 border border-optio-purple/10">
-          <SparklesIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
-          <p className="text-sm text-gray-600">
-            Complete tasks to earn XP. Reach <span className="font-semibold text-gray-900">{totalXp} XP</span> to complete this project.
-          </p>
-        </div>
-      )}
-
-      {/* Your Tasks */}
-      <div className="mb-6" data-onboarding="project-tasks">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Your Tasks
-        </h2>
-        {questTasksLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
-            ))}
-          </div>
-        ) : tasks.length > 0 ? (
-          <div className="space-y-2">
-            {tasks.map(task => (
-              <CourseTaskItem
-                key={task.id}
-                task={task}
-                onComplete={handleLocalTaskComplete}
-                onRemove={() => {}}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <ClipboardDocumentListIcon className="w-6 h-6 text-gray-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-gray-700">No tasks yet</p>
-              <p className="text-xs text-gray-500">Add suggested tasks below or visit the project page to create your own.</p>
+          {/* Callout (inside the XP container) — switches once the XP goal is met */}
+          {(isCompleted || quest.progress?.can_complete) ? (
+            <div className="flex items-center gap-3 mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+              <CheckCircleSolid className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <p className="text-sm text-gray-700">
+                You've met the XP goal for this project! Feel free to explore more here, or move on to the next one.
+              </p>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Suggested Tasks */}
-      {suggestedTasks.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Suggested Tasks
-          </h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-            {suggestedTasks.map(suggestion => {
-              const sPillar = getPillarData(suggestion.pillar)
-              return (
-                <div
-                  key={suggestion.id}
-                  className={`flex-shrink-0 w-52 bg-white border border-gray-200 rounded-xl p-3 border-l-4 ${sPillar?.border || 'border-l-gray-300'}`}
-                >
-                  <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{suggestion.title}</h4>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${sPillar?.bg || 'bg-gray-100'} ${sPillar?.text || 'text-gray-600'}`}>
-                        {sPillar?.name || suggestion.pillar}
-                      </span>
-                      <span className="text-xs text-gray-500">{suggestion.xp_value || 0} XP</span>
-                    </div>
-                    <button
-                      onClick={() => handleAddSuggestion(suggestion)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-optio-purple bg-optio-purple/5 rounded-lg hover:bg-optio-purple/10 transition-colors"
-                    >
-                      <PlusIcon className="w-3 h-3" />
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          ) : (
+            <div className="flex items-center gap-3 mt-4 p-3 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-lg border border-optio-purple/10">
+              <SparklesIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
+              <p className="text-sm text-gray-600">
+                Complete tasks to earn XP. Reach <span className="font-semibold text-gray-900">{totalXp} XP</span> to complete this project.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Create Your Own Tasks */}
-      {!isCompleted && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Create Your Own
-          </h2>
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
-            <p className="text-sm text-gray-600">
-              Write a custom task or use AI to generate personalized ideas.
-            </p>
-            <button
-              onClick={() => setShowWizard(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors flex-shrink-0 ml-3"
-            >
-              <SparklesIcon className="w-4 h-4" />
-              Create Tasks
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Personalization Wizard Modal */}
-      {showWizard && (
-        <Suspense fallback={
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent" />
-              <p className="text-lg font-semibold text-gray-700">Loading task creator...</p>
-            </div>
-          </div>
-        }>
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-              <QuestPersonalizationWizard
-                questId={quest.id}
-                questTitle={quest.title}
-                onComplete={() => {
-                  setShowWizard(false)
-                  onWizardComplete(quest.id)
-                }}
-                onCancel={() => setShowWizard(false)}
-              />
-            </div>
-          </div>
-        </Suspense>
-      )}
-
-      {/* Lessons (collapsible, secondary) */}
+      {/* Lessons */}
       {hasLessons && (
-        <div className="border-t border-gray-200 pt-4">
+        <div className="mb-6">
           <button
             onClick={() => setLessonsExpanded(!lessonsExpanded)}
             className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 hover:text-gray-700 transition-colors"
@@ -729,6 +668,120 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
           )}
         </div>
       )}
+
+      {/* Your Tasks */}
+      <div className="mb-6" data-onboarding="project-tasks">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          Your Tasks
+        </h2>
+        {questTasksLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : tasks.length > 0 ? (
+          <div className="space-y-2">
+            {tasks.map(task => (
+              <CourseTaskItem
+                key={task.id}
+                task={task}
+                onComplete={handleLocalTaskComplete}
+                onRemove={onTaskRemove ? (taskId) => onTaskRemove(quest.id, taskId) : undefined}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <ClipboardDocumentListIcon className="w-6 h-6 text-gray-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-gray-700">No tasks yet</p>
+              <p className="text-xs text-gray-500">Add a suggested task, or create your own below.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Create your own (merged into Your Tasks) */}
+        {!isCompleted && (
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200 mt-3">
+            <p className="text-sm text-gray-600">
+              Write a custom task or use AI to generate personalized ideas.
+            </p>
+            <button
+              onClick={() => setShowWizard(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors flex-shrink-0 ml-3"
+            >
+              <SparklesIcon className="w-4 h-4" />
+              Create Tasks
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Suggested Tasks */}
+      {suggestedTasks.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Suggested Tasks
+          </h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+            {suggestedTasks.map(suggestion => {
+              const sPillar = getPillarData(suggestion.pillar)
+              return (
+                <div
+                  key={suggestion.id}
+                  className={`flex-shrink-0 w-52 bg-white border border-gray-200 rounded-xl p-3 border-l-4 ${sPillar?.border || 'border-l-gray-300'}`}
+                >
+                  <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{suggestion.title}</h4>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${sPillar?.bg || 'bg-gray-100'} ${sPillar?.text || 'text-gray-600'}`}>
+                        {sPillar?.name || suggestion.pillar}
+                      </span>
+                      <span className="text-xs text-gray-500">{suggestion.xp_value || 0} XP</span>
+                    </div>
+                    <button
+                      onClick={() => handleAddSuggestion(suggestion)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-optio-purple bg-optio-purple/5 rounded-lg hover:bg-optio-purple/10 transition-colors"
+                    >
+                      <PlusIcon className="w-3 h-3" />
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Personalization Wizard Modal */}
+      {showWizard && (
+        <Suspense fallback={
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent" />
+              <p className="text-lg font-semibold text-gray-700">Loading task creator...</p>
+            </div>
+          </div>
+        }>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+              <QuestPersonalizationWizard
+                questId={quest.id}
+                questTitle={quest.title}
+                onComplete={() => {
+                  setShowWizard(false)
+                  onWizardComplete(quest.id)
+                }}
+                onCancel={() => setShowWizard(false)}
+                hideDiplomaSubjects
+              />
+            </div>
+          </div>
+        </Suspense>
+      )}
+
     </div>
   )
 }
@@ -822,6 +875,22 @@ const CourseHomepageInner = () => {
       throw err
     }
   }, [])
+
+  // Handle removing a task from a project
+  const handleTaskRemove = useCallback(async (questId, taskId) => {
+    try {
+      await api.delete(`/api/tasks/${taskId}`)
+      setQuestTasks(prev => ({
+        ...prev,
+        [questId]: (prev[questId] || []).filter(t => t.id !== taskId)
+      }))
+      toast.success('Task removed')
+      // Refetch course data so XP/progress stay in sync
+      setTimeout(() => refetch(), 1000)
+    } catch (err) {
+      toast.error('Failed to remove task')
+    }
+  }, [refetch])
 
   // Handle wizard completion -- refetch tasks for the quest
   const handleWizardComplete = useCallback(async (questId) => {
@@ -1068,6 +1137,21 @@ const CourseHomepageInner = () => {
     if (selectedQuest) {
       setSearchParams({ quest: selectedQuest.id })
     }
+  }
+
+  // Finishing the last lesson step returns the student to the project homepage
+  // so they can move on to the tasks. Save progress silently (no prompt).
+  const handleExitToProject = () => {
+    if (hasUnsavedChanges && saveProgressFn) {
+      saveProgressFn()
+    }
+    if (isFullscreen) setIsFullscreen(false)
+    setSelectedLesson(null)
+    setHasUnsavedChanges(false)
+    setInitialStepIndex(null)
+    setSearchParams(selectedQuest ? { quest: selectedQuest.id } : {})
+    // Refetch so the project view reflects the lesson progress
+    refetch()
   }
 
   // Callback to track step changes from CurriculumView
@@ -1332,6 +1416,7 @@ const CourseHomepageInner = () => {
                       onSaveProgress={setSaveProgressFn}
                       onTaskClick={handleTaskClick}
                       onStepChange={handleStepChange}
+                      onExitToProject={handleExitToProject}
                       onLessonSelect={(lesson) => {
                         setSelectedLesson(lesson)
                         setSearchParams({ quest: selectedQuest.id, lesson: lesson.id })
@@ -1348,6 +1433,7 @@ const CourseHomepageInner = () => {
                   questTasks={questTasks[selectedQuest.id]}
                   questTasksLoading={questTasksLoading}
                   onTaskComplete={handleTaskComplete}
+                  onTaskRemove={handleTaskRemove}
                   onAcceptSuggestion={handleAcceptSuggestion}
                   onWizardComplete={handleWizardComplete}
                   refetchCourse={refetch}

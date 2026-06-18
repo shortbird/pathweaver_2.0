@@ -15,7 +15,9 @@ const QuestInvitations = () => {
   const [myQuests, setMyQuests] = useState([]);
   const [libraryQuests, setLibraryQuests] = useState([]);
   const [students, setStudents] = useState([]);
-  const [selectedQuest, setSelectedQuest] = useState(null);
+  const [selectedQuests, setSelectedQuests] = useState([]);   // D1: batch quest select
+  const toggleQuest = (questId) => setSelectedQuests(prev =>
+    prev.includes(questId) ? prev.filter(id => id !== questId) : [...prev, questId]);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -58,7 +60,7 @@ const QuestInvitations = () => {
   const handleQuestCreated = (newQuest) => {
     if (newQuest?.id) {
       setMyQuests(prev => [newQuest, ...prev]);
-      setSelectedQuest(newQuest.id);
+      setSelectedQuests(prev => [...prev, newQuest.id]);
     } else {
       // Refetch to pick up the new quest
       fetchData();
@@ -92,8 +94,8 @@ const QuestInvitations = () => {
   });
 
   const handleSend = async () => {
-    if (!selectedQuest) {
-      toast.error('Please select a quest');
+    if (selectedQuests.length === 0) {
+      toast.error('Please select at least one quest');
       return;
     }
 
@@ -105,20 +107,20 @@ const QuestInvitations = () => {
     try {
       setSubmitting(true);
       const response = await api.post('/api/advisor/invite-to-quest', {
-        quest_id: selectedQuest,
+        quest_ids: selectedQuests,
         user_ids: selectedStudents
       });
-      const { enrolled, skipped, quest_title } = response.data;
+      const { enrolled, skipped, quest_count } = response.data;
 
       if (enrolled > 0) {
         toast.success(
-          `Added ${enrolled} student${enrolled > 1 ? 's' : ''} to "${quest_title}"${skipped > 0 ? ` (${skipped} already had it)` : ''}`
+          `Added ${enrolled} enrollment${enrolled > 1 ? 's' : ''} across ${quest_count} quest${quest_count > 1 ? 's' : ''}${skipped > 0 ? ` (${skipped} already had it)` : ''}`
         );
       } else if (skipped > 0) {
-        toast(`All selected students already have "${quest_title}"`);
+        toast(`All selected students already have these quest${quest_count > 1 ? 's' : ''}`);
       }
 
-      setSelectedQuest(null);
+      setSelectedQuests([]);
       setSelectedStudents([]);
     } catch (error) {
       console.error('Error:', error);
@@ -128,8 +130,7 @@ const QuestInvitations = () => {
     }
   };
 
-  const selectedQuestTitle = [...myQuests, ...libraryQuests].find(q => q.id === selectedQuest)?.title;
-  const canSend = !!selectedQuest && selectedStudents.length > 0;
+  const canSend = selectedQuests.length > 0 && selectedStudents.length > 0;
 
   if (loading) {
     return (
@@ -167,7 +168,7 @@ const QuestInvitations = () => {
                   key={tab.id}
                   onClick={() => {
                     setActiveTab(tab.id);
-                    setSelectedQuest(null);
+                    setSelectedQuests([]);
                     setSearchTerm('');
                     setShowCreateForm(false);
                   }}
@@ -231,15 +232,15 @@ const QuestInvitations = () => {
                   filteredQuests.map((quest) => (
                     <button
                       key={quest.id}
-                      onClick={() => setSelectedQuest(quest.id)}
+                      onClick={() => toggleQuest(quest.id)}
                       className={`w-full text-left p-3 rounded-lg border transition-all ${
-                        selectedQuest === quest.id
+                        selectedQuests.includes(quest.id)
                           ? 'border-optio-purple bg-optio-purple/5 ring-1 ring-optio-purple'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        {selectedQuest === quest.id ? (
+                        {selectedQuests.includes(quest.id) ? (
                           <CheckCircleSolidIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
                         ) : (
                           <CheckCircleIcon className="w-5 h-5 text-gray-300 flex-shrink-0" />
@@ -328,7 +329,9 @@ const QuestInvitations = () => {
             {canSend && (
               <p className="text-xs text-gray-500 mb-3">
                 Assigning{' '}
-                <span className="font-medium text-gray-700">{selectedQuestTitle}</span>
+                <span className="font-medium text-gray-700">
+                  {selectedQuests.length} quest{selectedQuests.length !== 1 ? 's' : ''}
+                </span>
                 {' '}to{' '}
                 <span className="font-medium text-gray-700">
                   {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''}

@@ -11,6 +11,7 @@ import { clearMasqueradeData } from '../services/masqueradeService'
 import logger from '../utils/logger'
 import { identifyUser, resetUser, captureEvent } from '../services/posthog'
 import { setSentryUser } from '../services/sentry'
+import { isSimplifiedPartnerOrg } from '../config/partnerOrgs'
 
 const AuthContext = createContext()
 
@@ -178,7 +179,8 @@ export const AuthProvider = ({ children }) => {
       // Redirect based on user role (effective role handles org_managed users)
       const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
       const loginRole = getEffectiveRole(loginUser)
-      const redirectPath = loginRole === 'org_admin' ? '/organization'
+      const redirectPath = loginRole === 'org_admin'
+          ? (isSimplifiedPartnerOrg(loginUser.organization_id) ? '/onfire' : '/organization')
         : loginRole === 'superadmin' || loginRole === 'parent' ? '/parent/dashboard'
         : loginRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
@@ -260,7 +262,8 @@ export const AuthProvider = ({ children }) => {
 
       const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
       const verifiedRole = getEffectiveRole(verifiedUser)
-      const redirectPath = verifiedRole === 'org_admin' ? '/organization'
+      const redirectPath = verifiedRole === 'org_admin'
+          ? (isSimplifiedPartnerOrg(verifiedUser.organization_id) ? '/onfire' : '/organization')
         : verifiedRole === 'superadmin' || verifiedRole === 'parent' ? '/parent/dashboard'
         : verifiedRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
@@ -321,7 +324,8 @@ export const AuthProvider = ({ children }) => {
       // Redirect based on user role (effective role handles org_managed users)
       const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
       const loginRole = getEffectiveRole(loginUser)
-      const redirectPath = loginRole === 'org_admin' ? '/organization'
+      const redirectPath = loginRole === 'org_admin'
+          ? (isSimplifiedPartnerOrg(loginUser.organization_id) ? '/onfire' : '/organization')
         : loginRole === 'superadmin' || loginRole === 'parent' ? '/parent/dashboard'
         : loginRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
@@ -423,7 +427,8 @@ export const AuthProvider = ({ children }) => {
         // Redirect based on user role (effective role handles org_managed users)
         const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
         const effectiveRole = getEffectiveRole(user)
-        const redirectPath = effectiveRole === 'org_admin' ? '/organization'
+        const redirectPath = effectiveRole === 'org_admin'
+            ? (isSimplifiedPartnerOrg(user.organization_id) ? '/onfire' : '/organization')
           : effectiveRole === 'superadmin' || effectiveRole === 'parent' ? '/parent/dashboard'
           : effectiveRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
           : '/dashboard'

@@ -200,6 +200,10 @@ def register_all(app):
     app.register_blueprint(quest_ai.bp)
 
     # AI Tutor removed (M1) — ai_tutor_service was deleted in earlier audit; route + service stack removed 2026-04-13.
+    # Lesson helper (in-lesson "Need help with this?") — focused replacement for the
+    # lesson-helper slice of the old tutor; uses LessonHelperService (BaseAIService).
+    from routes import lesson_helper
+    app.register_blueprint(lesson_helper.bp)
 
     # ── Task library / Spark LMS / Observer role ──────────────────────────────
     from routes import task_library

@@ -265,105 +265,97 @@ def get_invitable_quests(user_id):
         }), 500
 
 
+def _assign_one_quest(admin, quest_id, user_ids, now):
+    """Enroll user_ids into one quest (copying template tasks). Returns (title, enrolled, skipped)."""
+    from routes.quest_types import get_template_tasks
+
+    quest = admin.table('quests').select('id, title').eq('id', quest_id).execute()
+    if not quest.data:
+        raise NotFoundError(f"Quest {quest_id} not found")
+    quest_title = quest.data[0].get('title', 'Quest')
+
+    template_tasks = get_template_tasks(quest_id, filter_type='all') or []
+
+    existing = admin.table('user_quests')\
+        .select('user_id').eq('quest_id', quest_id).in_('user_id', user_ids).execute()
+    already_enrolled = {r['user_id'] for r in (existing.data or [])}
+
+    enrolled = 0
+    for student_id in user_ids:
+        if student_id in already_enrolled:
+            continue
+        insert_result = admin.table('user_quests').insert({
+            'user_id': student_id, 'quest_id': quest_id, 'status': 'picked_up',
+            'is_active': True, 'times_picked_up': 1, 'last_picked_up_at': now, 'started_at': now,
+        }).execute()
+        enrolled += 1
+
+        if template_tasks and insert_result.data:
+            user_quest_id = insert_result.data[0]['id']
+            tasks_to_insert = [{
+                'user_id': student_id, 'quest_id': quest_id, 'user_quest_id': user_quest_id,
+                'title': t['title'], 'description': t.get('description', ''), 'pillar': t['pillar'],
+                'xp_value': t.get('xp_value', 100), 'order_index': t.get('order_index', 0),
+                'is_required': t.get('is_required', False), 'is_manual': False,
+                'approval_status': 'approved',
+                'diploma_subjects': t.get('diploma_subjects', ['Electives']),
+                'subject_xp_distribution': t.get('subject_xp_distribution'),
+                'source_template_task_id': t.get('id'), 'source_task_id': t.get('id'),
+            } for t in template_tasks]
+            try:
+                admin.table('user_quest_tasks').insert(tasks_to_insert).execute()
+            except Exception as task_err:
+                logger.error(
+                    f"Error copying template tasks for student {student_id} on quest {quest_id}: {task_err}",
+                    exc_info=True,
+                )
+    return quest_title, enrolled, len(already_enrolled)
+
+
 @advisor_bp.route('/invite-to-quest', methods=['POST'])
 @require_role('advisor', 'org_admin', 'superadmin')
 def assign_students_to_quest(user_id):
-    """Directly assign students to a quest (adds it to their quest library)"""
+    """
+    Directly assign students to one or more quests (adds them to each student's
+    library). Accepts either `quest_id` (single) or `quest_ids` (array) — D1 batch
+    select — plus a `user_ids` array.
+    """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
 
-        if 'quest_id' not in data:
-            raise ValidationError("Missing required field: quest_id")
+        # D1: support batch quest selection while staying backward-compatible.
+        quest_ids = data.get('quest_ids')
+        if not quest_ids:
+            quest_ids = [data['quest_id']] if data.get('quest_id') else []
+        if not quest_ids:
+            raise ValidationError("Missing required field: quest_id or quest_ids")
 
         if 'user_ids' not in data or not isinstance(data['user_ids'], list):
             raise ValidationError("Missing or invalid field: user_ids (must be array)")
-
         if len(data['user_ids']) == 0:
             raise ValidationError("user_ids array cannot be empty")
 
         from database import get_supabase_admin_client
         from datetime import datetime
-        from routes.quest_types import get_template_tasks
-        # admin client justified: @require_role('advisor', 'org_admin', 'superadmin') gate above; advisor writing user_quests rows for OTHER students requires cross-user write
+        # admin client justified: @require_role gate above; advisor writing user_quests rows for OTHER students requires cross-user write
         admin = get_supabase_admin_client()
-
-        quest_id = data['quest_id']
-
-        # Verify quest exists
-        quest = admin.table('quests').select('id, title').eq('id', quest_id).execute()
-        if not quest.data:
-            raise NotFoundError(f"Quest {quest_id} not found")
-
-        quest_title = quest.data[0].get('title', 'Quest')
-
-        # Fetch quest template tasks once — copied into user_quest_tasks for each
-        # newly-enrolled student so they see the same tasks the normal enrollment
-        # flow gives self-enrolled students (see routes/quest/enrollment.py).
-        template_tasks = get_template_tasks(quest_id, filter_type='all') or []
-
-        # Get existing enrollments to skip duplicates
-        existing = admin.table('user_quests')\
-            .select('user_id')\
-            .eq('quest_id', quest_id)\
-            .in_('user_id', data['user_ids'])\
-            .execute()
-
-        already_enrolled = {r['user_id'] for r in (existing.data or [])}
-
-        enrolled = 0
-        skipped = len(already_enrolled)
         now = datetime.utcnow().isoformat()
 
-        for student_id in data['user_ids']:
-            if student_id in already_enrolled:
-                continue
+        total_enrolled, total_skipped, titles = 0, 0, []
+        for qid in quest_ids:
+            title, enrolled, skipped = _assign_one_quest(admin, qid, data['user_ids'], now)
+            titles.append(title)
+            total_enrolled += enrolled
+            total_skipped += skipped
 
-            insert_result = admin.table('user_quests').insert({
-                'user_id': student_id,
-                'quest_id': quest_id,
-                'status': 'picked_up',
-                'is_active': True,
-                'times_picked_up': 1,
-                'last_picked_up_at': now,
-                'started_at': now,
-            }).execute()
-            enrolled += 1
-
-            if template_tasks and insert_result.data:
-                user_quest_id = insert_result.data[0]['id']
-                tasks_to_insert = [{
-                    'user_id': student_id,
-                    'quest_id': quest_id,
-                    'user_quest_id': user_quest_id,
-                    'title': t['title'],
-                    'description': t.get('description', ''),
-                    'pillar': t['pillar'],
-                    'xp_value': t.get('xp_value', 100),
-                    'order_index': t.get('order_index', 0),
-                    'is_required': t.get('is_required', False),
-                    'is_manual': False,
-                    'approval_status': 'approved',
-                    'diploma_subjects': t.get('diploma_subjects', ['Electives']),
-                    'subject_xp_distribution': t.get('subject_xp_distribution'),
-                    'source_template_task_id': t.get('id'),
-                    'source_task_id': t.get('id'),
-                } for t in template_tasks]
-
-                try:
-                    admin.table('user_quest_tasks').insert(tasks_to_insert).execute()
-                except Exception as task_err:
-                    logger.error(
-                        f"Error copying template tasks for student {student_id} on quest {quest_id}: {task_err}",
-                        exc_info=True,
-                    )
-
-        logger.info(f"Advisor {user_id} assigned {enrolled} students to quest {quest_id} (skipped {skipped} already enrolled, {len(template_tasks)} template tasks per student)")
+        logger.info(f"Advisor {user_id} assigned {total_enrolled} enrollments across {len(quest_ids)} quest(s) (skipped {total_skipped})")
 
         return jsonify({
             'success': True,
-            'enrolled': enrolled,
-            'skipped': skipped,
-            'quest_title': quest_title,
+            'enrolled': total_enrolled,
+            'skipped': total_skipped,
+            'quest_count': len(quest_ids),
+            'quest_title': titles[0] if len(titles) == 1 else f"{len(titles)} quests",
         }), 201
 
     except ValidationError as e:

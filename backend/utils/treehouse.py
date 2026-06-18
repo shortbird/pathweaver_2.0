@@ -31,14 +31,42 @@ def is_treehouse_member(client, user_id):
     return bool(u.data) and u.data[0].get('organization_id') == org_id
 
 
+def facilitators_for_student(client, org_id, student_id):
+    """
+    Facilitator user-ids to notify about a student's activity (A1 — cohort scoping).
+
+    All org_admins, plus the advisors assigned to the student's active cohort(s).
+    Falls back to all advisors when the student has no cohort, or the cohort has no
+    assigned advisor yet, so nothing is silently dropped during setup.
+    """
+    facs = client.table('users').select('id, org_role, org_roles').eq('organization_id', org_id).execute().data or []
+    admins, advisors = set(), set()
+    for f in facs:
+        roles = set([f.get('org_role')]) | set(f.get('org_roles') or [])
+        if 'org_admin' in roles:
+            admins.add(f['id'])
+        elif 'advisor' in roles:
+            advisors.add(f['id'])
+    enr = (client.table('class_enrollments').select('class_id')
+           .eq('student_id', student_id).eq('status', 'active').execute().data or [])
+    class_ids = [e['class_id'] for e in enr]
+    assigned = set()
+    if class_ids:
+        ca = (client.table('class_advisors').select('advisor_id')
+              .in_('class_id', class_ids).eq('is_active', True).execute().data or [])
+        assigned = {r['advisor_id'] for r in ca} & advisors
+    # Cohort-assigned advisors if any, else every advisor (fallback); admins always.
+    return list(admins | (assigned if assigned else advisors))
+
+
 def notify_facilitators_of_completion(client, notifications, student_id, org_id,
                                       task_title, quest_completed, quest_title=None):
-    """Notify all Treehouse facilitators (org_admin/advisor) that a student completed work."""
+    """Notify the student's Treehouse facilitators (cohort-scoped) that they completed work."""
     s = client.table('users').select('first_name, display_name').eq('id', student_id).limit(1).execute()
     sname = 'A student'
     if s.data:
         sname = s.data[0].get('first_name') or s.data[0].get('display_name') or sname
-    facs = client.table('users').select('id, org_role, org_roles').eq('organization_id', org_id).execute().data or []
+    target_ids = facilitators_for_student(client, org_id, student_id)
     if quest_completed:
         ntype = 'treehouse_quest_completed'
         title = f"{sname} finished a quest!"
@@ -47,13 +75,11 @@ def notify_facilitators_of_completion(client, notifications, student_id, org_id,
         ntype = 'treehouse_task_completed'
         title = f"{sname} completed a task"
         message = task_title or 'A task was completed.'
-    for f in facs:
-        roles = set([f.get('org_role')]) | set(f.get('org_roles') or [])
-        if roles & {'org_admin', 'advisor'}:
-            try:
-                notifications.create_notification(
-                    user_id=f['id'], notification_type=ntype, title=title, message=message,
-                    link='/treehouse/facilitator', organization_id=org_id,
-                    metadata={'student_id': student_id})
-            except Exception:
-                pass
+    for fid in target_ids:
+        try:
+            notifications.create_notification(
+                user_id=fid, notification_type=ntype, title=title, message=message,
+                link='/treehouse/facilitator', organization_id=org_id,
+                metadata={'student_id': student_id})
+        except Exception:
+            pass

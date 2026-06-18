@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.pillar_utils import normalize_pillar_name
-from services.ai_gen import generate_with_timeout
 
 from utils.logger import get_logger
 
@@ -288,6 +287,9 @@ class PersonalizationService(BaseService):
                     'error': 'Quest not found'
                 }
 
+            # Load the parent course so tasks are grounded in the full course context
+            course_context = self._get_course_context(quest_id)
+
             # Build personalization prompt
             prompt = self._build_personalization_prompt(
                 quest.data,
@@ -297,11 +299,13 @@ class PersonalizationService(BaseService):
                 exclude_tasks=exclude_tasks or [],
                 additional_feedback=additional_feedback,
                 vision_statement=vision_statement,
-                age_band=age_band
+                age_band=age_band,
+                course_context=course_context
             )
 
-            # Generate tasks using AI service
-            result = generate_with_timeout(self.ai_service.model, prompt)
+            # Generate tasks using AI service (falls back to alternate models on
+            # transient "high demand" 503s so the user doesn't see the error)
+            result = self.ai_service.generate_with_fallback(prompt)
 
             if not result or not result.text:
                 return {
@@ -408,7 +412,7 @@ class PersonalizationService(BaseService):
             Return as JSON with fields: title, description, pillar, xp_value, evidence_prompt
             """
 
-            result = generate_with_timeout(self.ai_service.model, prompt)
+            result = self.ai_service.generate_with_fallback(prompt)
             refined_task = self.ai_service._parse_quest_response(result.text)
 
             # Validate refined task
@@ -634,6 +638,61 @@ class PersonalizationService(BaseService):
                 'error': str(e)
             }
 
+    def _get_course_context(self, quest_id: str) -> Optional[Dict]:
+        """
+        Load the course this project belongs to, plus this project's lessons, so
+        generated tasks can be grounded in the full course. Returns None if the
+        quest is not part of any course.
+        """
+        try:
+            cq = self.supabase.table('course_quests')\
+                .select('course_id')\
+                .eq('quest_id', quest_id)\
+                .limit(1)\
+                .execute()
+            if not cq.data:
+                return None
+
+            course_id = cq.data[0]['course_id']
+            course = self.supabase.table('courses')\
+                .select('title, description, learning_outcomes, final_deliverable')\
+                .eq('id', course_id)\
+                .single()\
+                .execute()
+            if not course.data:
+                return None
+
+            lessons = self.supabase.table('curriculum_lessons')\
+                .select('title, sequence_order')\
+                .eq('quest_id', quest_id)\
+                .order('sequence_order')\
+                .execute()
+
+            return {
+                'course_title': course.data.get('title'),
+                'course_description': course.data.get('description'),
+                'learning_outcomes': course.data.get('learning_outcomes'),
+                'final_deliverable': course.data.get('final_deliverable'),
+                'lesson_titles': [l['title'] for l in (lessons.data or []) if l.get('title')],
+            }
+        except Exception as e:
+            logger.warning(f"Could not load course context for quest {quest_id}: {e}")
+            return None
+
+    @staticmethod
+    def _format_outcomes(outcomes) -> str:
+        """Format course learning_outcomes (jsonb list/dict/str) as bullet lines."""
+        if not outcomes:
+            return ''
+        items = []
+        if isinstance(outcomes, list):
+            items = [str(o).strip() for o in outcomes if str(o).strip()]
+        elif isinstance(outcomes, dict):
+            items = [str(v).strip() for v in outcomes.values() if str(v).strip()]
+        elif isinstance(outcomes, str):
+            items = [outcomes.strip()] if outcomes.strip() else []
+        return '\n'.join(f"- {item}" for item in items[:10])
+
     def _build_personalization_prompt(
         self,
         quest: Dict,
@@ -643,17 +702,48 @@ class PersonalizationService(BaseService):
         exclude_tasks: List[str] = None,
         additional_feedback: str = '',
         vision_statement: str = '',
-        age_band: str = None
+        age_band: str = None,
+        course_context: Dict = None
     ) -> str:
         """Build AI prompt for personalized task generation.
 
         age_band (optional) tailors developmental difficulty + reading level for
         young learners (e.g. The Treehouse). When omitted the default high-school
         guidance is used, so existing behavior is unchanged.
+
+        course_context (optional) grounds the tasks in the parent course (its
+        title, overview, deliverable, learning outcomes, and this project's
+        lessons) so generated tasks fit the course rather than the project alone.
         """
 
         quest_title = quest['title']
         quest_description = quest.get('big_idea') or quest.get('description', '')
+
+        # Course context — anchors the tasks in the course this project belongs to
+        course_context_text = ''
+        if course_context:
+            parts = []
+            if course_context.get('course_title'):
+                parts.append(f"This project is part of the course \"{course_context['course_title']}\".")
+            if course_context.get('course_description'):
+                parts.append(f"Course overview: {course_context['course_description']}")
+            if course_context.get('final_deliverable'):
+                parts.append(f"What the student ultimately builds in this course: {course_context['final_deliverable']}")
+            outcomes = course_context.get('learning_outcomes')
+            outcomes_text = self._format_outcomes(outcomes)
+            if outcomes_text:
+                parts.append(f"Course learning outcomes:\n{outcomes_text}")
+            lessons = course_context.get('lesson_titles') or []
+            if lessons:
+                parts.append("Lessons in this project: " + ', '.join(lessons))
+            if parts:
+                course_context_text = (
+                    "\n\nCOURSE CONTEXT (ground every task in this course):\n"
+                    + '\n'.join(parts)
+                    + "\nThe tasks you generate must directly help the student progress in this course "
+                    "and apply what these lessons teach. Stay on-topic for the course; do not drift into "
+                    "unrelated subjects except where the student's chosen interests connect naturally."
+                )
 
         # Format interests
         interests_text = ', '.join(interests) if interests else 'general learning'
@@ -723,6 +813,7 @@ PRIORITY REQUIREMENT: The student specifically wants to earn diploma credits in 
 You are helping a student personalize their learning quest: "{quest_title}".
 
 Quest Description: {quest_description}
+{course_context_text}
 
 Student's Selected Approach: {approach_desc}
 

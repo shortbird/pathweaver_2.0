@@ -70,7 +70,7 @@ describe('PartnerEnrollStudentPage', () => {
     expect(api.post).not.toHaveBeenCalled()
   })
 
-  it('submits selected course_ids and shows credentials for a new account', async () => {
+  it('submits selected course_ids and confirms the email without showing credentials', async () => {
     api.post.mockResolvedValue({
       data: {
         success: true,
@@ -103,7 +103,10 @@ describe('PartnerEnrollStudentPage', () => {
     ))
 
     expect(await screen.findByText(/is registered/i)).toBeInTheDocument()
-    expect(screen.getByText('TempPass123!')).toBeInTheDocument()
+    // The temp password is emailed to the student, never shown to the admin
+    expect(screen.queryByText('TempPass123!')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Temporary Password/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/email with everything they need was sent/i)).toBeInTheDocument()
   })
 
   it('shows the returning-student path without credentials', async () => {

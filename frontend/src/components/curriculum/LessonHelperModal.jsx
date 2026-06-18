@@ -114,7 +114,7 @@ const LessonHelperModal = ({
         action_type: actionType
       };
 
-      const apiResponse = await api.post('/api/tutor/chat', payload);
+      const apiResponse = await api.post('/api/lesson-helper/chat', payload);
       const responseData = apiResponse.data.data || apiResponse.data;
 
       setResponse(responseData.response);

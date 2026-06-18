@@ -1,17 +1,18 @@
 /**
  * The Treehouse facilitator dashboard (/treehouse/facilitator).
  *
- * Tabbed: Signals (help/proud queue), Pins (ready-to-create + mark created),
- * Showcase (create events + view roster), Kiosk (provision a shared-device token).
- * All endpoints require facilitator role, enforced server-side.
+ * Tabs: Signals (help/proud queue), Pins (ready-to-create + mark created),
+ * Showcase (create/edit events + roster), Balances (coins), Capture (phone
+ * photo → tag students), Cohorts (admin: assign facilitators + enroll), Kiosk.
+ * All endpoints require facilitator role, enforced server-side. Signals/Pins/
+ * Balances/Capture are cohort-scoped: advisors see only their cohorts' students.
  */
 import React, { useEffect, useState, useCallback } from 'react'
 import { Navigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
-import { treehouseAPI } from '../../services/api'
-
-const TABS = ['Signals', 'Pins', 'Showcase', 'Balances', 'Kiosk']
+import api, { treehouseAPI } from '../../services/api'
+import CreateUsernameStudentModal from '../../components/organization/CreateUsernameStudentModal'
 
 // Facilitator = org_admin/advisor (or superadmin). Students who land here (e.g. a
 // stale link) are bounced back to their home instead of hitting 403s.
@@ -19,16 +20,23 @@ const isFacilitator = (role, user) => {
   const roles = new Set([role, user?.org_role, ...(user?.org_roles || [])])
   return user?.role === 'superadmin' || roles.has('org_admin') || roles.has('advisor') || roles.has('superadmin')
 }
+const isAdmin = (role, user) => {
+  const roles = new Set([role, user?.org_role, ...(user?.org_roles || [])])
+  return user?.role === 'superadmin' || roles.has('org_admin') || roles.has('superadmin')
+}
 
-function SignalsTab() {
+const studentLabel = (s) => s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student'
+
+function SignalsTab({ cohortId }) {
   const [signals, setSignals] = useState([])
   const [loading, setLoading] = useState(true)
   const load = useCallback(() => {
-    treehouseAPI.signals()
+    setLoading(true)
+    treehouseAPI.signals(cohortId)
       .then(({ data }) => setSignals(data.signals || []))
       .catch(() => toast.error('Could not load signals'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [cohortId])
   useEffect(() => { load() }, [load])
 
   const resolve = async (id) => {
@@ -59,16 +67,17 @@ function SignalsTab() {
   )
 }
 
-function PinsTab() {
+function PinsTab({ cohortId }) {
   const [data, setData] = useState({ ready: [], marked: [] })
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState({})
   const load = useCallback(() => {
-    treehouseAPI.pins()
+    setLoading(true)
+    treehouseAPI.pins(cohortId)
       .then(({ data }) => setData(data))
       .catch(() => toast.error('Could not load pins'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [cohortId])
   useEffect(() => { load() }, [load])
 
   const toggle = (key) => setSelected(s => ({ ...s, [key]: !s[key] }))
@@ -134,7 +143,6 @@ function EventRoster({ eventId }) {
 
   const onRoster = new Set((roster?.participants || []).map(p => p.student_id))
   const available = students.filter(s => !onRoster.has(s.id))
-  const label = (s) => s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student'
 
   const add = async () => {
     if (!pick) return
@@ -167,7 +175,7 @@ function EventRoster({ eventId }) {
         <select value={pick} onChange={e => setPick(e.target.value)}
           className="rounded-lg border border-neutral-200 px-2 py-1.5 text-sm">
           <option value="">Add a student…</option>
-          {available.map(s => <option key={s.id} value={s.id}>{label(s)}</option>)}
+          {available.map(s => <option key={s.id} value={s.id}>{studentLabel(s)}</option>)}
         </select>
         <input value={projectTitle} onChange={e => setProjectTitle(e.target.value)} placeholder="Project title (optional)"
           className="flex-1 min-w-[10rem] rounded-lg border border-neutral-200 px-2 py-1.5 text-sm" />
@@ -180,35 +188,61 @@ function EventRoster({ eventId }) {
   )
 }
 
+const emptyShowcaseForm = { title: '', theme: '', showcase_date: '', ideas: '' }
+
 function ShowcaseTab() {
   const [events, setEvents] = useState([])
-  const [form, setForm] = useState({ title: '', theme: '', showcase_date: '', ideas: '' })
+  const [form, setForm] = useState(emptyShowcaseForm)
+  const [editingId, setEditingId] = useState(null)   // J1: id being edited, or null for create
+  const [scope, setScope] = useState('upcoming')      // J2: upcoming | past
   const [loading, setLoading] = useState(true)
   const [openRoster, setOpenRoster] = useState(null)
+
   const load = useCallback(() => {
-    treehouseAPI.showcaseEvents()
+    setLoading(true)
+    treehouseAPI.showcaseEvents(scope)
       .then(({ data }) => setEvents(data.events || []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [scope])
   useEffect(() => { load() }, [load])
 
-  const create = async (e) => {
+  const resetForm = () => { setForm(emptyShowcaseForm); setEditingId(null) }
+
+  const startEdit = (ev) => {
+    setEditingId(ev.id)
+    setForm({
+      title: ev.title || '', theme: ev.theme || '', showcase_date: ev.showcase_date || '',
+      ideas: (ev.prompts || []).join('\n'),
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const submit = async (e) => {
     e.preventDefault()
     if (!form.title.trim()) return toast('Add a title')
     // One project idea per line → array of prompts students see for inspiration.
     const prompts = form.ideas.split('\n').map(s => s.trim()).filter(Boolean)
+    const body = { title: form.title, theme: form.theme, showcase_date: form.showcase_date, prompts }
     try {
-      await treehouseAPI.createShowcase({
-        title: form.title, theme: form.theme, showcase_date: form.showcase_date, prompts,
-      })
-      setForm({ title: '', theme: '', showcase_date: '', ideas: '' }); load(); toast.success('Showcase created')
-    } catch { toast.error('Could not create') }
+      if (editingId) {
+        await treehouseAPI.updateShowcase(editingId, body)
+        toast.success('Showcase updated')
+      } else {
+        await treehouseAPI.createShowcase(body)
+        toast.success('Showcase created')
+      }
+      resetForm(); load()
+    } catch { toast.error('Could not save') }
   }
 
   return (
     <div>
-      <form onSubmit={create} className="rounded-xl bg-white border border-neutral-100 p-4 space-y-3">
+      <form onSubmit={submit} className="rounded-xl bg-white border border-neutral-100 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-neutral-800">{editingId ? 'Edit showcase' : 'New showcase'}</h3>
+          {editingId && <button type="button" onClick={resetForm} className="text-sm text-neutral-500">Cancel edit</button>}
+        </div>
         <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Showcase title"
           className="w-full rounded-lg border border-neutral-200 px-3 py-2" />
         <input value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} placeholder="Theme (optional)"
@@ -218,42 +252,59 @@ function ShowcaseTab() {
         <textarea value={form.ideas} onChange={e => setForm({ ...form, ideas: e.target.value })}
           placeholder="Suggested project ideas (one per line) — students see these for inspiration"
           rows={3} className="w-full rounded-lg border border-neutral-200 px-3 py-2" />
-        <button className="text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 rounded-lg">Create showcase</button>
+        <button className="text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 rounded-lg">
+          {editingId ? 'Save changes' : 'Create showcase'}
+        </button>
       </form>
+
+      <div className="flex gap-2 mt-4">
+        {['upcoming', 'past'].map(s => (
+          <button key={s} onClick={() => setScope(s)}
+            className={`text-sm font-semibold px-3 py-1.5 rounded-lg ${scope === s ? 'bg-optio-purple text-white' : 'bg-neutral-100 text-neutral-600'}`}>
+            {s === 'upcoming' ? 'Upcoming' : 'Past'}
+          </button>
+        ))}
+      </div>
+
       {loading ? <p className="text-neutral-400 mt-4">Loading…</p> : (
         <ul className="mt-4 space-y-2">
           {events.map((ev) => (
             <li key={ev.id} className="rounded-lg bg-white border border-neutral-100 p-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-neutral-900">{ev.title}</p>
+                  <p className="font-semibold text-neutral-900">{ev.title} {ev.is_past && <span className="text-xs text-neutral-400">(past)</span>}</p>
                   <p className="text-sm text-neutral-500">
                     {ev.theme ? `${ev.theme} · ` : ''}{ev.showcase_date || 'No date'} · {ev.participant_count} presenter(s)
                   </p>
                 </div>
-                <button onClick={() => setOpenRoster(openRoster === ev.id ? null : ev.id)}
-                  className="text-sm font-semibold text-optio-purple px-3 py-1.5 rounded-lg border border-optio-purple/30">
-                  {openRoster === ev.id ? 'Hide roster' : 'View roster'}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => startEdit(ev)}
+                    className="text-sm font-semibold text-neutral-600 px-3 py-1.5 rounded-lg border border-neutral-200">Edit</button>
+                  <button onClick={() => setOpenRoster(openRoster === ev.id ? null : ev.id)}
+                    className="text-sm font-semibold text-optio-purple px-3 py-1.5 rounded-lg border border-optio-purple/30">
+                    {openRoster === ev.id ? 'Hide roster' : 'View roster'}
+                  </button>
+                </div>
               </div>
               {openRoster === ev.id && <EventRoster eventId={ev.id} />}
             </li>
           ))}
-          {events.length === 0 && <p className="text-neutral-400">No showcases yet.</p>}
+          {events.length === 0 && <p className="text-neutral-400">No {scope} showcases.</p>}
         </ul>
       )}
     </div>
   )
 }
 
-function BalancesTab() {
+function BalancesTab({ cohortId }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [drafts, setDrafts] = useState({})
 
   const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const { data } = await treehouseAPI.students()
+      const { data } = await treehouseAPI.students(cohortId)
       const students = data.students || []
       const withBalances = await Promise.all(students.map(async (s) => {
         try {
@@ -269,22 +320,23 @@ function BalancesTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [cohortId])
   useEffect(() => { load() }, [load])
 
   const adjust = async (studentId, amount) => {
     if (!amount) return
     try {
-      const { data } = await treehouseAPI.adjustBalance(studentId, amount)
-      setRows(rs => rs.map(r => r.id === studentId ? { ...r, spendable_xp: data.spendable_xp } : r))
+      await treehouseAPI.adjustBalance(studentId, amount)
+      // K1: re-fetch the authoritative balance from the server so the row reflects
+      // what actually persisted (not just the optimistic response).
+      const { data: b } = await treehouseAPI.balance(studentId)
+      setRows(rs => rs.map(r => r.id === studentId ? { ...r, spendable_xp: b.spendable_xp } : r))
       setDrafts(d => ({ ...d, [studentId]: '' }))
       toast.success('Balance updated')
     } catch {
       toast.error('Could not update balance')
     }
   }
-
-  const label = (s) => s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student'
 
   if (loading) return <p className="text-neutral-400">Loading…</p>
   if (rows.length === 0) return <p className="text-neutral-400">No students yet.</p>
@@ -293,7 +345,7 @@ function BalancesTab() {
       {rows.map((s) => (
         <li key={s.id} className="flex items-center justify-between gap-3 rounded-lg bg-white border border-neutral-100 p-3">
           <div className="min-w-0">
-            <p className="font-medium text-neutral-900 truncate">{label(s)}</p>
+            <p className="font-medium text-neutral-900 truncate">{studentLabel(s)}</p>
             <p className="text-sm text-amber-700 font-semibold">🪙 {s.spendable_xp ?? '—'}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -314,6 +366,297 @@ function BalancesTab() {
         </li>
       ))}
     </ul>
+  )
+}
+
+// G1: facilitator phone capture — one photo (+caption) tagged to one or many students.
+function CaptureTab({ cohortId }) {
+  const [students, setStudents] = useState([])
+  const [tagged, setTagged] = useState({})
+  const [caption, setCaption] = useState('')
+  const [files, setFiles] = useState([])       // File objects
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    treehouseAPI.students(cohortId).then(({ data }) => setStudents(data.students || [])).catch(() => setStudents([]))
+  }, [cohortId])
+
+  const toggle = (id) => setTagged(t => ({ ...t, [id]: !t[id] }))
+  const taggedIds = Object.keys(tagged).filter(id => tagged[id])
+
+  const onFiles = (e) => setFiles(Array.from(e.target.files || []))
+
+  const submit = async () => {
+    if (taggedIds.length === 0) return toast('Tag at least one student')
+    if (files.length === 0 && !caption.trim()) return toast('Add a photo or a caption')
+    setBusy(true)
+    try {
+      let media = []
+      if (files.length > 0) {
+        const fd = new FormData()
+        files.forEach(f => fd.append('files', f))
+        const { data } = await api.post('/api/evidence', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        media = (data.files || []).map(f => ({
+          type: (f.content_type || '').startsWith('video') ? 'video' : 'image',
+          file_url: f.url, file_name: f.original_name || f.stored_name, file_size: f.size,
+        }))
+      }
+      const { data } = await treehouseAPI.capture({
+        student_ids: taggedIds, description: caption.trim() || null, media,
+      })
+      toast.success(`Saved to ${data.count} student${data.count === 1 ? '' : 's'}`)
+      setCaption(''); setFiles([]); setTagged({})
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not save capture')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="max-w-xl space-y-4">
+      <p className="text-neutral-600 text-sm">Snap a photo, tag the students it belongs to, and it lands in each
+        student's journal. Tip: capture throughout the day, then tag and save.</p>
+
+      <label className="block">
+        <span className="text-sm font-semibold text-neutral-700">Photo(s)</span>
+        {/* capture="environment" opens the device camera directly on phones/tablets */}
+        <input type="file" accept="image/*,video/*" capture="environment" multiple onChange={onFiles}
+          className="mt-1 block w-full text-sm" />
+      </label>
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {files.map((f, i) => (
+            <span key={i} className="text-xs bg-neutral-100 rounded px-2 py-1">{f.name}</span>
+          ))}
+        </div>
+      )}
+
+      <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={2}
+        placeholder="Add a note (optional)" className="w-full rounded-lg border border-neutral-200 px-3 py-2" />
+
+      <div>
+        <p className="text-sm font-semibold text-neutral-700 mb-1">Tag students ({taggedIds.length})</p>
+        <div className="max-h-56 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
+          {students.map(s => (
+            <label key={s.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">
+              <input type="checkbox" checked={!!tagged[s.id]} onChange={() => toggle(s.id)} className="w-5 h-5 accent-purple-600" />
+              <span className="text-neutral-900">{studentLabel(s)}</span>
+            </label>
+          ))}
+          {students.length === 0 && <p className="text-neutral-400 p-3 text-sm">No students in this cohort.</p>}
+        </div>
+      </div>
+
+      <button onClick={submit} disabled={busy}
+        className="w-full text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2.5 rounded-lg disabled:opacity-50">
+        {busy ? 'Saving…' : 'Save to journals'}
+      </button>
+    </div>
+  )
+}
+
+// D1 in-dashboard: batch-assign one or more quests to one or more students.
+function AssignTab({ cohortId }) {
+  const [quests, setQuests] = useState([])
+  const [students, setStudents] = useState([])
+  const [pickedQuests, setPickedQuests] = useState({})
+  const [pickedStudents, setPickedStudents] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    treehouseAPI.students(cohortId).then(({ data }) => setStudents(data.students || [])).catch(() => setStudents([]))
+  }, [cohortId])
+  useEffect(() => {
+    treehouseAPI.quests()
+      .then(({ data }) => {
+        const flat = [...(data.categories || []).flatMap(c => c.quests || []), ...(data.uncategorized || [])]
+        // De-dupe (a quest can appear under one category only, but be safe).
+        const seen = new Set()
+        setQuests(flat.filter(q => !seen.has(q.id) && seen.add(q.id)))
+      })
+      .catch(() => setQuests([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const toggle = (setter) => (id) => setter(s => ({ ...s, [id]: !s[id] }))
+  const questIds = Object.keys(pickedQuests).filter(id => pickedQuests[id])
+  const studentIds = Object.keys(pickedStudents).filter(id => pickedStudents[id])
+
+  const assign = async () => {
+    if (questIds.length === 0) return toast('Pick at least one quest')
+    if (studentIds.length === 0) return toast('Pick at least one student')
+    setBusy(true)
+    try {
+      const { data } = await api.post('/api/advisor/invite-to-quest', { quest_ids: questIds, user_ids: studentIds })
+      toast.success(`Assigned ${data.enrolled} enrollment(s) across ${data.quest_count} quest(s)`)
+      setPickedQuests({}); setPickedStudents({})
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not assign')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading) return <p className="text-neutral-400">Loading…</p>
+  return (
+    <div className="grid sm:grid-cols-2 gap-4">
+      <div>
+        <p className="text-sm font-semibold text-neutral-700 mb-1">Quests ({questIds.length})</p>
+        <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
+          {quests.map(q => (
+            <label key={q.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">
+              <input type="checkbox" checked={!!pickedQuests[q.id]} onChange={() => toggle(setPickedQuests)(q.id)} className="w-5 h-5 accent-purple-600" />
+              <span className="text-neutral-900 text-sm">{q.title}</span>
+            </label>
+          ))}
+          {quests.length === 0 && <p className="text-neutral-400 p-3 text-sm">No quests yet.</p>}
+        </div>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-neutral-700 mb-1">Students ({studentIds.length})</p>
+        <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
+          {students.map(s => (
+            <label key={s.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">
+              <input type="checkbox" checked={!!pickedStudents[s.id]} onChange={() => toggle(setPickedStudents)(s.id)} className="w-5 h-5 accent-purple-600" />
+              <span className="text-neutral-900 text-sm">{studentLabel(s)}</span>
+            </label>
+          ))}
+          {students.length === 0 && <p className="text-neutral-400 p-3 text-sm">No students in this cohort.</p>}
+        </div>
+      </div>
+      <div className="sm:col-span-2">
+        <button onClick={assign} disabled={busy}
+          className="w-full text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2.5 rounded-lg disabled:opacity-50">
+          {busy ? 'Assigning…' : `Assign ${questIds.length || ''} quest(s) to ${studentIds.length || ''} student(s)`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// A1 management: cohorts, facilitator assignment, enrollment, simplified UI toggle.
+function CohortsTab() {
+  const [cohorts, setCohorts] = useState([])
+  const [facilitators, setFacilitators] = useState([])
+  const [students, setStudents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [newName, setNewName] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [{ data: c }, { data: f }, { data: s }] = await Promise.all([
+        treehouseAPI.cohorts(), treehouseAPI.facilitators(), treehouseAPI.students(),
+      ])
+      setCohorts(c.cohorts || [])
+      setFacilitators(f.facilitators || [])
+      setStudents(s.students || [])
+    } catch {
+      toast.error('Could not load cohorts')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const createCohort = async () => {
+    if (!newName.trim()) return
+    try { await treehouseAPI.createCohort({ name: newName.trim() }); setNewName(''); load(); toast.success('Cohort created') }
+    catch { toast.error('Could not create cohort') }
+  }
+  const assignAdvisor = async (classId, advisorId) => {
+    if (!advisorId) return
+    try { await treehouseAPI.assignCohortAdvisor(classId, advisorId); load(); toast.success('Facilitator assigned') }
+    catch { toast.error('Could not assign') }
+  }
+  const removeAdvisor = async (classId, advisorId) => {
+    try { await treehouseAPI.removeCohortAdvisor(classId, advisorId); load() }
+    catch { toast.error('Could not remove') }
+  }
+  const enrollStudent = async (classId, studentId) => {
+    if (!studentId) return
+    try { await treehouseAPI.enrollCohortStudents(classId, [studentId]); load(); toast.success('Student enrolled') }
+    catch { toast.error('Could not enroll') }
+  }
+  const withdrawStudent = async (classId, studentId) => {
+    try { await treehouseAPI.withdrawCohortStudent(classId, studentId); load() }
+    catch { toast.error('Could not remove') }
+  }
+  const toggleSimple = async (c) => {
+    try { await treehouseAPI.updateCohort(c.id, { ui_mode: c.ui_mode === 'simple' ? null : 'simple' }); load() }
+    catch { toast.error('Could not update') }
+  }
+
+  if (loading) return <p className="text-neutral-400">Loading…</p>
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-2">
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New cohort name"
+          className="flex-1 rounded-lg border border-neutral-200 px-3 py-2" />
+        <button onClick={createCohort} className="text-sm font-semibold text-white bg-optio-purple px-4 py-2 rounded-lg">Add cohort</button>
+      </div>
+
+      {cohorts.map((c) => {
+        const advisorIds = new Set((c.advisors || []).map(a => a.id))
+        const enrolledIds = new Set(c.student_ids || [])
+        return (
+          <div key={c.id} className="rounded-xl bg-white border border-neutral-100 p-4">
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-neutral-900">{c.name}</p>
+              <label className="flex items-center gap-2 text-sm text-neutral-600">
+                <input type="checkbox" checked={c.ui_mode === 'simple'} onChange={() => toggleSimple(c)} className="w-4 h-4 accent-purple-600" />
+                Simple (young-learner) UI
+              </label>
+            </div>
+
+            {/* Facilitators */}
+            <div className="mt-3">
+              <p className="text-sm font-semibold text-neutral-700">Facilitators</p>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                {(c.advisors || []).map(a => (
+                  <span key={a.id} className="text-sm bg-neutral-100 rounded-full px-3 py-1 flex items-center gap-2">
+                    {a.first_name || a.display_name || 'Facilitator'}
+                    <button onClick={() => removeAdvisor(c.id, a.id)} className="text-neutral-400 hover:text-red-500">×</button>
+                  </span>
+                ))}
+                <select defaultValue="" onChange={e => { assignAdvisor(c.id, e.target.value); e.target.value = '' }}
+                  className="rounded-lg border border-neutral-200 px-2 py-1 text-sm">
+                  <option value="">+ Assign facilitator…</option>
+                  {facilitators.filter(f => !advisorIds.has(f.id)).map(f => (
+                    <option key={f.id} value={f.id}>{f.first_name || f.display_name || f.id}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Students */}
+            <div className="mt-3">
+              <p className="text-sm font-semibold text-neutral-700">Students ({c.student_count})</p>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                {students.filter(s => enrolledIds.has(s.id)).map(s => (
+                  <span key={s.id} className="text-sm bg-neutral-100 rounded-full px-3 py-1 flex items-center gap-2">
+                    {studentLabel(s)}
+                    <button onClick={() => withdrawStudent(c.id, s.id)} className="text-neutral-400 hover:text-red-500">×</button>
+                  </span>
+                ))}
+                <select defaultValue="" onChange={e => { enrollStudent(c.id, e.target.value); e.target.value = '' }}
+                  className="rounded-lg border border-neutral-200 px-2 py-1 text-sm">
+                  <option value="">+ Enroll student…</option>
+                  {students.filter(s => !enrolledIds.has(s.id)).map(s => (
+                    <option key={s.id} value={s.id}>{studentLabel(s)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+      {cohorts.length === 0 && <p className="text-neutral-400">No cohorts yet. Add one above.</p>}
+    </div>
   )
 }
 
@@ -346,12 +689,36 @@ function KioskTab() {
 
 export default function TreehouseFacilitatorPage() {
   const { user, effectiveRole } = useAuth()
+  const admin = isAdmin(effectiveRole, user)
+  // Cohorts + Kiosk are admin-only; everyone else still sees the day-to-day tools.
+  const TABS = ['Signals', 'Pins', 'Assign', 'Showcase', 'Balances', 'Capture', ...(admin ? ['Cohorts', 'Kiosk'] : [])]
   const [tab, setTab] = useState('Signals')
+  const [cohorts, setCohorts] = useState([])
+  const [cohortId, setCohortId] = useState('')   // '' = all my students
+  const [showAddStudent, setShowAddStudent] = useState(false)
+
+  useEffect(() => {
+    treehouseAPI.cohorts().then(({ data }) => setCohorts(data.cohorts || [])).catch(() => setCohorts([]))
+  }, [])
+
   if (!isFacilitator(effectiveRole, user)) return <Navigate to="/treehouse" replace />
+
+  // The cohort filter applies to the per-student tabs only.
+  const showCohortFilter = ['Signals', 'Pins', 'Assign', 'Balances', 'Capture'].includes(tab)
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 font-poppins">
-      <h1 className="text-3xl font-bold text-neutral-900">Facilitator Dashboard</h1>
-      <div className="flex gap-2 mt-4 border-b border-neutral-200">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-3xl font-bold text-neutral-900">Facilitator Dashboard</h1>
+        {admin && (
+          <button onClick={() => setShowAddStudent(true)}
+            className="text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 rounded-lg">
+            + Add student
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-2 mt-4 border-b border-neutral-200 flex-wrap">
         {TABS.map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 font-semibold -mb-px border-b-2 ${tab === t ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500'}`}>
@@ -359,13 +726,37 @@ export default function TreehouseFacilitatorPage() {
           </button>
         ))}
       </div>
+
+      {showCohortFilter && cohorts.length > 0 && (
+        <div className="mt-4 flex items-center gap-2">
+          <label className="text-sm text-neutral-500">Cohort:</label>
+          <select value={cohortId} onChange={e => setCohortId(e.target.value)}
+            className="rounded-lg border border-neutral-200 px-2 py-1.5 text-sm">
+            <option value="">{admin ? 'All students' : 'My students'}</option>
+            {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+
       <div className="mt-6">
-        {tab === 'Signals' && <SignalsTab />}
-        {tab === 'Pins' && <PinsTab />}
+        {tab === 'Signals' && <SignalsTab cohortId={cohortId} />}
+        {tab === 'Pins' && <PinsTab cohortId={cohortId} />}
+        {tab === 'Assign' && <AssignTab cohortId={cohortId} />}
         {tab === 'Showcase' && <ShowcaseTab />}
-        {tab === 'Balances' && <BalancesTab />}
-        {tab === 'Kiosk' && <KioskTab />}
+        {tab === 'Balances' && <BalancesTab cohortId={cohortId} />}
+        {tab === 'Capture' && <CaptureTab cohortId={cohortId} />}
+        {tab === 'Cohorts' && admin && <CohortsTab />}
+        {tab === 'Kiosk' && admin && <KioskTab />}
       </div>
+
+      {showAddStudent && (
+        <CreateUsernameStudentModal
+          orgId={user?.organization_id}
+          orgSlug="treehouse"
+          onClose={() => setShowAddStudent(false)}
+          onSuccess={() => { setShowAddStudent(false); toast.success('Student added') }}
+        />
+      )}
     </div>
   )
 }

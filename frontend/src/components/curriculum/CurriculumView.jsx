@@ -112,6 +112,7 @@ const CurriculumView = ({
   onUnsavedChangesChange,
   onSaveProgress,
   onStepChange,
+  onExitToProject,
 }) => {
   // React Router location for detecting navigation
   const location = useLocation()
@@ -393,6 +394,12 @@ const CurriculumView = ({
       setCurrentStepIndex(currentStepIndex + 1)
       setHasUnsavedChanges(true)
       onStepChange?.(currentStepIndex + 1)
+    } else if (onExitToProject) {
+      // On the final step, "Continue" returns to the project homepage so the
+      // student can move on to the tasks.
+      setCompletedSteps(new Set([...completedSteps, currentStepIndex]))
+      setHasUnsavedChanges(true)
+      onExitToProject()
     }
   }
 
@@ -621,26 +628,35 @@ const CurriculumView = ({
                   )}
                 </div>
 
-                {/* Step Progress Indicators */}
+                {/* Section Progress Dots (replaces the "Step X of Y" counter) */}
                 {totalStepsWithTasks > 1 && (
-                  <div data-onboarding="step-indicators" className="flex items-center gap-2 mt-4 flex-wrap">
+                  <div data-onboarding="step-indicators" className="flex items-center gap-2.5 mt-4 flex-wrap">
                     {lessonSteps.map((step, index) => (
-                      <button key={step.id || index} onClick={() => goToStep(index)} className="flex items-center gap-1.5 group" title={step.title || `Step ${index + 1}`}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${completedSteps.has(index) ? 'bg-green-100 text-green-600 ring-2 ring-green-200' : index === currentStepIndex ? 'bg-optio-purple text-white ring-2 ring-optio-purple/30' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
-                          {completedSteps.has(index) ? <CheckCircleIcon className="w-5 h-5" /> : index + 1}
-                        </div>
+                      <button
+                        key={step.id || index}
+                        onClick={() => goToStep(index)}
+                        className="group p-1 -m-1"
+                        title={step.title || `Section ${index + 1}`}
+                        aria-label={step.title || `Section ${index + 1}`}
+                      >
+                        <span className={`block rounded-full transition-all ${
+                          index === currentStepIndex ? 'w-2.5 h-2.5 bg-optio-purple'
+                            : completedSteps.has(index) ? 'w-2 h-2 bg-green-500'
+                            : 'w-2 h-2 bg-gray-300 group-hover:bg-gray-400'}`} />
                       </button>
                     ))}
                     {hasTasksStep && (
-                      <button onClick={() => goToStep(totalSteps)} className="flex items-center gap-1.5 group" title="Practice Tasks">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${currentStepIndex === totalSteps ? 'bg-optio-purple text-white ring-2 ring-optio-purple/30' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                        </div>
+                      <button
+                        onClick={() => goToStep(totalSteps)}
+                        className="group p-1 -m-1"
+                        title="Practice Tasks"
+                        aria-label="Practice Tasks"
+                      >
+                        <span className={`block rounded-full transition-all ${
+                          currentStepIndex === totalSteps ? 'w-2.5 h-2.5 bg-optio-purple'
+                            : 'w-2 h-2 bg-gray-300 group-hover:bg-gray-400'}`} />
                       </button>
                     )}
-                    <span className="ml-2 text-sm text-gray-500">
-                      {currentStepIndex < totalSteps ? `Step ${currentStepIndex + 1} of ${totalSteps}` : hasTasksStep ? 'Tasks' : 'Complete'}
-                    </span>
                     {/* Age Adaptations Button - right aligned */}
                     {selectedLesson.content?.scaffolding && (selectedLesson.content.scaffolding.younger || selectedLesson.content.scaffolding.older) && (
                       <button

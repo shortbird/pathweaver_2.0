@@ -17,6 +17,7 @@ import {
   FireIcon,
   MapPinIcon
 } from '@heroicons/react/24/outline';
+import { isFocusMode } from '../../utils/treehouseFocus';
 
 const stripHtml = (html) => {
   if (!html) return '';
@@ -173,18 +174,22 @@ const QuestDetailHeader = ({
 
         {/* Content overlay */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          {/* Back button - absolute positioned */}
-          <button
-            onClick={handleBackClick}
-            className="absolute top-3 left-4 sm:left-6 lg:left-8 flex items-center gap-1.5 text-gray-700 hover:text-gray-900 transition-colors text-sm font-medium bg-white/90 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm min-h-[44px] touch-manipulation"
-            style={{ fontFamily: 'Poppins' }}
-          >
-            <ArrowLeftIcon className="w-4 h-4" />
-            <span>Back</span>
-          </button>
+          {/* Back button - absolute positioned. Hidden on a Treehouse kiosk
+              (focus mode), where the big purple "← Back" from the layout is the
+              single, child-friendly back control. */}
+          {!isFocusMode() && (
+            <button
+              onClick={handleBackClick}
+              className="absolute top-3 left-4 sm:left-6 lg:left-8 flex items-center gap-1.5 text-gray-700 hover:text-gray-900 transition-colors text-sm font-medium bg-white/90 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm min-h-[44px] touch-manipulation"
+              style={{ fontFamily: 'Poppins' }}
+            >
+              <ArrowLeftIcon className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+          )}
 
           {/* Title and XP badge - pt-14 clears the absolute positioned back button */}
-          <div className="max-w-xl sm:max-w-2xl pt-14 pb-2">
+          <div className={`max-w-xl sm:max-w-2xl pb-2 ${isFocusMode() ? 'pt-2' : 'pt-14'}`}>
             {totalXP > 0 && (
               <div className="inline-block mb-1 px-2 py-0.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-xs font-semibold shadow-sm">
                 {totalXP} XP

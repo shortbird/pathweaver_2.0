@@ -157,6 +157,55 @@ def delete_enrollment(user_id, quest_id):
         return jsonify({'error': str(e)}), 500
 
 
+@quest_lifecycle_bp.route('/quests/<quest_id>/archive', methods=['POST'])
+@require_auth
+def archive_enrollment(user_id, quest_id):
+    """
+    H1: non-destructively archive a quest enrollment. Unlike DELETE enrollment
+    (which reverses XP and loses progress), this KEEPS all progress + XP and just
+    hides the quest from the active list so the learner can focus.
+
+    Optional exit survey: {reason, feedback}. reason is a short code
+    (break | done | too_hard | too_easy | lost_interest | no_materials).
+    """
+    try:
+        from datetime import datetime, timezone
+        data = request.get_json() or {}
+        reason = (data.get('reason') or '').strip() or None
+        feedback = (data.get('feedback') or '').strip() or None
+        supabase = get_supabase_admin_client()
+        res = supabase.table('user_quests').update({
+            'archived_at': datetime.now(timezone.utc).isoformat(),
+            'archive_reason': reason,
+            'archive_feedback': feedback,
+            'is_active': False,
+        }).eq('user_id', user_id).eq('quest_id', quest_id).is_('completed_at', 'null').execute()
+        if not res.data:
+            return jsonify({'error': 'No active enrollment to archive'}), 404
+        return jsonify({'success': True, 'archived': len(res.data)}), 200
+    except Exception as e:
+        logger.error(f"Error archiving enrollment for quest {quest_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@quest_lifecycle_bp.route('/quests/<quest_id>/unarchive', methods=['POST'])
+@require_auth
+def unarchive_enrollment(user_id, quest_id):
+    """Restore an H1-archived enrollment back to the active list."""
+    try:
+        supabase = get_supabase_admin_client()
+        res = supabase.table('user_quests').update({
+            'archived_at': None, 'archive_reason': None, 'archive_feedback': None,
+            'is_active': True,
+        }).eq('user_id', user_id).eq('quest_id', quest_id).not_.is_('archived_at', 'null').execute()
+        if not res.data:
+            return jsonify({'error': 'No archived enrollment to restore'}), 404
+        return jsonify({'success': True, 'restored': len(res.data)}), 200
+    except Exception as e:
+        logger.error(f"Error unarchiving enrollment for quest {quest_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @quest_lifecycle_bp.route('/reflection-prompts', methods=['GET'])
 @require_auth
 def get_reflection_prompts(user_id):

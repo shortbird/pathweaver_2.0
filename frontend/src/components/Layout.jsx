@@ -4,11 +4,12 @@ import { useAuth } from '../contexts/AuthContext'
 import Sidebar from './navigation/Sidebar'
 import TopNavbar from './navigation/TopNavbar'
 import { isFocusMode, setFocusMode, FOCUS_EVENT } from '../utils/treehouseFocus'
+import { useKioskIdleTimeout } from '../hooks/useKioskIdleTimeout'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
 const Layout = () => {
-  const { isAuthenticated, effectiveRole } = useAuth()
+  const { isAuthenticated, effectiveRole, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -24,6 +25,17 @@ const Layout = () => {
       window.removeEventListener('storage', sync)
     }
   }, [])
+
+  // I1: on a shared kiosk device (focus mode), return to the student picker after
+  // a few minutes idle so a child who walks away doesn't leave their session open.
+  useKioskIdleTimeout({
+    enabled: focus,
+    timeoutMs: 3 * 60 * 1000,
+    onIdle: async () => {
+      try { await logout() } catch { /* logout self-handles */ }
+      window.location.replace('/treehouse-kiosk')
+    },
+  })
 
   if (focus) {
     const onHome = location.pathname === '/treehouse'

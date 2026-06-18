@@ -180,6 +180,30 @@ export const useDeleteEnrollment = () => {
 }
 
 /**
+ * Hook for non-destructively archiving an enrollment (H1). Keeps progress + XP,
+ * just hides the quest from the active list. Optional exit survey {reason, feedback}.
+ */
+export const useArchiveEnrollment = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: ['archiveEnrollment'],
+    mutationFn: async ({ questId, reason, feedback }) => {
+      const response = await api.post(`/api/quests/${questId}/archive`, { reason, feedback })
+      return response.data
+    },
+    onSuccess: () => {
+      queryKeys.invalidateQuests(queryClient)
+      queryClient.invalidateQueries(queryKeys.user.dashboard())
+      toast.success('Quest archived — your progress is saved')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to archive quest')
+    },
+  })
+}
+
+/**
  * Hook for ending/finishing a quest
  */
 export const useEndQuest = () => {

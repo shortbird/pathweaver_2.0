@@ -30,7 +30,7 @@ import {
   StepAttachments
 } from './content'
 import AddTaskWizard from './AddTaskWizard'
-import LessonHelperModal from './LessonHelperModal'
+import LessonCommandPalette from './LessonCommandPalette'
 import SuggestedTasksModal from './SuggestedTasksModal'
 
 import { useAIAccess } from '../../contexts/AIAccessContext'
@@ -56,7 +56,6 @@ export const LessonSlideViewer = ({
 }) => {
   const location = useLocation()
   const [showPersonalizeWizard, setShowPersonalizeWizard] = useState(false)
-  const [showHelperModal, setShowHelperModal] = useState(false)
   const [showSuggestedTasksModal, setShowSuggestedTasksModal] = useState(false)
   const { canUseLessonHelper } = useAIAccess()
 
@@ -514,35 +513,11 @@ export const LessonSlideViewer = ({
   return (
     <div className="flex flex-col min-h-[400px]">
       <div className="flex-1">
-        {/* Step Title with Helper Button */}
+        {/* Step Title */}
         {currentStep && totalContentSteps > 1 && currentStep.title && (
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold text-gray-900">
-              {currentStep.title}
-            </h3>
-            {canUseLessonHelper && (
-              <button
-                onClick={() => setShowHelperModal(true)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 transition-colors"
-                title="Need help with this?"
-              >
-                <SparklesIcon className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Helper button for steps without title */}
-        {currentStep && (totalContentSteps === 1 || !currentStep.title) && canUseLessonHelper && (
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => setShowHelperModal(true)}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 transition-colors"
-              title="Need help with this?"
-            >
-              <SparklesIcon className="w-5 h-5" />
-            </button>
-          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">
+            {currentStep.title}
+          </h3>
         )}
 
         {/* Step Content */}
@@ -570,6 +545,13 @@ export const LessonSlideViewer = ({
             <StepAttachments attachments={currentStep.attachments} />
           </>
         )}
+
+        {/* Inline command palette — engage with this section */}
+        <LessonCommandPalette
+          lessonId={lesson?.id}
+          blockIndex={currentStepIndex}
+          canUse={canUseLessonHelper}
+        />
       </div>
 
       {/* Navigation Footer */}
@@ -589,16 +571,27 @@ export const LessonSlideViewer = ({
             </button>
 
             {currentStepIndex < totalContentSteps ? (
-              <button
-                onClick={onNextStep}
-                className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors group"
-              >
-                Continue
-                <kbd className="hidden sm:inline-flex ml-1 px-1.5 py-0.5 text-xs font-mono text-white/60 bg-white/20 rounded">
-                  &rarr;
-                </kbd>
-                <ChevronRightIcon className="w-4 h-4" />
-              </button>
+              currentStepIndex === totalStepsWithTasks - 1 ? (
+                // Final step with no tasks step — finishing returns to the project
+                <button
+                  onClick={onNextStep}
+                  className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <CheckCircleSolidIcon className="w-5 h-5" />
+                  Finish &amp; Back to Project
+                </button>
+              ) : (
+                <button
+                  onClick={onNextStep}
+                  className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors group"
+                >
+                  Continue
+                  <kbd className="hidden sm:inline-flex ml-1 px-1.5 py-0.5 text-xs font-mono text-white/60 bg-white/20 rounded">
+                    &rarr;
+                  </kbd>
+                  <ChevronRightIcon className="w-4 h-4" />
+                </button>
+              )
             ) : !hasTasksStep ? (
               <div className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg border border-green-200">
                 <CheckCircleSolidIcon className="w-5 h-5" />
@@ -612,17 +605,6 @@ export const LessonSlideViewer = ({
           </p>
         </div>
       )}
-
-      {/* Lesson Helper Modal */}
-      <LessonHelperModal
-        isOpen={showHelperModal}
-        onClose={() => setShowHelperModal(false)}
-        lessonId={lesson?.id}
-        blockIndex={currentStepIndex}
-        stepTitle={currentStep?.title || ''}
-        totalSteps={totalContentSteps}
-        currentStepIndex={currentStepIndex}
-      />
 
       {/* Suggested Tasks Modal */}
       <SuggestedTasksModal

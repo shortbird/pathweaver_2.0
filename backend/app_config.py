@@ -161,6 +161,13 @@ class Config:
     # Google Gemini Configuration
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
     GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+    # Ordered fallback models tried when the primary model returns a transient
+    # error (e.g. 503 "high demand"). Comma-separated; tried left to right.
+    GEMINI_FALLBACK_MODELS = [
+        m.strip() for m in os.getenv(
+            'GEMINI_FALLBACK_MODELS', 'gemini-2.5-flash,gemini-2.0-flash'
+        ).split(',') if m.strip()
+    ]
     GOOGLE_API_KEY = GEMINI_API_KEY  # Backward-compat alias
 
     # Pexels Image API

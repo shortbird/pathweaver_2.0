@@ -82,6 +82,7 @@ const ShowcasePage = lazy(() => import('./pages/ShowcasePage'))
 const MobileDemoPage = lazy(() => import('./pages/MobileDemoPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const PartnerEnrollStudentPage = lazy(() => import('./pages/PartnerEnrollStudentPage'))
+const OnFireDashboard = lazy(() => import('./pages/OnFireDashboard'))
 const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 const AdvisorClassesPage = lazy(() => import('./pages/AdvisorClassesPage'))
@@ -546,6 +547,8 @@ function App() {
               {/* Partner course-purchase registration form - org admins + superadmin */}
               <Route element={<PrivateRoute requiredRole={["org_admin", "superadmin"]} />}>
                 <Route path="enroll-students" element={<PartnerEnrollStudentPage />} />
+                {/* OnFire Learning simplified dashboard (enrollments + register tabs) */}
+                <Route path="onfire" element={<OnFireDashboard />} />
               </Route>
 
               {/* Org Student Overview - accessible to org admins and advisors */}

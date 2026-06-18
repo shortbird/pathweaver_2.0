@@ -152,11 +152,12 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         # Org admins can update branding, AI settings, and course visibility policy
         if is_superadmin:
             allowed_fields = ['name', 'quest_visibility_policy', 'course_visibility_policy', 'branding_config', 'is_active',
-                            'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
+                            'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled',
+                            'feature_flags']
         else:
-            # Org admins can update name, branding, AI settings, and visibility policies
+            # Org admins can update name, branding, AI settings, visibility policies, and feature flags
             allowed_fields = ['name', 'branding_config', 'quest_visibility_policy', 'course_visibility_policy', 'ai_features_enabled',
-                            'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
+                            'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled', 'feature_flags']
 
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
 
@@ -1309,14 +1310,126 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
         if user_record is not None:
             response['user'] = user_record
         if is_new_account:
-            response['login_credentials'] = {'email': student_email, 'password': temp_password}
-            response['message'] = 'Student registered and enrolled. A welcome email was sent to the family.'
+            # The temp password is emailed directly to the student; it is intentionally
+            # NOT returned to the admin's browser.
+            response['message'] = 'Student registered and enrolled. A welcome email was sent to the student.'
         else:
             response['message'] = 'Existing student enrolled in the selected course(s).'
         return jsonify(response), 201
 
     except Exception as e:
         logger.error(f"Error registering student for courses in org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/course-enrollments', methods=['GET'])
+@require_org_admin
+def list_org_course_enrollments(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    List course enrollments for every student in the organization, with student
+    and course details. Used by the partner dashboard's "Active Enrollments" tab.
+
+    Query params:
+        status: enrollment status filter (default 'active'; pass 'all' for everything)
+    """
+    try:
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        status_filter = (request.args.get('status') or 'active').strip().lower()
+
+        # admin client justified: admin-only route (@require_org_admin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+
+        # All users in the organization
+        users_res = client.table('users')\
+            .select('id, first_name, last_name, display_name, email, date_of_birth')\
+            .eq('organization_id', org_id)\
+            .execute()
+        users_by_id = {u['id']: u for u in (users_res.data or [])}
+        if not users_by_id:
+            return jsonify({'success': True, 'enrollments': [], 'total': 0}), 200
+
+        user_ids = list(users_by_id.keys())
+
+        # Enrollments for those users
+        query = client.table('course_enrollments')\
+            .select('id, user_id, course_id, status, enrolled_at')\
+            .in_('user_id', user_ids)
+        if status_filter != 'all':
+            query = query.eq('status', status_filter)
+        enroll_res = query.order('enrolled_at', desc=True).execute()
+        enrollments = enroll_res.data or []
+
+        # Course titles
+        course_ids = list({e['course_id'] for e in enrollments if e.get('course_id')})
+        courses_by_id = {}
+        if course_ids:
+            courses_res = client.table('courses').select('id, title').in_('id', course_ids).execute()
+            courses_by_id = {c['id']: c['title'] for c in (courses_res.data or [])}
+
+        result = []
+        for e in enrollments:
+            u = users_by_id.get(e['user_id'], {})
+            name = (u.get('display_name') or f"{u.get('first_name', '') or ''} {u.get('last_name', '') or ''}").strip()
+            result.append({
+                'enrollment_id': e['id'],
+                'student_id': e['user_id'],
+                'student_name': name or u.get('email'),
+                'student_email': u.get('email'),
+                'date_of_birth': u.get('date_of_birth'),
+                'course_id': e.get('course_id'),
+                'course_title': courses_by_id.get(e.get('course_id'), 'Unknown course'),
+                'status': e.get('status'),
+                'enrolled_at': e.get('enrolled_at'),
+            })
+
+        return jsonify({'success': True, 'enrollments': result, 'total': len(result)}), 200
+
+    except Exception as e:
+        logger.error(f"Error listing course enrollments for org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/course-enrollments/remove', methods=['POST'])
+@require_org_admin
+def remove_org_course_enrollment(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Remove a student's access to a course (unenroll). Used by the partner
+    dashboard's "Remove access" action.
+
+    Request body:
+        student_id: str (required) - the student to unenroll
+        course_id: str (required) - the course to remove access to
+    """
+    try:
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json() or {}
+        student_id = (data.get('student_id') or '').strip()
+        course_id = (data.get('course_id') or '').strip()
+        if not student_id or not course_id:
+            return jsonify({'error': 'student_id and course_id are required'}), 400
+
+        # admin client justified: admin-only route (@require_org_admin) — needs RLS bypass for cross-tenant administration
+        client = get_supabase_admin_client()
+
+        # The student must belong to this organization
+        student_res = client.table('users').select('id, organization_id').eq('id', student_id).single().execute()
+        if not student_res.data or student_res.data.get('organization_id') != org_id:
+            return jsonify({'error': 'Student not found in this organization'}), 404
+
+        from services.course_enrollment_service import CourseEnrollmentService
+        result = CourseEnrollmentService(client).unenroll_user(student_id, course_id)
+        if not result.get('success'):
+            return jsonify({'error': result.get('error', 'Failed to remove access')}), 500
+
+        logger.info(f"Removed course {course_id} access for student {student_id} in org {org_id} by {current_user_id}")
+        return jsonify({'success': True, 'message': 'Access removed.'}), 200
+
+    except Exception as e:
+        logger.error(f"Error removing course enrollment in org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 

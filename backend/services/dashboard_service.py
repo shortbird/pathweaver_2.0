@@ -316,12 +316,13 @@ class DashboardService:
             List of active quest enrollment records with quest details
         """
         try:
-            # Get active enrollments
+            # Get active enrollments (exclude H1-archived ones — non-destructively hidden)
             query = self.client.table('user_quests')\
                 .select('*, quests(*)')\
                 .eq('user_id', user_id)\
                 .eq('is_active', True)\
-                .is_('completed_at', 'null')
+                .is_('completed_at', 'null')\
+                .is_('archived_at', 'null')
 
             active_quests = query.execute()
 

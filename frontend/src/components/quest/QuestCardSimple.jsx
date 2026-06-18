@@ -1,6 +1,7 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuestEngagement } from '../../hooks/api/useQuests';
+import { useQuestEngagement, useArchiveEnrollment } from '../../hooks/api/useQuests';
+import ModalOverlay from '../ui/ModalOverlay';
 import {
   BoltIcon,
   ArrowTrendingUpIcon,
@@ -8,6 +9,61 @@ import {
   ArrowPathIcon,
   PlayCircleIcon
 } from '@heroicons/react/24/solid';
+
+// H1: friendly exit-survey reasons captured when a learner archives a quest.
+// Stored on the enrollment to inform future AI task suggestions.
+const ARCHIVE_REASONS = [
+  { code: 'break', label: 'Taking a break' },
+  { code: 'done', label: 'Got what I wanted' },
+  { code: 'too_hard', label: 'Too hard' },
+  { code: 'too_easy', label: 'Too easy' },
+  { code: 'lost_interest', label: 'Lost interest' },
+  { code: 'no_materials', label: "Didn't have the materials" },
+];
+
+const ArchiveModal = ({ questTitle, onClose, onConfirm, busy }) => {
+  const [reason, setReason] = useState(null);
+  const [feedback, setFeedback] = useState('');
+  return (
+    <ModalOverlay onClose={busy ? undefined : onClose}>
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-gray-900">Archive "{questTitle}"?</h3>
+        <p className="text-sm text-gray-600 mt-1">
+          This hides it from your active quests but keeps all your progress and XP — you can bring it back anytime.
+        </p>
+        <p className="text-sm font-medium text-gray-700 mt-4">Mind sharing why? (optional)</p>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {ARCHIVE_REASONS.map((r) => (
+            <button
+              key={r.code}
+              onClick={() => setReason(reason === r.code ? null : r.code)}
+              className={`text-sm px-3 py-1.5 rounded-full border ${reason === r.code ? 'bg-optio-purple text-white border-optio-purple' : 'border-gray-200 text-gray-600'}`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          rows={2}
+          placeholder="Anything else? (optional)"
+          className="w-full mt-3 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+        />
+        <div className="flex gap-3 justify-end mt-5">
+          <button onClick={onClose} disabled={busy} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
+          <button
+            onClick={() => onConfirm({ reason, feedback: feedback.trim() || null })}
+            disabled={busy}
+            className="px-4 py-2 text-sm font-semibold text-white bg-optio-purple rounded-lg disabled:opacity-50"
+          >
+            {busy ? 'Archiving…' : 'Archive quest'}
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+};
 
 // Rhythm state configuration
 const rhythmConfig = {
@@ -90,12 +146,21 @@ const MiniHeatMap = ({ days }) => {
 
 const QuestCardSimple = ({ quest }) => {
   const navigate = useNavigate();
+  const [showArchive, setShowArchive] = useState(false);
+  const archiveEnrollment = useArchiveEnrollment();
 
   // Fetch engagement data for this quest
   const { data: engagement } = useQuestEngagement(quest.id);
 
   const handleCardClick = () => {
     navigate(`/quests/${quest.id}`);
+  };
+
+  const confirmArchive = async ({ reason, feedback }) => {
+    try {
+      await archiveEnrollment.mutateAsync({ questId: quest.id, reason, feedback });
+      setShowArchive(false);
+    } catch { /* hook surfaces its own error toast */ }
   };
 
   // Determine quest state
@@ -120,6 +185,19 @@ const QuestCardSimple = ({ quest }) => {
     >
       {/* Image Section with Title Overlay */}
       <div className="relative h-36 overflow-hidden">
+        {/* H1: archive (non-destructive) — only on in-progress cards */}
+        {isInProgress && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowArchive(true); }}
+            title="Archive this quest"
+            aria-label="Archive this quest"
+            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+          </button>
+        )}
         {/* Private Quest Badge - Only visible to creator */}
         {quest.is_public === false && (
           <div className="absolute top-3 left-3 z-10">
@@ -258,6 +336,15 @@ const QuestCardSimple = ({ quest }) => {
             <span className="font-bold text-sm text-white">Start Quest</span>
           </div>
         </div>
+      )}
+
+      {showArchive && (
+        <ArchiveModal
+          questTitle={quest.title}
+          busy={archiveEnrollment.isPending}
+          onClose={() => setShowArchive(false)}
+          onConfirm={confirmArchive}
+        />
       )}
     </div>
   );

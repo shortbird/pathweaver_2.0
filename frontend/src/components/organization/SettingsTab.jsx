@@ -97,6 +97,27 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
   const [taskGenerationEnabled, setTaskGenerationEnabled] = useState(orgData?.organization?.ai_task_generation_enabled ?? true)
   const [savingFeature, setSavingFeature] = useState(false)
 
+  // L1: hide platform-wide public bounties so students see only org/cohort School Jobs.
+  const [hidePublicBounties, setHidePublicBounties] = useState(
+    orgData?.organization?.feature_flags?.hide_public_bounties ?? false
+  )
+  const [savingBounties, setSavingBounties] = useState(false)
+  const handleToggleHidePublicBounties = async () => {
+    const newValue = !hidePublicBounties
+    setSavingBounties(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        feature_flags: { ...(orgData?.organization?.feature_flags || {}), hide_public_bounties: newValue },
+      })
+      setHidePublicBounties(newValue)
+      onUpdate()
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to update School Jobs setting')
+    } finally {
+      setSavingBounties(false)
+    }
+  }
+
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -392,6 +413,19 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
             </div>
           )}
         </div>
+      </div>
+
+      {/* School Jobs (bounty board) settings */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 className="text-xl font-bold mb-2">School Jobs</h2>
+        <FeatureToggle
+          label="Hide public School Jobs"
+          description="Only show jobs posted by your organization (hide the platform-wide public bounty board from your students)."
+          icon={ClipboardDocumentListIcon}
+          enabled={hidePublicBounties}
+          onToggle={handleToggleHidePublicBounties}
+          disabled={savingBounties}
+        />
       </div>
 
       {showEditModal && (

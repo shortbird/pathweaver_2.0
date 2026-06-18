@@ -751,6 +751,8 @@ export const oeaAPI = {
 // Program-specific tab gated server-side by org slug 'treehouse'. Student-facing
 // reads + signals, facilitator queues/showcase/balance, and kiosk login.
 export const treehouseAPI = {
+  // Lightweight profile to gate UI (membership, facilitator/admin, simplified-littles).
+  me: () => api.get('/api/treehouse/me'),
   // Student home payload (most-recent active quest + next task, counts).
   home: () => api.get('/api/treehouse/home'),
   // Visual quest/badge browse grouped by pillar/category.
@@ -758,19 +760,32 @@ export const treehouseAPI = {
 
   // Student raises a help/proud signal. type: 'help' | 'proud'.
   createSignal: (body) => api.post('/api/treehouse/signals', body),
-  // Facilitator: open signal queue.
-  signals: () => api.get('/api/treehouse/signals'),
+  // Facilitator: open signal queue (optionally scoped to one cohort).
+  signals: (cohortId) => api.get('/api/treehouse/signals', { params: cohortId ? { cohort_id: cohortId } : {} }),
   resolveSignal: (signalId) => api.post(`/api/treehouse/signals/${signalId}/resolve`, {}),
 
-  // Facilitator: roster, pin queue, spendable-XP balance.
-  students: () => api.get('/api/treehouse/students'),
-  pins: () => api.get('/api/treehouse/pins'),
+  // Facilitator: roster, pin queue, spendable-XP balance (cohort-scoped).
+  students: (cohortId) => api.get('/api/treehouse/students', { params: cohortId ? { cohort_id: cohortId } : {} }),
+  pins: (cohortId) => api.get('/api/treehouse/pins', { params: cohortId ? { cohort_id: cohortId } : {} }),
   markPins: (items, status) => api.post('/api/treehouse/pins/mark', { items, status }),
   balance: (studentId) => api.get(`/api/treehouse/students/${studentId}/balance`),
   adjustBalance: (studentId, amount) => api.post(`/api/treehouse/students/${studentId}/balance/adjust`, { amount }),
 
-  // Showcase events.
-  showcaseEvents: () => api.get('/api/treehouse/showcase/events'),
+  // Cohorts (A1): list + manage facilitator assignment + enrollment + ui_mode.
+  cohorts: () => api.get('/api/treehouse/cohorts'),
+  createCohort: (body) => api.post('/api/treehouse/cohorts', body),
+  updateCohort: (classId, body) => api.patch(`/api/treehouse/cohorts/${classId}`, body),
+  assignCohortAdvisor: (classId, advisorId) => api.post(`/api/treehouse/cohorts/${classId}/advisors`, { advisor_id: advisorId }),
+  removeCohortAdvisor: (classId, advisorId) => api.delete(`/api/treehouse/cohorts/${classId}/advisors/${advisorId}`),
+  enrollCohortStudents: (classId, studentIds) => api.post(`/api/treehouse/cohorts/${classId}/students`, { student_ids: studentIds }),
+  withdrawCohortStudent: (classId, studentId) => api.delete(`/api/treehouse/cohorts/${classId}/students/${studentId}`),
+  facilitators: () => api.get('/api/treehouse/facilitators'),
+
+  // Facilitator phone capture (G1): one photo+caption → tag one or many students.
+  capture: (body) => api.post('/api/treehouse/capture', body),
+
+  // Showcase events. scope: 'upcoming' | 'past' | 'all'.
+  showcaseEvents: (scope) => api.get('/api/treehouse/showcase/events', { params: scope ? { scope } : {} }),
   createShowcase: (body) => api.post('/api/treehouse/showcase/events', body),
   updateShowcase: (eventId, body) => api.patch(`/api/treehouse/showcase/events/${eventId}`, body),
   showcaseRoster: (eventId) => api.get(`/api/treehouse/showcase/events/${eventId}/roster`),

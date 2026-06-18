@@ -127,7 +127,7 @@ function StudentHome() {
 
       {/* Four big buttons */}
       <div className="grid grid-cols-2 gap-4 mt-6">
-        <BigButton to="/quests" color="bg-gradient-to-br from-optio-purple to-indigo-500" icon="📚" label="My Quests" />
+        <BigButton to="/dashboard" color="bg-gradient-to-br from-optio-purple to-indigo-500" icon="📚" label="My Quests" />
         <BigButton to="/treehouse/browse" color="bg-gradient-to-br from-optio-pink to-rose-500" icon="🔭" label="Find a Quest" />
         <BigButton to="/treehouse/showcase" color="bg-gradient-to-br from-amber-400 to-orange-500" icon="🌟" label="Showcase" />
         <BigButton to="/bounties" color="bg-gradient-to-br from-emerald-400 to-teal-500" icon="🛠️" label="School Jobs" />
