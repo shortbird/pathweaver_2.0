@@ -98,23 +98,35 @@ interface UseFeedOptions {
 /** Group the feed so a single parent-captured moment posted to several kids at
  *  once shows as ONE card listing every tagged kid — instead of one card per kid
  *  (bug: "following all kids shows the same post for each kid; collapse into one
- *  with each kid listed"). The sibling events share title/description/preview and
- *  the same minute but differ by student and media URL, so we key on content
- *  (NOT media URL, NOT student) and merge the students of every match. Keeps the
- *  first occurrence's order/media; `students` accumulates each distinct kid. */
+ *  with each kid listed").
+ *
+ *  Sibling events share title/description/preview and were captured by the same
+ *  parent in the same request, but are created back-to-back so their timestamps
+ *  can straddle a minute boundary. The key uses the capturer id + a 5-minute
+ *  absolute-time bucket (300s windows aligned to epoch) so a save that crosses
+ *  a minute boundary still groups, while two distinct captures further apart
+ *  stay separate. Keeps the first occurrence's order/media; `students`
+ *  accumulates each distinct kid. */
 function dedupeFeed(list: FeedItem[]): FeedItem[] {
   const byKey = new Map<string, FeedItem>();
   const order: string[] = [];
   for (const it of list) {
-    const key = it.type === 'learning_moment'
-      ? [
-          'lm',
-          it.moment?.title || '',
-          it.moment?.description || '',
-          it.evidence?.preview_text || '',
-          (it.timestamp || '').slice(0, 16), // minute precision — same-request posts share it
-        ].join('|')
-      : `${it.type}:${it.id}`;
+    let key: string;
+    if (it.type === 'learning_moment') {
+      const capturer = it.moment?.posted_by?.id || it.student?.id || '';
+      const ts = it.timestamp ? new Date(it.timestamp).getTime() : 0;
+      const bucket = Math.floor(ts / 300000); // 5-minute buckets
+      key = [
+        'lm',
+        capturer,
+        it.moment?.title || '',
+        it.moment?.description || '',
+        it.evidence?.preview_text || '',
+        bucket,
+      ].join('|');
+    } else {
+      key = `${it.type}:${it.id}`;
+    }
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, { ...it, students: it.student ? [it.student] : [] });
