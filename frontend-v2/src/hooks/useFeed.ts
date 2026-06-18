@@ -127,12 +127,25 @@ function dedupeFeed(list: FeedItem[]): FeedItem[] {
     } else {
       key = `${it.type}:${it.id}`;
     }
+    // The students this occurrence carries. A raw feed event has a single
+    // `student`; an ALREADY-merged item (reprocessed when dedupeFeed runs again
+    // over `[...prev, ...newItems]` on loadMore) carries the accumulated
+    // `students` list. Seed/merge from `students` when present so a merged
+    // multi-kid card isn't collapsed back to just its primary kid when the
+    // sibling raw events aren't in the current page to re-accumulate.
+    const incoming = (it.students && it.students.length > 0)
+      ? it.students
+      : (it.student ? [it.student] : []);
     const existing = byKey.get(key);
     if (!existing) {
-      byKey.set(key, { ...it, students: it.student ? [it.student] : [] });
+      byKey.set(key, { ...it, students: [...incoming] });
       order.push(key);
-    } else if (it.student && !(existing.students || []).some((s) => s.id === it.student.id)) {
-      existing.students = [...(existing.students || []), it.student];
+    } else {
+      for (const s of incoming) {
+        if (s && !(existing.students || []).some((e) => e.id === s.id)) {
+          existing.students = [...(existing.students || []), s];
+        }
+      }
     }
   }
   return order.map((k) => byKey.get(k)!);

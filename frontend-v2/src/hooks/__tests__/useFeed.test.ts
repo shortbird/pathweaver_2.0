@@ -118,6 +118,63 @@ describe('useFeed — P5 recordViews dedupe', () => {
   });
 });
 
+describe('useFeed — multi-kid moment grouping survives loadMore', () => {
+  // A parent captured one moment for two kids -> two sibling learning_moment
+  // events that dedupe into a single card listing both. Regression: a later
+  // loadMore re-ran dedupe over [...prev, ...newPage]; the already-merged card
+  // got its `students` reset to just the primary kid because the sibling raw
+  // event wasn't in the new page to re-accumulate. The card then showed only
+  // the primary kid (visible on Android, where FlatList remounts the cell).
+  const sibling = (id: string, studentId: string, name: string) =>
+    createMockFeedItem({
+      type: 'learning_moment',
+      id,
+      learning_event_id: id.replace('le_', ''),
+      // Same 5-minute bucket + same capturer/title/description -> one group.
+      timestamp: '2026-06-17T08:06:32Z',
+      student: { id: studentId, display_name: name, avatar_url: null },
+      moment: {
+        title: 'Phase change',
+        description: 'Talked about gas storage in tanks',
+        pillars: [],
+        posted_by: { id: 'parent-tyler', display_name: 'Tyler', avatar_url: null },
+      },
+      evidence: { type: 'image', url: 'https://example.com/img.jpg' },
+    } as any);
+
+  it('keeps every tagged kid after paginating to an older page', async () => {
+    setAuthAsParent();
+    const marcus = sibling('le_marcus', 'kid-marcus', 'Marcus');
+    const james = sibling('le_james', 'kid-james', 'James');
+
+    // Page 1: both sibling events -> one combined card.
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { items: [marcus, james], has_more: true, next_cursor: '2026-06-17T08:06:32Z' },
+    });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+
+    const { result } = renderHook(() => useFeed());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.items[0].students).toHaveLength(2);
+
+    // Page 2: an older, unrelated item (no sibling to re-accumulate from).
+    const older = createMockFeedItem({ id: 'tc_old', type: 'task_completed' });
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { items: [older], has_more: false, next_cursor: null },
+    });
+
+    result.current.loadMore();
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    // The combined card must still list BOTH kids.
+    const combined = result.current.items.find((i) => i.id === 'le_marcus')!;
+    expect(combined.students).toHaveLength(2);
+    expect((combined.students || []).map((s) => s.id).sort()).toEqual(['kid-james', 'kid-marcus']);
+  });
+});
+
 describe('recordViews', () => {
   it('POST to correct endpoint', async () => {
     (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, recorded: 1 } });

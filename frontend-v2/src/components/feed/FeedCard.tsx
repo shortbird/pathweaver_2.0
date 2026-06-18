@@ -709,6 +709,16 @@ export const FeedCard = memo(FeedCardImpl, (prev, next) => {
   if (prev.isActive !== next.isActive) return false;
   const a = prev.item;
   const b = next.item;
+  // Multi-kid grouped posts: the `students` list can change (e.g. a sibling kid
+  // added/removed) while every scalar field stays equal. Compare it explicitly,
+  // or the card's avatars/names go stale (it showed combined then reverted to
+  // the primary kid on Android, where FlatList remounts reveal the stale data).
+  const aStudents = a.students || [];
+  const bStudents = b.students || [];
+  if (aStudents.length !== bStudents.length) return false;
+  for (let i = 0; i < aStudents.length; i++) {
+    if (aStudents[i]?.id !== bStudents[i]?.id) return false;
+  }
   return (
     a.id === b.id &&
     a.views_count === b.views_count &&
