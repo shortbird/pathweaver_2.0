@@ -505,6 +505,159 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
         }), 500
 
 
+@bp.route('/<quest_id>/add-path-tasks', methods=['POST'])
+@require_auth
+def add_path_tasks(user_id: str, quest_id: str):
+    """
+    Create the tasks for a pre-authored "path" (a quests.approach_examples entry).
+
+    The student picks one of the quest's curated paths in the personalization
+    wizard; we materialize that path's tasks into user_quest_tasks. Rows are
+    written to mirror the AI-generated ("accept-task") path exactly —
+    approval_status='approved', is_manual=False — so downstream XP accrual,
+    the quest-complete trigger, and LTI AGS grade passback behave identically.
+
+    Tasks are loaded SERVER-SIDE from the quest's approach_examples by index;
+    the client only sends approach_index, so it cannot inject arbitrary tasks.
+
+    Request body:
+    {
+        "approach_index": <int>   # index into quests.approach_examples
+    }
+    """
+    try:
+        from utils.pillar_utils import normalize_pillar_name, PILLAR_KEYS
+        from utils.school_subjects import PILLAR_TO_SUBJECTS
+        from app_config import Config
+
+        # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
+        supabase = get_supabase_admin_client()
+        data = request.get_json() or {}
+
+        approach_index = data.get('approach_index')
+        if not isinstance(approach_index, int) or isinstance(approach_index, bool) or approach_index < 0:
+            return jsonify({
+                'success': False,
+                'error': 'approach_index (a non-negative integer) is required'
+            }), 400
+
+        # Load the quest's curated paths (+ class fields for the credit override)
+        quest_result = supabase.table('quests')\
+            .select('approach_examples, quest_type, transcript_subject')\
+            .eq('id', quest_id)\
+            .single()\
+            .execute()
+
+        if not quest_result.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        quest = quest_result.data
+        raw = quest.get('approach_examples')
+        # Stored either as a bare list or wrapped as {"approaches": [...]}.
+        approaches = raw if isinstance(raw, list) else (raw.get('approaches', []) if isinstance(raw, dict) else [])
+
+        if not approaches or approach_index >= len(approaches):
+            return jsonify({'success': False, 'error': 'Invalid path selection'}), 400
+
+        selected = approaches[approach_index] or {}
+        path_tasks = selected.get('tasks') or []
+        if not path_tasks:
+            return jsonify({'success': False, 'error': 'Selected path has no tasks'}), 400
+
+        # Validate pillars against the five allowed values. Fail loud in dev so
+        # bad authored data is caught; in prod, coerce to 'stem' (below) so a
+        # single typo never crashes a student mid-quest.
+        for task in path_tasks:
+            raw_pillar = (task.get('pillar') or '').strip().lower()
+            if raw_pillar not in PILLAR_KEYS:
+                msg = (f"Invalid pillar '{task.get('pillar')}' in approach_examples for "
+                       f"quest {quest_id} (task '{task.get('title')}')")
+                logger.error(msg)
+                if Config.DEBUG:
+                    return jsonify({'success': False, 'error': msg}), 422
+
+        # Class credit override: a class dumps 100% of each task's XP into its
+        # single transcript_subject so the credit bar moves by the full amount.
+        is_class = quest.get('quest_type') == 'class' and quest.get('transcript_subject')
+
+        def _subjects_for(pillar_key, xp):
+            if is_class:
+                ts = quest['transcript_subject']
+                return {ts: xp}, {ts: xp}
+            subj = (PILLAR_TO_SUBJECTS.get(pillar_key) or ['electives'])[0]
+            return {subj: xp}, {subj: xp}
+
+        user_quest_id = get_or_create_enrollment(user_id, quest_id)
+        next_order = get_next_order_index(user_id, quest_id)
+
+        rows = []
+        for idx, task in enumerate(path_tasks):
+            title = (task.get('title') or '').strip()
+            if not title:
+                continue
+
+            try:
+                pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
+            except ValueError:
+                pillar_key = 'stem'
+
+            xp_value = int(task.get('xp_value', 100) or 100)
+            diploma_subjects, subject_xp_distribution = _subjects_for(pillar_key, xp_value)
+
+            rows.append({
+                'user_id': user_id,
+                'quest_id': quest_id,
+                'user_quest_id': user_quest_id,
+                'title': title,
+                'description': task.get('description', ''),
+                'pillar': pillar_key,
+                'diploma_subjects': diploma_subjects,
+                'subject_xp_distribution': subject_xp_distribution,
+                'xp_value': xp_value,
+                'order_index': next_order + idx,
+                'is_required': False,
+                'is_manual': False,
+                'approval_status': 'approved',
+                'created_at': datetime.utcnow().isoformat()
+            })
+
+        if not rows:
+            return jsonify({'success': False, 'error': 'Selected path has no valid tasks'}), 400
+
+        result = supabase.table('user_quest_tasks').insert(rows).execute()
+        created_tasks = result.data or []
+
+        # Mark personalization complete — the student has chosen their tasks.
+        # Mirrors accept-approach; also stops the LTI wizard from auto-reopening.
+        try:
+            supabase.table('user_quests')\
+                .update({'personalization_completed': True})\
+                .eq('id', user_quest_id)\
+                .execute()
+        except Exception:
+            logger.debug('Failed to set personalization_completed', exc_info=True)
+
+        logger.info(
+            f"User {user_id[:8]} created {len(created_tasks)} task(s) from path "
+            f"'{selected.get('label')}' for quest {quest_id[:8]}"
+        )
+
+        return jsonify({
+            'success': True,
+            'tasks': created_tasks,
+            'approach_label': selected.get('label'),
+            'tasks_created': len(created_tasks),
+            'message': f"Added {len(created_tasks)} task(s) from \"{selected.get('label')}\""
+        })
+
+    except Exception as e:
+        logger.error(f"Error adding path tasks: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to add path tasks. Please try again.'
+        }), 500
+
+
 @bp.route('/<quest_id>/finalize-tasks', methods=['POST'])
 @require_auth
 def finalize_tasks(user_id: str, quest_id: str):

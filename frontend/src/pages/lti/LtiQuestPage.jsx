@@ -211,7 +211,8 @@ export default function LtiQuestPage() {
               questTitle={quest.title}
               onComplete={handlePersonalizationComplete}
               onCancel={handlePersonalizationCancel}
-              hideLibraryOption
+              approachExamples={quest.approach_examples}
+              xpThreshold={quest.xp_threshold}
               hideDiplomaSubjects
               embedded
             />

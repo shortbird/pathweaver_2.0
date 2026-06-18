@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { XMarkIcon, CheckIcon, FlagIcon, BookOpenIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckIcon, FlagIcon, CheckCircleIcon, MapIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import ManualTaskCreator from './ManualTaskCreator';
+import ApproachExampleCard from '../quest/ApproachExampleCard';
 import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 
@@ -51,14 +51,18 @@ const DIPLOMA_SUBJECTS = [
 ];
 
 /**
- * @param hideLibraryOption     When true, hide the "Add from Task Library"
- *   section. Library navigates to /quests/:id/library which lives in the
- *   v1 Layout (sidebar + chrome) — wrong UX inside a Canvas LTI iframe.
  * @param hideDiplomaSubjects   When true, hide Optio-platform-specific
  *   framing that doesn't translate to a Canvas-graded assignment:
  *     • the "Diploma Credits" picker on the interests step
  *     • the pillar badge + diploma-credits row on the review step
  *   The "Any specific ideas?" textarea stays visible regardless.
+ * @param approachExamples      The quest's pre-authored "paths"
+ *   (quests.approach_examples). When this is a non-empty array, a third
+ *   "Choose a Path" option appears on step 1 letting the student start from a
+ *   curated task set. Null/empty → the option is hidden and the wizard behaves
+ *   exactly as before (AI Generate + Write My Own only).
+ * @param xpThreshold           The quest's XP requirement, shown on each path
+ *   card so the student sees a path's total XP against the goal. Optional.
  * @param embedded              When true, render in-flow instead of as a
  *   fixed-position modal. Inside the Canvas LTI iframe the page height is
  *   content-driven (LtiShell frameResize), so `fixed inset-0` centers the
@@ -71,18 +75,26 @@ export default function QuestPersonalizationWizard({
   questTitle,
   onComplete,
   onCancel,
-  hideLibraryOption = false,
   hideDiplomaSubjects = false,
   embedded = false,
+  approachExamples = null,
+  xpThreshold = null,
 }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
   const { canUseTaskGeneration } = useAIAccess();
 
   // NEW: Creation method selection
-  const [creationMethod, setCreationMethod] = useState(null); // 'ai' or 'manual'
+  const [creationMethod, setCreationMethod] = useState(null); // 'ai' | 'manual' | 'path'
+
+  // Pre-authored "paths" (quests.approach_examples). Only surface paths that
+  // actually carry tasks; a malformed entry should never render an empty card.
+  const paths = Array.isArray(approachExamples)
+    ? approachExamples.filter((p) => p && Array.isArray(p.tasks) && p.tasks.length > 0)
+    : [];
+  const hasPaths = paths.length > 0;
+  const [selectingPathIndex, setSelectingPathIndex] = useState(null);
 
   // Wizard state
   const [selectedInterests, setSelectedInterests] = useState([]);
@@ -296,6 +308,32 @@ export default function QuestPersonalizationWizard({
     }
   };
 
+  // Choose a pre-authored path: materialize its tasks server-side (mirrors the
+  // AI-generated persistence path so XP/completion/grade passback behave the
+  // same) and drop the student into the normal post-wizard quest view.
+  const handleSelectPath = async (index) => {
+    if (selectingPathIndex !== null) return;
+    setSelectingPathIndex(index);
+    setError(null);
+
+    try {
+      const response = await api.post(`/api/quests/${questId}/add-path-tasks`, {
+        approach_index: index,
+      });
+
+      if (response.data.success) {
+        onComplete(response.data);
+      } else {
+        setError(response.data.error || 'Failed to start this path');
+        setSelectingPathIndex(null);
+      }
+    } catch (err) {
+      logger.error('Failed to select path:', err);
+      setError(err.response?.data?.error || 'Failed to start this path');
+      setSelectingPathIndex(null);
+    }
+  };
+
   // Complete wizard
   const completeWizard = () => {
     if (acceptedTasks.length > 0) {
@@ -324,7 +362,20 @@ export default function QuestPersonalizationWizard({
   };
 
   const currentTask = generatedTasks[currentTaskIndex];
-  const totalSteps = creationMethod === 'ai' ? 4 : 3; // AI: path selection, interests, generation, review. Manual: path selection, skip interests, manual creator
+  // AI: method, interests, generation, review (4). Manual: method, manual creator (3).
+  // Path: method, path picker (2). The path picker lives at internal step 5 to
+  // avoid colliding with the AI/manual step blocks, so displayStep maps it to 2.
+  const totalSteps = creationMethod === 'ai' ? 4 : creationMethod === 'path' ? 2 : 3;
+  const displayStep = creationMethod === 'path' && step === 5 ? 2 : step;
+
+  // Step 1 column count flexes with how many creation options are visible.
+  const step1OptionCount = 1 /* manual */ + (canUseTaskGeneration ? 1 : 0) + (hasPaths ? 1 : 0);
+  const step1GridCols =
+    step1OptionCount >= 3
+      ? 'md:grid-cols-3'
+      : step1OptionCount === 2
+        ? 'md:grid-cols-2'
+        : 'md:grid-cols-1 max-w-md';
 
   // Compact sizing for the embedded (Canvas iframe) mode. Students are often
   // on small Chromebook screens inside an already-chromed Canvas page, so the
@@ -377,13 +428,13 @@ export default function QuestPersonalizationWizard({
             <div className={sz.progressWrap}>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
                 <span className={sz.progressLabel} style={{ fontFamily: 'Poppins' }}>
-                  Step {step} of {totalSteps}
+                  Step {displayStep} of {totalSteps}
                 </span>
               </div>
               <div className={`w-full bg-gray-200 rounded-full ${sz.progressBar}`}>
                 <div
                   className={`bg-gradient-primary ${sz.progressBar} rounded-full transition-all duration-300`}
-                  style={{ width: `${(step / totalSteps) * 100}%` }}
+                  style={{ width: `${(displayStep / totalSteps) * 100}%` }}
                 />
               </div>
             </div>
@@ -405,7 +456,7 @@ export default function QuestPersonalizationWizard({
             Choose how you want to build your quest for "{questTitle}"
           </p>
 
-          <div className={`grid ${canUseTaskGeneration ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md'} ${embedded ? 'gap-3 mb-3' : 'gap-6 mb-6'} max-w-3xl mx-auto`}>
+          <div className={`grid ${step1GridCols} ${embedded ? 'gap-3 mb-3' : 'gap-6 mb-6'} max-w-3xl mx-auto`}>
             {/* AI Generation Option */}
             {canUseTaskGeneration && (
               <button
@@ -424,6 +475,35 @@ export default function QuestPersonalizationWizard({
                   </h3>
                   <p className={embedded ? 'text-xs text-gray-600' : 'text-sm sm:text-base text-gray-600'} style={{ fontFamily: 'Poppins' }}>
                     Let AI create personalized tasks based on your interests and learning style
+                  </p>
+                </div>
+              </button>
+            )}
+
+            {/* Choose a Path Option — only when the quest ships curated paths */}
+            {hasPaths && (
+              <button
+                onClick={() => {
+                  setError(null);
+                  setCreationMethod('path');
+                  setStep(5);
+                }}
+                disabled={loading}
+                className={`group border-2 border-gray-300 hover:border-blue-500 transition-all text-left disabled:opacity-50 min-h-[44px] ${
+                  embedded
+                    ? 'p-3 rounded-lg flex items-center gap-3 hover:shadow-md'
+                    : 'p-6 sm:p-8 rounded-xl hover:shadow-xl'
+                }`}
+              >
+                <div className={embedded ? 'shrink-0' : 'mb-4'}>
+                  <MapIcon className={`text-blue-500 ${embedded ? 'w-7 h-7' : 'w-10 h-10 sm:w-12 sm:h-12'}`} />
+                </div>
+                <div>
+                  <h3 className={`${embedded ? 'text-base font-bold' : 'text-xl sm:text-2xl font-bold mb-2'} group-hover:text-blue-600 transition-colors`} style={{ fontFamily: 'Poppins' }}>
+                    Choose a Path
+                  </h3>
+                  <p className={embedded ? 'text-xs text-gray-600' : 'text-sm sm:text-base text-gray-600'} style={{ fontFamily: 'Poppins' }}>
+                    Start from a ready-made set of tasks you can customize
                   </p>
                 </div>
               </button>
@@ -450,40 +530,6 @@ export default function QuestPersonalizationWizard({
               </div>
             </button>
           </div>
-
-          {/* Library option — suppressed inside LTI iframes (would navigate
-              to /quests/:id/library which lives in the v1 Layout chrome). */}
-          {!hideLibraryOption && (
-            <>
-              {/* OR Divider */}
-              <div className="flex items-center gap-4 max-w-3xl mx-auto mb-6">
-                <div className="flex-1 h-px bg-gray-300"></div>
-                <span className="text-gray-500 font-semibold" style={{ fontFamily: 'Poppins' }}>OR</span>
-                <div className="flex-1 h-px bg-gray-300"></div>
-              </div>
-
-              {/* Add from Task Library Button */}
-              <div className="max-w-md mx-auto mb-6">
-                <button
-                  onClick={() => navigate(`/quests/${questId}/library`)}
-                  disabled={loading}
-                  className="w-full p-4 sm:p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-xl transition-all text-left disabled:opacity-50 group min-h-[44px]"
-                >
-                  <div className="flex items-center gap-4">
-                    <BookOpenIcon className="w-8 h-8 sm:w-10 sm:h-10 text-blue-500 group-hover:scale-110 transition-transform flex-shrink-0" />
-                    <div>
-                      <h3 className="text-lg sm:text-xl font-bold mb-1 group-hover:text-blue-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
-                        Add from Task Library
-                      </h3>
-                      <p className="text-gray-600 text-xs sm:text-sm" style={{ fontFamily: 'Poppins' }}>
-                        Browse tasks created by other students and add them to your quest
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </>
-          )}
 
           {loading && (
             <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
@@ -804,6 +850,54 @@ export default function QuestPersonalizationWizard({
               💡 <strong>Progress:</strong> You've accepted {acceptedTasks.length} task{acceptedTasks.length !== 1 ? 's' : ''} so far.
               {currentTaskIndex === generatedTasks.length - 1 && ' This is the last task!'}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Choose a Path (path picker) */}
+      {step === 5 && creationMethod === 'path' && hasPaths && (
+        <div>
+          <h2 className={sz.heading} style={{ fontFamily: 'Poppins' }}>
+            Choose a Path
+          </h2>
+          <p className={sz.subheading} style={{ fontFamily: 'Poppins' }}>
+            Pick a ready-made set of tasks to get started. You can edit, add, or
+            remove tasks afterward.
+            {xpThreshold
+              ? ` Each path's tasks add up to about ${xpThreshold} XP — enough to complete the quest.`
+              : ''}
+          </p>
+
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${embedded ? 'gap-3 mb-4' : 'gap-4 mb-6'}`}>
+            {paths.map((path, index) => (
+              <ApproachExampleCard
+                key={`${path.label}-${index}`}
+                label={path.label}
+                description={path.description}
+                tasks={path.tasks || []}
+                xpThreshold={xpThreshold || null}
+                accentColor={['purple-50', 'pink-50', 'blue-50', 'teal-50'][index % 4]}
+                isEnrolled={false}
+                isSelecting={selectingPathIndex === index}
+                onSelect={() => handleSelectPath(index)}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+            <button
+              onClick={() => {
+                setStep(1);
+                setCreationMethod(null);
+                setSelectingPathIndex(null);
+                setError(null);
+              }}
+              disabled={selectingPathIndex !== null}
+              className={sz.navBtn}
+              style={{ fontFamily: 'Poppins' }}
+            >
+              Back
+            </button>
           </div>
         </div>
       )}

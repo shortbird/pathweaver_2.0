@@ -23,7 +23,10 @@ const ApproachExampleCard = ({
   onSelect,
   isSelecting = false,
   isEnrolled = false,
-  accentColor = 'purple-50'
+  accentColor = 'purple-50',
+  // When provided, the XP badge shows "<total> / <threshold> XP" so the
+  // student sees how a path's tasks measure against the quest's requirement.
+  xpThreshold = null
 }) => {
   const colorClasses = {
     'purple-50': 'border-purple-200 hover:border-optio-purple',
@@ -51,7 +54,7 @@ const ApproachExampleCard = ({
         </h3>
         {totalXP > 0 && (
           <span className="text-xs font-semibold text-optio-purple bg-optio-purple/10 px-2 py-0.5 rounded-full">
-            {totalXP} XP
+            {xpThreshold ? `${totalXP} / ${xpThreshold} XP` : `${totalXP} XP`}
           </span>
         )}
       </div>
