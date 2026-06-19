@@ -27,6 +27,7 @@ import { GroupChatWindow } from '@/src/components/communication/GroupChatWindow'
 import { CreateGroupModal } from '@/src/components/communication/CreateGroupModal';
 import { ChildMessagesView } from '@/src/components/communication/ChildMessagesView';
 import { ComposeSheet } from '@/src/components/communication/ComposeSheet';
+import { requestNotificationsRefresh } from '@/src/hooks/useNotifications';
 
 interface SelectedConversation {
   id: string;
@@ -85,6 +86,15 @@ export default function MessagesScreen() {
 
   const handleBack = () => setSelected(null);
 
+  // When a thread is read, refresh the conversation-list unread dots AND ask the
+  // notification bell to refetch — reading a thread clears its 'message_received'
+  // notifications server-side, but the bell only re-pulls on focus otherwise, so
+  // the count looked stale ("viewed the message but it still showed in notifications").
+  const handleThreadRead = useCallback(() => {
+    refetchConversations();
+    requestNotificationsRefresh();
+  }, [refetchConversations]);
+
   // Android hardware back: a conversation/child-view is rendered in-place (local
   // state, not a route), so without this the back press bubbles to the Tabs
   // navigator, which jumps to the initial tab (Family for parents) and leaves
@@ -114,7 +124,7 @@ export default function MessagesScreen() {
     // Chat view
     if (selected) {
       if (selected.type === 'dm' && selected.contact) {
-        return <ChatWindow contact={selected.contact} conversationId={selected.id} onBack={handleBack} onRead={refetchConversations} />;
+        return <ChatWindow contact={selected.contact} conversationId={selected.id} onBack={handleBack} onRead={handleThreadRead} />;
       }
       if (selected.type === 'group' && selected.group) {
         return (
@@ -191,7 +201,7 @@ export default function MessagesScreen() {
         {showChildMessages ? (
           <ChildMessagesView onBack={() => setShowChildMessages(false)} />
         ) : selected?.type === 'dm' && selected.contact ? (
-          <ChatWindow contact={selected.contact} conversationId={selected.id} onRead={refetchConversations} />
+          <ChatWindow contact={selected.contact} conversationId={selected.id} onRead={handleThreadRead} />
         ) : selected?.type === 'group' && selected.group ? (
           <GroupChatWindow
             group={selected.group}

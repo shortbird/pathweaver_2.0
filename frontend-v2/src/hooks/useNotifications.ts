@@ -126,6 +126,31 @@ export async function deleteAllNotifications(): Promise<void> {
   await api.delete('/api/notifications/delete-all');
 }
 
+// ── Cross-screen refresh signal ──
+// Some actions clear notifications server-side from a screen that doesn't own
+// the bell badge — e.g. opening a message thread marks its 'message_received'
+// notifications read in the backend. The bell (useUnreadCount, mounted in
+// MobileHeader) otherwise only re-pulls on screen focus, so the count looked
+// stale ("Viewed the message but it still showed in notifications"). This tiny
+// pub/sub lets those screens ask every mounted bell to refetch right away.
+type RefreshListener = () => void;
+const notificationsRefreshListeners = new Set<RefreshListener>();
+
+/** Ask every mounted unread-count badge to refetch from the server now. */
+export function requestNotificationsRefresh(): void {
+  notificationsRefreshListeners.forEach((l) => l());
+}
+
+function useNotificationsRefreshSignal(onRefresh: () => void): void {
+  const cbRef = useRef(onRefresh);
+  useEffect(() => { cbRef.current = onRefresh; }, [onRefresh]);
+  useEffect(() => {
+    const listener = () => cbRef.current();
+    notificationsRefreshListeners.add(listener);
+    return () => { notificationsRefreshListeners.delete(listener); };
+  }, []);
+}
+
 // ── Combined hook ──
 
 import { useState } from 'react';
@@ -280,6 +305,10 @@ export function useUnreadCount(userId: string | undefined) {
   }, []);
 
   useNotificationSubscription(userId, handleNew);
+
+  // Refetch immediately when another screen clears notifications server-side
+  // (e.g. reading a message thread), instead of waiting for the next focus.
+  useNotificationsRefreshSignal(refresh);
 
   return { unreadCount: count, loading, setCount };
 }

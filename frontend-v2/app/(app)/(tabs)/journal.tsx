@@ -196,6 +196,37 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   const contentScrollRef = useRef<ScrollView>(null);
   useScrollToTop(contentScrollRef);
 
+  // ── Inline-video viewport tracking ──
+  // The journal renders moments in a plain ScrollView (not a FlatList), so it
+  // has no built-in viewability signal. Without one, a moment's inline video
+  // keeps playing audio after it scrolls off-screen ("Video continues to play
+  // when scrolling away"). We measure each card's position + the viewport and
+  // mark the on-screen cards active; LearningEventCard passes isActive to the
+  // VideoPlayer, which pauses when inactive.
+  const momentLayouts = useRef<Map<string, { y: number; h: number }>>(new Map());
+  const gridOffsetY = useRef(0);
+  const viewportH = useRef(0);
+  const scrollYRef = useRef(0);
+  const [visibleMomentIds, setVisibleMomentIds] = useState<Set<string>>(new Set());
+  const recomputeVisibleMoments = () => {
+    const top = scrollYRef.current;
+    const bottom = top + viewportH.current;
+    if (viewportH.current === 0) return;
+    const next = new Set<string>();
+    momentLayouts.current.forEach((rect, id) => {
+      const cardTop = gridOffsetY.current + rect.y;
+      if (cardTop + rect.h > top && cardTop < bottom) next.add(id);
+    });
+    setVisibleMomentIds((prev) => {
+      if (prev.size === next.size) {
+        let same = true;
+        next.forEach((id) => { if (!prev.has(id)) same = false; });
+        if (same) return prev;
+      }
+      return next;
+    });
+  };
+
   const handleStartEditTopic = () => {
     if (track) {
       setEditTopicValue(track.name);
@@ -280,7 +311,13 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
       ref={contentScrollRef}
       className="flex-1"
       showsVerticalScrollIndicator={false}
-      onScroll={(e) => setShowScrollTop(e.nativeEvent.contentOffset.y > 600)}
+      onLayout={(e) => { viewportH.current = e.nativeEvent.layout.height; recomputeVisibleMoments(); }}
+      onScroll={(e) => {
+        const y = e.nativeEvent.contentOffset.y;
+        scrollYRef.current = y;
+        setShowScrollTop(y > 600);
+        recomputeVisibleMoments();
+      }}
       scrollEventThrottle={64}
     >
       <VStack className="px-5 md:px-6 pt-4 pb-12" space="md">
@@ -406,17 +443,28 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
 
         {/* Moments grid */}
         {!activeLoading && activeMoments.length > 0 && (
-          <View className="flex flex-col md:flex-row md:flex-wrap gap-3">
+          <View
+            className="flex flex-col md:flex-row md:flex-wrap gap-3"
+            onLayout={(e) => { gridOffsetY.current = e.nativeEvent.layout.y; recomputeVisibleMoments(); }}
+          >
             {activeMoments.map((event: any) => {
               // In parent mode a moment is editable only if the parent captured
               // it; the child's own moments are shown read-only.
               const editable = !isParent || (!!currentUserId && event.captured_by_user_id === currentUserId);
               return (
-                <View key={event.id} className="md:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)] xl:w-[calc(25%-9px)]">
+                <View
+                  key={event.id}
+                  className="md:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)] xl:w-[calc(25%-9px)]"
+                  onLayout={(e) => {
+                    momentLayouts.current.set(event.id, { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height });
+                    recomputeVisibleMoments();
+                  }}
+                >
                   <LearningEventCard
                     event={event}
                     childId={isParent && editable ? studentId : undefined}
                     readOnly={isParent && !editable}
+                    isActive={visibleMomentIds.has(event.id)}
                     onDeleted={() => removeMomentEverywhere(event.id)}
                     onEdit={editable ? (e) => setEditingEvent(e) : undefined}
                     topics={topics}

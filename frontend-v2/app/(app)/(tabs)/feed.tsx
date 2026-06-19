@@ -564,7 +564,12 @@ export default function FeedScreen() {
           </HStack>
         </View>
       )}
-      {isSuperadmin && (
+      {/* Superadmin-only Highlights segment. Gate it on !isObserver && !isParent
+       *  so it never stacks under the observer ("Feed/Students") or parent
+       *  segment when a superadmin is previewing those role shells — that double
+       *  segment bar was the "double nav tabs" bug. In the default self view
+       *  (no observer/parent preview) it renders as the single segment bar. */}
+      {isSuperadmin && !isObserver && !isParent && (
         <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
           <HStack className="bg-surface-100 rounded-xl p-1 dark:bg-dark-surface-200">
             {(['feed', 'highlights'] as FeedSegment[]).map((s) => {

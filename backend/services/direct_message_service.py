@@ -474,6 +474,18 @@ class DirectMessageService(BaseService):
                 message.data['recipient_id']
             )
 
+            # Keep the notification bell in sync with the thread: clear the
+            # 'message_received' notifications this reader has from this sender,
+            # otherwise a viewed message keeps showing in the notification
+            # center even though the thread is read.
+            try:
+                NotificationService().mark_message_notifications_read(
+                    user_id=message.data['recipient_id'],
+                    sender_id=message.data['sender_id'],
+                )
+            except Exception as notif_err:
+                logger.warning(f"Failed to clear message notifications on read: {notif_err}")
+
             return True
 
         except Exception as e:

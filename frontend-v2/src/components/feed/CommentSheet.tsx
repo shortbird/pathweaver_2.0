@@ -2,9 +2,9 @@
  * CommentSheet - Bottom sheet for viewing and posting comments on feed items.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Modal, Pressable, TextInput, KeyboardAvoidingView,
+  View, Modal, Pressable, TextInput, Keyboard, Animated,
   Platform, FlatList, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +46,28 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
       fetchComments();
     }
   }, [visible]);
+
+  // Lift the sheet above the soft keyboard by tracking the keyboard height
+  // ourselves and padding the bottom of the container. We do NOT use
+  // KeyboardAvoidingView here: inside a Modal on iOS it intermittently fails to
+  // lift (leaving the comment input covered by the keyboard) and leaves residual
+  // padding on dismiss — the same reason the shared BottomSheet primitive hand-
+  // rolls this. keyboardWillShow on iOS / keyboardDidShow on Android keeps it in
+  // sync on both platforms and settles back to 0 on hide.
+  const keyboardPad = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const animateTo = (toValue: number, duration?: number) =>
+      Animated.timing(keyboardPad, {
+        toValue,
+        duration: duration || 250,
+        useNativeDriver: false,
+      }).start();
+    const subShow = Keyboard.addListener(showEvt, (e: any) => animateTo(e?.endCoordinates?.height ?? 0, e?.duration));
+    const subHide = Keyboard.addListener(hideEvt, (e: any) => animateTo(0, e?.duration));
+    return () => { subShow.remove(); subHide.remove(); };
+  }, [keyboardPad]);
 
   const fetchComments = async () => {
     setLoading(true);
@@ -90,10 +112,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        className="flex-1 justify-end"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <Animated.View className="flex-1 justify-end" style={{ paddingBottom: keyboardPad }}>
         {/* Backdrop */}
         <Pressable
           className="flex-1"
@@ -192,7 +211,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
             </Pressable>
           </HStack>
         </View>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </Modal>
   );
 }

@@ -39,6 +39,12 @@ import { captureException, captureMessage } from '@/src/services/sentry';
 function reportOtaIssue(kind: 'check' | 'download', err: unknown): void {
   const message =
     err instanceof Error ? err.message : String((err as { message?: unknown })?.message ?? err);
+  // Pure offline / connectivity failures are expected (the device just can't
+  // reach the OTA server) and not actionable — don't report them at all. This
+  // is the bulk of the noise: "The Internet connection appears to be offline"
+  // re-fires on every foreground re-check (NODE-48). Keep reporting genuine
+  // check/download failures (bad bundle, server errors) below.
+  if (/offline|network\s*error|internet connection/i.test(message)) return;
   captureMessage(`[OTA] ${kind} failed: ${message}`, {
     level: 'warning',
     fingerprint: [`ota-${kind}-error`],

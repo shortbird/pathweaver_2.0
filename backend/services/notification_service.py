@@ -221,6 +221,46 @@ class NotificationService(BaseService):
             logger.error(f"Error marking notification as read: {str(e)}")
             raise
 
+    def mark_message_notifications_read(self, user_id: str, sender_id: str) -> int:
+        """
+        Mark the recipient's 'message_received' notifications from a given sender
+        as read.
+
+        Direct messages and the notification bell track unread state in two
+        separate places (direct_messages.read_at vs notifications.is_read).
+        Reading a thread only cleared the former, so a viewed message kept
+        showing in the notification center ("Viewed the message but it still
+        showed in notifications"). Call this when a message thread is read to
+        keep the two in sync.
+
+        Args:
+            user_id: Recipient who is reading the thread
+            sender_id: The other participant whose messages were just read
+
+        Returns:
+            Number of notifications updated
+        """
+        try:
+            result = self.supabase.table('notifications')\
+                .update({'is_read': True})\
+                .eq('user_id', user_id)\
+                .eq('type', 'message_received')\
+                .eq('is_read', False)\
+                .eq('metadata->>sender_id', sender_id)\
+                .execute()
+
+            count = len(result.data) if result.data else 0
+            if count:
+                logger.info(
+                    f"Marked {count} message notifications read for user "
+                    f"{user_id[:8]} from sender {sender_id[:8]}"
+                )
+            return count
+
+        except Exception as e:
+            logger.error(f"Error marking message notifications as read: {str(e)}")
+            return 0
+
     def mark_all_as_read(self, user_id: str) -> int:
         """
         Mark all notifications as read for a user.

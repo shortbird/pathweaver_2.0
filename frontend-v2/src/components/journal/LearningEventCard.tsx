@@ -45,9 +45,13 @@ interface LearningEventCardProps {
   /** Fully read-only — no action menu opens on tap. Used for a child's
    *  self-captured moments, which a parent can view but not edit/delete. */
   readOnly?: boolean;
+  /** False when the card is scrolled out of the viewport, so an inline video
+   *  pauses instead of playing audio off-screen. Defaults to true so call sites
+   *  that don't track visibility keep the previous always-active behaviour. */
+  isActive?: boolean;
 }
 
-function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned, childId, readOnly }: LearningEventCardProps) {
+function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAssigned, childId, readOnly, isActive = true }: LearningEventCardProps) {
   const c = useThemeColors();
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
   // Background video upload progress for this moment (if one is in flight).
@@ -323,7 +327,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
               // Real inline player (was a static placeholder) so videos are
               // watchable directly in the journal.
               <View style={{ height: 220 }}>
-                <VideoPlayer uri={getBlockUrl(videoBlock)} fillContainer />
+                <VideoPlayer uri={getBlockUrl(videoBlock)} fillContainer isActive={isActive} />
               </View>
             )}
           </View>
@@ -604,6 +608,9 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
 
 // P4: memoize — same event identity + same attach state skips re-render.
 export const LearningEventCard = memo(LearningEventCardImpl, (prev, next) => {
+  // isActive flips as the card scrolls in/out of the viewport; it must force a
+  // re-render so the inline video pauses when scrolled away.
+  if (prev.isActive !== next.isActive) return false;
   if (prev.onPress !== next.onPress) return false;
   if (prev.onDeleted !== next.onDeleted) return false;
   if (prev.onEdit !== next.onEdit) return false;
