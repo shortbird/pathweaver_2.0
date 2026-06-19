@@ -864,11 +864,11 @@ class EmailService(BaseService):
       set up your free Optio account so you can document your week and we can review your work for credit.
     </p>
     <div style="background: #f5f3ff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin: 18px 0;">
-      <p style="margin: 0 0 6px; font-size: 15px; font-weight: bold; color: #6D469B;">Mark your calendar</p>
+      <p style="margin: 0 0 6px; font-size: 15px; font-weight: bold; color: #6D469B;">Watch the info session</p>
       <p style="margin: 0; font-size: 15px; line-height: 1.6;">
-        We're hosting a short online info session before your POE to walk through how it works and
-        answer your questions: <strong>Wednesday, June 17 at 7 p.m. Eastern</strong>. It will be recorded
-        for anyone who can't attend, and we'll send an invitation with the link before the meeting.
+        We held a short online info session walking through how the credit works and answering questions.
+        We recorded it so you can watch any time:
+        <a href="https://docs.google.com/videos/d/1uT8opeYJWfi6Nz9bOmrYiwNQ9VYptX9R1hk3uNy3CG0/edit?usp=drive_link" style="color: #6D469B; font-weight: bold;">watch the recording</a>.
       </p>
     </div>
     <p style="font-size: 15px; line-height: 1.6;">
@@ -887,10 +887,9 @@ class EmailService(BaseService):
             "There's nothing more you need to do right now. Closer to camp, we'll email "
             "you a link to set up your free Optio account so you can document your week "
             "and we can review your work for credit.\n\n"
-            "Mark your calendar: we're hosting a short online info session before your POE "
-            "to walk through how it works and answer your questions on Wednesday, June 17 "
-            "at 7 p.m. Eastern. It will be recorded for anyone who can't attend, and we'll send "
-            "an invitation with the link before the meeting.\n\n"
+            "Watch the info session: we held a short online session walking through how the "
+            "credit works and answering questions, and we recorded it so you can watch any time: "
+            "https://docs.google.com/videos/d/1uT8opeYJWfi6Nz9bOmrYiwNQ9VYptX9R1hk3uNy3CG0/edit?usp=drive_link\n\n"
             "Questions? Just reply to this email.\n\n"
             "— The Optio Team"
         )

@@ -216,6 +216,9 @@ const PoePage = () => {
                 Check your email for a confirmation. There’s nothing more to do right now — we’ll reach out
                 closer to camp to get you set up to document your week and earn your credit.
               </p>
+              <p className="text-green-800 mt-3">
+                Missed the info session? <a href="https://docs.google.com/videos/d/1uT8opeYJWfi6Nz9bOmrYiwNQ9VYptX9R1hk3uNy3CG0/edit?usp=drive_link" target="_blank" rel="noopener noreferrer" className="font-semibold text-optio-purple underline">Watch the recording</a> to see how the credit works.
+              </p>
             </div>
           ) : (
             !loading && !loadError && cohorts.length > 0 && (
