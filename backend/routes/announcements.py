@@ -140,11 +140,15 @@ def list_announcements(user_id):
             return jsonify({'success': True, 'announcements': []})
 
         rows = admin.table('announcements')\
-            .select('id, title, content:message, target_audience, author_id, created_at')\
+            .select('id, title, message, target_audience, author_id, created_at')\
             .eq('organization_id', org_id)\
             .order('created_at', desc=True)\
             .limit(50).execute()
-        return jsonify({'success': True, 'announcements': rows.data or []})
+        announcements = [
+            {**row, 'content': row.get('message')}
+            for row in (rows.data or [])
+        ]
+        return jsonify({'success': True, 'announcements': announcements})
     except Exception as e:
         logger.error(f"Error listing announcements: {e}")
         return jsonify({'success': False, 'error': 'Failed to load announcements'}), 500

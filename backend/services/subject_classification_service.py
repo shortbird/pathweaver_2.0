@@ -236,7 +236,7 @@ Now classify the task above. Return ONLY the JSON object."""
                 raise ValueError("Response is not a dictionary")
 
             # Validate subjects are valid
-            for subject in subject_distribution.keys():
+            for subject in list(subject_distribution.keys()):
                 if subject not in SCHOOL_SUBJECTS:
                     logger.warning(f"Invalid subject '{subject}' returned by AI, removing")
                     del subject_distribution[subject]
