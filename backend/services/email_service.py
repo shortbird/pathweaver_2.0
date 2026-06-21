@@ -846,6 +846,7 @@ class EmailService(BaseService):
         safe_name = (first_name or '').strip() or 'there'
         camp = cohort_name or 'your Pipe Organ Encounter'
         subject = f"You're on the list — {camp}"
+        register_url = f"{Config.FRONTEND_URL}/register"
 
         html_body = f"""\
 <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; color: #1f2937;">
@@ -860,8 +861,11 @@ class EmailService(BaseService):
       We've added you to the list and saved where your credit should go.
     </p>
     <p style="font-size: 15px; line-height: 1.6;">
-      There's nothing more you need to do right now. Closer to camp, we'll email you a link to
-      set up your free Optio account so you can document your week and we can review your work for credit.
+      <strong>Next step: create your free Optio account now</strong> so it's ready to go when camp starts.
+      We'll automatically link it to your POE so you can document your week and we can review your work for credit.
+    </p>
+    <p style="margin: 18px 0;">
+      <a href="{register_url}" style="display: inline-block; background: linear-gradient(90deg, #6D469B 0%, #EF597B 100%); color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-weight: bold; font-size: 15px;">Create your Optio account</a>
     </p>
     <div style="background: #f5f3ff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin: 18px 0;">
       <p style="margin: 0 0 6px; font-size: 15px; font-weight: bold; color: #6D469B;">Watch the info session</p>
@@ -884,9 +888,10 @@ class EmailService(BaseService):
             f"Hi {safe_name},\n\n"
             f"Thanks for signing up to earn 0.5 fine arts credit for {camp}. "
             "We've added you to the list and saved where your credit should go.\n\n"
-            "There's nothing more you need to do right now. Closer to camp, we'll email "
-            "you a link to set up your free Optio account so you can document your week "
-            "and we can review your work for credit.\n\n"
+            "Next step: create your free Optio account now so it's ready to go when camp "
+            "starts. We'll automatically link it to your POE so you can document your week "
+            f"and we can review your work for credit.\n\n"
+            f"Create your account: {register_url}\n\n"
             "Watch the info session: we held a short online session walking through how the "
             "credit works and answering questions, and we recorded it so you can watch any time: "
             "https://docs.google.com/videos/d/1uT8opeYJWfi6Nz9bOmrYiwNQ9VYptX9R1hk3uNy3CG0/edit?usp=drive_link\n\n"
