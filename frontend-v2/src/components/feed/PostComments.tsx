@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { postComment, getComments } from '@/src/hooks/useFeed';
 import type { FeedItem } from '@/src/hooks/useFeed';
 import { extractApiError } from '@/src/services/apiError';
@@ -22,6 +23,8 @@ interface Comment {
   user_display_name?: string;
   comment_text: string;
   created_at: string;
+  // Superadmin comments are surfaced as "Optio" with the platform logo.
+  is_platform?: boolean;
 }
 
 export function PostComments({ item }: { item: FeedItem }) {
@@ -94,7 +97,11 @@ export function PostComments({ item }: { item: FeedItem }) {
             return (
               <HStack key={cm.id} className="gap-3 py-1.5">
                 <Avatar size="xs">
-                  <AvatarFallbackText>{initials}</AvatarFallbackText>
+                  {cm.is_platform ? (
+                    <ExpoImage source={require('@/assets/images/icon.png')} style={{ width: '100%', height: '100%', backgroundColor: '#fff' }} contentFit="cover" />
+                  ) : (
+                    <AvatarFallbackText>{initials}</AvatarFallbackText>
+                  )}
                 </Avatar>
                 <VStack className="flex-1">
                   <HStack className="items-center gap-2">

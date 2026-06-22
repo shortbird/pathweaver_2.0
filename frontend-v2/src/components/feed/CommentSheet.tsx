@@ -8,6 +8,7 @@ import {
   Platform, FlatList, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { postComment, getComments } from '@/src/hooks/useFeed';
 import type { FeedItem } from '@/src/hooks/useFeed';
 import { extractApiError } from '@/src/services/apiError';
@@ -21,6 +22,8 @@ interface Comment {
   user_display_name?: string;
   comment_text: string;
   created_at: string;
+  // Superadmin comments are surfaced as "Optio" with the platform logo.
+  is_platform?: boolean;
 }
 
 interface CommentSheetProps {
@@ -162,7 +165,11 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
                 return (
                   <HStack className="gap-3 py-2.5">
                     <Avatar size="xs">
-                      <AvatarFallbackText>{initials}</AvatarFallbackText>
+                      {c.is_platform ? (
+                        <ExpoImage source={require('@/assets/images/icon.png')} style={{ width: '100%', height: '100%', backgroundColor: '#fff' }} contentFit="cover" />
+                      ) : (
+                        <AvatarFallbackText>{initials}</AvatarFallbackText>
+                      )}
                     </Avatar>
                     <VStack className="flex-1">
                       <HStack className="items-center gap-2">

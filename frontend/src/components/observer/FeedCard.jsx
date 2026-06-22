@@ -66,7 +66,13 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   }, [item]);
 
   const isLearningMoment = localItem.type === 'learning_moment';
-  const completionId = !isLearningMoment ? (localItem.completion_id || localItem.id) : null;
+  // Only a real completion can host comments/likes — observer_comments.task_completion_id
+  // is an FK to quest_task_completions. Draft evidence items (helper/in-progress
+  // evidence with no completion yet) carry completion_id: null and their `id` is a
+  // document id, so the old `|| localItem.id` fallback sent a document id as the
+  // comment target → 404 on load + 500 (FK violation) on post. Gate on a real
+  // completion_id so draft cards simply omit the comment box.
+  const completionId = !isLearningMoment ? (localItem.completion_id || null) : null;
   const learningEventId = isLearningMoment ? localItem.learning_event_id : null;
 
   // Either completionId or learningEventId must be present for social features
@@ -328,6 +334,15 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   // Check if we have multiple media items (for carousel display)
   const hasMediaCarousel = isLearningMoment && localItem.media && localItem.media.length > 0;
 
+  // Grouped task evidence: the shared backend returns evidence.type ===
+  // 'document_blocks' with the files in evidence.blocks[] (the same shape the
+  // mobile app renders). v1 previously only handled learning-moment media and a
+  // single evidence.url, so these task cards showed no image. Render the blocks
+  // through MediaCarousel (it reads {type, url, title}). Backend + mobile are
+  // untouched — this is a v1-only read of an existing field.
+  const evidenceBlocks = (localItem.evidence?.blocks || []).filter(b => b && b.url);
+  const hasEvidenceBlocks = evidenceBlocks.length > 0;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mx-2 sm:mx-0">
       {/* 1. Student name header */}
@@ -410,6 +425,8 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
       {/* Use MediaCarousel for learning moments with multiple media items */}
       {hasMediaCarousel ? (
         <MediaCarousel media={localItem.media} />
+      ) : hasEvidenceBlocks ? (
+        <MediaCarousel media={evidenceBlocks} />
       ) : hasMediaEvidence && (
         <div className="bg-gray-100">
           {localItem.evidence.type === 'image' && (
@@ -540,13 +557,19 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
           <EyeIcon className="w-6 h-6" />
           {viewsCount > 0 && <span className="text-sm">{viewsCount}</span>}
         </button>
-        <button
-          onClick={() => setCommentsExpanded(!commentsExpanded)}
-          className="flex items-center gap-1 p-2 text-gray-700 hover:text-gray-500 transition-colors"
-        >
-          <ChatBubbleLeftIcon className="w-6 h-6" />
-          {commentsCount > 0 && <span className="text-sm">{commentsCount}</span>}
-        </button>
+        {/* Comments require a real social target (completion or learning
+            moment). Draft/helper evidence with no completion can't host
+            comments, so — like the share button below — hide the affordance
+            rather than show a dead form that silently no-ops on submit. */}
+        {hasSocialTarget && (
+          <button
+            onClick={() => setCommentsExpanded(!commentsExpanded)}
+            className="flex items-center gap-1 p-2 text-gray-700 hover:text-gray-500 transition-colors"
+          >
+            <ChatBubbleLeftIcon className="w-6 h-6" />
+            {commentsCount > 0 && <span className="text-sm">{commentsCount}</span>}
+          </button>
+        )}
         {hasSocialTarget && (
           <button
             onClick={handleShare}
@@ -618,7 +641,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
       {/* 8. Previous comments */}
       {commentsExpanded && (
         <div className="border-t border-gray-100 bg-gray-50">
-          {!isStudentView && (
+          {!isStudentView && hasSocialTarget && (
             <form onSubmit={handleSubmitComment} className="p-3 sm:p-4 border-b border-gray-100 bg-white">
               <div className="flex gap-2">
                 <input

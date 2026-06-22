@@ -401,30 +401,55 @@ def _get_completion_evidence(supabase, completion):
             .execute()
 
         if doc.data:
+            # Return ALL non-private blocks (not just the first) as
+            # evidence.blocks[], shaped exactly like /api/observers/feed, so the
+            # web shared view renders every file via FeedCard's MediaCarousel.
+            # Previously this returned only the first block (limit 1) — so a
+            # multi-file task showed one item, and if the first block was text it
+            # showed no image at all. (Web-only: the mobile app never calls
+            # /api/public/feed.)
             blocks = supabase.table('evidence_document_blocks') \
-                .select('block_type, content, order_index') \
+                .select('block_type, content, file_url, order_index') \
                 .eq('document_id', doc.data[0]['id']) \
                 .eq('is_private', False) \
                 .order('order_index') \
-                .limit(1) \
                 .execute()
 
             if blocks.data:
-                block = blocks.data[0]
-                content = block.get('content', {})
-                items = content.get('items', [])
-                url = items[0].get('url') if items else content.get('url')
+                fe_blocks = []
+                for block in blocks.data:
+                    content = block.get('content', {}) or {}
+                    items = content.get('items', [])
+                    url = (items[0].get('url') if items else content.get('url')) or block.get('file_url')
+                    bt = block.get('block_type')
+                    fe = None
+                    if bt == 'image' and url:
+                        fe = {'type': 'image', 'url': url}
+                    elif bt == 'video' and url:
+                        fe = {'type': 'video', 'url': url, 'title': content.get('title')}
+                    elif bt == 'link' and url:
+                        fe = {'type': 'link', 'url': url, 'title': content.get('title')}
+                    elif bt == 'document' and url:
+                        fe = {'type': 'document', 'url': url, 'title': content.get('title') or content.get('filename')}
+                    elif bt == 'audio' and url:
+                        fe = {'type': 'audio', 'url': url, 'title': content.get('filename'),
+                              'content': {'duration_ms': content.get('duration_ms')}}
+                    elif bt == 'text':
+                        text_val = content.get('text', '')
+                        if text_val:
+                            fe = {'type': 'text', 'content': text_val}
+                    if fe:
+                        fe_blocks.append(fe)
 
-                if block['block_type'] == 'image':
-                    return {'type': 'image', 'url': url, 'preview_text': None, 'title': None}
-                elif block['block_type'] == 'video':
-                    return {'type': 'video', 'url': url, 'preview_text': None, 'title': content.get('title')}
-                elif block['block_type'] == 'link':
-                    return {'type': 'link', 'url': url, 'preview_text': None, 'title': content.get('title')}
-                elif block['block_type'] == 'text':
-                    return {'type': 'text', 'url': None, 'preview_text': content.get('text', ''), 'title': None}
-                elif block['block_type'] == 'document':
-                    return {'type': 'document', 'url': url, 'preview_text': None, 'title': content.get('title') or content.get('filename')}
+                media_blocks = [b for b in fe_blocks if b.get('url')]
+                if media_blocks:
+                    # Non-singular type → FeedCard renders from evidence.blocks.
+                    return {'type': 'document_blocks', 'url': None, 'preview_text': None,
+                            'title': None, 'blocks': fe_blocks}
+                # Text-only evidence: preserve the single-text rendering.
+                text_val = next((b.get('content') for b in fe_blocks if b['type'] == 'text'), None)
+                if text_val:
+                    return {'type': 'text', 'url': None, 'preview_text': text_val, 'title': None}
 
     # Legacy evidence
     if completion.get('evidence_url'):

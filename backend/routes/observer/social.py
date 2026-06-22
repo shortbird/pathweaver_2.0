@@ -18,6 +18,54 @@ logger = logging.getLogger(__name__)
 VALID_TARGET_TYPES = ('completion', 'learning_event', 'bounty_claim')
 
 
+def _attach_comment_authors(supabase, comments_data):
+    """Populate author display fields on each comment row in place.
+
+    Superadmin authors are surfaced as "Optio" (no personal name/avatar, plus an
+    `is_platform` flag so the client can render the Optio logo) so admin replies
+    read as coming from Optio — matching how superadmin views/reviews already
+    appear. Shared by the learning-event and completion comment endpoints; both
+    web (reads comment.observer) and mobile (reads comment.user_display_name)
+    consume these fields, so it maps both.
+    """
+    observer_ids = list({c['observer_id'] for c in comments_data})
+    if not observer_ids:
+        return comments_data
+
+    observers = supabase.table('users') \
+        .select('id, first_name, last_name, display_name, avatar_url, role') \
+        .in_('id', observer_ids) \
+        .execute()
+    observer_map = {obs['id']: obs for obs in (observers.data or [])}
+
+    for comment in comments_data:
+        obs = observer_map.get(comment['observer_id'], {})
+        if obs.get('role') == 'superadmin':
+            # Blank the personal name fields so the web getObserverName()
+            # (first/last, then display_name) resolves to "Optio".
+            comment['observer'] = {
+                'id': obs.get('id'),
+                'first_name': '',
+                'last_name': '',
+                'display_name': 'Optio',
+                'avatar_url': None,
+            }
+            comment['user_display_name'] = 'Optio'
+            comment['user_avatar_url'] = None
+            comment['is_platform'] = True
+        else:
+            comment['observer'] = obs
+            comment['user_display_name'] = (
+                obs.get('display_name')
+                or f"{obs.get('first_name', '')} {obs.get('last_name', '')}".strip()
+                or 'User'
+            )
+            comment['user_avatar_url'] = obs.get('avatar_url')
+            comment['is_platform'] = False
+
+    return comments_data
+
+
 def register_routes(bp):
     """Register routes on the blueprint."""
 
@@ -238,29 +286,8 @@ def register_routes(bp):
                 .order('created_at', desc=False) \
                 .execute()
 
-            # Get observer details
-            observer_ids = list(set([c['observer_id'] for c in comments.data]))
-            comments_data = comments.data
-
-            if observer_ids:
-                observers = supabase.table('users') \
-                    .select('id, first_name, last_name, display_name, avatar_url') \
-                    .in_('id', observer_ids) \
-                    .execute()
-
-                observer_map = {obs['id']: obs for obs in observers.data}
-
-                for comment in comments_data:
-                    obs = observer_map.get(comment['observer_id'], {})
-                    comment['observer'] = obs
-                    # The app renders `user_display_name` — populate it (and avatar)
-                    # so comments show the author's name, not a generic "User".
-                    comment['user_display_name'] = (
-                        obs.get('display_name')
-                        or f"{obs.get('first_name', '')} {obs.get('last_name', '')}".strip()
-                        or 'User'
-                    )
-                    comment['user_avatar_url'] = obs.get('avatar_url')
+            # Resolve comment authors (superadmin → "Optio"); see helper.
+            comments_data = _attach_comment_authors(supabase, comments.data)
 
             return jsonify({'comments': comments_data}), 200
 
@@ -347,29 +374,8 @@ def register_routes(bp):
                 .order('created_at', desc=False) \
                 .execute()
 
-            # Get observer details
-            observer_ids = list(set([c['observer_id'] for c in comments.data]))
-            comments_data = comments.data
-
-            if observer_ids:
-                observers = supabase.table('users') \
-                    .select('id, first_name, last_name, display_name, avatar_url') \
-                    .in_('id', observer_ids) \
-                    .execute()
-
-                observer_map = {obs['id']: obs for obs in observers.data}
-
-                for comment in comments_data:
-                    obs = observer_map.get(comment['observer_id'], {})
-                    comment['observer'] = obs
-                    # The app renders `user_display_name` — populate it (and avatar)
-                    # so comments show the author's name, not a generic "User".
-                    comment['user_display_name'] = (
-                        obs.get('display_name')
-                        or f"{obs.get('first_name', '')} {obs.get('last_name', '')}".strip()
-                        or 'User'
-                    )
-                    comment['user_avatar_url'] = obs.get('avatar_url')
+            # Resolve comment authors (superadmin → "Optio"); see helper.
+            comments_data = _attach_comment_authors(supabase, comments.data)
 
             return jsonify({'comments': comments_data}), 200
 
