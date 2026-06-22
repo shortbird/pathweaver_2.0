@@ -109,6 +109,43 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+// Transient-failure retry: ONE retry on a brief backend-unavailability blip
+// (network error / timeout / 502 / 503 / 504) for idempotent requests only.
+// These come from short worker-restart / memory-spike windows on the 512MB
+// prod instance — not a real client error — so a single short-delayed retry
+// usually recovers silently. Registered BEFORE the diagnostics/reportApiError
+// interceptor below so a recovered request never reaches Sentry (keeps the
+// 5xx/network blips out of the error stream too). Only GET/HEAD are retried;
+// POST/PUT/PATCH/DELETE are never auto-repeated (could double-write).
+const RETRIABLE_STATUSES = new Set([502, 503, 504]);
+const IDEMPOTENT_METHODS = new Set(['get', 'head']);
+
+export function isRetriableTransient(error: AxiosError): boolean {
+  if (axios.isCancel(error)) return false;
+  const method = (error.config?.method || 'get').toLowerCase();
+  if (!IDEMPOTENT_METHODS.has(method)) return false;
+  const status = error.response?.status;
+  // No response → network error or timeout (request never completed). Retriable.
+  if (status === undefined) return true;
+  return RETRIABLE_STATUSES.has(status);
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const cfg = error.config as
+      | (InternalAxiosRequestConfig & { _transientRetried?: boolean })
+      | undefined;
+    if (!cfg || cfg._transientRetried || !isRetriableTransient(error)) {
+      return Promise.reject(error);
+    }
+    cfg._transientRetried = true;
+    // Brief backoff so a worker mid-restart has a moment to come back up.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return api(cfg);
+  },
+);
+
 // Diagnostics interceptor: record recent API calls (metadata only, never bodies)
 // for the in-app bug reporter. Runs before the refresh interceptor below.
 function logApiCall(config: InternalAxiosRequestConfig | undefined, status: number | null) {

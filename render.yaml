@@ -16,13 +16,34 @@ services:
         value: https://api.optioeducation.com
 
   # Production Backend
+  # Reconciled 2026-06-22 to match the LIVE dashboard-managed service. The
+  # previous values here had diverged and were NOT in effect (the live service
+  # is dashboard-managed, not Blueprint-synced). Kept truthful so that if this
+  # file is ever synced as a Blueprint it won't revert working config or drop
+  # the health check / build filter.
   - type: web
     name: optio-prod-backend
     env: python
     branch: main
-    rootDir: backend
+    # Live rootDir is the repo ROOT (empty): the build installs the ROOT
+    # requirements.txt, and the app is started from backend/ in startCommand.
+    rootDir: ""
+    # ffmpeg/ffprobe are required by services/video_processing_service.py for
+    # server-side video probe + thumbnail generation (installed via apt at build).
+    # IMPORTANT: keep this in sync with the LIVE dashboard build command — this
+    # service is dashboard-managed, so editing here alone does NOT change the build.
     buildCommand: apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt
-    startCommand: gunicorn app:app --timeout 300
+    startCommand: cd backend && gunicorn app:app -c gunicorn.conf.py
+    # Real DB-backed check (app.py:124, 200 healthy / 503 unhealthy) → enables
+    # readiness-gated zero-downtime deploys, removing the deploy-cutover 502/504s.
+    healthCheckPath: /api/health
+    # Only redeploy the backend when something it depends on changes (most pushes
+    # are frontend/mobile-only). Paths are repo-root relative.
+    buildFilter:
+      paths:
+        - backend/**
+        - requirements.txt
+        - render.yaml
     envVars:
       - key: FLASK_ENV
         value: production
@@ -42,13 +63,17 @@ services:
         value: https://www.optioeducation.com
 
   # Development Backend
+  # Reconciled 2026-06-22 to match the LIVE dashboard-managed service. Dev keeps
+  # on-commit auto-deploy (fast iteration) and intentionally has NO health check
+  # / build filter, matching the live dev service. ffmpeg installed for parity
+  # with prod (keep in sync with the live dev dashboard build command).
   - type: web
     name: optio-dev-backend
     env: python
     branch: develop
-    rootDir: backend
+    rootDir: ""
     buildCommand: apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt
-    startCommand: gunicorn app:app --timeout 300
+    startCommand: cd backend && gunicorn app:app -c gunicorn.conf.py
     envVars:
       - key: FLASK_ENV
         value: development
