@@ -30,7 +30,7 @@ import {
   Skeleton,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
-import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
+import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
 import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 
@@ -429,7 +429,7 @@ export default function ProfileScreen() {
                 </HStack>
               </HStack>
             </VStack>
-            <PortfolioSection achievements={achievements} />
+            <ProfileActivityFeed studentId={user?.id} showStudent={false} />
           </CollapsibleSection>
 
           {/* Subject Credits */}

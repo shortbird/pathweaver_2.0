@@ -18,7 +18,7 @@ import {
 } from '@/src/components/ui';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { PillarRadar } from '@/src/components/engagement/PillarRadar';
-import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
+import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
 import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
 import { useChildOverview, useChildJournal } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -83,8 +83,6 @@ export default function ChildProfileScreen() {
       pending_xp: Number(pendingSubjectXp[school_subject]) || 0,
     }))
     .filter((s) => s.xp_amount > 0 || s.pending_xp > 0);
-  const portfolioAchievements = overview?.portfolio_achievements || [];
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
       {/* Header */}
@@ -216,13 +214,12 @@ export default function ChildProfileScreen() {
               </VStack>
             )}
 
-            {/* Portfolio */}
-            {portfolioAchievements.length > 0 && (
-              <VStack space="sm">
-                <Heading size="md">Portfolio</Heading>
-                <PortfolioSection achievements={portfolioAchievements} />
-              </VStack>
-            )}
+            {/* Activity feed — replaces the old expand-a-quest portfolio so a
+                parent's profile view stays responsive on quests with lots of evidence. */}
+            <VStack space="sm">
+              <Heading size="md">Activity</Heading>
+              <ProfileActivityFeed studentId={studentId || null} viewerCanModerate />
+            </VStack>
           </VStack>
         </ScrollView>
       )}
