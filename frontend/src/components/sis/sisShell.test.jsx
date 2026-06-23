@@ -1,0 +1,74 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+
+let authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+
+const nav = vi.hoisted(() => ({ goToLearningSurface: vi.fn(), goToSisSurface: vi.fn() }))
+vi.mock('../../utils/appSurface', () => nav)
+
+import SisLayout from './SisLayout'
+import SisSidebar from './SisSidebar'
+
+function renderLayout() {
+  return render(
+    <MemoryRouter>
+      <Routes>
+        <Route element={<SisLayout />}>
+          <Route index element={<div>CHILD CONTENT</div>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+beforeEach(() => {
+  authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
+  vi.clearAllMocks()
+})
+
+describe('SisLayout gate', () => {
+  it('renders staff children', () => {
+    renderLayout()
+    expect(screen.getByText('CHILD CONTENT')).toBeInTheDocument()
+  })
+
+  it('shows a spinner while auth is loading', () => {
+    authState.loading = true
+    renderLayout()
+    expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
+    expect(nav.goToLearningSurface).not.toHaveBeenCalled()
+  })
+
+  it('bounces unauthenticated visitors to the learning login', () => {
+    authState = { isAuthenticated: false, effectiveRole: null, user: null, loading: false }
+    renderLayout()
+    expect(nav.goToLearningSurface).toHaveBeenCalledWith('/login')
+  })
+
+  it('bounces non-staff (students) back to the learning app', () => {
+    authState = { isAuthenticated: true, effectiveRole: 'student', user: { role: 'student' }, loading: false }
+    renderLayout()
+    expect(nav.goToLearningSurface).toHaveBeenCalledWith('/')
+    expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
+  })
+})
+
+describe('SisSidebar', () => {
+  it('shows the People link for superadmin and links back to the learning app', () => {
+    authState = { isAuthenticated: true, effectiveRole: 'superadmin', user: { role: 'superadmin' }, loading: false }
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.getByText('People (All Users)')).toBeInTheDocument()
+    expect(screen.getByText('Roster')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Back to Learning app'))
+    expect(nav.goToLearningSurface).toHaveBeenCalled()
+  })
+
+  it('hides the superadmin-only People link for org_admin', () => {
+    authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.queryByText('People (All Users)')).not.toBeInTheDocument()
+  })
+})

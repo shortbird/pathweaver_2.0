@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
+import ModalOverlay from '../../components/ui/ModalOverlay'
 
 /**
  * Per-student detail: enrollment lifecycle fields (status/grade/dates) plus
@@ -64,7 +65,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -125,7 +126,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
           </div>
         </section>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
-import { useOrganization, useOrgFeature } from '../../contexts/OrganizationContext'
+import { useOrganization } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
 import { getSisFlagOverride, goToSisSurface } from '../../utils/appSurface'
 import ActingAsBanner from '../parent/ActingAsBanner'
@@ -55,8 +55,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const { actingAsDependent, clearActingAs } = useActingAs()
   // SIS carve-out: when the user's org has sis_enabled (or the local dev override
   // is set), the school-management surfaces move to the SIS console — so hide them
-  // here and surface a launcher instead. Reversible per-org; default off.
-  const sisEnabled = useOrgFeature('sis_enabled') || getSisFlagOverride()
+  // here and surface a launcher instead. Reversible per-org; default off. Read the
+  // flag straight off the loaded org (no extra hook) so it stays trivially mockable.
+  const sisEnabled = Boolean(organization?.feature_flags?.sis_enabled) || getSisFlagOverride()
   const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
   const [masqueradeState, setMasqueradeState] = useState(null)

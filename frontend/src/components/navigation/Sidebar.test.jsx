@@ -129,3 +129,28 @@ describe('Sidebar — school-specific program tab (org-gated)', () => {
     expect(screen.queryByRole('link', { name: /openEd academy/i })).not.toBeInTheDocument()
   })
 })
+
+describe('Sidebar — SIS carve-out (org feature flag)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
+  })
+
+  it('hides moved admin items and shows the School Admin launcher when sis_enabled', () => {
+    authState.user = { id: 'u1', role: 'superadmin', organization_id: 'org-1', email: 't@example.com' }
+    orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: { sis_enabled: true } } }
+    renderSidebar()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /credit review/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps admin items and shows no launcher when sis_enabled is off', () => {
+    authState.user = { id: 'u1', role: 'superadmin', organization_id: 'org-1', email: 't@example.com' }
+    orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: {} } }
+    renderSidebar()
+    expect(screen.queryByText('School Admin')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /credit review/i })).toBeInTheDocument()
+  })
+})
