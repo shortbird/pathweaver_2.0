@@ -192,8 +192,11 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
         <ImageCarousel uris={imageUrls} onPress={(uri) => setModal({ type: 'image', uri })} />
       )}
 
-      {/* Video - plays inline; expand button opens the full-screen player */}
-      {videoUrl && !hasImage && (
+      {/* Video - plays inline; expand button opens the full-screen player.
+          Previously gated on `!hasImage`, which hid the video whenever a poster
+          or any image was also attached (bug 0a33da15 / bbb96204 follow-up).
+          Always render the video when one is present. */}
+      {videoUrl && (
         <View>
           {/* Pause the inline player while the full-screen player is open so
               you don't hear the audio twice (bug #29). */}
@@ -338,7 +341,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const title = isTask ? item.task?.title : item.moment?.title;
   const description = isTask ? null : item.moment?.description;
   const pillars = isTask ? [item.task?.pillar].filter(Boolean) : (item.moment?.pillars || []);
-  const questTitle = isTask ? item.task?.quest_title : item.moment?.topic_name;
+  const questTitle = isTask ? item.quest?.title : item.moment?.topic_name;
 
   const studentInitials = item.student?.display_name
     ?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || '?';

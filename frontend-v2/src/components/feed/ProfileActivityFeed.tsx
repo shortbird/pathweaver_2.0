@@ -40,8 +40,8 @@ interface QuestChip {
 function collectQuests(items: FeedItem[]): QuestChip[] {
   const seen = new Map<string, string>();
   for (const it of items) {
-    const qid = it.task?.quest_id;
-    const qtitle = it.task?.quest_title;
+    const qid = it.quest?.id;
+    const qtitle = it.quest?.title;
     if (qid && qtitle && !seen.has(qid)) seen.set(qid, qtitle);
   }
   return Array.from(seen.entries())
@@ -60,7 +60,7 @@ export function ProfileActivityFeed({
 
   const quests = useMemo(() => collectQuests(items), [items]);
   const filtered = useMemo(
-    () => (selectedQuestId ? items.filter((it) => it.task?.quest_id === selectedQuestId) : items),
+    () => (selectedQuestId ? items.filter((it) => it.quest?.id === selectedQuestId) : items),
     [items, selectedQuestId],
   );
 
@@ -89,8 +89,9 @@ export function ProfileActivityFeed({
 
   return (
     <VStack space="md">
-      {/* Quest filter chips — only render when there's more than one quest to choose between */}
-      {quests.length > 1 && (
+      {/* Quest filter chips — render whenever any task-completion items exist, even one,
+          so the filter affordance is discoverable. "All" + chips. */}
+      {quests.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}

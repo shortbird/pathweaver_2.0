@@ -59,8 +59,12 @@ export interface FeedItem {
     title: string;
     pillar: string;
     xp_value: number;
-    quest_id: string;
-    quest_title: string;
+  };
+  /** Parent quest for task-completed items. Sent as a top-level field by
+   *  /api/observers/feed (NOT nested inside `task`). Absent on learning_moments. */
+  quest?: {
+    id: string;
+    title: string;
   };
   moment?: {
     title: string;
