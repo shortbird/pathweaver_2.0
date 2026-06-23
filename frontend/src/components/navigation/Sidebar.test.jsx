@@ -137,20 +137,26 @@ describe('Sidebar — SIS carve-out (org feature flag)', () => {
     orgState = { organization: null }
   })
 
-  it('hides moved admin items and shows the School Admin launcher when sis_enabled', () => {
-    authState.user = { id: 'u1', role: 'superadmin', organization_id: 'org-1', email: 't@example.com' }
+  it('hides the Organization item and shows the launcher for a flagged org_admin', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'org_admin', organization_id: 'org-1', email: 'a@example.com' }
     orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: { sis_enabled: true } } }
     renderSidebar()
     expect(screen.getByText('School Admin')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /credit review/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
   })
 
-  it('keeps admin items and shows no launcher when sis_enabled is off', () => {
-    authState.user = { id: 'u1', role: 'superadmin', organization_id: 'org-1', email: 't@example.com' }
+  it('keeps the Organization item and shows no launcher for an unflagged org_admin', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'org_admin', organization_id: 'org-1', email: 'a@example.com' }
     orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: {} } }
     renderSidebar()
     expect(screen.queryByText('School Admin')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /credit review/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^organization$/i })).toBeInTheDocument()
+  })
+
+  it('always shows the School Admin launcher for superadmin (no org flag needed)', () => {
+    authState.user = { id: 'u1', role: 'superadmin', email: 't@example.com' }
+    orgState = { organization: null }
+    renderSidebar()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
   })
 })

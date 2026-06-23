@@ -4,6 +4,9 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 let authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+// SisLayout mounts the feedback FAB, which reads the org context.
+vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => ({ organization: null }) }))
+vi.mock('../../services/api', () => ({ default: { post: vi.fn(() => Promise.resolve({ data: {} })) } }))
 
 const nav = vi.hoisted(() => ({ goToLearningSurface: vi.fn(), goToSisSurface: vi.fn() }))
 vi.mock('../../utils/appSurface', () => nav)

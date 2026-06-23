@@ -155,7 +155,41 @@ def create_bug_report(user_id):
         return jsonify({'error': 'Failed to submit bug report'}), 500
 
     logger.info(f"[BugReport] created {created.get('id')} from user {user_id} route={record.get('current_route')}")
+
+    _capture_to_sentry(record, created, user_id, message)
     return jsonify({'success': True, 'report_id': created.get('id')}), 201
+
+
+def _capture_to_sentry(record, created, user_id, message):
+    """Forward the report to Sentry (optio-backend) so beta feedback lands next to
+    crashes with full context. Best-effort: never fails the report, no-op if Sentry
+    isn't initialized (local dev). Distinguishes bug / idea / confusion via a tag so
+    feature ideas and "I don't get this" don't read as errors."""
+    try:
+        import sentry_sdk
+
+        extra = record.get('extra') if isinstance(record.get('extra'), dict) else {}
+        rtype = (extra.get('report_type') or 'bug')
+        surface = extra.get('surface') or record.get('platform') or 'unknown'
+        # Ideas/confusion are not errors — keep them at info so alerting stays sane.
+        level = 'warning' if rtype == 'bug' else 'info'
+
+        with sentry_sdk.push_scope() as scope:
+            scope.set_tag('source', 'bug_report')
+            scope.set_tag('report_type', rtype)
+            scope.set_tag('surface', surface)
+            scope.set_user({'id': user_id, 'email': record.get('user_email')})
+            scope.set_context('bug_report', {
+                'report_id': created.get('id'),
+                'current_route': record.get('current_route'),
+                'steps': record.get('steps'),
+                'user_role': record.get('user_role'),
+                'screenshot_path': record.get('screenshot_path'),
+                **extra,
+            })
+            sentry_sdk.capture_message(f"Bug report [{rtype}]: {message}", level=level)
+    except Exception as e:
+        logger.warning(f"[BugReport] sentry capture skipped: {e}")
 
 
 @bp.route('', methods=['GET'])

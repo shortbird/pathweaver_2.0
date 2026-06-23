@@ -435,7 +435,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   if (sisEnabled) {
     navItems = navItems.filter((item) => !SIS_MOVED_ITEMS.has(item.name))
   }
-  const showSisLauncher = sisEnabled && (hasOrgAdminAccess || isAdvisor)
+  // Superadmin always gets a way into the SIS console; org staff get it once their
+  // org is flagged into the SIS beta.
+  const showSisLauncher = user?.role === 'superadmin' || (sisEnabled && (hasOrgAdminAccess || isAdvisor))
 
   const handleNavClick = () => {
     if (onClose) {

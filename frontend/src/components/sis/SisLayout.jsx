@@ -3,6 +3,7 @@ import { Outlet, Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { goToLearningSurface } from '../../utils/appSurface'
 import SisSidebar from './SisSidebar'
+import SisFeedbackFab from './SisFeedbackFab'
 
 const Spinner = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -42,6 +43,8 @@ const SisLayout = () => {
           <Outlet />
         </div>
       </main>
+      {/* Beta feedback FAB (bug / idea / "I don't get this") — pilot support */}
+      <SisFeedbackFab />
     </div>
   )
 }
