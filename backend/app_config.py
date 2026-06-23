@@ -93,6 +93,7 @@ class Config:
             'https://optio-prod-frontend.onrender.com',
             'https://www.optioeducation.com',
             'https://optioeducation.com',
+            'https://sis.optioeducation.com',  # SIS console (shares api.optioeducation.com)
         ],
         'dev_origins': [
             'http://localhost:5173',

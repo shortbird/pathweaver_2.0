@@ -349,4 +349,8 @@ def register_all(app):
     from routes import bug_reports
     app.register_blueprint(bug_reports.bp)
 
+    # ── SIS (Student Information System) — microschool management console ──────
+    from routes.sis import register_sis_routes
+    register_sis_routes(app)
+
     logger.info("All route blueprints registered")

@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
-import { useOrganization } from '../../contexts/OrganizationContext'
+import { useOrganization, useOrgFeature } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
+import { getSisFlagOverride, goToSisSurface } from '../../utils/appSurface'
 import ActingAsBanner from '../parent/ActingAsBanner'
 import MasqueradeBanner from '../admin/MasqueradeBanner'
 import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeService'
@@ -52,6 +53,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const { user, logout, isAuthenticated, effectiveRole } = useAuth()
   const { organization } = useOrganization()
   const { actingAsDependent, clearActingAs } = useActingAs()
+  // SIS carve-out: when the user's org has sis_enabled (or the local dev override
+  // is set), the school-management surfaces move to the SIS console — so hide them
+  // here and surface a launcher instead. Reversible per-org; default off.
+  const sisEnabled = useOrgFeature('sis_enabled') || getSisFlagOverride()
   const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
   const [masqueradeState, setMasqueradeState] = useState(null)
@@ -421,6 +426,16 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // Carve-out: when SIS is enabled for this org, the school-management items live
+  // in the SIS console (sis.optioeducation.com), not the learning sidebar. Remove
+  // them here. The global platform "Admin" panel (mixed LMS content) is intentionally
+  // NOT removed. A "School Admin" launcher (below) links staff to the SIS surface.
+  const SIS_MOVED_ITEMS = new Set(['Organization', 'Advisor', 'Credit Review'])
+  if (sisEnabled) {
+    navItems = navItems.filter((item) => !SIS_MOVED_ITEMS.has(item.name))
+  }
+  const showSisLauncher = sisEnabled && (hasOrgAdminAccess || isAdvisor)
+
   const handleNavClick = () => {
     if (onClose) {
       onClose()
@@ -501,6 +516,25 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                 </Link>
               )
             })}
+
+            {/* SIS launcher — hops staff to the School Admin console (sis. host).
+                Shown only when SIS is enabled for this org. */}
+            {showSisLauncher && (
+              <button
+                onClick={() => { goToSisSurface('/'); handleNavClick() }}
+                title={!isExpanded ? 'School Admin' : undefined}
+                className="w-full flex items-center rounded-lg relative font-poppins font-medium transition-colors duration-200 min-h-[44px] touch-manipulation px-3 py-3 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90"
+              >
+                <span className="w-5 flex-shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </span>
+                <span className={`ml-3 whitespace-nowrap overflow-hidden transition-all duration-200 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0'}`}>
+                  School Admin
+                </span>
+              </button>
+            )}
           </nav>
         </div>
 

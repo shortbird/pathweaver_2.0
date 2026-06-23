@@ -35,6 +35,8 @@ import RegisterPage from './pages/RegisterPage'
 import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
 import ShowcaseRoute from './components/ShowcaseRoute'
+import { getAppSurface } from './utils/appSurface'
+import SisRoutes from './sis/SisRoutes'
 
 // Lazy-loaded pages for code splitting
 // Auth-related pages (less frequently accessed)
@@ -403,6 +405,11 @@ function App() {
             }}
           />
           <Suspense fallback={<PageLoader />}>
+            {getAppSurface() === 'sis' ? (
+              /* SIS console surface (sis.optioeducation.com / ?app=sis). Shares
+                 the providers + auth session above; renders its own route tree. */
+              <SisRoutes />
+            ) : (
             <Routes>
               {/* Marketing pages (standalone, use MarketingLayout) */}
               <Route path="/" element={<HomePage />} />
@@ -621,6 +628,7 @@ function App() {
               <Route path="mobile" element={<MobileDemoPage />} />
             </Route>
           </Routes>
+            )}
           </Suspense>
             </ActingAsProvider>
             </OrganizationProvider>
