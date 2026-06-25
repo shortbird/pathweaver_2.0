@@ -5,6 +5,7 @@ import { isSimplifiedPartnerOrg } from '../../config/partnerOrgs'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
 import { SettingsTab, PeopleTab } from '../../components/organization'
+import QuestsTab from '../../components/organization/QuestsTab'
 import OrgCoursesTab from '../../components/organization/OrgCoursesTab'
 import OrgClassesTab from '../../components/organization/OrgClassesTab'
 import AnnouncementsTab from '../../components/organization/AnnouncementsTab'
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'people', label: 'People' },
   { id: 'classes', label: 'Classes' },
   { id: 'announcements', label: 'Announcements' },
+  { id: 'quests', label: 'Quests' },
   { id: 'courses', label: 'Courses' },
   { id: 'bounties', label: 'Bounties' },
   { id: 'credit-review', label: 'Credit Review' }
@@ -28,6 +30,7 @@ const TAB_DESCRIPTIONS = {
   people: 'Add and manage your students, parents, and advisors. Invite new members and set their roles.',
   classes: 'Group students into classes, assign quests, and schedule when each quest becomes available to the class.',
   announcements: 'Send a notification through Optio to everyone in your organization — students, advisors, and parents.',
+  quests: 'Create organization-specific quests for your students and control which Optio quests are available to them.',
   courses: 'Assign courses to your students and build new course content for your organization.',
   bounties: 'View the bounties available to your students and post new ones to encourage their learning.',
   'credit-review': "Review your students' completed work and approve the credit they've earned.",
@@ -36,11 +39,12 @@ const TAB_DESCRIPTIONS = {
 // Map old tab names to new ones for URL compatibility. getResolvedTab falls back
 // to 'settings' for any id not in TABS, so old bookmarks land somewhere valid.
 // ('classes' is a live tab again as of 2026-06-15 — class management + quest scheduling.)
+// ('quests' is a live tab again as of 2026-06-25 — org-specific quest creation +
+//  visibility management, so it is no longer redirected to 'courses'.)
 const TAB_REDIRECTS = {
   'overview': 'settings',
   'users': 'people',
   'connections': 'people',
-  'quests': 'courses',
   'advisors': 'people',
   'progress': 'settings'
 }
@@ -220,6 +224,15 @@ export default function OrganizationManagement() {
 
       {activeTab === 'announcements' && (
         <AnnouncementsTab orgId={orgId} />
+      )}
+
+      {activeTab === 'quests' && (
+        <QuestsTab
+          orgId={orgId}
+          orgData={orgData}
+          onUpdate={fetchOrganizationData}
+          siteSettings={siteSettings}
+        />
       )}
 
       {activeTab === 'courses' && (
