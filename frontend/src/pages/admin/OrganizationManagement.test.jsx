@@ -29,6 +29,10 @@ vi.mock('../../components/organization/OrgCoursesTab', () => ({
   default: ({ orgId }) => <div data-testid="courses-tab">Courses for {orgId}</div>
 }))
 
+vi.mock('../../components/organization/QuestsTab', () => ({
+  default: ({ orgId }) => <div data-testid="quests-tab">Quests for {orgId}</div>
+}))
+
 vi.mock('../../components/classes', () => ({
   ClassList: ({ orgId }) => <div data-testid="class-list">Classes for {orgId}</div>,
   ClassDetailPage: () => <div data-testid="class-detail">Class Detail</div>
@@ -93,6 +97,7 @@ describe('OrganizationManagement', () => {
       await waitFor(() => {
         expect(screen.getByText('Settings')).toBeInTheDocument()
         expect(screen.getByText('People')).toBeInTheDocument()
+        expect(screen.getByText('Quests')).toBeInTheDocument()
         expect(screen.getByText('Courses')).toBeInTheDocument()
         expect(screen.getByText('Bounties')).toBeInTheDocument()
         expect(screen.getByText('Credit Review')).toBeInTheDocument()
@@ -118,6 +123,27 @@ describe('OrganizationManagement', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('people-tab')).toBeInTheDocument()
+      })
+    })
+
+    it('switches to Quests tab', async () => {
+      renderOrgManagement()
+      await waitFor(() => {
+        expect(screen.getByText('Quests')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Quests'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('quests-tab')).toBeInTheDocument()
+      })
+    })
+
+    it('opens the Quests tab directly from ?tab=quests', async () => {
+      renderOrgManagement('/admin/organizations/org-1?tab=quests')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('quests-tab')).toBeInTheDocument()
       })
     })
 
