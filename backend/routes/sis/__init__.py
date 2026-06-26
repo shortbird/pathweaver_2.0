@@ -228,5 +228,7 @@ def roster_csv(user_id):
 
 
 def register_sis_routes(app):
-    """Register the SIS blueprint."""
+    """Register the SIS blueprints (MVP + catalog/programs+classes)."""
     app.register_blueprint(bp)
+    from routes.sis.catalog import bp as catalog_bp
+    app.register_blueprint(catalog_bp)
