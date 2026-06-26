@@ -1,32 +1,19 @@
 services:
-  # Daily Advisor Summary Cron Job
+  # Optio Cron — single consolidated cron service. Runs every 10 min and dispatches
+  # the time-appropriate jobs (see backend/jobs/cron_dispatch.py):
+  #   - SIS attendance sweep   -> every run (off-hours runs no-op server-side)
+  #   - Daily advisor summary  -> once/day in the 12:00 UTC window (unchanged effect)
+  # This replaces the previous separate daily-advisor-summary cron; the existing
+  # dashboard cron service just needs its schedule + start command updated.
   - type: cron
     name: daily-advisor-summary
     runtime: python
-    schedule: "0 12 * * *"  # 12 PM UTC = 7 AM EST / 8 AM EDT
+    schedule: "*/10 * * * *"  # every 10 min; per-job timing handled in the dispatcher
     repo: https://github.com/shortbird/pathweaver_2.0.git
     branch: main
     rootDir: backend
     buildCommand: "pip install requests"
-    startCommand: "python jobs/cron_trigger.py"
-    envVars:
-      - key: CRON_SECRET
-        sync: false
-      - key: BACKEND_URL
-        value: https://api.optioeducation.com
-
-  # SIS Attendance Sweep (check-in reminders + attendance-gap alerts).
-  # Runs every 10 min across a wide UTC daytime window; each org's local
-  # school-hours window + per-(student,day) dedupe are enforced server-side.
-  - type: cron
-    name: sis-attendance-sweep
-    runtime: python
-    schedule: "*/10 11-23 * * *"
-    repo: https://github.com/shortbird/pathweaver_2.0.git
-    branch: main
-    rootDir: backend
-    buildCommand: "pip install requests"
-    startCommand: "python jobs/sis_attendance_sweep_trigger.py"
+    startCommand: "python jobs/cron_dispatch.py"
     envVars:
       - key: CRON_SECRET
         sync: false
