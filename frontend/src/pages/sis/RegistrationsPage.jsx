@@ -82,6 +82,15 @@ const RegistrationsPage = () => {
     } catch { toast.error('Could not remove class') }
   }
 
+  const generateInvoice = async () => {
+    try {
+      await api.post(`/api/sis/registrations/${selected.id}/invoice`, { organization_id: orgId })
+      toast.success('Invoice generated — see Billing')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not generate invoice')
+    }
+  }
+
   const act = async (verb) => {
     try {
       await api.post(`/api/sis/registrations/${selected.id}/${verb}`, { organization_id: orgId })
@@ -168,6 +177,9 @@ const RegistrationsPage = () => {
                 )}
                 <Button size="sm" onClick={() => act('complete')}>Complete &amp; enroll</Button>
               </div>
+            )}
+            {selected.status === 'completed' && (
+              <Button size="sm" onClick={generateInvoice}>Generate invoice</Button>
             )}
           </div>
         )}
