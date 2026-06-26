@@ -337,8 +337,62 @@ def _auto_detect_config_key(endpoint: str, method: str) -> str:
     # Default for all other endpoints (including GET)
     return 'api_default'
 
+def _resolve_rate_limit_user_id() -> Optional[str]:
+    """
+    Best-effort resolution of the authenticated user id for per-user rate
+    limiting. Reads the JWT from the Authorization header / cookies without
+    raising. Returns None for anonymous requests (falls back to IP keying).
+
+    Imported lazily to avoid a circular import (session_manager imports
+    several modules that, transitively, import this middleware).
+    """
+    try:
+        from utils.session_manager import session_manager
+        return session_manager.get_effective_user_id()
+    except Exception:
+        return None
+
+
+def _report_rate_limit_exceeded(identifier: str, endpoint: str, max_req: int, window: int) -> None:
+    """
+    Surface a 429 to our error trackers.
+
+    A rate-limit denial is returned as a plain 429 JSON response, not a raised
+    exception or logger.error(), so Sentry's exception/logging integrations
+    never see it. That made the mobile upload lockout (shared-IP students
+    exhausting a per-IP bucket) completely invisible in monitoring. We log a
+    warning (breadcrumb) and capture a Sentry message fingerprinted by endpoint
+    so all denials on one route collapse into a single, counted issue instead
+    of flooding the project.
+    """
+    logger.warning(
+        f"[RateLimit] 429 for identifier={identifier} endpoint={endpoint} "
+        f"limit={max_req}/{window}s"
+    )
+    try:
+        import sentry_sdk
+        with sentry_sdk.push_scope() as scope:
+            scope.set_tag('rate_limit_endpoint', endpoint or 'unknown')
+            scope.set_context('rate_limit', {
+                'endpoint': endpoint,
+                'limit': max_req,
+                'window_seconds': window,
+            })
+            # Group every denial on the same endpoint into one issue; the event
+            # count then signals how widespread the lockout is.
+            scope.fingerprint = ['rate-limit-exceeded', endpoint or 'unknown']
+            sentry_sdk.capture_message(
+                f"Rate limit exceeded on {endpoint or 'unknown'}",
+                level='warning',
+            )
+    except Exception:
+        # Telemetry must never break a request.
+        pass
+
+
 def rate_limit(config_key: str = None, max_requests: int = None, window_seconds: int = None,
-               limit: int = None, per: int = None, calls: int = None, period: int = None):
+               limit: int = None, per: int = None, calls: int = None, period: int = None,
+               per_user: bool = False):
     """
     Decorator to apply rate limiting to routes
 
@@ -357,6 +411,11 @@ def rate_limit(config_key: str = None, max_requests: int = None, window_seconds:
         per: Time window in seconds (alt style)
         calls: Maximum number of requests allowed (new style)
         period: Time window in seconds (new style)
+        per_user: When True, key the limit by authenticated user id instead of
+            client IP (falling back to IP for anonymous requests). Use this for
+            authenticated endpoints so users behind a shared public IP (mobile
+            carrier CGNAT, school/library NAT) don't share one bucket and lock
+            each other out.
     """
     # Support multiple parameter naming conventions
     # Priority: calls/period > limit/per > max_requests/window_seconds
@@ -415,9 +474,18 @@ def rate_limit(config_key: str = None, max_requests: int = None, window_seconds:
                     if window is None:
                         window = 60
 
-            # Create identifier combining IP and endpoint for per-endpoint rate limiting
-            # This allows different endpoints to have separate rate limit buckets
-            identifier = f"{client_ip}:{request.endpoint}"
+            # Create identifier combining endpoint with the actor (user or IP)
+            # for per-endpoint rate limiting. This gives each endpoint its own
+            # bucket. For authenticated endpoints we key by user id so that
+            # users sharing a public IP (mobile CGNAT, school/library NAT) get
+            # independent buckets instead of locking each other out.
+            actor = None
+            if per_user:
+                actor = _resolve_rate_limit_user_id()
+            if actor:
+                identifier = f"user:{actor}:{request.endpoint}"
+            else:
+                identifier = f"{client_ip}:{request.endpoint}"
 
             is_allowed, retry_after, rate_info = rate_limiter.is_allowed(identifier, max_req, window)
 
@@ -425,6 +493,7 @@ def rate_limit(config_key: str = None, max_requests: int = None, window_seconds:
             request.rate_limit_info = rate_info
 
             if not is_allowed:
+                _report_rate_limit_exceeded(identifier, request.endpoint, max_req, window)
                 response = jsonify({
                     'error': 'Too many requests. Please try again later.',
                     'retry_after': retry_after
