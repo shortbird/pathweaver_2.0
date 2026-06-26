@@ -232,3 +232,5 @@ def register_sis_routes(app):
     app.register_blueprint(bp)
     from routes.sis.catalog import bp as catalog_bp
     app.register_blueprint(catalog_bp)
+    from routes.sis.registration import bp as registration_bp
+    app.register_blueprint(registration_bp)
