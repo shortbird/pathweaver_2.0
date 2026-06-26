@@ -366,6 +366,19 @@ if __name__ == '__main__':
 - Database query time >1s (p95)
 - Failed login rate >10%
 - Storage usage >80%
+- Spike in rate-limit 429s on any endpoint (especially `*upload*`)
+
+> **Rate-limit visibility (2026-06-26):** A 429 ("Too many requests") is
+> returned as a plain JSON response, not a raised exception or
+> `logger.error()`, so Sentry's exception/logging integrations never saw it.
+> A real lockout — students sharing a public IP (mobile CGNAT / school NAT)
+> exhausting a per-IP upload bucket — produced **zero** Sentry signal.
+> `middleware/rate_limiter.py` now calls `_report_rate_limit_exceeded()` on
+> every denial: a `logger.warning` breadcrumb plus a `sentry_sdk.capture_message`
+> fingerprinted by endpoint (`['rate-limit-exceeded', <endpoint>]`) so all
+> denials on one route collapse into a single counted issue. Set a Sentry
+> alert rule on the `rate-limit-exceeded` issue group (e.g. >20 events / 5 min)
+> to page on the next lockout. Upload limits are now keyed per-user, not per-IP.
 
 ### Info Alerts (Review daily)
 - New user signups

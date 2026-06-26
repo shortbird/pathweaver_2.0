@@ -52,7 +52,7 @@ def _result_to_upload_entry(result, original_name: str) -> dict:
 
 
 @bp.route('/evidence', methods=['POST'])
-@rate_limit(limit=10, per=3600)  # 10 per hour (per P1-SEC-2)
+@rate_limit(limit=60, per=3600, per_user=True)  # 60/hour per user (was 10/hour per IP — locked out NAT'd mobile users)
 @require_auth
 def upload_evidence(user_id):
     """Upload evidence files via multipart/form-data."""
@@ -92,7 +92,7 @@ def upload_evidence(user_id):
 
 
 @bp.route('/evidence/base64', methods=['POST'])
-@rate_limit(limit=10, per=3600)  # 10 per hour (per P1-SEC-2)
+@rate_limit(limit=60, per=3600, per_user=True)  # 60/hour per user (was 10/hour per IP — locked out NAT'd mobile users)
 @require_auth
 def upload_evidence_base64(user_id):
     """Upload evidence files as base64 (for clients that can't do multipart)."""
@@ -149,7 +149,7 @@ def upload_evidence_base64(user_id):
 # avoiding backend memory pressure entirely.
 
 @bp.route('/sign', methods=['POST'])
-@rate_limit(limit=30, per=3600)
+@rate_limit(limit=60, per=3600, per_user=True)  # 60/hour per user
 @require_auth
 def request_upload_session(user_id):
     """

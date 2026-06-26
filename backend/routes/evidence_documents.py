@@ -362,7 +362,7 @@ def save_evidence_document(user_id: str, task_id: str):
         }), 500
 
 @bp.route('/documents/<task_id>/upload', methods=['POST'])
-@rate_limit(limit=20, per=3600)  # 20 uploads per hour
+@rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
 @require_auth
 def upload_task_file(user_id: str, task_id: str):
     """
@@ -423,7 +423,7 @@ def upload_task_file(user_id: str, task_id: str):
         return jsonify({'success': False, 'error': 'Failed to process file upload'}), 500
 
 @bp.route('/documents/<task_id>/upload-init', methods=['POST'])
-@rate_limit(limit=20, per=3600)
+@rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
 @require_auth
 def init_task_signed_upload(user_id: str, task_id: str):
     """
@@ -543,7 +543,7 @@ def finalize_task_signed_upload(user_id: str, task_id: str):
 
 
 @bp.route('/blocks/<block_id>/upload-init', methods=['POST'])
-@rate_limit(limit=20, per=3600)
+@rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
 @require_auth
 def init_block_signed_upload(user_id: str, block_id: str):
     """
@@ -713,7 +713,7 @@ def finalize_block_signed_upload(user_id: str, block_id: str):
 
 
 @bp.route('/blocks/<block_id>/upload', methods=['POST'])
-@rate_limit(limit=20, per=3600)  # CVE-OPTIO-2025-017 FIX: 20 uploads per hour
+@rate_limit(limit=60, per=3600, per_user=True)  # CVE-OPTIO-2025-017: 60 uploads/hour per user
 @require_auth
 def upload_block_file(user_id: str, block_id: str):
     """
