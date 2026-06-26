@@ -58,6 +58,16 @@ const SisSidebar = () => {
         <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">SIS</span>
       </div>
 
+      <div className="px-3 pt-3">
+        <button
+          onClick={() => goToLearningSurface('/')}
+          className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-2 text-sm font-semibold text-white"
+        >
+          {icon('M11 19l-7-7 7-7m-7 7h18')}
+          Switch to Learning app
+        </button>
+      </div>
+
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {SIS_NAV.map((item) => (
           <NavLink key={item.path} to={item.path} end={item.end} className={linkClass}>
