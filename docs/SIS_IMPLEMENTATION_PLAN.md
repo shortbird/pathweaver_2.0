@@ -8,6 +8,14 @@ This is the build blueprint: the data model for every module, the API surface, t
 frontend surfaces, and the order of work. All new tables are org-scoped, RLS-enabled
 with no public policies (backend `service_role` only — matches the existing MVP).
 
+> **Beta decisions (locked 2026-06-26):** eligibility = **soft warn + admin
+> override** (never hard-block); discounts = **sibling + multi-class + manual/credit
+> + promo**; payment plans = **monthly + semester + full**; QuickBooks = **structure
+> `quickbooks_id` + `sis_quickbooks_sync_log` now, no live API yet**; parent billing
+> = **view invoices/balances/history + a "pay" link out to Simple Biz Suite** (SBS
+> URL is a per-org setting in `feature_flags`/org config, hidden until set; Optio
+> never processes card data).
+>
 > **Naming reminder (from §1.5 of the discovery doc):** backend names are
 > disambiguated; frontend keeps today's language. "Class" in the backend =
 > `org_classes` (the registration/teaching unit). The transcript-credit feature is
