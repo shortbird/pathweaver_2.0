@@ -15,6 +15,24 @@ services:
       - key: BACKEND_URL
         value: https://api.optioeducation.com
 
+  # SIS Attendance Sweep (check-in reminders + attendance-gap alerts).
+  # Runs every 10 min across a wide UTC daytime window; each org's local
+  # school-hours window + per-(student,day) dedupe are enforced server-side.
+  - type: cron
+    name: sis-attendance-sweep
+    runtime: python
+    schedule: "*/10 11-23 * * *"
+    repo: https://github.com/shortbird/pathweaver_2.0.git
+    branch: main
+    rootDir: backend
+    buildCommand: "pip install requests"
+    startCommand: "python jobs/sis_attendance_sweep_trigger.py"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: BACKEND_URL
+        value: https://api.optioeducation.com
+
   # Production Backend
   # Reconciled 2026-06-22 to match the LIVE dashboard-managed service. The
   # previous values here had diverged and were NOT in effect (the live service

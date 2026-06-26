@@ -10,6 +10,7 @@ const RegistrationsPage = lazy(() => import('../pages/sis/RegistrationsPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
 const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
+const CheckInPage = lazy(() => import('../pages/sis/CheckInPage'))
 const HouseholdsPage = lazy(() => import('../pages/sis/HouseholdsPage'))
 const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'))
 
@@ -39,6 +40,7 @@ const SisRoutes = () => (
       <Route path="classes" element={<ClassesPage />} />
       <Route path="registrations" element={<RegistrationsPage />} />
       <Route path="billing" element={<BillingPage />} />
+      <Route path="checkin" element={<CheckInPage />} />
       <Route path="attendance" element={<AttendancePage />} />
       <Route path="reports" element={<ReportsPage />} />
       <Route path="households" element={<HouseholdsPage />} />

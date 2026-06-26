@@ -242,3 +242,5 @@ def register_sis_routes(app):
     app.register_blueprint(attendance_bp)
     from routes.sis.reports import bp as reports_bp
     app.register_blueprint(reports_bp)
+    from routes.sis.checkin import bp as checkin_bp
+    app.register_blueprint(checkin_bp)

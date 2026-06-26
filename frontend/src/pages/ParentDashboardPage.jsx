@@ -19,6 +19,7 @@ import RequestStudentConnectionModal from '../components/parent/RequestStudentCo
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
 import FamilySettingsModal from '../components/parent/FamilySettingsModal';
+import ParentCheckInCard from '../components/parent/ParentCheckInCard';
 import ChildOverviewContent from '../components/parent/ChildOverviewContent';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
 import QuestForm from '../components/admin/QuestForm';
@@ -368,6 +369,19 @@ const ParentDashboardPage = () => {
         </div>
       ) : (
         <>
+          {/* Daily check-in (renders only for children in an SIS-enabled school) */}
+          <ParentCheckInCard
+            children={[
+              ...children.map((c) => ({
+                id: c.student_id,
+                name: `${c.student_first_name || ''} ${c.student_last_name || ''}`.trim() || c.student_name || 'Student',
+              })),
+              ...dependents.map((d) => ({
+                id: d.id,
+                name: `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.display_name || 'Student',
+              })),
+            ]}
+          />
           {/* Student Selector */}
           {(children.length > 1 || dependents.length > 1 || (children.length > 0 && dependents.length > 0)) && (() => {
             // Build unified list for both mobile dropdown and desktop tabs

@@ -28,6 +28,12 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 vi.mock('../services/api', () => ({
+  // default export used by ParentCheckInCard (rendered inside the dashboard) —
+  // report not-applicable so the check-in card renders nothing here.
+  default: {
+    get: () => Promise.resolve({ data: { applicable: false, checkin: null } }),
+    post: () => Promise.resolve({ data: {} }),
+  },
   parentAPI: {
     getMyChildren: vi.fn()
   }
