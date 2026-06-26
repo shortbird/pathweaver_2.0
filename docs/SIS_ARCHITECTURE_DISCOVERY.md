@@ -35,6 +35,48 @@ implementation.
 
 ---
 
+## 1.5 Locked decisions (2026-06-26)
+
+From the product review, these are settled and drive everything below:
+
+1. **Billing = calculate + record only.** Optio owns the pricing engine, tuition
+   calculation, payment plans, and billing *history/display*, and syncs records to
+   **QuickBooks**. **Simple Biz Suite collects the actual money.** We do **not**
+   re-introduce a payment processor (no Stripe). No card data in Optio.
+2. **Scope = full SIS for beta** (all modules), built on this branch in committed
+   increments, behind `sis_enabled` (+ per-module flags), additive-only.
+3. **Simple Biz Suite integration = future/manual.** Registration begins in Optio
+   for now. Design clean boundaries for an SBS sync later; no live API yet.
+4. **One "Class," unified onto `org_classes`.** Extend the existing teaching-cohort
+   model with the SIS operational fields (capacity, meeting schedule, price,
+   eligibility, waitlist) and group Classes under new **Programs**. Registering a
+   student = a `class_enrollments` row; the student automatically receives that
+   Class's quests (SIS registration → LMS delivery, one object). Existing cohorts
+   are unaffected because every new field is optional.
+
+### Naming policy — backend is disambiguated, frontend keeps today's language
+
+**Decision:** use **clear, distinct names in the backend** (DB tables, API paths,
+services, code) so engineers never confuse the concepts, while the **frontend keeps
+the words users already see**. This is intentional and documented here as the single
+source of truth. The residual frontend overlap (two things a user may call a
+"class") is acceptable because they live in different user contexts/surfaces and
+never share a screen.
+
+| Concept | Backend name (clear/distinct) | Frontend label (keep current language) | Notes |
+|---|---|---|---|
+| Transcript-credit pursuit (today's `quest_type='class'`) | **"credit"** — new/refactored code, routes, services named `credit*`. The enum value `quest_type='class'` is **retained** (no data migration) but is documented as "the credit-pursuit type." | **"Class"** — keep "Start a Class", "My Classes", admin "Class Reviews" exactly as today | Backend stops calling it "class" in new code; UI unchanged for students. |
+| SIS / teaching unit a family registers into (extended `org_classes`) | **`org_classes`** = the canonical **"class"** in SIS backend (+ `class_enrollments`, `class_advisors`, `class_quests`, new `sis_*` operational fields) | **"Class"** — used in registration, roster, scheduling UI | The primary meaning of "Class" going forward. |
+| Container grouping Classes | **`programs`** (new SIS table) | **"Program"** | New, per spec §3/§4.3. |
+| Marketing free-class lead form | `contact_submissions.contact_type='claim_free_class'` | **"Free Class"** | Unchanged — out of scope. |
+
+**Rule of thumb for new code:** never name a *new* backend symbol just "class" without
+a qualifier. Transcript credit → `credit*`. SIS class → reuse `org_classes`/`class_*`.
+Program → `program*`. Always pair a new user-facing string with its backend term in
+PR descriptions so the map above stays accurate.
+
+---
+
 ## 2. The LMS / SIS line (system-of-record split)
 
 The spec frames Optio as the **School Operating System** and Simple Biz Suite as
@@ -149,12 +191,13 @@ The codebase has **two** unrelated "class" concepts, and the spec adds a third m
    family enrolls a student into, with capacity, a meeting schedule, an instructor,
    prerequisites, and a price; can roll up into a Program. This is a **SIS** construct.
 
-**Recommendation:** introduce a SIS-native registration model (`sis_programs`,
-`sis_classes`/sections, `sis_class_meetings`, `sis_enrollments` per class,
-`sis_waitlist_entries`) rather than overloading `org_classes`. A SIS class can
-*optionally* link to an `org_classes` cohort so that registering for a class also
-drops the student into the teaching group that receives quests — cleanly bridging
-SIS registration → LMS delivery. (Confirm in open questions.)
+**Resolution (locked, see §1.5):** unify onto `org_classes` rather than building a
+parallel model. `org_classes` already carries enrollment (`class_enrollments`),
+instructor (`class_advisors`), and content (`class_quests`); we add the missing SIS
+operational fields and a `program_id`. The transcript "class" (#1) is renamed to
+**"credit"** in the backend only. So the single hierarchy is:
+
+**Program → Class (`org_classes`, +schedule/capacity/price/eligibility/waitlist) → roster (`class_enrollments`) → Quests (`class_quests`) → Lessons → Tasks → Credits (`quest_type='class'`).**
 
 ---
 
@@ -200,19 +243,22 @@ flag), additive-only, with no impact on existing schools.
 
 ---
 
-## 8. Open questions (gating — see chat)
+## 8. Open questions
 
-1. **Billing scope.** Does Optio *process* tuition (recurring billing — needs a
-   re-introduced payment processor), or does Simple Biz Suite collect payment and
-   Optio only *calculates + records + displays* (and syncs to QuickBooks)?
-2. **First milestone.** Which module do we build first after activating the MVP —
-   Program/Class + Registration, or Billing?
-3. **Class model.** Build a SIS-native Program/Class/Section model (recommended)
-   that optionally links to `org_classes`, or extend `org_classes` directly?
-4. **Simple Biz Suite integration.** Is there an API/webhook available now, or is
-   SBS↔Optio sync future/manual (registration begins in Optio for now)?
-5. **Teacher portfolios.** One shared portfolio with teacher authorship (A) or a
-   separate SIS teacher-curated portfolio (B)?
+**Resolved (see §1.5):** billing scope (calculate + record only, SBS collects,
+QuickBooks sync) · scope (full SIS for beta) · SBS integration (future/manual) ·
+class model (unify onto `org_classes`, transcript "class" → backend "credit").
+
+**Still open (non-blocking, decide as we reach them):**
+1. **Teacher portfolios.** One shared portfolio with teacher authorship (option A,
+   recommended) or a separate SIS teacher-curated portfolio (option B)? See §6.
+   Default to A unless told otherwise.
+2. **Pricing model depth.** Which discount types are in scope for beta (sibling /
+   multi-class / promo)? Which payment-plan cadences (monthly / semester / full)?
+3. **QuickBooks sync shape.** Which records sync (invoices, payments, customers),
+   and is it one-way (Optio → QBO) for beta?
+4. **Eligibility rules.** Are age bands / prerequisites enforced hard (block
+   registration) or soft (warn + allow admin override)?
 
 ---
 
