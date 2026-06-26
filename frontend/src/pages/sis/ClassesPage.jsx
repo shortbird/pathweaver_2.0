@@ -165,7 +165,12 @@ const ClassesPage = () => {
                 </button>
               </div>
             </div>
-            {expanded === c.id && <ClassSchedule classId={c.id} orgId={orgId} initial={c.meetings || []} />}
+            {expanded === c.id && (
+              <>
+                <ClassSchedule classId={c.id} orgId={orgId} initial={c.meetings || []} />
+                <ClassWaitlist classId={c.id} orgId={orgId} />
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -216,6 +221,47 @@ const ClassSchedule = ({ classId, orgId, initial }) => {
         <input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} className={field} />
         <input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} className={field} />
         <Button size="sm" onClick={add}>Add meeting</Button>
+      </div>
+    </div>
+  )
+}
+
+const ClassWaitlist = ({ classId, orgId }) => {
+  const [entries, setEntries] = useState([])
+  const [loaded, setLoaded] = useState(false)
+
+  const reload = useCallback(() => {
+    api.get(`/api/sis/classes/${classId}/waitlist?organization_id=${orgId}`)
+      .then((r) => setEntries(r.data?.waitlist || []))
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [classId, orgId])
+
+  useEffect(() => { reload() }, [reload])
+
+  const offerNext = async () => {
+    try {
+      const r = await api.post(`/api/sis/classes/${classId}/waitlist/offer-next`, { organization_id: orgId })
+      toast.success(r.data?.entry ? 'Seat offered to next student' : 'No one waiting')
+      reload()
+    } catch { toast.error('Could not offer seat') }
+  }
+
+  if (loaded && !entries.length) return null
+
+  return (
+    <div className="border-t border-gray-100 mt-3 pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-neutral-700">Waitlist ({entries.length})</span>
+        <Button size="sm" variant="secondary" onClick={offerNext}>Offer next seat</Button>
+      </div>
+      <div className="space-y-1">
+        {entries.map((e) => (
+          <div key={e.id} className="flex items-center justify-between text-sm">
+            <span className="text-neutral-700">#{e.position} · {e.student_name}</span>
+            <span className="text-neutral-400">{e.status}</span>
+          </div>
+        ))}
       </div>
     </div>
   )

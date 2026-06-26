@@ -250,6 +250,8 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
         enrolled = repo.active_enrollment_count(item['class_id'])
         if elig.is_full(klass.get('capacity'), enrolled) and klass.get('waitlist_enabled', True):
             new_status = 'waitlisted'
+            from services import sis_waitlist_service
+            sis_waitlist_service.add_to_waitlist(org_id, item['class_id'], student_id)
         else:
             # create the LMS enrollment (idempotent on class_id+student_id)
             _admin().table('class_enrollments').upsert({

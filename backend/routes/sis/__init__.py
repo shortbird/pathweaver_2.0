@@ -234,3 +234,5 @@ def register_sis_routes(app):
     app.register_blueprint(catalog_bp)
     from routes.sis.registration import bp as registration_bp
     app.register_blueprint(registration_bp)
+    from routes.sis.waitlist import bp as waitlist_bp
+    app.register_blueprint(waitlist_bp)
