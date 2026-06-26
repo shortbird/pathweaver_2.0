@@ -280,4 +280,19 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
                  'completed_by': completed_by, 'updated_at': _now()})
         .eq('id', reg_id).eq('organization_id', org_id).execute()
     )
+
+    # Notify the guardian (best-effort) that enrollment is confirmed.
+    enrolled_count = sum(1 for r in results if r['status'] == 'enrolled')
+    waitlisted_count = sum(1 for r in results if r['status'] == 'waitlisted')
+    from services import sis_notifications
+    summary = f'{enrolled_count} class(es) enrolled'
+    if waitlisted_count:
+        summary += f', {waitlisted_count} waitlisted'
+    sis_notifications.notify(
+        reg.get('guardian_user_id'),
+        'Registration confirmed',
+        f'Registration is complete: {summary}.',
+        organization_id=org_id,
+    )
+
     return {'registration': resp.data[0] if resp.data else None, 'results': results}

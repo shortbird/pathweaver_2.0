@@ -104,7 +104,16 @@ def offer_next(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
                  'offer_expires_at': expires, 'updated_at': _now().isoformat()})
         .eq('id', nxt['id']).execute()
     )
-    return resp.data[0] if resp.data else None
+    offered = resp.data[0] if resp.data else None
+    if offered:
+        from services import sis_notifications
+        sis_notifications.notify(
+            offered['student_user_id'],
+            'A seat opened up',
+            'A spot has opened in a class you were waitlisted for. Please confirm to claim it.',
+            organization_id=org_id,
+        )
+    return offered
 
 
 def respond_to_offer(org_id: str, entry_id: str, accept: bool,

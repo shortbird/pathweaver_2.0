@@ -8,6 +8,39 @@ This is the build blueprint: the data model for every module, the API surface, t
 frontend surfaces, and the order of work. All new tables are org-scoped, RLS-enabled
 with no public policies (backend `service_role` only — matches the existing MVP).
 
+---
+
+## ✅ BUILD STATUS — all 7 phases implemented (2026-06-26)
+
+Built on `claude/optio-sis-implementation-u314sk`, additive-only, behind
+`sis_enabled`. **No production database changes were applied** — the migrations
+below are version-controlled and ready to apply (to a Supabase branch first, then
+prod) on your sign-off. Tests: **123 backend SIS unit tests + 29 SIS frontend tests**,
+and the **full frontend suite (604) is green** with a clean production build.
+
+**Migrations to apply, in order:**
+1. `20260626_sis_programs_and_class_extensions.sql` (programs, org_classes SIS cols, meetings, prereqs)
+2. `20260626_sis_registration.sql` (registrations + items)
+3. `20260626_sis_waitlist.sql` (waitlist entries)
+4. `20260626_sis_billing.sql` (discount rules, invoices, line items, plans, installments, payments, QBO log)
+5. `20260626_sis_attendance.sql` (attendance)
+
+**SIS console surfaces (the `sis.` host / `?app=sis`):** Dashboard, Roster, Classes
+(programs + classes + schedule + waitlist), Registrations, Billing, Attendance,
+Reports, Families, Messaging.
+
+**Backend:** `/api/sis/*` blueprints — `catalog`, `registration`, `waitlist`,
+`billing`, `attendance`, `reports` (+ the MVP roster/households/messaging).
+Pure, exhaustively-tested logic modules: `sis_eligibility`, `sis_pricing`,
+`sis_waitlist_service` (ordering), `sis_attendance_service` (summary),
+`sis_reports_service` (aggregators).
+
+**Not yet wired (intentional follow-ups):** parent-facing self-service registration
+wizard + parent billing screen reuse the same endpoints (admin flow is complete);
+live QuickBooks API (records + sync-log are in place); SBS sync.
+
+---
+
 > **Beta decisions (locked 2026-06-26):** eligibility = **soft warn + admin
 > override** (never hard-block); discounts = **sibling + multi-class + manual/credit
 > + promo**; payment plans = **monthly + semester + full**; QuickBooks = **structure
@@ -224,4 +257,3 @@ schedule change).
 Every step ships behind `sis_enabled` and does not touch the learning app for
 non-SIS orgs. Tests accompany each step (v1 vitest + backend). Coverage gate on
 `main` still applies; we stay on this branch and on `develop` for dev deploys.
-</content>

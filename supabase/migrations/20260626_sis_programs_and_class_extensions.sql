@@ -91,4 +91,3 @@ create index if not exists idx_class_prerequisites_class on public.class_prerequ
 alter table public.programs            enable row level security;
 alter table public.class_meetings      enable row level security;
 alter table public.class_prerequisites enable row level security;
-</content>

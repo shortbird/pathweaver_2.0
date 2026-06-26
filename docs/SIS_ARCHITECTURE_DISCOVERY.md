@@ -280,5 +280,3 @@ class model (unify onto `org_classes`, transcript "class" → backend "credit").
 `backend/routes/curriculum/*`, `backend/routes/tasks/*`, `backend/routes/portfolio.py`,
 `backend/routes/evidence_documents.py`, migrations `020_add_curriculum_lessons.sql`,
 `023_course_system.sql`, `20260527_add_class_quest_fields.sql`, `20260615_add_class_quest_scheduling.sql`.
-</content>
-</invoke>
