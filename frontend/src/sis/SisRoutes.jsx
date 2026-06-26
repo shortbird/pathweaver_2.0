@@ -5,6 +5,7 @@ import SisLayout from '../components/sis/SisLayout'
 // New SIS console pages
 const SisDashboard = lazy(() => import('../pages/sis/SisDashboard'))
 const RosterPage = lazy(() => import('../pages/sis/RosterPage'))
+const ClassesPage = lazy(() => import('../pages/sis/ClassesPage'))
 const HouseholdsPage = lazy(() => import('../pages/sis/HouseholdsPage'))
 const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'))
 
@@ -31,6 +32,7 @@ const SisRoutes = () => (
     <Route element={<SisLayout />}>
       <Route index element={<SisDashboard />} />
       <Route path="roster" element={<RosterPage />} />
+      <Route path="classes" element={<ClassesPage />} />
       <Route path="households" element={<HouseholdsPage />} />
       <Route path="messaging" element={<FamilyMessagingPage />} />
 
