@@ -7,9 +7,14 @@ import '@fontsource/poppins/600.css'
 import App from './App'
 import './index.css'
 import { initSentry } from './services/sentry'
+import { installChunkErrorRecovery } from './utils/liveReload'
 
 // Initialize error tracking as early as possible (no-op without VITE_SENTRY_DSN).
 initSentry()
+
+// Recover from stale lazy-chunk loads after a deploy (old hashed chunk 404s →
+// reload once instead of leaving the page broken until a manual hard refresh).
+installChunkErrorRecovery()
 
 // Register service worker for push notifications
 if ('serviceWorker' in navigator) {

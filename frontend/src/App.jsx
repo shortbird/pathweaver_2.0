@@ -37,6 +37,7 @@ import PrivateRoute from './components/PrivateRoute'
 import ShowcaseRoute from './components/ShowcaseRoute'
 import { getAppSurface } from './utils/appSurface'
 import SisRoutes from './sis/SisRoutes'
+import UpdateAvailableBanner from './components/UpdateAvailableBanner'
 
 // Lazy-loaded pages for code splitting
 // Auth-related pages (less frequently accessed)
@@ -404,6 +405,7 @@ function App() {
               },
             }}
           />
+          <UpdateAvailableBanner />
           <Suspense fallback={<PageLoader />}>
             {getAppSurface() === 'sis' ? (
               /* SIS console surface (sis.optioeducation.com / ?app=sis). Shares

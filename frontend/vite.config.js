@@ -2,13 +2,29 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
-import { copyFileSync, existsSync, mkdirSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import { execSync } from 'child_process'
+
+// Build identity used for live-update detection. Prefer the git short SHA (stable
+// across identical rebuilds); fall back to a build timestamp. Every deploy produces
+// a new value, which the running app polls /version.json to detect and prompts a
+// safe reload (see src/hooks/useVersionCheck.js).
+const BUILD_ID = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim()
+  } catch {
+    return String(Date.now())
+  }
+})()
 
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production'
 
   return {
+  define: {
+    __APP_VERSION__: JSON.stringify(BUILD_ID),
+  },
   plugins: [
     react(),
     // Bundle analyzer - only in analyze mode
@@ -42,6 +58,11 @@ export default defineConfig(({ mode }) => {
           copyFileSync(indexSource, notFoundDest)
           console.log('Copied index.html as 404.html for SPA routing')
         }
+
+        // Emit version.json so a running tab can detect a newer deploy and offer
+        // a safe reload (Render serves it with max-age=0, must-revalidate).
+        writeFileSync(join(distDir, 'version.json'), JSON.stringify({ version: BUILD_ID }))
+        console.log('Wrote version.json:', BUILD_ID)
       }
     },
     // Upload source maps to Sentry, then delete them from dist so the source is
