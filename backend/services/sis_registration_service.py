@@ -44,6 +44,22 @@ def _student_name(u: Dict[str, Any]) -> str:
 
 
 # ── CRUD ─────────────────────────────────────────────────────────────────────
+def _resolve_household_id(org_id: str, student_user_id: str) -> Optional[str]:
+    """Find the student's family in this org, so sibling discounts apply automatically."""
+    memberships = (
+        _admin().table('household_members').select('household_id')
+        .eq('user_id', student_user_id).execute()
+    ).data or []
+    ids = [m['household_id'] for m in memberships if m.get('household_id')]
+    if not ids:
+        return None
+    in_org = (
+        _admin().table('households').select('id')
+        .in_('id', ids).eq('organization_id', org_id).limit(1).execute()
+    ).data or []
+    return in_org[0]['id'] if in_org else None
+
+
 def create_registration(org_id: str, student_user_id: str,
                         guardian_user_id: Optional[str] = None,
                         household_id: Optional[str] = None) -> Dict[str, Any]:
@@ -51,7 +67,7 @@ def create_registration(org_id: str, student_user_id: str,
         'organization_id': org_id,
         'student_user_id': student_user_id,
         'guardian_user_id': guardian_user_id,
-        'household_id': household_id,
+        'household_id': household_id or _resolve_household_id(org_id, student_user_id),
         'status': 'draft',
     }
     resp = _admin().table('sis_registrations').insert(payload).execute()

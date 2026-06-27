@@ -88,4 +88,47 @@ describe('ClassesPage', () => {
       expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
     )
   })
+
+  it('renames a program', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getAllByText('Edit')[0]) // first Edit = program row
+    const input = screen.getByDisplayValue('Full Day')
+    fireEvent.change(input, { target: { value: 'Full-Day Microschool' } })
+    fireEvent.click(screen.getByText('Save'))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/programs/p1', expect.objectContaining({ name: 'Full-Day Microschool' })),
+    )
+  })
+
+  it('archives a program after confirm', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getAllByText('Archive')[0]) // first Archive = program row
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith(expect.stringContaining('/api/sis/programs/p1')),
+    )
+  })
+
+  it('edits a class converting price to cents', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getAllByText('Edit')[1]) // second Edit = class card
+    fireEvent.change(screen.getByDisplayValue('50.00'), { target: { value: '75.00' } })
+    fireEvent.click(screen.getByText('Save'))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ price_cents: 7500 })),
+    )
+  })
+
+  it('archives a class after confirm', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getAllByText('Archive')[1]) // second Archive = class row
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith(expect.stringContaining('/api/sis/classes/c1')),
+    )
+  })
 })

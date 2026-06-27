@@ -8,7 +8,7 @@ vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => ({ organization: null }) }))
 vi.mock('../../services/api', () => ({ default: { post: vi.fn(() => Promise.resolve({ data: {} })) } }))
 
-const nav = vi.hoisted(() => ({ goToLearningSurface: vi.fn(), goToSisSurface: vi.fn() }))
+const nav = vi.hoisted(() => ({ goToLearningSurface: vi.fn(), goToSisSurface: vi.fn(), switchSurfaceInApp: vi.fn() }))
 vi.mock('../../utils/appSurface', () => nav)
 
 import SisLayout from './SisLayout'
@@ -65,8 +65,8 @@ describe('SisSidebar', () => {
     expect(screen.getByText('People (All Users)')).toBeInTheDocument()
     expect(screen.getByText('Roster')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Back to Learning app'))
-    expect(nav.goToLearningSurface).toHaveBeenCalled()
+    fireEvent.click(screen.getByText('Switch to Learning app'))
+    expect(nav.switchSurfaceInApp).toHaveBeenCalledWith('learning', '/dashboard')
   })
 
   it('hides the superadmin-only People link for org_admin', () => {

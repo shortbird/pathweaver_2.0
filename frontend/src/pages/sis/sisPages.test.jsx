@@ -29,6 +29,10 @@ const { api } = vi.hoisted(() => {
       return { data: { roster: [
         { student_id: 's1', name: 'Alice Student', email: 'a@x.com', total_xp: 10,
           enrollment_status: 'enrolled', household_name: 'Fam' },
+        { student_id: 's2', name: 'Bob Builder', email: 'b@x.com', total_xp: 30,
+          enrollment_status: 'applicant', household_name: null },
+        { student_id: 's3', name: 'Carol Gone', email: 'c@x.com', total_xp: 5,
+          enrollment_status: 'withdrawn', household_name: null },
       ] } }
     }
     if (url.includes('/api/sis/members')) {
@@ -89,8 +93,36 @@ describe('RosterPage', () => {
 
   it('opens the student detail modal', async () => {
     render(<RosterPage />)
-    fireEvent.click(await screen.findByText('Details'))
+    await screen.findByText('Alice Student')
+    fireEvent.click(screen.getAllByText('Details')[0])
     expect(await screen.findByText('Emergency contacts')).toBeInTheDocument()
+  })
+
+  it('hides withdrawn/graduated students by default and can show them', async () => {
+    render(<RosterPage />)
+    expect(await screen.findByText('Alice Student')).toBeInTheDocument()
+    expect(screen.getByText('Bob Builder')).toBeInTheDocument()
+    expect(screen.queryByText('Carol Gone')).not.toBeInTheDocument() // withdrawn, hidden
+    fireEvent.click(screen.getByLabelText(/Hide withdrawn/))
+    expect(await screen.findByText('Carol Gone')).toBeInTheDocument()
+  })
+
+  it('filters the roster by search text', async () => {
+    render(<RosterPage />)
+    await screen.findByText('Alice Student')
+    fireEvent.change(screen.getByPlaceholderText(/Search by name/), { target: { value: 'bob' } })
+    expect(screen.queryByText('Alice Student')).not.toBeInTheDocument()
+    expect(screen.getByText('Bob Builder')).toBeInTheDocument()
+  })
+
+  it('sorts by XP when the XP header is clicked', async () => {
+    render(<RosterPage />)
+    await screen.findByText('Alice Student')
+    fireEvent.click(screen.getByRole('button', { name: /^XP/ }))
+    const names = screen.getAllByRole('row').slice(1).map((r) => r.querySelector('td')?.textContent)
+    // ascending: Alice(10) before Bob(30)
+    expect(names[0]).toContain('Alice')
+    expect(names[1]).toContain('Bob')
   })
 })
 

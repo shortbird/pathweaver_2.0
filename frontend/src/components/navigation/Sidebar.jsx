@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
-import { getSisFlagOverride, goToSisSurface } from '../../utils/appSurface'
+import { getSisFlagOverride, switchSurfaceInApp } from '../../utils/appSurface'
 import ActingAsBanner from '../parent/ActingAsBanner'
 import MasqueradeBanner from '../admin/MasqueradeBanner'
 import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeService'
@@ -306,6 +306,20 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // Class Registration: guardians at a SIS-enabled school can self-enroll their
+  // children. The page itself shows an empty state if the family isn't set up yet.
+  if (sisEnabled && hasParentRelationships) {
+    navItems.push({
+      name: 'Class Registration',
+      path: '/class-registration',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+      )
+    })
+  }
+
   // Add Advisor link if user is advisor (platform or org) OR has advisor assignments (parent-advisor implicit access)
   // Check both org_role and org_roles array for multiple role support
   const isAdvisor = userHasRole('advisor') || user?.has_advisor_assignments
@@ -524,7 +538,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                 Shown only when SIS is enabled for this org. */}
             {showSisLauncher && (
               <button
-                onClick={() => { goToSisSurface('/'); handleNavClick() }}
+                onClick={() => { switchSurfaceInApp('sis', '/'); handleNavClick() }}
                 title={!isExpanded ? 'School Admin' : undefined}
                 className="w-full flex items-center rounded-lg relative font-poppins font-medium transition-colors duration-200 min-h-[44px] touch-manipulation px-3 py-3 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90"
               >

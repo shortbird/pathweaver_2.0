@@ -276,7 +276,31 @@ def record_payment(org_id: str, invoice_id: str, amount_cents: int,
         ).eq('id', installment_id).execute()
     invoice = _recompute_invoice_status(invoice_id)
     enqueue_qbo(org_id, 'payment', record['id'])
-    return {'payment': record, 'invoice': invoice}
+    auto = _maybe_autocomplete_registration(org_id, invoice, recorded_by)
+    return {'payment': record, 'invoice': invoice, 'auto_enrolled': auto}
+
+
+def _maybe_autocomplete_registration(org_id: str, invoice: Dict[str, Any],
+                                     actor_id: str) -> Optional[Dict[str, Any]]:
+    """When an invoice is fully paid, auto-complete its registration so the student
+    is enrolled. This makes enrollment confirmation follow payment (the closest the
+    record-only billing model gets to "enroll on payment"). No-op unless the invoice
+    is paid, is tied to a registration, and that registration isn't already complete.
+    """
+    if invoice.get('status') != 'paid':
+        return None
+    reg_id = invoice.get('registration_id')
+    if not reg_id:
+        return None
+    from services import sis_registration_service as regs
+    reg = regs.get_registration(org_id, reg_id)
+    if not reg or reg.get('status') in ('completed', 'cancelled'):
+        return None
+    try:
+        return regs.complete(org_id, reg_id, completed_by=actor_id)
+    except Exception as e:  # never let enrollment failure roll back a recorded payment
+        logger.error(f"[SIS billing] auto-complete failed for reg {reg_id}: {e}")
+        return None
 
 
 def apply_late_fees(org_id: str, late_fee_cents: int) -> Dict[str, Any]:

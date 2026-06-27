@@ -1,7 +1,7 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { goToLearningSurface } from '../../utils/appSurface'
+import { switchSurfaceInApp } from '../../utils/appSurface'
 
 /**
  * SIS console sidebar. Distinct from the learning app's Sidebar — this is the
@@ -61,7 +61,7 @@ const SisSidebar = () => {
 
       <div className="px-3 pt-3">
         <button
-          onClick={() => goToLearningSurface('/')}
+          onClick={() => switchSurfaceInApp('learning', '/dashboard')}
           className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-2 text-sm font-semibold text-white"
         >
           {icon('M11 19l-7-7 7-7m-7 7h18')}
@@ -93,16 +93,6 @@ const SisSidebar = () => {
           </NavLink>
         )}
       </nav>
-
-      <div className="border-t border-gray-100 p-3">
-        <button
-          onClick={() => goToLearningSurface('/')}
-          className="w-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
-        >
-          {icon('M11 19l-7-7 7-7m-7 7h18')}
-          Back to Learning app
-        </button>
-      </div>
     </aside>
   )
 }

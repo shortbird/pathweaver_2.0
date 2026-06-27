@@ -178,8 +178,15 @@ const RegistrationsPage = () => {
                 <Button size="sm" onClick={() => act('complete')}>Complete &amp; enroll</Button>
               </div>
             )}
-            {selected.status === 'completed' && (
-              <Button size="sm" onClick={generateInvoice}>Generate invoice</Button>
+            {(selected.status === 'submitted' || selected.status === 'completed') && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <Button size="sm" variant="secondary" onClick={generateInvoice}>Generate invoice</Button>
+                {selected.status === 'submitted' && (
+                  <p className="text-xs text-neutral-400 mt-2">
+                    Tip: invoice now and the student is enrolled automatically once the invoice is paid in full — or use “Complete &amp; enroll” to enroll right away.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

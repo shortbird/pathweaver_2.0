@@ -35,7 +35,7 @@ import RegisterPage from './pages/RegisterPage'
 import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
 import ShowcaseRoute from './components/ShowcaseRoute'
-import { getAppSurface } from './utils/appSurface'
+import { getAppSurface, subscribeSurface } from './utils/appSurface'
 import SisRoutes from './sis/SisRoutes'
 import UpdateAvailableBanner from './components/UpdateAvailableBanner'
 
@@ -113,6 +113,7 @@ const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage')
 // Student-curated classes (April 2026)
 const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
+const ClassRegistrationPage = lazy(() => import('./pages/ClassRegistrationPage'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 const PoePage = lazy(() => import('./pages/poe/PoePage'))
 // Marketing pages
@@ -325,6 +326,23 @@ function AppContent() {
   );
 }
 
+/**
+ * Renders the active surface's route tree and swaps it reactively when the user
+ * toggles between the Learning app and the SIS console. Because the swap is a
+ * client-side route change (not window.location), the AuthProvider above stays
+ * mounted and the session is preserved — no re-login on toggle. Must live inside
+ * <Router> so it can use useNavigate.
+ */
+function SurfaceRoutes({ renderLearning }) {
+  const [surface, setSurface] = useState(() => getAppSurface());
+  const navigate = useNavigate();
+  useEffect(() => subscribeSurface((target, path) => {
+    setSurface(target);
+    navigate(path || '/');
+  }), [navigate]);
+  return surface === 'sis' ? <SisRoutes /> : renderLearning();
+}
+
 function App() {
   // ✅ SSO TOKEN EXTRACTION: Extract tokens IMMEDIATELY on app load (before AuthContext)
   // This runs synchronously during App mount to ensure tokens are available for AuthContext
@@ -407,11 +425,10 @@ function App() {
           />
           <UpdateAvailableBanner />
           <Suspense fallback={<PageLoader />}>
-            {getAppSurface() === 'sis' ? (
-              /* SIS console surface (sis.optioeducation.com / ?app=sis). Shares
-                 the providers + auth session above; renders its own route tree. */
-              <SisRoutes />
-            ) : (
+            {/* Surface (Learning vs SIS console) is reactive so the toggle swaps
+                route trees in place — no full reload, so the auth session is never
+                re-initialized. SIS console shares the providers + session above. */}
+            <SurfaceRoutes renderLearning={() => (
             <Routes>
               {/* Marketing pages (standalone, use MarketingLayout) */}
               <Route path="/" element={<HomePage />} />
@@ -481,6 +498,8 @@ function App() {
                 <Route path="courses/new" element={<CourseBuilder />} />
                 {/* Student-curated classes (admin surfaces live under /admin/classes/* inside AdminPage) */}
                 <Route path="my-classes" element={<MyClasses />} />
+                {/* Parent/guardian self-service: register your own children for SIS classes */}
+                <Route path="class-registration" element={<ClassRegistrationPage />} />
                 <Route path="classes/new" element={<StudentClassForm />} />
                 <Route path="classes/:id/edit" element={<StudentClassForm />} />
                 {/* Credit & Transcript Routes */}
@@ -630,7 +649,7 @@ function App() {
               <Route path="mobile" element={<MobileDemoPage />} />
             </Route>
           </Routes>
-            )}
+            )} />
           </Suspense>
             </ActingAsProvider>
             </OrganizationProvider>

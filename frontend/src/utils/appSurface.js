@@ -68,6 +68,39 @@ export function getSisFlagOverride() {
   return safeGet(SIS_FLAG_KEY) === '1'
 }
 
+// ── Reactive surface switching (same-origin, no full reload) ──────────────────
+// When the Learning app and SIS console share one origin (the `?app=sis` override
+// rather than a real sis. subdomain), we can swap surfaces with a client-side route
+// change instead of a full page reload. That keeps the AuthProvider mounted, so the
+// session is never re-initialized — no re-login, and the switch is instant.
+const _surfaceListeners = new Set()
+
+/** Subscribe to in-app surface switches. Returns an unsubscribe fn. */
+export function subscribeSurface(fn) {
+  _surfaceListeners.add(fn)
+  return () => _surfaceListeners.delete(fn)
+}
+
+function _notifySurface(target, path) {
+  _surfaceListeners.forEach((fn) => fn(target, path))
+}
+
+/**
+ * Switch surfaces from a toggle button.
+ * - Real sis. subdomain in prod: must cross origins → full navigation (unavoidable).
+ * - Same origin (?app=sis override): persist the override and notify subscribers so
+ *   App swaps the route tree in place — no reload, no re-auth.
+ */
+export function switchSurfaceInApp(target, path = '/') {
+  if (isRealOptioHost()) {
+    if (target === 'sis' && !isSisHost()) { window.location.href = SIS_PROD_URL + path; return }
+    if (target === 'learning' && isSisHost()) { window.location.href = LEARNING_PROD_URL + path; return }
+  }
+  if (target === 'sis') safeSet(SURFACE_KEY, 'sis')
+  else safeRemove(SURFACE_KEY)
+  _notifySurface(target, path)
+}
+
 /** Navigate to the SIS surface (prod: change host; local/dev: set override + reload). */
 export function goToSisSurface(path = '/') {
   if (isRealOptioHost() && !isSisHost()) {

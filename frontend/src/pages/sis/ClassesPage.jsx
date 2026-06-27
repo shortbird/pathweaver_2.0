@@ -9,6 +9,7 @@ const PROGRAM_TYPES = [
   ['full_day', 'Full-Day'], ['half_day', 'Half-Day'], ['individual_class', 'Individual Class'],
   ['workshop', 'Workshop'], ['camp', 'Camp'], ['event', 'Event'], ['online', 'Online'],
 ]
+const PROGRAM_TYPE_LABEL = Object.fromEntries(PROGRAM_TYPES)
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -22,6 +23,8 @@ const ClassesPage = () => {
   const [newProgram, setNewProgram] = useState({ name: '', program_type: 'individual_class' })
   const [newClass, setNewClass] = useState({ name: '', program_id: '', capacity: '', price_cents: '' })
   const [expanded, setExpanded] = useState(null)
+  const [editingProgram, setEditingProgram] = useState(null) // { id, name, program_type }
+  const [editingClass, setEditingClass] = useState(null) // { id, name, program_id, capacity, price_cents }
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -64,6 +67,52 @@ const ClassesPage = () => {
     } catch { toast.error('Could not create class') }
   }
 
+  const saveProgram = async () => {
+    if (!editingProgram?.name.trim()) return
+    try {
+      await api.patch(`/api/sis/programs/${editingProgram.id}`, {
+        name: editingProgram.name.trim(),
+        program_type: editingProgram.program_type,
+        organization_id: orgId,
+      })
+      setEditingProgram(null)
+      toast.success('Program updated')
+      load()
+    } catch { toast.error('Could not update program') }
+  }
+
+  const archiveProgram = async (p) => {
+    if (!window.confirm(`Archive "${p.name}"? Its classes stay, but the program is hidden.`)) return
+    try {
+      await api.delete(`/api/sis/programs/${p.id}?organization_id=${orgId}`)
+      toast.success('Program archived')
+      load()
+    } catch { toast.error('Could not archive program') }
+  }
+
+  const saveClass = async () => {
+    if (!editingClass?.name.trim()) return
+    const payload = { name: editingClass.name.trim(), organization_id: orgId }
+    payload.program_id = editingClass.program_id || null
+    payload.capacity = editingClass.capacity === '' ? null : parseInt(editingClass.capacity, 10)
+    payload.price_cents = editingClass.price_cents === '' ? null : Math.round(parseFloat(editingClass.price_cents) * 100)
+    try {
+      await api.patch(`/api/sis/classes/${editingClass.id}`, payload)
+      setEditingClass(null)
+      toast.success('Class updated')
+      load()
+    } catch { toast.error('Could not update class') }
+  }
+
+  const archiveClass = async (c) => {
+    if (!window.confirm(`Archive "${c.name}"? It will no longer accept registrations.`)) return
+    try {
+      await api.delete(`/api/sis/classes/${c.id}?organization_id=${orgId}`)
+      toast.success('Class archived')
+      load()
+    } catch { toast.error('Could not archive class') }
+  }
+
   const toggleRegistration = async (cls) => {
     const next = cls.registration_status === 'open' ? 'closed' : 'open'
     try {
@@ -98,11 +147,42 @@ const ClassesPage = () => {
           </select>
           <Button size="sm" onClick={createProgram}>Add program</Button>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-2">
           {programs.map((p) => (
-            <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-[#F3EFF4] px-3 py-1 text-sm text-neutral-700">
-              {p.name}<span className="text-neutral-400">· {p.class_count} class{p.class_count === 1 ? '' : 'es'}</span>
-            </span>
+            editingProgram?.id === p.id ? (
+              <div key={p.id} className="flex flex-wrap gap-2 items-center">
+                <input
+                  value={editingProgram.name}
+                  onChange={(e) => setEditingProgram({ ...editingProgram, name: e.target.value })}
+                  className={`${field} flex-1 min-w-[180px]`}
+                />
+                <select
+                  value={editingProgram.program_type}
+                  onChange={(e) => setEditingProgram({ ...editingProgram, program_type: e.target.value })}
+                  className={field}
+                >
+                  {PROGRAM_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <Button size="sm" onClick={saveProgram}>Save</Button>
+                <button onClick={() => setEditingProgram(null)} className="text-sm text-neutral-500 hover:underline">Cancel</button>
+              </div>
+            ) : (
+              <div key={p.id} className="flex items-center justify-between rounded-lg bg-[#F3EFF4] px-3 py-2 text-sm">
+                <span className="text-neutral-700">
+                  <span className="font-medium">{p.name}</span>
+                  <span className="text-neutral-400">{p.program_type ? ` · ${PROGRAM_TYPE_LABEL[p.program_type] || p.program_type}` : ''} · {p.class_count} class{p.class_count === 1 ? '' : 'es'}</span>
+                </span>
+                <span className="flex items-center gap-3">
+                  <button
+                    onClick={() => setEditingProgram({ id: p.id, name: p.name, program_type: p.program_type || 'individual_class' })}
+                    className="text-optio-purple font-medium hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <button onClick={() => archiveProgram(p)} className="text-red-500 hover:underline">Archive</button>
+                </span>
+              </div>
+            )
           ))}
           {!programs.length && <span className="text-sm text-neutral-400">No programs yet.</span>}
         </div>
@@ -143,6 +223,34 @@ const ClassesPage = () => {
       <div className="space-y-3">
         {classes.map((c) => (
           <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-4">
+            {editingClass?.id === c.id ? (
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+                <input
+                  value={editingClass.name}
+                  onChange={(e) => setEditingClass({ ...editingClass, name: e.target.value })}
+                  className={`${field} md:col-span-2`}
+                  placeholder="Class name"
+                />
+                <select value={editingClass.program_id} onChange={(e) => setEditingClass({ ...editingClass, program_id: e.target.value })} className={field}>
+                  <option value="">No program</option>
+                  {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <input
+                  type="number" min="0" value={editingClass.capacity}
+                  onChange={(e) => setEditingClass({ ...editingClass, capacity: e.target.value })}
+                  className={field} placeholder="Capacity"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="number" min="0" step="0.01" value={editingClass.price_cents}
+                    onChange={(e) => setEditingClass({ ...editingClass, price_cents: e.target.value })}
+                    className={`${field} flex-1`} placeholder="Price $"
+                  />
+                  <Button size="sm" onClick={saveClass}>Save</Button>
+                  <button onClick={() => setEditingClass(null)} className="text-sm text-neutral-500 hover:underline">Cancel</button>
+                </div>
+              </div>
+            ) : (
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-semibold text-neutral-900">{c.name}</span>
@@ -160,11 +268,23 @@ const ClassesPage = () => {
                 >
                   {c.registration_status === 'open' ? 'Registration open' : 'Registration closed'}
                 </button>
+                <button
+                  onClick={() => setEditingClass({
+                    id: c.id, name: c.name, program_id: c.program_id || '',
+                    capacity: c.capacity ?? '',
+                    price_cents: c.price_cents != null ? (c.price_cents / 100).toFixed(2) : '',
+                  })}
+                  className="text-sm text-optio-purple font-medium hover:underline"
+                >
+                  Edit
+                </button>
                 <button onClick={() => setExpanded(expanded === c.id ? null : c.id)} className="text-sm text-optio-purple font-medium hover:underline">
                   {expanded === c.id ? 'Hide schedule' : 'Schedule'}
                 </button>
+                <button onClick={() => archiveClass(c)} className="text-sm text-red-500 hover:underline">Archive</button>
               </div>
             </div>
+            )}
             {expanded === c.id && (
               <>
                 <ClassSchedule classId={c.id} orgId={orgId} initial={c.meetings || []} />
