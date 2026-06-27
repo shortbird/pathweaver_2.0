@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import api from '../../services/api'
 import { captureEvent } from '../../services/posthog'
+import { trackEvent } from '../../utils/metaPixel'
 
 const FreeClassModal = ({ open, onClose, source = 'classes_lp' }) => {
   const [email, setEmail] = useState('')
@@ -53,6 +54,9 @@ const FreeClassModal = ({ open, onClose, source = 'classes_lp' }) => {
       })
       setSubmitted(true)
       captureEvent('marketing_form_submitted', { source, lead_type: 'claim_free_class' })
+      // Meta Pixel conversion. No PII (no email/name) is sent to the pixel —
+      // K-12 audience; the helper no-ops off prod / for logged-in users.
+      trackEvent('Lead', { content_name: 'Free Class' })
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong. Try again.')
     } finally {
