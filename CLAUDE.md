@@ -587,8 +587,40 @@ claude mcp remove supabase
 ### Supabase MCP
 
 **Project Details:**
-- Project ID: `vvfgxcykxjybtvpfzwyx`
+- Project ID (this repo's prod DB): `vvfgxcykxjybtvpfzwyx`
 - URL: `https://vvfgxcykxjybtvpfzwyx.supabase.co`
+
+**Multi-project access / which Supabase project to use (verified 2026-06-27):**
+
+All of these Supabase projects live in the **same org ("Optio"**, org id
+`ewldvvivnnnxtyeaxmoz`), so a single connection reaches all of them — pass the
+right `project_id` per call:
+
+| Project | ref / project_id | What it is |
+|---------|------------------|------------|
+| **Optio** | `vvfgxcykxjybtvpfzwyx` | This repo (pathweaver_2.0) — the prod DB. Default for anything in this codebase. |
+| chamberlin | `cpuvzobtymgjdoqfalfg` | Separate app (Chamberlin Music). |
+| praxis | `qsnbrspowgvcehkcxekm` | Separate app (fitness/nutrition). |
+
+> For work in THIS repo, always target `vvfgxcykxjybtvpfzwyx`. The other two are
+> only relevant if explicitly asked.
+
+**How the connection is provided (differs by where Claude Code runs):**
+- **Local Claude Code (Mac):** PAT-based MCP servers. A project-scoped
+  [.mcp.json](.mcp.json) defines `supabase-pathweaver` (http type, pinned to
+  `vvfgxcykxjybtvpfzwyx`) authenticated with `Authorization: Bearer ${SUPABASE_PAT}`.
+  `SUPABASE_PAT` is exported from `~/.zshrc` (account-level Supabase PAT). Other
+  projects (chamberlin, praxis) are additional PAT-based servers in `~/.claude.json`.
+  This PAT/header style supports many projects at once.
+- **Mobile app / remote Claude Code:** local files (`~/.zshrc`, `~/.claude.json`,
+  and possibly even repo `.mcp.json`) are NOT present, and the Claude Connectors
+  UI is **OAuth-only** — it does NOT accept a pasted PAT or custom Authorization
+  header (`static_bearer` unsupported; query-param creds prohibited). Use the
+  account-level **Supabase OAuth connector**, authorized to the **Optio** org and
+  left **unpinned** (don't scope it to one project). Unpinned, it reaches all
+  three Optio-org projects above via `project_id`. Projects in OTHER orgs (e.g.
+  `dub` / `1077`) are NOT reachable from the mobile app — OAuth is one-org-only
+  and the app won't take a PAT. Those remain local-Claude-Code-only.
 
 **Available tools (use directly in conversation):**
 - `list_tables` - List all database tables

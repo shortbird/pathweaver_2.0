@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "supabase-pathweaver": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=vvfgxcykxjybtvpfzwyx",
+      "headers": {
+        "Authorization": "Bearer ${SUPABASE_PAT}"
+      }
+    }
+  }
+}
