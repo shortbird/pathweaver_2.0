@@ -1,0 +1,97 @@
+name: iOS build + TestFlight
+
+# Manually-triggered native iOS build that auto-submits to TestFlight.
+#
+# Unlike eas-update.yml (OTA JS bundle), this produces a new NATIVE binary via
+# EAS Build and, once the build finishes, EAS submits it to TestFlight using the
+# `submit.production.ios` profile in eas.json (ascAppId / appleTeamId) plus the
+# App Store Connect API key registered in EAS managed credentials.
+#
+# The build + submit run on Expo's servers. This runner only authenticates with
+# EXPO_TOKEN and queues the work, so `--no-wait` lets the job return promptly;
+# EAS builds, then auto-submits when ready (watch progress at expo.dev).
+#
+# appVersionSource is "remote" with production `autoIncrement: true`, so EAS
+# bumps the iOS build number on its servers — no version edit needed here.
+#
+# Required repo secret:
+#   EXPO_TOKEN - Expo robot access token (Expo dashboard > Access tokens)
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS build profile'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+      submit:
+        description: 'Auto-submit the build to TestFlight when ready'
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: EAS build (iOS) + submit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend-v2/package-lock.json
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: frontend-v2
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $i failed; retrying..."
+            sleep 10
+          done
+          exit 1
+
+      - name: Build iOS + auto-submit to TestFlight
+        if: ${{ inputs.submit }}
+        working-directory: frontend-v2
+        run: |
+          eas build \
+            --platform ios \
+            --profile "${{ inputs.profile }}" \
+            --auto-submit \
+            --non-interactive \
+            --no-wait
+
+      - name: Build iOS (no submit)
+        if: ${{ !inputs.submit }}
+        working-directory: frontend-v2
+        run: |
+          eas build \
+            --platform ios \
+            --profile "${{ inputs.profile }}" \
+            --non-interactive \
+            --no-wait
