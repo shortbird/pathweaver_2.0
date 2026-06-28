@@ -55,7 +55,7 @@ import { loadPersistedTheme, applyColorScheme } from '@/src/stores/themeStore';
 import { initSentry, captureException, wrapWithSentry } from '@/src/services/sentry';
 import { BugReportHost } from '@/src/components/bugreport/BugReportHost';
 import { ToastHost } from '@/src/components/ui';
-import { UpdateBanner } from '@/src/components/layouts/UpdateBanner';
+import { OtaUpdater } from '@/src/components/layouts/OtaUpdater';
 
 // Custom route error boundary. expo-router's default dropped the user to a bare
 // crash screen on a thrown render/navigation error — e.g. a bad deep link from a
@@ -169,7 +169,7 @@ function RootLayout() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <BugReportHost />
       <ToastHost />
-      <UpdateBanner />
+      <OtaUpdater />
     </GestureHandlerRootView>
   );
 }
