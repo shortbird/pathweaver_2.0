@@ -246,14 +246,26 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
         <LinkPreviewCard key={`link-${i}`} url={block.url!} title={block.title} />
       ))}
 
-      {/* Documents - tappable for full screen */}
+      {/* Documents - tappable for full screen. stopPropagation so the tap opens
+          the doc modal instead of bubbling to the card's onPress (which would
+          navigate to the post detail and unmount the card before the modal
+          renders, making the tap appear to do nothing). Matches the audio block. */}
       {isDocument && (
-        <Pressable onPress={() => setModal({ type: 'document', uri: evidence.url!, title: evidence.title || undefined })}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open document"
+          onPress={(e) => { e.stopPropagation?.(); setModal({ type: 'document', uri: evidence.url!, title: evidence.title || undefined }); }}
+        >
           <DocumentViewer uri={evidence.url!} title={evidence.title || undefined} />
         </Pressable>
       )}
       {documentBlocks.map((block, i) => (
-        <Pressable key={`doc-${i}`} onPress={() => setModal({ type: 'document', uri: block.url!, title: block.title || undefined })}>
+        <Pressable
+          key={`doc-${i}`}
+          accessibilityRole="button"
+          accessibilityLabel="Open document"
+          onPress={(e) => { e.stopPropagation?.(); setModal({ type: 'document', uri: block.url!, title: block.title || undefined }); }}
+        >
           <DocumentViewer uri={block.url!} title={block.title || undefined} />
         </Pressable>
       ))}

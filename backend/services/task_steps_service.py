@@ -13,7 +13,12 @@ import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from services.base_ai_service import BaseAIService, AIGenerationError, AIParsingError
+from services.base_ai_service import (
+    BaseAIService,
+    AIGenerationError,
+    AIServiceOverloadedError,
+    AIParsingError,
+)
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 

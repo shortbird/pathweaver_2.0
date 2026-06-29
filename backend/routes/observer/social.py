@@ -10,6 +10,7 @@ import logging
 
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.platform_staff import is_optio_platform_user
 from middleware.rate_limiter import rate_limit
 from services.notification_service import NotificationService
 
@@ -33,14 +34,14 @@ def _attach_comment_authors(supabase, comments_data):
         return comments_data
 
     observers = supabase.table('users') \
-        .select('id, first_name, last_name, display_name, avatar_url, role') \
+        .select('id, first_name, last_name, display_name, avatar_url, role, email') \
         .in_('id', observer_ids) \
         .execute()
     observer_map = {obs['id']: obs for obs in (observers.data or [])}
 
     for comment in comments_data:
         obs = observer_map.get(comment['observer_id'], {})
-        if obs.get('role') == 'superadmin':
+        if is_optio_platform_user(obs):
             # Blank the personal name fields so the web getObserverName()
             # (first/last, then display_name) resolves to "Optio".
             comment['observer'] = {
@@ -153,22 +154,28 @@ def register_routes(bp):
             col = 'completion_id' if target_type == 'completion' else 'learning_event_id'
 
             views = supabase.table('feed_item_views') \
-                .select('viewer_id, viewed_at, users:viewer_id(id, display_name, first_name, last_name, avatar_url, role)') \
+                .select('viewer_id, viewed_at, users:viewer_id(id, display_name, first_name, last_name, avatar_url, role, email)') \
                 .eq(col, target_id) \
                 .order('viewed_at', desc=True) \
                 .execute()
 
             viewers = []
+            seen_platform = False
             for v in (views.data or []):
                 user_info = v.get('users', {})
-                # Superadmin reviews are surfaced to students/parents as "Optio",
-                # not the admin's personal name (bug #3: a student saw "Tanner
-                # Bowman" viewed their evidence; it should read as the platform).
+                # Optio platform-staff reviews (superadmin or designated
+                # cofounder/staff) are surfaced to students/parents as "Optio",
+                # not the person's name (bug #3: a student saw "Tanner Bowman"
+                # viewed their evidence; it should read as the platform).
                 # is_platform tells the client to render the Optio logo instead
-                # of an avatar/initial (matches the profile "Viewed by" pattern).
-                if user_info.get('role') == 'superadmin':
+                # of an avatar/initial. All such viewers collapse into a SINGLE
+                # "Optio" entry so Optio never appears more than once.
+                if is_optio_platform_user(user_info):
+                    if seen_platform:
+                        continue
+                    seen_platform = True
                     viewers.append({
-                        'id': v['viewer_id'],
+                        'id': 'optio',
                         'display_name': 'Optio',
                         'avatar_url': None,
                         'is_platform': True,

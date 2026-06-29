@@ -7,7 +7,7 @@ from datetime import datetime
 
 from flask import request
 
-from database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client
 from repositories.base_repository import NotFoundError
 from routes.tasks import bp
 from routes.tasks.xp_helpers import SUBJECT_NORMALIZATION
@@ -63,16 +63,24 @@ def complete_task(user_id: str, task_id: str):
                     status=403
                 )
 
-        # Use user client for user operations (RLS enforcement)
-        supabase = get_user_client()
-        # Admin client: Storage and XP operations only (ADR-002, Rule 2)
+        # Task completion runs on the admin (service-role) client.
+        #
+        # This path previously used get_user_client() for the per-user reads,
+        # which forwards the caller's Supabase JWT to PostgREST for RLS. After
+        # Supabase's JWT signing-key migration, that verification began failing
+        # in prod with PGRST301 ("No suitable key or wrong key type"), surfacing
+        # as "Failed to complete task" for the user (Sentry OPTIO-BACKEND-V/-W).
+        # Every query in this handler is explicitly scoped to effective_user_id
+        # (verified above, including the parent->dependent ownership check), so
+        # the admin client preserves the same ownership guarantee without
+        # depending on PostgREST JWT verification — consistent with the rest of
+        # the backend, which does not rely on PostgREST RLS.
         # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
 
-        # Initialize repositories with user client for RLS
         from repositories.task_repository import TaskRepository, TaskCompletionRepository
-        task_repo = TaskRepository(client=supabase)
-        completion_repo = TaskCompletionRepository(client=supabase)
+        task_repo = TaskRepository(client=admin_supabase)
+        completion_repo = TaskCompletionRepository(client=admin_supabase)
 
         # Get user-specific task details using repository
         try:
@@ -255,20 +263,20 @@ def complete_task(user_id: str, task_id: str):
         logger.info(f"Task {task_id} completed with diploma_status='none' - subject XP deferred until credit request")
 
         # Check if all required tasks are completed (personalized quest system)
-        all_required_tasks = supabase.table('user_quest_tasks')\
+        all_required_tasks = admin_supabase.table('user_quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
             .eq('user_id', effective_user_id)\
             .eq('is_required', True)\
             .execute()
 
-        all_tasks = supabase.table('user_quest_tasks')\
+        all_tasks = admin_supabase.table('user_quest_tasks')\
             .select('id, xp_value, pillar')\
             .eq('quest_id', quest_id)\
             .eq('user_id', effective_user_id)\
             .execute()
 
-        completed_tasks = supabase.table('quest_task_completions')\
+        completed_tasks = admin_supabase.table('quest_task_completions')\
             .select('user_quest_task_id')\
             .eq('user_id', effective_user_id)\
             .eq('quest_id', quest_id)\
@@ -294,8 +302,8 @@ def complete_task(user_id: str, task_id: str):
 
         # Emit webhook event for task completion
         try:
-            webhook_service = WebhookService(supabase)
-            user_data = supabase.table('users').select('organization_id').eq('id', effective_user_id).single().execute()
+            webhook_service = WebhookService(admin_supabase)
+            user_data = admin_supabase.table('users').select('organization_id').eq('id', effective_user_id).single().execute()
             organization_id = user_data.data.get('organization_id') if user_data.data else None
 
             webhook_service.emit_event(

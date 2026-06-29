@@ -217,7 +217,7 @@ def register_routes(bp):
 
             # --- 2) Build full viewers list ---
             # Platform admin emails that should be hidden (shown as "Optio" instead)
-            OPTIO_EMAILS = {'tannerbowman@gmail.com', 'tyler@zionforge.com'}
+            from utils.platform_staff import OPTIO_STAFF_EMAILS as OPTIO_EMAILS
 
             viewers = []
 

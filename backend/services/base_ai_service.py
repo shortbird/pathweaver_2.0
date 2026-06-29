@@ -29,6 +29,7 @@ Features:
 import re
 import json
 import time
+import random
 import hashlib
 from typing import Dict, List, Optional, Any, Union
 from services.base_service import BaseService
@@ -80,6 +81,16 @@ class AIServiceError(Exception):
 
 class AIGenerationError(AIServiceError):
     """AI content generation failed."""
+    pass
+
+
+class AIServiceOverloadedError(AIGenerationError):
+    """Generation failed because every model was transiently overloaded (503).
+
+    Subclasses AIGenerationError so existing ``except AIGenerationError``
+    handlers still catch it; routes that want a friendlier "AI is busy, try
+    again" 503 (instead of a generic 500) can catch this more specific type.
+    """
     pass
 
 
@@ -217,6 +228,71 @@ class BaseAIService(BaseService):
             return self.model
         self._ensure_alt_model_initialized(model_name)
         return self._alt_models[model_name]
+
+    def _candidate_models(self) -> List[str]:
+        """Primary model first, then configured fallbacks (de-duplicated)."""
+        fallbacks = Config.GEMINI_FALLBACK_MODELS or []
+        candidates: List[str] = []
+        for name in [self.model_name, *fallbacks]:
+            if name and name not in candidates:
+                candidates.append(name)
+        return candidates
+
+    def _generate_content_with_model_fallback(self, prompt: Any, gen_config, candidate_models: List[str]):
+        """Call generate_content, trying each candidate model in order.
+
+        Advances to the next model only on a transient (overload/503) error, so
+        a busy primary model falls back to a fallback model within the same
+        retry attempt instead of hard-failing the user. Raises the last error if
+        every candidate fails (the outer retry loop decides whether to retry).
+        """
+        from google.generativeai.types import RequestOptions
+
+        last_error: Optional[Exception] = None
+        for idx, model_name in enumerate(candidate_models):
+            try:
+                model = self._get_model_by_name(model_name)
+            except Exception as init_error:
+                logger.warning(f"Could not initialize model '{model_name}': {init_error}")
+                last_error = init_error
+                continue
+
+            try:
+                # 120s timeout to prevent indefinite hangs
+                response = model.generate_content(
+                    prompt,
+                    generation_config=gen_config if gen_config else None,
+                    request_options=RequestOptions(timeout=120),
+                )
+                if idx > 0:
+                    logger.info(
+                        f"AI generation succeeded on fallback model '{model_name}' "
+                        "(primary unavailable)"
+                    )
+                return response
+            except Exception as e:
+                last_error = e
+                if self._is_transient_ai_error(e) and idx < len(candidate_models) - 1:
+                    logger.warning(
+                        f"Transient AI error on model '{model_name}': {e}. "
+                        f"Falling back to '{candidate_models[idx + 1]}'."
+                    )
+                    continue
+                raise
+
+        if last_error:
+            raise last_error
+        raise AIServiceError("No AI model available for generation")
+
+    def _retry_sleep_seconds(self, retry_delay: float, attempt: int) -> float:
+        """Exponential backoff with full jitter, capped at MAX_RETRY_DELAY.
+
+        Jitter spreads retries so concurrent callers don't all re-hit an
+        overloaded model in the same window (thundering herd).
+        """
+        ceiling = min(retry_delay * (2 ** attempt), self.MAX_RETRY_DELAY)
+        # Full jitter: sleep a random amount in (0, ceiling], never longer.
+        return random.uniform(0, ceiling)
 
     def generate_with_fallback(self, prompt: Any, *, fallback_models: Optional[List[str]] = None, **kwargs) -> Any:
         """
@@ -428,15 +504,16 @@ class BaseAIService(BaseService):
         start_time = time.time()
         last_error = None
 
+        # Primary model first, then any configured fallbacks. On a transient
+        # (overload/503) error we try the next model within the same attempt
+        # before consuming a retry, so a busy primary doesn't hard-fail the user.
+        candidate_models = self._candidate_models()
+
         for attempt in range(max_retries):
             response = None
             try:
-                # Set timeout for API call (120 seconds) to prevent indefinite hangs
-                from google.generativeai.types import RequestOptions
-                response = self.model.generate_content(
-                    prompt,
-                    generation_config=gen_config if gen_config else None,
-                    request_options=RequestOptions(timeout=120)
+                response = self._generate_content_with_model_fallback(
+                    prompt, gen_config, candidate_models
                 )
 
                 if not response:
@@ -496,12 +573,12 @@ class BaseAIService(BaseService):
                     logger.error(f"Non-retryable error: {e}")
                     raise AIGenerationError(f"Gemini API error: {str(e)}")
 
-                # Retry with exponential backoff
+                # Retry with exponential backoff + full jitter
                 if attempt < max_retries - 1:
-                    delay = min(retry_delay * (2 ** attempt), self.MAX_RETRY_DELAY)
+                    delay = self._retry_sleep_seconds(retry_delay, attempt)
                     logger.warning(
                         f"AI generation attempt {attempt + 1}/{max_retries} failed: {e}. "
-                        f"Retrying in {delay}s..."
+                        f"Retrying in {delay:.1f}s..."
                     )
                     time.sleep(delay)
                 else:
@@ -514,6 +591,15 @@ class BaseAIService(BaseService):
                     del response
                 gc.collect()
 
+        # All retries (and model fallbacks) exhausted. If the underlying failure
+        # was a transient capacity/overload error (e.g. a 503 "high demand"),
+        # raise the dedicated AIServiceOverloadedError so callers can soft-fail
+        # with a friendly "try again" 503 instead of a generic 500.
+        if last_error is not None and self._is_transient_ai_error(last_error):
+            raise AIServiceOverloadedError(
+                "The AI is experiencing high demand right now. "
+                "Please try again in a moment."
+            )
         raise AIGenerationError(
             f"Generation failed after {max_retries} attempts: {str(last_error)}"
         )

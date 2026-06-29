@@ -10,6 +10,7 @@ import logging
 
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.platform_staff import is_optio_platform_user
 from middleware.rate_limiter import rate_limit
 from services.observer_audit_service import ObserverAuditService
 
@@ -56,18 +57,24 @@ def register_routes(bp):
 
             # Get user role to check if they're superadmin/advisor/parent
             # Need both role and org_role to handle org-managed users
-            user_result = supabase.table('users').select('role, org_role').eq('id', observer_id).single().execute()
+            user_result = supabase.table('users').select('role, org_role, email').eq('id', observer_id).single().execute()
             user_role = user_result.data.get('role') if user_result.data else None
             user_org_role = user_result.data.get('org_role') if user_result.data else None
+            user_email = user_result.data.get('email') if user_result.data else None
 
             # Determine effective role (org_role for org_managed users, role otherwise)
             effective_role = user_org_role if user_role == 'org_managed' else user_role
 
-            # Superadmin global feed: no student_id filter -> show every non-confidential
+            # Optio platform staff (superadmin OR a designated cofounder/staff
+            # account) get the same global activity feed without needing full
+            # superadmin powers. Their views are also branded as "Optio".
+            is_platform = is_optio_platform_user({'role': effective_role, 'email': user_email})
+
+            # Global feed: no student_id filter -> show every non-confidential
             # evidence upload across all users and orgs. Skips link-based scoping and
             # per-row permission checks. Confidential items remain hidden to match the
             # existing privacy boundary.
-            is_superadmin_global = (effective_role == 'superadmin' and not student_id_filter)
+            is_superadmin_global = (is_platform and not student_id_filter)
 
             if is_superadmin_global:
                 student_ids = []
@@ -146,8 +153,8 @@ def register_routes(bp):
                 if student_id_filter:
                     if student_id_filter in blocked_ids and student_id_filter != observer_id:
                         return jsonify({'error': 'Access denied to this student'}), 403
-                    # Superadmin can scope to any student regardless of linking.
-                    if student_id_filter not in student_ids and effective_role != 'superadmin':
+                    # Optio platform staff can scope to any student regardless of linking.
+                    if student_id_filter not in student_ids and not is_platform:
                         return jsonify({'error': 'Access denied to this student'}), 403
                     student_ids = [student_id_filter]
                     evidence_permissions.setdefault(student_id_filter, True)
@@ -736,12 +743,20 @@ def register_routes(bp):
             try:
                 if completion_ids:
                     views = supabase.table('feed_item_views') \
-                        .select('completion_id') \
+                        .select('completion_id, users:viewer_id(role, email)') \
                         .in_('completion_id', completion_ids) \
                         .execute()
 
+                    # All Optio platform-staff viewers collapse into a single
+                    # "Optio" view per item, matching the deduped viewers list.
+                    platform_counted = set()
                     for view in views.data:
-                        views_count[view['completion_id']] = views_count.get(view['completion_id'], 0) + 1
+                        cid = view['completion_id']
+                        if is_optio_platform_user(view.get('users') or {}):
+                            if cid in platform_counted:
+                                continue
+                            platform_counted.add(cid)
+                        views_count[cid] = views_count.get(cid, 0) + 1
             except Exception as views_error:
                 logger.warning(f"Could not fetch feed_item_views for completions: {views_error}")
 
@@ -751,12 +766,17 @@ def register_routes(bp):
             try:
                 if le_ids:
                     le_views = supabase.table('feed_item_views') \
-                        .select('learning_event_id') \
+                        .select('learning_event_id, users:viewer_id(role, email)') \
                         .in_('learning_event_id', le_ids) \
                         .execute()
 
+                    platform_counted = set()
                     for view in le_views.data:
                         le_id = view['learning_event_id']
+                        if is_optio_platform_user(view.get('users') or {}):
+                            if le_id in platform_counted:
+                                continue
+                            platform_counted.add(le_id)
                         le_views_count[le_id] = le_views_count.get(le_id, 0) + 1
             except Exception as views_error:
                 logger.warning(f"Could not fetch feed_item_views for learning events: {views_error}")

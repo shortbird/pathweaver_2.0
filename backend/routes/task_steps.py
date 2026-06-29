@@ -10,7 +10,11 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from utils.ai_access import require_ai_access
 from utils.logger import get_logger
-from services.task_steps_service import task_steps_service, AIGenerationError
+from services.task_steps_service import (
+    task_steps_service,
+    AIGenerationError,
+    AIServiceOverloadedError,
+)
 
 logger = get_logger(__name__)
 
@@ -55,6 +59,17 @@ def generate_steps(user_id: str, task_id: str):
             'success': False,
             'error': str(e)
         }), 400
+
+    except AIServiceOverloadedError as e:
+        # Transient capacity error — every model was busy. Tell the client to
+        # retry shortly (503 + Retry-After) instead of a generic 500.
+        logger.warning(f"AI temporarily overloaded: {e}")
+        resp = jsonify({
+            'success': False,
+            'error': str(e)
+        })
+        resp.headers['Retry-After'] = '15'
+        return resp, 503
 
     except AIGenerationError as e:
         logger.error(f"AI generation error: {e}")
@@ -103,6 +118,17 @@ def drill_down_step(user_id: str, task_id: str, step_id: str):
             'success': False,
             'error': str(e)
         }), 400
+
+    except AIServiceOverloadedError as e:
+        # Transient capacity error — every model was busy. Tell the client to
+        # retry shortly (503 + Retry-After) instead of a generic 500.
+        logger.warning(f"AI temporarily overloaded: {e}")
+        resp = jsonify({
+            'success': False,
+            'error': str(e)
+        })
+        resp.headers['Retry-After'] = '15'
+        return resp, 503
 
     except AIGenerationError as e:
         logger.error(f"AI generation error: {e}")

@@ -21,7 +21,11 @@ def get_supabase_admin_client():
 
 ORG_ID = '1340004f-d12f-44ae-9ec3-185af5240130'  # iCreate
 PARENT_EMAIL = 'demo-parent@icreate-demo.com'
-PARENT_PASSWORD = 'iCreateDemo2025!'
+# Never hardcode credentials in a committed file (this repo is public). Provide
+# the demo password at runtime: ICREATE_DEMO_PASSWORD=... python scripts/seed_icreate_parent_demo.py
+PARENT_PASSWORD = os.environ.get('ICREATE_DEMO_PASSWORD')
+if not PARENT_PASSWORD:
+    sys.exit('Set ICREATE_DEMO_PASSWORD in the environment before running this seed script.')
 CHILD_FIRST, CHILD_LAST = 'Demo', 'Student'
 
 admin = get_supabase_admin_client()
