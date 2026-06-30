@@ -21,11 +21,28 @@ logger = get_logger(__name__)
 class ClassService(BaseService):
     """Business logic for organization class management"""
 
+    # Lowercase 3-letter day codes. The Add Class form only offers mon-fri, but we
+    # accept the full week so the service isn't the thing blocking weekends later.
+    VALID_DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
+
     def __init__(self):
         super().__init__()
         self.class_repo = ClassRepository()
 
     # ===== Class CRUD =====
+
+    def _normalize_days(self, days_of_week: Optional[List[str]]) -> List[str]:
+        """Lowercase, validate, and de-duplicate weekday codes (order preserved)."""
+        if not days_of_week:
+            return []
+        normalized: List[str] = []
+        for day in days_of_week:
+            code = str(day).strip().lower()[:3]
+            if code not in self.VALID_DAYS:
+                raise ValidationError(f"Invalid day of week: {day}")
+            if code not in normalized:
+                normalized.append(code)
+        return normalized
 
     def create_class(
         self,
@@ -33,9 +50,24 @@ class ClassService(BaseService):
         name: str,
         description: Optional[str],
         xp_threshold: int,
-        created_by: str
+        created_by: str,
+        days_of_week: Optional[List[str]] = None,
+        start_time: Optional[str] = None,
+        duration_minutes: Optional[int] = None,
+        max_students: Optional[int] = None,
+        supply_fee: Optional[float] = None,
+        image_url: Optional[str] = None,
+        age_min: Optional[int] = None,
+        age_max: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Create a new class for an organization"""
+        """Create a new class for an organization.
+
+        Beyond the original name/description/xp_threshold, classes carry SIS
+        scheduling + catalog fields: meeting days, start time, duration, seat
+        capacity, an optional supply fee (stored/displayed only), an image, and
+        a recommended age range. Optional fields are omitted from the insert when
+        not provided so existing rows/defaults are unaffected.
+        """
         self.validate_required(
             org_id=org_id,
             name=name,
@@ -45,14 +77,46 @@ class ClassService(BaseService):
         if xp_threshold < 0:
             raise ValidationError("XP threshold must be non-negative")
 
+        days = self._normalize_days(days_of_week)
+
+        if duration_minutes is not None and duration_minutes <= 0:
+            raise ValidationError("Duration must be a positive number of minutes")
+        if max_students is not None and max_students <= 0:
+            raise ValidationError("Max students must be a positive number")
+        if supply_fee is not None and supply_fee < 0:
+            raise ValidationError("Supply fee must be non-negative")
+        if age_min is not None and age_min < 0:
+            raise ValidationError("Minimum age must be non-negative")
+        if age_max is not None and age_max < 0:
+            raise ValidationError("Maximum age must be non-negative")
+        if age_min is not None and age_max is not None and age_min > age_max:
+            raise ValidationError("Minimum age cannot exceed maximum age")
+
         data = {
             'organization_id': org_id,
             'name': name.strip(),
             'description': description.strip() if description else None,
             'xp_threshold': xp_threshold,
             'created_by': created_by,
-            'status': 'active'
+            'status': 'active',
+            'days_of_week': days,
         }
+
+        # Only persist optional scheduling/catalog fields when provided
+        if start_time:
+            data['start_time'] = start_time
+        if duration_minutes is not None:
+            data['duration_minutes'] = duration_minutes
+        if max_students is not None:
+            data['max_students'] = max_students
+        if supply_fee is not None:
+            data['supply_fee'] = supply_fee
+        if image_url:
+            data['image_url'] = image_url
+        if age_min is not None:
+            data['age_min'] = age_min
+        if age_max is not None:
+            data['age_max'] = age_max
 
         cls = self.class_repo.create_class(data)
         logger.info(f"Class created: {cls['id']} in org {org_id} by {created_by}")

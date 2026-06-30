@@ -3,21 +3,6 @@ import { useParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
-// Diploma credit requirements per subject (must match backend CreditMappingService.DIPLOMA_REQUIREMENTS)
-const CREDIT_REQUIREMENTS = {
-  'Language Arts': 4.0,
-  'Mathematics': 3.0,
-  'Science': 3.0,
-  'Social Studies': 3.5,
-  'Financial Literacy': 0.5,
-  'Health': 0.5,
-  'Physical Education': 2.0,
-  'Fine Arts': 1.5,
-  'Career & Technical Education': 1.0,
-  'Digital Literacy': 0.5,
-  'Electives': 4.0
-};
-
 const SUBJECT_OPTIONS = [
   { value: 'language_arts', label: 'Language Arts' },
   { value: 'math', label: 'Mathematics' },
@@ -430,14 +415,6 @@ const TranscriptGeneratorPage = () => {
 
   const creditRows = buildCreditRows();
 
-  // Aggregate credits by subject for the summary
-  const subjectTotals = {};
-  creditRows.forEach(row => {
-    if (row.status === 'Completed') {
-      subjectTotals[row.subject] = (subjectTotals[row.subject] || 0) + row.credits;
-    }
-  });
-
   // Displayed field values (override or default)
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
   const dateIssued = field('date_issued', formatDate(new Date().toISOString()));
@@ -780,7 +757,7 @@ const TranscriptGeneratorPage = () => {
                   <th className="text-left py-2 font-semibold text-gray-900">Course</th>
                   <th className="text-left py-2 font-semibold text-gray-900">Source</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Credits</th>
-                  <th className="text-center py-2 font-semibold text-gray-900">Status</th>
+                  <th className="text-center py-2 font-semibold text-gray-900">Grade</th>
                   <th className="text-center py-2 font-semibold text-gray-900 no-print w-16">Actions</th>
                 </tr>
               </thead>
@@ -816,16 +793,8 @@ const TranscriptGeneratorPage = () => {
                       )}
                     </td>
                     <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
-                    <td className="py-2 text-center">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        row.status === 'Completed'
-                          ? 'bg-green-100 text-green-800 print:bg-transparent print:text-gray-900'
-                          : row.status === 'In Progress'
-                          ? 'bg-amber-100 text-amber-800 print:bg-transparent print:text-gray-600 print:italic'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {row.status}
-                      </span>
+                    <td className="py-2 text-center font-bold text-gray-900">
+                      {row.status === 'Completed' ? 'A' : row.status === 'In Progress' ? 'IP' : 'W'}
                     </td>
                     <td className="py-2 text-center no-print">
                       {row.type === 'planned' && (
@@ -900,30 +869,6 @@ const TranscriptGeneratorPage = () => {
               </tbody>
             </table>
           </div>
-
-          {/* Subject summary */}
-          {Object.keys(subjectTotals).length > 0 && (
-            <div className="border-t border-gray-300 px-10 py-4">
-              <h3 className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">
-                Completed Credits by Subject
-              </h3>
-              <div className="grid grid-cols-3 gap-x-8 gap-y-1 text-sm">
-                {Object.entries(subjectTotals)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([subject, credits]) => {
-                    const required = CREDIT_REQUIREMENTS[subject];
-                    return (
-                      <div key={subject} className="flex justify-between">
-                        <span className="text-gray-700">{subject}</span>
-                        <span className="font-semibold text-gray-900">
-                          {credits.toFixed(1)}{required != null && ` / ${required.toFixed(1)}`}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
 
           {/* Footer */}
           <div className="border-t-4 border-double border-gray-900 px-10 py-6 mt-4">

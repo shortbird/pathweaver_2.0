@@ -258,6 +258,49 @@ def test_advisor_summary(user_id):
         return jsonify({'error': str(e)}), 500
 
 
+@ai_jobs_bp.route('/attendance-reminder/trigger', methods=['POST'])
+def trigger_attendance_reminder_job():
+    """
+    Trigger the start-of-class attendance reminder job (iCreate SIS).
+
+    Notifies advisors of classes starting within the current window today (that
+    haven't had attendance taken) to mark absences. Designed to run every ~15 min.
+
+    Authentication: Either superadmin session OR X-Cron-Secret header.
+
+    Request body (optional):
+        - now: ISO datetime to evaluate against (testing)
+        - timezone: IANA tz name (default 'America/Denver')
+        - window_minutes: look-ahead window (default 15)
+    """
+    cron_secret = request.headers.get('X-Cron-Secret')
+    expected_secret = Config.CRON_SECRET
+
+    if cron_secret and expected_secret and cron_secret == expected_secret:
+        logger.info("Attendance reminder triggered via cron")
+    else:
+        from utils.auth.decorators import get_current_user, get_effective_role
+        user = get_current_user()
+        if not user or get_effective_role(user) != 'superadmin':
+            return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        from jobs.class_attendance_reminder import ClassAttendanceReminderJob
+
+        data = request.get_json(silent=True) or {}
+        job_data = {}
+        for key in ('now', 'timezone', 'window_minutes'):
+            if data.get(key) is not None:
+                job_data[key] = data[key]
+
+        result = ClassAttendanceReminderJob.execute(job_data)
+        return jsonify({'message': 'Attendance reminder job triggered', 'result': result}), 200
+
+    except Exception as e:
+        logger.error(f"Error triggering attendance reminder job: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @ai_jobs_bp.route('/advisor-summary/trigger', methods=['POST'])
 def trigger_advisor_summary_job():
     """

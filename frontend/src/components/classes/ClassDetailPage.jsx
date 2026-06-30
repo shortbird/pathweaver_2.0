@@ -6,6 +6,7 @@ import {
   UsersIcon,
   BookOpenIcon,
   UserGroupIcon,
+  ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
@@ -14,6 +15,7 @@ import ClassSettingsTab from './ClassSettingsTab'
 import ClassStudentsTab from './ClassStudentsTab'
 import ClassQuestsTab from './ClassQuestsTab'
 import ClassAdvisorsTab from './ClassAdvisorsTab'
+import ClassAttendanceTab from './ClassAttendanceTab'
 
 /**
  * ClassDetailPage - Full class view with tabs
@@ -109,6 +111,7 @@ export default function ClassDetailPage({ classId: propClassId, orgId: propOrgId
 
   const tabs = [
     { id: 'students', label: 'Students', icon: UsersIcon, count: classData.student_count },
+    { id: 'attendance', label: 'Attendance', icon: ClipboardDocumentCheckIcon },
     { id: 'quests', label: 'Quests', icon: BookOpenIcon, count: classData.quest_count },
     ...(isOrgAdmin
       ? [{ id: 'advisors', label: 'Advisors', icon: UserGroupIcon, count: classData.advisor_count }]
@@ -185,6 +188,13 @@ export default function ClassDetailPage({ classId: propClassId, orgId: propOrgId
             classId={classId}
             classData={classData}
             onUpdate={fetchClassData}
+          />
+        )}
+        {activeTab === 'attendance' && (
+          <ClassAttendanceTab
+            orgId={orgId}
+            classId={classId}
+            classData={classData}
           />
         )}
         {activeTab === 'quests' && (

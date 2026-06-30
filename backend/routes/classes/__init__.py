@@ -23,3 +23,4 @@ from . import crud
 from . import advisors
 from . import students
 from . import quests
+from . import attendance

@@ -157,8 +157,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     return false
   }
 
-  // Add Courses link: always for superadmin, only if enrolled for others
-  const alwaysShowCourses = user?.role === 'superadmin'
+  // Add Courses link: always for superadmin and org_admins, only if enrolled for others
+  const alwaysShowCourses = user?.role === 'superadmin' || userHasRole('org_admin')
   if (alwaysShowCourses || hasEnrolledCourses) {
     navItems.push({
       name: 'Courses',

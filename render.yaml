@@ -15,6 +15,24 @@ services:
       - key: BACKEND_URL
         value: https://api.optioeducation.com
 
+  # Class Attendance Reminder Cron Job (iCreate SIS)
+  # Runs every 15 min; the backend decides which classes are starting now and
+  # pings their advisors to mark absences.
+  - type: cron
+    name: class-attendance-reminder
+    runtime: python
+    schedule: "*/15 * * * *"
+    repo: https://github.com/shortbird/pathweaver_2.0.git
+    branch: main
+    rootDir: backend
+    buildCommand: "pip install requests"
+    startCommand: "python jobs/attendance_reminder_cron.py"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: BACKEND_URL
+        value: https://api.optioeducation.com
+
   # Production Backend
   - type: web
     name: optio-prod-backend

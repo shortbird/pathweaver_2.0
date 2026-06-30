@@ -47,15 +47,28 @@ export default function ClassList({ orgId, isAdvisorView = false, onSelectClass 
     }
   }
 
-  const handleCreateClass = async (classData) => {
+  const handleCreateClass = async (classData, imageFile) => {
     try {
       const response = await classService.createClass(orgId, classData)
       if (response.success) {
+        const newClass = response.class
+
+        // Image needs the new class id, so it uploads after creation. A failed
+        // image upload shouldn't lose the created class — warn but continue.
+        if (imageFile && newClass?.id) {
+          try {
+            await classService.uploadClassImage(orgId, newClass.id, imageFile)
+          } catch (imgError) {
+            console.error('Class image upload failed:', imgError)
+            toast.error('Class created, but the image failed to upload')
+          }
+        }
+
         toast.success('Class created successfully')
         setShowCreateModal(false)
         fetchClasses()
         if (onSelectClass) {
-          onSelectClass(response.class)
+          onSelectClass(newClass)
         }
       } else {
         toast.error(response.error || 'Failed to create class')

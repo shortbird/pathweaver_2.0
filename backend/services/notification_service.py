@@ -34,6 +34,8 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
     'parent_approval_required',
     'diploma_credit_requested', 'org_approved_credit',
     'class_submitted_for_review',
+    # SIS attendance
+    'student_absent', 'attendance_reminder',
 }
 
 
@@ -604,6 +606,68 @@ class NotificationService(BaseService):
             link='/parent-dashboard',
             metadata={'student_id': student_id},
             organization_id=organization_id
+        )
+
+    def notify_student_absent(
+        self,
+        recipient_id: str,
+        student_name: str,
+        class_name: str,
+        meeting_date: str,
+        student_id: str,
+        class_id: str,
+        organization_id: Optional[str] = None,
+        changed_from_present: bool = False,
+    ):
+        """
+        Notify a recipient (parent or org admin) that a student was marked absent.
+
+        `changed_from_present=True` means the student was previously marked present
+        and the status was later changed to absent — a correction worth flagging
+        more prominently (this is the case that also reaches org admins).
+        """
+        if changed_from_present:
+            title = 'Attendance changed to absent'
+            message = (
+                f'{student_name} was marked present in {class_name} on {meeting_date}, '
+                f'then changed to absent.'
+            )
+        else:
+            title = 'Student marked absent'
+            message = f'{student_name} was marked absent from {class_name} on {meeting_date}.'
+
+        return self.create_notification(
+            user_id=recipient_id,
+            notification_type='student_absent',
+            title=title,
+            message=message,
+            link='/notifications',
+            metadata={
+                'student_id': student_id,
+                'class_id': class_id,
+                'meeting_date': meeting_date,
+                'changed_from_present': changed_from_present,
+            },
+            organization_id=organization_id,
+        )
+
+    def notify_attendance_reminder(
+        self,
+        advisor_id: str,
+        class_name: str,
+        class_id: str,
+        meeting_date: str,
+        organization_id: Optional[str] = None,
+    ):
+        """Remind a class advisor (teacher) to mark absences at the start of class."""
+        return self.create_notification(
+            user_id=advisor_id,
+            notification_type='attendance_reminder',
+            title='Take attendance',
+            message=f'{class_name} is starting — mark today\'s absences.',
+            link='/notifications',
+            metadata={'class_id': class_id, 'meeting_date': meeting_date},
+            organization_id=organization_id,
         )
 
     def notify_parent_observer_comment(

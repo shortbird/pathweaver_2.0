@@ -43,6 +43,22 @@ const classService = {
   },
 
   /**
+   * Upload (or replace) a class's image. Returns { success, image_url }.
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   * @param {File} file - Image file (max 5MB)
+   */
+  uploadClassImage: async (orgId, classId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post(
+      `/api/organizations/${orgId}/classes/${classId}/upload-image`,
+      formData
+    )
+    return response.data
+  },
+
+  /**
    * Get a class by ID with details
    * @param {string} orgId - Organization ID
    * @param {string} classId - Class ID
@@ -166,6 +182,38 @@ const classService = {
   getStudentProgress: async (orgId, classId, studentId) => {
     const response = await api.get(
       `/api/organizations/${orgId}/classes/${classId}/students/${studentId}/progress`
+    )
+    return response.data
+  },
+
+  // ===== Attendance =====
+
+  /**
+   * Get the roster + recorded attendance for a class meeting.
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   * @param {string} date - Meeting date (YYYY-MM-DD). Defaults to today on the server.
+   */
+  getAttendance: async (orgId, classId, date) => {
+    const params = new URLSearchParams()
+    if (date) params.append('date', date)
+    const queryString = params.toString()
+    const url = `/api/organizations/${orgId}/classes/${classId}/attendance${queryString ? '?' + queryString : ''}`
+    const response = await api.get(url)
+    return response.data
+  },
+
+  /**
+   * Mark attendance for a class meeting.
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   * @param {string} meetingDate - Meeting date (YYYY-MM-DD)
+   * @param {Array<{student_id: string, status: 'present'|'absent'|'excused'}>} records
+   */
+  markAttendance: async (orgId, classId, meetingDate, records) => {
+    const response = await api.post(
+      `/api/organizations/${orgId}/classes/${classId}/attendance`,
+      { meeting_date: meetingDate, records }
     )
     return response.data
   },

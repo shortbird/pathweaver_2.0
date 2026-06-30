@@ -95,3 +95,47 @@ describe('Sidebar — Credit Review link visibility', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+describe('Sidebar — Courses link visibility', () => {
+  beforeEach(() => {
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+  })
+
+  it('shows Courses link for superadmin even with no enrolled courses', () => {
+    authState.user = {
+      id: 'u1',
+      role: 'superadmin',
+      email: 't@example.com',
+    }
+    renderSidebar()
+    expect(
+      screen.getByRole('link', { name: /courses/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows Courses link for org_admin even with no enrolled courses', () => {
+    authState.user = {
+      id: 'u1',
+      role: 'org_managed',
+      org_role: 'org_admin',
+      organization_id: 'org-1',
+      email: 't@example.com',
+    }
+    renderSidebar()
+    expect(
+      screen.getByRole('link', { name: /courses/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('does NOT show Courses link for plain students with no enrolled courses', () => {
+    authState.user = {
+      id: 'u1',
+      role: 'student',
+      email: 's@example.com',
+    }
+    renderSidebar()
+    expect(
+      screen.queryByRole('link', { name: /courses/i }),
+    ).not.toBeInTheDocument()
+  })
+})

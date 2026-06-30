@@ -2,12 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
 
-const CREDIT_REQUIREMENTS = {
-  'Language Arts': 4.0, 'Mathematics': 3.0, 'Science': 3.0, 'Social Studies': 3.5,
-  'Financial Literacy': 0.5, 'Health': 0.5, 'Physical Education': 2.0, 'Fine Arts': 1.5,
-  'Career & Technical Education': 1.0, 'Digital Literacy': 0.5, 'Electives': 4.0
-};
-
 const SUBJECT_DISPLAY_NAMES = {
   'language_arts': 'Language Arts', 'math': 'Mathematics', 'science': 'Science',
   'social_studies': 'Social Studies', 'financial_literacy': 'Financial Literacy',
@@ -129,13 +123,6 @@ const PublicTranscriptPage = () => {
     return a.subject.localeCompare(b.subject);
   });
 
-  const subjectTotals = {};
-  rows.forEach(row => {
-    if (row.status === 'Completed') {
-      subjectTotals[row.subject] = (subjectTotals[row.subject] || 0) + row.credits;
-    }
-  });
-
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
   const dateIssued = field('date_issued', formatDate(new Date().toISOString().split('T')[0]));
   const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
@@ -218,7 +205,7 @@ const PublicTranscriptPage = () => {
                   <th className="text-left py-2 font-semibold text-gray-900">Course</th>
                   <th className="text-left py-2 font-semibold text-gray-900">Source</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Credits</th>
-                  <th className="text-center py-2 font-semibold text-gray-900">Status</th>
+                  <th className="text-center py-2 font-semibold text-gray-900">Grade</th>
                 </tr>
               </thead>
               <tbody>
@@ -231,14 +218,8 @@ const PublicTranscriptPage = () => {
                     <td className="py-2 text-gray-700">{row.course}</td>
                     <td className="py-2 text-gray-700">{row.source}</td>
                     <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
-                    <td className="py-2 text-center">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        row.status === 'Completed' ? 'bg-green-100 text-green-800 print:bg-transparent print:text-gray-900'
-                        : row.status === 'In Progress' ? 'bg-amber-100 text-amber-800 print:bg-transparent print:text-gray-600 print:italic'
-                        : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {row.status}
-                      </span>
+                    <td className="py-2 text-center font-bold text-gray-900">
+                      {row.status === 'Completed' ? 'A' : row.status === 'In Progress' ? 'IP' : 'W'}
                     </td>
                   </tr>
                 ))}
@@ -255,12 +236,8 @@ const PublicTranscriptPage = () => {
               >
                 <div className="flex items-start justify-between mb-1">
                   <span className="text-sm font-semibold text-gray-900">{row.subject}</span>
-                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ml-2 ${
-                    row.status === 'Completed' ? 'bg-green-100 text-green-800'
-                    : row.status === 'In Progress' ? 'bg-amber-100 text-amber-800'
-                    : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {row.status}
+                  <span className="text-sm font-bold text-gray-900 flex-shrink-0 ml-2">
+                    {row.status === 'Completed' ? 'A' : row.status === 'In Progress' ? 'IP' : 'W'}
                   </span>
                 </div>
                 <p className="text-xs text-gray-700">{row.course}</p>
@@ -269,30 +246,6 @@ const PublicTranscriptPage = () => {
               </div>
             ))}
           </div>
-
-          {/* Subject summary */}
-          {Object.keys(subjectTotals).length > 0 && (
-            <div className="border-t border-gray-300 px-4 sm:px-10 py-4">
-              <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">
-                Completed Credits by Subject
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-1 text-xs sm:text-sm">
-                {Object.entries(subjectTotals)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([subject, credits]) => {
-                    const required = CREDIT_REQUIREMENTS[subject];
-                    return (
-                      <div key={subject} className="flex justify-between">
-                        <span className="text-gray-700">{subject}</span>
-                        <span className="font-semibold text-gray-900">
-                          {credits.toFixed(1)}{required != null && ` / ${required.toFixed(1)}`}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
 
           {/* Footer */}
           <div className="border-t-4 border-double border-gray-900 px-4 sm:px-10 py-4 sm:py-6 mt-4">
