@@ -73,9 +73,13 @@ def get_admin_quests(user_id):
         is_active = request.args.get('is_active')  # 'true', 'false', or None for all
         is_public = request.args.get('is_public')  # 'true', 'false', or None for all
 
-        # Get user role
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else 'advisor'
+        # Get user role (resolve org_managed users to their org_role)
+        user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).execute()
+        user_record = user.data[0] if user.data else {}
+        user_role = user_record.get('role') or 'advisor'
+        org_role = user_record.get('org_role')
+        user_org_id = user_record.get('organization_id')
+        effective_role = org_role if user_role == 'org_managed' else user_role
 
         # Build query based on role
         # Select only needed columns to avoid PostgREST payload limits
@@ -87,8 +91,16 @@ def get_admin_quests(user_id):
         )
 
         # Advisors see only their own quests
-        if user_role == 'advisor':
+        if effective_role == 'advisor':
             query = query.eq('created_by', user_id)
+        # Org admins see their org's quests + quests they created + the public
+        # Optio library (so visibility-curation still works), but NOT other orgs'
+        # private quests. Previously org_managed users fell through to the
+        # superadmin branch and saw every org's quests.
+        elif effective_role == 'org_admin' and user_org_id:
+            query = query.or_(
+                f'organization_id.eq.{user_org_id},created_by.eq.{user_id},is_public.eq.true'
+            )
 
         # Apply filters
         if quest_type:

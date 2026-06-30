@@ -94,8 +94,9 @@ def create_quest_v3_clean(user_id):
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
         # Get user role to determine default is_active and is_public values
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else 'advisor'
+        user = supabase.table('users').select('role, organization_id').eq('id', user_id).execute()
+        user_record = user.data[0] if user.data else {}
+        user_role = user_record.get('role') or 'advisor'
 
         # Auto-fetch image if not provided
         image_url = data.get('header_image_url')
@@ -117,6 +118,14 @@ def create_quest_v3_clean(user_id):
 
         # Check for organization_id (org-specific quest)
         organization_id = data.get('organization_id')
+        # Default org-managed creators' quests to their own organization so the
+        # quest is tagged to their org and appears in the Organization Dashboard.
+        # Without this, an org_admin creating from the generic "Create Quest"
+        # button produces an untagged (organization_id=NULL) quest that never
+        # shows in their org-scoped views. Superadmins still create global quests
+        # (organization_id stays None) unless they pass one explicitly.
+        if not organization_id and user_role != 'superadmin':
+            organization_id = user_record.get('organization_id')
         quest_type = data.get('quest_type', 'optio')  # Default to 'optio', can also be 'course'
 
         # Validate quest_type
