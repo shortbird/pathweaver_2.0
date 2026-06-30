@@ -116,9 +116,19 @@ class OEARepository:
         course_name: str,
         credits: float,
         created_by: str,
+        credit_source: str = 'direct',
+        is_weighted: bool = False,
+        status: str = 'in_progress',
+        letter_grade: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a new (in-progress) course credit for a requirement slot."""
-        result = self.client.table('oea_credits').insert({
+        """
+        Create a course credit for a requirement slot.
+
+        Direct credits start in_progress (worked through the linked quest). Transfer
+        and earned_elsewhere credits are typically created already complete with a
+        letter grade (no logs/artifacts), so the caller may pass status/letter_grade.
+        """
+        row = {
             'student_id': student_id,
             'enrollment_id': enrollment_id,
             'requirement_key': requirement_key,
@@ -126,11 +136,78 @@ class OEARepository:
             'subject_key': subject_key,
             'course_name': course_name,
             'credits': credits,
-            'status': 'in_progress',
+            'status': status,
+            'credit_source': credit_source,
+            'is_weighted': is_weighted,
             'created_by': created_by,
-        }).execute()
+        }
+        if letter_grade is not None:
+            row['letter_grade'] = letter_grade
+        if status == 'complete':
+            row['completed_at'] = 'now()'
+        result = self.client.table('oea_credits').insert(row).execute()
         if not result.data:
             raise ValidationError("Failed to create credit")
+        return result.data[0]
+
+    def set_cap_overrides(self, student_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Set per-student transfer/non-direct cap overrides on the enrollment."""
+        fields = {**fields, 'updated_at': 'now()'}
+        result = self.client.table('oea_enrollments') \
+            .update(fields).eq('student_id', student_id).execute()
+        if not result.data:
+            raise NotFoundError(f"No enrollment for student {student_id}")
+        return result.data[0]
+
+    # ── Grade periods (quarter / semester / annual grades + summaries) ────────
+
+    def get_periods(self, credit_id: str) -> List[Dict[str, Any]]:
+        """Return all grade-period rows for a credit (term order)."""
+        result = self.client.table('oea_credit_grade_periods') \
+            .select('*').eq('credit_id', credit_id) \
+            .order('term_type', desc=False).order('term_index', desc=False).execute()
+        return result.data or []
+
+    def get_periods_for_student(self, student_id: str, school_year: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Return grade-period rows across all of a student's credits."""
+        q = self.client.table('oea_credit_grade_periods').select('*').eq('student_id', student_id)
+        if school_year:
+            q = q.eq('school_year', school_year)
+        return q.execute().data or []
+
+    def upsert_period(
+        self,
+        credit_id: str,
+        student_id: str,
+        school_year: str,
+        term_type: str,
+        term_index: int,
+        grade: Optional[str],
+        summary: Optional[str],
+        entered_by: str,
+    ) -> Dict[str, Any]:
+        """
+        Insert or update one (credit, term_type, term_index, school_year) period.
+
+        Uses the unique constraint for an upsert so a parent can revise a quarter
+        summary or correct a semester grade in place.
+        """
+        row = {
+            'credit_id': credit_id,
+            'student_id': student_id,
+            'school_year': school_year,
+            'term_type': term_type,
+            'term_index': term_index,
+            'grade': grade,
+            'summary': summary,
+            'entered_by': entered_by,
+            'entered_at': 'now()',
+            'updated_at': 'now()',
+        }
+        result = self.client.table('oea_credit_grade_periods') \
+            .upsert(row, on_conflict='credit_id,term_type,term_index,school_year').execute()
+        if not result.data:
+            raise ValidationError("Failed to save grade period")
         return result.data[0]
 
     def update_credit(self, credit_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:

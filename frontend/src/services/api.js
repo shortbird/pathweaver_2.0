@@ -745,6 +745,20 @@ export const oeaAPI = {
 
   // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
   ensureCreditQuest: (creditId) => api.post(`/api/oea/credits/${creditId}/quest`, {}),
+
+  // Raise/clear a student's transfer + non-direct credit caps (Hearthwood admin only).
+  setCaps: (studentId, body) => api.patch(`/api/oea/enrollments/${studentId}/caps`, body),
+
+  // Grade periods for a course (quarter/semester/annual grades + summaries).
+  creditPeriods: (creditId) => api.get(`/api/oea/credits/${creditId}/periods`),
+  saveCreditPeriod: (creditId, body) => api.put(`/api/oea/credits/${creditId}/periods`, body),
+
+  // OEA-branded transcript data (credits, grades, GPA, notations).
+  transcript: (studentId) => api.get(`/api/oea/students/${studentId}/transcript`),
+
+  // Quarterly progress report (report card) for a term (1-4).
+  progressReport: (studentId, term) =>
+    api.get(`/api/oea/students/${studentId}/progress-report`, { params: { term } }),
 }
 
 // ── The Treehouse program API ────────────────────────────────────────────────

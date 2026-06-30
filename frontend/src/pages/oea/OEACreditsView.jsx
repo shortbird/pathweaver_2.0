@@ -16,8 +16,17 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { oeaAPI } from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
+import OEAGradePeriodsModal from '../../components/oea/OEAGradePeriodsModal'
 
 const GRADES = ['A', 'B', 'C', 'D', 'F']
+
+// Credit classification. Transfer + earned-elsewhere are entered with a grade and
+// no logs/artifacts; direct credits are worked through the linked quest.
+const SOURCES = [
+  { key: 'direct', label: 'Direct (Optio uploads)' },
+  { key: 'transfer', label: 'Transfer credit' },
+  { key: 'earned_elsewhere', label: 'Credit earned elsewhere' },
+]
 
 function ProgressBar({ percent }) {
   const clamped = Math.max(0, Math.min(100, percent))
@@ -60,6 +69,12 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
   const [addFor, setAddFor] = useState(null)
   const [newCourse, setNewCourse] = useState('')
   const [newCredits, setNewCredits] = useState('1')
+  const [newSource, setNewSource] = useState('direct')
+  const [newGrade, setNewGrade] = useState(null)
+  const [newWeighted, setNewWeighted] = useState(false)
+
+  // Grades-by-term modal (per course)
+  const [periodsFor, setPeriodsFor] = useState(null)
 
   // Edit / grade modal
   const [editing, setEditing] = useState(null)
@@ -90,20 +105,32 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
     setAddFor(req)
     setNewCourse('')
     setNewCredits('1')
+    setNewSource('direct')
+    setNewGrade(null)
+    setNewWeighted(false)
   }
 
   const saveAdd = async () => {
     if (!studentId || !addFor || !newCourse.trim() || saving) return
+    const nonDirect = newSource !== 'direct'
+    if (nonDirect && !newGrade) {
+      toast.error('Choose a grade for this transfer course.')
+      return
+    }
     setSaving(true)
     try {
       await oeaAPI.addCredit(studentId, {
         requirement_key: addFor.key,
         course_name: newCourse.trim(),
         credits: Number(newCredits) || 1,
+        credit_source: newSource,
+        is_weighted: nonDirect ? newWeighted : false,
+        letter_grade: nonDirect ? newGrade : null,
       })
       setAddFor(null)
       await load()
     } catch (err) {
+      // Cap breaches (transfer > 6, combined non-direct > 18) surface here.
       toast.error(err.response?.data?.error || 'Could not add the course.')
     } finally {
       setSaving(false)
@@ -241,6 +268,29 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
         </div>
       </div>
 
+      {/* Transfer-credit usage + report/transcript links */}
+      {data?.credit_summary && (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+          <div className="flex justify-between text-xs text-neutral-500">
+            <span>Transfer credit: {data.credit_summary.transfer_used} / {data.credit_summary.transfer_cap}</span>
+            <span>Transfer + earned elsewhere: {data.credit_summary.nondirect_used} / {data.credit_summary.nondirect_cap}</span>
+          </div>
+          {data.diploma_eligibility && (
+            <p className={`text-xs mt-2 ${data.diploma_eligibility.meets_min_direct ? 'text-green-700' : 'text-amber-700'}`}>
+              Direct credits earned: {data.diploma_eligibility.direct_credits_earned} (at least {data.diploma_eligibility.min_direct_required} required for the diploma)
+            </p>
+          )}
+          <div className="flex gap-3 mt-3">
+            <button type="button"
+              onClick={() => navigate(`/opened-academy/student/${studentId}/progress-report`, { state: { studentName } })}
+              className="text-sm text-optio-purple font-medium">Quarterly report</button>
+            <button type="button"
+              onClick={() => navigate(`/opened-academy/student/${studentId}/transcript`, { state: { studentName } })}
+              className="text-sm text-optio-purple font-medium">Transcript</button>
+          </div>
+        </div>
+      )}
+
       {/* Per-requirement breakdown */}
       {progress.requirements.map((req) => {
         const courses = creditsForReq(req.key)
@@ -306,6 +356,24 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
         <ModalOverlay onClose={() => setAddFor(null)}>
           <div className="bg-white rounded-2xl p-5 w-full max-w-sm">
             <h3 className="font-semibold text-neutral-900">Add course — {addFor.label}</h3>
+
+            <label className="block text-sm font-medium text-neutral-700 mt-4 mb-1">Course type</label>
+            <select
+              value={newSource}
+              onChange={(e) => setNewSource(e.target.value)}
+              aria-label="Course type"
+              className="w-full border border-neutral-300 rounded-lg p-2.5 text-sm"
+            >
+              {SOURCES.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+            {newSource === 'earned_elsewhere' && (
+              <p className="text-xs text-neutral-500 mt-1">
+                Shows on the transcript as "Accepted transfer credit from previous school."
+              </p>
+            )}
+
             <label className="block text-sm font-medium text-neutral-700 mt-4 mb-1">Course name</label>
             <input
               value={newCourse}
@@ -321,6 +389,38 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
               inputMode="decimal"
               className="w-24 border border-neutral-300 rounded-lg p-2.5 text-sm"
             />
+
+            {/* Transfer / earned-elsewhere credits carry a grade (no logs/artifacts). */}
+            {newSource !== 'direct' && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Grade</label>
+                <div className="flex gap-2">
+                  {GRADES.map((g) => (
+                    <button key={g} type="button" onClick={() => setNewGrade(g)}
+                      className={`flex-1 py-2 rounded-lg border text-sm ${
+                        newGrade === g ? 'bg-optio-purple border-optio-purple text-white font-semibold'
+                          : 'border-neutral-200 text-neutral-700'
+                      }`}>
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setNewWeighted((v) => !v)}
+                  className="flex items-center gap-2 mt-3">
+                  <span className={`w-5 h-5 rounded border flex items-center justify-center ${
+                    newWeighted ? 'bg-optio-purple border-optio-purple' : 'border-neutral-300'
+                  }`}>
+                    {newWeighted && (
+                      <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="text-sm text-neutral-700">Honors / AP / IB (weighted)</span>
+                </button>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 mt-5">
               <button
                 type="button"
@@ -414,6 +514,27 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
               </div>
             )}
 
+            {/* Grades by term: quarter grades/summaries (report card) + the
+                semester/annual transcript grade. */}
+            <button
+              type="button"
+              onClick={() => { setPeriodsFor(editing); setEditing(null) }}
+              className="w-full flex items-center justify-between border-t border-neutral-100 pt-4 mt-4 text-left"
+            >
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6h13M9 5h13M3 5h.01M3 11h.01M3 17h.01" />
+                </svg>
+                <span>
+                  <span className="block text-sm font-medium text-neutral-900">Grades by term</span>
+                  <span className="block text-xs text-neutral-400">Quarter, semester, and annual grades</span>
+                </span>
+              </span>
+              <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
             {/* Student quest: work, evidence, and journal entries live here, using
                 the same flow as any Optio quest. */}
             <button
@@ -465,6 +586,15 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
             </div>
           </div>
         </ModalOverlay>
+      )}
+
+      {/* Grades by term */}
+      {periodsFor && (
+        <OEAGradePeriodsModal
+          credit={periodsFor}
+          onClose={() => setPeriodsFor(null)}
+          onSaved={load}
+        />
       )}
     </div>
   )

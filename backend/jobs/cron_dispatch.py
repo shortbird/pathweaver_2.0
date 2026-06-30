@@ -24,6 +24,7 @@ import requests
 # Daily jobs fire once/day in this UTC hour (the cron runs every 10 min, so the
 # first run of the hour — minute < 10 — is the single trigger).
 DAILY_SUMMARY_UTC_HOUR = 12
+OEA_COMPLIANCE_UTC_HOUR = 13
 
 
 def _post(url, secret):
@@ -62,6 +63,11 @@ def main():
     # Once/day: daily advisor summary emails (first run of the 12:00 UTC hour).
     if now.hour == DAILY_SUMMARY_UTC_HOUR and now.minute < 10:
         _run("advisor-summary", f"{base}/api/admin/advisor-summary/trigger", cron_secret, failures)
+
+    # Once/day: OEA quarterly-upload compliance sweep (first run of the 13:00 UTC
+    # hour). No-ops cheaply when no quarter has closed; alerts are deduped server-side.
+    if now.hour == OEA_COMPLIANCE_UTC_HOUR and now.minute < 10:
+        _run("oea-compliance-sweep", f"{base}/api/oea/internal/compliance-sweep", cron_secret, failures)
 
     if failures:
         print(f"Completed with failures: {failures}")

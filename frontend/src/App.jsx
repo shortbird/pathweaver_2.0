@@ -63,6 +63,8 @@ const ConstellationPage = lazy(() => import('./pages/ConstellationPage'))
 const OpenEdAcademyPage = lazy(() => import('./pages/oea/OpenEdAcademyPage'))
 const OEASelectPathwayPage = lazy(() => import('./pages/oea/OEASelectPathwayPage'))
 const OEACreditsPage = lazy(() => import('./pages/oea/OEACreditsPage'))
+const OEATranscriptPage = lazy(() => import('./pages/oea/OEATranscriptPage'))
+const OEAProgressReportPage = lazy(() => import('./pages/oea/OEAProgressReportPage'))
 
 // The Treehouse program — microschool tab (/treehouse), branches student vs facilitator
 const TreehousePage = lazy(() => import('./pages/treehouse/TreehousePage'))
@@ -544,6 +546,8 @@ function App() {
                 <Route path="opened-academy" element={<OpenEdAcademyPage />} />
                 <Route path="opened-academy/student/:studentId/pathway" element={<OEASelectPathwayPage />} />
                 <Route path="opened-academy/student/:studentId/credits" element={<OEACreditsPage />} />
+                <Route path="opened-academy/student/:studentId/transcript" element={<OEATranscriptPage />} />
+                <Route path="opened-academy/student/:studentId/progress-report" element={<OEAProgressReportPage />} />
                 {/* The Treehouse program (gated in the sidebar by org slug; the
                     page branches student vs facilitator, enforced server-side). */}
                 <Route path="treehouse" element={<TreehousePage />} />
