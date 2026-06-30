@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 const { toast, oeaAPI } = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -12,6 +12,13 @@ import OEAGradePeriodsModal from '../OEAGradePeriodsModal'
 
 const credit = { id: 'c1', course_name: 'Algebra I' }
 
+// Flush the mount load: creditPeriods().then(setPeriods) + the [sel, periods]
+// prefill effect both settle, so a later grade click isn't clobbered by the load.
+async function flushLoad() {
+  await waitFor(() => expect(oeaAPI.creditPeriods).toHaveBeenCalled())
+  await act(async () => {})
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   oeaAPI.creditPeriods.mockResolvedValue({ data: { periods: [] } })
@@ -21,7 +28,7 @@ describe('OEAGradePeriodsModal', () => {
   it('saves a quarter grade + summary', async () => {
     oeaAPI.saveCreditPeriod.mockResolvedValue({ data: { period: {} } })
     render(<OEAGradePeriodsModal credit={credit} onClose={vi.fn()} onSaved={vi.fn()} />)
-    await waitFor(() => expect(oeaAPI.creditPeriods).toHaveBeenCalledWith('c1'))
+    await flushLoad()
 
     fireEvent.click(screen.getByText('B'))
     fireEvent.click(screen.getByText('Save'))
@@ -37,7 +44,7 @@ describe('OEAGradePeriodsModal', () => {
       response: { status: 422, data: { error: 'Required quarterly uploads are missing' } },
     })
     render(<OEAGradePeriodsModal credit={credit} onClose={vi.fn()} onSaved={vi.fn()} />)
-    await waitFor(() => expect(oeaAPI.creditPeriods).toHaveBeenCalled())
+    await flushLoad()
 
     // switch to a semester term, pick a grade, save
     fireEvent.change(screen.getByLabelText('Term'), { target: { value: 'semester:1' } })
