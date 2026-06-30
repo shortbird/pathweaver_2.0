@@ -13,7 +13,7 @@ import OEACreditsView from '../OEACreditsView'
 
 const DATA = {
   success: true,
-  enrollment: { pathway_key: 'open_balanced' },
+  enrollment: { pathway_key: 'open_balanced', pathway: { name: 'Open and Balanced' } },
   credits: [],
   progress: {
     pathway_key: 'open_balanced', total_required: 24, total_earned: 0, total_in_progress: 0,
@@ -42,12 +42,13 @@ beforeEach(() => {
 })
 
 describe('OEACreditsView', () => {
-  it('renders progress, cap usage, and the requirement breakdown', async () => {
+  it('renders the pathway name, progress, links, and requirement breakdown', async () => {
     renderView()
     expect(await screen.findByText('0 of 24 credits')).toBeInTheDocument()
+    expect(screen.getByText('Open and Balanced diploma plan')).toBeInTheDocument()
     expect(screen.getByText('Math')).toBeInTheDocument()
-    expect(screen.getByText(/Transfer credit: 0 \/ 6/)).toBeInTheDocument()
-    expect(screen.getByText(/Direct credits earned: 0/)).toBeInTheDocument()
+    expect(screen.getByText('Quarterly report')).toBeInTheDocument()
+    expect(screen.getByText('Transcript')).toBeInTheDocument()
   })
 
   it('adds a transfer credit with a grade and credit_source', async () => {

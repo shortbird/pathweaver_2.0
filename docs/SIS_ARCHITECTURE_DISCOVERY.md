@@ -1,7 +1,11 @@
 # iCreate SIS — Architecture Discovery & Codebase Audit
 
-**Status:** Discovery / planning. No code changes yet.
-**Branch:** `claude/optio-sis-implementation-u314sk`
+**Status:** Discovery / planning record (point-in-time, 2026-06-26). **Superseded by
+implementation** — the full SIS has since been built and shipped to prod; see
+[`SIS_IMPLEMENTATION_PLAN.md`](SIS_IMPLEMENTATION_PLAN.md) for current state. The
+"built-but-dormant MVP" and "no code changes yet" notes below describe the starting
+point, not today.
+**Branch:** `claude/optio-sis-implementation-u314sk` (merged to `main`)
 **Source spec:** iCreate "Create Student Information System (SIS) — Architecture & Discovery Document" (Draft v1.0)
 **Audit date:** 2026-06-26 | **Scope:** web v1 (`frontend/` + `backend/`). Mobile v2 out of scope.
 

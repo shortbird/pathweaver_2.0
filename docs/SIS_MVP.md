@@ -4,10 +4,17 @@ Microschool Student Information System. One codebase, two surfaces:
 `www.optioeducation.com` (learning app) and `sis.optioeducation.com` (admin console),
 sharing `api.optioeducation.com` and the same login session.
 
-**Status:** built and dormant. Nothing is live for any school. The SIS surface only
-activates on the `sis.` host (not yet pointed) or via the local `?app=sis` override.
-The carve-out is gated per-org by `organizations.feature_flags.sis_enabled` — default
-**off** for every org except **Test-Org** (slug `test`), which is flagged on for testing.
+> **⚠️ Superseded (2026-06-30):** this doc describes the original 4-table MVP. The
+> **full 7-phase SIS** (programs/classes, registration, waitlists, billing,
+> attendance, check-in, parent self-service) has since shipped to prod. For the
+> current state see [`SIS_IMPLEMENTATION_PLAN.md`](SIS_IMPLEMENTATION_PLAN.md). This
+> doc is kept for the local-testing walkthrough and the go-live/DNS notes below.
+
+**Status:** **live behind the `sis_enabled` flag.** The carve-out is gated per-org by
+`organizations.feature_flags.sis_enabled` — **on** for **iCreate** (pilot school) and
+**Test-Org** (slug `test`); **off** for every other org. The SIS surface activates on
+the `sis.` host (verify whether it's pointed before assuming prod users can reach it)
+or via the local `?app=sis` override.
 
 ---
 
@@ -34,9 +41,13 @@ The carve-out is gated per-org by `organizations.feature_flags.sis_enabled` — 
 - `routes/__init__.py` registers it; `app_config.py` adds `https://sis.optioeducation.com`
   to CORS origins.
 
-**Database (prod, applied)** — 4 additive, RLS-locked tables (no existing table altered):
-`households`, `household_members`, `emergency_contacts`, `school_enrollments`.
-Migration: `supabase/migrations/20260623_sis_mvp_tables.sql`.
+**Database (prod, applied)** — the MVP added 4 additive, RLS-locked tables (no existing
+table altered): `households`, `household_members`, `emergency_contacts`,
+`school_enrollments` (migration `20260623_sis_mvp_tables.sql`). The full SIS build has
+since added the rest in prod (`programs`, `org_classes` SIS columns, `class_meetings`,
+`sis_registrations`/`_items`, `sis_waitlist_entries`, the `sis_*` billing tables,
+`sis_attendance`, `sis_checkins`, `sis_attendance_alerts`) — see
+[`SIS_IMPLEMENTATION_PLAN.md`](SIS_IMPLEMENTATION_PLAN.md) for the full migration list.
 
 ---
 
@@ -134,4 +145,4 @@ no change — they're already scoped to `.optioeducation.com`.
 - **Frontend/back unreachable** until DNS is pointed → merging to `main` is safe.
 - **Carve-out** is per-org and reversible via the `sis_enabled` flag.
 - **DB** changes are additive new tables only; `drop table` reverts cleanly if ever needed.
-- **Pushing:** not done yet — awaiting your local sign-off (per your instruction).
+- **Pushing:** merged to `main` and applied to prod; live behind `sis_enabled`.

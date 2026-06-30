@@ -4,7 +4,10 @@
 
 **Prepared by:** Optio Engineering
 **Date:** June 30, 2026
-**Status:** Draft for review (scoping)
+**Status:** ✅ Implemented & shipped to production (commit `bd346cc4`). Migrations
+`20260630_oea_credit_source`, `_oea_cap_overrides`, `_create_oea_credit_grade_periods`,
+`_create_oea_compliance_alerts` are all applied to prod. v2 mobile parity remains a
+later pass (Phase 2 UI is v1 web only, as scoped below).
 **Source:** Teresa King (OpenEd) requirements, June 19 + post-June-meeting email
 
 ---

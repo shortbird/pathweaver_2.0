@@ -10,20 +10,22 @@ with no public policies (backend `service_role` only — matches the existing MV
 
 ---
 
-## ✅ BUILD STATUS — all 7 phases implemented (2026-06-26)
+## ✅ BUILD STATUS — all 7 phases implemented + shipped to prod (updated 2026-06-30)
 
 Built on `claude/optio-sis-implementation-u314sk`, additive-only, behind
-`sis_enabled`. **No production database changes were applied** — the migrations
-below are version-controlled and ready to apply (to a Supabase branch first, then
-prod) on your sign-off. Tests: **123 backend SIS unit tests + 29 SIS frontend tests**,
-and the **full frontend suite (604) is green** with a clean production build.
+`sis_enabled`, and **merged to `main`**. **All migrations below are applied to the
+production database** (verified in `supabase_migrations.schema_migrations`). The SIS
+is **live behind the flag**: `sis_enabled=true` for **iCreate** (pilot school) and
+**Test-Org**; off for every other org. Tests: **123 backend SIS unit tests + 29 SIS
+frontend tests**, full frontend suite green, clean production build.
 
-**Migrations to apply, in order:**
+**Migrations (all applied to prod, in order):**
 1. `20260626_sis_programs_and_class_extensions.sql` (programs, org_classes SIS cols, meetings, prereqs)
 2. `20260626_sis_registration.sql` (registrations + items)
 3. `20260626_sis_waitlist.sql` (waitlist entries)
 4. `20260626_sis_billing.sql` (discount rules, invoices, line items, plans, installments, payments, QBO log)
 5. `20260626_sis_attendance.sql` (attendance)
+6. `20260626_sis_checkin.sql` (check-in/out, `sis_attendance_alerts`, `organizations.timezone`)
 
 **SIS console surfaces (the `sis.` host / `?app=sis`):** Dashboard, Roster, Classes
 (programs + classes + schedule + waitlist), Registrations, Billing, Attendance,
@@ -35,9 +37,18 @@ Pure, exhaustively-tested logic modules: `sis_eligibility`, `sis_pricing`,
 `sis_waitlist_service` (ordering), `sis_attendance_service` (summary),
 `sis_reports_service` (aggregators).
 
-**Not yet wired (intentional follow-ups):** parent-facing self-service registration
-wizard + parent billing screen reuse the same endpoints (admin flow is complete);
-live QuickBooks API (records + sync-log are in place); SBS sync.
+**Parent self-service (shipped 2026-06-30, commit `41ed74c0`):** parent-facing
+registration wizard is now wired — `/api/sis/parent/*` ([backend/routes/sis/parent.py](../backend/routes/sis/parent.py),
+[backend/services/sis_parent_service.py](../backend/services/sis_parent_service.py))
++ [frontend/src/pages/ClassRegistrationPage.jsx](../frontend/src/pages/ClassRegistrationPage.jsx).
+Guardian registers → submits → staff invoices → **full payment auto-completes the
+registration** (`_maybe_autocomplete_registration` in `sis_billing_service`).
+Same commit added roster filters/sort, program+class management editing, and the
+in-app surface toggle (no full reload).
+
+**Still not wired (intentional follow-ups):** parent billing *screen* (endpoints
+exist; parent self-service stops at "submitted"); live QuickBooks API (records +
+sync-log are in place); SBS sync.
 
 ---
 

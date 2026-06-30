@@ -234,6 +234,11 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
     <div className="space-y-4">
       {/* Overall progress + GPA */}
       <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        {data?.enrollment?.pathway?.name && (
+          <p className="text-xs font-semibold uppercase tracking-wide text-optio-purple mb-2">
+            {data.enrollment.pathway.name} diploma plan
+          </p>
+        )}
         <div className="flex items-end justify-between">
           <span className="text-lg font-bold text-neutral-900">
             {progress.total_earned} of {progress.total_required} credits
@@ -268,28 +273,18 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
         </div>
       </div>
 
-      {/* Transfer-credit usage + report/transcript links */}
-      {data?.credit_summary && (
-        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-          <div className="flex justify-between text-xs text-neutral-500">
-            <span>Transfer credit: {data.credit_summary.transfer_used} / {data.credit_summary.transfer_cap}</span>
-            <span>Transfer + earned elsewhere: {data.credit_summary.nondirect_used} / {data.credit_summary.nondirect_cap}</span>
-          </div>
-          {data.diploma_eligibility && (
-            <p className={`text-xs mt-2 ${data.diploma_eligibility.meets_min_direct ? 'text-green-700' : 'text-amber-700'}`}>
-              Direct credits earned: {data.diploma_eligibility.direct_credits_earned} (at least {data.diploma_eligibility.min_direct_required} required for the diploma)
-            </p>
-          )}
-          <div className="flex gap-3 mt-3">
-            <button type="button"
-              onClick={() => navigate(`/opened-academy/student/${studentId}/progress-report`, { state: { studentName } })}
-              className="text-sm text-optio-purple font-medium">Quarterly report</button>
-            <button type="button"
-              onClick={() => navigate(`/opened-academy/student/${studentId}/transcript`, { state: { studentName } })}
-              className="text-sm text-optio-purple font-medium">Transcript</button>
-          </div>
+      {/* Report / transcript links. Credit caps are enforced on the backend; we
+          don't surface "X / 6" counters here (they read like a target to fill). */}
+      <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+        <div className="flex gap-3">
+          <button type="button"
+            onClick={() => navigate(`/opened-academy/student/${studentId}/progress-report`, { state: { studentName } })}
+            className="text-sm text-optio-purple font-medium">Quarterly report</button>
+          <button type="button"
+            onClick={() => navigate(`/opened-academy/student/${studentId}/transcript`, { state: { studentName } })}
+            className="text-sm text-optio-purple font-medium">Transcript</button>
         </div>
-      )}
+      </div>
 
       {/* Per-requirement breakdown */}
       {progress.requirements.map((req) => {
