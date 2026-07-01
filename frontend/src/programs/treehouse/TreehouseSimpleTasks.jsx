@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCompleteTask } from '../../hooks/api/useQuests'
-import ModalOverlay from '../ui/ModalOverlay'
+import ModalOverlay from '../../components/ui/ModalOverlay'
 import TreehouseSignalBar from './TreehouseSignalBar'
 
 /**

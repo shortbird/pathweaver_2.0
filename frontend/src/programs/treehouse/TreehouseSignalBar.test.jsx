@@ -5,7 +5,7 @@ import TreehouseSignalBar from './TreehouseSignalBar'
 let profile = {}
 const createSignal = vi.fn(() => Promise.resolve({ data: { success: true } }))
 
-vi.mock('../../hooks/useTreehouseProfile', () => ({
+vi.mock('./useTreehouseProfile', () => ({
   useTreehouseProfile: () => profile,
 }))
 vi.mock('../../services/api', () => ({

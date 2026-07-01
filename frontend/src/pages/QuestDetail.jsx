@@ -14,11 +14,9 @@ import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
 import { useDeleteEnrollment } from '../hooks/api/useQuests';
 import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
-import { useTreehouseProfile } from '../hooks/useTreehouseProfile';
-import TreehouseSignalBar from '../components/treehouse/TreehouseSignalBar';
+import { useProgramQuestView } from '../programs/registry';
 
 // Lazy load heavy components
-const TreehouseSimpleTasks = lazy(() => import('../components/treehouse/TreehouseSimpleTasks'));
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
 const TaskDetailModal = lazy(() => import('../components/quest/TaskDetailModal'));
 const QuestPersonalizationWizard = lazy(() => import('../components/quests/QuestPersonalizationWizard'));
@@ -91,7 +89,7 @@ const QuestDetail = () => {
   } = useQuestDetailData(id);
 
   const deleteEnrollmentMutation = useDeleteEnrollment();
-  const treehouse = useTreehouseProfile();   // F1/F2 gating (simplified UI + signal bar)
+  const programQuest = useProgramQuestView(quest);   // program-specific quest UI + behavior (e.g. Treehouse)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   // Enrollment transition loading state (stays true from click through refetch)
@@ -129,7 +127,7 @@ const QuestDetail = () => {
         // E3: for Treehouse, AI task generation is opt-in — don't auto-launch the
         // wizard on enroll. The student sees facilitator-authored tasks and can
         // tap "add a task" to bring in AI suggestions when they want new options.
-        if (skipWizard || hasTemplateTasks || treehouse.isMember) {
+        if (skipWizard || hasTemplateTasks || programQuest.suppressAutoWizard) {
           if (data?.tasks_loaded) {
             toast.success(`Restarted quest with ${data.tasks_loaded} previous tasks!`);
           } else {
@@ -593,23 +591,15 @@ const QuestDetail = () => {
           onPreloadWizard={preloadWizard}
         />
 
-        {/* F2: help / proud buttons right inside the quest (Treehouse students),
-            shown whether or not they've started it — a littles learner is "in" the
-            quest while deciding what to do. */}
-        {treehouse.isMember && !treehouse.isFacilitator && (
-          <TreehouseSignalBar questId={quest.id} />
-        )}
+        {/* Program-specific in-quest UI (e.g. Treehouse help/proud signal bar).
+            The program registry decides what, if anything, renders here. */}
+        {programQuest.signalBar}
 
         {/* Task Display - Single Container with Integrated Task List */}
         {quest.user_enrollment && quest.quest_tasks && quest.quest_tasks.length > 0 && (
-          treehouse.simplified ? (
-            /* F1: simplified big-button view for young Treehouse learners */
-            <div className="bg-white rounded-xl shadow-md overflow-hidden min-h-[400px]">
-              <Suspense fallback={<LoadingFallback />}>
-                <TreehouseSimpleTasks tasks={quest.quest_tasks} questId={quest.id} />
-              </Suspense>
-            </div>
-          ) : (
+          /* A program may supply a custom task view (e.g. Treehouse's simplified
+             big-button view for young learners); otherwise the core workspace. */
+          programQuest.simpleTasksView || (
             <div className="bg-white rounded-xl shadow-md overflow-hidden h-[calc(100vh-180px)] min-h-[500px]">
               <Suspense fallback={<LoadingFallback />}>
                 <TaskWorkspace

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { treehouseAPI } from '../../services/api'
-import { useTreehouseProfile } from '../../hooks/useTreehouseProfile'
+import { useTreehouseProfile } from './useTreehouseProfile'
 
 /**
  * F2: "I need help" / "I'm proud of this!" buttons rendered INSIDE a quest (and

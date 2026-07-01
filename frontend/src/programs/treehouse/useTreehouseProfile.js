@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { treehouseAPI } from '../services/api'
-import { useAuth } from '../contexts/AuthContext'
+import { treehouseAPI } from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
 
 /**
  * Lightweight Treehouse profile for gating UI (F1/F2):

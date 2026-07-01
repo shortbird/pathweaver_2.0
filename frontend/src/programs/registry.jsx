@@ -14,6 +14,7 @@
 import React, { lazy } from 'react'
 import { Route } from 'react-router-dom'
 import { renderOeaDiploma, fetchOeaDiploma } from './oea/DiplomaWidget'
+import { useTreehouseQuestView } from './treehouse/questView'
 
 // Diploma/academy cap — shared by the diploma-style programs (OEA, Hearthwood, Gryffin).
 const capIcon = (
@@ -112,6 +113,15 @@ export function renderDiplomaWidget(context) {
 // with the render hook above), so core overview hooks don't import a program API.
 export function fetchProgramDiploma(studentId) {
   return fetchOeaDiploma(studentId)
+}
+
+
+// ── Quest-view widget hook ───────────────────────────────────────────────────
+// Programs contribute quest-page UI + behavior for core QuestDetail. Hooks
+// compose, so each program's quest-view hook is called unconditionally (one
+// program today; merge results here when a second is added).
+export function useProgramQuestView(quest) {
+  return useTreehouseQuestView(quest)
 }
 
 
