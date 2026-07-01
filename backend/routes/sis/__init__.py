@@ -273,6 +273,32 @@ def update_student(user_id, student_id):
     return jsonify({'success': True, 'student': updated})
 
 
+@bp.route('/users/<target_id>', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def get_org_user(user_id, target_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    u = sis_service.get_org_user(org_id, target_id)
+    if not u:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+    return jsonify({'success': True, 'user': u})
+
+
+@bp.route('/users/<target_id>/role', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def update_user_role(user_id, target_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    role = (request.get_json() or {}).get('role')
+    result = sis_service.update_user_role(org_id, target_id, role)
+    if result.get('error'):
+        code = 404 if result['error'] == 'User not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/students/<student_id>', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def get_student(user_id, student_id):

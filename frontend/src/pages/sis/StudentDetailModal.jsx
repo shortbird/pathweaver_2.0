@@ -23,8 +23,10 @@ const TABS = [
 ]
 
 const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
+  const isStudent = student.is_student !== false
   const [tab, setTab] = useState('profile')
   const [form, setForm] = useState({
+    role: student.role || (isStudent ? 'student' : ''),
     first_name: student.first_name || '',
     last_name: student.last_name || '',
     email: student.email || '',
@@ -38,15 +40,19 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const saveProfile = async () => {
     setSaving(true)
     try {
-      await Promise.all([
-        api.patch(`/api/sis/students/${student.student_id}`, {
-          first_name: form.first_name, last_name: form.last_name,
-          email: form.email || null, date_of_birth: form.date_of_birth || null, organization_id: orgId,
-        }),
-        api.patch(`/api/sis/enrollments/${student.student_id}`, {
+      const reqs = [api.patch(`/api/sis/students/${student.student_id}`, {
+        first_name: form.first_name, last_name: form.last_name,
+        email: form.email || null, date_of_birth: form.date_of_birth || null, organization_id: orgId,
+      })]
+      if (form.role) {
+        reqs.push(api.patch(`/api/sis/users/${student.student_id}/role`, { role: form.role, organization_id: orgId }))
+      }
+      if (isStudent) {
+        reqs.push(api.patch(`/api/sis/enrollments/${student.student_id}`, {
           status: form.status, grade_level: form.grade_level, organization_id: orgId,
-        }),
-      ])
+        }))
+      }
+      await Promise.all(reqs)
       toast.success('Saved')
       onSaved?.()
     } catch (e) {
@@ -60,7 +66,6 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100 gap-3">
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-neutral-900 truncate">{student.name}</h2>
-            <p className="text-sm text-neutral-400 truncate">{student.email || student.username}</p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {tab === 'profile' && <Button size="sm" onClick={saveProfile} loading={saving}>Save</Button>}
@@ -69,7 +74,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         </div>
 
         <div className="flex gap-1 px-4 pt-3 border-b border-gray-100">
-          {TABS.map((t) => (
+          {TABS.filter((t) => t.key !== 'schedule' || isStudent).map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -85,13 +90,13 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         <div className="p-5 overflow-y-auto">
           {tab === 'profile' && (
             <div className="space-y-5">
-              <ProfileFields form={form} set={setField} />
-              <FamilySection student={student} orgId={orgId} onSaved={onSaved} />
-              <ContactsSection student={student} orgId={orgId} />
+              <ProfileFields form={form} set={setField} isStudent={isStudent} />
+              {isStudent && <FamilySection student={student} orgId={orgId} onSaved={onSaved} />}
+              {isStudent && <ContactsSection student={student} orgId={orgId} />}
               <AccountSection student={student} orgId={orgId} onSaved={onSaved} onClose={onClose} />
             </div>
           )}
-          {tab === 'schedule' && <SchedulePanel student={student} orgId={orgId} />}
+          {tab === 'schedule' && isStudent && <SchedulePanel student={student} orgId={orgId} />}
           {tab === 'message' && <MessagePanel student={student} orgId={orgId} />}
         </div>
       </div>
@@ -99,7 +104,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   )
 }
 
-const ProfileFields = ({ form, set }) => (
+const ProfileFields = ({ form, set, isStudent }) => (
   <section className="space-y-3">
     <div className="grid grid-cols-2 gap-3">
       <label className="text-xs text-neutral-500">First name
@@ -112,24 +117,50 @@ const ProfileFields = ({ form, set }) => (
     <label className="text-xs text-neutral-500 block">Email
       <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} className={field} />
     </label>
-    <div className="grid grid-cols-3 gap-3">
-      <label className="text-xs text-neutral-500">Date of birth
+    {isStudent ? (
+      <div className="grid grid-cols-3 gap-3">
+        <label className="text-xs text-neutral-500">Date of birth
+          <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
+        </label>
+        <label className="text-xs text-neutral-500">Status
+          <select value={form.status} onChange={(e) => set('status', e.target.value)} className={field}>
+            {['applicant', 'enrolled', 'withdrawn', 'graduated'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-neutral-500">Grade
+          <input value={form.grade_level} onChange={(e) => set('grade_level', e.target.value)} className={field} placeholder="e.g. 9th" />
+        </label>
+      </div>
+    ) : (
+      <label className="text-xs text-neutral-500 block">Date of birth
         <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
       </label>
-      <label className="text-xs text-neutral-500">Status
-        <select value={form.status} onChange={(e) => set('status', e.target.value)} className={field}>
-          {['applicant', 'enrolled', 'withdrawn', 'graduated'].map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </label>
-      <label className="text-xs text-neutral-500">Grade
-        <input value={form.grade_level} onChange={(e) => set('grade_level', e.target.value)} className={field} placeholder="e.g. 9th" />
-      </label>
-    </div>
-    <p className="text-xs text-neutral-400 -mt-1">Changing the email updates the student's login.</p>
+    )}
+    <p className="text-xs text-neutral-400 -mt-1">Changing the email updates the user's login.</p>
   </section>
 )
 
+const ROLE_OPTIONS = [
+  ['student', 'Student'], ['parent', 'Parent'], ['advisor', 'Teacher'], ['org_admin', 'Admin'], ['observer', 'Observer'],
+]
+
 const AccountSection = ({ student, orgId, onSaved, onClose }) => {
+  const [role, setRole] = useState(student.role || (student.is_student !== false ? 'student' : ''))
+  const [savingRole, setSavingRole] = useState(false)
+
+  const changeRole = async (r) => {
+    const prev = role
+    setRole(r); setSavingRole(true)
+    try {
+      await api.patch(`/api/sis/users/${student.student_id}/role`, { role: r, organization_id: orgId })
+      toast.success('Role updated')
+      onSaved?.()
+    } catch (e) {
+      setRole(prev)
+      toast.error(e?.response?.data?.error || 'Could not change role')
+    } finally { setSavingRole(false) }
+  }
+
   const resetPassword = async () => {
     if (!window.confirm(`Reset ${student.name}'s password?`)) return
     try {
@@ -149,6 +180,15 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
   return (
     <section className="border-t border-gray-100 pt-4">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Account</h4>
+      <label className="flex items-center gap-2 text-sm text-neutral-600 mb-3">
+        Role
+        <select
+          value={role} onChange={(e) => changeRole(e.target.value)} disabled={savingRole}
+          className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+        >
+          {ROLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </label>
       <div className="flex flex-wrap items-center gap-4">
         <Button size="sm" variant="outline" onClick={resetPassword}>Reset password</Button>
         <button onClick={remove} className="text-sm text-red-600 font-medium hover:underline">Remove from organization</button>

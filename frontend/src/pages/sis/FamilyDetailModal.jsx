@@ -4,7 +4,15 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
+import { RolePill, PrimaryTag } from '../../components/ui/RolePill'
 import StudentDetailModal from './StudentDetailModal'
+
+const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
+const Avatar = ({ name }) => (
+  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+    {initials(name)}
+  </div>
+)
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const money = (c) => (c == null ? '—' : `$${(c / 100).toFixed(2)}`)
@@ -58,11 +66,11 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not delete family') }
   }
 
-  const openStudentModal = async (userId) => {
+  const openUserModal = async (userId) => {
     try {
-      const r = await api.get(`/api/sis/students/${userId}?organization_id=${orgId}`)
-      setOpenStudent(r.data?.student || null)
-    } catch { toast.error('Could not open student') }
+      const r = await api.get(`/api/sis/users/${userId}?organization_id=${orgId}`)
+      setOpenStudent(r.data?.user || null)
+    } catch { toast.error('Could not open user') }
   }
 
   return (
@@ -116,7 +124,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
                   <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => uploadPhoto(e.target.files?.[0])} />
                 </label>
               </div>
-              <MembersSection household={household} orgId={orgId} members={members} onSaved={onSaved} onOpenStudent={openStudentModal} />
+              <MembersSection household={household} orgId={orgId} members={members} onSaved={onSaved} onOpenUser={openUserModal} />
               <div className="border-t border-gray-100 pt-4">
                 <button onClick={deleteFamily} className="text-sm text-red-600 font-medium hover:underline">Delete family</button>
               </div>
@@ -136,7 +144,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
   )
 }
 
-const MembersSection = ({ household, orgId, members, onSaved, onOpenStudent }) => {
+const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ user_id: '', relationship: 'student' })
   const list = household.members || []
@@ -169,29 +177,38 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenStudent }) =
         <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Members</h4>
         {!adding && <button onClick={() => setAdding(true)} className="text-sm text-optio-purple font-medium hover:underline">+ Add member</button>}
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {list.length === 0 && !adding && <p className="text-sm text-neutral-400">No members yet.</p>}
         {list.map((m) => {
           const isStudent = m.relationship === 'student'
           const isPrimary = primaryId === m.user_id
+          const sub = isStudent ? [m.status, m.grade_level].filter(Boolean).join(' · ') : m.email
           return (
-            <div key={m.user_id} className="flex items-center justify-between text-sm gap-2">
-              <span className="min-w-0 truncate">
-                {isStudent ? (
-                  <button onClick={() => onOpenStudent(m.user_id)} className="font-medium text-optio-purple hover:underline">{m.name}</button>
-                ) : (
-                  <span className="font-medium text-neutral-800">{m.name}</span>
+            <div
+              key={m.user_id}
+              onClick={() => onOpenUser(m.user_id)}
+              className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-neutral-50 cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Avatar name={m.name} />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-medium text-neutral-800 truncate">{m.name}</span>
+                    <RolePill role={m.relationship} />
+                    {isPrimary && <PrimaryTag />}
+                  </div>
+                  {sub && <div className="text-xs text-neutral-400 truncate">{sub}</div>}
+                </div>
+              </div>
+              <span className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                {!isStudent && !isPrimary && (
+                  <button onClick={() => makePrimary(m)} title="Make primary contact" className="p-1.5 rounded-md text-neutral-400 hover:text-optio-purple hover:bg-neutral-100">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                  </button>
                 )}
-                <span className="text-neutral-400"> · {m.relationship}</span>
-                {isPrimary && <span className="ml-1 text-xs text-optio-purple">primary</span>}
-                {isStudent && (m.status || m.grade_level) && (
-                  <span className="text-xs text-neutral-400"> · {[m.status, m.grade_level].filter(Boolean).join(' · ')}</span>
-                )}
-                {!isStudent && m.email && <span className="block text-xs text-neutral-400 truncate">{m.email}</span>}
-              </span>
-              <span className="flex items-center gap-2 flex-shrink-0">
-                {!isStudent && !isPrimary && <button onClick={() => makePrimary(m)} className="text-neutral-500 hover:underline">Make primary</button>}
-                <button onClick={() => remove(m)} className="text-red-500 hover:underline">Remove</button>
+                <button onClick={() => remove(m)} title="Remove" className="p-1.5 rounded-md text-neutral-400 hover:text-red-500 hover:bg-neutral-100">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
               </span>
             </div>
           )

@@ -3,11 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
-
-const ROLE_STYLE = {
-  'Org Admin': 'bg-optio-purple/10 text-optio-purple',
-  Teacher: 'bg-blue-100 text-blue-700',
-}
+import { RolePill } from '../../components/ui/RolePill'
 
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
@@ -58,9 +54,7 @@ const StaffPage = () => {
               <h3 className="font-semibold text-neutral-900 truncate">{s.name}</h3>
               {s.email && <p className="text-sm text-neutral-500 truncate">{s.email}</p>}
               <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
-                {(s.role_labels || []).map((r) => (
-                  <span key={r} className={`text-xs font-medium rounded-full px-2.5 py-0.5 ${ROLE_STYLE[r] || 'bg-neutral-100 text-neutral-600'}`}>{r}</span>
-                ))}
+                {(s.roles || []).map((r) => <RolePill key={r} role={r} />)}
               </div>
               {fmtDate(s.last_active) && (
                 <p className="mt-auto pt-3 text-xs text-neutral-400">Active {fmtDate(s.last_active)}</p>

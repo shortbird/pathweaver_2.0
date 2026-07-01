@@ -131,6 +131,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
         roster.append({
             'student_id': s['id'],
             'name': _full_name(s),
+            'is_student': True,
             'first_name': s.get('first_name'),
             'last_name': s.get('last_name'),
             'date_of_birth': s.get('date_of_birth'),
@@ -497,6 +498,63 @@ def get_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     if not student_in_org(student_id, org_id):
         return None
     return next((r for r in get_roster(org_id) if r['student_id'] == student_id), None)
+
+
+ASSIGNABLE_ROLES = ('student', 'parent', 'advisor', 'org_admin', 'observer')
+
+
+def update_user_role(org_id: str, user_id: str, role: str) -> Dict[str, Any]:
+    """Change a user's org role (org_managed users). Sets org_role + org_roles.
+    Returns {'error': ...} on a bad role / cross-org user."""
+    if role not in ASSIGNABLE_ROLES:
+        return {'error': f'Invalid role: {role}'}
+    row = (
+        _admin().table('users').select('id, role, organization_id')
+        .eq('id', user_id).limit(1).execute()
+    ).data
+    if not row or row[0].get('organization_id') != org_id:
+        return {'error': 'User not found'}
+    payload = {'org_role': role, 'org_roles': [role]}
+    # Org users are 'org_managed' at the platform level; keep that invariant.
+    if row[0].get('role') != 'superadmin':
+        payload['role'] = 'org_managed'
+    _admin().table('users').update(payload).eq('id', user_id).execute()
+    return {'role': role}
+
+
+def get_org_user(org_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    """Any org user in the modal shape. Students get the full roster shape (with
+    enrollment/family); non-students (parents/advisors/admins) get a lean profile.
+    `student_id` is the user id (kept for the shared modal component)."""
+    from utils.roles import get_effective_role
+    row = (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, email, username, date_of_birth, '
+                'role, org_role, org_roles, organization_id')
+        .eq('id', user_id).limit(1).execute()
+    ).data
+    if not row or row[0].get('organization_id') != org_id:
+        return None
+    u = row[0]
+    if is_student(u):
+        s = get_student(org_id, user_id)
+        if s:
+            s['role'] = 'student'
+            return s
+    hh = _household_by_user(org_id).get(user_id) or {}
+    return {
+        'student_id': u['id'],
+        'name': _full_name(u),
+        'is_student': False,
+        'role': get_effective_role(u),
+        'first_name': u.get('first_name'),
+        'last_name': u.get('last_name'),
+        'date_of_birth': u.get('date_of_birth'),
+        'email': u.get('email'),
+        'username': u.get('username'),
+        'household_id': hh.get('household_id'),
+        'household_name': hh.get('household_name'),
+    }
 
 
 def message_household_guardians(org_id: str, household_id: str, sender_id: str,
