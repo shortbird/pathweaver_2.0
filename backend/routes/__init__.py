@@ -72,9 +72,6 @@ def register_all(app):
     from routes.public import bp as public_bp
     app.register_blueprint(public_bp)
 
-    from routes.poe import bp as poe_bp
-    app.register_blueprint(poe_bp)
-
     from routes.platform_settings import bp as platform_settings_bp
     app.register_blueprint(platform_settings_bp)
 
@@ -100,9 +97,6 @@ def register_all(app):
 
     from routes.admin import class_reviews as admin_class_reviews
     app.register_blueprint(admin_class_reviews.bp)
-
-    from routes.admin import poe as admin_poe
-    app.register_blueprint(admin_poe.bp)
 
     # Quest routes (refactored from quests.py mega-file into 4 modules)
     from routes.quest import register_quest_blueprints
@@ -275,13 +269,9 @@ def register_all(app):
     register_parent_blueprints(app)
     app.register_blueprint(dependents.bp)
 
-    # ── OEA Diploma Plan (OpenEd Academy partner integration) ──────────────────
-    from routes import oea
-    app.register_blueprint(oea.bp)
-
-    # ── The Treehouse program (microschool partner integration) ────────────────
-    from routes import treehouse
-    app.register_blueprint(treehouse.bp)
+    # ── Custom program blueprints (OEA, Treehouse, POE) via the program seam ───
+    from programs.blueprints import register_program_blueprints
+    register_program_blueprints(app)
 
     # ── Credit Review feedback thread (two-way) ────────────────────────────────
     from routes import credit_messages

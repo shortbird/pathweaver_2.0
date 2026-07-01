@@ -48,6 +48,16 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
     finally { setUploading(false) }
   }
 
+  const deleteFamily = async () => {
+    if (!window.confirm(`Delete ${household.name}? This removes the family and its member links. Students and guardians keep their accounts.`)) return
+    try {
+      await api.delete(`/api/sis/households/${household.id}?organization_id=${orgId}`)
+      toast.success('Family deleted')
+      onSaved?.()
+      onClose()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not delete family') }
+  }
+
   const openStudentModal = async (userId) => {
     try {
       const r = await api.get(`/api/sis/students/${userId}?organization_id=${orgId}`)
@@ -107,6 +117,9 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
                 </label>
               </div>
               <MembersSection household={household} orgId={orgId} members={members} onSaved={onSaved} onOpenStudent={openStudentModal} />
+              <div className="border-t border-gray-100 pt-4">
+                <button onClick={deleteFamily} className="text-sm text-red-600 font-medium hover:underline">Delete family</button>
+              </div>
             </div>
           )}
           {tab === 'details' && <DetailsPanel household={household} orgId={orgId} onSaved={onSaved} />}

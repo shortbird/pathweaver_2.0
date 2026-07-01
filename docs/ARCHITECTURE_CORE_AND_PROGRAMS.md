@@ -222,9 +222,15 @@ separate, tracked migration — not done in this pass.
   registry contributes routes by mount context and core `App.jsx` renders them
   generically (`getProgramRoutes`) — no program named in the router. iCreate is the
   SIS platform (not a page-based program), so nothing to migrate there.
-- **Phase 5 — Physical reorg** into `core/` + `programs/` — finish moving program
-  *supporting* code (`components/oea`, `components/treehouse`, program hooks/services,
-  backend `routes/oea.py` / `treehouse.py`) into their modules, and split core out.
+- **Phase 5 — Complete the inversion** ✅ *done (inversion)* — the last core→program
+  couplings are inverted: Treehouse quest UI moved to `programs/treehouse/` (core
+  `QuestDetail` uses a registry `useProgramQuestView` hook); the kiosk "focus mode"
+  reframed as a core `utils/focusMode` capability that carries its own return routes
+  (core `Layout` names no program); `OEAGradePeriodsModal` + POE service co-located;
+  backend blueprints register via a `programs/blueprints.py` seam. **Core names no
+  program on either tier.** What remains is *organizational only* — physically moving
+  the backend program files into `backend/programs/`, and a `core/` directory split —
+  **descoped**: high churn/risk, no architectural value now the inversion is done.
 - **Phase 6 — Class/credit code disambiguation.**
 
 ---
@@ -250,3 +256,9 @@ separate, tracked migration — not done in this pass.
   - **Phase 4:** program pages co-located under `src/programs/<program>/`; the
     registry contributes routes by mount context and core `App.jsx` renders them via
     `getProgramRoutes` — the router names no program.
+  - **Phase 5:** completed the inversion — Treehouse quest UI inverted off core
+    `QuestDetail` (registry `useProgramQuestView`); kiosk "focus mode" reframed as a
+    core `focusMode` util carrying its return routes (core `Layout` names no program);
+    `OEAGradePeriodsModal` + POE service co-located; backend program blueprints register
+    via a `programs/blueprints.py` seam. **Core names no program on either tier.**
+    Physical file co-location (backend → `programs/`, `core/` split) descoped.

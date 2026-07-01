@@ -133,6 +133,24 @@ def update_household(user_id, household_id):
     return jsonify({'success': True, 'household': repo.update(household_id, fields)})
 
 
+@bp.route('/households/<household_id>', methods=['DELETE'])
+@require_role(*STAFF_ROLES)
+def delete_household(user_id, household_id):
+    """Delete a family. Removes the household + its member links; the students,
+    guardians, and their own records keep their accounts."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    repo = HouseholdRepository(client=supabase)
+    existing = repo.find_by_id(household_id)
+    if not existing or existing.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Household not found'}), 404
+    supabase.table('household_members').delete().eq('household_id', household_id).execute()
+    supabase.table('households').delete().eq('id', household_id).execute()
+    return jsonify({'success': True})
+
+
 @bp.route('/households/<household_id>/image', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def upload_household_image(user_id, household_id):
