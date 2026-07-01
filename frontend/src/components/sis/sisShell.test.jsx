@@ -59,19 +59,20 @@ describe('SisLayout gate', () => {
 })
 
 describe('SisSidebar', () => {
-  it('shows the People link for superadmin and links back to the learning app', () => {
+  it('shows the Users nav and links back to the learning app', () => {
     authState = { isAuthenticated: true, effectiveRole: 'superadmin', user: { role: 'superadmin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.getByText('People (All Users)')).toBeInTheDocument()
-    expect(screen.getByText('Roster')).toBeInTheDocument()
+    expect(screen.getByText('Users')).toBeInTheDocument()
+    expect(screen.getByText('Families')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Switch to Learning app'))
     expect(nav.switchSurfaceInApp).toHaveBeenCalledWith('learning', '/dashboard')
   })
 
-  it('hides the superadmin-only People link for org_admin', () => {
+  it('shows the staff nav for org_admin', () => {
     authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.queryByText('People (All Users)')).not.toBeInTheDocument()
+    expect(screen.getByText('Users')).toBeInTheDocument()
+    expect(screen.getByText('Classes')).toBeInTheDocument()
   })
 })

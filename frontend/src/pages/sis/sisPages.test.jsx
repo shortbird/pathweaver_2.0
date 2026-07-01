@@ -80,21 +80,17 @@ describe('SisDashboard', () => {
 })
 
 describe('RosterPage', () => {
-  it('lists students and updates enrollment status', async () => {
+  it('lists students with their family', async () => {
     render(<RosterPage />)
     expect(await screen.findByText('Alice Student')).toBeInTheDocument()
-
-    const select = screen.getByDisplayValue('enrolled')
-    fireEvent.change(select, { target: { value: 'graduated' } })
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('/api/sis/enrollments/s1', expect.objectContaining({ status: 'graduated' })),
-    )
+    expect(screen.getByText('Bob Builder')).toBeInTheDocument()
+    expect(screen.getByText('Fam')).toBeInTheDocument()   // Alice's family
   })
 
-  it('opens the student detail modal', async () => {
+  it('opens the student detail modal from a row', async () => {
     render(<RosterPage />)
-    await screen.findByText('Alice Student')
-    fireEvent.click(screen.getAllByText('Details')[0])
+    // The roster is a directory now: click a row (no per-row "Details" button).
+    fireEvent.click(await screen.findByText('Alice Student'))
     expect(await screen.findByText('Emergency contacts')).toBeInTheDocument()
   })
 
@@ -115,14 +111,15 @@ describe('RosterPage', () => {
     expect(screen.getByText('Bob Builder')).toBeInTheDocument()
   })
 
-  it('sorts by XP when the XP header is clicked', async () => {
+  it('sorts by name when the Student header is clicked', async () => {
     render(<RosterPage />)
     await screen.findByText('Alice Student')
-    fireEvent.click(screen.getByRole('button', { name: /^XP/ }))
+    // Default sort is name-ascending; clicking the Student header toggles to descending.
+    fireEvent.click(screen.getByRole('button', { name: /^Student/ }))
     const names = screen.getAllByRole('row').slice(1).map((r) => r.querySelector('td')?.textContent)
-    // ascending: Alice(10) before Bob(30)
-    expect(names[0]).toContain('Alice')
-    expect(names[1]).toContain('Bob')
+    // descending: Bob before Alice (Carol is withdrawn and hidden)
+    expect(names[0]).toContain('Bob')
+    expect(names[1]).toContain('Alice')
   })
 })
 
@@ -182,6 +179,7 @@ describe('StudentDetailModal', () => {
       />,
     )
     expect(await screen.findByText('Alice Student')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('+ Emergency Contact'))   // reveal the add form
     fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'Mom' } })
     fireEvent.click(screen.getByText('Add contact'))
     await waitFor(() =>
