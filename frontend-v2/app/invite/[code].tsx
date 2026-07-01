@@ -31,7 +31,7 @@ interface Invitation {
 const ROLE_LABELS: Record<string, string> = {
   student: 'Student',
   parent: 'Parent',
-  advisor: 'Advisor',
+  advisor: 'Teacher',
   org_admin: 'Administrator',
   observer: 'Observer',
 };

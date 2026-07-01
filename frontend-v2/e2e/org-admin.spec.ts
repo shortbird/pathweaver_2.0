@@ -8,7 +8,7 @@ test.describe('Org Admin Suite', () => {
 
   test('OA1: Org admin lands on advisor page after login', async ({ page }) => {
     // Org admin sees advisor page (same as advisor view)
-    await expect(page.getByText('Advisor').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Teacher').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('OA2: Org admin page shows student content', async ({ page }) => {

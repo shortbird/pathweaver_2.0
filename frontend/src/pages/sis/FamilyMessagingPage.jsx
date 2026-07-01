@@ -13,7 +13,7 @@ import SisOrgPicker from './SisOrgPicker'
 const AUDIENCES = [
   { key: 'parents', label: 'Families' },
   { key: 'students', label: 'Students' },
-  { key: 'advisors', label: 'Advisors' },
+  { key: 'advisors', label: 'Teachers' },
 ]
 
 const FamilyMessagingPage = () => {

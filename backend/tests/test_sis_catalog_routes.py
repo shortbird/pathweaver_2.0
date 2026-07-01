@@ -1,10 +1,10 @@
 """
-Unit tests for SIS catalog routes (/api/sis/programs, /api/sis/classes).
+Unit tests for SIS catalog routes (/api/sis/classes).
 
-Covers staff-role gating, org scoping, input validation (program_type, billing
-fields, capacity/age ranges, meeting times), and happy-path create/list. DB access
-is mocked: the admin client serves the require_role lookup; repositories/services
-are patched so no network is touched.
+Covers staff-role gating, org scoping, input validation (billing fields,
+capacity/age ranges, meeting times), and happy-path create/list. DB access is
+mocked: the admin client serves the require_role lookup; repositories/services are
+patched so no network is touched.
 """
 
 import json
@@ -36,52 +36,17 @@ def staff(role='org_admin', org='org-1'):
 
 
 @pytest.mark.unit
-class TestProgramRoutes:
+class TestClassRoutes:
 
     def test_list_requires_auth(self, client):
-        assert client.get('/api/sis/programs').status_code == 401
+        assert client.get('/api/sis/classes').status_code == 401
 
     def test_list_forbidden_for_student(self, client, auth_headers, mock_verify_token):
         with patch('database.get_supabase_admin_client',
                    return_value=_admin_client_for_role('student')):
-            resp = client.get('/api/sis/programs', headers=auth_headers)
+            resp = client.get('/api/sis/classes', headers=auth_headers)
         assert resp.status_code == 403
 
-    def test_list_success(self, client, auth_headers, mock_verify_token):
-        with staff(), patch('routes.sis.catalog.catalog.list_programs',
-                            return_value=[{'id': 'p1', 'name': 'Full Day', 'class_count': 2}]):
-            resp = client.get('/api/sis/programs?organization_id=org-1', headers=auth_headers)
-        assert resp.status_code == 200
-        data = json.loads(resp.data)
-        assert data['programs'][0]['class_count'] == 2
-
-    def test_create_requires_name(self, client, auth_headers, mock_verify_token):
-        with staff():
-            resp = client.post('/api/sis/programs', headers=auth_headers, json={'name': '  '})
-        assert resp.status_code == 400
-
-    def test_create_rejects_bad_type(self, client, auth_headers, mock_verify_token):
-        with staff():
-            resp = client.post('/api/sis/programs', headers=auth_headers,
-                               json={'name': 'X', 'program_type': 'bogus'})
-        assert resp.status_code == 400
-
-    def test_create_success_stamps_creator(self, client, auth_headers, mock_verify_token):
-        mock_repo = Mock()
-        mock_repo.create_for_org.return_value = {'id': 'p1', 'name': 'Camp'}
-        with staff(), patch('routes.sis.catalog.ProgramRepository', return_value=mock_repo), \
-             patch('routes.sis.catalog.get_supabase_admin_client', return_value=Mock()):
-            resp = client.post('/api/sis/programs', headers=auth_headers,
-                               json={'name': 'Camp', 'program_type': 'camp'})
-        assert resp.status_code == 201
-        # created_by stamped server-side from the authenticated user
-        fields = mock_repo.create_for_org.call_args[0][1]
-        assert fields['created_by'] == 'test-user-123'
-        assert fields['program_type'] == 'camp'
-
-
-@pytest.mark.unit
-class TestClassRoutes:
 
     def test_create_requires_name(self, client, auth_headers, mock_verify_token):
         with staff():

@@ -76,7 +76,17 @@ const AttendancePage = () => {
           <div className="space-y-2 mb-4">
             {roster.map((s) => (
               <div key={s.student_user_id} className="flex items-center justify-between">
-                <span className="font-medium text-neutral-800">{s.name}</span>
+                <span className="font-medium text-neutral-800">
+                  {s.name}
+                  {s.planned_absence && (
+                    <span
+                      className="ml-2 text-[11px] rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 align-middle"
+                      title={s.planned_absence.reason || 'Reported by a guardian'}
+                    >
+                      Parent reported out{s.planned_absence.scope === 'day' ? ' (all day)' : ''}
+                    </span>
+                  )}
+                </span>
                 <div className="flex gap-1">
                   {STATUSES.map((st) => (
                     <button

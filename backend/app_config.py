@@ -214,10 +214,6 @@ class Config:
     # Cron Authentication
     CRON_SECRET = os.getenv('CRON_SECRET')
 
-    # Spark LMS Integration (M5)
-    SPARK_SSO_SECRET = os.getenv('SPARK_SSO_SECRET')
-    SPARK_WEBHOOK_SECRET = os.getenv('SPARK_WEBHOOK_SECRET')
-
     # Canvas LTI 1.3 Tool keys.
     # CANVAS_LTI_PRIVATE_KEY_PEM: PEM-encoded RSA private key used to sign
     #   id_tokens for Deep Linking responses and to authenticate AGS service

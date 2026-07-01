@@ -161,7 +161,6 @@ export default function TabsLayout() {
           {navItems.filter((n) => !observerTabOrder.includes(n.key)).map((n) => (
             <Tabs.Screen key={n.key} name={n.key} options={{ href: null }} />
           ))}
-          <Tabs.Screen name="buddy" options={{ href: null }} />
         </Tabs>
       </View>
     );
@@ -184,7 +183,6 @@ export default function TabsLayout() {
               <Tabs.Screen key={item.key} name={item.key} />
             ))}
             <Tabs.Screen name="capture" options={{ href: null }} />
-            <Tabs.Screen name="buddy" options={{ href: null }} />
           </Tabs>
         </View>
         <CaptureSheet
@@ -292,7 +290,6 @@ export default function TabsLayout() {
           {navItems.filter((n) => !parentMobileTabOrder.includes(n.key)).map((n) => (
             <Tabs.Screen key={n.key} name={n.key} options={{ href: null }} />
           ))}
-          <Tabs.Screen name="buddy" options={{ href: null }} />
         </Tabs>
         <CaptureSheet
           visible={captureVisible}
@@ -397,7 +394,6 @@ export default function TabsLayout() {
         {hiddenMobileRoutes.map((key) => (
           <Tabs.Screen key={key} name={key} options={{ href: null }} />
         ))}
-        <Tabs.Screen name="buddy" options={{ href: null }} />
       </Tabs>
       <CaptureSheet
         visible={captureVisible}

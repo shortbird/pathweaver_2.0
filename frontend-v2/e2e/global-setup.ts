@@ -31,7 +31,6 @@ const E2E_TRACK_1 = 'e2e00002-0000-0000-0000-000000000001';
 const E2E_NOTIFICATION_1 = 'e2e00003-0000-0000-0000-000000000001';
 const E2E_NOTIFICATION_2 = 'e2e00003-0000-0000-0000-000000000002';
 const E2E_NOTIFICATION_3 = 'e2e00003-0000-0000-0000-000000000003';
-const E2E_BUDDY_ID = 'e2e00004-0000-0000-0000-000000000001';
 const E2E_BOUNTY_1 = 'e2e00005-0000-0000-0000-000000000001';
 const E2E_BOUNTY_CLAIM_1 = 'e2e00006-0000-0000-0000-000000000001';
 const E2E_LESSON_1 = 'e2e00007-0000-0000-0000-000000000001';
@@ -82,7 +81,6 @@ export default async function globalSetup() {
   await deleteWhere('learning_events', `?id=in.(${E2E_LEARNING_EVENT_1},${E2E_LEARNING_EVENT_2},${E2E_LEARNING_EVENT_3})`);
   await deleteWhere('interest_tracks', `?id=eq.${E2E_TRACK_1}`);
   await deleteWhere('notifications', `?id=in.(${E2E_NOTIFICATION_1},${E2E_NOTIFICATION_2},${E2E_NOTIFICATION_3})`);
-  await deleteWhere('buddies', `?id=eq.${E2E_BUDDY_ID}`);
   await deleteWhere('curriculum_lessons', `?id=in.(${E2E_LESSON_1},${E2E_LESSON_2})`);
   // Clean up seed-script data too
   await deleteWhere('quest_task_completions', `?user_id=eq.${STUDENT_ID}`);
@@ -252,24 +250,6 @@ export default async function globalSetup() {
       is_read: false,
     },
   ]);
-
-  // ── Seed buddy ──
-  console.log('[e2e-setup] Seeding buddy...');
-  await upsert('buddies', [{
-    id: E2E_BUDDY_ID,
-    user_id: STUDENT_ID,
-    name: 'Sparky',
-    vitality: 75,
-    bond: 50,
-    stage: 2,
-    highest_stage: 2,
-    last_interaction: new Date().toISOString(),
-    food_journal: '[]',
-    equipped: '{}',
-    wallet: 100,
-    total_xp_fed: 200,
-    xp_fed_today: 0,
-  }]);
 
   // ── Seed bounty with claim ──
   console.log('[e2e-setup] Seeding bounties...');

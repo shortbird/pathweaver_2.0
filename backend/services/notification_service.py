@@ -579,7 +579,7 @@ class NotificationService(BaseService):
             user_id=user_id,
             notification_type='task_revision_requested',
             title='Revision Requested',
-            message=f'Your advisor requested revisions on "{task_title}"',
+            message=f'Your teacher requested revisions on "{task_title}"',
             link=f'/quests',
             metadata={'task_id': task_id},
             organization_id=organization_id

@@ -58,7 +58,6 @@ const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 const QuestDiscovery = lazy(() => import('./pages/QuestDiscovery'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
-const ConstellationPage = lazy(() => import('./pages/ConstellationPage'))
 // OpenEd Academy (OEA) diploma program — school-specific tab (/opened-academy)
 const OpenEdAcademyPage = lazy(() => import('./pages/oea/OpenEdAcademyPage'))
 const OEASelectPathwayPage = lazy(() => import('./pages/oea/OEASelectPathwayPage'))
@@ -116,6 +115,7 @@ const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage')
 const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const ClassRegistrationPage = lazy(() => import('./pages/ClassRegistrationPage'))
+const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 const PoePage = lazy(() => import('./pages/poe/PoePage'))
 // Marketing pages
@@ -144,11 +144,10 @@ const PublicTranscriptPage = lazy(() => import('./pages/PublicTranscriptPage'))
 const SharedFeedPostPage = lazy(() => import('./pages/SharedFeedPostPage'))
 // Credit Review Dashboard (March 2026 - Unified credit review for org admins + superadmin)
 const CreditReviewDashboardPage = lazy(() => import('./pages/CreditReviewDashboardPage'))
-// Bounty Board & Buddy (March 2026 - Integrated from mobile app plan)
+// Bounty Board (March 2026 - Integrated from mobile app plan)
 const BountyBoardPage = lazy(() => import('./pages/BountyBoardPage'))
 const BountyDetailPage = lazy(() => import('./pages/BountyDetailPage'))
 const BountyCreatePage = lazy(() => import('./pages/BountyCreatePage'))
-const BuddyPage = lazy(() => import('./pages/BuddyPage'))
 // Canvas LTI iframe pages (April 2026) — no Layout, no sidebar; for Canvas embed only
 const LtiLaunchPage = lazy(() => import('./pages/lti/LtiLaunchPage'))
 const LtiDeepLinkPage = lazy(() => import('./pages/lti/LtiDeepLinkPage'))
@@ -490,7 +489,6 @@ function App() {
                   <Route path="quests/:id" element={<QuestDetail />} />
                   <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                   <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
-                  <Route path="constellation" element={<ConstellationPage />} />
                 </Route>
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
@@ -502,6 +500,8 @@ function App() {
                 <Route path="my-classes" element={<MyClasses />} />
                 {/* Parent/guardian self-service: register your own children for SIS classes */}
                 <Route path="class-registration" element={<ClassRegistrationPage />} />
+                {/* Parent/guardian self-service: report a child's planned absences */}
+                <Route path="absences" element={<AbsenceReportingPage />} />
                 <Route path="classes/new" element={<StudentClassForm />} />
                 <Route path="classes/:id/edit" element={<StudentClassForm />} />
                 {/* Credit & Transcript Routes */}
@@ -534,12 +534,11 @@ function App() {
                 <Route path="evidence-reports" element={<MyEvidenceReports />} />
                 <Route path="evidence-reports/new" element={<EvidenceReportBuilder />} />
                 <Route path="evidence-reports/:id/edit" element={<EvidenceReportBuilder />} />
-                {/* Bounty Board & Buddy (March 2026) */}
+                {/* Bounty Board (March 2026) */}
                 <Route path="bounties" element={<BountyBoardPage />} />
                 <Route path="bounties/create" element={<BountyCreatePage />} />
                 <Route path="bounties/:bountyId/edit" element={<BountyCreatePage />} />
                 <Route path="bounties/:bountyId" element={<BountyDetailPage />} />
-                <Route path="buddy" element={<BuddyPage />} />
                 {/* OpenEd Academy diploma program (gated in the sidebar by
                     users.program_key; the page branches parent vs student and
                     writes are enforced server-side). */}

@@ -44,7 +44,7 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
             <option value="all">All Roles</option>
             <option value="student">Student</option>
             <option value="parent">Parent</option>
-            <option value="advisor">Advisor</option>
+            <option value="advisor">Teacher</option>
             <option value="org_admin">Org Admin</option>
             <option value="observer">Observer</option>
           </select>

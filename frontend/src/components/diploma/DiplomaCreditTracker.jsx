@@ -256,7 +256,7 @@ export default function DiplomaCreditTracker() {
                         {/* Grow This feedback */}
                         {req.diploma_status === 'grow_this' && req.latest_feedback && (
                           <div className="mb-3 bg-blue-50 border border-blue-200 rounded-md p-3">
-                            <p className="text-xs font-medium text-blue-800 mb-1">Advisor Feedback:</p>
+                            <p className="text-xs font-medium text-blue-800 mb-1">Teacher Feedback:</p>
                             <p className="text-sm text-blue-900">{req.latest_feedback}</p>
                           </div>
                         )}

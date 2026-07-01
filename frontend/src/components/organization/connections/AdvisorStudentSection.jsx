@@ -21,14 +21,14 @@ function AdvisorStudentSection({
   return (
     <section className="bg-white rounded-lg shadow p-6">
       <div className="mb-6">
-        <h3 className="text-xl font-bold mb-2">Advisor-Student Connections</h3>
-        <p className="text-gray-600 text-sm">Assign students to advisors for check-ins and support</p>
+        <h3 className="text-xl font-bold mb-2">Teacher-Student Connections</h3>
+        <p className="text-gray-600 text-sm">Assign students to teachers for check-ins and support</p>
       </div>
 
       {advisors.length === 0 ? (
         <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
           <UsersIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <p>No advisors found in this organization</p>
+          <p>No teachers found in this organization</p>
           <p className="text-sm mt-1">Invite users with the "advisor" role first</p>
         </div>
       ) : (
@@ -47,7 +47,7 @@ function AdvisorStudentSection({
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                       advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                     }`}>
-                      {advisor.role === 'org_admin' ? 'Admin' : 'Advisor'}
+                      {advisor.role === 'org_admin' ? 'Admin' : 'Teacher'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500">{advisor.email}</p>

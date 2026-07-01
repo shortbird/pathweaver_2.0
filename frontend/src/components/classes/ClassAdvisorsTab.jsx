@@ -31,33 +31,33 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
       if (response.success) {
         setAdvisors(response.advisors || [])
       } else {
-        toast.error(response.error || 'Failed to load advisors')
+        toast.error(response.error || 'Failed to load teachers')
       }
     } catch (error) {
       console.error('Failed to fetch advisors:', error)
-      toast.error('Failed to load advisors')
+      toast.error('Failed to load teachers')
     } finally {
       setLoading(false)
     }
   }
 
   const handleRemoveAdvisor = async (advisorId) => {
-    if (!confirm('Are you sure you want to remove this advisor from the class?')) {
+    if (!confirm('Are you sure you want to remove this teacher from the class?')) {
       return
     }
 
     try {
       const response = await classService.removeClassAdvisor(orgId, classId, advisorId)
       if (response.success) {
-        toast.success('Advisor removed from class')
+        toast.success('Teacher removed from class')
         fetchAdvisors()
         onUpdate?.()
       } else {
-        toast.error(response.error || 'Failed to remove advisor')
+        toast.error(response.error || 'Failed to remove teacher')
       }
     } catch (error) {
       console.error('Failed to remove advisor:', error)
-      toast.error(error.response?.data?.error || 'Failed to remove advisor')
+      toast.error(error.response?.data?.error || 'Failed to remove teacher')
     }
   }
 
@@ -65,16 +65,16 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
     try {
       const response = await classService.addClassAdvisor(orgId, classId, advisorId)
       if (response.success) {
-        toast.success('Advisor added to class')
+        toast.success('Teacher added to class')
         setShowAddModal(false)
         fetchAdvisors()
         onUpdate?.()
       } else {
-        toast.error(response.error || 'Failed to add advisor')
+        toast.error(response.error || 'Failed to add teacher')
       }
     } catch (error) {
       console.error('Failed to add advisor:', error)
-      toast.error(error.response?.data?.error || 'Failed to add advisor')
+      toast.error(error.response?.data?.error || 'Failed to add teacher')
     }
   }
 
@@ -82,7 +82,7 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
-        <span className="ml-3 text-gray-500">Loading advisors...</span>
+        <span className="ml-3 text-gray-500">Loading teachers...</span>
       </div>
     )
   }
@@ -92,14 +92,14 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
       {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-gray-600">
-          Advisors can manage students and quests in this class
+          Teachers can manage students and quests in this class
         </p>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
         >
           <PlusIcon className="w-5 h-5" />
-          Add Advisor
+          Add Teacher
         </button>
       </div>
 
@@ -107,13 +107,13 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
       {advisors.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <UserGroupIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No advisors assigned to this class yet</p>
+          <p className="text-gray-500 mb-4">No teachers assigned to this class yet</p>
           <button
             onClick={() => setShowAddModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-optio-purple/90 transition-colors"
           >
             <PlusIcon className="w-5 h-5" />
-            Add First Advisor
+            Add First Teacher
           </button>
         </div>
       ) : (
@@ -125,7 +125,7 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
               `${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() ||
               advisor.display_name ||
               advisor.email ||
-              'Unknown Advisor'
+              'Unknown Teacher'
 
             return (
               <div
@@ -152,7 +152,7 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
                 <button
                   onClick={() => handleRemoveAdvisor(item.advisor_id)}
                   className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Remove advisor"
+                  title="Remove teacher"
                 >
                   <TrashIcon className="w-5 h-5" />
                 </button>
@@ -198,7 +198,7 @@ function AddAdvisorModal({ orgId, existingAdvisorIds = [], onClose, onSubmit }) 
       }
     } catch (error) {
       console.error('Failed to fetch advisors:', error)
-      toast.error('Failed to load available advisors')
+      toast.error('Failed to load available teachers')
     } finally {
       setLoading(false)
     }
@@ -233,7 +233,7 @@ function AddAdvisorModal({ orgId, existingAdvisorIds = [], onClose, onSubmit }) 
             <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
               <UserGroupIcon className="w-6 h-6 text-white" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">Add Advisor</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Add Teacher</h2>
           </div>
           <button
             onClick={onClose}
@@ -249,7 +249,7 @@ function AddAdvisorModal({ orgId, existingAdvisorIds = [], onClose, onSubmit }) 
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search advisors..."
+              placeholder="Search teachers..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
@@ -263,11 +263,11 @@ function AddAdvisorModal({ orgId, existingAdvisorIds = [], onClose, onSubmit }) 
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple"></div>
-              <span className="ml-2 text-gray-500">Loading advisors...</span>
+              <span className="ml-2 text-gray-500">Loading teachers...</span>
             </div>
           ) : advisors.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No available advisors in this organization
+              No available teachers in this organization
             </div>
           ) : filteredAdvisors.length === 0 ? (
             <div className="text-center py-8 text-gray-500">

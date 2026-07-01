@@ -1,5 +1,5 @@
 """
-SIS catalog routes — Programs and the unified Class (org_classes) management.
+SIS catalog routes — the unified Class (org_classes) management.
 
 NEW, additive (prefix /api/sis), staff-gated (org_admin/advisor/superadmin;
 superadmin implicit). Org scoping via sis_service.resolve_org_id — non-superadmins
@@ -13,7 +13,6 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_catalog_service as catalog
-from repositories.program_repository import ProgramRepository
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 
@@ -41,76 +40,6 @@ def _truthy(v):
 
 
 # ── Programs ─────────────────────────────────────────────────────────────────
-@bp.route('/programs', methods=['GET'])
-@require_role(*STAFF_ROLES)
-def list_programs(user_id):
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    include_archived = _truthy(request.args.get('include_archived'))
-    return jsonify({'success': True, 'programs': catalog.list_programs(org_id, include_archived)})
-
-
-@bp.route('/programs', methods=['POST'])
-@require_role(*STAFF_ROLES)
-def create_program(user_id):
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    data = request.json or {}
-    name = (data.get('name') or '').strip()
-    if not name:
-        return jsonify({'success': False, 'error': 'Program name is required'}), 400
-    program_type = data.get('program_type') or 'individual_class'
-    if program_type not in catalog.PROGRAM_TYPES:
-        return jsonify({'success': False, 'error': f'Invalid program_type: {program_type}'}), 400
-    status = data.get('status') or 'draft'
-    if status not in catalog.PROGRAM_STATUSES:
-        return jsonify({'success': False, 'error': f'Invalid status: {status}'}), 400
-    fields = {'name': name, 'program_type': program_type, 'status': status, 'created_by': user_id}
-    for k in ('slug', 'description', 'enrollment_opens_at', 'enrollment_closes_at'):
-        if data.get(k) is not None:
-            fields[k] = data[k]
-    repo = ProgramRepository(client=get_supabase_admin_client())
-    program = repo.create_for_org(org_id, fields)
-    return jsonify({'success': True, 'program': program}), 201
-
-
-@bp.route('/programs/<program_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
-def update_program(user_id, program_id):
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    data = request.json or {}
-    repo = ProgramRepository(client=get_supabase_admin_client())
-    existing = repo.find_by_id(program_id)
-    if not existing or existing.get('organization_id') != org_id:
-        return jsonify({'success': False, 'error': 'Program not found'}), 404
-    if data.get('program_type') and data['program_type'] not in catalog.PROGRAM_TYPES:
-        return jsonify({'success': False, 'error': 'Invalid program_type'}), 400
-    if data.get('status') and data['status'] not in catalog.PROGRAM_STATUSES:
-        return jsonify({'success': False, 'error': 'Invalid status'}), 400
-    fields = {k: data[k] for k in (
-        'name', 'slug', 'description', 'program_type', 'status',
-        'enrollment_opens_at', 'enrollment_closes_at'
-    ) if k in data}
-    return jsonify({'success': True, 'program': repo.update_fields(program_id, fields)})
-
-
-@bp.route('/programs/<program_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
-def archive_program(user_id, program_id):
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    repo = ProgramRepository(client=get_supabase_admin_client())
-    existing = repo.find_by_id(program_id)
-    if not existing or existing.get('organization_id') != org_id:
-        return jsonify({'success': False, 'error': 'Program not found'}), 404
-    return jsonify({'success': True, 'program': repo.archive(program_id)})
-
-
 # ── Classes (org_classes SIS view) ───────────────────────────────────────────
 @bp.route('/classes', methods=['GET'])
 @require_role(*STAFF_ROLES)
@@ -118,9 +47,8 @@ def list_classes(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    program_id = request.args.get('program_id')
     include_archived = _truthy(request.args.get('include_archived'))
-    return jsonify({'success': True, 'classes': catalog.list_classes(org_id, program_id, include_archived)})
+    return jsonify({'success': True, 'classes': catalog.list_classes(org_id, include_archived)})
 
 
 def _validate_class_fields(data):
@@ -138,6 +66,10 @@ def _validate_class_fields(data):
     if data.get('min_age') is not None and data.get('max_age') is not None \
             and data['min_age'] > data['max_age']:
         return 'min_age cannot exceed max_age'
+    # supply_fee is dollars (numeric), display-only; accept any non-negative number.
+    sf = data.get('supply_fee')
+    if sf is not None and (isinstance(sf, bool) or not isinstance(sf, (int, float)) or sf < 0):
+        return 'supply_fee must be a non-negative number'
     return None
 
 
@@ -155,11 +87,6 @@ def create_class(user_id):
     if invalid:
         return jsonify({'success': False, 'error': invalid}), 400
     repo = SisClassRepository(client=get_supabase_admin_client())
-    # if a program_id is given, confirm it belongs to this org
-    if data.get('program_id'):
-        prog = ProgramRepository(client=get_supabase_admin_client()).find_by_id(data['program_id'])
-        if not prog or prog.get('organization_id') != org_id:
-            return jsonify({'success': False, 'error': 'Program not found'}), 404
     fields = {**data, 'name': name}
     cls = repo.create_for_org(org_id, created_by=user_id, fields=fields)
     return jsonify({'success': True, 'class': cls}), 201
@@ -302,3 +229,120 @@ def delete_prerequisite(user_id, class_id, prerequisite_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     repo.delete_prerequisite(prerequisite_id)
     return jsonify({'success': True})
+
+
+# ── Direct enrollment (staff enroll a student into a class) ───────────────────
+@bp.route('/classes/<class_id>/enrollments', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def enroll_student(user_id, class_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    repo = SisClassRepository(client=supabase)
+    if not _load_class(repo, org_id, class_id):
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+
+    data = request.json or {}
+    student_id = data.get('student_user_id')
+    if not student_id:
+        return jsonify({'success': False, 'error': 'student_user_id is required'}), 400
+    # Student must belong to this org.
+    stu = supabase.table('users').select('id, organization_id').eq('id', student_id).limit(1).execute().data
+    if not stu or stu[0].get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Student not in this organization'}), 404
+
+    existing = (
+        supabase.table('class_enrollments').select('id, status')
+        .eq('class_id', class_id).eq('student_id', student_id).limit(1).execute()
+    ).data
+    if existing:
+        if existing[0].get('status') != 'active':
+            supabase.table('class_enrollments').update({'status': 'active'}).eq('id', existing[0]['id']).execute()
+        return jsonify({'success': True, 'already_enrolled': True})
+
+    supabase.table('class_enrollments').insert({
+        'class_id': class_id, 'student_id': student_id,
+        'enrolled_by': user_id, 'status': 'active',
+    }).execute()
+    return jsonify({'success': True}), 201
+
+
+# ── Class image upload ───────────────────────────────────────────────────────
+import uuid as _uuid
+
+_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5MB
+_CLASS_IMAGE_BUCKET = 'class-images'
+
+
+def _ensure_bucket(supabase, bucket_name):
+    """Ensure a public storage bucket exists (create if missing). Best-effort."""
+    try:
+        if supabase.storage.get_bucket(bucket_name):
+            return
+    except Exception:
+        pass  # not found → create below
+    try:
+        supabase.storage.create_bucket(bucket_name, options={'public': True})
+    except Exception as e:
+        if not any(s in str(e).lower() for s in ('already exists', 'duplicate')):
+            logger.warning(f"class-images bucket create note: {e}")
+
+
+@bp.route('/classes/<class_id>/image', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def upload_class_image(user_id, class_id):
+    """Upload (or replace) a class's catalog image. Stores image_url on org_classes."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+
+    supabase = get_supabase_admin_client()
+    repo = SisClassRepository(client=supabase)
+    existing = _load_class(repo, org_id, class_id)
+    if not existing:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in _IMAGE_EXTENSIONS:
+        return jsonify({'success': False, 'error': 'Invalid file type. Allowed: JPG, PNG, GIF, WebP, HEIC'}), 400
+
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > _MAX_IMAGE_BYTES:
+        return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
+
+    _ensure_bucket(supabase, _CLASS_IMAGE_BUCKET)
+
+    unique_path = f"{class_id}/{_uuid.uuid4().hex}.{ext}"
+    content = file.read()
+
+    # Clean up a previous class-images upload if present.
+    old = existing.get('image_url')
+    if old and f'{_CLASS_IMAGE_BUCKET}/' in old:
+        try:
+            supabase.storage.from_(_CLASS_IMAGE_BUCKET).remove([old.split(f'{_CLASS_IMAGE_BUCKET}/')[-1]])
+        except Exception:
+            logger.debug("class-images old file delete failed (non-fatal)", exc_info=True)
+
+    try:
+        supabase.storage.from_(_CLASS_IMAGE_BUCKET).upload(
+            path=unique_path,
+            file=content,
+            file_options={'content-type': file.content_type or f'image/{ext}'},
+        )
+        image_url = supabase.storage.from_(_CLASS_IMAGE_BUCKET).get_public_url(unique_path)
+    except Exception as e:
+        logger.error(f"Error uploading class image: {e}")
+        return jsonify({'success': False, 'error': 'Failed to upload image'}), 500
+
+    updated = repo.update_sis_fields(class_id, {'image_url': image_url})
+    return jsonify({'success': True, 'image_url': image_url, 'class': updated})

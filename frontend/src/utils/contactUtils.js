@@ -22,7 +22,7 @@ const RELATIONSHIP_PRIORITY = {
  */
 export const RELATIONSHIP_CONFIG = {
   advisor: {
-    label: 'Advisor',
+    label: 'Teacher',
     bgColor: 'bg-blue-100',
     textColor: 'text-blue-700',
     borderColor: 'border-blue-200'

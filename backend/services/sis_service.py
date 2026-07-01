@@ -66,7 +66,7 @@ def _org_students(org_id: str) -> List[Dict[str, Any]]:
     resp = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, '
-                'role, org_role, org_roles, total_xp, last_active, created_at')
+                'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -131,6 +131,9 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
         roster.append({
             'student_id': s['id'],
             'name': _full_name(s),
+            'first_name': s.get('first_name'),
+            'last_name': s.get('last_name'),
+            'date_of_birth': s.get('date_of_birth'),
             'email': s.get('email'),
             'username': s.get('username'),
             'total_xp': s.get('total_xp'),
@@ -247,6 +250,166 @@ def list_org_members(org_id: str) -> List[Dict[str, Any]]:
         })
     out.sort(key=lambda r: r['name'].lower())
     return out
+
+
+# Org roles considered "staff" (people who run the school), in display precedence.
+STAFF_ORG_ROLES = ('org_admin', 'advisor')
+_STAFF_ROLE_LABEL = {'org_admin': 'Org Admin', 'advisor': 'Teacher'}
+
+
+def _user_org_roles(u: Dict[str, Any]) -> List[str]:
+    """All org roles held by a user (org_role + org_roles array), de-duped."""
+    roles = []
+    if u.get('org_role'):
+        roles.append(u['org_role'])
+    if isinstance(u.get('org_roles'), list):
+        roles.extend(u['org_roles'])
+    return list(dict.fromkeys(roles))
+
+
+def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
+    """Org staff (org_admin / advisor) with their role labels, for the SIS Staff page."""
+    resp = (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, email, username, '
+                'role, org_role, org_roles, last_active, created_at')
+        .eq('organization_id', org_id)
+        .execute()
+    )
+    out = []
+    for u in (resp.data or []):
+        roles = _user_org_roles(u)
+        staff_roles = [r for r in STAFF_ORG_ROLES if r in roles]
+        if not staff_roles:
+            continue
+        out.append({
+            'id': u['id'],
+            'name': _full_name(u),
+            'email': u.get('email'),
+            'roles': staff_roles,
+            'role_labels': [_STAFF_ROLE_LABEL.get(r, r) for r in staff_roles],
+            'last_active': u.get('last_active'),
+        })
+    # Org admins first, then advisors; alphabetical within.
+    out.sort(key=lambda r: ('org_admin' not in r['roles'], r['name'].lower()))
+    return out
+
+
+def student_in_org(student_id: str, org_id: str) -> bool:
+    row = (
+        _admin().table('users').select('id, organization_id')
+        .eq('id', student_id).limit(1).execute()
+    ).data
+    return bool(row and row[0].get('organization_id') == org_id)
+
+
+_PROFILE_FIELDS = ('first_name', 'last_name', 'email', 'date_of_birth')
+
+
+def update_student_profile(org_id: str, student_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Edit a student's profile (name/email/DOB). Keeps display_name in sync and,
+    when the email changes, best-effort syncs the auth account so login still works."""
+    if not student_in_org(student_id, org_id):
+        return None
+    current = (
+        _admin().table('users').select('first_name, last_name, email')
+        .eq('id', student_id).limit(1).execute()
+    ).data
+    cur = current[0] if current else {}
+
+    payload: Dict[str, Any] = {}
+    for k in _PROFILE_FIELDS:
+        if k in fields:
+            v = fields[k]
+            payload[k] = (v.strip() if isinstance(v, str) else v) or None
+    # Recompute display_name from the resulting first/last.
+    first = payload.get('first_name', cur.get('first_name')) or ''
+    last = payload.get('last_name', cur.get('last_name')) or ''
+    combined = f"{first} {last}".strip()
+    if combined:
+        payload['display_name'] = combined
+    if not payload:
+        return {'id': student_id}
+
+    resp = _admin().table('users').update(payload).eq('id', student_id).execute()
+
+    # Sync the auth email if it changed (best-effort; login uses the auth email).
+    new_email = payload.get('email')
+    if new_email and new_email != cur.get('email'):
+        try:
+            _admin().auth.admin.update_user_by_id(student_id, {'email': new_email})
+        except Exception as e:
+            logger.warning(f"Auth email sync failed for {student_id[:8]}: {e}")
+
+    return resp.data[0] if resp.data else {'id': student_id}
+
+
+def list_student_classes(org_id: str, student_id: str) -> List[Dict[str, Any]]:
+    """A student's active class enrollments with the teacher and a linked quest (if any)."""
+    enr = (
+        _admin().table('class_enrollments').select('class_id')
+        .eq('student_id', student_id).eq('status', 'active').execute()
+    ).data or []
+    class_ids = [e['class_id'] for e in enr]
+    if not class_ids:
+        return []
+
+    classes = (
+        _admin().table('org_classes').select('id, name, primary_instructor_id')
+        .in_('id', class_ids).eq('organization_id', org_id).execute()
+    ).data or []
+    if not classes:
+        return []
+    cids = [c['id'] for c in classes]
+
+    # Teacher: primary instructor, else first active class advisor.
+    advisors_by_class: Dict[str, str] = {}
+    for a in (_admin().table('class_advisors').select('class_id, advisor_id, is_active')
+              .in_('class_id', cids).execute()).data or []:
+        if a.get('is_active', True) and a['class_id'] not in advisors_by_class:
+            advisors_by_class[a['class_id']] = a['advisor_id']
+    teacher_ids = {c['primary_instructor_id'] for c in classes if c.get('primary_instructor_id')}
+    teacher_ids.update(advisors_by_class.values())
+    teacher_names: Dict[str, str] = {}
+    if teacher_ids:
+        for u in (_admin().table('users')
+                  .select('id, display_name, first_name, last_name, username, email')
+                  .in_('id', list(teacher_ids)).execute()).data or []:
+            teacher_names[u['id']] = _full_name(u)
+
+    # First quest per class (by sequence), + its title for display.
+    first_quest: Dict[str, str] = {}
+    for q in (_admin().table('class_quests').select('class_id, quest_id, sequence_order')
+              .in_('class_id', cids).order('sequence_order').execute()).data or []:
+        first_quest.setdefault(q['class_id'], q['quest_id'])
+    quest_titles: Dict[str, str] = {}
+    if first_quest:
+        for q in (_admin().table('quests').select('id, title')
+                  .in_('id', list(set(first_quest.values()))).execute()).data or []:
+            quest_titles[q['id']] = q.get('title')
+
+    out = []
+    for c in classes:
+        tid = c.get('primary_instructor_id') or advisors_by_class.get(c['id'])
+        qid = first_quest.get(c['id'])
+        out.append({
+            'class_id': c['id'],
+            'name': c['name'],
+            'teacher_name': teacher_names.get(tid) if tid else None,
+            'quest_id': qid,
+            'quest_title': quest_titles.get(qid) if qid else None,
+        })
+    out.sort(key=lambda r: (r['name'] or '').lower())
+    return out
+
+
+def message_student(student_id: str, sender_id: str, subject: str, body: str) -> Dict[str, Any]:
+    """Send a message to the student through the platform messaging (direct messages)
+    system, from the staff caller. Raises ValueError if the sender lacks permission."""
+    from services.direct_message_service import DirectMessageService
+    content = f"{subject}\n\n{body}" if subject else body
+    msg = DirectMessageService().send_message(sender_id, student_id, content)
+    return {'conversation_id': msg.get('conversation_id')}
 
 
 def households_with_members(org_id: str) -> List[Dict[str, Any]]:

@@ -151,13 +151,13 @@ class XPService(BaseService):
             # Update user mastery level
             self.update_user_mastery(user_id)
 
-            # Award Spendable XP (for Yeti shop economy)
+            # Credit the student's spendable-XP wallet, if they have one (coin
+            # economy, e.g. Treehouse). No-op for students without a wallet.
             try:
-                from repositories.yeti_repository import YetiRepository
-                yeti_repo = YetiRepository()
-                yeti_repo.add_spendable_xp(user_id, xp_amount)
+                from repositories.wallet_repository import WalletRepository
+                WalletRepository().add(user_id, xp_amount)
             except Exception as spendable_err:
-                # Non-fatal: student may not have a Yeti pet yet
+                # Non-fatal: most students have no wallet
                 logger.debug(f"Spendable XP update skipped for user {user_id[:8]}: {spendable_err}")
 
             logger.info(f"XP award success: {bool(result.data)}")

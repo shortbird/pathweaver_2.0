@@ -64,8 +64,8 @@ const AUTOMATED_EMAILS = [
   },
   {
     name: 'Task Approval Notification',
-    trigger: 'Task Approved by Advisor',
-    description: 'Notifies student when advisor approves their task',
+    trigger: 'Task Approved by Teacher',
+    description: 'Notifies student when teacher approves their task',
     status: 'active'
   },
   {

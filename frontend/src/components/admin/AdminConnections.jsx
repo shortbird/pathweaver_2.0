@@ -203,7 +203,7 @@ const AdminConnections = () => {
     try {
       if (selectedConnection.type === 'advisor') {
         await api.delete(`/api/admin/advisors/${selectedConnection.person.id}/students/${selectedConnection.student.id}`)
-        toast.success('Student unassigned from advisor')
+        toast.success('Student unassigned from teacher')
       } else {
         await adminParentConnectionsAPI.disconnectLink(selectedConnection.originalId)
         toast.success('Parent-student connection removed')
@@ -278,7 +278,7 @@ const AdminConnections = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">Connections</h2>
-          <p className="text-gray-600 text-sm">Manage advisor-student and parent-student relationships</p>
+          <p className="text-gray-600 text-sm">Manage teacher-student and parent-student relationships</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
@@ -325,7 +325,7 @@ const AdminConnections = () => {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Advisors ({advisorCount})
+              Teachers ({advisorCount})
             </button>
             <button
               onClick={() => setFilterType('parent')}
@@ -389,7 +389,7 @@ const AdminConnections = () => {
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-green-100 text-green-800'
                       }`}>
-                        {conn.type === 'advisor' ? 'Advisor' : 'Parent'}
+                        {conn.type === 'advisor' ? 'Teacher' : 'Parent'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -429,14 +429,14 @@ const AdminConnections = () => {
                       ? 'bg-purple-100 text-purple-800'
                       : 'bg-green-100 text-green-800'
                   }`}>
-                    {conn.type === 'advisor' ? 'Advisor' : 'Parent'}
+                    {conn.type === 'advisor' ? 'Teacher' : 'Parent'}
                   </span>
                   <span className="text-xs text-gray-500">{formatDate(conn.created_at)}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">{conn.type === 'advisor' ? 'Advisor' : 'Parent'}</p>
+                    <p className="text-xs text-gray-500 mb-1">{conn.type === 'advisor' ? 'Teacher' : 'Parent'}</p>
                     <p className="text-sm font-medium text-gray-900">{conn.person.name}</p>
                     <p className="text-xs text-gray-500 truncate">{conn.person.email}</p>
                   </div>
@@ -497,7 +497,7 @@ const AdminConnections = () => {
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    Advisor-Student
+                    Teacher-Student
                   </button>
                   <button
                     onClick={() => {
@@ -519,7 +519,7 @@ const AdminConnections = () => {
               {/* Select Person */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select {addConnectionType === 'advisor' ? 'Advisor' : 'Parent'}
+                  Select {addConnectionType === 'advisor' ? 'Teacher' : 'Parent'}
                 </label>
                 {selectedPerson ? (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
@@ -664,7 +664,7 @@ const AdminConnections = () => {
             <p className="text-sm text-red-600 mb-6">
               {selectedConnection.type === 'parent'
                 ? 'The parent will lose access to this student\'s data.'
-                : 'The advisor will no longer be assigned to this student.'}
+                : 'The teacher will no longer be assigned to this student.'}
             </p>
             <div className="flex justify-end gap-3">
               <button

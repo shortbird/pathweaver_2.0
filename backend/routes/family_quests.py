@@ -1,11 +1,17 @@
 """
-Family Quests API routes.
-Allows parents to create quests and assign them to multiple children at once.
+Parent-managed dependent quest routes.
+
+Lets a parent set up and manage a quest for a managed dependent (under-13):
+create a private quest, enroll the child, and add/uncomplete tasks on their
+behalf. The former multi-child "Family Quest" feature (shared quest across
+several children + AI idea generation) was removed 2026-06-30; these endpoints
+remain under the historical /api/family prefix for client compatibility.
 
 Endpoints:
-- POST /api/family/quests/create - Create a quest as a parent
-- PUT /api/family/quests/<quest_id>/template-tasks - Save template tasks for a family quest
-- POST /api/family/quests/<quest_id>/enroll-children - Enroll selected children in a quest
+- POST /api/family/quests/create - Create a private quest as a parent
+- POST /api/family/quests/<quest_id>/enroll-children - Enroll child(ren) in a quest
+- POST /api/family/quests/<quest_id>/tasks - Create a task for a dependent
+- POST /api/family/quests/<quest_id>/tasks/<task_id>/uncomplete - Uncomplete a dependent's task
 """
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
@@ -14,7 +20,6 @@ from utils.auth.decorators import require_auth
 from utils.pillar_utils import is_valid_pillar, normalize_pillar_name
 from services.image_service import search_quest_image
 from datetime import datetime, timezone
-import logging
 
 from utils.logger import get_logger
 
@@ -64,7 +69,7 @@ def create_family_quest(user_id):
         if not data.get('title'):
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
-        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
+        # admin client justified: parent creates a private quest for a dependent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Auto-fetch image if not provided
@@ -95,7 +100,7 @@ def create_family_quest(user_id):
             return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
 
         quest_id = quest_result.data[0]['id']
-        logger.info(f"Parent {user_id} created family quest {quest_id}: {quest_data['title']}")
+        logger.info(f"Parent {user_id} created quest {quest_id} for a dependent: {quest_data['title']}")
 
         return jsonify({
             'success': True,
@@ -105,90 +110,16 @@ def create_family_quest(user_id):
         })
 
     except Exception as e:
-        logger.error(f"Error creating family quest for user {user_id}: {str(e)}")
+        logger.error(f"Error creating quest for user {user_id}: {str(e)}")
         return jsonify({'success': False, 'error': f'Failed to create quest: {str(e)}'}), 500
-
-
-@bp.route('/quests/<quest_id>/template-tasks', methods=['PUT'])
-@require_auth
-def update_family_quest_template_tasks(user_id, quest_id):
-    """
-    Save template tasks for a family quest.
-    Parent must own the quest (created_by == user_id).
-    """
-    try:
-        verify_parent_role(user_id)
-
-        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
-        supabase = get_supabase_admin_client()
-
-        # Verify quest ownership
-        quest = supabase.table('quests').select('id, created_by').eq('id', quest_id).single().execute()
-        if not quest.data:
-            return jsonify({'success': False, 'error': 'Quest not found'}), 404
-
-        if quest.data.get('created_by') != user_id:
-            # Allow superadmin
-            user_check = supabase.table('users').select('role').eq('id', user_id).single().execute()
-            if not user_check.data or user_check.data.get('role') != 'superadmin':
-                return jsonify({'success': False, 'error': 'Permission denied'}), 403
-
-        data = request.get_json()
-        if not data or not data.get('tasks'):
-            return jsonify({'success': False, 'error': 'Tasks array is required'}), 400
-
-        # Validate and prepare tasks
-        valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
-        tasks_data = []
-
-        for i, task in enumerate(data['tasks']):
-            if not task.get('title'):
-                continue
-
-            pillar = task.get('pillar', 'stem').lower().strip()
-            if pillar not in valid_pillars:
-                pillar = 'stem'
-
-            tasks_data.append({
-                'quest_id': quest_id,
-                'title': task['title'].strip(),
-                'description': task.get('description', '').strip(),
-                'pillar': pillar,
-                'xp_value': int(task.get('xp_value', 100)),
-                'order_index': task.get('order_index', i),
-                'is_required': task.get('is_required', False),
-                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                'subject_xp_distribution': task.get('subject_xp_distribution', {}),
-            })
-
-        if not tasks_data:
-            return jsonify({'success': False, 'error': 'No valid tasks provided'}), 400
-
-        # Delete existing template tasks for this quest, then insert new ones
-        supabase.table('quest_template_tasks').delete().eq('quest_id', quest_id).execute()
-        result = supabase.table('quest_template_tasks').insert(tasks_data).execute()
-
-        created_tasks = result.data or []
-        logger.info(f"Parent {user_id} saved {len(created_tasks)} template tasks for quest {quest_id}")
-
-        return jsonify({
-            'success': True,
-            'message': f'Template tasks updated: {len(created_tasks)} tasks',
-            'tasks': created_tasks,
-            'total': len(created_tasks)
-        })
-
-    except Exception as e:
-        logger.error(f"Error updating family quest template tasks: {str(e)}")
-        return jsonify({'success': False, 'error': f'Failed to update template tasks: {str(e)}'}), 500
 
 
 @bp.route('/quests/<quest_id>/enroll-children', methods=['POST'])
 @require_auth
 def enroll_children_in_family_quest(user_id, quest_id):
     """
-    Enroll multiple children in a family quest.
-    Copies template tasks to each child's user_quest_tasks.
+    Enroll one or more dependents in a quest.
+    Copies template tasks (if any) to each child's user_quest_tasks.
     """
     try:
         verify_parent_role(user_id)
@@ -201,7 +132,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
         if not isinstance(child_ids, list) or len(child_ids) == 0:
             return jsonify({'success': False, 'error': 'child_ids must be a non-empty array'}), 400
 
-        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
+        # admin client justified: parent enrolls a dependent in a quest; cross-user writes (user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify quest exists. A parent may enroll their child in:
@@ -271,7 +202,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
                 }).eq('id', enrollment_id).execute()
 
                 enrolled.append({'child_id': child_id, 'enrollment_id': enrollment_id})
-                logger.info(f"Enrolled child {child_id[:8]} in family quest {quest_id[:8]} with {len(template_tasks)} tasks")
+                logger.info(f"Enrolled child {child_id[:8]} in quest {quest_id[:8]} with {len(template_tasks)} tasks")
 
             except Exception as child_error:
                 logger.error(f"Failed to enroll child {child_id} in quest {quest_id}: {str(child_error)}")
@@ -285,7 +216,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
         })
 
     except Exception as e:
-        logger.error(f"Error enrolling children in family quest: {str(e)}")
+        logger.error(f"Error enrolling children in quest: {str(e)}")
         return jsonify({'success': False, 'error': f'Failed to enroll children: {str(e)}'}), 500
 
 
@@ -311,7 +242,7 @@ def create_task_for_dependent(user_id, quest_id):
         if not verify_parent_has_access_to_child(user_id, child_id):
             return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
-        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
+        # admin client justified: parent creates a task for a dependent; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify child IS a dependent (managed_by_parent_id == user_id)
@@ -408,7 +339,7 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
         if not verify_parent_has_access_to_child(user_id, child_id):
             return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
-        # admin client justified: family quest creation/assignment by parent; cross-user writes (quests + user_quests for children) gated by parent role + parent->child verification
+        # admin client justified: parent reverses a dependent's task completion; cross-user writes (completions + XP for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
         # Verify child IS a dependent (managed_by_parent_id == user_id)

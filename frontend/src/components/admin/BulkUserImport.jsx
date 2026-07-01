@@ -351,7 +351,7 @@ export default function BulkUserImport({ organizationId, onImportComplete }) {
                             row.role === 'org_admin' ? 'bg-purple-100 text-purple-700' :
                             'bg-gray-100 text-gray-700'
                           }`}>
-                            {row.role}
+                            {row.role === 'advisor' ? 'Teacher' : row.role}
                           </span>
                         </td>
                       </tr>

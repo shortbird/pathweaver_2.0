@@ -4,7 +4,6 @@ import StudentOverviewSections from './StudentOverviewSections'
 
 vi.mock('./LearningSnapshot', () => ({ default: () => <div data-testid="snapshot" /> }))
 vi.mock('./SkillsGrowth', () => ({ default: () => <div data-testid="skills" /> }))
-vi.mock('./ConstellationPreview', () => ({ default: () => <div data-testid="constellation" /> }))
 vi.mock('./PortfolioSection', () => ({ default: () => <div data-testid="portfolio" /> }))
 vi.mock('./LearningJournalSection', () => ({ default: () => <div data-testid="journal" /> }))
 vi.mock('./TranscriptSection', () => ({ default: () => <div data-testid="transcript" /> }))

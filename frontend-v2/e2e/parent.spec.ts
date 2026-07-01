@@ -89,13 +89,6 @@ test.describe('Parent Suite', () => {
     expect(content?.toLowerCase()).toMatch(/bounties|browse|claims|posted/);
   });
 
-  test('P15: Parent can navigate to buddy page', async ({ page }) => {
-    await navigateTo(page, 'buddy');
-    await page.waitForTimeout(3000);
-    const content = await page.textContent('body');
-    expect(content?.toLowerCase()).toMatch(/buddy|vitality|bond|create|name/);
-  });
-
   test('P16: Parent family page shows complete child overview', async ({ page }) => {
     // Family page should show comprehensive child data
     await page.waitForTimeout(3000);

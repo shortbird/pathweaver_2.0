@@ -6,7 +6,6 @@ import { useActingAs } from '../contexts/ActingAsContext';
 import api, { oeaAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
-import { buildQuestOrbs, PILLAR_DEFINITIONS } from '../utils/pillarHelpers';
 
 // Overview Components
 import HeroSection from '../components/overview/HeroSection';
@@ -61,10 +60,6 @@ const StudentOverviewPage = () => {
   // instead of Optio's XP-based diploma credits.
   const [oea, setOea] = useState(null);
   const [learningEvents, setLearningEvents] = useState([]);
-
-  // Constellation data
-  const [pillarsData, setPillarsData] = useState([]);
-  const [questOrbs, setQuestOrbs] = useState([]);
 
   // Edit profile modal
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -123,35 +118,12 @@ const StudentOverviewPage = () => {
           recentCompletions,
           completedTasksCount: data.stats?.completed_tasks_count || 0
         });
-
-        // Build constellation pillars data
-        const isRecentlyActive = (pillarId) => {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          return recentCompletions.some((completion) => {
-            try {
-              const completionDate = new Date(completion.completed_at);
-              return completionDate >= sevenDaysAgo && completion.pillar === pillarId;
-            } catch {
-              return false;
-            }
-          });
-        };
-
-        const pillars = PILLAR_DEFINITIONS.map((def) => ({
-          ...def,
-          xp: xpByCategory[def.id] || 0,
-          isActive: isRecentlyActive(def.id),
-          questCount: recentCompletions.filter(c => c.pillar === def.id).length
-        }));
-        setPillarsData(pillars);
       }
 
       // Process completed quests
       if (completedQuestsResult.status === 'fulfilled') {
         const achievements = completedQuestsResult.value.data.achievements || [];
         setCompletedQuests(achievements);
-        setQuestOrbs(buildQuestOrbs(achievements));
       }
 
       // Process subject XP
@@ -294,8 +266,6 @@ const StudentOverviewPage = () => {
     pendingSubjectXp,
     oea,
     totalXp: dashboardData.totalXp,
-    pillarsData,
-    questOrbs,
     achievements: completedQuests,
     visibilityStatus
   };

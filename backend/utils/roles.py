@@ -49,7 +49,7 @@ VALID_ORG_ROLES = {role.value for role in OrgRole}
 ROLE_DISPLAY_NAMES = {
     UserRole.STUDENT.value: 'Student',
     UserRole.PARENT.value: 'Parent',
-    UserRole.ADVISOR.value: 'Advisor',
+    UserRole.ADVISOR.value: 'Teacher',
     UserRole.OBSERVER.value: 'Observer',
     UserRole.ORG_ADMIN.value: 'Organization Admin',
     UserRole.ORG_MANAGED.value: 'Organization Managed',

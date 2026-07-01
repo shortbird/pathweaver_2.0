@@ -111,7 +111,7 @@ export default function ClassDetailPage({ classId: propClassId, orgId: propOrgId
     { id: 'students', label: 'Students', icon: UsersIcon, count: classData.student_count },
     { id: 'quests', label: 'Quests', icon: BookOpenIcon, count: classData.quest_count },
     ...(isOrgAdmin
-      ? [{ id: 'advisors', label: 'Advisors', icon: UserGroupIcon, count: classData.advisor_count }]
+      ? [{ id: 'advisors', label: 'Teachers', icon: UserGroupIcon, count: classData.advisor_count }]
       : []),
     { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
   ]

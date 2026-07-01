@@ -126,7 +126,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
       superadmin: 'Superadmin',
       org_admin: 'Organization Admin',
       org_managed: 'Organization Managed',
-      advisor: 'Advisor',
+      advisor: 'Teacher',
       parent: 'Parent',
       student: 'Student',
       observer: 'Observer'
@@ -173,7 +173,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     const orgRoleDisplayNames = {
       student: 'Student',
       parent: 'Parent',
-      advisor: 'Advisor',
+      advisor: 'Teacher',
       org_admin: 'Organization Admin',
       observer: 'Observer'
     }
@@ -327,7 +327,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
       superadmin: 'Superadmin',
       org_admin: 'Organization Admin',
       org_managed: 'Organization Managed',
-      advisor: 'Advisor',
+      advisor: 'Teacher',
       parent: 'Parent',
       student: 'Student',
       observer: 'Observer'
@@ -657,7 +657,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   >
                     <option value="student">Student</option>
                     <option value="parent">Parent</option>
-                    <option value="advisor">Advisor</option>
+                    <option value="advisor">Teacher</option>
                     <option value="observer">Observer</option>
                     <option value="org_admin">Organization Admin</option>
                     <option value="org_managed">Organization Managed</option>
@@ -671,7 +671,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   <ul className="text-sm text-gray-600 space-y-2">
                     <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
                     <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
-                    <li><span className="font-semibold">Advisor:</span> Can manage student groups and provide guidance</li>
+                    <li><span className="font-semibold">Teacher:</span> Can manage student groups and provide guidance</li>
                     <li><span className="font-semibold">Observer:</span> View-only access to linked students</li>
                     <li><span className="font-semibold">Org Admin:</span> Organization admin with org management tools</li>
                     <li><span className="font-semibold">Org Managed:</span> Role controlled by organization (uses org_role)</li>
@@ -755,7 +755,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     {({
                       student: 'Student',
                       parent: 'Parent',
-                      advisor: 'Advisor',
+                      advisor: 'Teacher',
                       org_admin: 'Organization Admin',
                       observer: 'Observer'
                     })[originalOrgRole] || originalOrgRole}
@@ -774,7 +774,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   >
                     <option value="student">Student</option>
                     <option value="parent">Parent</option>
-                    <option value="advisor">Advisor</option>
+                    <option value="advisor">Teacher</option>
                     <option value="observer">Observer</option>
                     <option value="org_admin">Organization Admin</option>
                   </select>
@@ -836,8 +836,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
                 <div>
-                  <p className="font-semibold">View Advisor Check-ins</p>
-                  <p className="text-sm text-blue-600">View confidential advisor check-in logs</p>
+                  <p className="font-semibold">View Teacher Check-ins</p>
+                  <p className="text-sm text-blue-600">View confidential teacher check-in logs</p>
                 </div>
               </button>
 

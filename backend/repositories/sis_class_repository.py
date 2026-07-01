@@ -20,9 +20,11 @@ logger = get_logger(__name__)
 # org_classes columns a SIS staff user may set (the LMS-owned name/description/
 # xp_threshold/status are still editable through the existing class CRUD).
 SIS_CLASS_FIELDS = (
-    'program_id', 'capacity', 'primary_instructor_id', 'price_cents',
+    'capacity', 'primary_instructor_id', 'price_cents',
     'billing_type', 'billing_cadence', 'min_age', 'max_age', 'location',
     'waitlist_enabled', 'registration_status',
+    # iCreate catalog extras (display-only): a class image + an optional supply fee.
+    'image_url', 'supply_fee',
 )
 
 
@@ -31,15 +33,12 @@ class SisClassRepository(BaseRepository):
 
     # ── Classes (org_classes) ────────────────────────────────────────────────
     def list_for_org(self, organization_id: str,
-                     program_id: Optional[str] = None,
                      include_archived: bool = False) -> List[Dict[str, Any]]:
         query = (
             self.client.table(self.table_name)
             .select('*')
             .eq('organization_id', organization_id)
         )
-        if program_id:
-            query = query.eq('program_id', program_id)
         if not include_archived:
             query = query.neq('status', 'archived')
         resp = query.order('name').execute()

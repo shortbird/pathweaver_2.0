@@ -79,9 +79,9 @@ const ConversationList = ({
       type: 'advisor',
       other_user: {
         id: user.advisor_id,
-        display_name: 'Your Advisor',
+        display_name: 'Your Teacher',
         first_name: 'Your',
-        last_name: 'Advisor',
+        last_name: 'Teacher',
         role: 'advisor'
       },
       last_message_at: null,
@@ -217,7 +217,7 @@ const ConversationList = ({
             </div>
           )}
           {isPinned && (
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center" title="Advisor">
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center" title="Teacher">
               <MapPinIcon className="w-2.5 h-2.5 text-white" />
             </div>
           )}
@@ -361,7 +361,7 @@ const ConversationList = ({
                   {searchQuery ? 'No matches' : 'No conversations yet'}
                 </h3>
                 <p className="text-sm text-gray-500">
-                  {searchQuery ? 'Try a different name.' : 'Your advisors and contacts will appear here.'}
+                  {searchQuery ? 'Try a different name.' : 'Your teachers and contacts will appear here.'}
                 </p>
               </div>
             )}

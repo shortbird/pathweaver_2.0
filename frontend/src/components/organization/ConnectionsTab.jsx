@@ -37,9 +37,9 @@ export default function ConnectionsTab({ orgId }) {
           <div className="flex items-center gap-3">
             <UsersIcon className="w-10 h-10" />
             <div>
-              <p className="text-sm opacity-90">Advisor-Student</p>
+              <p className="text-sm opacity-90">Teacher-Student</p>
               <p className="text-3xl font-bold">{state.advisors.length}</p>
-              <p className="text-sm opacity-90">Advisors & Admins</p>
+              <p className="text-sm opacity-90">Teachers & Admins</p>
             </div>
           </div>
         </div>
@@ -132,7 +132,7 @@ export default function ConnectionsTab({ orgId }) {
       {/* Student Advisors Modal */}
       {state.showStudentAdvisorsModal && state.selectedStudentForAdvisors && (
         <Modal
-          title={`Advisors for ${`${state.selectedStudentForAdvisors.first_name || ''} ${state.selectedStudentForAdvisors.last_name || ''}`.trim() || state.selectedStudentForAdvisors.display_name || 'Student'}`}
+          title={`Teachers for ${`${state.selectedStudentForAdvisors.first_name || ''} ${state.selectedStudentForAdvisors.last_name || ''}`.trim() || state.selectedStudentForAdvisors.display_name || 'Student'}`}
           onClose={() => {
             state.setShowStudentAdvisorsModal(false)
             state.setSelectedStudentForAdvisors(null)
@@ -142,13 +142,13 @@ export default function ConnectionsTab({ orgId }) {
             {state.selectedStudentForAdvisors.advisors?.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <UsersIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>No advisors assigned to this student</p>
-                <p className="text-sm mt-1">Use the advisor cards above to assign advisors</p>
+                <p>No teachers assigned to this student</p>
+                <p className="text-sm mt-1">Use the teacher cards above to assign teachers</p>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-gray-600 mb-4">
-                  This student has {state.selectedStudentForAdvisors.advisors.length} advisor{state.selectedStudentForAdvisors.advisors.length > 1 ? 's' : ''} assigned:
+                  This student has {state.selectedStudentForAdvisors.advisors.length} teacher{state.selectedStudentForAdvisors.advisors.length > 1 ? 's' : ''} assigned:
                 </p>
                 {state.selectedStudentForAdvisors.advisors.map(advisor => (
                   <div key={advisor.assignment_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">

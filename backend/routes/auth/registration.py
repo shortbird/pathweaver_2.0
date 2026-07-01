@@ -383,7 +383,7 @@ def register():
             # OEA families are platform users carrying this lightweight flag, not
             # org-managed users. Only accept allowlisted program keys.
             if program_key:
-                from utils.oea_pathways import is_valid_program_key
+                from programs.registry import is_valid_program_key
                 if is_valid_program_key(program_key):
                     user_data['program_key'] = program_key
                     # OEA enrollers are parents managing student dependents (PRD

@@ -32,7 +32,7 @@ function MembersTable({
   const roleDisplayNames = {
     superadmin: 'Superadmin',
     org_admin: 'Org Admin',
-    advisor: 'Advisor',
+    advisor: 'Teacher',
     parent: 'Parent',
     observer: 'Observer',
     student: 'Student'

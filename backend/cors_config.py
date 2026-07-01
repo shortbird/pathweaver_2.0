@@ -19,7 +19,7 @@ def configure_cors(app):
 
     # M6: Five identical {origins, supports_credentials} blocks collapsed into a
     # single regex. Note `/csrf-token` is the only non-wildcard route; the
-    # alternation `/api/.*|/portfolio/.*|/spark/.*|/lti/.*|/csrf-token` keeps it
+    # alternation `/api/.*|/portfolio/.*|/lti/.*|/csrf-token` keeps it
     # as an exact match (a `/csrf-token/anything` path doesn't exist).
     cors_resource_config = {
         "origins": allowed_origins,
@@ -27,7 +27,7 @@ def configure_cors(app):
     }
     CORS(app,
          resources={
-             r"/(api|portfolio|spark|lti)/.*": cors_resource_config,
+             r"/(api|portfolio|lti)/.*": cors_resource_config,
              r"/csrf-token": cors_resource_config,
          },
          allow_headers=cors_config['allow_headers'],

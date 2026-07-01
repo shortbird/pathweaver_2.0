@@ -75,6 +75,16 @@ def org_members(user_id):
     return jsonify({'success': True, 'members': sis_service.list_org_members(org_id)})
 
 
+@bp.route('/staff', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def org_staff(user_id):
+    """Org staff (org_admin / advisor) for the SIS Staff page."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'staff': sis_service.list_org_staff(org_id)})
+
+
 # ── Households ───────────────────────────────────────────────────────────────
 @bp.route('/households', methods=['GET'])
 @require_role(*STAFF_ROLES)
@@ -174,6 +184,50 @@ def update_enrollment(user_id, student_id):
     return jsonify({'success': True, 'enrollment': enrollment})
 
 
+# ── Student account admin (edit profile, message guardians) ──────────────────
+@bp.route('/students/<student_id>', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def update_student(user_id, student_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    updated = sis_service.update_student_profile(org_id, student_id, data)
+    if updated is None:
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    return jsonify({'success': True, 'student': updated})
+
+
+@bp.route('/students/<student_id>/classes', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def student_classes(user_id, student_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not sis_service.student_in_org(student_id, org_id):
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    return jsonify({'success': True, 'classes': sis_service.list_student_classes(org_id, student_id)})
+
+
+@bp.route('/students/<student_id>/message', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def message_student(user_id, student_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not sis_service.student_in_org(student_id, org_id):
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    data = request.get_json() or {}
+    body = (data.get('body') or '').strip()
+    if not body:
+        return jsonify({'success': False, 'error': 'Message body is required'}), 400
+    try:
+        result = sis_service.message_student(student_id, user_id, (data.get('subject') or '').strip(), body)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    return jsonify({'success': True, **result})
+
+
 # ── Emergency contacts ───────────────────────────────────────────────────────
 @bp.route('/students/<student_id>/emergency-contacts', methods=['GET'])
 @require_role(*STAFF_ROLES)
@@ -242,7 +296,5 @@ def register_sis_routes(app):
     app.register_blueprint(attendance_bp)
     from routes.sis.reports import bp as reports_bp
     app.register_blueprint(reports_bp)
-    from routes.sis.checkin import bp as checkin_bp
-    app.register_blueprint(checkin_bp)
     from routes.sis.parent import bp as parent_bp
     app.register_blueprint(parent_bp)

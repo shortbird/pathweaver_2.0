@@ -77,7 +77,7 @@ const MyInvitations = () => {
           Quest Invitations
         </h1>
         <p className="text-gray-600">
-          Advisors have invited you to embark on these learning quests
+          Teachers have invited you to embark on these learning quests
         </p>
       </div>
 

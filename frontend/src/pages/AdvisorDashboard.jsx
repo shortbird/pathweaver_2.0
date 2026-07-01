@@ -104,7 +104,7 @@ export default function AdvisorDashboard() {
         {/* Header */}
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white py-4 px-4">
           <h1 className="text-xl font-bold">
-            {selectedStudent ? getStudentName(selectedStudent) : 'Advisor Dashboard'}
+            {selectedStudent ? getStudentName(selectedStudent) : 'Teacher Dashboard'}
           </h1>
           {!selectedStudent && (
             <p className="text-sm text-white/80 mt-0.5">
@@ -146,7 +146,7 @@ export default function AdvisorDashboard() {
       <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white py-4 px-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">Advisor Dashboard</h1>
+            <h1 className="text-xl font-bold">Teacher Dashboard</h1>
             <p className="text-sm text-white/80 mt-0.5">
               {students.length} student{students.length !== 1 ? 's' : ''}
               {(rhythmCounts.in_flow || 0) > 0 && ` -- ${rhythmCounts.in_flow} in flow`}

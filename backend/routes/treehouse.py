@@ -215,8 +215,8 @@ def home(user_id):
                     .select('id', count='exact')
                     .eq('user_id', user_id).eq('is_active', True).is_('completed_at', 'null').execute())
     # Student's own spendable-XP ("coins") balance for School Jobs rewards.
-    from repositories.yeti_repository import YetiRepository
-    spendable_xp = YetiRepository().get_spendable_xp_balance(user_id)
+    from repositories.wallet_repository import WalletRepository
+    spendable_xp = WalletRepository().get_balance(user_id)
     return jsonify({
         'success': True,
         'recent': recent,
@@ -461,9 +461,9 @@ def student_balance(user_id, student_id):
     admin = get_supabase_admin_client()
     if not (ctx['is_superadmin'] or _student_in_org(admin, student_id, ctx['org_id'])):
         return jsonify({'success': False, 'error': 'Student not in Treehouse'}), 403
-    from repositories.yeti_repository import YetiRepository
-    yeti = YetiRepository()  # no user_id -> admin client (BaseRepository default)
-    balance = yeti.get_spendable_xp_balance(student_id)
+    from repositories.wallet_repository import WalletRepository
+    wallet = WalletRepository()  # no user_id -> admin client (BaseRepository default)
+    balance = wallet.get_balance(student_id)
     return jsonify({'success': True, 'spendable_xp': balance}), 200
 
 
@@ -483,16 +483,15 @@ def adjust_balance(user_id, student_id):
         amount = int(data.get('amount'))
     except (TypeError, ValueError):
         return jsonify({'success': False, 'error': 'amount must be an integer'}), 400
-    from repositories.yeti_repository import YetiRepository
-    yeti = YetiRepository()  # no user_id -> admin client (BaseRepository default)
-    # K1 fix: add_spendable_xp is a no-op when the student has no Yeti pet (most
-    # Treehouse students, who never opened the pet UI). Create one so the balance
-    # actually persists — otherwise the adjust silently reverts on refresh.
-    if not yeti.get_pet_by_user_id(student_id):
-        yeti.create_pet(student_id, 'Coin Jar')
-    yeti.add_spendable_xp(student_id, amount)
+    from repositories.wallet_repository import WalletRepository
+    wallet = WalletRepository()  # no user_id -> admin client (BaseRepository default)
+    # add() is a no-op when the student has no wallet (most Treehouse students,
+    # who never entered the coin economy). Create one so the balance actually
+    # persists — otherwise the adjust silently reverts on refresh.
+    wallet.ensure_wallet(student_id)
+    wallet.add(student_id, amount)
     logger.info(f"Treehouse balance adjust {amount} for {student_id[:8]} by {user_id[:8]}")
-    return jsonify({'success': True, 'spendable_xp': yeti.get_spendable_xp_balance(student_id)}), 200
+    return jsonify({'success': True, 'spendable_xp': wallet.get_balance(student_id)}), 200
 
 
 # ── showcase events ──────────────────────────────────────────────────────────

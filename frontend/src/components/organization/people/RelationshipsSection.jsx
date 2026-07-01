@@ -41,7 +41,7 @@ function RelationshipsSection({
         <div className="flex items-center gap-3">
           <UsersIcon className="w-5 h-5 text-optio-purple" />
           <span className="font-semibold text-gray-900">Relationships</span>
-          <span className="text-sm text-gray-500">Advisor-Student and Parent-Student connections</span>
+          <span className="text-sm text-gray-500">Teacher-Student and Parent-Student connections</span>
         </div>
         <ChevronRightIcon className={`w-5 h-5 text-gray-400 transition-transform ${showRelationships ? 'rotate-90' : ''}`} />
       </button>
@@ -64,7 +64,7 @@ function RelationshipsSection({
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  Advisors ({advisors.length})
+                  Teachers ({advisors.length})
                 </button>
                 <button
                   onClick={() => setRelationshipView('parents')}
@@ -85,7 +85,7 @@ function RelationshipsSection({
                   {advisors.length > 0 && (
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500">Advisors</p>
+                        <p className="text-xs text-gray-500">Teachers</p>
                         <p className="text-lg font-bold text-gray-900">{advisors.length}</p>
                       </div>
                       <div className="bg-gray-50 rounded-lg p-3">
@@ -101,7 +101,7 @@ function RelationshipsSection({
                   {advisors.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
                       <UsersIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                      <p>No advisors found in this organization</p>
+                      <p>No teachers found in this organization</p>
                       <p className="text-sm mt-1">Invite users with the "advisor" role first</p>
                     </div>
                   ) : (
@@ -119,7 +119,7 @@ function RelationshipsSection({
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                 advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                               }`}>
-                                {advisor.role === 'org_admin' ? 'Admin' : 'Advisor'}
+                                {advisor.role === 'org_admin' ? 'Admin' : 'Teacher'}
                               </span>
                             </div>
                             <p className="text-sm text-gray-500">{advisor.email}</p>

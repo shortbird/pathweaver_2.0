@@ -143,7 +143,7 @@ export default function ClassStudentsTab({ orgId, classId, classData, onUpdate }
             onClick={handleCreateGroupChat}
             disabled={creatingGroup || students.length === 0}
             className="flex items-center gap-2 px-4 py-2 text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Create a group chat with this class's students and advisors"
+            title="Create a group chat with this class's students and teachers"
           >
             <ChatBubbleLeftRightIcon className="w-5 h-5" />
             {creatingGroup ? 'Working…' : 'Group chat'}

@@ -16,16 +16,18 @@ vi.mock('react-hot-toast', () => ({
 
 const { api } = vi.hoisted(() => {
   const apiData = (url) => {
-    if (url.includes('/api/sis/programs')) {
-      return { data: { programs: [{ id: 'p1', name: 'Full Day', class_count: 1 }] } }
-    }
-    if (url.includes('/meetings')) {
-      return { data: { meetings: [] } }
+    if (url.includes('/waitlist')) return { data: { waitlist: [] } }
+    if (url.includes('/api/courses')) {
+      return { data: { courses: [
+        { id: 'crs1', title: 'Intro to Robotics', description: 'Build robots', status: 'published',
+          visibility: 'public', organization_id: 'other-org', age_range: '10-14', estimated_hours: 12 },
+      ] } }
     }
     if (url.includes('/api/sis/classes')) {
       return { data: { classes: [
-        { id: 'c1', name: 'Pottery', program_name: 'Full Day', enrolled_count: 2, capacity: 10,
-          price_cents: 5000, is_full: false, registration_status: 'closed', meetings: [] },
+        { id: 'c1', name: 'Pottery', description: 'Clay', enrolled_count: 2, capacity: 10,
+          supply_fee: 15, min_age: 8, max_age: 12, is_full: false, registration_status: 'closed',
+          meetings: [] },
       ] } }
     }
     return { data: {} }
@@ -33,7 +35,7 @@ const { api } = vi.hoisted(() => {
   return {
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
-      post: vi.fn(() => Promise.resolve({ data: { program: { id: 'p2' }, class: { id: 'c2' }, meeting: { id: 'm1' } } })),
+      post: vi.fn(() => Promise.resolve({ data: { class: { id: 'c2' } } })),
       patch: vi.fn(() => Promise.resolve({ data: { class: { id: 'c1' } } })),
       delete: vi.fn(() => Promise.resolve({ data: {} })),
     },
@@ -50,75 +52,44 @@ beforeEach(() => {
 })
 
 describe('ClassesPage', () => {
-  it('lists programs and classes', async () => {
+  it('lists classes with their data points', async () => {
     render(<ClassesPage />)
     expect(await screen.findByText('Pottery')).toBeInTheDocument()
-    expect(screen.getAllByText(/Full Day/).length).toBeGreaterThan(0)
+    expect(screen.getByText('8–12')).toBeInTheDocument()
+    expect(screen.getByText('$15.00')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/classes'))
   })
 
-  it('creates a program', async () => {
+  it('creates a class via the modal', async () => {
     render(<ClassesPage />)
     await screen.findByText('Pottery')
-    fireEvent.change(screen.getByPlaceholderText(/New program name/), { target: { value: 'Half-Day' } })
-    fireEvent.click(screen.getByText('Add program'))
+    fireEvent.click(screen.getByText('Create class')) // page button opens modal
+    fireEvent.change(screen.getByLabelText(/Class Name/), { target: { value: 'Drawing' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Class' })) // modal submit
     await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/sis/programs', expect.objectContaining({ name: 'Half-Day' })),
+      expect(api.post).toHaveBeenCalledWith('/api/sis/classes', expect.objectContaining({
+        name: 'Drawing', organization_id: 'org-1',
+      })),
     )
   })
 
-  it('creates a class converting price to cents', async () => {
+  it('edits a class via the modal', async () => {
     render(<ClassesPage />)
     await screen.findByText('Pottery')
-    fireEvent.change(screen.getByPlaceholderText('New class name'), { target: { value: 'Drawing' } })
-    fireEvent.change(screen.getByPlaceholderText('Price $'), { target: { value: '49.50' } })
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('Edit'))
+    fireEvent.change(screen.getByDisplayValue('Pottery'), { target: { value: 'Pottery II' } })
+    fireEvent.click(screen.getByText('Save changes'))
     await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/sis/classes', expect.objectContaining({
-        name: 'Drawing', price_cents: 4950,
-      })),
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ name: 'Pottery II' })),
     )
   })
 
   it('toggles registration status', async () => {
     render(<ClassesPage />)
     await screen.findByText('Pottery')
-    fireEvent.click(screen.getByText('Registration closed'))
+    fireEvent.click(screen.getByRole('switch'))
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
-    )
-  })
-
-  it('renames a program', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
-    fireEvent.click(screen.getAllByText('Edit')[0]) // first Edit = program row
-    const input = screen.getByDisplayValue('Full Day')
-    fireEvent.change(input, { target: { value: 'Full-Day Microschool' } })
-    fireEvent.click(screen.getByText('Save'))
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('/api/sis/programs/p1', expect.objectContaining({ name: 'Full-Day Microschool' })),
-    )
-  })
-
-  it('archives a program after confirm', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
-    fireEvent.click(screen.getAllByText('Archive')[0]) // first Archive = program row
-    await waitFor(() =>
-      expect(api.delete).toHaveBeenCalledWith(expect.stringContaining('/api/sis/programs/p1')),
-    )
-  })
-
-  it('edits a class converting price to cents', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
-    fireEvent.click(screen.getAllByText('Edit')[1]) // second Edit = class card
-    fireEvent.change(screen.getByDisplayValue('50.00'), { target: { value: '75.00' } })
-    fireEvent.click(screen.getByText('Save'))
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ price_cents: 7500 })),
     )
   })
 
@@ -126,9 +97,26 @@ describe('ClassesPage', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ClassesPage />)
     await screen.findByText('Pottery')
-    fireEvent.click(screen.getAllByText('Archive')[1]) // second Archive = class row
+    fireEvent.click(screen.getByText('Archive'))
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith(expect.stringContaining('/api/sis/classes/c1')),
     )
+  })
+
+  it('lists Optio courses in the catalog and opens the enroll modal', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery') // default view = org classes
+    fireEvent.click(screen.getByText(/^Optio Courses \(/))
+    expect(await screen.findByText('Intro to Robotics')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Enroll student'))
+    expect(await screen.findByText('Enroll a student')).toBeInTheDocument()
+  })
+
+  it('filters to courses only', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByText(/^Optio Courses \(/))
+    expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
+    expect(screen.queryByText('Pottery')).not.toBeInTheDocument()
   })
 })

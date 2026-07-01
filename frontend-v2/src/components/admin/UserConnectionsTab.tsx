@@ -41,7 +41,7 @@ interface Candidate {
 }
 
 const ADD_BUTTONS: { type: AddType; label: string; tint: string }[] = [
-  { type: 'advisor', label: 'Add Advisor', tint: 'amber' },
+  { type: 'advisor', label: 'Add Teacher', tint: 'amber' },
   { type: 'parent', label: 'Add Parent', tint: 'green' },
   { type: 'student', label: 'Add Student', tint: 'blue' },
   { type: 'observer', label: 'Add Observer', tint: 'purple' },
@@ -65,7 +65,7 @@ function directionLabel(direction: Connection['direction']): string {
   switch (direction) {
     case 'student': return 'Student';
     case 'child': return 'Child';
-    case 'advisor': return 'Advisor';
+    case 'advisor': return 'Teacher';
     case 'parent': return 'Parent';
     case 'observing': return 'Observing';
     case 'observed_by': return 'Observer';

@@ -72,14 +72,6 @@ vi.mock('../components/parent/ParentMomentCaptureButton', () => ({
   default: () => null
 }))
 
-vi.mock('../components/admin/QuestForm', () => ({
-  default: () => null
-}))
-
-vi.mock('../components/parent/FamilyQuestChildSelector', () => ({
-  default: () => null
-}))
-
 vi.mock('@heroicons/react/24/outline', () => ({
   ExclamationTriangleIcon: (props) => <svg data-testid="warning-icon" {...props} />,
   UserIcon: (props) => <svg data-testid="user-icon" {...props} />,

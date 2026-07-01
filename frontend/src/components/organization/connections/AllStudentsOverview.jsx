@@ -9,7 +9,7 @@ function AllStudentsOverview({ allStudentsWithAdvisors, handleViewStudentAdvisor
     <section className="bg-white rounded-lg shadow p-6">
       <div className="mb-6">
         <h3 className="text-xl font-bold mb-2">All Students Overview</h3>
-        <p className="text-gray-600 text-sm">View advisor assignments for all students. Students can have multiple advisors.</p>
+        <p className="text-gray-600 text-sm">View teacher assignments for all students. Students can have multiple teachers.</p>
       </div>
 
       {allStudentsWithAdvisors.length === 0 ? (
@@ -23,7 +23,7 @@ function AllStudentsOverview({ allStudentsWithAdvisors, handleViewStudentAdvisor
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Student</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Advisors</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Teachers</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -66,7 +66,7 @@ function AllStudentsOverview({ allStudentsWithAdvisors, handleViewStudentAdvisor
                       className="inline-flex items-center px-3 py-1 text-sm text-optio-purple hover:bg-purple-50 rounded-lg transition-colors font-medium gap-1"
                     >
                       <EyeIcon className="w-4 h-4" />
-                      View Advisors
+                      View Teachers
                     </button>
                   </td>
                 </tr>

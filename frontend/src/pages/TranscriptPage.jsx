@@ -101,15 +101,6 @@ const TranscriptPage = () => {
             <div className="font-medium text-gray-900">Badge Progress</div>
             <div className="text-xs text-gray-600">Track badge achievements</div>
           </a>
-
-          <a
-            href="/constellation"
-            className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-          >
-            <div className="text-2xl mb-2">⭐</div>
-            <div className="font-medium text-gray-900">Constellation</div>
-            <div className="text-xs text-gray-600">Visualize your journey</div>
-          </a>
         </div>
       </div>
     </div>

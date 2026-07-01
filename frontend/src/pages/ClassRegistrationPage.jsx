@@ -226,7 +226,6 @@ const ClassRegistrationPage = () => {
                 <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-start justify-between gap-4">
                   <div>
                     <div className="font-medium text-neutral-900">{c.name}</div>
-                    {c.program_name && <div className="text-xs text-neutral-400">{c.program_name}</div>}
                     <div className="text-sm text-neutral-500 mt-1">
                       {money(c.price_cents)}
                       {c.capacity != null && <span className="ml-2">· {c.spots_left} spot{c.spots_left === 1 ? '' : 's'} left</span>}

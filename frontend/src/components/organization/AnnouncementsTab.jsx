@@ -5,7 +5,7 @@ import api from '../../services/api'
 
 const ROLE_OPTIONS = [
   { value: 'students', label: 'Students' },
-  { value: 'advisors', label: 'Advisors' },
+  { value: 'advisors', label: 'Teachers' },
   { value: 'parents', label: 'Parents' },
 ]
 

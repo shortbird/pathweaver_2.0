@@ -17,6 +17,7 @@ from database import get_supabase_admin_client
 from services import sis_registration_service as regs
 from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
+from services import sis_planned_absence_service as absences
 from utils.org_features import org_has_feature
 from utils.logger import get_logger
 
@@ -233,3 +234,31 @@ def submit(user_id: str, org_id: str, reg_id: str) -> Dict[str, Any]:
     if not reg.get('items'):
         return {'error': 'Add at least one class before submitting'}
     return {'registration': regs.submit(org_id, reg_id)}
+
+
+# ── Planned absences (guardian-scoped) ────────────────────────────────────────
+def list_absences(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
+    """Upcoming planned absences for a child + the classes the parent can pick from."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    return {
+        'absences': absences.list_for_student(org_id, student_user_id),
+        'classes': absences.student_scheduled_classes(org_id, student_user_id),
+    }
+
+
+def create_absence(user_id: str, org_id: str, student_user_id: str, absence_date: str,
+                   class_id: Optional[str] = None, reason: Optional[str] = None) -> Dict[str, Any]:
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    return absences.create(org_id, student_user_id, reported_by=user_id,
+                           absence_date=absence_date, class_id=class_id, reason=reason)
+
+
+def cancel_absence(user_id: str, absence_id: str) -> Dict[str, Any]:
+    row = absences.get(absence_id)
+    if not row:
+        return {'error': 'Absence not found'}
+    if not _can_register(user_id, row['organization_id'], row['student_user_id']):
+        return {'error': 'Not authorized for this student'}
+    return {'ok': absences.cancel(absence_id, row['organization_id'])}

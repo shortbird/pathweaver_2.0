@@ -110,10 +110,10 @@ describe('AdvisorDashboard', () => {
 
   // --- Desktop rendering ---
   describe('desktop rendering', () => {
-    it('renders Advisor Dashboard heading', async () => {
+    it('renders Teacher Dashboard heading', async () => {
       render(<AdvisorDashboard />)
       await waitFor(() => {
-        expect(screen.getByText('Advisor Dashboard')).toBeInTheDocument()
+        expect(screen.getByText('Teacher Dashboard')).toBeInTheDocument()
       })
     })
 

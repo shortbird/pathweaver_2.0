@@ -121,7 +121,7 @@ function labelForPrefix(prefix: string): string {
     case '/courses': return 'Courses';
     case '/quests': return 'Quests';
     case '/admin': return 'The admin panel';
-    case '/advisor': return 'The advisor panel';
+    case '/advisor': return 'The teacher panel';
     case '/invitations': return 'Quest invitations';
     default: return 'This page';
   }

@@ -29,7 +29,6 @@ test.describe('Student Dashboard', () => {
   test('ST6: Dashboard sidebar navigation is visible', async ({ page }) => {
     await expect(page.getByText('Quests').first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Journal').first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Buddy').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('ST7: Dashboard shows current quests section', async ({ page }) => {

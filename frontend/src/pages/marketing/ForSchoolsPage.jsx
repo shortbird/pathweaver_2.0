@@ -236,7 +236,7 @@ const ForSchoolsPage = () => {
                   'Students choose or create their own learning adventures',
                   'XP system across five learning pillars replaces traditional grades',
                   'Automatic portfolio captures work as students complete tasks',
-                  'Advisors guide and support without controlling the path',
+                  'Teachers guide and support without controlling the path',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <CheckIcon />

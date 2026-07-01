@@ -22,7 +22,7 @@ function AssignStudentsModal({
 
   return (
     <Modal
-      title={`Assign Students to ${selectedAdvisor?.first_name || selectedAdvisor?.display_name || 'Advisor'}`}
+      title={`Assign Students to ${selectedAdvisor?.first_name || selectedAdvisor?.display_name || 'Teacher'}`}
       onClose={onClose}
     >
       <div className="px-6 py-4 border-b">

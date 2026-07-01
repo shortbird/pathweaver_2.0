@@ -27,7 +27,6 @@ from .engagement import bp as engagement_bp
 from .child_overview import bp as child_overview_bp
 from .communications import bp as communications_bp
 from .learning_moments import bp as learning_moments_bp
-from .family_quest_ai import bp as family_quest_ai_bp
 
 # Export blueprints for direct import
 __all__ = [
@@ -40,7 +39,6 @@ __all__ = [
     'child_overview_bp',
     'communications_bp',
     'learning_moments_bp',
-    'family_quest_ai_bp',
     'register_parent_blueprints'
 ]
 
@@ -56,4 +54,3 @@ def register_parent_blueprints(app: Flask):
     app.register_blueprint(child_overview_bp)
     app.register_blueprint(communications_bp)
     app.register_blueprint(learning_moments_bp)
-    app.register_blueprint(family_quest_ai_bp)

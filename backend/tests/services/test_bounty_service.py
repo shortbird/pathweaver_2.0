@@ -18,7 +18,7 @@ def _make_service():
     from services.bounty_service import BountyService
     service = BountyService()
     service.repository = Mock()
-    service.yeti_repository = Mock()
+    service.wallet_repository = Mock()
     return service
 
 
@@ -246,7 +246,7 @@ class TestReviewSubmission:
 
         assert result['status'] == 'approved'
         # Spendable XP should be awarded
-        service.yeti_repository.add_spendable_xp.assert_called_once_with(student_id, 100)
+        service.wallet_repository.add.assert_called_once_with(student_id, 100)
 
     def test_reject_no_xp(self):
         service = _make_service()
@@ -264,7 +264,7 @@ class TestReviewSubmission:
 
         result = service.review_submission(claim_id, str(uuid.uuid4()), 'rejected', 'Try again')
         assert result['status'] == 'rejected'
-        service.yeti_repository.add_spendable_xp.assert_not_called()
+        service.wallet_repository.add.assert_not_called()
 
     def test_review_invalid_decision(self):
         service = _make_service()

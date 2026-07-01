@@ -9,7 +9,7 @@ course that fell short. Notifications reuse the existing pipeline (sis_notificat
 oea_compliance_alerts so an admin is flagged at most once per course per quarter,
 even though the dispatcher runs many times.
 
-Modeled directly on services/sis_checkin_sweep_service.py.
+Modeled directly on services/sis_attendance_sweep_service.py.
 """
 
 from datetime import date

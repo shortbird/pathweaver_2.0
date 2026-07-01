@@ -144,10 +144,10 @@ expect(screen.getAllByText('Docs').length).toBeGreaterThanOrEqual(1)
       authState = { user: { id: 'advisor-1', role: 'advisor' } }
     })
 
-    it('renders Advisor Panel heading', async () => {
+    it('renders Teacher Panel heading', async () => {
       renderAdmin()
       await waitFor(() => {
-        expect(screen.getByText('Advisor Panel')).toBeInTheDocument()
+        expect(screen.getByText('Teacher Panel')).toBeInTheDocument()
       })
     })
 

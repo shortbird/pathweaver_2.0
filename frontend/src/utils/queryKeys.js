@@ -62,12 +62,6 @@ export const queryKeys = {
     myPosted: ['bounties', 'my-posted'],
   },
 
-  // Buddy queries
-  buddy: {
-    all: ['buddy'],
-    record: (userId) => [...queryKeys.buddy.all, 'record', userId],
-  },
-
   // Admin queries
   admin: {
     all: ['admin'],
@@ -122,11 +116,6 @@ export const mutationKeys = {
   createBounty: 'createBounty',
   reviewBounty: 'reviewBounty',
   moderateBounty: 'moderateBounty',
-
-  // Buddy mutations
-  createBuddy: 'createBuddy',
-  feedBuddy: 'feedBuddy',
-  tapBuddy: 'tapBuddy',
 
   // Quest mutations
   enrollQuest: 'enrollQuest',

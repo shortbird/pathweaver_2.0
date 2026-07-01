@@ -8,7 +8,7 @@ test.describe('Advisor Suite', () => {
 
   test('AD1: Advisor page loads after login', async ({ page }) => {
     // Advisor redirects to Advisor page with "Advisor" heading
-    await expect(page.getByText('Advisor').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Teacher').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('AD2: Advisor page shows student count', async ({ page }) => {

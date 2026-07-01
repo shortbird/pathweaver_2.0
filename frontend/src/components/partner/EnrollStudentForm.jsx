@@ -44,11 +44,11 @@ const isSelectableCourse = (course, orgId) =>
  *   orgId        - organization id to register the student into
  *   onRegistered - optional callback fired after a successful registration
  */
-export default function EnrollStudentForm({ orgId, onRegistered }) {
+export default function EnrollStudentForm({ orgId, onRegistered, initialCourseIds = [] }) {
   const [courses, setCourses] = useState([])
   const [loadingCourses, setLoadingCourses] = useState(true)
   const [form, setForm] = useState(BLANK_FORM)
-  const [selected, setSelected] = useState([])
+  const [selected, setSelected] = useState(initialCourseIds)
   const [courseSearch, setCourseSearch] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')

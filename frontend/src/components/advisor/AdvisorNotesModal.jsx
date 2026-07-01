@@ -117,7 +117,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
               <DocumentTextIcon className="h-7 w-7" />
-              Advisor Notes
+              Teacher Notes
             </h2>
             <p className="text-purple-100 mt-1">Confidential notes for {subjectName}</p>
           </div>

@@ -8,7 +8,7 @@ test.describe('Organization Invitations', () => {
 
   test('INV9: Org admin can access advisor page', async ({ page }) => {
     // Org admin lands on advisor page which has management features
-    await expect(page.getByText('Advisor').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Teacher').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('INV10: Org admin page shows student management UI', async ({ page }) => {
@@ -39,7 +39,7 @@ test.describe('Organization Invitations', () => {
   test('INV14: Org admin page is interactive', async ({ page }) => {
     await page.waitForTimeout(3000);
     // Verify the advisor page loaded and is interactive
-    await expect(page.getByText('Advisor').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Teacher').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('INV15: Org admin can navigate between pages', async ({ page }) => {

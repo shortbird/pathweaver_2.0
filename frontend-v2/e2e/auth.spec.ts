@@ -14,7 +14,7 @@ test.describe('Auth Suite', () => {
 
   test('A3: Login with valid advisor credentials', async ({ page }) => {
     await loginAsAdvisor(page);
-    await expect(page.getByText('Advisor').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Teacher').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('A4: Login with valid observer credentials', async ({ page }) => {
@@ -30,7 +30,7 @@ test.describe('Auth Suite', () => {
 
   test('A6: Login with valid org admin credentials', async ({ page }) => {
     await loginAsOrgAdmin(page);
-    await expect(page.getByText('Advisor').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Teacher').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('A7: Login with invalid email shows error', async ({ page }) => {

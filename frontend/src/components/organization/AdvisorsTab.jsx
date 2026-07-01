@@ -38,7 +38,7 @@ export default function AdvisorsTab({ orgId }) {
       setAdvisors(response.data.advisors || [])
     } catch (error) {
       console.error('Error fetching advisors:', error)
-      toast.error('Failed to load advisors')
+      toast.error('Failed to load teachers')
     } finally {
       setLoading(false)
     }
@@ -182,7 +182,7 @@ export default function AdvisorsTab({ orgId }) {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-500">Advisors</p>
+          <p className="text-sm text-gray-500">Teachers</p>
           <p className="text-2xl font-bold text-gray-900">{advisors.length}</p>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -199,9 +199,9 @@ export default function AdvisorsTab({ orgId }) {
       {advisors.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <UsersIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No advisors yet</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No teachers yet</h3>
           <p className="text-gray-500 max-w-md mx-auto">
-            Invite users with the "advisor" role to your organization, or org admins can also act as advisors.
+            Invite users with the "advisor" role to your organization, or org admins can also act as teachers.
             Go to the People tab to add users.
           </p>
         </div>
@@ -225,7 +225,7 @@ export default function AdvisorsTab({ orgId }) {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                         advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {advisor.role === 'org_admin' ? 'Admin' : 'Advisor'}
+                        {advisor.role === 'org_admin' ? 'Admin' : 'Teacher'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500">{advisor.email}</p>
@@ -305,7 +305,7 @@ export default function AdvisorsTab({ orgId }) {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
             <div className="px-6 py-4 border-b flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900">
-                Assign Students to {selectedAdvisor.first_name || selectedAdvisor.display_name || 'Advisor'}
+                Assign Students to {selectedAdvisor.first_name || selectedAdvisor.display_name || 'Teacher'}
               </h3>
               <button
                 onClick={() => {

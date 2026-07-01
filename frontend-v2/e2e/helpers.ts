@@ -70,7 +70,7 @@ export async function loginAsOrgAdmin(page: Page) {
 
 /**
  * Navigate by URL path - more reliable than clicking sidebar text.
- * Sidebar items: Home, Courses, Quests, Bounties, Buddy, Feed, Journal, Messages, Advisor, Admin
+ * Sidebar items: Home, Courses, Quests, Bounties, Feed, Journal, Messages, Advisor, Admin
  * Profile and Family are NOT in the sidebar (accessed via avatar or URL).
  */
 const ROUTES: Record<string, string> = {
@@ -78,7 +78,6 @@ const ROUTES: Record<string, string> = {
   courses: '/(app)/(tabs)/courses',
   quests: '/(app)/(tabs)/quests',
   bounties: '/(app)/(tabs)/bounties',
-  buddy: '/(app)/(tabs)/buddy',
   feed: '/(app)/(tabs)/feed',
   journal: '/(app)/(tabs)/journal',
   family: '/(app)/(tabs)/family',
@@ -94,13 +93,12 @@ const ROUTES: Record<string, string> = {
  * falls back to URL for hidden sections (profile, family).
  * Must be called AFTER login (session cookies required).
  */
-const SIDEBAR_ITEMS = ['dashboard', 'courses', 'quests', 'bounties', 'buddy', 'feed', 'journal', 'messages', 'advisor', 'admin'];
+const SIDEBAR_ITEMS = ['dashboard', 'courses', 'quests', 'bounties', 'feed', 'journal', 'messages', 'advisor', 'admin'];
 const SIDEBAR_LABELS: Record<string, string> = {
   dashboard: 'Home',
   courses: 'Courses',
   quests: 'Quests',
   bounties: 'Bounties',
-  buddy: 'Buddy',
   feed: 'Feed',
   journal: 'Journal',
   messages: 'Messages',

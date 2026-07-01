@@ -252,7 +252,7 @@ const ReviewQueueTab = () => {
             >
               <option value="all">All Sources</option>
               <option value="ai_generated">AI Generated</option>
-              <option value="advisor_ai">Advisor AI</option>
+              <option value="advisor_ai">Teacher AI</option>
               <option value="student_ai">Student AI</option>
             </select>
           </div>

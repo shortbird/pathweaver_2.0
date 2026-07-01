@@ -10,54 +10,7 @@ import MasqueradeBanner from '../admin/MasqueradeBanner'
 import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeService'
 import api from '../../services/api'
 import { toast } from 'react-hot-toast'
-
-// School-specific program tabs, keyed by the member organization's slug. Each
-// microschool that gets a custom in-app implementation adds an entry here; the
-// tab shows only for members of that organization. First school: OpenEd Academy.
-const ORG_PROGRAM_TABS = {
-  oea: {
-    name: 'OpenEd Academy',
-    path: '/opened-academy',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7" />
-      </svg>
-    )
-  },
-  'hearthwood-test': {
-    name: 'Hearthwood Academy',
-    path: '/opened-academy',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7" />
-      </svg>
-    )
-  },
-  treehouse: {
-    name: 'The Treehouse',
-    path: '/treehouse',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l4 5h-3v3h2l4 6H7l4-6h2V8h-3l2-5z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17v4" />
-      </svg>
-    )
-  },
-  gryffin: {
-    name: 'Gryffin Learning Center',
-    path: '/gryffin',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-      </svg>
-    )
-  }
-}
+import { getProgramNavItem } from '../../programs/registry'
 
 const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
@@ -256,37 +209,17 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // School-specific program tab — shown to members of a partner organization
-  // that has a custom in-app implementation (keyed by org slug). First school:
-  // OpenEd Academy (/opened-academy), where parents manage their students'
-  // pathways/credits and students see a read-only view of their own diploma.
-  // Org admins manage the program from /organization, so it's hidden from them.
-  // OEA hides the tab from org_admins (they manage from /organization). The
-  // Treehouse program page branches student vs facilitator in-page, so its tab
-  // shows to facilitators (org_admin/advisor) too.
-  const programTab = organization?.slug ? ORG_PROGRAM_TABS[organization.slug] : null
-  if (programTab && (organization?.slug === 'treehouse' || effectiveRole !== 'org_admin')) {
-    // Use the org's uploaded logo (branding_config.logo_url, set via /organization)
-    // as the tab icon when present; otherwise fall back to the built-in icon.
-    const orgLogoUrl = organization?.branding_config?.logo_url
-    const tab = orgLogoUrl
-      ? { ...programTab, icon: <img src={orgLogoUrl} alt="" className="w-5 h-5 object-contain rounded" /> }
-      : programTab
-    navItems.push(tab)
-  }
+  // School-specific program tab for members of a partner organization. The
+  // program registry (src/programs/registry.jsx) owns which slug maps to which
+  // tab, its icon, and whether org admins see it — core stays program-agnostic.
+  // An org-uploaded logo (branding_config.logo_url) overrides the built-in icon.
+  const programTab = getProgramNavItem({
+    slug: organization?.slug,
+    effectiveRole,
+    orgLogoUrl: organization?.branding_config?.logo_url,
+  })
+  if (programTab) navItems.push(programTab)
 
-  // Buddy nav - superadmin only for now
-  if (user?.role === 'superadmin') {
-    navItems.push({
-      name: 'Buddy',
-      path: '/buddy',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-        </svg>
-      )
-    })
-  }
 
   // Add Activity Feed link for students to view their evidence feed and invite observers
   const isStudent = user?.role === 'student' || user?.org_role === 'student' || (user?.org_roles && user.org_roles.includes('student'))
@@ -329,6 +262,16 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     })
+    // Absences: guardians report when a child will be out (whole day or a class).
+    navItems.push({
+      name: 'Absences',
+      path: '/absences',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
+    })
   }
 
   // Add Advisor link if user is advisor (platform or org) OR has advisor assignments (parent-advisor implicit access)
@@ -336,7 +279,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const isAdvisor = userHasRole('advisor') || user?.has_advisor_assignments
   if (isAdvisor) {
     navItems.push({
-      name: 'Advisor',
+      name: 'Teacher',
       path: '/advisor/dashboard',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -363,7 +306,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     // Only add Advisor link if not already added
     if (!isAdvisor) {
       navItems.push({
-        name: 'Advisor',
+        name: 'Teacher',
         path: '/advisor/dashboard',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -456,7 +399,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // in the SIS console (sis.optioeducation.com), not the learning sidebar. Remove
   // them here. The global platform "Admin" panel (mixed LMS content) is intentionally
   // NOT removed. A "School Admin" launcher (below) links staff to the SIS surface.
-  const SIS_MOVED_ITEMS = new Set(['Organization', 'Advisor', 'Credit Review'])
+  const SIS_MOVED_ITEMS = new Set(['Organization', 'Teacher', 'Credit Review'])
   if (sisEnabled) {
     navItems = navItems.filter((item) => !SIS_MOVED_ITEMS.has(item.name))
   }

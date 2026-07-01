@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from services.base_service import BaseService, ValidationError
 from repositories.base_repository import NotFoundError
 from repositories.bounty_repository import BountyRepository
-from repositories.yeti_repository import YetiRepository
+from repositories.wallet_repository import WalletRepository
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,7 +29,7 @@ class BountyService(BaseService):
     def __init__(self):
         super().__init__()
         self.repository = BountyRepository()
-        self.yeti_repository = YetiRepository()
+        self.wallet_repository = WalletRepository()
 
     def is_superadmin(self, user_id: str) -> bool:
         """Check if a user has the superadmin role."""
@@ -881,7 +881,7 @@ class BountyService(BaseService):
                 total_xp = bounty['xp_reward']
 
             if total_xp > 0:
-                self.yeti_repository.add_spendable_xp(student_id, total_xp)
+                self.wallet_repository.add(student_id, total_xp)
 
             logger.info(f"Awarded {total_xp} XP to student {student_id[:8]} for bounty {bounty['id'][:8]}")
         except Exception as e:

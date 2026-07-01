@@ -22,7 +22,7 @@ export default function SendNotificationModal({ onClose, onSuccess }) {
     { value: 'all', label: 'Everyone' },
     { value: 'students', label: 'Students Only' },
     { value: 'parents', label: 'Parents Only' },
-    { value: 'advisors', label: 'Advisors Only' }
+    { value: 'advisors', label: 'Teachers Only' }
   ]
 
   const handleAudienceChange = (value) => {

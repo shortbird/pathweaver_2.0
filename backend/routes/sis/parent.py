@@ -124,3 +124,47 @@ def submit(user_id, reg_id):
         code = 404 if result['error'] == 'Registration not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, 'registration': result['registration']})
+
+
+# ── Planned absences (guardian reports a child will be out) ───────────────────
+@bp.route('/absences', methods=['GET'])
+@require_auth
+def list_absences(user_id):
+    org_id = _org(request)
+    student_user_id = request.args.get('student_user_id')
+    if not org_id or not student_user_id:
+        return jsonify({'success': False, 'error': 'organization_id and student_user_id are required'}), 400
+    result = parent.list_absences(user_id, org_id, student_user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 403
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/absences', methods=['POST'])
+@require_auth
+def create_absence(user_id):
+    data = request.json or {}
+    org_id = _org(request)
+    student_user_id = data.get('student_user_id')
+    absence_date = data.get('absence_date')
+    if not org_id or not student_user_id or not absence_date:
+        return jsonify({'success': False,
+                        'error': 'organization_id, student_user_id and absence_date are required'}), 400
+    result = parent.create_absence(
+        user_id, org_id, student_user_id, absence_date,
+        class_id=data.get('class_id'), reason=data.get('reason'),
+    )
+    if result.get('error'):
+        code = 403 if result['error'] == 'Not authorized for this student' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, 'absence': result['absence']}), 201
+
+
+@bp.route('/absences/<absence_id>', methods=['DELETE'])
+@require_auth
+def cancel_absence(user_id, absence_id):
+    result = parent.cancel_absence(user_id, absence_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Absence not found' else 403
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True})

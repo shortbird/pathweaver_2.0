@@ -180,12 +180,12 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2">Organization Role(s)</label>
-            <p className="text-xs text-gray-500 mb-2">Users can have multiple roles (e.g., Parent + Advisor)</p>
+            <p className="text-xs text-gray-500 mb-2">Users can have multiple roles (e.g., Parent + Teacher)</p>
             <div className="space-y-2 border border-gray-200 rounded-lg p-3">
               {[
                 { value: 'student', label: 'Student' },
                 { value: 'parent', label: 'Parent' },
-                { value: 'advisor', label: 'Advisor' },
+                { value: 'advisor', label: 'Teacher' },
                 { value: 'observer', label: 'Observer' },
                 { value: 'org_admin', label: 'Organization Admin' }
               ].map(role => (

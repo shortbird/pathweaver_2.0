@@ -181,7 +181,7 @@ const AdminUsers = () => {
       superadmin: 'Superadmin',
       org_admin: 'Org Admin',
       org_managed: 'Org Managed',
-      advisor: 'Advisor',
+      advisor: 'Teacher',
       parent: 'Parent',
       student: 'Student',
       observer: 'Observer'
@@ -322,7 +322,7 @@ const AdminUsers = () => {
                 <option value="all">All Roles</option>
                 <option value="superadmin">Superadmins</option>
                 <option value="org_admin">Org Admins</option>
-                <option value="advisor">Advisors</option>
+                <option value="advisor">Teachers</option>
                 <option value="parent">Parents</option>
                 <option value="student">Students</option>
                 <option value="observer">Observers</option>

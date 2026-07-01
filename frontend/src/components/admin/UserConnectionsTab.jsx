@@ -321,7 +321,7 @@ const UserConnectionsTab = ({ user }) => {
   const getLabel = (conn) => {
     if (conn.direction === 'student') return 'Student'
     if (conn.direction === 'child') return 'Child'
-    if (conn.direction === 'advisor') return 'Advisor'
+    if (conn.direction === 'advisor') return 'Teacher'
     if (conn.direction === 'parent') return 'Parent'
     if (conn.direction === 'observing') return 'Observing'
     if (conn.direction === 'observed_by') return 'Observer'
@@ -337,7 +337,7 @@ const UserConnectionsTab = ({ user }) => {
   }
 
   const getAddTypeLabel = () => {
-    if (addType === 'advisor') return 'Advisor'
+    if (addType === 'advisor') return 'Teacher'
     if (addType === 'parent') return 'Parent'
     if (addType === 'student') return 'Student'
     if (addType === 'observer') return 'Observer'
@@ -361,7 +361,7 @@ const UserConnectionsTab = ({ user }) => {
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-colors"
         >
           <UserPlusIcon className="w-4 h-4" />
-          Add Advisor
+          Add Teacher
         </button>
         <button
           onClick={() => openAddForm('parent')}

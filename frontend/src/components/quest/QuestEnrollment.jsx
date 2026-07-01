@@ -45,7 +45,7 @@ const QuestEnrollment = ({
           <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
             {allowsCustomization
               ? 'Create custom tasks, write your own, or browse the task library'
-              : 'This quest has no preset tasks yet. Contact your advisor.'}
+              : 'This quest has no preset tasks yet. Contact your teacher.'}
           </p>
           <button
             onClick={() => onShowPersonalizationWizard()}

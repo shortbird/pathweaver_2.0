@@ -11,7 +11,6 @@ import {
   PlusIcon,
   Cog6ToothIcon,
   UserGroupIcon,
-  RocketLaunchIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
@@ -19,12 +18,8 @@ import RequestStudentConnectionModal from '../components/parent/RequestStudentCo
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
 import FamilySettingsModal from '../components/parent/FamilySettingsModal';
-import ParentCheckInCard from '../components/parent/ParentCheckInCard';
 import ChildOverviewContent from '../components/parent/ChildOverviewContent';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
-import QuestForm from '../components/admin/QuestForm';
-import FamilyQuestChildSelector from '../components/parent/FamilyQuestChildSelector';
-import FamilyQuestIdeaGenerator from '../components/parent/FamilyQuestIdeaGenerator';
 import ShowcaseFamilySection from '../components/parent/ShowcaseFamilySection';
 
 const ParentDashboardPage = () => {
@@ -44,10 +39,6 @@ const ParentDashboardPage = () => {
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
   const [showFamilySettingsModal, setShowFamilySettingsModal] = useState(false);
   const [overviewRefreshKey, setOverviewRefreshKey] = useState(0);
-  const [showFamilyQuestForm, setShowFamilyQuestForm] = useState(false);
-  const [showChildSelector, setShowChildSelector] = useState(false);
-  const [createdQuestData, setCreatedQuestData] = useState(null);
-  const [showQuestIdeaGenerator, setShowQuestIdeaGenerator] = useState(false);
 
   // Load children list (admin-only linking, no invitations) and dependents
   // NOTE: All hooks must be declared before any conditional returns (React Rules of Hooks)
@@ -336,16 +327,6 @@ const ParentDashboardPage = () => {
 
         {/* Header Action Buttons */}
         <div className="flex flex-wrap gap-2 sm:gap-3">
-          {(children.length > 0 || dependents.length > 0) && (
-            <button
-              onClick={() => setShowQuestIdeaGenerator(true)}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border-2 border-optio-pink text-optio-pink rounded-lg font-semibold hover:bg-optio-pink/5 transition-colors min-h-[44px] text-sm sm:text-base"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            >
-              <RocketLaunchIcon className="w-5 h-5" />
-              Create Family Quest
-            </button>
-          )}
           <button
             onClick={() => setShowFamilySettingsModal(true)}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px] text-sm sm:text-base"
@@ -369,19 +350,6 @@ const ParentDashboardPage = () => {
         </div>
       ) : (
         <>
-          {/* Daily check-in (renders only for children in an SIS-enabled school) */}
-          <ParentCheckInCard
-            children={[
-              ...children.map((c) => ({
-                id: c.student_id,
-                name: `${c.student_first_name || ''} ${c.student_last_name || ''}`.trim() || c.student_name || 'Student',
-              })),
-              ...dependents.map((d) => ({
-                id: d.id,
-                name: `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.display_name || 'Student',
-              })),
-            ]}
-          />
           {/* Student Selector */}
           {(children.length > 1 || dependents.length > 1 || (children.length > 0 && dependents.length > 0)) && (() => {
             // Build unified list for both mobile dropdown and desktop tabs
@@ -602,21 +570,6 @@ const ParentDashboardPage = () => {
         }}
       />
 
-      {/* Family Quest Creation Flow */}
-      {showFamilyQuestForm && (
-        <QuestForm
-          mode="create"
-          onClose={() => setShowFamilyQuestForm(false)}
-          createEndpoint="/api/family/quests/create"
-          templateTasksEndpoint={(questId) => `/api/family/quests/${questId}/template-tasks`}
-          onSuccess={(questData) => {
-            setCreatedQuestData(questData);
-            setShowFamilyQuestForm(false);
-            setShowChildSelector(true);
-          }}
-        />
-      )}
-
       {/* Optio Showcase — full-width section at the bottom (May 2026) */}
       {(children.length > 0 || dependents.length > 0) && (
         <div className="mt-8">
@@ -624,32 +577,6 @@ const ParentDashboardPage = () => {
         </div>
       )}
 
-      <FamilyQuestChildSelector
-        isOpen={showChildSelector}
-        onClose={() => {
-          setShowChildSelector(false);
-          setCreatedQuestData(null);
-        }}
-        questId={createdQuestData?.id}
-        questTitle={createdQuestData?.title}
-        children={children}
-        dependents={dependents}
-        onComplete={() => {
-          setShowChildSelector(false);
-          setCreatedQuestData(null);
-          setOverviewRefreshKey(prev => prev + 1);
-        }}
-      />
-
-      {/* AI-Powered Family Quest Idea Generator */}
-      <FamilyQuestIdeaGenerator
-        isOpen={showQuestIdeaGenerator}
-        onClose={() => setShowQuestIdeaGenerator(false)}
-        children={children}
-        dependents={dependents}
-        onFallbackToManual={() => setShowFamilyQuestForm(true)}
-        onComplete={() => setOverviewRefreshKey(prev => prev + 1)}
-      />
     </div>
   );
 };

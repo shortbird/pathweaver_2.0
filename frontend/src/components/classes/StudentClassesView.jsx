@@ -358,7 +358,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <UserGroupIcon className="w-5 h-5 text-optio-purple" />
-            Class Advisors
+            Class Teachers
           </h3>
           <div className="space-y-3">
             {advisors.map((assignment) => {

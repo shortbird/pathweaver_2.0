@@ -690,7 +690,7 @@ export function BountiesView() {
               <Ionicons name="create-outline" size={40} color={c.iconMuted} />
               <Heading size="sm" className="text-typo-500 dark:text-dark-typo-500 mt-3">No posted bounties</Heading>
               <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-1">
-                {canPost ? 'Post your first bounty above' : 'Parents and advisors can post bounties'}
+                {canPost ? 'Post your first bounty above' : 'Parents and teachers can post bounties'}
               </UIText>
             </Card>
           )}

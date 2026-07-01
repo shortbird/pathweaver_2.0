@@ -187,12 +187,12 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2">Organization Role(s)</label>
-            <p className="text-xs text-gray-500 mb-2">Users can have multiple roles (e.g., Parent + Advisor)</p>
+            <p className="text-xs text-gray-500 mb-2">Users can have multiple roles (e.g., Parent + Teacher)</p>
             <div className="space-y-2 border border-gray-200 rounded-lg p-3">
               {[
                 { value: 'student', label: 'Student' },
                 { value: 'parent', label: 'Parent' },
-                { value: 'advisor', label: 'Advisor' },
+                { value: 'advisor', label: 'Teacher' },
                 { value: 'observer', label: 'Observer' },
                 { value: 'org_admin', label: 'Organization Admin' }
               ].map(role => (
@@ -453,7 +453,7 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
                 <option value="all">All Roles</option>
                 <option value="student">Student</option>
                 <option value="parent">Parent</option>
-                <option value="advisor">Advisor</option>
+                <option value="advisor">Teacher</option>
                 <option value="org_admin">Org Admin</option>
               </select>
             </div>
@@ -532,7 +532,7 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
                           const roleDisplayNames = {
                             superadmin: 'Superadmin',
                             org_admin: 'Org Admin',
-                            advisor: 'Advisor',
+                            advisor: 'Teacher',
                             parent: 'Parent',
                             observer: 'Observer',
                             student: 'Student'

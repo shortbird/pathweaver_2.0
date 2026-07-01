@@ -216,7 +216,6 @@ def add_item(org_id: str, reg_id: str, class_id: str) -> Dict[str, Any]:
     payload = {
         'registration_id': reg_id,
         'class_id': class_id,
-        'program_id': klass.get('program_id'),
         'status': 'selected',
         'price_snapshot_cents': klass.get('price_cents'),
     }

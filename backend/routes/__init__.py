@@ -205,14 +205,11 @@ def register_all(app):
     from routes import lesson_helper
     app.register_blueprint(lesson_helper.bp)
 
-    # ── Task library / Spark LMS / Observer role ──────────────────────────────
+    # ── Task library / Observer role ──────────────────────────────────────────
     from routes import task_library
     app.register_blueprint(task_library.task_library_bp)
 
-    from routes import spark_integration
-    app.register_blueprint(spark_integration.bp)
-
-    # ── Canvas LTI 1.3 (separate from Spark — uses OIDC + JWS, not HMAC) ──
+    # ── Canvas LTI 1.3 (OIDC + JWS) ──
     from routes import lti as lti_routes
     app.register_blueprint(lti_routes.bp)
 
@@ -222,18 +219,12 @@ def register_all(app):
     from routes import observer
     app.register_blueprint(observer.bp)
 
-    # ── Family / mobile companions (Yeti, Bounties, Buddy) ────────────────────
+    # ── Family quests + Bounties ──────────────────────────────────────────────
     from routes.family_quests import bp as family_quests_bp
     app.register_blueprint(family_quests_bp)
 
-    from routes.yeti import yeti_bp
-    app.register_blueprint(yeti_bp)
-
     from routes.bounties import bounties_bp
     app.register_blueprint(bounties_bp)
-
-    from routes.buddy import buddy_bp
-    app.register_blueprint(buddy_bp)
 
     from routes.link_preview import bp as link_preview_bp
     app.register_blueprint(link_preview_bp)

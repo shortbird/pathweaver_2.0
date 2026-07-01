@@ -218,7 +218,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                       {/* Private Advisor Notes */}
                       {checkin.advisor_notes && (
                         <div>
-                          <h4 className="font-bold text-red-800 mb-2">Private Advisor Notes</h4>
+                          <h4 className="font-bold text-red-800 mb-2">Private Teacher Notes</h4>
                           <p className="text-gray-700 whitespace-pre-wrap bg-red-50 border-l-4 border-red-400 p-3 rounded">
                             {checkin.advisor_notes}
                           </p>

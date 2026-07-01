@@ -91,7 +91,7 @@ function EvidenceBlockRow({ block }: { block: EvidenceBlock }) {
   const c = useThemeColors();
   const uploaderLabel = (() => {
     if (block.uploaded_by_role === 'parent') return `Added by ${block.uploaded_by_name || 'you'}`;
-    if (block.uploaded_by_role === 'advisor') return `Added by ${block.uploaded_by_name || 'an advisor'}`;
+    if (block.uploaded_by_role === 'advisor') return `Added by ${block.uploaded_by_name || 'a teacher'}`;
     return null; // student-uploaded gets no extra label
   })();
 

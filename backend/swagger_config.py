@@ -166,7 +166,7 @@ Critical endpoints have rate limiting:
         {"name": "Admin - Organizations", "description": "Organization management, quest access control"},
         {"name": "Admin - CRM", "description": "Email campaigns, templates, automation"},
         {"name": "AI Tutor", "description": "AI-powered tutoring, chat, learning assistance"},
-        {"name": "LMS Integration", "description": "LTI integration, course imports, Spark SSO"},
+        {"name": "LMS Integration", "description": "LTI integration, course imports"},
         {"name": "Calendar", "description": "Learning events, calendar management"},
         {"name": "Settings", "description": "Platform settings, site configuration, public data"},
         {"name": "Services", "description": "Consultation booking, services catalog"},

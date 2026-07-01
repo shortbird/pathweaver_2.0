@@ -1,29 +1,29 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
+import { startMasquerade } from '../../services/masqueradeService'
+import { switchSurfaceInApp } from '../../utils/appSurface'
 
-const STATUSES = ['applicant', 'enrolled', 'withdrawn', 'graduated', 'unassigned']
-// Logical sort rank for the status column (active students first, exited last).
-const STATUS_RANK = { enrolled: 0, applicant: 1, unassigned: 2, withdrawn: 3, graduated: 4 }
 const INACTIVE_STATUSES = ['withdrawn', 'graduated']
 
-const statusStyle = (s) => ({
-  enrolled: 'bg-green-100 text-green-700',
-  applicant: 'bg-yellow-100 text-yellow-700',
-  withdrawn: 'bg-red-100 text-red-700',
-  graduated: 'bg-blue-100 text-blue-700',
-  unassigned: 'bg-gray-100 text-gray-600',
-}[s] || 'bg-gray-100 text-gray-600')
+const fmtDate = (d) => {
+  if (!d) return '—'
+  try { return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }
+  catch { return '—' }
+}
 
 const RosterPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const navigate = useNavigate()
   const [roster, setRoster] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState(null)   // Manage modal (tabbed)
+  const [menuFor, setMenuFor] = useState(null)      // open actions menu (student_id)
   const [search, setSearch] = useState('')
   const [hideInactive, setHideInactive] = useState(true)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
@@ -39,19 +39,6 @@ const RosterPage = () => {
 
   useEffect(() => { load() }, [load])
 
-  const updateStatus = async (studentId, status) => {
-    try {
-      await api.patch(`/api/sis/enrollments/${studentId}`, {
-        status: status === 'unassigned' ? 'enrolled' : status,
-        organization_id: orgId,
-      })
-      toast.success('Enrollment updated')
-      load()
-    } catch {
-      toast.error('Could not update enrollment')
-    }
-  }
-
   const exportCsv = async () => {
     try {
       const res = await api.get(withOrg('/api/sis/reports/roster.csv', orgId), { responseType: 'blob' })
@@ -66,10 +53,29 @@ const RosterPage = () => {
     }
   }
 
+  // ── Administrative actions (dropdown = navigate-away; the rest live in Manage) ─
+  const goOverview = (s) => navigate(`/admin/organizations/${orgId}/student/${s.student_id}`)
+
+  const viewAsStudent = async (s) => {
+    try {
+      const res = await startMasquerade(s.student_id, 'SIS admin view', api)
+      if (res?.success === false) { toast.error(res.error || 'Could not view as student'); return }
+      // Switch to the learning app surface as the masqueraded student.
+      switchSurfaceInApp('learning', '/dashboard')
+    } catch {
+      toast.error('Could not view as student')
+    }
+  }
+
+  const actionsFor = (s) => [
+    { label: 'Manage', onClick: () => setSelected(s) },
+    { label: 'Overview', onClick: () => goOverview(s) },
+    isSuperadmin && { label: 'View as student', onClick: () => viewAsStudent(s) },
+  ].filter(Boolean)
+
   const toggleSort = (key) => setSort((prev) => (
     prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
   ))
-
   const sortArrow = (key) => (sort.key === key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')
 
   const visibleRoster = useMemo(() => {
@@ -77,18 +83,15 @@ const RosterPage = () => {
     const rows = roster.filter((s) => {
       if (hideInactive && INACTIVE_STATUSES.includes(s.enrollment_status)) return false
       if (!q) return true
-      return [s.name, s.email, s.username]
-        .some((v) => (v || '').toLowerCase().includes(q))
+      return [s.name, s.email, s.username].some((v) => (v || '').toLowerCase().includes(q))
     })
     const dir = sort.dir === 'asc' ? 1 : -1
     return rows.sort((a, b) => {
       let cmp
-      if (sort.key === 'status') {
-        cmp = (STATUS_RANK[a.enrollment_status] ?? 9) - (STATUS_RANK[b.enrollment_status] ?? 9)
-      } else if (sort.key === 'xp') {
-        cmp = (a.total_xp ?? 0) - (b.total_xp ?? 0)
-      } else if (sort.key === 'family') {
+      if (sort.key === 'family') {
         cmp = (a.household_name || '').toLowerCase().localeCompare((b.household_name || '').toLowerCase())
+      } else if (sort.key === 'last_active') {
+        cmp = new Date(a.last_active || 0) - new Date(b.last_active || 0)
       } else {
         cmp = (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
       }
@@ -102,12 +105,10 @@ const RosterPage = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Roster</h1>
+        <h1 className="text-2xl font-bold text-neutral-900">Users</h1>
         <div className="flex items-center gap-3">
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>
-            Export CSV
-          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
         </div>
       </div>
 
@@ -140,14 +141,13 @@ const RosterPage = () => {
       )}
 
       {!loading && visibleRoster.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-visible">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-neutral-500 text-left">
               <tr>
                 <SortHeader label="Student" col="name" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Family" col="family" sort={sort} onSort={toggleSort} arrow={sortArrow} />
-                <SortHeader label="Status" col="status" sort={sort} onSort={toggleSort} arrow={sortArrow} />
-                <SortHeader label="XP" col="xp" sort={sort} onSort={toggleSort} arrow={sortArrow} />
+                <SortHeader label="Last active" col="last_active" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <th className="px-4 py-3 font-medium"></th>
               </tr>
             </thead>
@@ -163,25 +163,14 @@ const RosterPage = () => {
                       ? <span className="text-neutral-600">{s.household_name}</span>
                       : <span className="text-neutral-300" title="Group this student into a family on the Families page">—</span>}
                   </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={s.enrollment_status}
-                      onChange={(e) => updateStatus(s.student_id, e.target.value)}
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium border-0 focus:ring-2 focus:ring-optio-purple ${statusStyle(s.enrollment_status)}`}
-                    >
-                      {STATUSES.map((st) => (
-                        <option key={st} value={st}>{st}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-neutral-600">{s.total_xp ?? 0}</td>
+                  <td className="px-4 py-3 text-neutral-500">{fmtDate(s.last_active)}</td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setSelected(s)}
-                      className="text-optio-purple font-medium hover:underline"
-                    >
-                      Details
-                    </button>
+                    <RowActions
+                      open={menuFor === s.student_id}
+                      onOpen={() => setMenuFor(s.student_id)}
+                      onClose={() => setMenuFor(null)}
+                      actions={actionsFor(s)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -218,6 +207,35 @@ const SortHeader = ({ label, col, sort, onSort, arrow }) => (
       {label}{arrow(col)}
     </button>
   </th>
+)
+
+const RowActions = ({ open, onOpen, onClose, actions }) => (
+  <div className="relative inline-block text-left">
+    <button
+      onClick={() => (open ? onClose() : onOpen())}
+      className="px-2 py-1 rounded-md text-neutral-500 hover:bg-neutral-100 text-lg leading-none"
+      aria-label="Actions"
+    >
+      ⋯
+    </button>
+    {open && (
+      <>
+        {/* click-away catcher */}
+        <div className="fixed inset-0 z-10" onClick={onClose} />
+        <div className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
+          {actions.map((a) => (
+            <button
+              key={a.label}
+              onClick={() => { onClose(); a.onClick() }}
+              className={`block w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 ${a.danger ? 'text-red-600' : 'text-neutral-700'}`}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
 )
 
 export default RosterPage

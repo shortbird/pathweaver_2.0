@@ -31,10 +31,3 @@ export {
   useToggleDeliverable,
   useDeleteBounty,
 } from './useBounties';
-export {
-  useBuddy,
-  useCreateBuddy,
-  useFeedBuddy,
-  useTapBuddy,
-  useUpdateBuddy,
-} from './useBuddy';

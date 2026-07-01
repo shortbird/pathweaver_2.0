@@ -28,7 +28,7 @@ export const navItems: NavItem[] = [
   { key: 'family', label: 'Family', icon: 'people-outline', iconActive: 'people', href: '/(app)/(tabs)/family', platforms: ['mobile'] },
   { key: 'profile', label: 'Profile', icon: 'person-outline', iconActive: 'person', href: '/(app)/(tabs)/profile', platforms: ['mobile'] },
   { key: 'messages', label: 'Messages', icon: 'chatbubbles-outline', iconActive: 'chatbubbles', href: '/(app)/(tabs)/messages', platforms: ['web', 'mobile'] },
-  { key: 'advisor', label: 'Advisor', icon: 'clipboard-outline', iconActive: 'clipboard', href: '/(app)/(tabs)/advisor', platforms: ['web'], roles: ['advisor', 'org_admin', 'superadmin'] },
+  { key: 'advisor', label: 'Teacher', icon: 'clipboard-outline', iconActive: 'clipboard', href: '/(app)/(tabs)/advisor', platforms: ['web'], roles: ['advisor', 'org_admin', 'superadmin'] },
   { key: 'admin', label: 'Admin', icon: 'shield-outline', iconActive: 'shield', href: '/(app)/(tabs)/admin', platforms: ['web'], roles: ['superadmin', 'org_admin'] },
 ];
 

@@ -354,7 +354,7 @@ export default function AdvisorScreen() {
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center dark:bg-dark-surface-50">
         <Ionicons name="desktop-outline" size={40} color={c.iconMuted} />
         <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">Desktop Only</Heading>
-        <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Advisor tools are available on desktop.</UIText>
+        <UIText size="sm" className="text-typo-400 mt-1 dark:text-dark-typo-400">Teacher tools are available on desktop.</UIText>
       </SafeAreaView>
     );
   }
@@ -385,7 +385,7 @@ export default function AdvisorScreen() {
         {/* Left: Student list */}
         <View style={{ width: 300, borderRightWidth: 1, borderRightColor: c.border }} className="bg-white dark:bg-dark-surface-100">
           <VStack className="p-4" space="sm">
-            <Heading size="lg">Advisor</Heading>
+            <Heading size="lg">Teacher</Heading>
             <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{students.length} student{students.length !== 1 ? 's' : ''}</UIText>
             <CaseloadBar caseload={caseload} />
             <Input variant="rounded" size="sm">

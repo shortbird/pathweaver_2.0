@@ -92,61 +92,77 @@ const HouseholdsPage = () => {
         <p className="text-neutral-500">No families yet. Create one above to group students and guardians.</p>
       )}
 
-      <div className="space-y-4">
-        {households.map((h) => (
-          <div key={h.id} className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-neutral-900">{h.name}</h3>
-              <button
-                onClick={() => setAddingTo(addingTo === h.id ? null : h.id)}
-                className="text-sm text-optio-purple font-medium hover:underline"
-              >
-                {addingTo === h.id ? 'Cancel' : '+ Add member'}
-              </button>
-            </div>
-
-            <div className="space-y-1.5 mb-3">
-              {(h.members || []).length === 0 && (
-                <p className="text-sm text-neutral-400">No members yet.</p>
-              )}
-              {(h.members || []).map((m) => (
-                <div key={m.user_id} className="flex items-center justify-between text-sm">
-                  <span>
-                    <span className="font-medium text-neutral-800">{m.name}</span>
-                    <span className="text-neutral-400"> · {m.relationship}</span>
-                    {m.is_primary_guardian && <span className="ml-2 text-xs text-optio-purple">primary guardian</span>}
-                  </span>
-                  <button onClick={() => removeMember(h.id, m.user_id)} className="text-red-500 hover:underline">Remove</button>
-                </div>
-              ))}
-            </div>
-
-            {addingTo === h.id && (
-              <div className="flex gap-2 border-t border-gray-100 pt-3">
-                <select
-                  value={memberForm.user_id}
-                  onChange={(e) => setMemberForm({ ...memberForm, user_id: e.target.value })}
-                  className={`${field} flex-1`}
-                >
-                  <option value="">Select person…</option>
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name} {m.is_student ? '(student)' : ''}</option>
-                  ))}
-                </select>
-                <select
-                  value={memberForm.relationship}
-                  onChange={(e) => setMemberForm({ ...memberForm, relationship: e.target.value })}
-                  className={field}
-                >
-                  <option value="student">student</option>
-                  <option value="guardian">guardian</option>
-                  <option value="other">other</option>
-                </select>
-                <Button size="sm" onClick={() => addMember(h.id)}>Add</Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {households.map((h) => {
+          const memberCount = (h.members || []).length
+          return (
+            <div key={h.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
+              {/* Hero */}
+              <div className="relative h-24 bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 flex items-center justify-center">
+                <svg className="w-12 h-12 text-optio-purple/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM3 21v-1a6 6 0 0112 0v1M16 3.13a4 4 0 010 7.75M21 21v-1a6 6 0 00-4-5.659" />
+                </svg>
+                <span className="absolute top-2 right-2 text-[11px] font-medium rounded-full px-2 py-0.5 bg-white/90 text-optio-purple shadow-sm">
+                  {memberCount} member{memberCount === 1 ? '' : 's'}
+                </span>
               </div>
-            )}
-          </div>
-        ))}
+
+              {/* Body */}
+              <div className="p-4 flex flex-col flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-semibold text-neutral-900 truncate">{h.name}</h3>
+                  <button
+                    onClick={() => setAddingTo(addingTo === h.id ? null : h.id)}
+                    className="text-sm text-optio-purple font-medium hover:underline flex-shrink-0"
+                  >
+                    {addingTo === h.id ? 'Cancel' : '+ Add'}
+                  </button>
+                </div>
+
+                <div className="space-y-1.5 mt-3">
+                  {memberCount === 0 && <p className="text-sm text-neutral-400">No members yet.</p>}
+                  {(h.members || []).map((m) => (
+                    <div key={m.user_id} className="flex items-center justify-between text-sm gap-2">
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium text-neutral-800">{m.name}</span>
+                        <span className="text-neutral-400"> · {m.relationship}</span>
+                        {m.is_primary_guardian && <span className="ml-1 text-xs text-optio-purple">primary</span>}
+                      </span>
+                      <button onClick={() => removeMember(h.id, m.user_id)} className="text-red-500 hover:underline flex-shrink-0">Remove</button>
+                    </div>
+                  ))}
+                </div>
+
+                {addingTo === h.id && (
+                  <div className="mt-auto pt-3 border-t border-gray-100 space-y-2">
+                    <select
+                      value={memberForm.user_id}
+                      onChange={(e) => setMemberForm({ ...memberForm, user_id: e.target.value })}
+                      className={`${field} w-full`}
+                    >
+                      <option value="">Select person…</option>
+                      {members.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name} {m.is_student ? '(student)' : ''}</option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        value={memberForm.relationship}
+                        onChange={(e) => setMemberForm({ ...memberForm, relationship: e.target.value })}
+                        className={`${field} flex-1`}
+                      >
+                        <option value="student">student</option>
+                        <option value="guardian">guardian</option>
+                        <option value="other">other</option>
+                      </select>
+                      <Button size="sm" onClick={() => addMember(h.id)}>Add</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

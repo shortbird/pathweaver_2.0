@@ -413,7 +413,7 @@ export default function NotificationsScreen() {
                     { value: 'all', label: 'Everyone' },
                     { value: 'students', label: 'Students' },
                     { value: 'parents', label: 'Parents' },
-                    { value: 'advisors', label: 'Advisors' },
+                    { value: 'advisors', label: 'Teachers' },
                   ].map(opt => (
                     <Pressable
                       key={opt.value}

@@ -31,10 +31,6 @@ M5_MIGRATED_FILES = [
     BACKEND / 'routes' / 'auth' / 'google_oauth.py',
     BACKEND / 'routes' / 'auth' / 'login' / 'diagnostics.py',
     BACKEND / 'routes' / 'evidence_documents.py',
-    # Split into routes/spark_integration/ package on 2026-04-14 (Q1).
-    BACKEND / 'routes' / 'spark_integration' / '__init__.py',
-    BACKEND / 'routes' / 'spark_integration' / 'sso.py',
-    BACKEND / 'routes' / 'spark_integration' / 'webhooks.py',
     BACKEND / 'utils' / 'auth' / 'token_utils.py',
     BACKEND / 'utils' / 'session_manager.py',
     BACKEND / 'utils' / 'log_scrubber.py',
@@ -113,7 +109,7 @@ def test_enable_virus_scan_is_bool(config_class):
 
 
 def test_optional_secrets_present_as_attrs(config_class):
-    # These can legitimately be None in dev (no Spark integration set up locally),
-    # but the attribute itself must exist on Config or callers will AttributeError.
-    for name in ('SPARK_SSO_SECRET', 'SPARK_WEBHOOK_SECRET', 'JWT_PREVIOUS_SECRET_KEY', 'BACKEND_URL'):
+    # These can legitimately be None in dev, but the attribute itself must exist
+    # on Config or callers will AttributeError.
+    for name in ('JWT_PREVIOUS_SECRET_KEY', 'BACKEND_URL'):
         assert hasattr(config_class, name), f'Config.{name} missing — was the M5 attr accidentally removed?'

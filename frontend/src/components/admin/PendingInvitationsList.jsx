@@ -180,6 +180,7 @@ export default function PendingInvitationsList({ organizationId, onUpdate }) {
                       'bg-gray-100 text-gray-700'
                     }`}>
                       {invitation.role === 'org_admin' ? 'Org Admin' :
+                       invitation.role === 'advisor' ? 'Teacher' :
                        invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)}
                     </span>
                   </td>

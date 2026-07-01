@@ -44,7 +44,7 @@ const FamilyEngagementPreview = () => {
           { emoji: '👵', label: 'Grandparents' },
           { emoji: '👨‍🏫', label: 'Mentors' },
           { emoji: '👨‍👩‍👧', label: 'Extended Family' },
-          { emoji: '🎓', label: 'Advisors' }
+          { emoji: '🎓', label: 'Teachers' }
         ].map((observer, index) => (
           <div
             key={index}

@@ -18,7 +18,6 @@ test.describe('Platform Web Tests', () => {
     await expect(page.getByText('Quests').first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Journal').first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Bounties').first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Buddy').first()).toBeVisible({ timeout: 15000 });
 
     // Navigate using sidebar
     await navigateTo(page, 'quests');
