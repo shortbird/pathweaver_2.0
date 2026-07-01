@@ -21,10 +21,13 @@ from datetime import datetime, timezone
 
 import requests
 
+# Import the backend program registry regardless of the cron's cwd (jobs/ -> backend/).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from programs.registry import daily_cron_jobs
+
 # Daily jobs fire once/day in this UTC hour (the cron runs every 10 min, so the
 # first run of the hour — minute < 10 — is the single trigger).
 DAILY_SUMMARY_UTC_HOUR = 12
-OEA_COMPLIANCE_UTC_HOUR = 13
 
 
 def _post(url, secret):
@@ -64,10 +67,12 @@ def main():
     if now.hour == DAILY_SUMMARY_UTC_HOUR and now.minute < 10:
         _run("advisor-summary", f"{base}/api/admin/advisor-summary/trigger", cron_secret, failures)
 
-    # Once/day: OEA quarterly-upload compliance sweep (first run of the 13:00 UTC
-    # hour). No-ops cheaply when no quarter has closed; alerts are deduped server-side.
-    if now.hour == OEA_COMPLIANCE_UTC_HOUR and now.minute < 10:
-        _run("oea-compliance-sweep", f"{base}/api/oea/internal/compliance-sweep", cron_secret, failures)
+    # Once/day: program-specific daily jobs (e.g. OEA compliance sweep), declared
+    # in the program registry so core cron carries no program-specific endpoints.
+    # Each no-ops cheaply off-window; alerts/dedupe are enforced server-side.
+    for job in daily_cron_jobs():
+        if now.hour == job.utc_hour and now.minute < 10:
+            _run(job.name, f"{base}{job.path}", cron_secret, failures)
 
     if failures:
         print(f"Completed with failures: {failures}")

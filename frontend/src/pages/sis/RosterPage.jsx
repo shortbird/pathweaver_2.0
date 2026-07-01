@@ -153,7 +153,11 @@ const RosterPage = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {visibleRoster.map((s) => (
-                <tr key={s.student_id} className="hover:bg-neutral-50">
+                <tr
+                  key={s.student_id}
+                  onClick={() => setSelected(s)}
+                  className="hover:bg-neutral-50 cursor-pointer"
+                >
                   <td className="px-4 py-3">
                     <div className="font-medium text-neutral-900">{s.name}</div>
                     <div className="text-xs text-neutral-400">{s.email || s.username}</div>
@@ -164,7 +168,7 @@ const RosterPage = () => {
                       : <span className="text-neutral-300" title="Group this student into a family on the Families page">—</span>}
                   </td>
                   <td className="px-4 py-3 text-neutral-500">{fmtDate(s.last_active)}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <RowActions
                       open={menuFor === s.student_id}
                       onOpen={() => setMenuFor(s.student_id)}

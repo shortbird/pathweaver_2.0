@@ -204,13 +204,16 @@ separate, tracked migration — not done in this pass.
   already-broken docs-AI generation.
 - **Phase 1 — advisor→teacher UI relabel** ✅ *done* — display only; stored role
   value stays `advisor`.
-- **Phase 2 — Extension registry** 🔨 *foundation built* — program registry on both
-  tiers (`frontend/src/programs/registry.jsx`, `backend/programs/registry.py`).
-  Sidebar and registration now consult the registry; **no core file names a
-  program**. Remaining: cron-dispatch inversion, capability-flag helpers, and
-  widget hooks (dashboard / diploma panel).
-- **Phase 3 — Invert OEA fully** onto the registry (its diploma panel is already a
-  data-driven prop; wire the remaining pieces as hooks).
+- **Phase 2 — Extension registry** ✅ *done* — program registry on both tiers
+  (`frontend/src/programs/registry.jsx`, `backend/programs/registry.py`). Sidebar,
+  registration, and cron-dispatch now consult the registry; **no core file names a
+  program**. Adding a program = a registry entry. Capability flags already existed
+  (backend `utils/org_features.py`, frontend `useOrgFeature`) — the JSONB
+  `feature_flags` substrate that gates `sis_enabled`.
+- **Phase 3 — Invert OEA fully** onto the registry — the remaining OEA coupling is
+  the diploma panel + choose-pathway UI inline in core `SkillsGrowth` (data-driven
+  via the `oea` prop, not a hardcoded branch). Extract it behind a widget hook so
+  core carries no OEA rendering.
 - **Phase 4 — Migrate Treehouse, Gryffin, POE, iCreate** to program modules.
 - **Phase 5 — Physical reorg** into `core/` + `programs/`.
 - **Phase 6 — Class/credit code disambiguation.**

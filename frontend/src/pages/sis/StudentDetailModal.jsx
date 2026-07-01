@@ -7,9 +7,10 @@ import { switchSurfaceInApp } from '../../utils/appSurface'
 
 /**
  * Tabbed per-student management modal.
- *   Profile  — details (name/email/DOB), enrollment status/grade, family + emergency contacts, account actions
+ *   Profile  — details (name/email/DOB) + status/grade, family, emergency contacts, account actions
  *   Schedule — the student's active classes (teacher + link to the class's quest), plus enroll
- *   Message  — message the student's guardians
+ *   Message  — message the student through the platform messaging system
+ * The Profile "Save" lives in the header so the modal doesn't grow taller.
  */
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
@@ -22,15 +23,48 @@ const TABS = [
 
 const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const [tab, setTab] = useState('profile')
+  const [form, setForm] = useState({
+    first_name: student.first_name || '',
+    last_name: student.last_name || '',
+    email: student.email || '',
+    date_of_birth: student.date_of_birth || '',
+    status: student.enrollment_status === 'unassigned' ? 'enrolled' : student.enrollment_status,
+    grade_level: student.grade_level || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const setField = (k, v) => setForm((p) => ({ ...p, [k]: v }))
+
+  const saveProfile = async () => {
+    setSaving(true)
+    try {
+      await Promise.all([
+        api.patch(`/api/sis/students/${student.student_id}`, {
+          first_name: form.first_name, last_name: form.last_name,
+          email: form.email || null, date_of_birth: form.date_of_birth || null, organization_id: orgId,
+        }),
+        api.patch(`/api/sis/enrollments/${student.student_id}`, {
+          status: form.status, grade_level: form.grade_level, organization_id: orgId,
+        }),
+      ])
+      toast.success('Saved')
+      onSaved?.()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not save')
+    } finally { setSaving(false) }
+  }
+
   return (
     <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between p-5 pb-3 border-b border-gray-100">
-          <div>
-            <h2 className="text-lg font-bold text-neutral-900">{student.name}</h2>
-            <p className="text-sm text-neutral-400">{student.email || student.username}</p>
+        <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100 gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-neutral-900 truncate">{student.name}</h2>
+            <p className="text-sm text-neutral-400 truncate">{student.email || student.username}</p>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">×</button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {tab === 'profile' && <Button size="sm" onClick={saveProfile} loading={saving}>Save</Button>}
+            <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">×</button>
+          </div>
         </div>
 
         <div className="flex gap-1 px-4 pt-3 border-b border-gray-100">
@@ -48,7 +82,14 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         </div>
 
         <div className="p-5 overflow-y-auto">
-          {tab === 'profile' && <ProfilePanel student={student} orgId={orgId} onSaved={onSaved} onClose={onClose} />}
+          {tab === 'profile' && (
+            <div className="space-y-5">
+              <ProfileFields form={form} set={setField} />
+              <FamilySection student={student} orgId={orgId} onSaved={onSaved} />
+              <ContactsSection student={student} orgId={orgId} />
+              <AccountSection student={student} orgId={orgId} onSaved={onSaved} onClose={onClose} />
+            </div>
+          )}
           {tab === 'schedule' && <SchedulePanel student={student} orgId={orgId} />}
           {tab === 'message' && <MessagePanel student={student} orgId={orgId} />}
         </div>
@@ -57,104 +98,61 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   )
 }
 
-// ── Profile: details + enrollment + family + contacts + account ───────────────
-const ProfilePanel = ({ student, orgId, onSaved, onClose }) => {
-  const [f, setF] = useState({
-    first_name: student.first_name || '',
-    last_name: student.last_name || '',
-    email: student.email || '',
-    date_of_birth: student.date_of_birth || '',
-    status: student.enrollment_status === 'unassigned' ? 'enrolled' : student.enrollment_status,
-    grade_level: student.grade_level || '',
-  })
-  const [saving, setSaving] = useState(false)
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
+const ProfileFields = ({ form, set }) => (
+  <section className="space-y-3">
+    <div className="grid grid-cols-2 gap-3">
+      <label className="text-xs text-neutral-500">First name
+        <input value={form.first_name} onChange={(e) => set('first_name', e.target.value)} className={field} />
+      </label>
+      <label className="text-xs text-neutral-500">Last name
+        <input value={form.last_name} onChange={(e) => set('last_name', e.target.value)} className={field} />
+      </label>
+    </div>
+    <label className="text-xs text-neutral-500 block">Email
+      <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} className={field} />
+    </label>
+    <div className="grid grid-cols-3 gap-3">
+      <label className="text-xs text-neutral-500">Date of birth
+        <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
+      </label>
+      <label className="text-xs text-neutral-500">Status
+        <select value={form.status} onChange={(e) => set('status', e.target.value)} className={field}>
+          {['applicant', 'enrolled', 'withdrawn', 'graduated'].map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+      <label className="text-xs text-neutral-500">Grade
+        <input value={form.grade_level} onChange={(e) => set('grade_level', e.target.value)} className={field} placeholder="e.g. 9th" />
+      </label>
+    </div>
+    <p className="text-xs text-neutral-400 -mt-1">Changing the email updates the student's login.</p>
+  </section>
+)
 
-  const save = async () => {
-    setSaving(true)
-    try {
-      await Promise.all([
-        api.patch(`/api/sis/students/${student.student_id}`, {
-          first_name: f.first_name, last_name: f.last_name,
-          email: f.email || null, date_of_birth: f.date_of_birth || null, organization_id: orgId,
-        }),
-        api.patch(`/api/sis/enrollments/${student.student_id}`, {
-          status: f.status, grade_level: f.grade_level, organization_id: orgId,
-        }),
-      ])
-      toast.success('Saved')
-      onSaved?.()
-    } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not save')
-    } finally { setSaving(false) }
-  }
-
+const AccountSection = ({ student, orgId, onSaved, onClose }) => {
   const resetPassword = async () => {
     if (!window.confirm(`Reset ${student.name}'s password?`)) return
     try {
       const r = await api.post(`/api/admin/organizations/${orgId}/users/${student.student_id}/reset-password`, {})
       const pw = r.data?.new_password || r.data?.password
       toast.success(pw ? `New password: ${pw}` : (r.data?.message || 'Password reset'), { duration: pw ? 10000 : 4000 })
-    } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not reset password')
-    }
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not reset password') }
   }
-
   const remove = async () => {
     if (!window.confirm(`Remove ${student.name} from this organization? Their account becomes a platform account (not deleted).`)) return
     try {
       await api.post(`/api/admin/organizations/${orgId}/users/remove`, { user_id: student.student_id })
       toast.success(`${student.name} removed from the organization`)
-      onSaved?.()
-      onClose?.()
-    } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not remove student')
-    }
+      onSaved?.(); onClose?.()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not remove student') }
   }
-
   return (
-    <div className="space-y-5">
-      {/* Details + enrollment */}
-      <section className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-neutral-500">First name
-            <input value={f.first_name} onChange={(e) => set('first_name', e.target.value)} className={field} />
-          </label>
-          <label className="text-xs text-neutral-500">Last name
-            <input value={f.last_name} onChange={(e) => set('last_name', e.target.value)} className={field} />
-          </label>
-        </div>
-        <label className="text-xs text-neutral-500 block">Email
-          <input type="email" value={f.email} onChange={(e) => set('email', e.target.value)} className={field} />
-        </label>
-        <div className="grid grid-cols-3 gap-3">
-          <label className="text-xs text-neutral-500">Date of birth
-            <input type="date" value={f.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
-          </label>
-          <label className="text-xs text-neutral-500">Status
-            <select value={f.status} onChange={(e) => set('status', e.target.value)} className={field}>
-              {['applicant', 'enrolled', 'withdrawn', 'graduated'].map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label className="text-xs text-neutral-500">Grade
-            <input value={f.grade_level} onChange={(e) => set('grade_level', e.target.value)} className={field} placeholder="e.g. 9th" />
-          </label>
-        </div>
-        <p className="text-xs text-neutral-400 -mt-1">Changing the email updates the student's login.</p>
-        <Button size="sm" onClick={save} loading={saving}>Save</Button>
-      </section>
-
-      <FamilySection student={student} orgId={orgId} onSaved={onSaved} />
-      <ContactsSection student={student} orgId={orgId} />
-
-      <section className="border-t border-gray-100 pt-4">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Account</h4>
-        <div className="flex flex-wrap items-center gap-4">
-          <Button size="sm" variant="outline" onClick={resetPassword}>Reset password</Button>
-          <button onClick={remove} className="text-sm text-red-600 font-medium hover:underline">Remove from organization</button>
-        </div>
-      </section>
-    </div>
+    <section className="border-t border-gray-100 pt-4">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Account</h4>
+      <div className="flex flex-wrap items-center gap-4">
+        <Button size="sm" variant="outline" onClick={resetPassword}>Reset password</Button>
+        <button onClick={remove} className="text-sm text-red-600 font-medium hover:underline">Remove from organization</button>
+      </div>
+    </section>
   )
 }
 
@@ -207,6 +205,7 @@ const FamilySection = ({ student, orgId, onSaved }) => {
 
 const ContactsSection = ({ student, orgId }) => {
   const [contacts, setContacts] = useState([])
+  const [adding, setAdding] = useState(false)
   const [nc, setNc] = useState({ name: '', relationship: '', phone: '', email: '' })
 
   useEffect(() => {
@@ -221,6 +220,7 @@ const ContactsSection = ({ student, orgId }) => {
       const r = await api.post(`/api/sis/students/${student.student_id}/emergency-contacts`, { ...nc, organization_id: orgId })
       setContacts((c) => [...c, r.data.contact])
       setNc({ name: '', relationship: '', phone: '', email: '' })
+      setAdding(false)
     } catch { toast.error('Could not add contact') }
   }
   const remove = async (id) => {
@@ -230,9 +230,14 @@ const ContactsSection = ({ student, orgId }) => {
 
   return (
     <section className="border-t border-gray-100 pt-4">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Emergency contacts</h4>
-      <div className="space-y-2 mb-3">
-        {contacts.length === 0 && <p className="text-sm text-neutral-400">No contacts yet.</p>}
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Emergency contacts</h4>
+        {!adding && (
+          <button onClick={() => setAdding(true)} className="text-sm text-optio-purple font-medium hover:underline">+ Emergency Contact</button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {contacts.length === 0 && !adding && <p className="text-sm text-neutral-400">No contacts yet.</p>}
         {contacts.map((c) => (
           <div key={c.id} className="flex items-center justify-between bg-neutral-50 rounded-lg px-3 py-2">
             <div className="text-sm">
@@ -244,13 +249,20 @@ const ContactsSection = ({ student, orgId }) => {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <input value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} className={field} placeholder="Name" />
-        <input value={nc.relationship} onChange={(e) => setNc({ ...nc, relationship: e.target.value })} className={field} placeholder="Relationship" />
-        <input value={nc.phone} onChange={(e) => setNc({ ...nc, phone: e.target.value })} className={field} placeholder="Phone" />
-        <input value={nc.email} onChange={(e) => setNc({ ...nc, email: e.target.value })} className={field} placeholder="Email" />
-      </div>
-      <div className="mt-2"><Button size="sm" variant="outline" onClick={add}>Add contact</Button></div>
+      {adding && (
+        <div className="mt-2 rounded-lg border border-gray-200 p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <input value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} className={field} placeholder="Name" autoFocus />
+            <input value={nc.relationship} onChange={(e) => setNc({ ...nc, relationship: e.target.value })} className={field} placeholder="Relationship" />
+            <input value={nc.phone} onChange={(e) => setNc({ ...nc, phone: e.target.value })} className={field} placeholder="Phone" />
+            <input value={nc.email} onChange={(e) => setNc({ ...nc, email: e.target.value })} className={field} placeholder="Email" />
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" onClick={add}>Add contact</Button>
+            <button onClick={() => { setAdding(false); setNc({ name: '', relationship: '', phone: '', email: '' }) }} className="text-sm text-neutral-500 hover:underline">Cancel</button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
@@ -329,7 +341,7 @@ const SchedulePanel = ({ student, orgId }) => {
   )
 }
 
-// ── Message guardians ─────────────────────────────────────────────────────────
+// ── Message (platform messaging / direct messages) ────────────────────────────
 const MessagePanel = ({ student, orgId }) => {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -339,9 +351,8 @@ const MessagePanel = ({ student, orgId }) => {
     if (!body.trim()) { toast.error('Write a message'); return }
     setSending(true)
     try {
-      const r = await api.post(`/api/sis/students/${student.student_id}/message`, { subject, body, organization_id: orgId })
-      const n = r.data?.notified ?? 0
-      toast.success(n ? `Sent to ${n} guardian${n === 1 ? '' : 's'}` : 'No guardians on file to notify')
+      await api.post(`/api/sis/students/${student.student_id}/message`, { subject, body, organization_id: orgId })
+      toast.success('Message sent')
       setSubject(''); setBody('')
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not send message')
@@ -350,7 +361,7 @@ const MessagePanel = ({ student, orgId }) => {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-neutral-500">Sends an in-app notification to {student.name}'s guardians.</p>
+      <p className="text-sm text-neutral-500">Sends a message to {student.name} through Messages.</p>
       <label className="text-xs text-neutral-500 block">Subject
         <input value={subject} onChange={(e) => setSubject(e.target.value)} className={field} placeholder="Optional" />
       </label>

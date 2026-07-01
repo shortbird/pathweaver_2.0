@@ -16,12 +16,21 @@ from typing import List, Optional, Tuple
 
 
 @dataclass(frozen=True)
+class DailyCronJob:
+    """A once-a-day job a program needs run (dispatched by jobs/cron_dispatch.py)."""
+    name: str        # log label
+    path: str        # backend endpoint path, e.g. '/api/oea/internal/compliance-sweep'
+    utc_hour: int    # fire in the first cron run of this UTC hour
+
+
+@dataclass(frozen=True)
 class Program:
     """A custom program built on the Optio core."""
     key: str                        # stable internal id
     name: str                       # display name
     org_slugs: Tuple[str, ...] = ()  # member-org slugs that run this program in-app
     program_keys: Tuple[str, ...] = ()  # valid platform-user program_key tags (e.g. OEA families)
+    daily_jobs: Tuple[DailyCronJob, ...] = ()  # program-specific daily cron jobs
 
 
 # Registered programs. Adding a program = add an entry here (and its own module).
@@ -31,6 +40,9 @@ PROGRAMS: List[Program] = [
         name='OpenEd Academy',
         org_slugs=('oea', 'hearthwood-test'),
         program_keys=('opened-academy',),
+        daily_jobs=(
+            DailyCronJob('oea-compliance-sweep', '/api/oea/internal/compliance-sweep', 13),
+        ),
     ),
     Program(key='treehouse', name='The Treehouse', org_slugs=('treehouse',)),
     Program(key='gryffin', name='Gryffin Learning Center', org_slugs=('gryffin',)),
@@ -57,3 +69,8 @@ def program_for_org_slug(slug: Optional[str]) -> Optional[Program]:
         if slug in p.org_slugs:
             return p
     return None
+
+
+def daily_cron_jobs() -> List[DailyCronJob]:
+    """Every program's daily cron jobs, flattened (for jobs/cron_dispatch.py)."""
+    return [job for p in PROGRAMS for job in p.daily_jobs]
