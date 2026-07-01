@@ -1,4 +1,4 @@
-import api from './api'
+import api from '../../services/api'
 
 // Public POE (Pipe Organ Encounter) pilot endpoints. No auth required.
 

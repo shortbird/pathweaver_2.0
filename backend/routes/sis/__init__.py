@@ -255,6 +255,18 @@ def update_student(user_id, student_id):
     return jsonify({'success': True, 'student': updated})
 
 
+@bp.route('/students/<student_id>', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def get_student(user_id, student_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    student = sis_service.get_student(org_id, student_id)
+    if not student:
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    return jsonify({'success': True, 'student': student})
+
+
 @bp.route('/students/<student_id>/classes', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def student_classes(user_id, student_id):
@@ -321,6 +333,24 @@ def copy_family_contacts(user_id, student_id):
     if not sis_service.student_in_org(student_id, org_id):
         return jsonify({'success': False, 'error': 'Student not found'}), 404
     return jsonify({'success': True, **sis_service.copy_family_contacts_to_student(org_id, student_id)})
+
+
+@bp.route('/households/<household_id>/message', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def message_household(user_id, household_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    repo = HouseholdRepository(client=get_supabase_admin_client())
+    existing = repo.find_by_id(household_id)
+    if not existing or existing.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Household not found'}), 404
+    data = request.get_json() or {}
+    body = (data.get('body') or '').strip()
+    if not body:
+        return jsonify({'success': False, 'error': 'Message body is required'}), 400
+    result = sis_service.message_household_guardians(org_id, household_id, user_id, (data.get('subject') or '').strip(), body)
+    return jsonify({'success': True, **result})
 
 
 # ── Family (household) emergency contacts — shared across the family's students ─

@@ -13,7 +13,7 @@
  */
 import React, { useEffect, useState } from 'react'
 import { treehouseAPI } from '../../services/api'
-import { setFocusMode } from '../../utils/treehouseFocus'
+import { setFocusMode } from '../../utils/focusMode'
 
 const TOKEN_KEY = 'treehouse_kiosk_token'
 
@@ -47,7 +47,7 @@ export default function TreehouseKioskPage() {
     setBusy(true)
     try {
       await treehouseAPI.kioskLogin(token, studentId)
-      setFocusMode(true) // kiosk students land in fullscreen (no sidebar/topnav)
+      setFocusMode(true, { homeRoute: '/treehouse', idleLoginRoute: '/treehouse-kiosk' }) // kiosk students land in fullscreen
       window.location.href = '/treehouse'
     } catch (e) {
       setError('Could not log in. Try again.')

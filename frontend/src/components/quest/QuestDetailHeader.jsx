@@ -17,7 +17,7 @@ import {
   FireIcon,
   MapPinIcon
 } from '@heroicons/react/24/outline';
-import { isFocusMode } from '../../utils/treehouseFocus';
+import { isFocusMode } from '../../utils/focusMode';
 
 const stripHtml = (html) => {
   if (!html) return '';

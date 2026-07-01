@@ -492,6 +492,34 @@ def list_student_classes(org_id: str, student_id: str) -> List[Dict[str, Any]]:
     return out
 
 
+def get_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
+    """A single student in the roster shape (for opening the student modal elsewhere)."""
+    if not student_in_org(student_id, org_id):
+        return None
+    return next((r for r in get_roster(org_id) if r['student_id'] == student_id), None)
+
+
+def message_household_guardians(org_id: str, household_id: str, sender_id: str,
+                               subject: str, body: str) -> Dict[str, Any]:
+    """Send a platform message to every guardian in a household (best-effort per guardian)."""
+    from services.direct_message_service import DirectMessageService
+    members = (
+        _admin().table('household_members').select('user_id, relationship')
+        .eq('household_id', household_id).execute()
+    ).data or []
+    guardian_ids = [m['user_id'] for m in members if m.get('relationship') in ('guardian', 'other')]
+    content = f"{subject}\n\n{body}" if subject else body
+    svc = DirectMessageService()
+    sent = 0
+    for gid in guardian_ids:
+        try:
+            svc.send_message(sender_id, gid, content)
+            sent += 1
+        except Exception as e:
+            logger.info(f"family message to guardian {str(gid)[:8]} skipped: {e}")
+    return {'sent': sent, 'guardians': len(guardian_ids)}
+
+
 def message_student(student_id: str, sender_id: str, subject: str, body: str) -> Dict[str, Any]:
     """Send a message to the student through the platform messaging (direct messages)
     system, from the staff caller. Raises ValueError if the sender lacks permission."""
@@ -521,16 +549,23 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
         ).data or []
         users = {u['id']: u for u in rows}
 
+    enrollments = _enrollments_by_student(org_id)
     by_household: Dict[str, List[Dict[str, Any]]] = {}
     for m in members:
         u = users.get(m['user_id'], {})
-        by_household.setdefault(m['household_id'], []).append({
+        entry = {
             'user_id': m['user_id'],
             'name': _full_name(u) if u else 'Unknown',
             'email': u.get('email') if u else None,
             'relationship': m.get('relationship'),
             'is_primary_guardian': m.get('is_primary_guardian'),
-        })
+        }
+        if m.get('relationship') == 'student':
+            enr = enrollments.get(m['user_id']) or {}
+            entry['status'] = enr.get('status') or 'unassigned'
+            entry['grade_level'] = enr.get('grade_level')
+        by_household.setdefault(m['household_id'], []).append(entry)
     for h in households:
         h['members'] = by_household.get(h['id'], [])
+        h['primary_contact_user_id'] = h.get('primary_contact_user_id')
     return households

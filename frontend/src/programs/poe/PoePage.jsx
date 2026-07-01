@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
-import { getPoeCohorts, enrollInPoe } from '../../services/poeService'
+import { getPoeCohorts, enrollInPoe } from './poeService'
 
 // Hidden public page for the 2026 Pipe Organ Encounter pilot. Not linked in nav;
 // families reach it via /poe from the AGO announcement email. This is an interest

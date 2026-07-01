@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import Sidebar from './navigation/Sidebar'
 import TopNavbar from './navigation/TopNavbar'
-import { isFocusMode, setFocusMode, FOCUS_EVENT } from '../utils/treehouseFocus'
+import { isFocusMode, setFocusMode, getFocusConfig, FOCUS_EVENT } from '../utils/focusMode'
 import { useKioskIdleTimeout } from '../hooks/useKioskIdleTimeout'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
@@ -33,12 +33,13 @@ const Layout = () => {
     timeoutMs: 3 * 60 * 1000,
     onIdle: async () => {
       try { await logout() } catch { /* logout self-handles */ }
-      window.location.replace('/treehouse-kiosk')
+      window.location.replace(getFocusConfig().idleLoginRoute || '/')
     },
   })
 
   if (focus) {
-    const onHome = location.pathname === '/treehouse'
+    const focusConfig = getFocusConfig()
+    const onHome = location.pathname === focusConfig.homeRoute
     return (
       <div className="min-h-screen bg-neutral-50">
         <main id="main-content" className="min-h-screen pb-28">
@@ -47,7 +48,7 @@ const Layout = () => {
         {/* Large, easy-to-reach Back button on every non-home page */}
         {!onHome && (
           <button
-            onClick={() => navigate('/treehouse')}
+            onClick={() => navigate(focusConfig.homeRoute || '/')}
             className="fixed bottom-6 left-6 z-50 flex items-center gap-2 rounded-full bg-optio-purple text-white text-xl font-bold px-8 py-5 shadow-lg active:scale-95 transition"
           >
             ← Back

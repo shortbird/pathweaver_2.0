@@ -14,7 +14,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { treehouseAPI } from '../../services/api'
-import { isFocusMode, setFocusMode } from '../../utils/treehouseFocus'
+import { isFocusMode, setFocusMode } from '../../utils/focusMode'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 
 const isFacilitatorRole = (role, user) => {
@@ -160,7 +160,7 @@ function StudentHome() {
         {!isFocusMode() && (
           <div>
             <button
-              onClick={() => setFocusMode(true)}
+              onClick={() => setFocusMode(true, { homeRoute: '/treehouse', idleLoginRoute: '/treehouse-kiosk' })}
               className="inline-flex items-center gap-2 rounded-full px-6 py-3 bg-optio-purple/10 text-optio-purple font-semibold active:scale-95 transition"
             >
               ⛶ Go fullscreen
