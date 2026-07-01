@@ -128,9 +128,66 @@ def update_household(user_id, household_id):
         return jsonify({'success': False, 'error': 'Household not found'}), 404
     fields = {k: data.get(k) for k in (
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
-        'city', 'state', 'postal_code', 'phone', 'notes'
+        'city', 'state', 'postal_code', 'phone', 'notes', 'image_url'
     ) if k in data}
     return jsonify({'success': True, 'household': repo.update(household_id, fields)})
+
+
+@bp.route('/households/<household_id>/image', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def upload_household_image(user_id, household_id):
+    """Upload (or replace) a family photo. Stores image_url on the household."""
+    import uuid as _uuid
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    repo = HouseholdRepository(client=supabase)
+    existing = repo.find_by_id(household_id)
+    if not existing or existing.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Household not found'}), 404
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'):
+        return jsonify({'success': False, 'error': 'Invalid file type'}), 400
+    file.seek(0, 2)
+    if file.tell() > 5 * 1024 * 1024:
+        return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
+    file.seek(0)
+
+    bucket = 'family-images'
+    try:
+        if not supabase.storage.get_bucket(bucket):
+            supabase.storage.create_bucket(bucket, options={'public': True})
+    except Exception:
+        try:
+            supabase.storage.create_bucket(bucket, options={'public': True})
+        except Exception:
+            pass
+    path = f"{household_id}/{_uuid.uuid4().hex}.{ext}"
+    old = existing.get('image_url')
+    if old and f'{bucket}/' in old:
+        try:
+            supabase.storage.from_(bucket).remove([old.split(f'{bucket}/')[-1]])
+        except Exception:
+            pass
+    try:
+        supabase.storage.from_(bucket).upload(
+            path=path, file=file.read(),
+            file_options={'content-type': file.content_type or f'image/{ext}'},
+        )
+        image_url = supabase.storage.from_(bucket).get_public_url(path)
+    except Exception as e:
+        logger.error(f"Error uploading family image: {e}")
+        return jsonify({'success': False, 'error': 'Failed to upload image'}), 500
+
+    updated = repo.update(household_id, {'image_url': image_url})
+    return jsonify({'success': True, 'image_url': image_url, 'household': updated})
 
 
 @bp.route('/households/<household_id>/members', methods=['POST'])

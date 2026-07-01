@@ -217,8 +217,14 @@ separate, tracked migration — not done in this pass.
   overview hooks no longer import `oeaAPI`. Core now carries zero OEA rendering or
   API coupling; the only OEA mentions left in core are illustrative code comments.
   (`SubjectProgressRow` extracted to a shared `components/diploma/` primitive.)
-- **Phase 4 — Migrate Treehouse, Gryffin, POE, iCreate** to program modules.
-- **Phase 5 — Physical reorg** into `core/` + `programs/`.
+- **Phase 4 — Program modules + router inversion** ✅ *done* — program pages
+  co-located under `src/programs/<program>/` (oea, treehouse, gryffin, poe); the
+  registry contributes routes by mount context and core `App.jsx` renders them
+  generically (`getProgramRoutes`) — no program named in the router. iCreate is the
+  SIS platform (not a page-based program), so nothing to migrate there.
+- **Phase 5 — Physical reorg** into `core/` + `programs/` — finish moving program
+  *supporting* code (`components/oea`, `components/treehouse`, program hooks/services,
+  backend `routes/oea.py` / `treehouse.py`) into their modules, and split core out.
 - **Phase 6 — Class/credit code disambiguation.**
 
 ---
@@ -241,3 +247,6 @@ separate, tracked migration — not done in this pass.
     `programs/oea/`; core `SkillsGrowth` renders a registry diploma widget and core
     overview hooks no longer import `oeaAPI`. Core carries zero OEA rendering/API
     coupling. `SubjectProgressRow` extracted to a shared `components/diploma/` primitive.
+  - **Phase 4:** program pages co-located under `src/programs/<program>/`; the
+    registry contributes routes by mount context and core `App.jsx` renders them via
+    `getProgramRoutes` — the router names no program.

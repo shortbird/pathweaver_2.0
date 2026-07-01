@@ -237,8 +237,9 @@ const ContactsSection = ({ student, orgId }) => {
       setAdding(false)
     } catch { toast.error('Could not add contact') }
   }
-  const remove = async (id) => {
-    try { await api.delete(`/api/sis/emergency-contacts/${id}`); setContacts((c) => c.filter((x) => x.id !== id)) }
+  const remove = async (c) => {
+    if (!window.confirm(`Remove ${c.name} as an emergency contact?`)) return
+    try { await api.delete(`/api/sis/emergency-contacts/${c.id}`); setContacts((x) => x.filter((y) => y.id !== c.id)) }
     catch { toast.error('Could not remove contact') }
   }
 
@@ -264,7 +265,7 @@ const ContactsSection = ({ student, orgId }) => {
               {c.relationship && <span className="text-neutral-400"> · {c.relationship}</span>}
               <div className="text-xs text-neutral-400">{[c.phone, c.email].filter(Boolean).join(' · ')}</div>
             </div>
-            <button onClick={() => remove(c.id)} className="text-red-500 text-sm hover:underline">Remove</button>
+            <button onClick={() => remove(c)} className="text-red-500 text-sm hover:underline">Remove</button>
           </div>
         ))}
       </div>

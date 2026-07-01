@@ -8,10 +8,11 @@
  *
  * Part of the "core is the base, programs are extensions" architecture (see
  * docs/ARCHITECTURE_CORE_AND_PROGRAMS.md). It carries the sidebar program-tab
- * config and the diploma-widget hook; it can grow to hold routes, dashboard
- * widgets, and theming per program.
+ * config, the diploma widget/data hooks, and the program page routes; program
+ * pages live co-located under src/programs/<program>/.
  */
-import React from 'react'
+import React, { lazy } from 'react'
+import { Route } from 'react-router-dom'
 import { renderOeaDiploma, fetchOeaDiploma } from './oea/DiplomaWidget'
 
 // Diploma/academy cap — shared by the diploma-style programs (OEA, Hearthwood, Gryffin).
@@ -111,4 +112,53 @@ export function renderDiplomaWidget(context) {
 // with the render hook above), so core overview hooks don't import a program API.
 export function fetchProgramDiploma(studentId) {
   return fetchOeaDiploma(studentId)
+}
+
+
+// ── Program page routes ──────────────────────────────────────────────────────
+// Each program's pages, declared per mount context so core App.jsx renders them
+// without naming any program:
+//   'app'        — inside the protected app Layout
+//   'public'     — public / marketing pages (Layout, no auth)
+//   'standalone' — top-level, no app Layout (e.g. the Treehouse kiosk)
+const OpenEdAcademyPage = lazy(() => import('./oea/OpenEdAcademyPage'))
+const OEASelectPathwayPage = lazy(() => import('./oea/OEASelectPathwayPage'))
+const OEACreditsPage = lazy(() => import('./oea/OEACreditsPage'))
+const OEATranscriptPage = lazy(() => import('./oea/OEATranscriptPage'))
+const OEAProgressReportPage = lazy(() => import('./oea/OEAProgressReportPage'))
+const TreehousePage = lazy(() => import('./treehouse/TreehousePage'))
+const TreehouseBrowsePage = lazy(() => import('./treehouse/TreehouseBrowsePage'))
+const TreehouseShowcasePage = lazy(() => import('./treehouse/TreehouseShowcasePage'))
+const TreehouseFacilitatorPage = lazy(() => import('./treehouse/TreehouseFacilitatorPage'))
+const TreehouseKioskPage = lazy(() => import('./treehouse/TreehouseKioskPage'))
+const GryffinPage = lazy(() => import('./gryffin/GryffinPage'))
+const PoePage = lazy(() => import('./poe/PoePage'))
+
+const PROGRAM_ROUTES = {
+  app: [
+    { path: 'opened-academy', element: <OpenEdAcademyPage /> },
+    { path: 'opened-academy/student/:studentId/pathway', element: <OEASelectPathwayPage /> },
+    { path: 'opened-academy/student/:studentId/credits', element: <OEACreditsPage /> },
+    { path: 'opened-academy/student/:studentId/transcript', element: <OEATranscriptPage /> },
+    { path: 'opened-academy/student/:studentId/progress-report', element: <OEAProgressReportPage /> },
+    { path: 'treehouse', element: <TreehousePage /> },
+    { path: 'treehouse/browse', element: <TreehouseBrowsePage /> },
+    { path: 'treehouse/showcase', element: <TreehouseShowcasePage /> },
+    { path: 'treehouse/facilitator', element: <TreehouseFacilitatorPage /> },
+    { path: 'gryffin', element: <GryffinPage /> },
+    { path: 'gryffin/:classId', element: <GryffinPage /> },
+  ],
+  public: [
+    { path: 'poe', element: <PoePage /> },
+  ],
+  standalone: [
+    { path: 'treehouse-kiosk', element: <TreehouseKioskPage /> },
+  ],
+}
+
+/** <Route> elements for a given mount context (core App.jsx splices these in). */
+export function getProgramRoutes(context) {
+  return (PROGRAM_ROUTES[context] || []).map((r) => (
+    <Route key={r.path} path={r.path} element={r.element} />
+  ))
 }

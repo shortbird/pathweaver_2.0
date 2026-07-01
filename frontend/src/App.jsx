@@ -10,6 +10,7 @@ import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
+import { getProgramRoutes } from './programs/registry'
 import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
@@ -58,21 +59,8 @@ const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 const QuestDiscovery = lazy(() => import('./pages/QuestDiscovery'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
-// OpenEd Academy (OEA) diploma program — school-specific tab (/opened-academy)
-const OpenEdAcademyPage = lazy(() => import('./pages/oea/OpenEdAcademyPage'))
-const OEASelectPathwayPage = lazy(() => import('./pages/oea/OEASelectPathwayPage'))
-const OEACreditsPage = lazy(() => import('./pages/oea/OEACreditsPage'))
-const OEATranscriptPage = lazy(() => import('./pages/oea/OEATranscriptPage'))
-const OEAProgressReportPage = lazy(() => import('./pages/oea/OEAProgressReportPage'))
-
-// The Treehouse program — microschool tab (/treehouse), branches student vs facilitator
-const TreehousePage = lazy(() => import('./pages/treehouse/TreehousePage'))
-const TreehouseFacilitatorPage = lazy(() => import('./pages/treehouse/TreehouseFacilitatorPage'))
-const TreehouseBrowsePage = lazy(() => import('./pages/treehouse/TreehouseBrowsePage'))
-const TreehouseShowcasePage = lazy(() => import('./pages/treehouse/TreehouseShowcasePage'))
-const TreehouseKioskPage = lazy(() => import('./pages/treehouse/TreehouseKioskPage'))
-// Gryffin Learning Center — microschool tab (/gryffin); students see their enrolled classes
-const GryffinPage = lazy(() => import('./pages/gryffin/GryffinPage'))
+// Program pages (OpenEd Academy, Treehouse, Gryffin, POE) are lazy-loaded and
+// routed via the program registry — see src/programs/registry.jsx.
 // Credit & Transcript Pages
 const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
 const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
@@ -117,7 +105,6 @@ const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const ClassRegistrationPage = lazy(() => import('./pages/ClassRegistrationPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
-const PoePage = lazy(() => import('./pages/poe/PoePage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const ClassesPage = lazy(() => import('./pages/marketing/ClassesPage'))
@@ -441,8 +428,8 @@ function App() {
               <Route path="how-it-works" element={<HowItWorksPage />} />
               <Route path="philosophy" element={<PhilosophyPage />} />
               <Route path="academy" element={<AcademyPage />} />
-              {/* Pipe Organ Encounter pilot — hidden public page (not linked in nav) */}
-              <Route path="poe" element={<PoePage />} />
+              {/* Program public/marketing routes (e.g. POE) — see src/programs/registry.jsx */}
+              {getProgramRoutes('public')}
 
               {/* Canvas LTI iframe routes (no Layout, no auth chrome). The
                   AuthContext skips session checks on these paths so the
@@ -539,24 +526,10 @@ function App() {
                 <Route path="bounties/create" element={<BountyCreatePage />} />
                 <Route path="bounties/:bountyId/edit" element={<BountyCreatePage />} />
                 <Route path="bounties/:bountyId" element={<BountyDetailPage />} />
-                {/* OpenEd Academy diploma program (gated in the sidebar by
-                    users.program_key; the page branches parent vs student and
-                    writes are enforced server-side). */}
-                <Route path="opened-academy" element={<OpenEdAcademyPage />} />
-                <Route path="opened-academy/student/:studentId/pathway" element={<OEASelectPathwayPage />} />
-                <Route path="opened-academy/student/:studentId/credits" element={<OEACreditsPage />} />
-                <Route path="opened-academy/student/:studentId/transcript" element={<OEATranscriptPage />} />
-                <Route path="opened-academy/student/:studentId/progress-report" element={<OEAProgressReportPage />} />
-                {/* The Treehouse program (gated in the sidebar by org slug; the
-                    page branches student vs facilitator, enforced server-side). */}
-                <Route path="treehouse" element={<TreehousePage />} />
-                <Route path="treehouse/browse" element={<TreehouseBrowsePage />} />
-                <Route path="treehouse/showcase" element={<TreehouseShowcasePage />} />
-                <Route path="treehouse/facilitator" element={<TreehouseFacilitatorPage />} />
-                {/* Gryffin Learning Center (gated in the sidebar by org slug). Students
-                    see their enrolled classes; :classId opens a class's quests. */}
-                <Route path="gryffin" element={<GryffinPage />} />
-                <Route path="gryffin/:classId" element={<GryffinPage />} />
+                {/* Program in-app routes (OpenEd Academy, Treehouse, Gryffin),
+                    gated in the sidebar by org slug / program_key; pages branch by
+                    role and writes are enforced server-side. See programs/registry.jsx. */}
+                {getProgramRoutes('app')}
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
@@ -633,9 +606,9 @@ function App() {
             <Route path="public/diploma/:userId" element={<DiplomaPage />} />
             <Route path="public/transcript/:userId" element={<PublicTranscriptPage />} />
 
-            {/* The Treehouse kiosk — shared-device passwordless student login
-                (no auth required; gated by a device token). */}
-            <Route path="treehouse-kiosk" element={<TreehouseKioskPage />} />
+            {/* Program standalone routes (no app Layout), e.g. the Treehouse
+                kiosk — see src/programs/registry.jsx */}
+            {getProgramRoutes('standalone')}
 
             {/* Public evidence report view (no auth required) */}
             <Route path="report/:token" element={<PublicEvidenceReport />} />
