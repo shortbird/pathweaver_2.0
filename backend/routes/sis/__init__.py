@@ -255,6 +255,52 @@ def delete_emergency_contact(user_id, contact_id):
     return jsonify({'success': True})
 
 
+@bp.route('/students/<student_id>/emergency-contacts/copy-from-family', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def copy_family_contacts(user_id, student_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not sis_service.student_in_org(student_id, org_id):
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    return jsonify({'success': True, **sis_service.copy_family_contacts_to_student(org_id, student_id)})
+
+
+# ── Family (household) emergency contacts — shared across the family's students ─
+@bp.route('/households/<household_id>/emergency-contacts', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_household_contacts(user_id, household_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
+
+
+@bp.route('/households/<household_id>/emergency-contacts', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def add_household_contact(user_id, household_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.json or {}
+    if not (data.get('name') or '').strip():
+        return jsonify({'success': False, 'error': 'Contact name is required'}), 400
+    result = sis_service.add_household_emergency_contact(org_id, household_id, data)
+    return jsonify({'success': True, **result,
+                    'contacts': sis_service.household_emergency_contacts(org_id, household_id)}), 201
+
+
+@bp.route('/households/<household_id>/emergency-contacts/delete', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def remove_household_contact(user_id, household_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    ids = (request.json or {}).get('ids') or []
+    sis_service.remove_household_emergency_contacts(ids)
+    return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
+
+
 # ── Reports ──────────────────────────────────────────────────────────────────
 @bp.route('/reports/roster.csv', methods=['GET'])
 @require_role(*STAFF_ROLES)

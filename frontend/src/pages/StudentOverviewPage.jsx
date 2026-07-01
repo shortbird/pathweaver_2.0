@@ -3,7 +3,8 @@ import { Helmet } from 'react-helmet-async';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
-import api, { oeaAPI } from '../services/api';
+import api from '../services/api';
+import { fetchProgramDiploma } from '../programs/registry';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 
@@ -96,7 +97,7 @@ const StudentOverviewPage = () => {
         api.get('/api/users/me/engagement'),
         // OEA students: their real diploma is the pathway, not Optio XP credits.
         // 403/404 (non-OEA or no access) is fine — falls back to Optio credits.
-        oeaAPI.credits(effectiveUser.id)
+        fetchProgramDiploma(effectiveUser.id)
       ]);
 
       // Process profile
@@ -144,7 +145,7 @@ const StudentOverviewPage = () => {
       // so Skills & Growth can show pathway progress, a choose-pathway prompt for
       // OEA students without a pathway yet, or fall back to Optio credits.
       if (oeaResult.status === 'fulfilled') {
-        setOea(oeaResult.value.data || null);
+        setOea(oeaResult.value || null);
       } else {
         setOea(null);
       }

@@ -6,12 +6,13 @@
  * registry; it must never hardcode a program slug. Adding a program = add an
  * entry here, touching zero core files.
  *
- * This is the first piece of the "core is the base, programs are extensions"
- * architecture (see docs/ARCHITECTURE_CORE_AND_PROGRAMS.md). Today it carries
- * the sidebar program-tab config; it can grow to hold routes, dashboard
+ * Part of the "core is the base, programs are extensions" architecture (see
+ * docs/ARCHITECTURE_CORE_AND_PROGRAMS.md). It carries the sidebar program-tab
+ * config and the diploma-widget hook; it can grow to hold routes, dashboard
  * widgets, and theming per program.
  */
 import React from 'react'
+import { renderOeaDiploma, fetchOeaDiploma } from './oea/DiplomaWidget'
 
 // Diploma/academy cap — shared by the diploma-style programs (OEA, Hearthwood, Gryffin).
 const capIcon = (
@@ -87,4 +88,27 @@ export function getProgramNavItem({ slug, effectiveRole, orgLogoUrl }) {
       ? <img src={orgLogoUrl} alt="" className="w-5 h-5 object-contain rounded" />
       : program.navIcon,
   }
+}
+
+
+// ── Diploma widget hook ──────────────────────────────────────────────────────
+// Programs that own a student's diploma (e.g. OEA) plug a renderer in here. Each
+// takes the overview diploma context and returns a rendered panel, or null if it
+// does not apply. Core (SkillsGrowth) renders the first non-null, else its own
+// Optio-credits default — so core carries no program-specific diploma rendering.
+const DIPLOMA_WIDGETS = [renderOeaDiploma]
+
+/** The program diploma panel for this context, or null (core renders its default). */
+export function renderDiplomaWidget(context) {
+  for (const widget of DIPLOMA_WIDGETS) {
+    const el = widget(context)
+    if (el) return el
+  }
+  return null
+}
+
+// The program that owns a student's diploma supplies its data here (symmetric
+// with the render hook above), so core overview hooks don't import a program API.
+export function fetchProgramDiploma(studentId) {
+  return fetchOeaDiploma(studentId)
 }

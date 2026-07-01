@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
+import SearchSelect from '../../components/ui/SearchSelect'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 
 /**
@@ -192,10 +193,11 @@ const FamilySection = ({ student, orgId, onSaved }) => {
         : households.length === 0 ? <p className="text-sm text-neutral-400">No families yet — create one on the Families page.</p>
         : (
           <div className="flex gap-2">
-            <select value={chosen} onChange={(e) => setChosen(e.target.value)} className={field}>
-              <option value="">Select a family…</option>
-              {households.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-            </select>
+            <SearchSelect
+              value={chosen} onChange={setChosen} options={households}
+              getId={(h) => h.id} getLabel={(h) => h.name}
+              placeholder="Search families…" className="flex-1"
+            />
             <Button size="sm" onClick={assign} loading={busy}>Assign</Button>
           </div>
         )}
@@ -208,11 +210,23 @@ const ContactsSection = ({ student, orgId }) => {
   const [adding, setAdding] = useState(false)
   const [nc, setNc] = useState({ name: '', relationship: '', phone: '', email: '' })
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     api.get(`/api/sis/students/${student.student_id}/emergency-contacts`)
       .then((r) => setContacts(r.data?.contacts || []))
       .catch(() => { /* non-fatal */ })
   }, [student.student_id])
+
+  useEffect(() => { reload() }, [reload])
+
+  const copyFromFamily = async () => {
+    try {
+      const r = await api.post(`/api/sis/students/${student.student_id}/emergency-contacts/copy-from-family`, {})
+      if (r.data?.no_family) { toast.error('Student is not in a family'); return }
+      const n = r.data?.copied ?? 0
+      toast.success(n ? `Copied ${n} contact${n === 1 ? '' : 's'} from family` : 'No new family contacts to copy')
+      if (n) reload()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not copy from family') }
+  }
 
   const add = async () => {
     if (!nc.name.trim()) { toast.error('Contact name required'); return }
@@ -230,11 +244,16 @@ const ContactsSection = ({ student, orgId }) => {
 
   return (
     <section className="border-t border-gray-100 pt-4">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Emergency contacts</h4>
-        {!adding && (
-          <button onClick={() => setAdding(true)} className="text-sm text-optio-purple font-medium hover:underline">+ Emergency Contact</button>
-        )}
+        <div className="flex items-center gap-3">
+          {student.household_name && (
+            <button onClick={copyFromFamily} className="text-sm text-neutral-500 hover:underline">Copy from family</button>
+          )}
+          {!adding && (
+            <button onClick={() => setAdding(true)} className="text-sm text-optio-purple font-medium hover:underline">+ Emergency Contact</button>
+          )}
+        </div>
       </div>
       <div className="space-y-2">
         {contacts.length === 0 && !adding && <p className="text-sm text-neutral-400">No contacts yet.</p>}
@@ -329,10 +348,12 @@ const SchedulePanel = ({ student, orgId }) => {
           ? <p className="text-sm text-neutral-400">No other classes available.</p>
           : (
             <div className="flex gap-2">
-              <select value={chosen} onChange={(e) => setChosen(e.target.value)} className={field}>
-                <option value="">Select a class…</option>
-                {options.map((c) => <option key={c.id} value={c.id}>{c.name}{c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}</option>)}
-              </select>
+              <SearchSelect
+                value={chosen} onChange={setChosen} options={options}
+                getId={(c) => c.id}
+                getLabel={(c) => `${c.name}${c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}`}
+                placeholder="Search classes…" className="flex-1"
+              />
               <Button size="sm" onClick={enroll} loading={busy}>Enroll</Button>
             </div>
           )}

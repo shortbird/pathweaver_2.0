@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import api, { oeaAPI } from '../../services/api';
+import api from '../../services/api';
 import logger from '../../utils/logger';
-import { buildQuestOrbs } from '../../utils/pillarHelpers';
+import { fetchProgramDiploma } from '../../programs/registry';
 
 /**
  * Unified hook to fetch consolidated student overview data.
@@ -31,11 +31,11 @@ export function useStudentOverviewData(studentId, endpoint) {
       // the main fetch.
       const [overviewRes, oeaRes] = await Promise.allSettled([
         api.get(`${endpoint}/${studentId}`),
-        oeaAPI.credits(studentId)
+        fetchProgramDiploma(studentId)
       ]);
       if (overviewRes.status !== 'fulfilled') throw overviewRes.reason;
       const apiData = overviewRes.value.data;
-      const oea = oeaRes.status === 'fulfilled' ? (oeaRes.value.data || null) : null;
+      const oea = oeaRes.status === 'fulfilled' ? (oeaRes.value || null) : null;
 
       const transformed = {
         // For HeroSection
@@ -68,9 +68,6 @@ export function useStudentOverviewData(studentId, endpoint) {
         pendingSubjectXp: apiData.pending_subject_xp || {},
         oea,
 
-        // For ConstellationPreview
-        pillarsData: apiData.pillars_data || [],
-        questOrbs: buildQuestOrbs(apiData.completed_quests || []),
 
         // For PortfolioSection
         achievements: apiData.portfolio_achievements || apiData.completed_quests || [],

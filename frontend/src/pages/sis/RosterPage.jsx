@@ -39,6 +39,15 @@ const RosterPage = () => {
 
   useEffect(() => { load() }, [load])
 
+  // Keep the open Manage modal in sync with fresh roster data (e.g. after assigning
+  // a student to a family, the modal reflects it without reopening).
+  useEffect(() => {
+    if (!selected) return
+    const fresh = roster.find((r) => r.student_id === selected.student_id)
+    if (fresh) setSelected(fresh)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roster])
+
   const exportCsv = async () => {
     try {
       const res = await api.get(withOrg('/api/sis/reports/roster.csv', orgId), { responseType: 'blob' })

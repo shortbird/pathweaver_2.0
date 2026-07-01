@@ -210,10 +210,13 @@ separate, tracked migration — not done in this pass.
   program**. Adding a program = a registry entry. Capability flags already existed
   (backend `utils/org_features.py`, frontend `useOrgFeature`) — the JSONB
   `feature_flags` substrate that gates `sis_enabled`.
-- **Phase 3 — Invert OEA fully** onto the registry — the remaining OEA coupling is
-  the diploma panel + choose-pathway UI inline in core `SkillsGrowth` (data-driven
-  via the `oea` prop, not a hardcoded branch). Extract it behind a widget hook so
-  core carries no OEA rendering.
+- **Phase 3 — Invert OEA** ✅ *done* — OEA's diploma panel + choose-pathway UI moved
+  to `frontend/src/programs/oea/DiplomaWidget.jsx`; core `SkillsGrowth` renders the
+  registry's diploma widget (`renderDiplomaWidget`) or its Optio-credits default.
+  The OEA data fetch moved behind the registry's `fetchProgramDiploma` too, so core
+  overview hooks no longer import `oeaAPI`. Core now carries zero OEA rendering or
+  API coupling; the only OEA mentions left in core are illustrative code comments.
+  (`SubjectProgressRow` extracted to a shared `components/diploma/` primitive.)
 - **Phase 4 — Migrate Treehouse, Gryffin, POE, iCreate** to program modules.
 - **Phase 5 — Physical reorg** into `core/` + `programs/`.
 - **Phase 6 — Class/credit code disambiguation.**
@@ -230,7 +233,11 @@ separate, tracked migration — not done in this pass.
     generation. `yeti_*` + `spark_auth_codes` tables dropped. `quest_types.py`
     retained (active required/optional task model, not legacy).
   - **Phase 1:** advisor→teacher UI relabel (display only; stored value `advisor`).
-  - **Phase 2:** program registry on both tiers — core (Sidebar, registration)
-    consults it; the hardcoded slug ladder + direct `program_key` import removed.
-    Entanglement audit found the codebase far less program-coupled than expected
-    (OEA's diploma panel is already a data-driven prop, not a hardcoded branch).
+  - **Phase 2:** program registry on both tiers — core (Sidebar, registration,
+    cron-dispatch) consults it; the hardcoded slug ladder, direct `program_key`
+    import, and OEA cron endpoint removed. Capability flags already existed.
+    Entanglement audit found the codebase far less program-coupled than expected.
+  - **Phase 3:** OEA fully inverted — its diploma UI + data fetch moved to
+    `programs/oea/`; core `SkillsGrowth` renders a registry diploma widget and core
+    overview hooks no longer import `oeaAPI`. Core carries zero OEA rendering/API
+    coupling. `SubjectProgressRow` extracted to a shared `components/diploma/` primitive.

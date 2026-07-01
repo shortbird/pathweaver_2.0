@@ -232,6 +232,95 @@ def delete_emergency_contact(contact_id: str) -> None:
     _admin().table('emergency_contacts').delete().eq('id', contact_id).execute()
 
 
+# ── Family-level emergency contacts (per-student rows shared across a household) ─
+def _household_org(household_id: str) -> Optional[str]:
+    r = (
+        _admin().table('households').select('id, organization_id')
+        .eq('id', household_id).limit(1).execute()
+    ).data
+    return r[0].get('organization_id') if r else None
+
+
+def household_student_ids(org_id: str, household_id: str) -> List[str]:
+    if _household_org(household_id) != org_id:
+        return []
+    members = (
+        _admin().table('household_members').select('user_id, relationship')
+        .eq('household_id', household_id).execute()
+    ).data or []
+    return [m['user_id'] for m in members if m.get('relationship') == 'student']
+
+
+def _contact_key(c: Dict[str, Any]):
+    return ((c.get('name') or '').strip().lower(), (c.get('phone') or '').strip())
+
+
+def household_emergency_contacts(org_id: str, household_id: str) -> List[Dict[str, Any]]:
+    """Emergency contacts across a household's students, deduped into one family list.
+    Each item carries the underlying per-student row ids so it can be removed family-wide."""
+    sids = household_student_ids(org_id, household_id)
+    if not sids:
+        return []
+    rows = (
+        _admin().table('emergency_contacts').select('*')
+        .in_('student_user_id', sids).execute()
+    ).data or []
+    agg: Dict[Any, Dict[str, Any]] = {}
+    for r in rows:
+        key = _contact_key(r)
+        a = agg.setdefault(key, {
+            'name': r.get('name'), 'relationship': r.get('relationship'),
+            'phone': r.get('phone'), 'email': r.get('email'),
+            'ids': [], 'student_ids': set(),
+        })
+        a['ids'].append(r['id'])
+        a['student_ids'].add(r['student_user_id'])
+    out = [{
+        'name': a['name'], 'relationship': a['relationship'], 'phone': a['phone'], 'email': a['email'],
+        'ids': a['ids'], 'student_count': len(a['student_ids']), 'total_students': len(sids),
+    } for a in agg.values()]
+    out.sort(key=lambda x: (x['name'] or '').lower())
+    return out
+
+
+def add_household_emergency_contact(org_id: str, household_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Add a contact to every student in the household (skipping students who already have it)."""
+    sids = household_student_ids(org_id, household_id)
+    name = (fields.get('name') or '').strip()
+    if not name or not sids:
+        return {'added': 0}
+    key = _contact_key({'name': name, 'phone': fields.get('phone')})
+    added = 0
+    for sid in sids:
+        existing = list_emergency_contacts(sid)
+        if any(_contact_key(c) == key for c in existing):
+            continue
+        add_emergency_contact(sid, org_id, fields)
+        added += 1
+    return {'added': added}
+
+
+def remove_household_emergency_contacts(ids: List[str]) -> None:
+    if ids:
+        _admin().table('emergency_contacts').delete().in_('id', ids).execute()
+
+
+def copy_family_contacts_to_student(org_id: str, student_id: str) -> Dict[str, Any]:
+    """Copy the student's family contacts onto their own record (skipping ones they have)."""
+    hh = _household_by_user(org_id).get(student_id)
+    if not hh:
+        return {'copied': 0, 'no_family': True}
+    fam = household_emergency_contacts(org_id, hh['household_id'])
+    have = {_contact_key(c) for c in list_emergency_contacts(student_id)}
+    copied = 0
+    for c in fam:
+        if _contact_key(c) in have:
+            continue
+        add_emergency_contact(student_id, org_id, c)
+        copied += 1
+    return {'copied': copied}
+
+
 def list_org_members(org_id: str) -> List[Dict[str, Any]]:
     """All users in an org (students + guardians + staff) for household assignment pickers."""
     resp = (
