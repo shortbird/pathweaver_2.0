@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { oeaAPI } from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
-import OEAGradePeriodsModal from '../../components/oea/OEAGradePeriodsModal'
+import OEAGradePeriodsModal from './OEAGradePeriodsModal'
 
 const GRADES = ['A', 'B', 'C', 'D', 'F']
 

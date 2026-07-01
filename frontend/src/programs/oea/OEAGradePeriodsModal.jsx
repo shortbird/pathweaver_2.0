@@ -11,7 +11,7 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { oeaAPI } from '../../services/api'
-import ModalOverlay from '../ui/ModalOverlay'
+import ModalOverlay from '../../components/ui/ModalOverlay'
 
 const GRADES = ['A', 'B', 'C', 'D', 'F']
 const TERMS = [
