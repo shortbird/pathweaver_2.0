@@ -104,6 +104,14 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   )
 }
 
+const RoleField = ({ form, set }) => (
+  <label className="text-xs text-neutral-500">Role
+    <select value={form.role} onChange={(e) => set('role', e.target.value)} className={field}>
+      {ROLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
+  </label>
+)
+
 const ProfileFields = ({ form, set, isStudent }) => (
   <section className="space-y-3">
     <div className="grid grid-cols-2 gap-3">
@@ -122,19 +130,18 @@ const ProfileFields = ({ form, set, isStudent }) => (
         <label className="text-xs text-neutral-500">Date of birth
           <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
         </label>
-        <label className="text-xs text-neutral-500">Status
-          <select value={form.status} onChange={(e) => set('status', e.target.value)} className={field}>
-            {['applicant', 'enrolled', 'withdrawn', 'graduated'].map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
+        <RoleField form={form} set={set} />
         <label className="text-xs text-neutral-500">Grade
           <input value={form.grade_level} onChange={(e) => set('grade_level', e.target.value)} className={field} placeholder="e.g. 9th" />
         </label>
       </div>
     ) : (
-      <label className="text-xs text-neutral-500 block">Date of birth
-        <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
-      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs text-neutral-500">Date of birth
+          <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
+        </label>
+        <RoleField form={form} set={set} />
+      </div>
     )}
     <p className="text-xs text-neutral-400 -mt-1">Changing the email updates the user's login.</p>
   </section>
@@ -145,22 +152,6 @@ const ROLE_OPTIONS = [
 ]
 
 const AccountSection = ({ student, orgId, onSaved, onClose }) => {
-  const [role, setRole] = useState(student.role || (student.is_student !== false ? 'student' : ''))
-  const [savingRole, setSavingRole] = useState(false)
-
-  const changeRole = async (r) => {
-    const prev = role
-    setRole(r); setSavingRole(true)
-    try {
-      await api.patch(`/api/sis/users/${student.student_id}/role`, { role: r, organization_id: orgId })
-      toast.success('Role updated')
-      onSaved?.()
-    } catch (e) {
-      setRole(prev)
-      toast.error(e?.response?.data?.error || 'Could not change role')
-    } finally { setSavingRole(false) }
-  }
-
   const resetPassword = async () => {
     if (!window.confirm(`Reset ${student.name}'s password?`)) return
     try {
@@ -180,15 +171,6 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
   return (
     <section className="border-t border-gray-100 pt-4">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Account</h4>
-      <label className="flex items-center gap-2 text-sm text-neutral-600 mb-3">
-        Role
-        <select
-          value={role} onChange={(e) => changeRole(e.target.value)} disabled={savingRole}
-          className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-        >
-          {ROLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-      </label>
       <div className="flex flex-wrap items-center gap-4">
         <Button size="sm" variant="outline" onClick={resetPassword}>Reset password</Button>
         <button onClick={remove} className="text-sm text-red-600 font-medium hover:underline">Remove from organization</button>
@@ -287,14 +269,9 @@ const ContactsSection = ({ student, orgId }) => {
     <section className="border-t border-gray-100 pt-4">
       <div className="flex items-center justify-between mb-2 gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Emergency contacts</h4>
-        <div className="flex items-center gap-3">
-          {student.household_name && (
-            <button onClick={copyFromFamily} className="text-sm text-neutral-500 hover:underline">Copy from family</button>
-          )}
-          {!adding && (
-            <button onClick={() => setAdding(true)} className="text-sm text-optio-purple font-medium hover:underline">+ Emergency Contact</button>
-          )}
-        </div>
+        {!adding && (
+          <button onClick={() => setAdding(true)} className="text-sm text-optio-purple font-medium hover:underline">+ Emergency Contact</button>
+        )}
       </div>
       <div className="space-y-2">
         {contacts.length === 0 && !adding && <p className="text-sm text-neutral-400">No contacts yet.</p>}
@@ -311,6 +288,9 @@ const ContactsSection = ({ student, orgId }) => {
       </div>
       {adding && (
         <div className="mt-2 rounded-lg border border-gray-200 p-3">
+          {student.household_name && (
+            <button onClick={copyFromFamily} className="text-sm text-optio-purple font-medium hover:underline mb-2">Copy from family</button>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <input value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} className={field} placeholder="Name" autoFocus />
             <input value={nc.relationship} onChange={(e) => setNc({ ...nc, relationship: e.target.value })} className={field} placeholder="Relationship" />
