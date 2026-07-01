@@ -611,9 +611,15 @@ def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org
 
         org_name = org_result.data['name']
 
-        # Generate invitation code and expiration
+        # Generate invitation code and expiration.
+        # Link-based invites are reusable (accept keeps them 'pending') and act as
+        # the org's standing per-role registration links, so they are effectively
+        # permanent — far-future expiry rather than the 7 days used for one-off
+        # email invites. Admins rotate a leaked link via "Reset" (regenerate),
+        # which invalidates the old code. Not null: validate_invitation_code()
+        # parses expires_at unconditionally.
         invitation_code = generate_invitation_code()
-        expires_at = datetime.utcnow() + timedelta(days=7)
+        expires_at = datetime.utcnow() + timedelta(days=3650)
 
         # Create invitation with placeholder email (link-based)
         # The actual email will be provided when the user accepts

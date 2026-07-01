@@ -65,7 +65,15 @@ export default function AcceptInvitationPage() {
         if (!isMounted) return;
 
         if (response.data.valid) {
-          setInvitation(response.data.invitation);
+          const inv = response.data.invitation;
+          // iCreate parent links use a dedicated branded, multi-step registration
+          // funnel (parent + kids -> paperwork -> fee -> scheduling). Every other
+          // org keeps this standard single-account flow.
+          if (inv.organization?.slug === 'icreate' && inv.role === 'parent' && inv.is_link_based) {
+            navigate(`/register/icreate/${code}`, { replace: true });
+            return;
+          }
+          setInvitation(inv);
           setFormData(prev => ({
             ...prev,
             email: response.data.invitation.email || '',

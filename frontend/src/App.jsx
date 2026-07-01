@@ -46,6 +46,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
+const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -112,7 +113,6 @@ const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
 const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
 const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))
 const PhilosophyPage = lazy(() => import('./pages/marketing/PhilosophyPage'))
-const AcademyPage = lazy(() => import('./pages/marketing/AcademyPage'))
 // Help Center / Docs pages (February 2026)
 const DocsLandingPage = lazy(() => import('./pages/docs/DocsLandingPage'))
 const DocsCategoryPage = lazy(() => import('./pages/docs/DocsCategoryPage'))
@@ -427,7 +427,6 @@ function App() {
               <Route path="for-schools" element={<ForSchoolsPage />} />
               <Route path="how-it-works" element={<HowItWorksPage />} />
               <Route path="philosophy" element={<PhilosophyPage />} />
-              <Route path="academy" element={<AcademyPage />} />
               {/* Program public/marketing routes (e.g. POE) — see src/programs/registry.jsx */}
               {getProgramRoutes('public')}
 
@@ -618,6 +617,9 @@ function App() {
 
             {/* Invitation pages - standalone full-screen layouts */}
             <Route path="invitation/:code" element={<AcceptInvitationPage />} />
+            {/* iCreate branded parent registration funnel (AcceptInvitationPage
+                redirects iCreate parent links here; other orgs are unaffected) */}
+            <Route path="register/icreate/:code" element={<ICreateRegisterPage />} />
             <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
 
             {/* Mobile demo - superadmin only, full-screen iframe */}

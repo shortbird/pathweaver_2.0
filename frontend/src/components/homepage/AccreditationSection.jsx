@@ -1,12 +1,13 @@
 import React, { forwardRef } from 'react'
 import { CheckCircleIcon } from '@heroicons/react/24/outline'
+import WascBadge from '../accreditation/WascBadge'
 
 const AccreditationSection = forwardRef(({ isVisible = true }, ref) => {
   const diplomaFeatures = [
-    'Issued by accredited partner institutions',
-    'Meets state requirements',
+    'Issued by Optio Academy, accredited by WASC',
+    'Meets state graduation requirements',
     'Accepted by colleges nationwide',
-    'Includes official transcript and portfolio',
+    'Includes an official transcript and portfolio',
   ]
 
   const dualEnrollmentFeatures = [
@@ -30,14 +31,19 @@ const AccreditationSection = forwardRef(({ isVisible = true }, ref) => {
             className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
-            Official Diplomas Through Our Accredited Partners
+            A WASC-Accredited High School Diploma
           </h2>
           <p
             className="text-lg text-gray-600 max-w-2xl mx-auto"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
-            We partner with established accredited institutions to provide official credentials
+            Optio Academy is accredited by the Accrediting Commission for Schools, Western
+            Association of Schools and Colleges, so the diploma you earn is official and
+            recognized nationwide.
           </p>
+          <div className="mt-8 max-w-md mx-auto">
+            <WascBadge variant="card" />
+          </div>
         </div>
 
         {/* Two Column Layout */}
@@ -115,7 +121,7 @@ const AccreditationSection = forwardRef(({ isVisible = true }, ref) => {
             className="text-gray-700 leading-relaxed text-center max-w-3xl mx-auto"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
-            Optio provides the learning platform and portfolio system. Our accredited partner institutions review student work and issue official diplomas and transcripts. Your credentials are recognized by colleges and employers nationwide.
+            Your work is reviewed by licensed teachers and issued as an official, WASC-accredited transcript through Optio Academy. Partner schools that aren't accredited themselves can offer the same accredited transcript to their students through us. College credit is earned through our dual-enrollment partners. Your credentials are recognized by colleges and employers nationwide.
           </p>
         </div>
       </div>

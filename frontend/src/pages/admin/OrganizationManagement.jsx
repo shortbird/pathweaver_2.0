@@ -3,6 +3,8 @@ import { useParams, useSearchParams, useLocation, Navigate } from 'react-router-
 import { useAuth } from '../../contexts/AuthContext'
 import { isSimplifiedPartnerOrg } from '../../config/partnerOrgs'
 import { useOrganization } from '../../contexts/OrganizationContext'
+import { useSisOrg } from '../sis/useSisOrg'
+import SisOrgPicker from '../sis/SisOrgPicker'
 import api from '../../services/api'
 import { SettingsTab, PeopleTab } from '../../components/organization'
 import QuestsTab from '../../components/organization/QuestsTab'
@@ -56,7 +58,17 @@ export default function OrganizationManagement() {
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
 
-  const orgId = urlOrgId || user?.organization_id
+  // Superadmins have no org of their own, so fall back to the org selected in the
+  // SIS console (shared across every SIS page via the optio_sis_org_id picker).
+  // org_admin/advisor keep their own org; the learning surface passes urlOrgId.
+  const {
+    orgId: sisOrgId,
+    setOrgId: setSisOrgId,
+    orgs: sisOrgs,
+    isSuperadmin,
+    loading: sisOrgLoading,
+  } = useSisOrg()
+  const orgId = urlOrgId || user?.organization_id || sisOrgId
 
   // Simplified-partner org admins (e.g. OnFire Learning) use the focused /onfire
   // dashboard, not the full org-management UI. Superadmins still see it normally.
@@ -139,6 +151,34 @@ export default function OrganizationManagement() {
   }
 
   if (!orgId) {
+    // Superadmin with no org picked yet: don't flash the dead-end while the org
+    // list loads; then offer the picker so they can choose one to manage.
+    if (isSuperadmin) {
+      if (sisOrgLoading) {
+        return (
+          <div className="container mx-auto p-8">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className="container mx-auto p-8">
+          <div className="max-w-md mx-auto text-center space-y-4">
+            <p className="text-gray-500">Select an organization to manage.</p>
+            <div className="flex justify-center">
+              <SisOrgPicker
+                isSuperadmin={isSuperadmin}
+                orgs={sisOrgs}
+                orgId={orgId}
+                setOrgId={setSisOrgId}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="container mx-auto p-8">
         <div className="text-center text-gray-500">
@@ -174,7 +214,18 @@ export default function OrganizationManagement() {
 
   return (
     <div className="container mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-6">{orgData.organization.name}</h1>
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <h1 className="text-3xl font-bold">{orgData.organization.name}</h1>
+        {/* Superadmins can switch which org they're managing without leaving the tab. */}
+        {isSuperadmin && !urlOrgId && (
+          <SisOrgPicker
+            isSuperadmin={isSuperadmin}
+            orgs={sisOrgs}
+            orgId={orgId}
+            setOrgId={setSisOrgId}
+          />
+        )}
+      </div>
 
       <div className="mb-6 border-b">
         <nav className="flex gap-4">

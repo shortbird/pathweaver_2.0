@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.slug_utils import generate_slug, ensure_unique_slug
+from utils.accreditation import resolve_transcript_accreditation
 
 logger = get_logger(__name__)
 
@@ -239,12 +240,27 @@ def get_public_transcript(user_id):
         student = user_result.data[0]
 
         org_name = None
+        org_row = None
         if student.get('organization_id'):
-            org_result = client.table('organizations').select('name').eq(
-                'id', student['organization_id']
-            ).execute()
+            # Defensive: accreditation_source may not exist yet (pre-migration).
+            try:
+                org_result = client.table('organizations').select(
+                    'name, accreditation_source'
+                ).eq('id', student['organization_id']).execute()
+            except Exception:
+                org_result = client.table('organizations').select('name').eq(
+                    'id', student['organization_id']
+                ).execute()
             if org_result.data:
-                org_name = org_result.data[0].get('name')
+                org_row = org_result.data[0]
+                org_name = org_row.get('name')
+
+        # Whose accreditation is this transcript issued under? (Optio Academy WASC,
+        # the org's own accreditation, or none.) Frontend renders the WASC mark
+        # only when source == 'optio'.
+        accreditation = resolve_transcript_accreditation(
+            student.get('organization_id'), org_row
+        )
 
         XP_PER_CREDIT = 2000
         SUBJECT_DISPLAY_NAMES = {
@@ -333,6 +349,7 @@ def get_public_transcript(user_id):
                     'enrolled_date': student.get('created_at'),
                     'organization_name': org_name
                 },
+                'accreditation': accreditation,
                 'earned_credits': earned_credits,
                 'transfer_credits': transfer_credits,
                 'planned_credits': planned_credits,

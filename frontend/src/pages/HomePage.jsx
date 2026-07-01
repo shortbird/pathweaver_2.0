@@ -83,7 +83,7 @@ const HomePage = () => {
   const faqItems = [
     {
       question: 'How are diplomas accredited?',
-      answer: 'We partner with established accredited institutions to issue official high school diplomas and college credits. Optio provides the learning platform and portfolio system, while our partner institutions review student work and issue credentials based on their accreditation standards. This ensures your credentials are recognized by colleges, employers, and institutions nationwide.',
+      answer: 'Optio Academy, our full-time online private school, is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges (ACS WASC). Your work is reviewed by licensed teachers and issued as an official, WASC-accredited high school transcript. Partner schools that are not accredited themselves can offer the same accredited transcript to their students through Optio Academy. This ensures your credentials are recognized by colleges, employers, and institutions nationwide. (Accrediting Commission for Schools, WASC — 533 Airport Blvd., Suite 200, Burlingame, CA 94010 — www.acswasc.org)',
     },
     {
       question: "What's the difference between family and organization accounts?",
@@ -107,7 +107,7 @@ const HomePage = () => {
     },
     {
       question: 'How does dual-enrollment work with your partner institutions?',
-      answer: 'Students can earn college credit while completing high school requirements. When students finish coursework, our accredited partner institutions review their work and award transferable college credits. These credits can be applied to associate degrees or transferred to 4-year programs, helping students save thousands on tuition and get ahead in their academic journey.',
+      answer: 'You can earn college credit while completing high school requirements. When you finish coursework, our dual-enrollment college partners review your work and award transferable college credits. These credits can be applied to associate degrees or transferred to 4-year programs, helping you save thousands on tuition and get ahead in your academic journey.',
     },
     {
       question: 'What happens to work my child has already done?',

@@ -28,8 +28,16 @@ function RelationshipsSection({
   // Parent props
   parentLinks,
   handleDisconnectParentLink,
-  setShowAddConnectionModal
+  setShowAddConnectionModal,
+  // Optional: restrict to a single view ('advisors' | 'parents'). When set, the
+  // view toggle is hidden and only that relationship type renders. Used to split
+  // this section across the SIS Staff (advisors) and Families (parents) pages.
+  // Left undefined by the legacy org People tab, which keeps the toggle + both views.
+  only,
+  title = 'Relationships',
+  subtitle = 'Teacher-Student and Parent-Student connections'
 }) {
+  const view = only || relationshipView
   const assignedCount = allStudentsWithAdvisors.filter(s => s.advisor_count > 0).length
   const unassignedCount = allStudentsWithAdvisors.length - assignedCount
   return (
@@ -40,8 +48,8 @@ function RelationshipsSection({
       >
         <div className="flex items-center gap-3">
           <UsersIcon className="w-5 h-5 text-optio-purple" />
-          <span className="font-semibold text-gray-900">Relationships</span>
-          <span className="text-sm text-gray-500">Teacher-Student and Parent-Student connections</span>
+          <span className="font-semibold text-gray-900">{title}</span>
+          <span className="text-sm text-gray-500">{subtitle}</span>
         </div>
         <ChevronRightIcon className={`w-5 h-5 text-gray-400 transition-transform ${showRelationships ? 'rotate-90' : ''}`} />
       </button>
@@ -54,31 +62,34 @@ function RelationshipsSection({
             </div>
           ) : (
             <>
-              {/* Relationship Type Toggle */}
-              <div className="flex gap-2 py-4">
-                <button
-                  onClick={() => setRelationshipView('advisors')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    relationshipView === 'advisors'
-                      ? 'bg-optio-purple text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  Teachers ({advisors.length})
-                </button>
-                <button
-                  onClick={() => setRelationshipView('parents')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    relationshipView === 'parents'
-                      ? 'bg-optio-purple text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  Parents ({parentLinks.length})
-                </button>
-              </div>
+              {/* Relationship Type Toggle (hidden when restricted to a single view) */}
+              {!only && (
+                <div className="flex gap-2 py-4">
+                  <button
+                    onClick={() => setRelationshipView('advisors')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      relationshipView === 'advisors'
+                        ? 'bg-optio-purple text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Teachers ({advisors.length})
+                  </button>
+                  <button
+                    onClick={() => setRelationshipView('parents')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      relationshipView === 'parents'
+                        ? 'bg-optio-purple text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Parents ({parentLinks.length})
+                  </button>
+                </div>
+              )}
+              {only && <div className="py-2" />}
 
-              {relationshipView === 'advisors' ? (
+              {view === 'advisors' ? (
                 /* Advisor-Student Connections */
                 <div className="space-y-3">
                   {/* Summary Stats */}

@@ -17,6 +17,7 @@ from utils.auth.decorators import require_school_admin
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from services.portfolio_service import PortfolioService
+from utils.accreditation import resolve_transcript_accreditation
 
 logger = get_logger(__name__)
 
@@ -63,12 +64,26 @@ def get_transcript_data(admin_user_id, user_id):
 
         # Org info if applicable
         org_name = None
+        org_row = None
         if student.get('organization_id'):
-            org_result = supabase.table('organizations').select('name').eq(
-                'id', student['organization_id']
-            ).execute()
+            # Defensive: accreditation_source may not exist yet (pre-migration).
+            try:
+                org_result = supabase.table('organizations').select(
+                    'name, accreditation_source'
+                ).eq('id', student['organization_id']).execute()
+            except Exception:
+                org_result = supabase.table('organizations').select('name').eq(
+                    'id', student['organization_id']
+                ).execute()
             if org_result.data:
-                org_name = org_result.data[0].get('name')
+                org_row = org_result.data[0]
+                org_name = org_row.get('name')
+
+        # Whose accreditation this transcript is issued under (Optio Academy WASC,
+        # the org's own, or none). Frontend shows the WASC mark only for 'optio'.
+        accreditation = resolve_transcript_accreditation(
+            student.get('organization_id'), org_row
+        )
 
         # Transfer credits (all records) - fetch first to subtract from earned
         tc_result = supabase.table('transfer_credits').select('*').eq(
@@ -182,6 +197,7 @@ def get_transcript_data(admin_user_id, user_id):
                 'enrolled_date': student.get('created_at'),
                 'organization_name': org_name
             },
+            'accreditation': accreditation,
             'earned_credits': earned_credits,
             'transfer_credits': transfer_credits,
             'planned_credits': planned_credits,

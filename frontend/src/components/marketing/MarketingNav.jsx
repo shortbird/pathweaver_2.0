@@ -8,7 +8,6 @@ const NAV_LINKS = [
   { label: 'Classes', path: '/classes' },
   { label: 'For Families', path: '/for-families' },
   { label: 'For Schools', path: '/for-schools' },
-  { label: 'Academy', path: '/academy' },
   { label: 'How It Works', path: '/how-it-works' },
   // { label: 'Philosophy', path: '/philosophy' },
 ]

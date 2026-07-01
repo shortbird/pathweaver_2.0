@@ -10,7 +10,6 @@ import { trackPageView, trackEvent } from '../utils/metaPixel'
  */
 const VIEW_CONTENT_ROUTES = {
   '/classes': 'Classes',
-  '/academy': 'Academy',
   '/poe': 'Pipe Organ Encounter',
 }
 

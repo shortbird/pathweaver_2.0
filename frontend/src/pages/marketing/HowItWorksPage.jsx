@@ -5,6 +5,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
 import InlineContactForm from '../../components/marketing/InlineContactForm'
+import WascBadge from '../../components/accreditation/WascBadge'
 
 const PAGE = 'how_it_works'
 
@@ -491,9 +492,12 @@ const HowItWorksPage = () => {
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
               Turn It Into Official Credit
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-12" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              When students are ready, all that documented learning can become real, accredited credit. Official transcripts, high school diplomas, and even college credit.
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              When students are ready, all that documented learning can become real, accredited credit. Official transcripts, high school diplomas, and even college credit &mdash; issued through Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges (WASC).
             </p>
+            <div className="max-w-md mx-auto mb-12">
+              <WascBadge variant="card" />
+            </div>
           </RevealSection>
           <div className="grid sm:grid-cols-3 gap-6">
             {[

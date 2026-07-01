@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { captureEvent } from '../../services/posthog'
+import WascBadge from '../accreditation/WascBadge'
 
 const LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png'
 
@@ -81,6 +82,11 @@ const MarketingFooter = () => {
           </div>
         </div>
 
+        {/* Accreditation */}
+        <div className="border-t border-gray-800 pt-8 mb-8">
+          <WascBadge variant="inline" />
+        </div>
+
         {/* Bottom bar */}
         <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p
@@ -93,7 +99,7 @@ const MarketingFooter = () => {
             className="text-gray-500 text-sm"
             style={{ fontFamily: 'Poppins' }}
           >
-            Accredited Program
+            Optio Academy is accredited by ACS WASC
           </p>
         </div>
       </div>

@@ -5,6 +5,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
 import InlineContactForm from '../../components/marketing/InlineContactForm'
+import WascBadge from '../../components/accreditation/WascBadge'
 
 const PAGE = 'for_families'
 
@@ -34,9 +35,9 @@ const ForFamiliesPage = () => {
     <MarketingLayout>
       <Helmet>
         <title>For Families | Optio</title>
-        <meta name="description" content="Track your kids' learning, build portfolios automatically, and turn it into official credit. For homeschool families and public school families alike." />
+        <meta name="description" content="Homeschool your kids all the way to an accredited high school diploma. With Optio, your family's everyday learning becomes an official, WASC-accredited transcript and diploma." />
         <meta property="og:title" content="For Families | Optio" />
-        <meta property="og:description" content="Your kids are learning amazing things. Optio tracks it, builds portfolios, and can turn it into official credit." />
+        <meta property="og:description" content="Award your homeschooler a real, WASC-accredited high school diploma just by using Optio." />
         <meta property="og:url" content="https://www.optioeducation.com/for-families" />
         <link rel="canonical" href="https://www.optioeducation.com/for-families" />
       </Helmet>
@@ -49,10 +50,10 @@ const ForFamiliesPage = () => {
         </div>
         <div className="relative max-w-5xl mx-auto px-4 pb-12 sm:pb-16 pt-32 sm:pt-40 text-center text-white">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 leading-tight drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-            Your Kids Are Learning Amazing Things. Now It Can Count.
+            Homeschool Your Kids All the Way to an Accredited Diploma.
           </h1>
           <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-8 drop-shadow-md" style={{ fontFamily: 'Poppins', fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
-            No matter how your family learns, Optio tracks it all. Build a record of your kids' learning and share it with loved ones.
+            With Optio, the learning your family already does becomes an official, WASC-accredited high school transcript and diploma. You guide the learning; Optio makes it count.
           </p>
           <a
             href="#get-info"
@@ -248,16 +249,22 @@ const ForFamiliesPage = () => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <RevealSection>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              Turn Learning Into Official Credit
+              Award an Accredited Diploma, Right From Home
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-10" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              When your family is ready, Optio can turn all that learning into real, accredited credentials that colleges and employers recognize.
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              Your homeschool can graduate your kids with a real high school diploma. Through Optio
+              Academy's accreditation by the Accrediting Commission for Schools, Western Association of
+              Schools and Colleges (WASC), the learning you already do becomes an official transcript and
+              an accredited diploma that colleges and employers recognize nationwide.
             </p>
+            <div className="max-w-md mx-auto mb-10">
+              <WascBadge variant="card" />
+            </div>
           </RevealSection>
           <div className="grid sm:grid-cols-3 gap-6">
             {[
+              { title: 'Accredited Diploma at Home', desc: 'Document your student\'s high school years in Optio and graduate them with an official, WASC-accredited diploma. No outside school required.', img: 'https://images.pexels.com/photos/7692559/pexels-photo-7692559.jpeg?auto=compress&cs=tinysrgb&w=400' },
               { title: 'Individual Classes', desc: 'Turn your learning on Optio into official credit that transfers to your current school. $150 per class (one semester, 0.5 credit).', img: 'https://images.pexels.com/photos/33780218/pexels-photo-33780218.jpeg?auto=compress&cs=tinysrgb&w=400' },
-              { title: 'Full-Time Diploma', desc: 'Personalize your entire education through Optio Academy with a dedicated teacher.', img: 'https://images.pexels.com/photos/7692559/pexels-photo-7692559.jpeg?auto=compress&cs=tinysrgb&w=400' },
               { title: 'Dual Enrollment', desc: 'Earn college credit while completing high school requirements. Save thousands on tuition.', img: 'https://images.pexels.com/photos/5211472/pexels-photo-5211472.jpeg?auto=compress&cs=tinysrgb&w=400' },
             ].map((item, i) => (
               <RevealItem key={item.title} index={i}>

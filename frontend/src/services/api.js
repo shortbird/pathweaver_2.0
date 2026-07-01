@@ -241,7 +241,7 @@ api.interceptors.response.use(
         const isDocsPage = currentPath.startsWith('/docs')
         const isPublicTranscript = currentPath.startsWith('/public/transcript/')
         const isPromoPage = currentPath.startsWith('/for-students')
-        const isMarketingPage = currentPath === '/philosophy' || currentPath === '/for-families' || currentPath === '/for-schools' || currentPath === '/classes' || currentPath === '/academy' || currentPath === '/how-it-works'
+        const isMarketingPage = currentPath === '/philosophy' || currentPath === '/for-families' || currentPath === '/for-schools' || currentPath === '/classes' || currentPath === '/how-it-works'
         // Canvas LTI iframe pages — a refresh failure here should never
         // navigate to /login; the iframe lives in someone else's chrome.
         const isLtiPage = currentPath.startsWith('/lti-')

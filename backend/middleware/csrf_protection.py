@@ -79,6 +79,12 @@ def init_csrf(app):
         # device token (not a user session), so no CSRF cookie exists yet.
         'treehouse.kiosk_roster',
         'treehouse.kiosk_login',
+        # iCreate parent registration funnel: public, pre-session endpoints. The
+        # register call creates the accounts; the follow-up steps are gated by an
+        # opaque per-registration access_token, so there is no CSRF cookie yet.
+        'icreate_registration.register',
+        'icreate_registration.submit_paperwork',
+        'icreate_registration.record_fee',
     ]
 
     for endpoint in exempt_endpoints:

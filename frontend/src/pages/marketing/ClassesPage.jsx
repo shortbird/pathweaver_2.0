@@ -5,6 +5,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout'
 import FreeClassModal from '../../components/marketing/FreeClassModal'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
 import { captureEvent } from '../../services/posthog'
+import WascBadge from '../../components/accreditation/WascBadge'
 
 const PAGE = 'classes'
 const MODAL_SEEN_KEY = 'optio_classes_modal_seen'
@@ -483,8 +484,11 @@ const Transfer = () => {
               Class credit transfers to your high school.
             </h2>
             <p className="text-lg text-gray-600 mb-6 leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-              When you finish an Optio class, we send your local high school an official transcript showing the class you completed.
+              When you finish an Optio class, we send your local high school an official transcript showing the class you completed. That transcript is issued through Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges (WASC).
             </p>
+            <div className="mb-6">
+              <WascBadge variant="inline" className="text-gray-500" />
+            </div>
             <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
@@ -647,6 +651,24 @@ const ClassesPage = () => {
 
       <Hero onClaim={openModal} />
       <SubjectCatalog onClaim={openModal} />
+
+      {/* ========== ACCREDITATION ========== */}
+      <section className="py-16 sm:py-24 px-4 bg-gray-50">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            Every class is WASC-accredited
+          </h2>
+          <p className="text-lg text-gray-600 mb-8 leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+            Your classes are issued through Optio Academy, which is accredited by the Accrediting
+            Commission for Schools, Western Association of Schools and Colleges. That means the credit
+            you earn is official and recognized by high schools and colleges nationwide.
+          </p>
+          <div className="max-w-md mx-auto">
+            <WascBadge variant="card" />
+          </div>
+        </div>
+      </section>
+
       <Testimonials />
       <HowItWorks />
       <Transfer />

@@ -156,6 +156,9 @@ frontend-v2/bugreport-*.zip
 
 # Marketing PII export — never commit
 facebook_custom_audience.csv
+
+# WASC accreditation source assets (licensed toolkit — reference only, not for repo)
+School Communication Toolkit/
 .ds-sync/
 ds-bundle/
 .design-sync/.cache/

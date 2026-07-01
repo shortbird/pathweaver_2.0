@@ -80,9 +80,9 @@ const ForSchoolsPage = () => {
           </RevealSection>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { type: 'Microschools', desc: 'Personalized learning with portfolio tracking and optional accreditation through our accredited partners', icon: '5-30 students' },
+              { type: 'Microschools', desc: 'Personalized learning with portfolio tracking and optional WASC-accredited transcripts issued through Optio Academy', icon: '5-30 students' },
               { type: 'Online Schools', desc: 'Student-directed curriculum that keeps remote learners engaged and building real skills', icon: '10-500+ students' },
-              { type: 'Learning Centers', desc: 'Co-ops, tutoring centers, and after-school programs with optional accreditation pathways', icon: '10-200 students' },
+              { type: 'Learning Centers', desc: 'Co-ops, tutoring centers, and after-school programs with optional WASC-accredited transcript pathways', icon: '10-200 students' },
               { type: 'Traditional Schools', desc: 'Supplement existing programs with personalized, interest-driven learning that improves outcomes', icon: '50-500+ students' },
             ].map((item, i) => (
               <RevealItem key={item.type} index={i}>

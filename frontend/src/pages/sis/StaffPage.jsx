@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { RolePill } from '../../components/ui/RolePill'
+import SisAdvisorAssignments from '../../components/sis/people/SisAdvisorAssignments'
 
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
@@ -67,6 +68,8 @@ const StaffPage = () => {
       {!loading && staff.length > 0 && (
         <p className="text-sm text-neutral-400 mt-3">{staff.length} staff member{staff.length === 1 ? '' : 's'}</p>
       )}
+
+      <SisAdvisorAssignments orgId={orgId} />
     </div>
   )
 }

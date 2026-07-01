@@ -149,9 +149,15 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
                   <div>
                     <h4 className="font-semibold text-gray-800 mb-2">Accredited and Legitimate</h4>
                     <p className="text-gray-700 leading-relaxed">
-                      All Optio diplomas are backed by licensed educators and follow state educational standards.
-                      The resulting transcript is a legitimate high school diploma suitable for college applications,
-                      employment, and all official purposes where educational credentials are required.
+                      Optio Academy is accredited by the Accrediting Commission for Schools, Western
+                      Association of Schools and Colleges (ACS WASC). All work is backed by licensed
+                      educators, and the resulting transcript is an official, WASC-accredited high
+                      school record suitable for college applications, employment, and all official
+                      purposes where educational credentials are required.
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Accrediting Commission for Schools, Western Association of Schools and Colleges &middot;
+                      533 Airport Blvd., Suite 200, Burlingame, CA 94010 &middot; www.acswasc.org
                     </p>
                   </div>
                 </div>

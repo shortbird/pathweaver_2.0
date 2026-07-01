@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
+import SisMembershipPanel from '../../components/sis/people/SisMembershipPanel'
 import { startMasquerade } from '../../services/masqueradeService'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 
@@ -19,6 +20,7 @@ const fmtDate = (d) => {
 
 const RosterPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const orgSlug = orgs.find((o) => o.id === orgId)?.slug
   const navigate = useNavigate()
   const [roster, setRoster] = useState([])
   const [loading, setLoading] = useState(true)
@@ -120,6 +122,8 @@ const RosterPage = () => {
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
         </div>
       </div>
+
+      <SisMembershipPanel orgId={orgId} orgSlug={orgSlug} onChanged={load} />
 
       {!loading && roster.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 mb-4">

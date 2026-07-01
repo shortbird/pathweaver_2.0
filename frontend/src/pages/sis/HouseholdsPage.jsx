@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import FamilyDetailModal from './FamilyDetailModal'
+import SisParentConnections from '../../components/sis/people/SisParentConnections'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -111,6 +112,8 @@ const HouseholdsPage = () => {
           )
         })}
       </div>
+
+      <SisParentConnections orgId={orgId} onChanged={load} />
 
       {selected && (
         <FamilyDetailModal

@@ -281,6 +281,10 @@ def register_all(app):
     from routes import announcements
     app.register_blueprint(announcements.bp)
 
+    # ── iCreate branded parent registration funnel (iCreate org only) ──────────
+    from routes import icreate_registration
+    app.register_blueprint(icreate_registration.bp)
+
     # ── Credit dashboard / pillars / analytics / activity ─────────────────────
     from routes.credit_dashboard import bp as credit_dashboard_bp
     app.register_blueprint(credit_dashboard_bp)

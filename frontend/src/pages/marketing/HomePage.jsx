@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { RevealSection, RevealItem } from '../../components/marketing/RevealSection'
 import { useSectionView, useCtaTracker } from '../../components/marketing/useMarketingAnalytics'
+import WascBadge from '../../components/accreditation/WascBadge'
 
 const HERO_IMAGE = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/homepage/hero_real.jpg'
 
@@ -60,7 +61,7 @@ const HIGHLIGHTS = [
       </svg>
     ),
     title: 'Accredited Credentials',
-    text: 'Official diplomas and transferable college credit',
+    text: 'WASC-accredited diplomas and transferable college credit',
   },
   {
     icon: (
@@ -242,6 +243,31 @@ const HomePage = () => {
               </RevealItem>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ========== ACCREDITATION ========== */}
+      <section className="py-14 sm:py-20 bg-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <RevealSection>
+            <h2
+              className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3"
+              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+            >
+              A WASC-Accredited Diploma
+            </h2>
+            <p
+              className="text-lg text-gray-600 max-w-2xl mx-auto mb-8"
+              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+            >
+              Optio Academy is accredited by the Western
+              Association of Schools and Colleges, so the diploma and transcript you earn are
+              official and recognized nationwide.
+            </p>
+            <div className="max-w-md mx-auto">
+              <WascBadge variant="card" />
+            </div>
+          </RevealSection>
         </div>
       </section>
 

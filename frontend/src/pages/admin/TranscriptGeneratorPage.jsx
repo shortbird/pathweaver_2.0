@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import html2pdf from 'html2pdf.js';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import {
+  ACCREDITATION_ACTIVE,
+  WASC_LOGO_SRC,
+  WASC_LOGO_ALT,
+  COMMISSION_NAME,
+  COMMISSION_ADDRESS,
+  COMMISSION_WEBSITE,
+} from '../../constants/accreditation';
 
 // Diploma credit requirements per subject (must match backend CreditMappingService.DIPLOMA_REQUIREMENTS)
 const CREDIT_REQUIREMENTS = {
@@ -151,6 +160,43 @@ const TranscriptGeneratorPage = () => {
   }, [userId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const [downloading, setDownloading] = useState(false);
+
+  // Generate a clean PDF straight from the transcript element (no browser
+  // print chrome / URL / title header). Hides edit-only UI in the clone.
+  const handleDownloadPdf = async () => {
+    const el = document.getElementById('printable-transcript');
+    if (!el) return;
+    setDownloading(true);
+    try {
+      const first = data?.student?.first_name || '';
+      const last = data?.student?.last_name || '';
+      const initials = ((first[0] || '') + (last[0] || '')).toUpperCase() || 'XX';
+      const dateStr = new Date().toISOString().split('T')[0];
+      await html2pdf().set({
+        margin: [10, 10, 10, 10],
+        filename: `Transcript_${initials}_${dateStr}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          onclone: (doc) => {
+            doc.querySelectorAll(
+              '#printable-transcript .no-print, #printable-transcript .no-print-edit'
+            ).forEach((n) => { n.style.display = 'none'; });
+          },
+        },
+        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+        pagebreak: { mode: 'css' },
+      }).from(el).save();
+    } catch (err) {
+      toast.error('Failed to generate PDF');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Auto-save overrides with debounce
   const saveOverrides = useCallback((newOverrides) => {
@@ -339,8 +385,11 @@ const TranscriptGeneratorPage = () => {
     );
   }
 
-  const { student, earned_credits, transfer_credits, planned_credits, totals } = data;
+  const { student, earned_credits, transfer_credits, planned_credits, totals, accreditation } = data;
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  // Show the ACS WASC mark only when this transcript is issued under Optio
+  // Academy's accreditation (partners with their own accreditation are excluded).
+  const isWascAccredited = ACCREDITATION_ACTIVE && accreditation?.source === 'optio';
 
   // Build rows for the transcript table
   const buildCreditRows = () => {
@@ -444,7 +493,6 @@ const TranscriptGeneratorPage = () => {
   const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
   const enrollmentDate = field('enrollment_date', formatDate(student.enrolled_date));
   const orgName = field('organization_name', student.organization_name || '');
-  const footerText = field('footer_text', "This transcript is an official record of the student's academic achievements.");
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -479,13 +527,14 @@ const TranscriptGeneratorPage = () => {
               Copy Public Link
             </button>
             <button
-              onClick={() => window.print()}
-              className="px-3 py-1.5 text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-900 flex items-center gap-1.5"
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+              className="px-3 py-1.5 text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-900 flex items-center gap-1.5 disabled:opacity-50"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 4v12m0 0l-4-4m4 4l4-4" />
               </svg>
-              Print
+              {downloading ? 'Generating...' : 'Download PDF'}
             </button>
           </div>
         </div>
@@ -749,28 +798,6 @@ const TranscriptGeneratorPage = () => {
             </div>
           </div>
 
-          {/* Credit summary */}
-          <div className="border-b border-gray-300 px-10 py-4">
-            <div className="flex justify-between text-sm">
-              <div>
-                <span className="text-gray-500">Credits Completed: </span>
-                <span className="font-bold text-gray-900">{totals.total_completed.toFixed(1)}</span>
-              </div>
-              {totals.planned_credits > 0 && (
-                <div>
-                  <span className="text-gray-500">Credits In Progress: </span>
-                  <span className="font-bold text-gray-900">{totals.planned_credits.toFixed(1)}</span>
-                </div>
-              )}
-              <div>
-                <span className="text-gray-500">Total (incl. planned): </span>
-                <span className="font-bold text-gray-900">
-                  {(totals.total_completed + totals.planned_credits).toFixed(1)}
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* Credit table */}
           <div className="px-10 py-6">
             <table className="w-full text-sm">
@@ -780,7 +807,7 @@ const TranscriptGeneratorPage = () => {
                   <th className="text-left py-2 font-semibold text-gray-900">Course</th>
                   <th className="text-left py-2 font-semibold text-gray-900">Source</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Credits</th>
-                  <th className="text-center py-2 font-semibold text-gray-900">Status</th>
+                  <th className="text-center py-2 font-semibold text-gray-900">Grade</th>
                   <th className="text-center py-2 font-semibold text-gray-900 no-print w-16">Actions</th>
                 </tr>
               </thead>
@@ -817,15 +844,17 @@ const TranscriptGeneratorPage = () => {
                     </td>
                     <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
                     <td className="py-2 text-center">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        row.status === 'Completed'
-                          ? 'bg-green-100 text-green-800 print:bg-transparent print:text-gray-900'
-                          : row.status === 'In Progress'
-                          ? 'bg-amber-100 text-amber-800 print:bg-transparent print:text-gray-600 print:italic'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {row.status}
-                      </span>
+                      {row.status === 'Completed' ? (
+                        <span className="font-bold text-gray-900">A</span>
+                      ) : (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                          row.status === 'In Progress'
+                            ? 'bg-amber-100 text-amber-800 print:bg-transparent print:text-gray-600 print:italic'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {row.status}
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 text-center no-print">
                       {row.type === 'planned' && (
@@ -901,45 +930,27 @@ const TranscriptGeneratorPage = () => {
             </table>
           </div>
 
-          {/* Subject summary */}
-          {Object.keys(subjectTotals).length > 0 && (
-            <div className="border-t border-gray-300 px-10 py-4">
-              <h3 className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">
-                Completed Credits by Subject
-              </h3>
-              <div className="grid grid-cols-3 gap-x-8 gap-y-1 text-sm">
-                {Object.entries(subjectTotals)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([subject, credits]) => {
-                    const required = CREDIT_REQUIREMENTS[subject];
-                    return (
-                      <div key={subject} className="flex justify-between">
-                        <span className="text-gray-700">{subject}</span>
-                        <span className="font-semibold text-gray-900">
-                          {credits.toFixed(1)}{required != null && ` / ${required.toFixed(1)}`}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-
           {/* Footer */}
           <div className="border-t-4 border-double border-gray-900 px-10 py-6 mt-4">
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className="flex justify-between gap-3 text-xs text-gray-500">
               <div>
-                <p>
-                  <EditableField
-                    value={footerText}
-                    onChange={v => updateOverride('footer_text', v)}
-                  />
-                </p>
-                <p className="mt-1">Optio -- www.optioeducation.com</p>
+                {isWascAccredited && (
+                  <div>
+                    <p>{COMMISSION_NAME}</p>
+                    <p>{COMMISSION_ADDRESS} · {COMMISSION_WEBSITE}</p>
+                  </div>
+                )}
               </div>
-              <div className="text-right">
-                <p>Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                <p className="mt-1">Page 1 of 1</p>
+              <div className="flex flex-col items-end gap-1">
+                {isWascAccredited && (
+                  <img
+                    src={WASC_LOGO_SRC}
+                    alt={WASC_LOGO_ALT}
+                    className="h-12 w-auto"
+                    style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+                  />
+                )}
+                <p>Page 1 of 1</p>
               </div>
             </div>
           </div>

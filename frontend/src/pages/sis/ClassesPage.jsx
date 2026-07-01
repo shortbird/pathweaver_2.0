@@ -8,6 +8,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import CreateClassModal from '../../components/sis/CreateClassModal'
 import EnrollStudentForm from '../../components/partner/EnrollStudentForm'
+import CourseEnrollmentManager from '../../components/admin/CourseEnrollmentManager'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -64,6 +65,7 @@ const ClassesPage = () => {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)     // class being edited
   const [enrollCourse, setEnrollCourse] = useState(null) // course to enroll a student into
+  const [manageCourse, setManageCourse] = useState(null) // course whose enrollments we're managing (bulk)
   const [expanded, setExpanded] = useState(null)
   const [filter, setFilter] = useState('classes')  // all | classes | courses; default: org's own classes
   const [search, setSearch] = useState('')
@@ -231,7 +233,12 @@ const ClassesPage = () => {
               onToggleRegistration={() => toggleRegistration(item)}
             />
           ) : (
-            <CourseCard key={`course-${item.id}`} c={item} onEnroll={() => setEnrollCourse(item)} />
+            <CourseCard
+              key={`course-${item.id}`}
+              c={item}
+              onEnroll={() => setEnrollCourse(item)}
+              onManage={() => setManageCourse(item)}
+            />
           )
         ))}
       </div>
@@ -255,6 +262,15 @@ const ClassesPage = () => {
             </div>
           </div>
         </ModalOverlay>
+      )}
+      {manageCourse && (
+        <CourseEnrollmentManager
+          courseId={manageCourse.id}
+          courseName={manageCourse.title}
+          orgId={orgId}
+          isSuperadmin={isSuperadmin}
+          onClose={() => setManageCourse(null)}
+        />
       )}
     </div>
   )
@@ -316,7 +332,7 @@ const ClassCard = ({ c, expanded, orgId, onToggleExpand, onEdit, onArchive, onTo
   )
 }
 
-const CourseCard = ({ c, onEnroll }) => (
+const CourseCard = ({ c, onEnroll, onManage }) => (
   <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
     <div className="relative h-40 bg-gradient-to-br from-optio-pink/10 to-optio-purple/10">
       {c.cover_image_url ? (
@@ -340,8 +356,9 @@ const CourseCard = ({ c, onEnroll }) => (
         <Row label="Length" value={c.estimated_hours ? `~${c.estimated_hours} hrs` : '—'} />
       </dl>
 
-      <div className="mt-auto pt-3 border-t border-gray-100 flex items-center">
+      <div className="mt-auto pt-3 border-t border-gray-100 flex items-center gap-4">
         <button onClick={onEnroll} className="text-optio-purple font-medium hover:underline text-sm">Enroll student</button>
+        <button onClick={onManage} className="text-optio-purple font-medium hover:underline text-sm ml-auto">Manage enrollments</button>
       </div>
     </div>
   </div>
