@@ -1,0 +1,4 @@
+external_student_id,parent_email,parent_first_name,parent_last_name,student_first_name,student_last_name,student_dob,student_email,partner_key,partner_org_slug,state,school_year,grade_level,pathway_key,enrollment_start_date
+OEA-100245,maria.sandoval@example.com,Maria,Sandoval,Diego,Sandoval,2011-04-18,diego.sandoval@example.com,opened-academy,oea,UT,2026-2027,9,college_bound,2026-08-01
+OEA-100246,maria.sandoval@example.com,Maria,Sandoval,Lucia,Sandoval,2009-09-02,,opened-academy,oea,UT,2026-2027,11,,2026-08-01
+HRW-200871,jwhitfield@example.com,James,Whitfield,Ava,Whitfield,2010-11-30,ava.whitfield@example.com,opened-academy,hearthwood,ID,2026-2027,10,traditional,2026-08-01
