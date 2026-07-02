@@ -257,3 +257,54 @@ def drop_student_course(user_id, student_id, course_id):
         code = 403 if 'authorized' in result['error'] else 400
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, **result})
+
+
+# ── Org resources (family document library) ───────────────────────────────────
+@bp.route('/resources', methods=['GET'])
+@require_auth
+def org_resources(user_id):
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    resources = parent.org_resources(user_id, org_id)
+    if resources is None:
+        return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
+    return jsonify({'success': True, 'resources': resources})
+
+
+# ── Family directory (opt-in) ─────────────────────────────────────────────────
+@bp.route('/directory', methods=['GET'])
+@require_auth
+def family_directory(user_id):
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    families = parent.family_directory(user_id, org_id)
+    if families is None:
+        return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
+    return jsonify({'success': True, 'families': families})
+
+
+@bp.route('/directory/opt-in', methods=['GET'])
+@require_auth
+def directory_opt_in_status(user_id):
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.directory_opt_in_status(user_id, org_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/directory/opt-in', methods=['PUT'])
+@require_auth
+def set_directory_opt_in(user_id):
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    opted_in = bool((request.json or {}).get('opted_in'))
+    result = parent.set_directory_opt_in(user_id, org_id, opted_in)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})

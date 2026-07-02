@@ -17,7 +17,8 @@ const DAYS = [1, 2, 3, 4, 5]
 const DAY_LABELS = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' }
 
 // Brand-adjacent palette, assigned by class order (stable within a schedule).
-const PALETTE = [
+// Exported so calendar legends can match block colors by the same index rule.
+export const SCHEDULE_PALETTE = [
   'bg-optio-purple/85 text-white',
   'bg-optio-pink/85 text-white',
   'bg-sky-500/85 text-white',
@@ -62,7 +63,7 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
   const pxPerMin = compact ? 0.55 : 0.9
   const gridHeight = totalMin * pxPerMin
 
-  const colorFor = (i) => PALETTE[i % PALETTE.length]
+  const colorFor = (i) => SCHEDULE_PALETTE[i % SCHEDULE_PALETTE.length]
 
   const blocksByDay = {}
   all.forEach((c, i) => {

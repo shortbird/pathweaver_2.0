@@ -144,8 +144,25 @@ def _compute_fee_cents(cfg, num_students):
     return family
 
 
-def _public_config(org, cfg):
+def _paperwork_resource_urls(admin, org_id):
+    """{paperwork_key: url} for org resources linked to registration paperwork.
+
+    A linked org_resource is the single source of truth for that document: the
+    funnel serves the resource's url, so updating the resource (new guidebook
+    version) updates the registration form too."""
+    try:
+        rows = (admin.table('org_resources').select('paperwork_key, url')
+                .eq('organization_id', org_id).execute()).data or []
+        return {r['paperwork_key']: r['url'] for r in rows
+                if r.get('paperwork_key') and r.get('url')}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'iCreate: paperwork resource lookup failed for org {org_id}: {e}')
+        return {}
+
+
+def _public_config(org, cfg, paperwork_urls=None):
     """The subset of config safe to expose to the (unauthenticated) registration page."""
+    paperwork_urls = paperwork_urls or {}
     return {
         'organization': {
             'id': org.get('id'),
@@ -162,7 +179,8 @@ def _public_config(org, cfg):
         'stripe_enabled': bool(cfg.get('stripe_secret_key')),
         'paperwork': [
             {'key': p.get('key'), 'label': p.get('label'),
-             'doc_url': p.get('doc_url') or '', 'body': p.get('body') or ''}
+             'doc_url': paperwork_urls.get(p.get('key')) or p.get('doc_url') or '',
+             'body': p.get('body') or ''}
             for p in (cfg.get('paperwork') or [])
             if p.get('key') and p.get('label')
         ],
@@ -388,7 +406,9 @@ def get_config(invitation_code):
     data, err = _load_icreate_invite(invitation_code)
     if err:
         return err
-    return jsonify({'success': True, **_public_config(data['organization'], data['config'])}), 200
+    org = data['organization']
+    paperwork_urls = _paperwork_resource_urls(_admin(), org['id'])
+    return jsonify({'success': True, **_public_config(org, data['config'], paperwork_urls)}), 200
 
 
 @bp.route('/my-registration', methods=['GET'])
@@ -452,7 +472,7 @@ def my_registration(user_id):
             'paperwork': reg.get('paperwork') or [],
             'household': household,
         },
-        **_public_config(org, cfg),
+        **_public_config(org, cfg, _paperwork_resource_urls(admin, reg['organization_id'])),
     }), 200
 
 

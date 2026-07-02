@@ -105,6 +105,8 @@ const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
+const FamilyResourcesPage = lazy(() => import('./pages/FamilyResourcesPage'))
+const FamilyDirectoryPage = lazy(() => import('./pages/FamilyDirectoryPage'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
@@ -490,6 +492,9 @@ function App() {
                 <Route path="class-registration" element={<Navigate to="/schedule-builder" replace />} />
                 {/* Parent/guardian self-service: report a child's planned absences */}
                 <Route path="absences" element={<AbsenceReportingPage />} />
+                {/* School document library + opt-in family directory (SIS orgs) */}
+                <Route path="resources" element={<FamilyResourcesPage />} />
+                <Route path="family-directory" element={<FamilyDirectoryPage />} />
                 <Route path="classes/new" element={<StudentClassForm />} />
                 <Route path="classes/:id/edit" element={<StudentClassForm />} />
                 {/* Credit & Transcript Routes */}

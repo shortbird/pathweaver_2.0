@@ -347,7 +347,42 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
           <option value="3">Tier 3</option>
         </select>
       </div>
+      <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} />
     </section>
+  )
+}
+
+// Directory visibility is the FAMILY's choice (opt-in on their Directory page);
+// staff see it here and can change it on a family's explicit request.
+const DirectoryRow = ({ household, orgId, onSaved }) => {
+  const [optIn, setOptIn] = useState(!!household.directory_opt_in)
+  const [busy, setBusy] = useState(false)
+
+  const toggle = async () => {
+    const next = !optIn
+    setBusy(true)
+    try {
+      await api.patch(`/api/sis/households/${household.id}`, { directory_opt_in: next, organization_id: orgId })
+      setOptIn(next)
+      toast.success(next ? 'Family added to the directory' : 'Family removed from the directory')
+      onSaved?.()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-neutral-900">Family directory</div>
+        <div className="text-xs text-neutral-500">The family opts in themselves on their Directory page — only change this if they ask.</div>
+      </div>
+      <button
+        type="button" role="switch" aria-checked={optIn} aria-label="Family directory" onClick={toggle} disabled={busy}
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${optIn ? 'bg-optio-purple' : 'bg-neutral-300'} ${busy ? 'opacity-50' : ''}`}
+      >
+        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${optIn ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      </button>
+    </div>
   )
 }
 

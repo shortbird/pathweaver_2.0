@@ -215,10 +215,12 @@ def update_household(user_id, household_id):
     fields = {k: data.get(k) for k in (
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
         'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
-        'registration_hold', 'registration_hold_reason', 'registration_tier'
+        'registration_hold', 'registration_hold_reason', 'registration_tier',
+        'directory_opt_in'
     ) if k in data}
-    if 'registration_hold' in fields:
-        fields['registration_hold'] = bool(fields['registration_hold'])
+    for flag in ('registration_hold', 'directory_opt_in'):
+        if flag in fields:
+            fields[flag] = bool(fields[flag])
     if 'registration_tier' in fields and fields['registration_tier'] is not None:
         try:
             fields['registration_tier'] = int(fields['registration_tier'])
@@ -651,3 +653,5 @@ def register_sis_routes(app):
     app.register_blueprint(reports_bp)
     from routes.sis.parent import bp as parent_bp
     app.register_blueprint(parent_bp)
+    from routes.sis.resources import bp as resources_bp
+    app.register_blueprint(resources_bp)

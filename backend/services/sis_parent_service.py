@@ -563,6 +563,100 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
     return {'ok': True, 'dropped': dropped}
 
 
+# ── Org resources (family-readable document library) ─────────────────────────
+def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
+    """The org's resource library (guidebooks, contracts, links) for a family."""
+    if not _has_org_access(user_id, org_id):
+        return None
+    return (
+        _admin().table('org_resources')
+        .select('id, title, description, url, category, sort_order')
+        .eq('organization_id', org_id)
+        .order('sort_order').order('title').execute()
+    ).data or []
+
+
+# ── Family directory (opt-in) ─────────────────────────────────────────────────
+def _guardian_households(user_id: str, org_id: str) -> List[Dict[str, Any]]:
+    """Households in this org where the user is a guardian."""
+    memberships = (
+        _admin().table('household_members').select('household_id, relationship')
+        .eq('user_id', user_id).execute()
+    ).data or []
+    hh_ids = [m['household_id'] for m in memberships
+              if m.get('relationship') in GUARDIAN_RELATIONSHIPS and m.get('household_id')]
+    if not hh_ids:
+        return []
+    return (
+        _admin().table('households')
+        .select('id, name, phone, directory_opt_in')
+        .in_('id', hh_ids).eq('organization_id', org_id).execute()
+    ).data or []
+
+
+def directory_opt_in_status(user_id: str, org_id: str) -> Dict[str, Any]:
+    households = _guardian_households(user_id, org_id)
+    if not households:
+        return {'error': 'No family found for your account'}
+    return {'opted_in': any(h.get('directory_opt_in') for h in households)}
+
+
+def set_directory_opt_in(user_id: str, org_id: str, opted_in: bool) -> Dict[str, Any]:
+    households = _guardian_households(user_id, org_id)
+    if not households:
+        return {'error': 'No family found for your account'}
+    _admin().table('households').update({'directory_opt_in': bool(opted_in)}) \
+        .in_('id', [h['id'] for h in households]).execute()
+    return {'opted_in': bool(opted_in)}
+
+
+def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
+    """Opted-in families only: family name, phone, guardians (name + email),
+    and student FIRST names. Staff always see everyone elsewhere; this is the
+    family-to-family view, so opt-in is the hard filter."""
+    if not _has_org_access(user_id, org_id):
+        return None
+    households = (
+        _admin().table('households')
+        .select('id, name, phone')
+        .eq('organization_id', org_id).eq('directory_opt_in', True)
+        .order('name').execute()
+    ).data or []
+    if not households:
+        return []
+    hh_ids = [h['id'] for h in households]
+    members = (
+        _admin().table('household_members').select('household_id, user_id, relationship')
+        .in_('household_id', hh_ids).execute()
+    ).data or []
+    user_ids = list({m['user_id'] for m in members})
+    users_map = {
+        u['id']: u for u in (
+            _admin().table('users')
+            .select('id, display_name, first_name, last_name, email')
+            .in_('id', user_ids).execute()
+        ).data or []
+    } if user_ids else {}
+
+    by_household: Dict[str, Dict[str, List]] = {h['id']: {'guardians': [], 'students': []} for h in households}
+    for m in members:
+        slot = by_household.get(m['household_id'])
+        u = users_map.get(m['user_id'])
+        if not slot or not u:
+            continue
+        if m.get('relationship') == 'student':
+            slot['students'].append(u.get('first_name') or (u.get('display_name') or '').split(' ')[0] or 'Student')
+        elif m.get('relationship') in GUARDIAN_RELATIONSHIPS:
+            slot['guardians'].append({'name': _student_name(u), 'email': u.get('email')})
+    return [{
+        'household_id': h['id'],
+        'family_name': h['name'],
+        'phone': h.get('phone'),
+        'guardians': by_household[h['id']]['guardians'],
+        'students': sorted(by_household[h['id']]['students']),
+    } for h in households]
+
+
 # ── Planned absences (guardian-scoped) ────────────────────────────────────────
 def list_absences(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
     """Upcoming planned absences for a child + the classes the parent can pick from."""
