@@ -1,6 +1,6 @@
 /**
  * OEA / Hearthwood transcript — printable academic transcript for one student.
- * Route: /opened-academy/student/:studentId/transcript
+ * Route: /hearthwood/student/:studentId/transcript
  *
  * Renders OEA-branded transcript data from GET /api/oea/students/:id/transcript:
  * student info, pathway, every credit with its grade + credit value, GPA
@@ -55,21 +55,21 @@ export default function OEATranscriptPage() {
         <p className="text-sm text-neutral-600">
           No diploma pathway has been chosen yet, so there is no transcript to show.
         </p>
-        <button type="button" onClick={() => navigate('/opened-academy')}
+        <button type="button" onClick={() => navigate('/hearthwood')}
           className="mt-4 text-sm text-optio-purple font-medium">Back</button>
       </div>
     )
   }
 
   const { student, organization, pathway, credits, gpa, progress, school_year } = data
-  const orgName = organization?.name || 'OpenEd Academy'
+  const orgName = organization?.name || 'Hearthwood Academy'
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 font-poppins">
       <style>{PRINT_CSS}</style>
 
       <div className="no-print flex items-center justify-between mb-6">
-        <button type="button" onClick={() => navigate('/opened-academy')}
+        <button type="button" onClick={() => navigate('/hearthwood')}
           className="text-sm text-optio-purple font-medium">Back</button>
         <button type="button" onClick={() => window.print()}
           className="min-h-[40px] px-5 rounded-lg text-white text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink">

@@ -56,7 +56,7 @@ const QuestDetailHeader = ({
   // Get quest header image
   const questImage = quest?.image_url || quest?.header_image_url || getQuestHeaderImageSync(quest?.quest_type);
 
-  // Org-branded quests (e.g. OpenEd Academy course quests) render the school's
+  // Org-branded quests (e.g. Hearthwood Academy course quests) render the school's
   // logo as a contained banner behind the title — like the Spark branch below —
   // instead of cropping it full-bleed. Flagged by metadata.header_style.
   // When the quest also has a distinct cover photo (image_url), prefer that as a

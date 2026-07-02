@@ -35,7 +35,9 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
   const [slug, setSlug] = useState(org.slug || '')
   const [savingDetails, setSavingDetails] = useState(false)
   const [logoUrl, setLogoUrl] = useState(org.branding_config?.logo_url || '')
-  const [logoBusy, setLogoBusy] = useState(false)
+  // Logo edits are staged and saved with the Save button alongside name/slug.
+  // undefined = unchanged, data-URL string = new logo, null = remove.
+  const [pendingLogo, setPendingLogo] = useState(undefined)
 
   const [aiEnabled, setAiEnabled] = useState(org.ai_features_enabled ?? true)
   const [chatbot, setChatbot] = useState(org.ai_chatbot_enabled ?? true)
@@ -70,32 +72,21 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
     } finally { setSavingTuition(false) }
   }
 
-  // First day of school (locks the family Schedule Builder). Saved on change.
-  const [firstDay, setFirstDay] = useState(org.feature_flags?.sis_settings?.first_day_of_school || '')
-  const [savingFirstDay, setSavingFirstDay] = useState(false)
-  const saveFirstDay = async (value) => {
-    setFirstDay(value)
-    setSavingFirstDay(true)
-    try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...(org.feature_flags || {}),
-          sis_settings: { ...(org.feature_flags?.sis_settings || {}), first_day_of_school: value || null },
-        },
-      })
-      toast.success(value ? 'First day of school saved' : 'First day of school cleared')
-      onUpdate && onUpdate()
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Failed to save')
-    } finally { setSavingFirstDay(false) }
-  }
-
   const saveDetails = async () => {
     if (!name.trim()) return toast.error('Name is required')
     if (!/^[a-z0-9-]+$/.test(slug)) return toast.error('Slug can only contain lowercase letters, numbers, and hyphens')
     setSavingDetails(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, { name: name.trim(), slug })
+      const payload = { name: name.trim(), slug }
+      if (pendingLogo !== undefined) {
+        payload.branding_config = { ...org.branding_config, logo_url: pendingLogo }
+      }
+      await api.put(`/api/admin/organizations/${orgId}`, payload)
+      if (pendingLogo !== undefined) {
+        setLogoUrl(pendingLogo || '')
+        setPendingLogo(undefined)
+        onLogoChange && onLogoChange()
+      }
       toast.success('Organization updated')
       onUpdate && onUpdate()
     } catch (e) {
@@ -103,42 +94,19 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
     } finally { setSavingDetails(false) }
   }
 
-  const uploadLogo = (e) => {
+  const pickLogo = (e) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     if (!file.type.startsWith('image/')) return toast.error('Please pick an image file')
     if (file.size > 2 * 1024 * 1024) return toast.error('Image must be under 2MB')
-    setLogoBusy(true)
     const reader = new FileReader()
-    reader.onload = async () => {
-      try {
-        await api.put(`/api/admin/organizations/${orgId}`, {
-          branding_config: { ...org.branding_config, logo_url: reader.result },
-        })
-        setLogoUrl(reader.result)
-        onUpdate && onUpdate()
-        onLogoChange && onLogoChange()
-      } catch (err) {
-        toast.error(err.response?.data?.error || 'Failed to upload logo')
-      } finally { setLogoBusy(false) }
-    }
+    reader.onload = () => setPendingLogo(reader.result)
     reader.readAsDataURL(file)
   }
 
-  const removeLogo = async () => {
-    if (!window.confirm('Remove the organization logo?')) return
-    setLogoBusy(true)
-    try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        branding_config: { ...org.branding_config, logo_url: null },
-      })
-      setLogoUrl('')
-      onUpdate && onUpdate()
-      onLogoChange && onLogoChange()
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Failed to remove logo')
-    } finally { setLogoBusy(false) }
-  }
+  // What the logo box shows right now: the staged change, else the saved logo.
+  const shownLogo = pendingLogo !== undefined ? pendingLogo : logoUrl
 
   const toggleAiMaster = async () => {
     setSavingToggle(true)
@@ -174,12 +142,32 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
         </div>
         <p className="text-sm text-neutral-500 mb-4">Name, registration URL, and the logo your families see.</p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
-          <div className="sm:col-span-2">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="shrink-0">
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Logo</label>
+            <div className="flex items-end gap-2">
+              <div className="w-[38px] h-[38px] rounded-lg border border-gray-200 bg-neutral-50 flex items-center justify-center overflow-hidden"
+                title="Shown in the header for your organization's users. PNG or SVG, 2MB max.">
+                {shownLogo
+                  ? <img src={shownLogo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                  : <span className="text-[9px] text-neutral-400 text-center px-0.5">None</span>}
+              </div>
+              <div className="flex flex-col justify-end leading-tight pb-0.5">
+                <label className="text-xs font-medium text-optio-purple hover:underline cursor-pointer">
+                  {shownLogo ? 'Change' : 'Upload'}
+                  <input type="file" accept="image/*" onChange={pickLogo} className="hidden" />
+                </label>
+                {shownLogo && (
+                  <button onClick={() => setPendingLogo(null)} className="text-xs text-red-500 hover:underline text-left">Remove</button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 min-w-[160px]">
             <label className="block text-xs font-medium text-neutral-500 mb-1">Name</label>
             <input className={field} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="sm:col-span-2">
+          <div className="flex-1 min-w-[160px]">
             <label className="block text-xs font-medium text-neutral-500 mb-1">Slug <span className="text-neutral-400">(changes the registration URL)</span></label>
             <input className={`${field} font-mono`} value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} />
           </div>
@@ -188,42 +176,12 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
             {savingDetails ? 'Saving…' : 'Save'}
           </button>
         </div>
+        {pendingLogo !== undefined && (
+          <p className="text-xs text-amber-600 mt-1.5">
+            {pendingLogo ? 'New logo selected' : 'Logo will be removed'} — click Save to apply.
+          </p>
+        )}
 
-        <div className="flex items-center gap-4 mt-5 pt-5 border-t border-gray-100">
-          <div className="w-16 h-16 rounded-lg border border-gray-200 bg-neutral-50 flex items-center justify-center overflow-hidden shrink-0">
-            {logoUrl
-              ? <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
-              : <span className="text-[10px] text-neutral-400 text-center px-1">No logo</span>}
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-neutral-900">Logo</div>
-            <div className="text-xs text-neutral-500 mb-1.5">Shown in the header for your organization's users. PNG or SVG, 2MB max.</div>
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-optio-purple hover:underline cursor-pointer">
-                {logoBusy ? 'Working…' : logoUrl ? 'Change' : 'Upload'}
-                <input type="file" accept="image/*" onChange={uploadLogo} disabled={logoBusy} className="hidden" />
-              </label>
-              {logoUrl && (
-                <button onClick={removeLogo} disabled={logoBusy} className="text-sm text-red-500 hover:underline disabled:opacity-50">Remove</button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 mt-5 pt-5 border-t border-gray-100">
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-neutral-900">First day of school</div>
-            <div className="text-xs text-neutral-500">
-              Families can add, drop, and waitlist classes in the Schedule Builder until this date; after
-              that, schedule changes are made by staff here. Leave blank to keep it open.
-            </div>
-          </div>
-          <input
-            type="date" value={firstDay} disabled={savingFirstDay}
-            onChange={(e) => saveFirstDay(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50"
-          />
-        </div>
       </div>
 
       {/* Features: AI + School Jobs in one toggle list */}

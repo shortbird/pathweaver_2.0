@@ -9,7 +9,8 @@ family can track their learning with it. One parent manages all three kids from
 the Optio app, and each kid's completed tasks + journal entries roll up into the
 weekly "learning log" that OpenEd families are required to submit.
 
-This is a DIFFERENT program from "OpenEd Academy" (OEA). These are plain
+This is a DIFFERENT program from the OEA diploma plan (built for OpenEd Academy,
+now run by Hearthwood Academy). These are plain
 platform accounts (organization_id = NULL), not OEA.
 
 Creates real accounts in prod Supabase so the iOS simulator (which points at the

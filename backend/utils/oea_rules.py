@@ -48,6 +48,8 @@ TERM_TYPES = ('quarter', 'semester', 'annual')
 # enrollment row.
 DEFAULT_OEA_SETTINGS: Dict[str, Any] = {
     'school_year': '2026-2027',
+    # Parent getting-started/tutorial video (per-org; UI hides the card when unset).
+    'help_video_url': None,
     'minimums': {
         'logs_per_quarter': 9,
         'artifacts_per_quarter': 3,
@@ -91,6 +93,8 @@ def build_oea_settings(org_feature_flags: Optional[Dict[str, Any]]) -> Dict[str,
             settings[group] = {**settings[group], **override[group]}
     if override.get('school_year'):
         settings['school_year'] = override['school_year']
+    if override.get('help_video_url'):
+        settings['help_video_url'] = override['help_video_url']
     return settings
 
 
@@ -253,6 +257,38 @@ def term_window(settings: Dict[str, Any], term_type: str, term_index: int) -> Op
         if int(t['index']) == int(term_index):
             return {'start': t['start'], 'end': t['end']}
     return None
+
+
+def current_quarter_index(settings: Dict[str, Any], today: str) -> Optional[int]:
+    """The quarter whose window contains `today` (ISO date), or None between terms."""
+    for q in settings['terms'].get('quarters', []):
+        if q.get('start') and q.get('end') and q['start'] <= today <= q['end']:
+            return int(q['index'])
+    return None
+
+
+def describe_minimums(minimums: Dict[str, Any]) -> str:
+    """
+    Human-readable quarterly minimums, omitting any set to zero — e.g.
+    "3 learning logs and a quarterly summary". Used in parent-facing copy and
+    the grade-entry gate message so orgs with no artifact minimum never see
+    "0 artifacts".
+    """
+    parts = []
+    logs = int(minimums.get('logs_per_quarter') or 0)
+    artifacts = int(minimums.get('artifacts_per_quarter') or 0)
+    summaries = int(minimums.get('summaries_per_quarter') or 0)
+    if logs:
+        parts.append(f"{logs} learning log{'s' if logs != 1 else ''}")
+    if artifacts:
+        parts.append(f"{artifacts} artifact{'s' if artifacts != 1 else ''}")
+    if summaries:
+        parts.append('a quarterly summary' if summaries == 1 else f"{summaries} quarterly summaries")
+    if not parts:
+        return 'no uploads'
+    if len(parts) == 1:
+        return parts[0]
+    return ', '.join(parts[:-1]) + f" and {parts[-1]}"
 
 
 def quarter_indexes_for_semester(term_index: int) -> List[int]:

@@ -27,12 +27,14 @@ const { api } = vi.hoisted(() => {
     }
     if (url.includes('/api/sis/roster')) {
       return { data: { roster: [
-        { student_id: 's1', name: 'Alice Student', email: 'a@x.com', total_xp: 10,
-          enrollment_status: 'enrolled', household_name: 'Fam' },
-        { student_id: 's2', name: 'Bob Builder', email: 'b@x.com', total_xp: 30,
-          enrollment_status: 'applicant', household_name: null },
-        { student_id: 's3', name: 'Carol Gone', email: 'c@x.com', total_xp: 5,
-          enrollment_status: 'withdrawn', household_name: null },
+        { student_id: 's1', name: 'Alice Student', email: 'a@x.com', total_xp: 10, is_student: true,
+          role: 'student', roles: ['student'], enrollment_status: 'enrolled', household_name: 'Fam' },
+        { student_id: 's2', name: 'Bob Builder', email: 'b@x.com', total_xp: 30, is_student: true,
+          role: 'student', roles: ['student'], enrollment_status: 'applicant', household_name: null },
+        { student_id: 's3', name: 'Carol Gone', email: 'c@x.com', total_xp: 5, is_student: true,
+          role: 'student', roles: ['student'], enrollment_status: 'withdrawn', household_name: null },
+        { student_id: 'p1', name: 'Paula Parent', email: 'p@x.com', is_student: false,
+          role: 'parent', roles: ['parent'], enrollment_status: null, household_name: 'Fam' },
       ] } }
     }
     if (url.includes('/api/sis/members')) {
@@ -80,11 +82,15 @@ describe('SisDashboard', () => {
 })
 
 describe('RosterPage', () => {
-  it('lists students with their family', async () => {
+  it('lists every account with a role column, not just students', async () => {
     render(<RosterPage />)
     expect(await screen.findByText('Alice Student')).toBeInTheDocument()
     expect(screen.getByText('Bob Builder')).toBeInTheDocument()
-    expect(screen.getByText('Fam')).toBeInTheDocument()   // Alice's family
+    expect(screen.getAllByText('Fam').length).toBeGreaterThan(0) // family column
+    // non-student accounts appear with their role pill
+    expect(screen.getByText('Paula Parent')).toBeInTheDocument()
+    expect(screen.getByText('Parent')).toBeInTheDocument()
+    expect(screen.getAllByText('Student').length).toBeGreaterThan(0)
   })
 
   it('opens the student detail modal from a row', async () => {
@@ -111,15 +117,16 @@ describe('RosterPage', () => {
     expect(screen.getByText('Bob Builder')).toBeInTheDocument()
   })
 
-  it('sorts by name when the Student header is clicked', async () => {
+  it('sorts by name when the Name header is clicked', async () => {
     render(<RosterPage />)
     await screen.findByText('Alice Student')
-    // Default sort is name-ascending; clicking the Student header toggles to descending.
-    fireEvent.click(screen.getByRole('button', { name: /^Student/ }))
+    // Default sort is name-ascending; clicking the Name header toggles to descending.
+    fireEvent.click(screen.getByRole('button', { name: /^Name/ }))
     const names = screen.getAllByRole('row').slice(1).map((r) => r.querySelector('td')?.textContent)
-    // descending: Bob before Alice (Carol is withdrawn and hidden)
-    expect(names[0]).toContain('Bob')
-    expect(names[1]).toContain('Alice')
+    // descending: Paula, Bob, Alice (Carol is withdrawn and hidden)
+    expect(names[0]).toContain('Paula')
+    expect(names[1]).toContain('Bob')
+    expect(names[2]).toContain('Alice')
   })
 })
 

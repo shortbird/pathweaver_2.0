@@ -204,6 +204,9 @@ def add_item(user_id: str, org_id: str, reg_id: str, class_id: str) -> Dict[str,
         return {'error': 'Registration not found'}
     if reg.get('status') in ('submitted', 'completed', 'cancelled'):
         return {'error': 'This registration can no longer be edited'}
+    gate = _family_gate(org_id, reg.get('student_user_id'))
+    if gate:
+        return gate
     # Parents may only add classes that are open for registration.
     allowed = {c['id'] for c in (open_classes(user_id, org_id) or [])}
     if class_id not in allowed:
@@ -258,6 +261,81 @@ def _changes_locked(org_id: str) -> bool:
         return date.today() >= date.fromisoformat(str(first_day)[:10])
     except ValueError:
         return False
+
+
+# ── Family registration gates: hold + staggered tier opening ─────────────────
+def _sis_settings(org_id: str) -> Dict[str, Any]:
+    row = (
+        _admin().table('organizations').select('feature_flags')
+        .eq('id', org_id).limit(1).execute()
+    ).data or []
+    flags = (row[0].get('feature_flags') or {}) if row else {}
+    return flags.get('sis_settings') or {}
+
+
+def _student_household(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
+    """The student's household in this org (hold/tier fields), or None."""
+    memberships = (
+        _admin().table('household_members').select('household_id')
+        .eq('user_id', student_user_id).execute()
+    ).data or []
+    hh_ids = [m['household_id'] for m in memberships if m.get('household_id')]
+    if not hh_ids:
+        return None
+    rows = (
+        _admin().table('households')
+        .select('id, organization_id, registration_hold, registration_hold_reason, registration_tier')
+        .in_('id', hh_ids).eq('organization_id', org_id).limit(1).execute()
+    ).data or []
+    return rows[0] if rows else None
+
+
+def _tier_opens_on(org_id: str, tier: Optional[int]) -> Optional[str]:
+    """The ISO date class registration opens for this tier, if it hasn't yet.
+
+    Dates come from sis_settings.registration_tier_dates ({"1": date, ...,
+    "default": date} — "default" covers untiered families). Returns None when
+    already open, and treats missing config as open so the feature stays dormant
+    until a school sets it up.
+    """
+    from datetime import date
+    dates = _sis_settings(org_id).get('registration_tier_dates') or {}
+    if not dates:
+        return None
+    val = dates.get(str(tier)) if tier is not None else None
+    if not val:
+        val = dates.get('default')
+    if not val:
+        return None
+    try:
+        opens = date.fromisoformat(str(val)[:10])
+    except ValueError:
+        return None
+    return str(opens) if date.today() < opens else None
+
+
+def _family_gate(org_id: str, student_user_id: str,
+                 check_tier: bool = True) -> Optional[Dict[str, Any]]:
+    """The error blocking this family from class signup, or None if clear.
+
+    A registration hold (unresolved fee/question from the school) always blocks;
+    the tier window blocks until the family's opening date. Families with no
+    household are not gated — staff-created edge cases shouldn't lock parents out.
+    """
+    household = _student_household(org_id, student_user_id)
+    if household and household.get('registration_hold'):
+        return {'error': "Your family's registration is on hold — please contact the school "
+                         'to resolve it before signing up for classes.',
+                'registration_hold': True}
+    if check_tier:
+        opens_on = _tier_opens_on(org_id, (household or {}).get('registration_tier'))
+        if opens_on:
+            from datetime import date
+            d = date.fromisoformat(opens_on)
+            nice = f'{d.strftime("%B")} {d.day}, {d.year}'
+            return {'error': f'Class registration opens for your family on {nice}.',
+                    'registration_opens_on': opens_on}
+    return None
 
 
 # ── At-home learning: Optio courses (untimed) selectable in the builder ───────
@@ -323,6 +401,11 @@ def add_course(user_id: str, org_id: str, student_user_id: str, course_id: str) 
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    # Holds block ALL self-service adds; the tier window only staggers seat-limited
+    # classes, so untimed at-home courses skip it.
+    gate = _family_gate(org_id, student_user_id, check_tier=False)
+    if gate:
+        return gate
     if not _optio_courses_enabled(org_id):
         return {'error': 'Optio courses are not enabled for your school'}
     if not any(c['id'] == course_id for c in _selectable_courses(org_id)):
@@ -390,6 +473,7 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
                     'cover_image_url': r.get('cover_image_url'), 'description': r.get('description'),
                     'age_range': r.get('age_range'), 'tuition_cents': tuition_cents} for r in rows]
 
+    household = _student_household(org_id, student_user_id)
     return {
         'classes': classes,
         'waitlist': waitlist,
@@ -397,6 +481,8 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'optio_courses_enabled': _optio_courses_enabled(org_id),
         'first_day_of_school': _first_day_of_school(org_id),
         'changes_locked': _changes_locked(org_id),
+        'registration_hold': bool((household or {}).get('registration_hold')),
+        'registration_opens_on': _tier_opens_on(org_id, (household or {}).get('registration_tier')),
     }
 
 
@@ -407,6 +493,9 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    gate = _family_gate(org_id, student_user_id)
+    if gate:
+        return gate
 
     klass = next((c for c in catalog.list_classes(org_id) if c['id'] == class_id), None)
     if not klass or klass.get('registration_status') != 'open':

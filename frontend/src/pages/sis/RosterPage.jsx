@@ -6,11 +6,12 @@ import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
-import SisMembershipPanel from '../../components/sis/people/SisMembershipPanel'
+import { RolePill } from '../../components/ui/RolePill'
 import { startMasquerade } from '../../services/masqueradeService'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 
 const INACTIVE_STATUSES = ['withdrawn', 'graduated']
+const ROLE_ORDER = { org_admin: 0, advisor: 1, parent: 2, student: 3, observer: 4 }
 
 const fmtDate = (d) => {
   if (!d) return '—'
@@ -20,7 +21,6 @@ const fmtDate = (d) => {
 
 const RosterPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  const orgSlug = orgs.find((o) => o.id === orgId)?.slug
   const navigate = useNavigate()
   const [roster, setRoster] = useState([])
   const [loading, setLoading] = useState(true)
@@ -92,9 +92,9 @@ const RosterPage = () => {
   const visibleRoster = useMemo(() => {
     const q = search.trim().toLowerCase()
     const rows = roster.filter((s) => {
-      if (hideInactive && INACTIVE_STATUSES.includes(s.enrollment_status)) return false
+      if (hideInactive && s.is_student && INACTIVE_STATUSES.includes(s.enrollment_status)) return false
       if (!q) return true
-      return [s.name, s.email, s.username].some((v) => (v || '').toLowerCase().includes(q))
+      return [s.name, s.email, s.username, s.role].some((v) => (v || '').toLowerCase().includes(q))
     })
     const dir = sort.dir === 'asc' ? 1 : -1
     return rows.sort((a, b) => {
@@ -103,6 +103,8 @@ const RosterPage = () => {
         cmp = (a.household_name || '').toLowerCase().localeCompare((b.household_name || '').toLowerCase())
       } else if (sort.key === 'last_active') {
         cmp = new Date(a.last_active || 0) - new Date(b.last_active || 0)
+      } else if (sort.key === 'role') {
+        cmp = (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
       } else {
         cmp = (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
       }
@@ -122,8 +124,6 @@ const RosterPage = () => {
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
         </div>
       </div>
-
-      <SisMembershipPanel orgId={orgId} orgSlug={orgSlug} onChanged={load} />
 
       {!loading && roster.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -147,10 +147,10 @@ const RosterPage = () => {
 
       {loading && <p className="text-neutral-500">Loading…</p>}
       {!loading && !roster.length && (
-        <p className="text-neutral-500">No students found for this organization.</p>
+        <p className="text-neutral-500">No users found for this organization.</p>
       )}
       {!loading && roster.length > 0 && !visibleRoster.length && (
-        <p className="text-neutral-500">No students match your search or filters.</p>
+        <p className="text-neutral-500">No users match your search or filters.</p>
       )}
 
       {!loading && visibleRoster.length > 0 && (
@@ -158,7 +158,8 @@ const RosterPage = () => {
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-neutral-500 text-left">
               <tr>
-                <SortHeader label="Student" col="name" sort={sort} onSort={toggleSort} arrow={sortArrow} />
+                <SortHeader label="Name" col="name" sort={sort} onSort={toggleSort} arrow={sortArrow} />
+                <SortHeader label="Role" col="role" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Family" col="family" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Last active" col="last_active" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <th className="px-4 py-3 font-medium"></th>
@@ -168,26 +169,33 @@ const RosterPage = () => {
               {visibleRoster.map((s) => (
                 <tr
                   key={s.student_id}
-                  onClick={() => setSelected(s)}
-                  className="hover:bg-neutral-50 cursor-pointer"
+                  onClick={() => s.is_student && setSelected(s)}
+                  className={`hover:bg-neutral-50 ${s.is_student ? 'cursor-pointer' : ''}`}
                 >
                   <td className="px-4 py-3">
                     <div className="font-medium text-neutral-900">{s.name}</div>
                     <div className="text-xs text-neutral-400">{s.email || s.username}</div>
                   </td>
                   <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1 flex-wrap">
+                      {(s.roles?.length ? s.roles : [s.role]).filter(Boolean).map((r) => <RolePill key={r} role={r} />)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
                     {s.household_name
                       ? <span className="text-neutral-600">{s.household_name}</span>
-                      : <span className="text-neutral-300" title="Group this student into a family on the Families page">—</span>}
+                      : <span className="text-neutral-300" title={s.is_student ? 'Group this student into a family on the Families page' : undefined}>—</span>}
                   </td>
                   <td className="px-4 py-3 text-neutral-500">{fmtDate(s.last_active)}</td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    <RowActions
-                      open={menuFor === s.student_id}
-                      onOpen={() => setMenuFor(s.student_id)}
-                      onClose={() => setMenuFor(null)}
-                      actions={actionsFor(s)}
-                    />
+                    {s.is_student && (
+                      <RowActions
+                        open={menuFor === s.student_id}
+                        onOpen={() => setMenuFor(s.student_id)}
+                        onClose={() => setMenuFor(null)}
+                        actions={actionsFor(s)}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}
@@ -198,7 +206,7 @@ const RosterPage = () => {
 
       {!loading && visibleRoster.length > 0 && (
         <p className="mt-3 text-xs text-neutral-400">
-          Showing {visibleRoster.length} of {roster.length} student{roster.length === 1 ? '' : 's'}
+          Showing {visibleRoster.length} of {roster.length} user{roster.length === 1 ? '' : 's'}
           {hiddenCount > 0 && ` · ${hiddenCount} hidden`}
         </p>
       )}

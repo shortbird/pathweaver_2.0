@@ -123,14 +123,16 @@ def record(org_id: str, class_id: str, on_date: str,
         ).data or []
     }
 
-    saved = []
-    newly_absent = []
+    now = _now()
+    payloads = []
+    seen = set()
     for e in entries or []:
         status = e.get('status')
-        if status not in ATTENDANCE_STATUSES:
-            continue
         student_user_id = e.get('student_user_id')
-        payload = {
+        if status not in ATTENDANCE_STATUSES or not student_user_id or student_user_id in seen:
+            continue
+        seen.add(student_user_id)
+        payloads.append({
             'organization_id': org_id,
             'class_id': class_id,
             'student_user_id': student_user_id,
@@ -138,16 +140,20 @@ def record(org_id: str, class_id: str, on_date: str,
             'status': status,
             'note': e.get('note'),
             'recorded_by': recorded_by,
-            'updated_at': _now(),
-        }
+            'updated_at': now,
+        })
+
+    saved = []
+    if payloads:
+        # One bulk upsert for the whole roster — a class save is a single round trip.
         resp = (
             _admin().table('sis_attendance')
-            .upsert(payload, on_conflict='class_id,student_user_id,date').execute()
+            .upsert(payloads, on_conflict='class_id,student_user_id,date').execute()
         )
-        if resp.data:
-            saved.append(resp.data[0])
-            if status == 'absent' and prior.get(student_user_id) != 'absent':
-                newly_absent.append(student_user_id)
+        saved = resp.data or []
+
+    newly_absent = [p['student_user_id'] for p in payloads
+                    if p['status'] == 'absent' and prior.get(p['student_user_id']) != 'absent']
 
     admins_notified = _notify_admins_of_absences(org_id, class_id, on_date, newly_absent)
     return {'saved': saved, 'count': len(saved),

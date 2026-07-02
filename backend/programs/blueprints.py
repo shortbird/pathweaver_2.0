@@ -10,7 +10,7 @@ wiring. See programs/registry.py and docs/ARCHITECTURE_CORE_AND_PROGRAMS.md.
 
 def register_program_blueprints(app):
     """Register every custom-program blueprint on the Flask app."""
-    # OpenEd Academy diploma plan
+    # Hearthwood Academy diploma plan (legacy internal name: OEA / opened-academy)
     from routes import oea
     app.register_blueprint(oea.bp)
 

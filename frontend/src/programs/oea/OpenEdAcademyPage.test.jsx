@@ -55,7 +55,7 @@ describe('OpenEdAcademyPage', () => {
     authState = { user: { id: 'p-1' }, effectiveRole: 'parent' }
     renderPage()
 
-    expect(screen.getByText('Welcome to OpenEd Academy')).toBeInTheDocument()
+    expect(screen.getByText('Welcome to Hearthwood Academy')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Ada Lovelace')).toBeInTheDocument())
     // The editable/read-only credits dashboard is not rendered in the parent landing.
     expect(screen.queryByTestId('credits-view')).not.toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('OpenEdAcademyPage', () => {
     authState = { user: { id: 'stu-9', first_name: 'Grace' }, effectiveRole: 'student' }
     renderPage()
 
-    expect(screen.getByText('My OpenEd Academy diploma')).toBeInTheDocument()
+    expect(screen.getByText('My Hearthwood Academy diploma')).toBeInTheDocument()
     const view = screen.getByTestId('credits-view')
     expect(view).toHaveTextContent('read-only')
     // Students do not load the parent student list.

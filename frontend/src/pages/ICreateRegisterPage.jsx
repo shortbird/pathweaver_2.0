@@ -288,7 +288,11 @@ const ICreateRegisterPage = () => {
         email: account.email.trim(), password: account.password,
       })
       setPendingVerify({ registration_id: data.registration_id, email: data.email })
-      if (data.message) toast.success(data.message)
+      if (data.otp_sent === false) {
+        toast.error('We could not send the confirmation email — click "Resend code" in a moment.')
+      } else if (data.message) {
+        toast.success(data.message)
+      }
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not create your account')
     } finally {
@@ -314,8 +318,9 @@ const ICreateRegisterPage = () => {
 
   const resendCode = async () => {
     try {
-      await api.post('/api/icreate/resend-code', { registration_id: pendingVerify.registration_id })
-      toast.success('We emailed you a new code')
+      const { data } = await api.post('/api/icreate/resend-code', { registration_id: pendingVerify.registration_id })
+      if (data.sent === false) toast.error('We could not send the code — please try again in a moment.')
+      else toast.success('We emailed you a new code')
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not resend the code')
     }
@@ -793,8 +798,14 @@ const ICreateRegisterPage = () => {
                   <div key={it.key} className="rounded-lg border border-gray-200 p-4">
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <span className="font-semibold text-neutral-900">{it.label}</span>
-                      {it.doc_url && <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-sm text-optio-purple hover:underline whitespace-nowrap">View full document</a>}
+                      {it.doc_url && <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-sm text-optio-purple hover:underline whitespace-nowrap">Open in new tab</a>}
                     </div>
+                    {/* Uploaded PDFs render inline so parents can read before signing;
+                        other file types fall back to the open-in-new-tab link above. */}
+                    {it.doc_url && /\.pdf($|\?)/i.test(it.doc_url) && (
+                      <iframe src={absUrl(it.doc_url)} title={it.label}
+                        className="w-full h-80 rounded-lg border border-gray-200 mb-3 bg-white" />
+                    )}
                     {it.body && (
                       <div className="text-sm text-neutral-600 whitespace-pre-wrap bg-neutral-50 rounded-lg p-3 mb-3 max-h-56 overflow-y-auto">
                         {it.body}

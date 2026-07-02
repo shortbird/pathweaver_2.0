@@ -11,6 +11,7 @@ const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
 const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
 const HouseholdsPage = lazy(() => import('../pages/sis/HouseholdsPage'))
 const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'))
+const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 
 // Carved-out admin surfaces — re-registered at their ORIGINAL paths so the moved
@@ -44,6 +45,7 @@ const SisRoutes = () => (
       <Route path="attendance" element={<AttendancePage />} />
       <Route path="households" element={<HouseholdsPage />} />
       <Route path="messaging" element={<FamilyMessagingPage />} />
+      <Route path="registration" element={<RegistrationPage />} />
       <Route path="settings" element={<SettingsPage />} />
 
       {/* Carved-out admin surfaces (original paths preserved) */}

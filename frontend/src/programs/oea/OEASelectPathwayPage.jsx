@@ -1,5 +1,5 @@
 /**
- * OEA diploma pathway selection (/opened-academy/student/:studentId/pathway).
+ * OEA diploma pathway selection (/hearthwood/student/:studentId/pathway).
  *
  * Reached per-student from the OEA landing page. Shows the three pathways as a
  * comparison and saves the parent's choice. Selection is immediate and
@@ -52,7 +52,7 @@ export default function OEASelectPathwayPage() {
     try {
       await oeaAPI.selectPathway(studentId, key)
       toast.success('Pathway saved')
-      navigate('/opened-academy')
+      navigate('/hearthwood')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not save your pathway choice.')
       setSaving(false)
@@ -85,7 +85,7 @@ export default function OEASelectPathwayPage() {
           ))}
           <button
             type="button"
-            onClick={() => navigate('/opened-academy')}
+            onClick={() => navigate('/hearthwood')}
             disabled={saving}
             className="text-sm text-optio-purple font-medium"
           >

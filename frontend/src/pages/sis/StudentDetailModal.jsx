@@ -434,7 +434,7 @@ const MessagePanel = ({ student, orgId }) => {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-neutral-500">Sends a message to {student.name} through Messages.</p>
+      <p className="text-sm text-neutral-500">Sends a message to {student.name} through Messages, sent from your school's account.</p>
       <label className="text-xs text-neutral-500 block">Subject
         <input value={subject} onChange={(e) => setSubject(e.target.value)} className={field} placeholder="Optional" />
       </label>

@@ -76,14 +76,18 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null }
         organization_id: orgId,
       }
       let staffId = initial?.id
+      let emailSent = true
       if (isEdit) {
         await api.patch(`/api/sis/staff/${staffId}`, body)
       } else {
         const r = await api.post('/api/sis/staff', body)
         staffId = r.data?.teacher?.id
+        emailSent = r.data?.email_sent !== false
       }
       if (photoFile && staffId) await uploadPhoto(staffId)
-      toast.success(isEdit ? 'Teacher updated' : 'Teacher added — they’ll get an email to set their password')
+      if (isEdit) toast.success('Teacher updated')
+      else if (emailSent) toast.success('Teacher added — they’ll get an email to set their password')
+      else toast.error('Teacher added, but the set-password email could not be sent. Ask them to use "Forgot password" on the login page.', { duration: 8000 })
       onSaved()
     } catch (err) {
       setError(err?.response?.data?.error || 'Could not save teacher')

@@ -234,7 +234,7 @@ const QuestCardSimple = ({ quest }) => {
         ) : (
           /* Regular Quest: Background image with overlay */
           <>
-            {/* Background Image. Org-branded course quests (e.g. OpenEd Academy)
+            {/* Background Image. Org-branded course quests (e.g. Hearthwood Academy)
                 show the full logo centered (object-contain on white) instead of a
                 cropped object-cover fill. */}
             {quest.metadata?.header_style === 'org_logo' && quest.header_image_url ? (

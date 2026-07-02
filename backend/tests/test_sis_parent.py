@@ -126,6 +126,7 @@ class TestLifecycleAuthorization:
     def test_add_item_rejects_class_not_open(self):
         with patch('services.sis_parent_service.regs.get_registration',
                    return_value={'id': 'reg1', 'guardian_user_id': 'g1', 'status': 'in_progress'}), \
+             patch('services.sis_parent_service._family_gate', return_value=None), \
              patch('services.sis_parent_service.open_classes', return_value=[{'id': 'open-class'}]):
             result = parent.add_item('g1', 'org1', 'reg1', 'closed-class')
         assert result['error'] == 'This class is not open for registration'
@@ -133,6 +134,7 @@ class TestLifecycleAuthorization:
     def test_add_item_allows_open_class_on_owned_registration(self):
         with patch('services.sis_parent_service.regs.get_registration',
                    return_value={'id': 'reg1', 'guardian_user_id': 'g1', 'status': 'in_progress'}), \
+             patch('services.sis_parent_service._family_gate', return_value=None), \
              patch('services.sis_parent_service.open_classes', return_value=[{'id': 'class1'}]), \
              patch('services.sis_parent_service.regs.add_item',
                    return_value={'item': {'id': 'it1'}, 'evaluation': {}}) as add:

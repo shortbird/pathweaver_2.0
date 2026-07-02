@@ -362,6 +362,23 @@ def _parent_row(admin, parent_id):
     return r.data or {}
 
 
+def _family_directive(admin, org_id, email):
+    """Pre-staged settings for this parent email (sis_family_directives): fee
+    already paid on the school's legacy form, registration hold, priority tier.
+    Loaded from the legacy registration spreadsheet before families re-register."""
+    if not email:
+        return None
+    try:
+        rows = (admin.table('sis_family_directives').select('*')
+                .eq('organization_id', org_id)
+                .eq('email', email.strip().lower())
+                .limit(1).execute()).data or []
+        return rows[0] if rows else None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'iCreate: family-directive lookup failed for org {org_id}: {e}')
+        return None
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @bp.route('/config/<invitation_code>', methods=['GET'])
@@ -478,8 +495,9 @@ def start():
             if not _password_ok(email, password):
                 return jsonify({'error': 'This email already started registering. Enter the same password, or use "Sign in" instead.'}), 409
             code = _issue_otp(admin, match['id'])
-            _send_otp_email(email, first, org.get('name') or 'iCreate', code)
+            sent = _send_otp_email(email, first, org.get('name') or 'iCreate', code)
             return jsonify({'success': True, 'registration_id': match['id'], 'email': email,
+                            'otp_sent': bool(sent),
                             'message': 'We re-sent your confirmation code.'}), 200
         return jsonify({'error': 'An account with this email already exists — use "Sign in with Optio" below.'}), 409
 
@@ -498,10 +516,11 @@ def start():
     reg_id = reg.data[0]['id']
 
     code = _issue_otp(admin, reg_id)
-    _send_otp_email(email, first, org.get('name') or 'iCreate', code)
+    sent = _send_otp_email(email, first, org.get('name') or 'iCreate', code)
 
-    logger.info(f'iCreate start: registration {reg_id} awaiting email verification')
-    return jsonify({'success': True, 'registration_id': reg_id, 'email': email}), 201
+    logger.info(f'iCreate start: registration {reg_id} awaiting email verification (otp_sent={bool(sent)})')
+    return jsonify({'success': True, 'registration_id': reg_id, 'email': email,
+                    'otp_sent': bool(sent)}), 201
 
 
 @bp.route('/verify', methods=['POST'])
@@ -740,6 +759,10 @@ def submit_family(reg_id):
         except Exception as e:  # noqa: BLE001
             logger.error(f'iCreate family: parent-student linking failed: {e}')
 
+    # Settings the school staged for this family before they re-registered
+    # (legacy-form import): prepaid fee, registration hold, priority tier.
+    directive = _family_directive(admin, org_id, parent.get('email'))
+
     # Group the family into a SIS household so address/phone land where staff
     # already look (Families page). Best-effort: registration succeeds without it.
     try:
@@ -753,6 +776,9 @@ def submit_family(reg_id):
             'state': address['state'] or None,
             'postal_code': address['postal_code'] or None,
             'phone': phone or None,
+            'registration_hold': bool(directive and directive.get('registration_hold')),
+            'registration_hold_reason': (directive or {}).get('hold_reason'),
+            'registration_tier': (directive or {}).get('registration_tier'),
         }).execute()
         household_id = hh.data[0]['id']
         members = [{'household_id': household_id, 'user_id': parent_id,
@@ -761,12 +787,19 @@ def submit_family(reg_id):
                      'relationship': 'student', 'is_primary_guardian': False}
                     for ck in created_kids]
         admin.table('household_members').insert(members).execute()
+        if directive:
+            admin.table('sis_family_directives').update({
+                'matched_household_id': household_id,
+                'updated_at': datetime.utcnow().isoformat(),
+            }).eq('id', directive['id']).execute()
     except Exception as e:  # noqa: BLE001
         logger.error(f'iCreate family: household creation failed: {e}')
 
     # Fee is per-family, computed from the number of kids registering. Stored so
     # later steps are stable even if an admin edits the config mid-funnel.
-    fee_cents = _compute_fee_cents(cfg, len(created_kids))
+    # Families who already paid on the school's legacy form owe nothing.
+    fee_cents = 0 if (directive and directive.get('fee_prepaid')) \
+        else _compute_fee_cents(cfg, len(created_kids))
     admin.table('icreate_registrations').update({
         'kids': created_kids, 'fee_cents': fee_cents,
         'status': 'details', 'updated_at': datetime.utcnow().isoformat(),

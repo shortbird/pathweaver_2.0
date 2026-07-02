@@ -52,9 +52,12 @@ async function openLegal(url: string, webPath: string) {
   if (!opened) toast.error("Couldn't open the page. You can find it at optioeducation.com.");
 }
 
-// Marketplace partner keys. A parent arriving from the OpenEd Academy tile lands
+// Partner keys. A parent arriving from a Hearthwood Academy enrollment link lands
 // here as /signup?partner=opened-academy (or /register?partner=...): we brand the
-// page for OEA and tag the new account so it joins the OEA Diploma Plan.
+// page for Hearthwood and tag the new account so it joins the diploma plan.
+// ('opened-academy' is the legacy internal key from the original OpenEd Academy
+// launch — the program now belongs to Hearthwood Academy; don't change the key,
+// it's the stored users.program_key value.)
 const OEA_PARTNER_KEY = 'opened-academy';
 
 function getRedirectForRole(user: User): string {
@@ -249,11 +252,11 @@ export default function RegisterScreen() {
             {isOEA && (
               <View className="bg-optio-purple/10 border border-optio-purple/30 p-4 rounded-xl">
                 <UIText size="sm" className="font-poppins-semibold text-optio-purple">
-                  OpenEd Academy
+                  Hearthwood Academy
                 </UIText>
                 <UIText size="xs" className="text-typo-600 mt-1">
                   Create your parent account to enroll your family. After signup you'll
-                  choose a diploma pathway and start tracking credits toward an OpenEd Academy diploma.
+                  choose a diploma pathway and start tracking credits toward a Hearthwood Academy diploma.
                 </UIText>
               </View>
             )}
@@ -263,7 +266,7 @@ export default function RegisterScreen() {
                 <Heading size="lg">{isOEA ? 'Create Parent Account' : 'Create Account'}</Heading>
                 <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                   {isOEA
-                    ? 'Enroll your family in OpenEd Academy'
+                    ? 'Enroll your family in Hearthwood Academy'
                     : 'Start your learning journey today'}
                 </UIText>
 

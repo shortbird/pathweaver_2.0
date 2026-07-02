@@ -14,11 +14,14 @@ import { VStack, HStack, UIText, Button, ButtonText, Card } from '@/src/componen
 import { Ionicons } from '@expo/vector-icons';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { oeaAPI } from '@/src/services/api';
+import { safeOpenURL } from '@/src/utils/linking';
+import { toast } from '@/src/stores/toastStore';
 import type { OEAEnrollment } from '@/src/components/oea/types';
 
 export default function OEAWelcomeScreen() {
   const { children, loading: childrenLoading } = useMyChildren();
   const [enrollments, setEnrollments] = useState<Record<string, OEAEnrollment>>({});
+  const [helpVideoUrl, setHelpVideoUrl] = useState<string | null>(null);
   const [enrollmentsLoading, setEnrollmentsLoading] = useState(true);
 
   const loadEnrollments = useCallback(async () => {
@@ -29,6 +32,7 @@ export default function OEAWelcomeScreen() {
         byStudent[e.student_id] = e;
       }
       setEnrollments(byStudent);
+      setHelpVideoUrl(data?.help_video_url || null);
     } catch {
       // Non-critical — treat as no enrollments yet.
     } finally {
@@ -42,21 +46,59 @@ export default function OEAWelcomeScreen() {
 
   return (
     <ScrollPageLayout
-      title="Welcome to OpenEd Academy"
-      subtitle="Track credits and learning logs toward an OpenEd Academy diploma."
+      title="Welcome to Hearthwood Academy"
+      subtitle="Track credits and learning logs toward a Hearthwood Academy diploma."
       loading={childrenLoading || enrollmentsLoading}
       maxWidth="max-w-2xl"
     >
       <VStack space="lg">
+        {helpVideoUrl ? (
+          <Card variant="outline" size="md">
+            <Button
+              variant="link"
+              size="md"
+              onPress={async () => {
+                const opened = await safeOpenURL(helpVideoUrl);
+                if (!opened) toast.error("Couldn't open the video.");
+              }}
+            >
+              <HStack className="items-center" space="sm">
+                <Ionicons name="play-circle" size={26} color="#6D469B" />
+                <ButtonText>New here? Watch the getting-started video</ButtonText>
+              </HStack>
+            </Button>
+          </Card>
+        ) : (
+          /* Placeholder until Hearthwood posts the video (admins set the URL in
+             Organization -> Settings on the web). */
+          <Card variant="outline" size="md">
+            <HStack className="items-center" space="sm">
+              <Ionicons name="videocam-outline" size={24} color="#A3A3A3" />
+              <View className="flex-1">
+                <UIText size="sm" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500">
+                  Getting-started video coming soon
+                </UIText>
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                  Hearthwood Academy will post a short walkthrough of the weekly flow here.
+                </UIText>
+              </View>
+            </HStack>
+          </Card>
+        )}
+
         <Card variant="elevated" size="md">
           <VStack space="sm">
             <HStack className="items-center" space="sm">
               <Ionicons name="school-outline" size={22} color="#6D469B" />
-              <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">How it works</UIText>
+              <UIText size="md" className="font-poppins-semibold text-typo dark:text-dark-typo">Getting started</UIText>
             </HStack>
             <UIText size="sm" className="text-typo-600">
               Each student works toward 24 credits on one of three diploma pathways.
-              Choose a pathway for each student below — you can change it anytime.
+            </UIText>
+            <UIText size="sm" className="text-typo-600">
+              1. Choose a diploma pathway for each student below — you can change it anytime.{'\n'}
+              2. Enter the courses your student is currently working on.{'\n'}
+              3. Add work evidence and learning logs to each course every week.
             </UIText>
           </VStack>
         </Card>
@@ -94,7 +136,7 @@ export default function OEAWelcomeScreen() {
                         {child.display_name || `${child.first_name} ${child.last_name}`.trim()}
                       </UIText>
                       <UIText size="sm" className={pathwayName ? 'text-typo-600' : 'text-amber-700'}>
-                        {pathwayName ? pathwayName : 'No pathway chosen yet'}
+                        {pathwayName ? pathwayName : 'Get started by choosing a diploma pathway — you can change it anytime.'}
                       </UIText>
                     </View>
                     {pathwayName ? (
@@ -104,7 +146,7 @@ export default function OEAWelcomeScreen() {
                           className="flex-1"
                           onPress={() => router.push({ pathname: '/(app)/oea/credits' as any, params: navParams })}
                         >
-                          <ButtonText>Credits</ButtonText>
+                          <ButtonText>Course Tracker</ButtonText>
                         </Button>
                         <Button
                           size="sm"

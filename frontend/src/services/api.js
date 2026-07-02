@@ -706,7 +706,7 @@ export const transferCreditsAPI = {
   deleteAll: (userId) => api.delete(`/api/admin/transfer-credits/${userId}`),
 }
 
-// OpenEd Academy (OEA) diploma program. Backs the /opened-academy tab.
+// Hearthwood Academy (OEA) diploma program. Backs the /hearthwood tab.
 // Reads (pathways, enrollments, credits) work for the managing parent and,
 // for self-targeting routes, the student viewing their own diploma. Writes
 // are parent-only (enforced server-side in backend/routes/oea.py).

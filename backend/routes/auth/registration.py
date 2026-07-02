@@ -379,7 +379,7 @@ def register():
                 # Role is set directly (observer from invitation, or default 'student')
                 logger.info(f"[REGISTRATION] Creating platform user (no organization)")
 
-            # Partner program tag (e.g. OEA Diploma Plan via the OpenEd marketplace).
+            # Partner program tag (e.g. 'opened-academy' for the Hearthwood Academy diploma plan).
             # OEA families are platform users carrying this lightweight flag, not
             # org-managed users. Only accept allowlisted program keys.
             if program_key:

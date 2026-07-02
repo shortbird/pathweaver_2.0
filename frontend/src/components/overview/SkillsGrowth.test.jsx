@@ -39,7 +39,7 @@ describe('SkillsGrowth', () => {
       }
     }
     renderSG({ xpByPillar: { stem: 100 }, oea, totalXp: 100 })
-    expect(screen.getByText('OpenEd Academy Diploma')).toBeInTheDocument()
+    expect(screen.getByText('Hearthwood Academy Diploma')).toBeInTheDocument()
     expect(screen.getByText('Traditionally Aligned')).toBeInTheDocument()
     expect(screen.getByText('Mathematics')).toBeInTheDocument()
     expect(screen.getByText('Language Arts')).toBeInTheDocument()

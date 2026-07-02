@@ -37,6 +37,67 @@ function ProgressBar({ percent }) {
   )
 }
 
+// "Sep 30, 2026" from an ISO date, parsed as local (avoids the UTC-midnight
+// off-by-one-day that new Date('YYYY-MM-DD') gives in western timezones).
+function formatDeadline(iso) {
+  if (!iso) return null
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Current-quarter upload checklist for a direct in-progress course, from the
+// backend's quarter_compliance (present only while a quarter is open). Items
+// check themselves off as the minimums are met; items whose minimum is 0 are
+// hidden — e.g. Hearthwood has no artifact minimum.
+function QuarterChecklist({ compliance, deadline }) {
+  if (!compliance) return null
+  const items = []
+  if (compliance.logs_required > 0) {
+    items.push({
+      done: compliance.logs >= compliance.logs_required,
+      label: `Learning logs (${compliance.logs} of ${compliance.logs_required})`,
+    })
+  }
+  if (compliance.artifacts_required > 0) {
+    items.push({
+      done: compliance.artifacts >= compliance.artifacts_required,
+      label: `Work artifacts (${compliance.artifacts} of ${compliance.artifacts_required})`,
+    })
+  }
+  if (compliance.summaries_required > 0) {
+    items.push({
+      done: compliance.summaries >= compliance.summaries_required,
+      label: 'Quarterly summary',
+    })
+  }
+  if (items.length === 0) return null
+  const due = formatDeadline(deadline)
+  return (
+    <div className="mt-2 rounded-lg border border-neutral-100 bg-neutral-50 px-2.5 py-2">
+      <p className="text-xs font-semibold text-neutral-500">
+        Quarter {compliance.term_index} checklist{due ? ` — due by ${due}` : ''}
+      </p>
+      <ul className="mt-1 space-y-1">
+        {items.map((item) => (
+          <li key={item.label} className="flex items-center gap-1.5">
+            {item.done ? (
+              <svg className="w-4 h-4 text-green-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path fillRule="evenodd" clipRule="evenodd" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm4.03-12.47a.75.75 0 10-1.06-1.06L11 12.44l-1.97-1.97a.75.75 0 10-1.06 1.06l2.5 2.5a.75.75 0 001.06 0l4.5-4.5z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-neutral-300 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+            )}
+            <span className={`text-xs ${item.done ? 'text-green-700' : 'text-neutral-600'}`}>{item.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function GradePill({ credit }) {
   if (credit.status !== 'complete') {
     return (
@@ -146,16 +207,21 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
     setEditWeighted(credit.is_weighted)
   }
 
-  // Open the student's quest for this course (work + evidence + journal live
-  // there). Creates the quest on first use for credits added before the
-  // course-as-quest feature.
+  // Open the quest for this course (work + evidence + journal live there).
+  // Parents get ParentQuestView (upload evidence on the student's behalf) —
+  // the student route would bounce them to their own dashboard. Students
+  // (readOnly self-view) open the quest directly. Creates the quest on first
+  // use for credits added before the course-as-quest feature.
+  const questPath = (questId) => (
+    readOnly ? `/quests/${questId}` : `/parent/quest/${studentId}/${questId}`
+  )
   const openQuest = async (credit) => {
     if (openingQuest) return
-    if (credit.quest_id) { navigate(`/quests/${credit.quest_id}`); return }
+    if (credit.quest_id) { navigate(questPath(credit.quest_id)); return }
     setOpeningQuest(true)
     try {
       const { data: res } = await oeaAPI.ensureCreditQuest(credit.id)
-      if (res?.quest_id) navigate(`/quests/${res.quest_id}`)
+      if (res?.quest_id) navigate(questPath(res.quest_id))
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not open the quest.')
     } finally {
@@ -218,7 +284,7 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
         {!readOnly && (
           <button
             type="button"
-            onClick={() => navigate(`/opened-academy/student/${studentId}/pathway`, {
+            onClick={() => navigate(`/hearthwood/student/${studentId}/pathway`, {
               state: { studentName },
             })}
             className="min-h-[44px] px-5 rounded-lg font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink"
@@ -278,13 +344,39 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
       <div className="rounded-2xl border border-neutral-200 bg-white p-4">
         <div className="flex gap-3">
           <button type="button"
-            onClick={() => navigate(`/opened-academy/student/${studentId}/progress-report`, { state: { studentName } })}
+            onClick={() => navigate(`/hearthwood/student/${studentId}/progress-report`, { state: { studentName } })}
             className="text-sm text-optio-purple font-medium">Quarterly report</button>
           <button type="button"
-            onClick={() => navigate(`/opened-academy/student/${studentId}/transcript`, { state: { studentName } })}
+            onClick={() => navigate(`/hearthwood/student/${studentId}/transcript`, { state: { studentName } })}
             className="text-sm text-optio-purple font-medium">Transcript</button>
+          {data?.help_video_url && (
+            <a href={data.help_video_url} target="_blank" rel="noopener noreferrer"
+              className="text-sm text-optio-purple font-medium ml-auto">Watch the tutorial</a>
+          )}
         </div>
       </div>
+
+      {/* On-page directions + quarterly minimums (Hearthwood feedback: parents
+          need to be told what to do here, and what the program requires). */}
+      {!readOnly && (
+        <div className="rounded-2xl border border-optio-purple/20 bg-[#F3EFF4] p-4">
+          <p className="text-sm text-neutral-700">
+            Use this page to enter the courses {studentName || 'your student'} is currently
+            working on — select a subject below and add each course. Select a course to
+            record grades or add work evidence and learning logs.
+          </p>
+          {data?.minimums_text && (
+            <p className="text-sm text-neutral-700 mt-2">
+              Each course needs at least {data.minimums_text} every quarter
+              {data?.current_quarter && data?.current_quarter_end
+                ? ` — Quarter ${data.current_quarter} ends ${formatDeadline(data.current_quarter_end)}`
+                : ''}.
+              They don't all have to happen every week — but Hearthwood Academy will
+              reach out if a course falls short when the quarter ends.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Per-requirement breakdown */}
       {progress.requirements.map((req) => {
@@ -324,6 +416,7 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
                     <p className="text-xs text-neutral-400">
                       {c.credits} {c.credits === 1 ? 'credit' : 'credits'}
                     </p>
+                    <QuarterChecklist compliance={c.quarter_compliance} deadline={data?.current_quarter_end} />
                   </div>
                   <GradePill credit={c} />
                 </RowTag>
@@ -544,10 +637,11 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
                 </svg>
                 <span>
                   <span className="block text-sm font-medium text-neutral-900">
-                    {openingQuest ? 'Opening...' : editing?.quest_id ? 'Open quest' : 'Start quest'}
+                    {openingQuest ? 'Opening...' : 'Add work evidence & learning logs'}
                   </span>
                   <span className="block text-xs text-neutral-400">
-                    Add work, evidence, and journal entries
+                    Opens the course quest — upload documents and videos, and add
+                    learning log entries
                   </span>
                 </span>
               </span>

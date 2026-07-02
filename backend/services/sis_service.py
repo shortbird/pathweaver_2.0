@@ -62,7 +62,7 @@ def resolve_org_id(user_id: str, requested_org_id: Optional[str]) -> Optional[st
     return own
 
 
-def _org_students(org_id: str) -> List[Dict[str, Any]]:
+def _org_users(org_id: str) -> List[Dict[str, Any]]:
     resp = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, '
@@ -71,7 +71,11 @@ def _org_students(org_id: str) -> List[Dict[str, Any]]:
         .eq('organization_id', org_id)
         .execute()
     )
-    return [u for u in (resp.data or []) if is_student(u)]
+    return resp.data or []
+
+
+def _org_students(org_id: str) -> List[Dict[str, Any]]:
+    return [u for u in _org_users(org_id) if is_student(u)]
 
 
 def _enrollments_by_student(org_id: str) -> Dict[str, Dict[str, Any]]:
@@ -122,17 +126,23 @@ def _full_name(u: Dict[str, Any]) -> str:
 
 
 def get_roster(org_id: str) -> List[Dict[str, Any]]:
-    students = _org_students(org_id)
+    """Every account in the org (students, parents, teachers, admins, observers)
+    with a role label; students also carry their enrollment fields."""
+    users = _org_users(org_id)
     enrollments = _enrollments_by_student(org_id)
     households = _household_by_user(org_id)
     roster = []
-    for s in students:
-        enr = enrollments.get(s['id'])
+    for s in users:
+        student = is_student(s)
+        enr = enrollments.get(s['id']) if student else None
         hh = households.get(s['id'])
+        roles = _user_org_roles(s) or ([s['role']] if s.get('role') and s['role'] != 'org_managed' else [])
         roster.append({
             'student_id': s['id'],
             'name': _full_name(s),
-            'is_student': True,
+            'is_student': student,
+            'role': roles[0] if roles else None,
+            'roles': roles,
             'first_name': s.get('first_name'),
             'last_name': s.get('last_name'),
             'date_of_birth': s.get('date_of_birth'),
@@ -144,7 +154,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'username': s.get('username'),
             'total_xp': s.get('total_xp'),
             'last_active': s.get('last_active'),
-            'enrollment_status': (enr or {}).get('status') or 'unassigned',
+            'enrollment_status': ((enr or {}).get('status') or 'unassigned') if student else None,
             'grade_level': (enr or {}).get('grade_level'),
             'start_date': (enr or {}).get('start_date'),
             'household_id': (hh or {}).get('household_id'),
@@ -373,7 +383,11 @@ def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
         .execute()
     )
     out = []
+    school_account_email = org_messaging_email(org_id)
     for u in (resp.data or []):
+        # The org's messaging identity is infrastructure, not a staff member.
+        if u.get('email') == school_account_email:
+            continue
         roles = _user_org_roles(u)
         staff_roles = [r for r in STAFF_ORG_ROLES if r in roles]
         if not staff_roles:
@@ -457,11 +471,15 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 pass
             return {'error': 'Could not create the account'}
+    email_sent = True
     try:
         admin.auth.resend({'type': 'signup', 'email': email})
     except Exception as e:  # noqa: BLE001
+        email_sent = False
         logger.warning(f"SIS teacher set-password email failed for {email}: {e}")
-    return {'teacher': {'id': auth.user.id, 'name': profile['display_name'], 'email': email}}
+    # email_sent lets the UI warn instead of promising an email that never left.
+    return {'teacher': {'id': auth.user.id, 'name': profile['display_name'], 'email': email},
+            'email_sent': email_sent}
 
 
 _STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio')
@@ -699,9 +717,56 @@ def household_registration(org_id: str, household_id: str) -> Optional[Dict[str,
     return rows[0] if rows else None
 
 
+# ── Org messaging identity ────────────────────────────────────────────────────
+# SIS family/student messages are sent from a per-org "school account" so the
+# recipient sees the school's name and logo — not the individual staff member,
+# and never the "Optio Support" alias that fronts superadmin senders.
+
+def org_messaging_email(org_id: str) -> str:
+    """Deterministic placeholder email that marks the org's school account."""
+    return f"school-{org_id}@optio-internal-placeholder.local"
+
+
+def _org_messaging_sender(org_id: str) -> Optional[str]:
+    """User id of the org's school account, created on first use. org_role is
+    org_admin so DM permissions allow messaging anyone in the org AND let
+    recipients reply. The account can't log in (placeholder email, no password).
+    Returns None on failure so callers can fall back to the staff sender."""
+    admin = _admin()
+    email = org_messaging_email(org_id)
+    row = (admin.table('users').select('id').eq('email', email).limit(1).execute()).data
+    if row:
+        return row[0]['id']
+
+    org_rows = (admin.table('organizations').select('name, branding_config')
+                .eq('id', org_id).limit(1).execute()).data
+    org = org_rows[0] if org_rows else {}
+    name = org.get('name') or 'School'
+    logo = (org.get('branding_config') or {}).get('logo_url')
+    try:
+        auth_resp = admin.auth.admin.create_user({
+            'email': email,
+            'email_confirm': False,
+            'user_metadata': {'display_name': name, 'org_messaging_account': True},
+            'app_metadata': {'provider': 'org_messaging', 'providers': ['org_messaging']},
+        })
+        uid = auth_resp.user.id
+        admin.table('users').insert({
+            'id': uid, 'email': email, 'display_name': name,
+            'first_name': name, 'last_name': '',
+            'avatar_url': logo,
+            'organization_id': org_id, 'role': 'org_managed', 'org_role': 'org_admin',
+        }).execute()
+        return uid
+    except Exception as e:
+        logger.error(f"org messaging account create failed for org {str(org_id)[:8]}: {e}")
+        return None
+
+
 def message_household_guardians(org_id: str, household_id: str, sender_id: str,
                                subject: str, body: str) -> Dict[str, Any]:
-    """Send a platform message to every guardian in a household (best-effort per guardian)."""
+    """Send a platform message to every guardian in a household (best-effort per
+    guardian), from the org's school account (falls back to the staff sender)."""
     from services.direct_message_service import DirectMessageService
     members = (
         _admin().table('household_members').select('user_id, relationship')
@@ -709,23 +774,26 @@ def message_household_guardians(org_id: str, household_id: str, sender_id: str,
     ).data or []
     guardian_ids = [m['user_id'] for m in members if m.get('relationship') in ('guardian', 'other')]
     content = f"{subject}\n\n{body}" if subject else body
+    sender = _org_messaging_sender(org_id) or sender_id
     svc = DirectMessageService()
     sent = 0
     for gid in guardian_ids:
         try:
-            svc.send_message(sender_id, gid, content)
+            svc.send_message(sender, gid, content)
             sent += 1
         except Exception as e:
             logger.info(f"family message to guardian {str(gid)[:8]} skipped: {e}")
     return {'sent': sent, 'guardians': len(guardian_ids)}
 
 
-def message_student(student_id: str, sender_id: str, subject: str, body: str) -> Dict[str, Any]:
+def message_student(org_id: str, student_id: str, sender_id: str, subject: str, body: str) -> Dict[str, Any]:
     """Send a message to the student through the platform messaging (direct messages)
-    system, from the staff caller. Raises ValueError if the sender lacks permission."""
+    system, from the org's school account (falls back to the staff caller).
+    Raises ValueError if the sender lacks permission."""
     from services.direct_message_service import DirectMessageService
     content = f"{subject}\n\n{body}" if subject else body
-    msg = DirectMessageService().send_message(sender_id, student_id, content)
+    sender = _org_messaging_sender(org_id) or sender_id
+    msg = DirectMessageService().send_message(sender, student_id, content)
     return {'conversation_id': msg.get('conversation_id')}
 
 

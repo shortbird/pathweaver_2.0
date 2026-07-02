@@ -1,6 +1,6 @@
 /**
  * OEA / Hearthwood quarterly progress report — the "coach report card".
- * Route: /opened-academy/student/:studentId/progress-report
+ * Route: /hearthwood/student/:studentId/progress-report
  *
  * For a chosen quarter, lists each in-progress course with the parent-entered
  * quarter grade + summary, plus the per-course upload compliance (logs / artifacts
@@ -55,7 +55,7 @@ export default function OEAProgressReportPage() {
 
   useEffect(() => { load() }, [load])
 
-  const orgName = data?.organization?.name || 'OpenEd Academy'
+  const orgName = data?.organization?.name || 'Hearthwood Academy'
   const courses = data?.courses || []
 
   return (
@@ -63,7 +63,7 @@ export default function OEAProgressReportPage() {
       <style>{PRINT_CSS}</style>
 
       <div className="no-print flex items-center justify-between mb-4">
-        <button type="button" onClick={() => navigate('/opened-academy')}
+        <button type="button" onClick={() => navigate('/hearthwood')}
           className="text-sm text-optio-purple font-medium">Back</button>
         <button type="button" onClick={() => window.print()}
           className="min-h-[40px] px-5 rounded-lg text-white text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink">

@@ -14,20 +14,24 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
-const { api } = vi.hoisted(() => {
+const { api, state } = vi.hoisted(() => {
+  const state = {
+    classes: [{ id: 'c1', name: 'Pottery' }],
+    roster: [
+      { student_user_id: 's1', name: 'Bo', status: null },
+      { student_user_id: 's2', name: 'Ada', status: null },
+    ],
+  }
   const apiData = (url) => {
-    if (url.includes('/attendance')) {
-      return { data: { roster: [{ student_user_id: 's1', name: 'Bo', status: null }] } }
-    }
-    if (url.includes('/api/sis/classes')) {
-      return { data: { classes: [{ id: 'c1', name: 'Pottery' }] } }
-    }
+    if (url.includes('/attendance')) return { data: { roster: state.roster } }
+    if (url.includes('/api/sis/classes')) return { data: { classes: state.classes } }
     return { data: {} }
   }
   return {
+    state,
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
-      post: vi.fn(() => Promise.resolve({ data: { count: 1 } })),
+      post: vi.fn(() => Promise.resolve({ data: { count: 2 } })),
     },
   }
 })
@@ -38,20 +42,62 @@ import AttendancePage from './AttendancePage'
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'advisor' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
+  state.classes = [{ id: 'c1', name: 'Pottery' }]
+  state.roster = [
+    { student_user_id: 's1', name: 'Bo', status: null },
+    { student_user_id: 's2', name: 'Ada', status: null },
+  ]
   vi.clearAllMocks()
 })
 
 describe('AttendancePage', () => {
-  it('loads roster after picking a class and marks + saves attendance', async () => {
+  it('marks tapped students absent and saves the WHOLE roster (untouched = present)', async () => {
     render(<AttendancePage />)
-    // pick the class
     const classSelect = await screen.findByRole('combobox')
     fireEvent.change(classSelect, { target: { value: 'c1' } })
-    // roster appears
+
+    // roster appears, everyone defaults to present
     expect(await screen.findByText('Bo')).toBeInTheDocument()
-    // mark present
-    fireEvent.click(screen.getByText('present'))
-    fireEvent.click(screen.getByText('Save attendance'))
+    expect(screen.getAllByText('Present')).toHaveLength(2)
+
+    // tap Bo absent — save sends both students, Ada untouched as present
+    fireEvent.click(screen.getByText('Bo'))
+    fireEvent.click(screen.getByText('Save (1 absent)'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/classes/c1/attendance', expect.objectContaining({
+        entries: [
+          { student_user_id: 's1', status: 'absent' },
+          { student_user_id: 's2', status: 'present' },
+        ],
+      })),
+    )
+  })
+
+  it('auto-selects a teacher\'s only assigned class and shows the My classes chip', async () => {
+    state.classes = [
+      { id: 'c1', name: 'Pottery', primary_instructor_id: 'u1', enrolled_count: 2, meetings: [] },
+      { id: 'c2', name: 'Robotics', primary_instructor_id: 'other' },
+    ]
+    render(<AttendancePage />)
+    // chip section renders only their class, and the roster loads without any clicks
+    expect(await screen.findByText('My classes')).toBeInTheDocument()
+    expect(await screen.findByText('Bo')).toBeInTheDocument()
+    expect(screen.queryAllByText('Robotics')).toHaveLength(1) // dropdown only, no chip
+  })
+
+  it('lets a saved absence be toggled back and re-saved as present', async () => {
+    state.roster = [{ student_user_id: 's1', name: 'Bo', status: 'absent' }]
+    render(<AttendancePage />)
+    const classSelect = await screen.findByRole('combobox')
+    fireEvent.change(classSelect, { target: { value: 'c1' } })
+
+    // prior save is reflected
+    expect(await screen.findByText('Attendance taken')).toBeInTheDocument()
+    expect(screen.getByText('Absent')).toBeInTheDocument()
+
+    // toggle back to present and re-save
+    fireEvent.click(screen.getByText('Bo'))
+    fireEvent.click(screen.getByText('Save — all present'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/classes/c1/attendance', expect.objectContaining({
         entries: [{ student_user_id: 's1', status: 'present' }],

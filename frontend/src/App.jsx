@@ -60,7 +60,7 @@ const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 const QuestDiscovery = lazy(() => import('./pages/QuestDiscovery'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
-// Program pages (OpenEd Academy, Treehouse, Gryffin, POE) are lazy-loaded and
+// Program pages (Hearthwood Academy, Treehouse, Gryffin, POE) are lazy-loaded and
 // routed via the program registry — see src/programs/registry.jsx.
 // Credit & Transcript Pages
 const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
@@ -527,7 +527,7 @@ function App() {
                 <Route path="bounties/create" element={<BountyCreatePage />} />
                 <Route path="bounties/:bountyId/edit" element={<BountyCreatePage />} />
                 <Route path="bounties/:bountyId" element={<BountyDetailPage />} />
-                {/* Program in-app routes (OpenEd Academy, Treehouse, Gryffin),
+                {/* Program in-app routes (Hearthwood Academy, Treehouse, Gryffin),
                     gated in the sidebar by org slug / program_key; pages branch by
                     role and writes are enforced server-side. See programs/registry.jsx. */}
                 {getProgramRoutes('app')}

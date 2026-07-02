@@ -1,7 +1,7 @@
 /**
  * /signup -> /register alias.
  *
- * The OpenEd marketplace tile links to /signup?partner=opened-academy (PRD 4.1).
+ * Partner enrollment links (originally the OpenEd marketplace tile, PRD 4.1; the diploma program is now Hearthwood Academy's) use /signup?partner=opened-academy.
  * The real form lives at /register; this preserves any query params (the partner
  * key) through the redirect so OEA branding + tagging still fire.
  */

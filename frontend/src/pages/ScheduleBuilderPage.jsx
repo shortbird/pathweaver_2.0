@@ -246,6 +246,18 @@ const ScheduleBuilderPage = () => {
         )}
       </div>
 
+      {schedule?.registration_hold && (
+        <div className="mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+          Your family's registration is on hold — please contact {org?.organization_name || 'your school'} to
+          resolve it before signing up for classes.
+        </div>
+      )}
+      {!schedule?.registration_hold && schedule?.registration_opens_on && (
+        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-600">
+          Class registration opens for your family on <span className="font-medium text-neutral-800">{fmtDate(schedule.registration_opens_on)}</span>.
+          You can browse classes now and sign up once it opens.
+        </div>
+      )}
       {locked ? (
         <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           The school year has started{firstDay ? ` (first day was ${fmtDate(firstDay)})` : ''} — schedule changes are now made by

@@ -16,7 +16,7 @@ import { Route } from 'react-router-dom'
 import { renderOeaDiploma, fetchOeaDiploma } from './oea/DiplomaWidget'
 import { useTreehouseQuestView } from './treehouse/questView'
 
-// Diploma/academy cap — shared by the diploma-style programs (OEA, Hearthwood, Gryffin).
+// Diploma/academy cap — shared by the diploma-style programs (Hearthwood, Gryffin).
 const capIcon = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
@@ -40,19 +40,23 @@ const treehouseIcon = (
  * leave it false so the tab is hidden from org admins.
  */
 export const PROGRAMS = {
-  oea: {
-    slug: 'oea',
-    name: 'OpenEd Academy',
-    navPath: '/opened-academy',
+  hearthwood: {
+    slug: 'hearthwood',
+    name: 'Hearthwood Academy',
+    navPath: '/hearthwood',
     navIcon: capIcon,
     navVisibleToOrgAdmin: false,
+    // Org admins manage the parent getting-started video from Organization ->
+    // Settings (stored in feature_flags.oea_settings.help_video_url).
+    helpVideoConfigurable: true,
   },
   'hearthwood-test': {
     slug: 'hearthwood-test',
     name: 'Hearthwood Academy',
-    navPath: '/opened-academy',
+    navPath: '/hearthwood',
     navIcon: capIcon,
     navVisibleToOrgAdmin: false,
+    helpVideoConfigurable: true,
   },
   treehouse: {
     slug: 'treehouse',
@@ -146,11 +150,11 @@ const PoePage = lazy(() => import('./poe/PoePage'))
 
 const PROGRAM_ROUTES = {
   app: [
-    { path: 'opened-academy', element: <OpenEdAcademyPage /> },
-    { path: 'opened-academy/student/:studentId/pathway', element: <OEASelectPathwayPage /> },
-    { path: 'opened-academy/student/:studentId/credits', element: <OEACreditsPage /> },
-    { path: 'opened-academy/student/:studentId/transcript', element: <OEATranscriptPage /> },
-    { path: 'opened-academy/student/:studentId/progress-report', element: <OEAProgressReportPage /> },
+    { path: 'hearthwood', element: <OpenEdAcademyPage /> },
+    { path: 'hearthwood/student/:studentId/pathway', element: <OEASelectPathwayPage /> },
+    { path: 'hearthwood/student/:studentId/credits', element: <OEACreditsPage /> },
+    { path: 'hearthwood/student/:studentId/transcript', element: <OEATranscriptPage /> },
+    { path: 'hearthwood/student/:studentId/progress-report', element: <OEAProgressReportPage /> },
     { path: 'treehouse', element: <TreehousePage /> },
     { path: 'treehouse/browse', element: <TreehouseBrowsePage /> },
     { path: 'treehouse/showcase', element: <TreehouseShowcasePage /> },

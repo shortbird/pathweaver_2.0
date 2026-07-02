@@ -53,6 +53,22 @@ export interface OEACredit {
   // The student's Optio quest for this course (work + evidence live there).
   quest_id: string | null;
   evidence_count?: number;
+  quarter_compliance?: QuarterCompliance;
+}
+
+// Current-quarter upload counts vs the program minimums for one course
+// (present on direct in-progress credits while a quarter is open).
+export interface QuarterCompliance {
+  term_index: number;
+  school_year: string;
+  logs: number;
+  logs_required: number;
+  artifacts: number;
+  artifacts_required: number;
+  summaries: number;
+  summaries_required: number;
+  missing: { logs: number; artifacts: number; summaries: number };
+  is_compliant: boolean;
 }
 
 export type EvidenceBlockType = 'text' | 'link' | 'file';
@@ -108,4 +124,9 @@ export interface CreditsResponse {
   credits: OEACredit[];
   progress: CreditProgress | null;
   gpa: GPA;
+  // Program guidance for the dashboard (Hearthwood parent-onboarding feedback).
+  current_quarter?: number | null;
+  current_quarter_end?: string | null;
+  minimums_text?: string | null;
+  help_video_url?: string | null;
 }

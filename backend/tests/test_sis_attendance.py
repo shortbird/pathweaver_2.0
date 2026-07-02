@@ -33,6 +33,64 @@ class TestSummarize:
         assert s['attendance_rate'] is None
 
 
+@pytest.mark.unit
+class TestRecordBatching:
+    """record() saves the whole roster in ONE bulk upsert and flags only
+    students whose status newly became absent."""
+
+    def _fake_admin(self, prior_rows, captured):
+        q = Mock()
+        for chained in ('select', 'eq'):
+            getattr(q, chained).return_value = q
+        q.execute.return_value = Mock(data=prior_rows)
+
+        def upsert(payloads, on_conflict=None):
+            captured['payloads'] = payloads
+            captured['on_conflict'] = on_conflict
+            up = Mock()
+            up.execute.return_value = Mock(data=payloads)
+            return up
+
+        q.upsert.side_effect = upsert
+        client = Mock()
+        client.table.return_value = q
+        return client
+
+    def test_single_bulk_upsert_and_newly_absent_only(self):
+        captured = {}
+        prior = [{'student_user_id': 's1', 'status': 'present'},
+                 {'student_user_id': 's3', 'status': 'absent'}]
+        entries = [
+            {'student_user_id': 's1', 'status': 'absent'},   # newly absent
+            {'student_user_id': 's2', 'status': 'present'},
+            {'student_user_id': 's2', 'status': 'present'},  # duplicate — dropped
+            {'student_user_id': 's3', 'status': 'absent'},   # already absent — no flag
+            {'student_user_id': 's4', 'status': 'bogus'},    # invalid — dropped
+        ]
+        fake = self._fake_admin(prior, captured)
+        with patch.object(att, 'get_supabase_admin_client', return_value=fake), \
+             patch.object(att, '_notify_admins_of_absences', return_value=2) as notify:
+            result = att.record('org-1', 'c1', '2026-09-01', entries, recorded_by='t1')
+
+        saved_ids = [p['student_user_id'] for p in captured['payloads']]
+        assert saved_ids == ['s1', 's2', 's3']
+        assert captured['on_conflict'] == 'class_id,student_user_id,date'
+        assert all(p['recorded_by'] == 't1' for p in captured['payloads'])
+        assert result['count'] == 3
+        assert result['absences_flagged'] == 1
+        notify.assert_called_once_with('org-1', 'c1', '2026-09-01', ['s1'])
+
+    def test_no_valid_entries_saves_nothing(self):
+        captured = {}
+        fake = self._fake_admin([], captured)
+        with patch.object(att, 'get_supabase_admin_client', return_value=fake), \
+             patch.object(att, '_notify_admins_of_absences', return_value=0):
+            result = att.record('org-1', 'c1', '2026-09-01',
+                                [{'student_user_id': 's1', 'status': 'nope'}], recorded_by='t1')
+        assert result['count'] == 0
+        assert 'payloads' not in captured
+
+
 def _admin_client_for_role(role):
     client = Mock()
     table = Mock()

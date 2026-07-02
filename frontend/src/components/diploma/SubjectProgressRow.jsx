@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 // Subject progress row with full name. Shared core primitive used by the Optio
-// credits panel (SkillsGrowth) and by program diploma widgets (e.g. OpenEd
+// credits panel (SkillsGrowth) and by program diploma widgets (e.g. Hearthwood
 // Academy) so programs render credit rows without re-implementing them.
 //
 // Two student-facing states:

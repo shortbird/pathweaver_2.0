@@ -11,7 +11,7 @@ Rules:
   -> 'optio'.
 - Org-managed students inherit their organization's `accreditation_source`
   ('optio' | 'self' | 'none'). Only 'optio' displays Optio's WASC mark; 'self'
-  (org has its own accreditation, e.g. OpenEd Academy) and 'none' do not.
+  (org has its own accreditation) and 'none' do not.
 - Unknown/missing values fall back to 'none' (under-claim rather than over-claim).
 
 The frontend owns the display copy (frontend/src/constants/accreditation.js);

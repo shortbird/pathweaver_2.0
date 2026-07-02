@@ -29,7 +29,7 @@ const SkillsGrowth = ({
     return acc;
   }, {});
 
-  // A program that owns the student's diploma (e.g. OpenEd Academy) renders its
+  // A program that owns the student's diploma (e.g. Hearthwood Academy) renders its
   // own panel via the registry; core carries no program-specific diploma UI and
   // falls back to Optio's XP-based credits below.
   const programDiploma = showDiplomaCredits ? renderDiplomaWidget({ oea }) : null;

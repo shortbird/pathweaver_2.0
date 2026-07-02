@@ -255,6 +255,7 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
 
   return (
     <div className="space-y-3">
+      <RegistrationAccessSection household={household} orgId={orgId} onSaved={onSaved} />
       <label className="text-xs text-neutral-500 block">Address line 1
         <input value={f.address_line1} onChange={(e) => set('address_line1', e.target.value)} className={field} />
       </label>
@@ -274,6 +275,79 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
       </label>
       <Button size="sm" onClick={save} loading={saving}>Save details</Button>
     </div>
+  )
+}
+
+// Class-signup access: a hold blocks the family entirely; the tier controls when
+// their registration window opens (dates configured in Settings).
+const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
+  const [hold, setHold] = useState(!!household.registration_hold)
+  const [reason, setReason] = useState(household.registration_hold_reason || '')
+  const [tier, setTier] = useState(household.registration_tier != null ? String(household.registration_tier) : '')
+  const [busy, setBusy] = useState(false)
+
+  const patch = async (fields, apply) => {
+    setBusy(true)
+    try {
+      await api.patch(`/api/sis/households/${household.id}`, { ...fields, organization_id: orgId })
+      apply?.(); onSaved?.()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
+    finally { setBusy(false) }
+  }
+
+  const toggleHold = () => {
+    const next = !hold
+    patch({ registration_hold: next, registration_hold_reason: next ? reason || null : null }, () => {
+      setHold(next)
+      if (!next) setReason('')
+      toast.success(next ? 'Registration hold placed' : 'Registration hold cleared')
+    })
+  }
+  const saveReason = () => {
+    if ((household.registration_hold_reason || '') === reason.trim()) return
+    patch({ registration_hold_reason: reason.trim() || null })
+  }
+  const saveTier = (value) => {
+    setTier(value)
+    patch({ registration_tier: value === '' ? null : Number(value) },
+      () => toast.success(value === '' ? 'Tier cleared' : `Tier ${value} saved`))
+  }
+
+  return (
+    <section className="rounded-lg border border-gray-200 p-3 space-y-3">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Class registration access</h4>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-neutral-900">Registration hold</div>
+          <div className="text-xs text-neutral-500">Blocks this family from signing up for classes until cleared.</div>
+        </div>
+        <button
+          type="button" role="switch" aria-checked={hold} aria-label="Registration hold" onClick={toggleHold} disabled={busy}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${hold ? 'bg-red-500' : 'bg-neutral-300'} ${busy ? 'opacity-50' : ''}`}
+        >
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${hold ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
+      </div>
+      {hold && (
+        <label className="text-xs text-neutral-500 block">Hold reason (internal)
+          <input value={reason} onChange={(e) => setReason(e.target.value)} onBlur={saveReason} disabled={busy}
+            className={field} placeholder="e.g. registration fee unpaid" />
+        </label>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-neutral-900">Priority tier</div>
+          <div className="text-xs text-neutral-500">When class registration opens for this family (dates in Settings).</div>
+        </div>
+        <select value={tier} onChange={(e) => saveTier(e.target.value)} disabled={busy} aria-label="Priority tier"
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50">
+          <option value="">Default</option>
+          <option value="1">Tier 1</option>
+          <option value="2">Tier 2</option>
+          <option value="3">Tier 3</option>
+        </select>
+      </div>
+    </section>
   )
 }
 
@@ -354,7 +428,7 @@ const MessageComposeModal = ({ household, orgId, onClose }) => {
           <h3 className="text-lg font-bold text-neutral-900">Message the family</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">×</button>
         </div>
-        <p className="text-sm text-neutral-500 mb-3">Sends a message to every guardian in {household.name} through Messages.</p>
+        <p className="text-sm text-neutral-500 mb-3">Sends a message to every guardian in {household.name} through Messages, sent from your school's account.</p>
         <label className="text-xs text-neutral-500 block mb-3">Subject
           <input value={subject} onChange={(e) => setSubject(e.target.value)} className={field} placeholder="Optional" />
         </label>

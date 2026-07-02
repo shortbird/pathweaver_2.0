@@ -28,7 +28,7 @@ class TestProgramRegistry:
         assert is_valid_program_key('') is False
 
     def test_program_for_org_slug_resolves_member_orgs(self):
-        assert program_for_org_slug('oea').name == 'OpenEd Academy'
+        assert program_for_org_slug('hearthwood').name == 'Hearthwood Academy'
         # A second org slug maps to the same program (test org).
         assert program_for_org_slug('hearthwood-test').key == 'opened-academy'
         assert program_for_org_slug('treehouse').key == 'treehouse'

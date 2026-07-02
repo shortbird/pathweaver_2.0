@@ -356,7 +356,7 @@ export const authAPI = {
     api.post(`/api/auth/login/org/${slug}`, { username, password }),
 };
 
-// OEA Diploma Plan (OpenEd Academy partner integration).
+// OEA Diploma Plan (legacy internal name — the diploma program now run by Hearthwood Academy).
 export const oeaAPI = {
   // The three fixed diploma pathway definitions for the selection UX.
   pathways: () => api.get('/api/oea/pathways'),

@@ -75,10 +75,10 @@ describe('CreditsScreen', () => {
     await waitFor(() => expect(getByText('Algebra I')).toBeTruthy());
 
     fireEvent.press(getByText('Algebra I'));               // open edit modal
-    await waitFor(() => expect(getByText('Open quest')).toBeTruthy());
-    fireEvent.press(getByText('Open quest'));
+    await waitFor(() => expect(getByText('Add work evidence & learning logs')).toBeTruthy());
+    fireEvent.press(getByText('Add work evidence & learning logs'));
 
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-algebra'));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/parent/quest/stu-1/q-algebra'));
     // Already linked — no need to create a quest.
     expect(oeaAPI.ensureCreditQuest).not.toHaveBeenCalled();
   });
@@ -92,11 +92,11 @@ describe('CreditsScreen', () => {
     const { getByText } = render(<CreditsScreen />);
     await waitFor(() => expect(getByText('Algebra I')).toBeTruthy());
     fireEvent.press(getByText('Algebra I'));
-    await waitFor(() => expect(getByText('Start quest')).toBeTruthy());
-    fireEvent.press(getByText('Start quest'));
+    await waitFor(() => expect(getByText('Add work evidence & learning logs')).toBeTruthy());
+    fireEvent.press(getByText('Add work evidence & learning logs'));
 
     await waitFor(() => expect(oeaAPI.ensureCreditQuest).toHaveBeenCalledWith('c1'));
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-new'));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/parent/quest/stu-1/q-new'));
   });
 
   it('marks a course complete with a grade', async () => {

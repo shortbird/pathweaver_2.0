@@ -15,9 +15,9 @@ import OEATranscriptPage from '../OEATranscriptPage'
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/opened-academy/student/s1/transcript']}>
+    <MemoryRouter initialEntries={['/hearthwood/student/s1/transcript']}>
       <Routes>
-        <Route path="opened-academy/student/:studentId/transcript" element={<OEATranscriptPage />} />
+        <Route path="hearthwood/student/:studentId/transcript" element={<OEATranscriptPage />} />
       </Routes>
     </MemoryRouter>,
   )

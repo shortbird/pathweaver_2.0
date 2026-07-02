@@ -286,8 +286,8 @@ function QuestsList({
   );
 }
 
-// ── OpenEd Academy entry (only for OEA-program parents) ──
-// Persistent way into the OpenEd Academy diploma flow (choose pathways / track
+// ── Hearthwood Academy entry (only for OEA-program parents) ──
+// Persistent way into the Hearthwood Academy diploma flow (choose pathways / track
 // credits). The post-signup redirect only fires once and is skipped when email
 // verification is on, so this is the reliable entry point for OEA parents.
 
@@ -296,7 +296,7 @@ function OpenEdAcademyEntry() {
   return (
     <Pressable
       onPress={() => router.push('/(app)/oea/welcome' as any)}
-      accessibilityLabel="OpenEd Academy"
+      accessibilityLabel="Hearthwood Academy"
     >
       <Card variant="outline" size="md">
         <HStack className="items-center gap-3">
@@ -304,7 +304,7 @@ function OpenEdAcademyEntry() {
             <Ionicons name="school-outline" size={18} color="#6D469B" />
           </View>
           <VStack className="flex-1 min-w-0">
-            <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>OpenEd Academy</UIText>
+            <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>Hearthwood Academy</UIText>
             <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>Choose diploma pathways and track credits</UIText>
           </VStack>
           <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
@@ -501,7 +501,7 @@ export default function ParentDashboardPage() {
             onSelect={setSelectedId}
           />
 
-          {/* OpenEd Academy entry (OEA-program parents only) */}
+          {/* Hearthwood Academy entry (OEA-program parents only) */}
           {isOEAParent && <OpenEdAcademyEntry />}
 
           {/* FERPA visibility approvals banner */}

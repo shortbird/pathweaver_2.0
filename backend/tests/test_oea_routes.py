@@ -205,7 +205,7 @@ class TestOrgLogoHeader:
 
 @pytest.mark.unit
 class TestIsOeaStudent:
-    """OEA membership: program_key 'opened-academy' OR org slug 'oea'."""
+    """OEA membership: program_key 'opened-academy' OR a program org slug (e.g. 'hearthwood')."""
 
     def test_true_by_program_key(self):
         from routes.oea import _is_oea_student
@@ -216,8 +216,8 @@ class TestIsOeaStudent:
     def test_true_by_org_slug(self):
         from routes.oea import _is_oea_student
         fake = _client_with_executes([
-            [{'program_key': None, 'organization_id': 'org-oea'}],
-            [{'slug': 'oea'}],
+            [{'program_key': None, 'organization_id': 'org-hearthwood'}],
+            [{'slug': 'hearthwood'}],
         ])
         with patch('routes.oea.get_supabase_admin_client', return_value=fake):
             assert _is_oea_student('stu-1') is True
@@ -245,6 +245,7 @@ class TestStudentSelfRead:
     STU = '33333333-3333-4333-8333-333333333333'
 
     def test_student_reads_own_credits(self, client, auth_headers):
+        from utils import oea_rules
         mock_repo = Mock()
         mock_repo.get_enrollment.return_value = {'id': 'enr-1', 'pathway_key': 'traditional'}
         mock_repo.get_credits.return_value = []
@@ -252,10 +253,15 @@ class TestStudentSelfRead:
         with _authenticated_as(self.STU), \
              patch('routes.oea.OEARepository', return_value=mock_repo), \
              patch('routes.oea._is_oea_student', return_value=True), \
+             patch('routes.oea._settings_for_student', return_value=oea_rules.build_oea_settings(None)), \
              patch('routes.oea.get_supabase_admin_client', return_value=Mock()):
             resp = client.get(f'/api/oea/students/{self.STU}/credits', headers=auth_headers)
         assert resp.status_code == 200
-        assert json.loads(resp.data)['success'] is True
+        body = json.loads(resp.data)
+        assert body['success'] is True
+        # New parent-guidance fields are present.
+        assert 'minimums_text' in body
+        assert 'help_video_url' in body
 
     def test_student_write_to_self_denied(self, client, auth_headers):
         # Adding a credit is a write — allow_self is not passed, so self is denied.

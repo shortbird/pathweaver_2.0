@@ -4,7 +4,6 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SisOrgSettings from '../../components/sis/SisOrgSettings'
-import ICreateRegistrationSettings from '../../components/sis/ICreateRegistrationSettings'
 
 /**
  * SIS Settings page — org details, branding/logo, AI feature toggles, and School
@@ -54,8 +53,7 @@ const SettingsPage = () => {
             onUpdate={fetchOrg}
             onLogoChange={refreshOrganization}
           />
-          {/* iCreate-only: renders nothing for orgs without the registration flag. */}
-          <ICreateRegistrationSettings key={`icr-${orgId}`} orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
+          {/* Parent-registration config moved to the Registration page (Operations). */}
         </div>
       )}
     </div>

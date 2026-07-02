@@ -15,9 +15,9 @@ import OEAProgressReportPage from '../OEAProgressReportPage'
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/opened-academy/student/s1/progress-report']}>
+    <MemoryRouter initialEntries={['/hearthwood/student/s1/progress-report']}>
       <Routes>
-        <Route path="opened-academy/student/:studentId/progress-report" element={<OEAProgressReportPage />} />
+        <Route path="hearthwood/student/:studentId/progress-report" element={<OEAProgressReportPage />} />
       </Routes>
     </MemoryRouter>,
   )

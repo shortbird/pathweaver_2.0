@@ -56,7 +56,7 @@ const StudentOverviewPage = () => {
   const [completedQuests, setCompletedQuests] = useState([]);
   const [subjectXp, setSubjectXp] = useState({});
   const [pendingSubjectXp, setPendingSubjectXp] = useState({});
-  // OEA diploma progress (only present for OpenEd Academy students with a chosen
+  // OEA diploma progress (only present for Hearthwood Academy students with a chosen
   // pathway). When set, the Skills & Growth panel shows OEA pathway progress
   // instead of Optio's XP-based diploma credits.
   const [oea, setOea] = useState(null);

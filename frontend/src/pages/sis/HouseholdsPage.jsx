@@ -5,7 +5,6 @@ import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import FamilyDetailModal from './FamilyDetailModal'
-import SisParentConnections from '../../components/sis/people/SisParentConnections'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -105,15 +104,24 @@ const HouseholdsPage = () => {
                 </span>
               </div>
               <div className="p-4">
-                <h3 className="font-semibold text-neutral-900 truncate">{h.name}</h3>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="font-semibold text-neutral-900 truncate">{h.name}</h3>
+                  {h.registration_hold && (
+                    <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700 flex-shrink-0"
+                      title={h.registration_hold_reason || 'Registration on hold'}>Hold</span>
+                  )}
+                  {h.registration_tier != null && (
+                    <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple flex-shrink-0">
+                      Tier {h.registration_tier}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-neutral-500 truncate mt-0.5">{memberPreview(h.members)}</p>
               </div>
             </button>
           )
         })}
       </div>
-
-      <SisParentConnections orgId={orgId} onChanged={load} />
 
       {selected && (
         <FamilyDetailModal

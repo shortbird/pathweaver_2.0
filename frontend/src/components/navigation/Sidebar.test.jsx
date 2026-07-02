@@ -108,12 +108,12 @@ describe('Sidebar — school-specific program tab (org-gated)', () => {
     orgState = { organization: null }
   })
 
-  it('shows the OpenEd Academy tab for members of the oea org', () => {
-    authState.user = { id: 'u1', role: 'org_managed', org_role: 'student', organization_id: 'org-oea', email: 's@example.com' }
-    orgState = { organization: { id: 'org-oea', slug: 'oea', name: 'OpenEd Academy' } }
+  it('shows the Hearthwood Academy tab for members of the hearthwood org', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'student', organization_id: 'org-hearthwood', email: 's@example.com' }
+    orgState = { organization: { id: 'org-hearthwood', slug: 'hearthwood', name: 'Hearthwood Academy' } }
     renderSidebar()
-    const link = screen.getByRole('link', { name: /openEd academy/i })
-    expect(link).toHaveAttribute('href', '/opened-academy')
+    const link = screen.getByRole('link', { name: /hearthwood academy/i })
+    expect(link).toHaveAttribute('href', '/hearthwood')
   })
 
   it('does NOT show the tab for users in a different org', () => {

@@ -390,3 +390,55 @@ def upload_class_image(user_id, class_id):
 
     updated = repo.update_sis_fields(class_id, {'image_url': image_url})
     return jsonify({'success': True, 'image_url': image_url, 'class': updated})
+
+
+# ── Registration paperwork document upload ───────────────────────────────────
+# Waiver/acknowledgment documents for the iCreate registration funnel. Admins
+# upload the file here and the returned public URL is stored as the paperwork
+# item's doc_url in feature_flags.icreate_registration.
+
+_DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
+_MAX_DOC_BYTES = 10 * 1024 * 1024  # 10MB
+_ORG_DOCS_BUCKET = 'org-documents'
+
+
+@bp.route('/registration/paperwork-doc', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def upload_paperwork_doc(user_id):
+    """Upload a paperwork document; returns its public URL for doc_url."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in _DOC_EXTENSIONS:
+        return jsonify({'success': False, 'error': 'Invalid file type. Allowed: PDF, DOC, DOCX, PNG, JPG, WebP'}), 400
+
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > _MAX_DOC_BYTES:
+        return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
+
+    supabase = get_supabase_admin_client()
+    _ensure_bucket(supabase, _ORG_DOCS_BUCKET)
+
+    unique_path = f"{org_id}/paperwork/{_uuid.uuid4().hex}.{ext}"
+    try:
+        supabase.storage.from_(_ORG_DOCS_BUCKET).upload(
+            path=unique_path,
+            file=file.read(),
+            file_options={'content-type': file.content_type or 'application/octet-stream'},
+        )
+        url = supabase.storage.from_(_ORG_DOCS_BUCKET).get_public_url(unique_path)
+    except Exception as e:
+        logger.error(f"Error uploading paperwork document: {e}")
+        return jsonify({'success': False, 'error': 'Failed to upload document'}), 500
+
+    return jsonify({'success': True, 'url': url})

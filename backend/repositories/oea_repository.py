@@ -1,7 +1,7 @@
 """
 OEA Diploma Plan Repository
 
-Data access for the Optio <> OpenEd Academy diploma integration: per-student
+Data access for the Optio <> Hearthwood Academy diploma integration: per-student
 pathway enrollments (oea_enrollments) and self-attested course credits
 (oea_credits).
 
@@ -251,7 +251,7 @@ class OEARepository:
         # Falls back to NULL (default gradient) when the org has no logo.
         header_image_url = self._org_logo_url(org_id)
 
-        description = f"OpenEd Academy course: {course_name}"
+        description = f"Hearthwood Academy course: {course_name}"
         if subject_label:
             description += f" ({subject_label})"
 

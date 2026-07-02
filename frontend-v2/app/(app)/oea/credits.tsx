@@ -1,5 +1,5 @@
 /**
- * OpenEd Academy credit dashboard (PRD 4.6 + 4.4).
+ * Hearthwood Academy credit dashboard (PRD 4.6 + 4.4).
  *
  * Per-student view of diploma progress: overall credits vs the pathway's 24,
  * foundation/elective split, weighted + unweighted GPA, and a per-requirement
@@ -18,8 +18,9 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { oeaAPI } from '@/src/services/api';
 import { extractApiError } from '@/src/services/apiError';
 import type {
-  CreditsResponse, OEACredit, RequirementProgress, LetterGrade,
+  CreditsResponse, OEACredit, RequirementProgress, LetterGrade, QuarterCompliance,
 } from '@/src/components/oea/types';
+import { safeOpenURL } from '@/src/utils/linking';
 
 const GRADES: LetterGrade[] = ['A', 'B', 'C', 'D', 'F'];
 
@@ -28,6 +29,64 @@ function ProgressBar({ percent }: { percent: number }) {
   return (
     <View className="h-3 rounded-full bg-surface-200 dark:bg-dark-surface-300 overflow-hidden">
       <View className="h-3 rounded-full bg-optio-purple" style={{ width: `${clamped}%` }} />
+    </View>
+  );
+}
+
+// "Sep 30, 2026" from an ISO date, parsed as local (avoids the UTC-midnight
+// off-by-one-day that new Date('YYYY-MM-DD') gives in western timezones).
+function formatDeadline(iso?: string | null): string | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Current-quarter upload checklist for a direct in-progress course. Items check
+// themselves off as the minimums are met; items whose minimum is 0 are hidden
+// (e.g. Hearthwood has no artifact minimum).
+function QuarterChecklist({ compliance, deadline }: { compliance?: QuarterCompliance; deadline?: string | null }) {
+  if (!compliance) return null;
+  const items: { done: boolean; label: string }[] = [];
+  if (compliance.logs_required > 0) {
+    items.push({
+      done: compliance.logs >= compliance.logs_required,
+      label: `Learning logs (${compliance.logs} of ${compliance.logs_required})`,
+    });
+  }
+  if (compliance.artifacts_required > 0) {
+    items.push({
+      done: compliance.artifacts >= compliance.artifacts_required,
+      label: `Work artifacts (${compliance.artifacts} of ${compliance.artifacts_required})`,
+    });
+  }
+  if (compliance.summaries_required > 0) {
+    items.push({
+      done: compliance.summaries >= compliance.summaries_required,
+      label: 'Quarterly summary',
+    });
+  }
+  if (items.length === 0) return null;
+  const due = formatDeadline(deadline);
+  return (
+    <View className="mt-1.5 rounded-lg bg-surface-50 dark:bg-dark-surface-200 px-2.5 py-2">
+      <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500">
+        Quarter {compliance.term_index} checklist{due ? ` — due by ${due}` : ''}
+      </UIText>
+      <VStack space="xs" className="mt-1">
+        {items.map((item) => (
+          <HStack key={item.label} className="items-center" space="xs">
+            <Ionicons
+              name={item.done ? 'checkmark-circle' : 'ellipse-outline'}
+              size={15}
+              color={item.done ? '#16A34A' : '#D4D4D4'}
+            />
+            <UIText size="xs" className={item.done ? 'text-green-700' : 'text-typo-600'}>
+              {item.label}
+            </UIText>
+          </HStack>
+        ))}
+      </VStack>
     </View>
   );
 }
@@ -123,19 +182,22 @@ export default function CreditsScreen() {
     setEditWeighted(credit.is_weighted);
   };
 
-  // Open the student's quest for this course (work + evidence + journal live
-  // there). Creates the quest on first use for credits added before the
-  // course-as-quest feature.
+  // Open the quest for this course (work + evidence + journal live there).
+  // This screen is the PARENT dashboard, so route to the parent quest view
+  // (upload evidence on the student's behalf) — the student quest route would
+  // bounce a parent back to their own dashboard. Creates the quest on first
+  // use for credits added before the course-as-quest feature.
+  const questPath = (questId: string) => `/(app)/parent/quest/${studentId}/${questId}`;
   const openQuest = async (credit: OEACredit) => {
     if (openingQuest) return;
     if (credit.quest_id) {
-      router.push(`/(app)/quests/${credit.quest_id}` as any);
+      router.push(questPath(credit.quest_id) as any);
       return;
     }
     setOpeningQuest(true);
     try {
       const { data } = await oeaAPI.ensureCreditQuest(credit.id);
-      if (data?.quest_id) router.push(`/(app)/quests/${data.quest_id}` as any);
+      if (data?.quest_id) router.push(questPath(data.quest_id) as any);
     } catch (err) {
       setError(extractApiError(err, 'Could not open the quest.').message);
     } finally {
@@ -176,7 +238,7 @@ export default function CreditsScreen() {
     }
   };
 
-  const title = studentName ? `${studentName}'s credits` : 'Diploma credits';
+  const title = studentName ? `${studentName}'s course tracker` : 'Course Tracker';
   const progress = data?.progress;
   const gpa = data?.gpa;
 
@@ -248,6 +310,36 @@ export default function CreditsScreen() {
               </VStack>
             </Card>
 
+            {/* On-page directions + quarterly minimums (Hearthwood feedback:
+                parents need to be told what to do here and what's required). */}
+            <Card variant="outline" size="md">
+              <VStack space="sm">
+                <UIText size="sm" className="text-typo-600">
+                  Use this page to enter the courses {studentName || 'your student'} is
+                  currently working on — pick a subject below and add each course. Tap a
+                  course to record grades or add work evidence and learning logs.
+                </UIText>
+                {data?.minimums_text && (
+                  <UIText size="sm" className="text-typo-600">
+                    Each course needs at least {data.minimums_text} every quarter
+                    {data?.current_quarter && data?.current_quarter_end
+                      ? ` — Quarter ${data.current_quarter} ends ${formatDeadline(data.current_quarter_end)}`
+                      : ''}.
+                    They don't all have to happen every week — but Hearthwood Academy will
+                    reach out if a course falls short when the quarter ends.
+                  </UIText>
+                )}
+                {data?.help_video_url && (
+                  <Pressable onPress={() => safeOpenURL(data.help_video_url!)}>
+                    <HStack className="items-center" space="xs">
+                      <Ionicons name="play-circle" size={18} color="#6D469B" />
+                      <UIText size="sm" className="text-optio-purple font-poppins-medium">Watch the tutorial video</UIText>
+                    </HStack>
+                  </Pressable>
+                )}
+              </VStack>
+            </Card>
+
             {/* Per-requirement breakdown */}
             {progress.requirements.map((req) => {
               const courses = creditsForReq(req.key);
@@ -273,6 +365,7 @@ export default function CreditsScreen() {
                             <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
                               {c.credits} {c.credits === 1 ? 'credit' : 'credits'}
                             </UIText>
+                            <QuarterChecklist compliance={c.quarter_compliance} deadline={data?.current_quarter_end} />
                           </VStack>
                           <GradePill credit={c} />
                         </HStack>
@@ -404,10 +497,11 @@ export default function CreditsScreen() {
                     <Ionicons name="rocket-outline" size={18} color="#6D469B" />
                     <VStack className="flex-1 min-w-0">
                       <UIText size="sm" className="font-poppins-medium text-typo dark:text-dark-typo">
-                        {openingQuest ? 'Opening…' : editing?.quest_id ? 'Open quest' : 'Start quest'}
+                        {openingQuest ? 'Opening…' : 'Add work evidence & learning logs'}
                       </UIText>
                       <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                        Add work, evidence, and journal entries in the app
+                        Opens the course quest — upload documents and videos, and add
+                        learning log entries
                       </UIText>
                     </VStack>
                   </HStack>

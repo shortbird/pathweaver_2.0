@@ -34,6 +34,33 @@ def test_build_settings_org_override_merges_group():
     assert s['caps']['transfer'] == 6
 
 
+def test_build_settings_help_video_url_override():
+    assert oea_rules.build_oea_settings(None)['help_video_url'] is None
+    s = oea_rules.build_oea_settings({'oea_settings': {'help_video_url': 'https://example.com/v'}})
+    assert s['help_video_url'] == 'https://example.com/v'
+
+
+def test_describe_minimums_skips_zero_items():
+    # Hearthwood config: 3 logs, no artifact minimum, 1 summary.
+    text = oea_rules.describe_minimums(
+        {'logs_per_quarter': 3, 'artifacts_per_quarter': 0, 'summaries_per_quarter': 1})
+    assert text == '3 learning logs and a quarterly summary'
+    assert 'artifact' not in text
+
+
+def test_describe_minimums_full_set():
+    text = oea_rules.describe_minimums(
+        {'logs_per_quarter': 9, 'artifacts_per_quarter': 3, 'summaries_per_quarter': 1})
+    assert text == '9 learning logs, 3 artifacts and a quarterly summary'
+
+
+def test_current_quarter_index_inside_and_between_terms():
+    s = oea_rules.build_oea_settings(None)  # default calendar: Q1 2026-08-25..2026-10-31
+    assert oea_rules.current_quarter_index(s, '2026-09-15') == 1
+    assert oea_rules.current_quarter_index(s, '2027-02-01') == 3
+    assert oea_rules.current_quarter_index(s, '2026-07-02') is None  # summer gap
+
+
 # ── Source totals + caps ─────────────────────────────────────────────────────
 
 def test_source_totals_combines_nondirect():

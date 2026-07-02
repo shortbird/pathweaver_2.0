@@ -214,8 +214,16 @@ def update_household(user_id, household_id):
         return jsonify({'success': False, 'error': 'Household not found'}), 404
     fields = {k: data.get(k) for k in (
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
-        'city', 'state', 'postal_code', 'phone', 'notes', 'image_url'
+        'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
+        'registration_hold', 'registration_hold_reason', 'registration_tier'
     ) if k in data}
+    if 'registration_hold' in fields:
+        fields['registration_hold'] = bool(fields['registration_hold'])
+    if 'registration_tier' in fields and fields['registration_tier'] is not None:
+        try:
+            fields['registration_tier'] = int(fields['registration_tier'])
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'registration_tier must be a number'}), 400
     return jsonify({'success': True, 'household': repo.update(household_id, fields)})
 
 
@@ -421,7 +429,7 @@ def message_student(user_id, student_id):
     if not body:
         return jsonify({'success': False, 'error': 'Message body is required'}), 400
     try:
-        result = sis_service.message_student(student_id, user_id, (data.get('subject') or '').strip(), body)
+        result = sis_service.message_student(org_id, student_id, user_id, (data.get('subject') or '').strip(), body)
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 403
     return jsonify({'success': True, **result})
@@ -529,6 +537,77 @@ def remove_household_contact(user_id, household_id):
     return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
 
 
+# ── Family directives — settings staged by parent email before registration ──
+# Loaded from a school's legacy registration list (fee already paid, hold, tier);
+# the iCreate funnel applies them when the family registers and creates a household.
+@bp.route('/family-directives', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_family_directives(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    rows = (get_supabase_admin_client().table('sis_family_directives').select('*')
+            .eq('organization_id', org_id).order('email').execute()).data or []
+    return jsonify({'success': True, 'directives': rows})
+
+
+@bp.route('/family-directives', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def upsert_family_directives(user_id):
+    """Bulk upsert directives by email: {directives: [{email, registration_tier,
+    registration_hold, hold_reason, fee_prepaid, notes}]}."""
+    from datetime import datetime
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    rows = (request.json or {}).get('directives') or []
+    if not isinstance(rows, list) or not rows:
+        return jsonify({'success': False, 'error': 'directives must be a non-empty list'}), 400
+
+    payload, skipped = [], []
+    for r in rows:
+        email = str(r.get('email') or '').strip().lower()
+        if '@' not in email:
+            skipped.append(r.get('email'))
+            continue
+        tier = r.get('registration_tier')
+        if tier is not None:
+            try:
+                tier = int(tier)
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'error': f'Bad registration_tier for {email}'}), 400
+        payload.append({
+            'organization_id': org_id,
+            'email': email,
+            'registration_tier': tier,
+            'registration_hold': bool(r.get('registration_hold')),
+            'hold_reason': (r.get('hold_reason') or '').strip() or None,
+            'fee_prepaid': bool(r.get('fee_prepaid')),
+            'notes': (r.get('notes') or '').strip() or None,
+            'updated_at': datetime.utcnow().isoformat(),
+        })
+    if not payload:
+        return jsonify({'success': False, 'error': 'No rows had a valid email'}), 400
+    saved = (get_supabase_admin_client().table('sis_family_directives')
+             .upsert(payload, on_conflict='organization_id,email').execute()).data or []
+    return jsonify({'success': True, 'saved': len(saved), 'skipped': skipped}), 200
+
+
+@bp.route('/family-directives/<directive_id>', methods=['DELETE'])
+@require_role(*STAFF_ROLES)
+def delete_family_directive(user_id, directive_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    existing = (supabase.table('sis_family_directives').select('id, organization_id')
+                .eq('id', directive_id).limit(1).execute()).data or []
+    if not existing or existing[0].get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Directive not found'}), 404
+    supabase.table('sis_family_directives').delete().eq('id', directive_id).execute()
+    return jsonify({'success': True})
+
+
 # ── Reports ──────────────────────────────────────────────────────────────────
 @bp.route('/reports/roster.csv', methods=['GET'])
 @require_role(*STAFF_ROLES)
@@ -539,12 +618,12 @@ def roster_csv(user_id):
     roster = sis_service.get_roster(org_id)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(['Name', 'Email', 'Username', 'Enrollment Status',
+    writer.writerow(['Name', 'Role', 'Email', 'Username', 'Enrollment Status',
                      'Grade Level', 'Household', 'Total XP', 'Last Active'])
     for r in roster:
         writer.writerow([
-            r['name'], r.get('email') or '', r.get('username') or '',
-            r['enrollment_status'], r.get('grade_level') or '',
+            r['name'], r.get('role') or '', r.get('email') or '', r.get('username') or '',
+            r.get('enrollment_status') or '', r.get('grade_level') or '',
             r.get('household_name') or '', r.get('total_xp') or 0,
             r.get('last_active') or '',
         ])

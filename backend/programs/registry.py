@@ -35,10 +35,13 @@ class Program:
 
 # Registered programs. Adding a program = add an entry here (and its own module).
 PROGRAMS: List[Program] = [
+    # Diploma-plan program now run by Hearthwood Academy. The 'opened-academy'
+    # key/program_key is the legacy internal id from the original OpenEd Academy
+    # launch — kept because it's the stored users.program_key value.
     Program(
         key='opened-academy',
-        name='OpenEd Academy',
-        org_slugs=('oea', 'hearthwood-test'),
+        name='Hearthwood Academy',
+        org_slugs=('hearthwood', 'hearthwood-test'),
         program_keys=('opened-academy',),
         daily_jobs=(
             DailyCronJob('oea-compliance-sweep', '/api/oea/internal/compliance-sweep', 13),

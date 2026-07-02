@@ -1,7 +1,8 @@
 """
 OEA Diploma Plan API routes.
 
-Backs the Optio <> OpenEd Academy integration (PRD V2):
+Backs the Optio <> Hearthwood Academy diploma integration (originally built for
+OpenEd Academy, PRD V2 — the 'oea' naming is the legacy internal id):
   - GET  /api/oea/pathways                 List the three fixed diploma pathways.
   - GET  /api/oea/enrollments              The acting parent's student enrollments.
   - GET  /api/oea/enrollments/<student_id> One student's enrollment (current pathway).
@@ -13,12 +14,14 @@ Admin client is used throughout for these cross-user (parent -> student)
 operations, mirroring routes/dependents.py.
 """
 
+from datetime import date
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from repositories.oea_repository import OEARepository
 from repositories.base_repository import NotFoundError, ValidationError as RepoValidationError
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.oea_pathways import list_pathways, get_pathway, PROGRAM_KEY
+from programs.registry import program_for_org_slug
 from utils.oea_grades import compute_gpa, compute_progress, GRADE_POINTS
 from utils import oea_rules
 from utils.roles import UserRole
@@ -125,11 +128,12 @@ def _verify_manages_student(parent_id: str, student_id: str, allow_self: bool = 
 
 def _is_oea_student(student_id: str) -> bool:
     """
-    Whether a student belongs to the OpenEd Academy program — by program_key
-    ('opened-academy', set for partner-signup families) or by membership in the
-    OEA organization (slug 'oea', for org-managed students whose program_key is
-    null). Used so the overview can show OEA diploma progress / a choose-pathway
-    prompt instead of Optio's XP-based credits.
+    Whether a student belongs to the Hearthwood Academy diploma program — by
+    program_key ('opened-academy', set for partner-signup families) or by
+    membership in an org registered to the program (registry org_slugs, e.g.
+    'hearthwood', for org-managed students whose program_key is null). Used so
+    the overview can show diploma progress / a choose-pathway prompt instead of
+    Optio's XP-based credits.
     """
     supabase = get_supabase_admin_client()
     u = supabase.table('users') \
@@ -142,8 +146,10 @@ def _is_oea_student(student_id: str) -> bool:
     org_id = row.get('organization_id')
     if org_id:
         org = supabase.table('organizations').select('slug').eq('id', org_id).execute()
-        if org.data and org.data[0].get('slug') == 'oea':
-            return True
+        if org.data:
+            program = program_for_org_slug(org.data[0].get('slug'))
+            if program and program.key == PROGRAM_KEY:
+                return True
     return False
 
 
@@ -193,7 +199,17 @@ def get_enrollments(user_id):
         for e in enrollments:
             e['pathway'] = get_pathway(e.get('pathway_key'))
 
-        return jsonify({'success': True, 'enrollments': enrollments, 'count': len(enrollments)}), 200
+        # Program settings for the landing page: the org's getting-started video.
+        actor = supabase.table('users').select('organization_id').eq('id', user_id).execute()
+        actor_org = actor.data[0].get('organization_id') if actor.data else None
+        settings = oea_rules.load_oea_settings(supabase, actor_org)
+
+        return jsonify({
+            'success': True,
+            'enrollments': enrollments,
+            'count': len(enrollments),
+            'help_video_url': settings.get('help_video_url'),
+        }), 200
     except Exception as e:
         logger.error(f"Error fetching OEA enrollments for {user_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to fetch enrollments'}), 500
@@ -313,6 +329,21 @@ def get_student_credits(user_id, student_id):
             'direct_complete': oea_rules.direct_credits_earned(credits),
         }
 
+        # Current-quarter upload compliance per direct in-progress course, so the
+        # dashboard can show parents where each course stands against the
+        # quarterly minimums before the quarter closes (Hearthwood feedback).
+        current_quarter = oea_rules.current_quarter_index(settings, date.today().isoformat())
+        quarter_window = oea_rules.term_window(settings, 'quarter', current_quarter) if current_quarter else None
+        if current_quarter:
+            from services import oea_compliance_service
+            for c in credits:
+                if (c.get('credit_source') or 'direct') == 'direct' and c.get('status') == 'in_progress':
+                    try:
+                        c['quarter_compliance'] = oea_compliance_service.evaluate_course_quarter(
+                            supabase, c, settings, settings['school_year'], current_quarter)
+                    except Exception as e:
+                        logger.warning(f"Quarter compliance failed for credit {c.get('id')}: {e}")
+
         return jsonify({
             'success': True,
             'enrollment': enrollment,
@@ -322,6 +353,11 @@ def get_student_credits(user_id, student_id):
             'diploma_eligibility': eligibility,
             'credit_summary': credit_summary,
             'school_year': settings['school_year'],
+            'current_quarter': current_quarter,
+            'current_quarter_end': (quarter_window or {}).get('end'),
+            'minimums': settings['minimums'],
+            'minimums_text': oea_rules.describe_minimums(settings['minimums']),
+            'help_video_url': settings.get('help_video_url'),
             'is_oea_student': _is_oea_student(student_id),
         }), 200
     except AuthorizationError as e:
@@ -819,9 +855,7 @@ def upsert_credit_period(user_id, credit_id):
                     'success': False,
                     'error': ("Required quarterly uploads are missing for this course, so a "
                               "semester or annual grade can't be entered yet. Each quarter needs "
-                              f"{settings['minimums']['logs_per_quarter']} learning logs, "
-                              f"{settings['minimums']['artifacts_per_quarter']} artifacts, and a "
-                              "quarterly summary."),
+                              f"{oea_rules.describe_minimums(settings['minimums'])}."),
                     'compliance': check,
                 }), 422
 
@@ -858,13 +892,13 @@ def upsert_credit_period(user_id, credit_id):
 def _org_branding(org_id):
     """Return {'name', 'logo_url'} for the transcript header (or Optio defaults)."""
     if not org_id:
-        return {'name': 'OpenEd Academy', 'logo_url': None}
+        return {'name': 'Hearthwood Academy', 'logo_url': None}
     supabase = get_supabase_admin_client()
     row = supabase.table('organizations').select('name, branding_config').eq('id', org_id).execute()
     if not row.data:
-        return {'name': 'OpenEd Academy', 'logo_url': None}
+        return {'name': 'Hearthwood Academy', 'logo_url': None}
     o = row.data[0]
-    return {'name': o.get('name') or 'OpenEd Academy',
+    return {'name': o.get('name') or 'Hearthwood Academy',
             'logo_url': (o.get('branding_config') or {}).get('logo_url')}
 
 

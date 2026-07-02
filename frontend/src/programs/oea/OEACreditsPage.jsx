@@ -1,6 +1,6 @@
 /**
  * OEA credits dashboard for one student, parent (editable) view
- * (/opened-academy/student/:studentId/credits).
+ * (/hearthwood/student/:studentId/credits).
  *
  * Thin wrapper that titles the page and renders the shared OEACreditsView in
  * editable mode. The student's own read-only view reuses OEACreditsView
@@ -16,7 +16,7 @@ export default function OEACreditsPage() {
   const location = useLocation()
   const studentName = location.state?.studentName
 
-  const title = studentName ? `${studentName}'s credits` : 'Diploma credits'
+  const title = studentName ? `${studentName}'s course tracker` : 'Course Tracker'
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 font-poppins">
@@ -24,7 +24,7 @@ export default function OEACreditsPage() {
         <h1 className="text-2xl font-bold text-neutral-900">{title}</h1>
         <button
           type="button"
-          onClick={() => navigate('/opened-academy')}
+          onClick={() => navigate('/hearthwood')}
           className="text-sm text-optio-purple font-medium"
         >
           Back

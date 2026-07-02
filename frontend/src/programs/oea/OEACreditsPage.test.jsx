@@ -14,7 +14,7 @@ vi.mock('./OEACreditsView', () => ({
 describe('OEACreditsPage', () => {
   it('titles the page with the student name and renders the editable credits view', () => {
     render(<OEACreditsPage />)
-    expect(screen.getByText("Sam's credits")).toBeInTheDocument()
+    expect(screen.getByText("Sam's course tracker")).toBeInTheDocument()
     expect(screen.getByTestId('credits-view')).toHaveTextContent('stu-1:false')
   })
 })

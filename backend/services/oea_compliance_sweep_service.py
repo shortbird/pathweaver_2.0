@@ -29,18 +29,18 @@ def _admin():
 
 
 def _oea_org_ids() -> List[str]:
-    """Orgs running the OEA diploma program (feature flag or the 'oea' slug)."""
+    """Orgs running the diploma program (oea_enabled flag or a hearthwood slug)."""
     rows = _admin().table('organizations').select('id, slug, feature_flags').execute().data or []
     out = []
     for r in rows:
         flags = r.get('feature_flags') or {}
-        if flags.get('oea_enabled') or r.get('slug') == 'oea' or r.get('slug', '').startswith('hearthwood'):
+        if flags.get('oea_enabled') or r.get('slug', '').startswith('hearthwood'):
             out.append(r['id'])
     return out
 
 
-def _org_admins(org_id: str) -> List[str]:
-    rows = _admin().table('users').select('id, org_role, org_roles') \
+def _org_admins(org_id: str) -> List[Dict[str, Any]]:
+    rows = _admin().table('users').select('id, email, first_name, org_role, org_roles') \
         .eq('organization_id', org_id).execute().data or []
     admins = []
     for u in rows:
@@ -50,8 +50,29 @@ def _org_admins(org_id: str) -> List[str]:
         if isinstance(u.get('org_roles'), list):
             roles.update(u['org_roles'])
         if 'org_admin' in roles:
-            admins.append(u['id'])
+            admins.append(u)
     return admins
+
+
+def _student_name(student_id: str) -> str:
+    rows = _admin().table('users').select('display_name, first_name, last_name') \
+        .eq('id', student_id).limit(1).execute().data or []
+    if not rows:
+        return 'Student'
+    u = rows[0]
+    return u.get('display_name') or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip() or 'Student'
+
+
+def _missing_text(missing: Dict[str, int]) -> str:
+    """Human list of what a course is short, omitting zero items."""
+    parts = []
+    if missing.get('logs'):
+        parts.append(f"{missing['logs']} learning log(s)")
+    if missing.get('artifacts'):
+        parts.append(f"{missing['artifacts']} artifact(s)")
+    if missing.get('summaries'):
+        parts.append('the quarterly summary')
+    return ' and '.join([', '.join(parts[:-1]), parts[-1]]) if len(parts) > 2 else ' and '.join(parts)
 
 
 def _enrolled_students(org_id: str) -> List[str]:
@@ -104,6 +125,7 @@ def run_sweep(today: str = None) -> Dict[str, Any]:
             if not admins:
                 continue
 
+            flagged = []  # this run's new flags, for the admin email digest
             for student_id in _enrolled_students(org_id):
                 credits = _admin().table('oea_credits').select('*') \
                     .eq('student_id', student_id).eq('status', 'in_progress').execute().data or []
@@ -120,18 +142,68 @@ def run_sweep(today: str = None) -> Dict[str, Any]:
                         if not _record_alert(org_id, student_id, c['id'], school_year,
                                              term_index, result['missing']):
                             continue
-                        m = result['missing']
-                        msg = (f"{c.get('course_name')}: Q{term_index} is missing "
-                               f"{m['logs']} learning log(s), {m['artifacts']} artifact(s), "
-                               f"{m['summaries']} quarterly summary.")
-                        for admin_id in admins:
+                        student_name = _student_name(student_id)
+                        short = _missing_text(result['missing'])
+                        msg = f"{student_name} — {c.get('course_name')}: Q{term_index} is missing {short}."
+                        for admin in admins:
                             sis_notifications.notify(
-                                admin_id, 'OEA: missing quarterly uploads', msg,
+                                admin['id'], 'Diploma plan: missing quarterly uploads', msg,
                                 organization_id=org_id,
                                 metadata={'student_id': student_id, 'credit_id': c['id'],
                                           'term_index': term_index})
+                        flagged.append({'student_name': student_name,
+                                        'course_name': c.get('course_name'),
+                                        'term_index': term_index, 'missing_text': short})
                         summary['flags'] += 1
+
+            if flagged:
+                _email_digest(admins, flagged, settings)
+                summary['emails'] = summary.get('emails', 0) + len([a for a in admins if a.get('email')])
         except Exception as e:
             logger.warning(f"OEA compliance sweep failed for org {org_id}: {e}")
 
     return summary
+
+
+def _email_digest(admins: List[Dict[str, Any]], flagged: List[Dict[str, Any]], settings: Dict[str, Any]) -> None:
+    """
+    One email per org admin summarizing this run's NEW flags (in-app/push already
+    sent per course). Dedup comes from oea_compliance_alerts: a course/quarter that
+    was flagged in a previous run is never re-emailed.
+    """
+    try:
+        from services.email_service import email_service
+    except Exception as e:  # email misconfigured: in-app flags still delivered
+        logger.warning(f"OEA sweep email skipped (email service unavailable): {e}")
+        return
+
+    from html import escape
+    minimums_text = oea_rules.describe_minimums(settings['minimums'])
+    rows = ''.join(
+        f"<tr><td style='padding:6px 12px 6px 0'>{escape(str(f['student_name']))}</td>"
+        f"<td style='padding:6px 12px 6px 0'>{escape(str(f['course_name']))}</td>"
+        f"<td style='padding:6px 12px 6px 0'>Q{f['term_index']}</td>"
+        f"<td style='padding:6px 0'>missing {escape(f['missing_text'])}</td></tr>"
+        for f in flagged
+    )
+    count = len(flagged)
+    subject = f"Hearthwood Academy: {count} course{'s' if count != 1 else ''} missing quarterly uploads"
+    html = (
+        "<p>A quarter has closed and the following courses did not meet the "
+        f"required quarterly uploads ({minimums_text} per course per quarter):</p>"
+        f"<table style='border-collapse:collapse;font-size:14px'>{rows}</table>"
+        "<p>You can review each student's uploads and grades from the organization "
+        "dashboard. Parents have not been notified automatically.</p>"
+    )
+    text = "\n".join(
+        f"{f['student_name']} — {f['course_name']}: Q{f['term_index']} missing {f['missing_text']}"
+        for f in flagged
+    )
+    for admin in admins:
+        email = (admin.get('email') or '').strip()
+        if not email:
+            continue
+        try:
+            email_service.send_email(to_email=email, subject=subject, html_body=html, text_body=text)
+        except Exception as e:
+            logger.warning(f"OEA sweep digest email to {email} failed: {e}")
