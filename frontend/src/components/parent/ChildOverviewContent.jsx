@@ -9,6 +9,7 @@ import OverviewLoadingSkeleton from '../overview/OverviewLoadingSkeleton';
 import OverviewErrorState from '../overview/OverviewErrorState';
 import StudentOverviewSections from '../overview/StudentOverviewSections';
 import ParentConversationsViewer from './ParentConversationsViewer';
+import StudentSchedulePreview from './StudentSchedulePreview';
 
 /**
  * ChildOverviewContent - Displays StudentOverviewPage components for a child in parent view.
@@ -81,6 +82,9 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
           </>
         )}
       </div>
+
+      {/* Class schedule (SIS families only; renders nothing otherwise) */}
+      {!isObserver && <StudentSchedulePreview studentId={studentId} />}
 
       <StudentOverviewSections
         data={data}

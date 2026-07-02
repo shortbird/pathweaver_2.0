@@ -20,6 +20,14 @@ import {
   sendGroupMessage,
   createGroup,
   markGroupRead,
+  toggleDmReaction,
+  toggleGroupReaction,
+  editDirectMessage,
+  editGroupMessage,
+  deleteDirectMessage,
+  deleteGroupMessage,
+  pinGroupMessage,
+  setGroupAnnouncementOnly,
 } from '../useMessages';
 import { messageAPI, groupAPI } from '@/src/services/api';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
@@ -192,7 +200,7 @@ describe('useGroupDetail', () => {
     expect(groupAPI.get).toHaveBeenCalledWith('group-1');
     expect(result.current.group).toBeTruthy();
     expect(result.current.group!.members).toHaveLength(2);
-    expect(result.current.group!.members![0].user.display_name).toBe('Ms. Smith');
+    expect(result.current.group!.members![0].user!.display_name).toBe('Ms. Smith');
   });
 });
 
@@ -204,7 +212,24 @@ describe('message actions', () => {
 
     await sendDirectMessage('advisor-1', 'Hello!');
 
-    expect(messageAPI.send).toHaveBeenCalledWith('advisor-1', 'Hello!');
+    expect(messageAPI.send).toHaveBeenCalledWith('advisor-1', 'Hello!', {});
+  });
+
+  it('sendDirectMessage passes reply/attachment extras through', async () => {
+    (messageAPI.send as jest.Mock).mockResolvedValueOnce({
+      data: { data: { message: createMockMessage(), conversation_id: 'conv-1' } },
+    });
+    const attachments = [{ url: 'https://x/a.jpg', type: 'image' as const, name: 'a.jpg', size: 10 }];
+
+    await sendDirectMessage('advisor-1', 'See this', {
+      reply_to_message_id: 'msg-9',
+      attachments,
+    });
+
+    expect(messageAPI.send).toHaveBeenCalledWith('advisor-1', 'See this', {
+      reply_to_message_id: 'msg-9',
+      attachments,
+    });
   });
 
   it('markMessageRead: PUT /api/messages/{id}/read', async () => {
@@ -224,7 +249,7 @@ describe('message actions', () => {
 
     await sendGroupMessage('group-1', 'Hey team!');
 
-    expect(groupAPI.sendMessage).toHaveBeenCalledWith('group-1', 'Hey team!');
+    expect(groupAPI.sendMessage).toHaveBeenCalledWith('group-1', 'Hey team!', {});
   });
 
   it('createGroup: POST /api/groups', async () => {
@@ -249,5 +274,71 @@ describe('message actions', () => {
     await markGroupRead('group-1');
 
     expect(groupAPI.markRead).toHaveBeenCalledWith('group-1');
+  });
+});
+
+describe('messaging overhaul actions', () => {
+  it('toggleDmReaction returns the fresh reaction aggregate', async () => {
+    const reactions = [{ emoji: '👍', count: 2, reacted: true }];
+    (messageAPI.toggleReaction as jest.Mock).mockResolvedValueOnce({
+      data: { data: { added: true, reactions } },
+    });
+
+    const result = await toggleDmReaction('msg-1', '👍');
+
+    expect(messageAPI.toggleReaction).toHaveBeenCalledWith('msg-1', '👍');
+    expect(result).toEqual({ added: true, reactions });
+  });
+
+  it('toggleGroupReaction hits the group reaction endpoint', async () => {
+    (groupAPI.toggleReaction as jest.Mock).mockResolvedValueOnce({
+      data: { data: { added: false, reactions: [] } },
+    });
+
+    await toggleGroupReaction('group-1', 'gmsg-1', '🎉');
+
+    expect(groupAPI.toggleReaction).toHaveBeenCalledWith('group-1', 'gmsg-1', '🎉');
+  });
+
+  it('editDirectMessage / editGroupMessage PATCH the message', async () => {
+    (messageAPI.editMessage as jest.Mock).mockResolvedValueOnce({ data: { data: { ok: true } } });
+    (groupAPI.editMessage as jest.Mock).mockResolvedValueOnce({ data: { data: { ok: true } } });
+
+    await editDirectMessage('msg-1', 'Updated');
+    await editGroupMessage('group-1', 'gmsg-1', 'Updated too');
+
+    expect(messageAPI.editMessage).toHaveBeenCalledWith('msg-1', 'Updated');
+    expect(groupAPI.editMessage).toHaveBeenCalledWith('group-1', 'gmsg-1', 'Updated too');
+  });
+
+  it('deleteDirectMessage / deleteGroupMessage DELETE the message', async () => {
+    (messageAPI.deleteMessage as jest.Mock).mockResolvedValueOnce({ data: { data: { ok: true } } });
+    (groupAPI.deleteMessage as jest.Mock).mockResolvedValueOnce({ data: { data: { ok: true } } });
+
+    await deleteDirectMessage('msg-1');
+    await deleteGroupMessage('group-1', 'gmsg-1');
+
+    expect(messageAPI.deleteMessage).toHaveBeenCalledWith('msg-1');
+    expect(groupAPI.deleteMessage).toHaveBeenCalledWith('group-1', 'gmsg-1');
+  });
+
+  it('pinGroupMessage pins and unpins (null)', async () => {
+    (groupAPI.pin as jest.Mock).mockResolvedValue({ data: { data: { ok: true } } });
+
+    await pinGroupMessage('group-1', 'gmsg-1');
+    await pinGroupMessage('group-1', null);
+
+    expect(groupAPI.pin).toHaveBeenNthCalledWith(1, 'group-1', 'gmsg-1');
+    expect(groupAPI.pin).toHaveBeenNthCalledWith(2, 'group-1', null);
+  });
+
+  it('setGroupAnnouncementOnly PATCHes group settings', async () => {
+    (groupAPI.updateSettings as jest.Mock).mockResolvedValueOnce({
+      data: { data: { ok: true, announcement_only: true } },
+    });
+
+    await setGroupAnnouncementOnly('group-1', true);
+
+    expect(groupAPI.updateSettings).toHaveBeenCalledWith('group-1', { announcement_only: true });
   });
 });

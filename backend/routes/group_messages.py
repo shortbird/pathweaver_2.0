@@ -355,19 +355,21 @@ def send_message(user_id: str, group_id: str):
     try:
         data = request.get_json()
 
-        validate_required_fields(data, ['content'])
+        content = (data.get('content') or '').strip()
+        attachments = data.get('attachments') or []
 
-        content = data['content'].strip()
-
-        if not content:
+        # Attachment-only messages are allowed; otherwise content is required.
+        if not content and not attachments:
             raise ValidationError("Message content cannot be empty")
-
-        validate_string_length(content, 'content', max_length=2000)
+        if content:
+            validate_string_length(content, 'content', max_length=2000)
 
         message = group_service.send_message(
             user_id=user_id,
             group_id=group_id,
-            content=content
+            content=content,
+            reply_to_message_id=data.get('reply_to_message_id'),
+            attachments=attachments,
         )
 
         return success_response({
@@ -455,3 +457,67 @@ def handle_validation_error(error):
 @bp.errorhandler(ValueError)
 def handle_value_error(error):
     return error_response(str(error), "forbidden", status_code=403)
+
+
+# ── Messaging overhaul: reactions, edit/delete, pins, announcement-only ───────
+@bp.route('/<group_id>/messages/<message_id>/reactions', methods=['POST'])
+@require_auth
+def toggle_reaction(user_id: str, group_id: str, message_id: str):
+    """Toggle an emoji reaction on a group message."""
+    from services import messaging_extras_service as extras
+    data = request.get_json() or {}
+    result = extras.toggle_reaction(user_id, 'group', message_id, (data.get('emoji') or '').strip())
+    if result.get('error'):
+        return error_response(result['error'], status_code=400, error_code="validation_error")
+    return success_response(result)
+
+
+@bp.route('/<group_id>/messages/<message_id>', methods=['PATCH'])
+@require_auth
+def edit_group_message(user_id: str, group_id: str, message_id: str):
+    """Edit your own group message."""
+    from services import messaging_extras_service as extras
+    data = request.get_json() or {}
+    result = extras.edit_message(user_id, 'group', message_id, data.get('content') or '')
+    if result.get('error'):
+        return error_response(result['error'], status_code=403 if 'own' in result['error'] else 400,
+                              error_code="forbidden")
+    return success_response(result)
+
+
+@bp.route('/<group_id>/messages/<message_id>', methods=['DELETE'])
+@require_auth
+def delete_group_message(user_id: str, group_id: str, message_id: str):
+    """Delete a group message: your own, or any message if you're a group admin."""
+    from services import messaging_extras_service as extras
+    result = extras.delete_message(user_id, 'group', message_id)
+    if result.get('error'):
+        return error_response(result['error'], status_code=403 if 'own' in result['error'] else 404,
+                              error_code="forbidden")
+    return success_response(result)
+
+
+@bp.route('/<group_id>/pin', methods=['POST'])
+@require_auth
+def pin_message(user_id: str, group_id: str):
+    """Pin a message to the top of the group (message_id: null unpins). Admin only."""
+    from services import messaging_extras_service as extras
+    data = request.get_json() or {}
+    result = extras.set_pinned(user_id, group_id, data.get('message_id'))
+    if result.get('error'):
+        return error_response(result['error'], status_code=403, error_code="forbidden")
+    return success_response(result)
+
+
+@bp.route('/<group_id>/settings', methods=['PATCH'])
+@require_auth
+def group_settings(user_id: str, group_id: str):
+    """Group behavior settings. Currently: announcement_only (admins-only posting)."""
+    from services import messaging_extras_service as extras
+    data = request.get_json() or {}
+    if 'announcement_only' not in data:
+        return error_response('Nothing to update', status_code=400, error_code="validation_error")
+    result = extras.set_announcement_only(user_id, group_id, bool(data.get('announcement_only')))
+    if result.get('error'):
+        return error_response(result['error'], status_code=403, error_code="forbidden")
+    return success_response(result)

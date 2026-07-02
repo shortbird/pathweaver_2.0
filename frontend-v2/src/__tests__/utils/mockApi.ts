@@ -9,12 +9,14 @@ export function mockApiModule() {
   const mockGet = jest.fn().mockResolvedValue({ data: {} });
   const mockPost = jest.fn().mockResolvedValue({ data: {} });
   const mockPut = jest.fn().mockResolvedValue({ data: {} });
+  const mockPatch = jest.fn().mockResolvedValue({ data: {} });
   const mockDelete = jest.fn().mockResolvedValue({ data: {} });
 
   const api = {
     get: mockGet,
     post: mockPost,
     put: mockPut,
+    patch: mockPatch,
     delete: mockDelete,
     interceptors: {
       request: { use: jest.fn() },
@@ -73,23 +75,38 @@ export function mockApiModule() {
       conversations: jest.fn().mockResolvedValue({ data: {} }),
       messages: jest.fn().mockResolvedValue({ data: {} }),
       send: jest.fn().mockResolvedValue({ data: {} }),
+      toggleReaction: jest.fn().mockResolvedValue({ data: {} }),
+      editMessage: jest.fn().mockResolvedValue({ data: {} }),
+      deleteMessage: jest.fn().mockResolvedValue({ data: {} }),
       markRead: jest.fn().mockResolvedValue({ data: {} }),
       unreadCount: jest.fn().mockResolvedValue({ data: {} }),
       contacts: jest.fn().mockResolvedValue({ data: {} }),
       canMessage: jest.fn().mockResolvedValue({ data: {} }),
+      children: jest.fn().mockResolvedValue({ data: {} }),
+      childConversations: jest.fn().mockResolvedValue({ data: {} }),
+      childConversationMessages: jest.fn().mockResolvedValue({ data: {} }),
     },
     groupAPI: {
       list: jest.fn().mockResolvedValue({ data: {} }),
       get: jest.fn().mockResolvedValue({ data: {} }),
       create: jest.fn().mockResolvedValue({ data: {} }),
       update: jest.fn().mockResolvedValue({ data: {} }),
+      delete: jest.fn().mockResolvedValue({ data: {} }),
       addMember: jest.fn().mockResolvedValue({ data: {} }),
       removeMember: jest.fn().mockResolvedValue({ data: {} }),
       leave: jest.fn().mockResolvedValue({ data: {} }),
       messages: jest.fn().mockResolvedValue({ data: {} }),
       sendMessage: jest.fn().mockResolvedValue({ data: {} }),
+      toggleReaction: jest.fn().mockResolvedValue({ data: {} }),
+      editMessage: jest.fn().mockResolvedValue({ data: {} }),
+      deleteMessage: jest.fn().mockResolvedValue({ data: {} }),
+      pin: jest.fn().mockResolvedValue({ data: {} }),
+      updateSettings: jest.fn().mockResolvedValue({ data: {} }),
       markRead: jest.fn().mockResolvedValue({ data: {} }),
       availableMembers: jest.fn().mockResolvedValue({ data: {} }),
     },
+    uploadMessageAttachment: jest.fn().mockResolvedValue({
+      url: 'https://x/attachment.jpg', type: 'image', name: 'attachment.jpg', size: 1234,
+    }),
   };
 }

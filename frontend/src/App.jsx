@@ -103,7 +103,7 @@ const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage')
 // Student-curated classes (April 2026)
 const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
-const ClassRegistrationPage = lazy(() => import('./pages/ClassRegistrationPage'))
+const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 // Marketing pages
@@ -485,7 +485,9 @@ function App() {
                 {/* Student-curated classes (admin surfaces live under /admin/classes/* inside AdminPage) */}
                 <Route path="my-classes" element={<MyClasses />} />
                 {/* Parent/guardian self-service: register your own children for SIS classes */}
-                <Route path="class-registration" element={<ClassRegistrationPage />} />
+                <Route path="schedule-builder" element={<ScheduleBuilderPage />} />
+                {/* old bookmarks: Class Registration became the Schedule Builder */}
+                <Route path="class-registration" element={<Navigate to="/schedule-builder" replace />} />
                 {/* Parent/guardian self-service: report a child's planned absences */}
                 <Route path="absences" element={<AbsenceReportingPage />} />
                 <Route path="classes/new" element={<StudentClassForm />} />
@@ -618,7 +620,10 @@ function App() {
             {/* Invitation pages - standalone full-screen layouts */}
             <Route path="invitation/:code" element={<AcceptInvitationPage />} />
             {/* iCreate branded parent registration funnel (AcceptInvitationPage
-                redirects iCreate parent links here; other orgs are unaffected) */}
+                redirects iCreate parent links here; other orgs are unaffected).
+                /resume is the logged-in continuation for unfinished registrations
+                (PrivateRoute forces iCreate parents here until they complete it). */}
+            <Route path="register/icreate/resume" element={<ICreateRegisterPage />} />
             <Route path="register/icreate/:code" element={<ICreateRegisterPage />} />
             <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
 

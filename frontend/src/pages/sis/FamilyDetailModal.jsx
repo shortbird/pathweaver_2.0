@@ -22,6 +22,7 @@ const TABS = [
   { key: 'details', label: 'Details' },
   { key: 'billing', label: 'Billing' },
   { key: 'contacts', label: 'Contacts' },
+  { key: 'registration', label: 'Registration' },
 ]
 
 const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
@@ -133,6 +134,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
           {tab === 'details' && <DetailsPanel household={household} orgId={orgId} onSaved={onSaved} />}
           {tab === 'billing' && <BillingPanel householdId={household.id} orgId={orgId} />}
           {tab === 'contacts' && <FamilyContactsPanel householdId={household.id} orgId={orgId} />}
+          {tab === 'registration' && <RegistrationPanel householdId={household.id} orgId={orgId} />}
         </div>
       </div>
 
@@ -436,6 +438,98 @@ const FamilyContactsPanel = ({ householdId, orgId }) => {
             <button onClick={() => setAdding(false)} className="text-sm text-neutral-500 hover:underline">Cancel</button>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── Registration: what the family submitted in the iCreate registration funnel ─
+// (answers, signed paperwork, kids, fee). Empty state for households that were
+// created by staff rather than through the registration flow.
+const RegistrationPanel = ({ householdId, orgId }) => {
+  const [reg, setReg] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get(`/api/sis/households/${householdId}/registration?organization_id=${orgId}`)
+      .then((r) => setReg(r.data?.registration || null))
+      .catch(() => { /* non-fatal */ })
+      .finally(() => setLoading(false))
+  }, [householdId, orgId])
+
+  if (loading) return <p className="text-sm text-neutral-400">Loading…</p>
+  if (!reg) return <p className="text-sm text-neutral-400">This family did not register through the online registration flow.</p>
+
+  const fmtWhen = (d) => (d ? new Date(d).toLocaleString() : null)
+  const answerText = (v) => (Array.isArray(v) ? v.join(', ') : (v || '—'))
+
+  return (
+    <div className="space-y-5">
+      <section>
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Status</h4>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+            reg.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+          }`}>{reg.status}</span>
+          {reg.fee_cents != null && <span className="text-neutral-600">Fee: {money(reg.fee_cents)}</span>}
+          {reg.fee_recorded_at && <span className="text-neutral-400 text-xs">fee step {fmtWhen(reg.fee_recorded_at)}</span>}
+          {reg.scheduling_emailed_at && <span className="text-neutral-400 text-xs">scheduling email sent</span>}
+        </div>
+      </section>
+
+      {(reg.kids || []).length > 0 && (
+        <section>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Children registered</h4>
+          <div className="space-y-1">
+            {reg.kids.map((k) => (
+              <div key={k.user_id} className="text-sm text-neutral-700">
+                {k.name} <span className="text-neutral-400 text-xs">· {k.type === 'dependent' ? 'managed (under parent account)' : 'own account'}{k.dob ? ` · DOB ${k.dob}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {Object.keys(reg.answers || {}).length > 0 && (
+        <section>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Answers</h4>
+          <div className="space-y-1.5">
+            {Object.entries(reg.answers).map(([k, v]) => (
+              <div key={k} className="text-sm">
+                <span className="text-neutral-400 capitalize">{k.replace(/_/g, ' ')}: </span>
+                <span className="text-neutral-800">{answerText(v)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {(reg.paperwork || []).length > 0 && (
+        <section>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Signed paperwork</h4>
+          <div className="space-y-1.5">
+            {reg.paperwork.map((p) => (
+              <div key={p.key} className="text-sm text-neutral-700">
+                {p.label}
+                <span className="text-neutral-400 text-xs"> — signed "{p.signed_name}"{p.acknowledged_at ? ` on ${new Date(p.acknowledged_at).toLocaleDateString()}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {(reg.emergency_contacts || []).length > 0 && (
+        <section>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Emergency contacts submitted</h4>
+          <div className="space-y-1">
+            {reg.emergency_contacts.map((c, i) => (
+              <div key={i} className="text-sm text-neutral-700">
+                {c.name}
+                <span className="text-neutral-400 text-xs"> · {[c.relationship, c.phone].filter(Boolean).join(' · ')}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   )

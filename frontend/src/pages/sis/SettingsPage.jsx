@@ -3,7 +3,7 @@ import api from '../../services/api'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
-import SettingsTab from '../../components/organization/SettingsTab'
+import SisOrgSettings from '../../components/sis/SisOrgSettings'
 import ICreateRegistrationSettings from '../../components/sis/ICreateRegistrationSettings'
 
 /**
@@ -46,14 +46,16 @@ const SettingsPage = () => {
         <p className="text-neutral-500">Organization not found.</p>
       ) : (
         <div className="grid gap-6">
-          <SettingsTab
+          {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
+          <SisOrgSettings
+            key={orgId}
             orgId={orgId}
             orgData={orgData}
             onUpdate={fetchOrg}
             onLogoChange={refreshOrganization}
           />
           {/* iCreate-only: renders nothing for orgs without the registration flag. */}
-          <ICreateRegistrationSettings orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
+          <ICreateRegistrationSettings key={`icr-${orgId}`} orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
         </div>
       )}
     </div>

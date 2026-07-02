@@ -2,14 +2,18 @@
  * ChatWindow - Direct message chat view.
  * Desktop: panel inside split layout.
  * Mobile: full-screen with back button, keyboard-aware input.
+ *
+ * Messaging overhaul: long-press actions (react/reply/copy/edit/delete),
+ * reactions row, reply quoting, photo/video attachments, and instant delivery
+ * via Supabase Realtime broadcast (polling stays as the fallback).
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage,
+  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage, toast,
 } from '@/src/components/ui';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -17,9 +21,28 @@ import {
   useConversationMessages,
   sendDirectMessage,
   markMessageRead,
+  toggleDmReaction,
+  editDirectMessage,
+  deleteDirectMessage,
   type Contact,
   type Message,
 } from '@/src/hooks/useMessages';
+import {
+  useMessagingRealtime,
+  appendRealtimeMessage,
+  patchMessageReactions,
+  patchMessageEdited,
+  patchMessageDeleted,
+} from '@/src/hooks/useMessagingRealtime';
+import {
+  ReactionPills,
+  ReplyQuote,
+  MessageAttachments,
+  ComposerBanner,
+  PendingAttachmentChips,
+  usePendingAttachments,
+} from './MessageParts';
+import { MessageActionsSheet } from './MessageActionsSheet';
 
 interface Props {
   contact: Contact;
@@ -57,12 +80,37 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   onReadRef.current = onRead;
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
+  // Long-press actions sheet. `actionsFor` is kept through the close animation
+  // (only `actionsVisible` flips) so the sheet doesn't unmount mid-dismiss and
+  // its deferred action still has its message.
+  const [actionsFor, setActionsFor] = useState<Message | null>(null);
+  const [actionsVisible, setActionsVisible] = useState(false);
+  const openActions = (msg: Message) => {
+    setActionsFor(msg);
+    setActionsVisible(true);
+  };
+  const {
+    pending, pickAttachments, removeAttachment, clearAttachments, readyAttachments, uploading,
+  } = usePendingAttachments();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
   const isMobile = !!onBack;
 
   const name = getDisplayName(contact);
+
+  // Instant delivery: apply broadcast events straight to local state. The 15s
+  // poll in useConversationMessages remains the fallback. (For a brand-new chat
+  // `conversationId` may still be the contact id — the poll covers that window
+  // until the real conversation id is selected.)
+  useMessagingRealtime(conversationId ? `dm:${conversationId}` : null, {
+    onMessage: (m) => setMessages((prev) => appendRealtimeMessage(prev, m)),
+    onReactions: (p) => setMessages((prev) => patchMessageReactions(prev, p.message_id, p.reactions)),
+    onEdited: (p) => setMessages((prev) => patchMessageEdited(prev, p)),
+    onDeleted: (p) => setMessages((prev) => patchMessageDeleted(prev, p.message_id)),
+  });
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -98,9 +146,71 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
     if (!isMobile) inputRef.current?.focus();
   }, [contact.id, isMobile]);
 
+  const startEdit = (msg: Message) => {
+    setReplyTo(null);
+    setEditing(msg);
+    setInput(msg.message_content);
+    inputRef.current?.focus();
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setInput('');
+  };
+
+  const handleToggleReaction = async (msg: Message, emoji: string) => {
+    try {
+      const res = await toggleDmReaction(msg.id, emoji);
+      if (res?.reactions) {
+        setMessages((prev) => patchMessageReactions(prev, msg.id, res.reactions));
+      }
+    } catch {
+      toast.error('Could not update the reaction');
+    }
+  };
+
+  const handleDelete = async (msg: Message) => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Delete this message?')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert('Delete Message', 'Delete this message?', [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+          ]);
+        });
+    if (!confirmed) return;
+    try {
+      await deleteDirectMessage(msg.id);
+      setMessages((prev) => patchMessageDeleted(prev, msg.id));
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to delete the message');
+    }
+  };
+
   const handleSend = async () => {
     const content = input.trim();
-    if (!content || sending) return;
+
+    // Edit mode: PATCH the existing message instead of sending a new one.
+    if (editing) {
+      if (!content || sending) return;
+      setSending(true);
+      try {
+        await editDirectMessage(editing.id, content);
+        const edited_at = new Date().toISOString();
+        setMessages((prev) => patchMessageEdited(prev, { message_id: editing.id, content, edited_at }));
+        setEditing(null);
+        setInput('');
+      } catch (e: any) {
+        toast.error(e?.response?.data?.error || 'Failed to edit the message');
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    const attachments = readyAttachments;
+    if ((!content && attachments.length === 0) || sending || uploading) return;
+    const replying = replyTo;
 
     // Optimistic update
     const optimisticMsg: Message = {
@@ -110,28 +220,50 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       message_content: content,
       created_at: new Date().toISOString(),
       read_at: null,
+      attachments,
+      reply_to: replying
+        ? {
+            id: replying.id,
+            sender_name: replying.sender_id === user?.id ? 'You' : name,
+            content: (replying.message_content || '').slice(0, 140),
+          }
+        : null,
       isOptimistic: true,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     setInput('');
+    setReplyTo(null);
+    clearAttachments();
 
     try {
       setSending(true);
-      const sent = await sendDirectMessage(contact.id, content);
+      const sent = await sendDirectMessage(contact.id, content, {
+        ...(replying ? { reply_to_message_id: replying.id } : {}),
+        ...(attachments.length ? { attachments } : {}),
+      });
       // Swap the optimistic bubble for the saved message IN PLACE. We used to
       // refetch the whole list here, which briefly dropped the just-sent message
       // (the server hadn't indexed it yet) so it flickered: appear -> disappear
       // -> reappear on the next poll. Keeping it in place avoids the flicker; the
       // 15s poll reconciles read receipts.
-      setMessages((prev) => prev.map((m) =>
-        m.id === optimisticMsg.id
-          ? { ...optimisticMsg, ...(sent && (sent as any).id ? (sent as Message) : {}), id: (sent && (sent as any).id) ? (sent as any).id : optimisticMsg.id, isOptimistic: false }
-          : m,
-      ));
+      const saved: Message | undefined = (sent as any)?.message || ((sent as any)?.id ? sent : undefined);
+      setMessages((prev) => {
+        // The realtime broadcast may have delivered the saved message already —
+        // in that case just drop the optimistic bubble instead of duplicating.
+        if (saved?.id && prev.some((m) => m.id === saved.id)) {
+          return prev.filter((m) => m.id !== optimisticMsg.id);
+        }
+        return prev.map((m) =>
+          m.id === optimisticMsg.id
+            ? { ...optimisticMsg, ...(saved || {}), id: saved?.id || optimisticMsg.id, isOptimistic: false }
+            : m,
+        );
+      });
     } catch {
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
       setInput(content);
+      setReplyTo(replying);
     } finally {
       setSending(false);
     }
@@ -192,52 +324,89 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
         messages.map((msg) => {
           const isMine = msg.sender_id === user?.id;
           return (
-            <View
-              key={msg.id}
-              className={`flex-row ${isMine ? 'justify-end' : 'justify-start'}`}
-            >
-              <View
-                style={{
-                  maxWidth: '75%',
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  borderRadius: 18,
-                  ...(isMine
-                    ? {
-                        backgroundColor: '#6D469B',
-                        borderBottomRightRadius: 4,
-                      }
-                    : {
-                        backgroundColor: c.card,
-                        borderBottomLeftRadius: 4,
-                        borderWidth: 1,
-                        borderColor: c.border,
-                      }),
-                  opacity: msg.isOptimistic ? 0.7 : 1,
-                }}
-              >
-                <UIText
-                  size="sm"
-                  style={{ color: isMine ? '#fff' : c.text, lineHeight: 20 }}
+            <View key={msg.id}>
+              <View className={`flex-row ${isMine ? 'justify-end' : 'justify-start'}`}>
+                <Pressable
+                  onLongPress={
+                    msg.is_deleted || msg.isOptimistic ? undefined : () => openActions(msg)
+                  }
+                  delayLongPress={300}
+                  style={{
+                    maxWidth: '75%',
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 18,
+                    ...(isMine
+                      ? {
+                          backgroundColor: '#6D469B',
+                          borderBottomRightRadius: 4,
+                        }
+                      : {
+                          backgroundColor: c.card,
+                          borderBottomLeftRadius: 4,
+                          borderWidth: 1,
+                          borderColor: c.border,
+                        }),
+                    opacity: msg.isOptimistic ? 0.7 : 1,
+                  }}
                 >
-                  {msg.message_content}
-                </UIText>
-                <View className="flex-row items-center justify-end mt-1 gap-2">
-                  <UIText
-                    size="xs"
-                    style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
-                  >
-                    {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
-                  </UIText>
-                  {isMine && !msg.isOptimistic && (
-                    <Ionicons
-                      name={msg.read_at ? 'checkmark-done' : 'checkmark'}
-                      size={12}
-                      color={msg.read_at ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.5)'}
-                    />
+                  {msg.is_deleted ? (
+                    <UIText
+                      size="sm"
+                      style={{
+                        color: isMine ? 'rgba(255,255,255,0.7)' : c.textFaint,
+                        fontStyle: 'italic',
+                        lineHeight: 20,
+                      }}
+                    >
+                      Message deleted
+                    </UIText>
+                  ) : (
+                    <>
+                      <ReplyQuote replyTo={msg.reply_to} isMine={isMine} />
+                      <MessageAttachments attachments={msg.attachments} isMine={isMine} />
+                      {msg.message_content ? (
+                        <UIText
+                          size="sm"
+                          style={{ color: isMine ? '#fff' : c.text, lineHeight: 20 }}
+                        >
+                          {msg.message_content}
+                        </UIText>
+                      ) : null}
+                    </>
                   )}
-                </View>
+                  <View className="flex-row items-center justify-end mt-1 gap-2">
+                    {msg.edited_at && !msg.is_deleted ? (
+                      <UIText
+                        size="xs"
+                        style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
+                      >
+                        (edited)
+                      </UIText>
+                    ) : null}
+                    <UIText
+                      size="xs"
+                      style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
+                    >
+                      {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
+                    </UIText>
+                    {isMine && !msg.isOptimistic && (
+                      <Ionicons
+                        name={msg.read_at ? 'checkmark-done' : 'checkmark'}
+                        size={12}
+                        color={msg.read_at ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.5)'}
+                      />
+                    )}
+                  </View>
+                </Pressable>
               </View>
+              {!msg.is_deleted && (
+                <ReactionPills
+                  reactions={msg.reactions}
+                  isMine={isMine}
+                  onToggle={(emoji) => handleToggleReaction(msg, emoji)}
+                />
+              )}
             </View>
           );
         })
@@ -245,44 +414,104 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
     </ScrollView>
   );
 
+  const canSend = editing
+    ? !!input.trim() && !sending
+    : (!!input.trim() || readyAttachments.length > 0) && !sending && !uploading;
+
   const inputBar = (
-    <View
-      className="border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 px-3"
-      style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
-    >
-      <View className="flex-row items-end gap-2">
-        <TextInput
-          ref={inputRef}
-          value={input}
-          onChangeText={setInput}
-          onKeyPress={handleKeyPress}
-          placeholder={`Message ${name}...`}
-          placeholderTextColor={c.textFaint}
-          multiline
-          maxLength={2000}
-          className="flex-1 bg-surface-100 dark:bg-dark-surface-200 rounded-2xl px-4 py-2 font-poppins text-sm text-typo dark:text-dark-typo"
-          style={{
-            outline: 'none',
-            minHeight: 36,
-            maxHeight: 100,
-          } as any}
+    <View>
+      {editing ? (
+        <ComposerBanner
+          icon="pencil-outline"
+          title="Editing message"
+          snippet={editing.message_content}
+          onCancel={cancelEdit}
         />
-        <Pressable
-          onPress={handleSend}
-          disabled={!input.trim() || sending}
-          style={{
-            backgroundColor: input.trim() && !sending ? '#6D469B' : c.border,
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+      ) : replyTo ? (
+        <ComposerBanner
+          icon="arrow-undo-outline"
+          title={`Replying to ${replyTo.sender_id === user?.id ? 'yourself' : name}`}
+          snippet={replyTo.message_content || 'Attachment'}
+          onCancel={() => setReplyTo(null)}
+        />
+      ) : null}
+      <View
+        className="border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100"
+      >
+        {!editing && <PendingAttachmentChips items={pending} onRemove={removeAttachment} />}
+        <View
+          className="flex-row items-end gap-2 px-3"
+          style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
         >
-          <Ionicons name="arrow-up" size={18} color="#fff" />
-        </Pressable>
+          {!editing && (
+            <Pressable
+              onPress={pickAttachments}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Attach a photo or video"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="attach" size={22} color="#6D469B" />
+            </Pressable>
+          )}
+          <TextInput
+            ref={inputRef}
+            value={input}
+            onChangeText={setInput}
+            onKeyPress={handleKeyPress}
+            placeholder={`Message ${name}...`}
+            placeholderTextColor={c.textFaint}
+            multiline
+            maxLength={2000}
+            className="flex-1 bg-surface-100 dark:bg-dark-surface-200 rounded-2xl px-4 py-2 font-poppins text-sm text-typo dark:text-dark-typo"
+            style={{
+              outline: 'none',
+              minHeight: 36,
+              maxHeight: 100,
+            } as any}
+          />
+          <Pressable
+            onPress={handleSend}
+            disabled={!canSend}
+            style={{
+              backgroundColor: canSend ? '#6D469B' : c.border,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name={editing ? 'checkmark' : 'arrow-up'} size={18} color="#fff" />
+          </Pressable>
+        </View>
       </View>
     </View>
+  );
+
+  const actionsSheet = (
+    <MessageActionsSheet
+      visible={actionsVisible}
+      onClose={() => setActionsVisible(false)}
+      message={actionsFor}
+      isOwn={actionsFor?.sender_id === user?.id}
+      canDelete={actionsFor?.sender_id === user?.id}
+      onReact={(emoji) => actionsFor && handleToggleReaction(actionsFor, emoji)}
+      onReply={() => {
+        if (!actionsFor) return;
+        setEditing(null);
+        setReplyTo(actionsFor);
+        inputRef.current?.focus();
+      }}
+      onEdit={() => actionsFor && startEdit(actionsFor)}
+      onDelete={() => actionsFor && handleDelete(actionsFor)}
+    />
   );
 
   // Mobile: wrap in KeyboardAvoidingView
@@ -296,6 +525,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
         {header}
         {messageList}
         {inputBar}
+        {actionsSheet}
       </KeyboardAvoidingView>
     );
   }
@@ -306,6 +536,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       {header}
       {messageList}
       {inputBar}
+      {actionsSheet}
     </View>
   );
 }

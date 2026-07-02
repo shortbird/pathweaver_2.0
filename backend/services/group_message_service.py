@@ -264,10 +264,23 @@ class GroupMessageService(BaseService):
                         'user': user_info
                     })
 
+            # Hydrate the pinned message (if any) for the pin banner.
+            pinned = None
+            if group.data.get('pinned_message_id'):
+                pin_row = supabase.table('group_messages').select(
+                    'id, sender_id, message_content, created_at, is_deleted'
+                ).eq('id', group.data['pinned_message_id']).limit(1).execute()
+                if pin_row.data and not pin_row.data[0].get('is_deleted'):
+                    pinned = {
+                        **pin_row.data[0],
+                        'sender': self._get_user_info(pin_row.data[0]['sender_id']),
+                    }
+
             return {
                 **group.data,
                 'members': member_list,
-                'member_count': len(member_list)
+                'member_count': len(member_list),
+                'pinned_message': pinned
             }
 
         except Exception as e:
@@ -522,29 +535,48 @@ class GroupMessageService(BaseService):
 
     # ==================== Message Operations ====================
 
-    def send_message(self, user_id: str, group_id: str, content: str) -> Dict[str, Any]:
+    def send_message(self, user_id: str, group_id: str, content: str,
+                     reply_to_message_id: str = None, attachments: list = None) -> Dict[str, Any]:
         """
-        Send a message to a group
+        Send a message to a group. Supports replying to a message and attachments.
+        Announcement-only groups accept messages from group admins only.
 
         Args:
             user_id: UUID of the sender
             group_id: UUID of the group
             content: Message content
+            reply_to_message_id: Optional id of the message being replied to
+            attachments: Optional [{url, type, name, size}] (pre-uploaded)
 
         Returns:
-            Created message record
+            Created message record (enriched with sender + reply preview)
         """
+        from services import messaging_extras_service as extras
         try:
             if not self.is_group_member(user_id, group_id):
                 raise ValueError("You are not a member of this group")
 
             supabase = self._get_client()
 
+            grp = supabase.table('group_conversations').select('announcement_only').eq(
+                'id', group_id).single().execute()
+            if grp.data and grp.data.get('announcement_only') and not self.is_group_admin(user_id, group_id):
+                raise ValueError("Only teachers can post in this group")
+
+            clean_atts = extras.clean_attachments(attachments)
+            if reply_to_message_id:
+                target = supabase.table('group_messages').select('id, group_id').eq(
+                    'id', reply_to_message_id).limit(1).execute()
+                if not target.data or target.data[0]['group_id'] != group_id:
+                    reply_to_message_id = None
+
             message = {
                 'id': str(uuid.uuid4()),
                 'group_id': group_id,
                 'sender_id': user_id,
                 'message_content': content,
+                'reply_to_message_id': reply_to_message_id,
+                'attachments': clean_atts,
                 'created_at': datetime.utcnow().isoformat(),
                 'is_deleted': False
             }
@@ -557,9 +589,14 @@ class GroupMessageService(BaseService):
             }).eq('group_id', group_id).eq('user_id', user_id).execute()
 
             # Notify other group members
-            self._notify_group_members(user_id, group_id, content)
+            self._notify_group_members(user_id, group_id, content or 'Sent an attachment')
 
-            return result.data[0] if result.data else {}
+            row = result.data[0] if result.data else {}
+            enriched = extras.enrich_messages('group', [row], user_id)[0] if row else {}
+            enriched['sender'] = self._get_user_info(user_id)
+            # Instant delivery to members with the group open.
+            extras.broadcast_group(group_id, 'message', enriched)
+            return enriched
 
         except Exception as e:
             logger.error(f"Error sending group message: {str(e)}")
@@ -590,15 +627,20 @@ class GroupMessageService(BaseService):
 
             supabase = self._get_client()
 
+            # Deleted messages stay in the stream as tombstones (content blanked
+            # by enrich_messages) so reply previews keep working.
             messages = supabase.table('group_messages').select('*').eq(
                 'group_id', group_id
-            ).eq('is_deleted', False).order(
+            ).order(
                 'created_at', desc=False
             ).range(offset, offset + limit - 1).execute()
 
+            from services import messaging_extras_service as extras
+            enriched = extras.enrich_messages('group', messages.data or [], user_id)
+
             # Enrich with sender info
             result = []
-            for msg in (messages.data or []):
+            for msg in enriched:
                 sender_info = self._get_user_info(msg['sender_id'])
                 result.append({
                     **msg,

@@ -7,6 +7,14 @@ const slugKey = (label) => (label || '').toLowerCase().trim().replace(/[^a-z0-9]
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
+// URLs saved without a scheme (e.g. "buy.stripe.com/xyz") would render as
+// relative links and resolve against the Optio origin — normalize on save.
+const absUrl = (v) => {
+  const s = (v || '').trim()
+  if (!s) return ''
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`
+}
+
 /**
  * Admin config for the iCreate parent registration funnel, stored in
  * organizations.feature_flags.icreate_registration. Rendered on the SIS Settings
@@ -23,7 +31,9 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
   const [perStudentFee, setPerStudentFee] = useState(((cfg?.per_student_fee_cents || 0) / 100).toString())
   const [paymentUrl, setPaymentUrl] = useState(cfg?.payment_url || '')
   const [schedulingUrl, setSchedulingUrl] = useState(cfg?.scheduling_url || '')
+  const [stripeKey, setStripeKey] = useState(cfg?.stripe_secret_key || '')
   const [paperwork, setPaperwork] = useState(cfg?.paperwork || [])
+  const [questions, setQuestions] = useState(cfg?.questions || [])
   const [saving, setSaving] = useState(false)
 
   // Not an iCreate-registration org — render nothing.
@@ -40,7 +50,19 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
     if (Number.isNaN(perStudentCents) || perStudentCents < 0) return toast.error('Enter a valid per-student fee')
     const items = paperwork
       .filter((it) => (it.label || '').trim())
-      .map((it) => ({ key: it.key || slugKey(it.label), label: it.label.trim(), doc_url: (it.doc_url || '').trim() }))
+      .map((it) => ({
+        key: it.key || slugKey(it.label), label: it.label.trim(),
+        doc_url: absUrl(it.doc_url), body: (it.body || '').trim(),
+      }))
+    const qs = questions
+      .filter((q) => (q.label || '').trim())
+      .map((q) => ({
+        key: q.key || slugKey(q.label), label: q.label.trim(), help: (q.help || '').trim(),
+        type: q.type === 'multi' ? 'multi' : 'select',
+        options: (Array.isArray(q.options) ? q.options : String(q.options || '').split('|'))
+          .map((o) => String(o).trim()).filter(Boolean),
+        required: q.required !== false,
+      }))
 
     setSaving(true)
     try {
@@ -53,9 +75,11 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
             fee_mode: feeMode,
             registration_fee_cents: feeCents,
             per_student_fee_cents: perStudentCents,
-            payment_url: paymentUrl.trim(),
-            scheduling_url: schedulingUrl.trim(),
+            payment_url: absUrl(paymentUrl),
+            scheduling_url: absUrl(schedulingUrl),
+            stripe_secret_key: stripeKey.trim(),
             paperwork: items,
+            questions: qs,
           },
         },
       })
@@ -69,9 +93,9 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
   }
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold mb-1">Parent registration</h2>
-      <p className="text-gray-600 mb-5 text-sm">
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h2 className="text-lg font-semibold text-neutral-900 mb-1">Parent registration</h2>
+      <p className="text-sm text-neutral-500 mb-5">
         Controls the branded registration link parents use to sign up (fee, payment, paperwork, and scheduling).
       </p>
 
@@ -105,9 +129,20 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
                 : 'Every family pays the flat fee regardless of how many kids register.'}
           </p>
         </div>
+        <div className="sm:col-span-3">
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Stripe secret key (school's own Stripe account)</label>
+          <input type="password" className={field} value={stripeKey} onChange={(e) => setStripeKey(e.target.value)}
+            placeholder="rk_live_… (restricted key recommended)" autoComplete="off" />
+          <p className="text-xs text-neutral-400 mt-1">
+            With a key set, parents pay by card at checkout and the platform verifies the payment with Stripe
+            before completing registration. Funds go directly to the school's Stripe account. Create a
+            restricted key (Checkout Sessions: write) in the Stripe dashboard. Leave blank to fall back to the
+            external payment link below.
+          </p>
+        </div>
         <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-neutral-500 mb-1">Payment link (external)</label>
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Payment link (external, fallback)</label>
             <input className={field} value={paymentUrl} onChange={(e) => setPaymentUrl(e.target.value)} placeholder="https://…" />
           </div>
           <div>
@@ -122,15 +157,51 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
           <label className="text-xs font-medium text-neutral-500">Paperwork items (parent acknowledges/e-signs each)</label>
           <button onClick={addItem} className="text-sm font-medium text-optio-purple hover:underline">+ Add item</button>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {paperwork.length === 0 && <p className="text-sm text-neutral-400">No paperwork items.</p>}
           {paperwork.map((it, i) => (
-            <div key={i} className="flex flex-col sm:flex-row gap-2">
-              <input className={`${field} sm:w-1/2`} placeholder="Label (e.g. Enrollment Agreement)"
-                value={it.label} onChange={(e) => setItem(i, { label: e.target.value })} />
-              <input className={`${field} sm:flex-1`} placeholder="Document link (optional)"
-                value={it.doc_url} onChange={(e) => setItem(i, { doc_url: e.target.value })} />
-              <button onClick={() => removeItem(i)} className="text-red-500 text-sm px-2 hover:underline">Remove</button>
+            <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input className={`${field} sm:w-1/2`} placeholder="Label (e.g. Enrollment Agreement)"
+                  value={it.label} onChange={(e) => setItem(i, { label: e.target.value })} />
+                <input className={`${field} sm:flex-1`} placeholder="Document link (optional)"
+                  value={it.doc_url} onChange={(e) => setItem(i, { doc_url: e.target.value })} />
+                <button onClick={() => removeItem(i)} className="text-red-500 text-sm px-2 hover:underline">Remove</button>
+              </div>
+              <textarea rows={4} className={field}
+                placeholder="Summary text shown to the parent (optional) — supports plain text and line breaks"
+                value={it.body || ''} onChange={(e) => setItem(i, { body: e.target.value })} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-medium text-neutral-500">Registration questions (asked before paperwork)</label>
+          <button onClick={() => setQuestions((q) => [...q, { key: '', label: '', help: '', type: 'select', options: [], required: true }])}
+            className="text-sm font-medium text-optio-purple hover:underline">+ Add question</button>
+        </div>
+        <div className="space-y-3">
+          {questions.length === 0 && <p className="text-sm text-neutral-400">No questions.</p>}
+          {questions.map((q, i) => (
+            <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input className={`${field} sm:flex-1`} placeholder="Question label"
+                  value={q.label} onChange={(e) => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
+                <select className={`${field} sm:w-44`} value={q.type || 'select'}
+                  onChange={(e) => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}>
+                  <option value="select">Pick one</option>
+                  <option value="multi">Pick multiple</option>
+                </select>
+                <button onClick={() => setQuestions((qs) => qs.filter((_, j) => j !== i))}
+                  className="text-red-500 text-sm px-2 hover:underline">Remove</button>
+              </div>
+              <textarea rows={2} className={field} placeholder="Help text shown under the question (optional)"
+                value={q.help || ''} onChange={(e) => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, help: e.target.value } : x)))} />
+              <input className={field} placeholder="Options, separated by | (e.g. Yes | No | Maybe)"
+                value={Array.isArray(q.options) ? q.options.join(' | ') : (q.options || '')}
+                onChange={(e) => setQuestions((qs) => qs.map((x, j) => (j === i ? { ...x, options: e.target.value } : x)))} />
             </div>
           ))}
         </div>

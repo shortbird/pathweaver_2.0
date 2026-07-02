@@ -42,6 +42,25 @@ def is_full(capacity: Optional[int], enrolled: int) -> bool:
     return enrolled >= capacity
 
 
+def _full_name(u: Dict[str, Any]) -> str:
+    name = f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+    return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
+
+
+def _instructors_by_id(instructor_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """{user_id: {id, name, avatar_url}} for the given instructor ids."""
+    ids = [i for i in set(instructor_ids) if i]
+    if not ids:
+        return {}
+    rows = (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, username, email, avatar_url')
+        .in_('id', ids).execute()
+    ).data or []
+    return {u['id']: {'id': u['id'], 'name': _full_name(u), 'avatar_url': u.get('avatar_url')}
+            for u in rows}
+
+
 def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
     repo = _classes_repo()
     classes = repo.list_for_org(org_id, include_archived=include_archived)
@@ -53,6 +72,7 @@ def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, 
     meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
     for m in meetings:
         meetings_by_class.setdefault(m['class_id'], []).append(m)
+    instructors = _instructors_by_id([c.get('primary_instructor_id') for c in classes])
 
     out = []
     for c in classes:
@@ -64,6 +84,7 @@ def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, 
             'spots_left': spots_left(cap, enrolled),
             'is_full': is_full(cap, enrolled),
             'meetings': meetings_by_class.get(c['id'], []),
+            'primary_instructor': instructors.get(c.get('primary_instructor_id')),
         })
     return out
 
@@ -80,4 +101,67 @@ def get_class_detail(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
     cls['is_full'] = is_full(cap, enrolled)
     cls['meetings'] = repo.list_meetings(class_id)
     cls['prerequisites'] = repo.list_prerequisites(class_id)
+    cls['primary_instructor'] = _instructors_by_id(
+        [cls.get('primary_instructor_id')]).get(cls.get('primary_instructor_id'))
     return cls
+
+
+# ── Optio-course settings (org_course_settings) ──────────────────────────────
+# The "iCreate versions of Optio courses" on the Classes page are global courses,
+# so the per-org teacher lives in a per-org mapping rather than on the course
+# itself. Course tuition is ONE org-wide price for all Optio courses
+# (feature_flags.sis_settings.optio_course_tuition_cents, set in SIS Settings);
+# live-class tuition is org_classes.price_cents.
+
+def optio_course_tuition_cents(org_id: str) -> Optional[int]:
+    """The org-wide price parents are charged for any Optio course (None = free/unset)."""
+    row = (
+        _admin().table('organizations').select('feature_flags')
+        .eq('id', org_id).limit(1).execute()
+    ).data or []
+    flags = (row[0].get('feature_flags') or {}) if row else {}
+    value = (flags.get('sis_settings') or {}).get('optio_course_tuition_cents')
+    return value if isinstance(value, int) and value >= 0 else None
+
+
+def list_course_settings(org_id: str) -> Dict[str, Any]:
+    rows = (
+        _admin().table('org_course_settings')
+        .select('id, course_id, teacher_id')
+        .eq('organization_id', org_id).execute()
+    ).data or []
+    teachers = _instructors_by_id([r['teacher_id'] for r in rows if r.get('teacher_id')])
+    return {
+        'course_settings': [{
+            'course_id': r['course_id'],
+            'teacher': teachers.get(r.get('teacher_id')),
+        } for r in rows if teachers.get(r.get('teacher_id'))],
+        'optio_course_tuition_cents': optio_course_tuition_cents(org_id),
+    }
+
+
+def update_course_settings(org_id: str, course_id: str, fields: Dict[str, Any],
+                           assigned_by: str) -> Dict[str, Any]:
+    """Set (or clear, when teacher_id is falsy) the org's teacher for a course.
+    Returns {'error': ...} when the teacher isn't a member of this org."""
+    admin = _admin()
+    if 'teacher_id' not in fields:
+        return {'error': 'Nothing to update'}
+    teacher_id = fields['teacher_id'] or None
+    if not teacher_id:
+        admin.table('org_course_settings').delete() \
+            .eq('organization_id', org_id).eq('course_id', course_id).execute()
+        return {'teacher': None}
+    teacher = (
+        admin.table('users').select('id, organization_id')
+        .eq('id', teacher_id).limit(1).execute()
+    ).data
+    if not teacher or teacher[0].get('organization_id') != org_id:
+        return {'error': 'Teacher not found in this organization'}
+    admin.table('org_course_settings').upsert({
+        'organization_id': org_id,
+        'course_id': course_id,
+        'teacher_id': teacher_id,
+        'assigned_by': assigned_by,
+    }, on_conflict='organization_id,course_id').execute()
+    return {'teacher': _instructors_by_id([teacher_id]).get(teacher_id)}

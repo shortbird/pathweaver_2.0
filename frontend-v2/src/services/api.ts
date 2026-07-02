@@ -556,12 +556,33 @@ export async function uploadChildAvatar(
   return res.json().catch(() => ({}));
 }
 
+/** Attachment metadata returned by POST /api/messages/attachments and stored
+ *  on messages. `type` drives rendering (image thumbnail vs tappable chip). */
+export interface MessageAttachment {
+  url: string;
+  type: 'image' | 'video' | 'audio' | 'file';
+  name: string;
+  size: number;
+}
+
+export interface SendMessageExtras {
+  reply_to_message_id?: string;
+  attachments?: MessageAttachment[];
+}
+
 export const messageAPI = {
   conversations: () => api.get('/api/messages/conversations'),
   messages: (conversationId: string, limit = 50, offset = 0) =>
     api.get(`/api/messages/conversations/${conversationId}`, { params: { limit, offset } }),
-  send: (targetUserId: string, content: string) =>
-    api.post(`/api/messages/conversations/${targetUserId}/send`, { content }),
+  send: (targetUserId: string, content: string, extras: SendMessageExtras = {}) =>
+    api.post(`/api/messages/conversations/${targetUserId}/send`, { content, ...extras }),
+  // Messaging overhaul: reactions, edit, delete (soft) on DMs.
+  toggleReaction: (messageId: string, emoji: string) =>
+    api.post(`/api/messages/${messageId}/reactions`, { emoji }),
+  editMessage: (messageId: string, content: string) =>
+    api.patch(`/api/messages/${messageId}`, { content }),
+  deleteMessage: (messageId: string) =>
+    api.delete(`/api/messages/${messageId}`),
   markRead: (messageId: string) =>
     api.put(`/api/messages/${messageId}/read`, {}),
   unreadCount: () => api.get('/api/messages/unread-count'),
@@ -593,12 +614,74 @@ export const groupAPI = {
     api.post(`/api/groups/${groupId}/leave`, {}),
   messages: (groupId: string, limit = 50, offset = 0) =>
     api.get(`/api/groups/${groupId}/messages`, { params: { limit, offset } }),
-  sendMessage: (groupId: string, content: string) =>
-    api.post(`/api/groups/${groupId}/messages`, { content }),
+  sendMessage: (groupId: string, content: string, extras: SendMessageExtras = {}) =>
+    api.post(`/api/groups/${groupId}/messages`, { content, ...extras }),
+  // Messaging overhaul: reactions, edit/delete, pin, announcement-only.
+  toggleReaction: (groupId: string, messageId: string, emoji: string) =>
+    api.post(`/api/groups/${groupId}/messages/${messageId}/reactions`, { emoji }),
+  editMessage: (groupId: string, messageId: string, content: string) =>
+    api.patch(`/api/groups/${groupId}/messages/${messageId}`, { content }),
+  deleteMessage: (groupId: string, messageId: string) =>
+    api.delete(`/api/groups/${groupId}/messages/${messageId}`),
+  pin: (groupId: string, messageId: string | null) =>
+    api.post(`/api/groups/${groupId}/pin`, { message_id: messageId }),
+  updateSettings: (groupId: string, settings: { announcement_only: boolean }) =>
+    api.patch(`/api/groups/${groupId}/settings`, settings),
   markRead: (groupId: string) =>
     api.post(`/api/groups/${groupId}/read`, {}),
   availableMembers: (groupId: string) =>
     api.get(`/api/groups/${groupId}/available-members`),
 };
+
+/**
+ * Upload a message attachment (photo/video from the library) to
+ * POST /api/messages/attachments and get back `{url, type, name, size}` for
+ * inclusion in a send call.
+ *
+ * Same raw-fetch pattern as uploadChildAvatar: axios mangles RN multipart
+ * bodies, so we attach the Bearer token manually, let fetch set the multipart
+ * boundary, and refresh-and-retry once on 401.
+ */
+export async function uploadMessageAttachment(
+  file: { uri: string; name: string; type: string },
+): Promise<MessageAttachment> {
+  // Fresh FormData per attempt — RN consumes the multipart body on send.
+  const buildForm = async () => {
+    const form = new FormData();
+    if (Platform.OS === 'web') {
+      // Web (dev/preview): the picker returns a blob/data URL, not a file path.
+      const blob = await (await fetch(file.uri)).blob();
+      form.append('file', blob, file.name);
+    } else {
+      // React Native FormData accepts the { uri, name, type } file shape.
+      form.append('file', file as unknown as Blob);
+    }
+    return form;
+  };
+  const doFetch = async (token: string | null) =>
+    fetch(`${API_URL}/api/messages/attachments`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: await buildForm(),
+      credentials: Platform.OS === 'web' ? 'include' : 'omit',
+    });
+
+  let res = await doFetch(tokenStore.getAccessToken());
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) res = await doFetch(refreshed);
+  }
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(
+      body?.error || body?.message || `Attachment upload failed (${res.status})`,
+    ) as Error & { response?: { status: number; data?: any } };
+    err.response = { status: res.status, data: body };
+    throw err;
+  }
+  const d = body?.data || body;
+  return d.attachment as MessageAttachment;
+}
 
 export default api;

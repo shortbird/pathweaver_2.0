@@ -82,8 +82,15 @@ def init_csrf(app):
         # iCreate parent registration funnel: public, pre-session endpoints. The
         # register call creates the accounts; the follow-up steps are gated by an
         # opaque per-registration access_token, so there is no CSRF cookie yet.
-        'icreate_registration.register',
+        'icreate_registration.start',
+        'icreate_registration.verify_code',
+        'icreate_registration.resend_code',
+        'icreate_registration.login',
+        'icreate_registration.submit_family',
+        'icreate_registration.submit_details',
         'icreate_registration.submit_paperwork',
+        'icreate_registration.create_checkout',
+        'icreate_registration.confirm_payment',
         'icreate_registration.record_fee',
     ]
 

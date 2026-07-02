@@ -85,6 +85,92 @@ def org_staff(user_id):
     return jsonify({'success': True, 'staff': sis_service.list_org_staff(org_id)})
 
 
+@bp.route('/staff', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def create_teacher(user_id):
+    """Add a teacher (advisor) to the org: creates the account + sends the
+    set-password email. Accepts first_name, last_name, email, bio."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = sis_service.create_org_teacher(org_id, request.get_json() or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/staff/<staff_id>', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def update_staff(user_id, staff_id):
+    """Edit a staff member's profile (name, email, bio)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    updated = sis_service.update_staff_member(org_id, staff_id, request.get_json() or {})
+    if updated is None:
+        return jsonify({'success': False, 'error': 'Staff member not found'}), 404
+    return jsonify({'success': True, 'staff': updated})
+
+
+@bp.route('/staff/<staff_id>/photo', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def upload_staff_photo(user_id, staff_id):
+    """Upload (or replace) a staff member's photo. Stores avatar_url on the user."""
+    import uuid as _uuid
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    row = (
+        supabase.table('users').select('id, organization_id, avatar_url')
+        .eq('id', staff_id).limit(1).execute()
+    ).data
+    if not row or row[0].get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Staff member not found'}), 404
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'):
+        return jsonify({'success': False, 'error': 'Invalid file type'}), 400
+    file.seek(0, 2)
+    if file.tell() > 5 * 1024 * 1024:
+        return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
+    file.seek(0)
+
+    bucket = 'staff-photos'
+    try:
+        if not supabase.storage.get_bucket(bucket):
+            supabase.storage.create_bucket(bucket, options={'public': True})
+    except Exception:
+        try:
+            supabase.storage.create_bucket(bucket, options={'public': True})
+        except Exception:
+            pass
+    path = f"{staff_id}/{_uuid.uuid4().hex}.{ext}"
+    old = row[0].get('avatar_url')
+    if old and f'{bucket}/' in old:
+        try:
+            supabase.storage.from_(bucket).remove([old.split(f'{bucket}/')[-1]])
+        except Exception:
+            pass
+    try:
+        supabase.storage.from_(bucket).upload(
+            path=path, file=file.read(),
+            file_options={'content-type': file.content_type or f'image/{ext}'},
+        )
+        avatar_url = supabase.storage.from_(bucket).get_public_url(path)
+    except Exception as e:
+        logger.error(f"Error uploading staff photo: {e}")
+        return jsonify({'success': False, 'error': 'Failed to upload photo'}), 500
+
+    supabase.table('users').update({'avatar_url': avatar_url}).eq('id', staff_id).execute()
+    return jsonify({'success': True, 'avatar_url': avatar_url})
+
+
 # ── Households ───────────────────────────────────────────────────────────────
 @bp.route('/households', methods=['GET'])
 @require_role(*STAFF_ROLES)
@@ -405,6 +491,17 @@ def list_household_contacts(user_id, household_id):
     if err:
         return err
     return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
+
+
+@bp.route('/households/<household_id>/registration', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def get_household_registration(user_id, household_id):
+    """Latest iCreate registration submitted by this household's guardians
+    (answers, signatures, kids, fee). registration is null when none exists."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'registration': sis_service.household_registration(org_id, household_id)})
 
 
 @bp.route('/households/<household_id>/emergency-contacts', methods=['POST'])

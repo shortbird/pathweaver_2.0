@@ -62,7 +62,9 @@ export function HomeBountyCard({ claim }: HomeBountyCardProps) {
               </UIText>
               <View className="w-1 h-1 rounded-full bg-typo-300 dark:bg-dark-typo-300" />
               <Ionicons name={reward.icon as any} size={11} color={reward.color} />
-              <UIText size="xs" style={{ color: reward.color }} className="font-poppins-medium">
+              {/* flexShrink + numberOfLines so a long custom-reward text
+                  truncates instead of overflowing the header row. */}
+              <UIText size="xs" style={{ color: reward.color, flexShrink: 1 }} className="font-poppins-medium" numberOfLines={1}>
                 {reward.text}
               </UIText>
             </HStack>

@@ -90,11 +90,16 @@ def get_enrollable_users(current_user_id, current_org_id, is_superadmin, course_
         per_page = int(request.args.get('per_page', 25))
         role = request.args.get('role')
 
+        # Org scoping: org_admins always get their own org's users. A superadmin
+        # acting inside an org console (e.g. SIS) passes organization_id to see
+        # that org's students instead of the whole platform.
+        scope_org_id = request.args.get('organization_id') if is_superadmin else current_org_id
+
         service = CourseEnrollmentService(client)
         result = service.get_enrollable_users(
             course_id=course_id,
-            organization_id=current_org_id,
-            is_superadmin=is_superadmin,
+            organization_id=scope_org_id,
+            is_superadmin=is_superadmin and not scope_org_id,
             page=page,
             per_page=per_page,
             search=search if search else None,
@@ -187,13 +192,15 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
         if len(user_ids) > 50:
             return jsonify({'error': 'Maximum 50 users per bulk enrollment'}), 400
 
-        # Verify all users belong to the correct pool
-        if not is_superadmin:
-            # Org admin: verify users are in their organization
+        # Verify all users belong to the correct pool. Org_admins are always
+        # scoped to their org; a superadmin acting inside an org console (e.g.
+        # SIS) passes organization_id to get the same scoping.
+        scope_org_id = data.get('organization_id') if is_superadmin else current_org_id
+        if scope_org_id:
             users_result = client.table('users')\
                 .select('id')\
                 .in_('id', user_ids)\
-                .eq('organization_id', current_org_id)\
+                .eq('organization_id', scope_org_id)\
                 .execute()
 
             valid_user_ids = set(u['id'] for u in (users_result.data or []))
@@ -201,11 +208,11 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
 
             if invalid_users:
                 return jsonify({
-                    'error': f'{len(invalid_users)} users are not in your organization',
+                    'error': f'{len(invalid_users)} users are not in this organization',
                     'invalid_user_ids': invalid_users
                 }), 400
         else:
-            # Superadmin: can enroll any non-superadmin user
+            # Superadmin, platform-wide: can enroll any non-superadmin user
             users_result = client.table('users')\
                 .select('id')\
                 .in_('id', user_ids)\
@@ -339,13 +346,19 @@ def get_course_enrollments(current_user_id, current_org_id, is_superadmin, cours
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 25))
 
+        # Org scoping: org_admins only see their own org's enrollees (shared
+        # Optio courses have cross-org enrollments); superadmins see everyone
+        # unless they pass organization_id to act within one org's console.
+        scope_org_id = request.args.get('organization_id') if is_superadmin else current_org_id
+
         service = CourseEnrollmentService(client)
         result = service.get_enrollments_with_progress(
             course_id=course_id,
             page=page,
             per_page=per_page,
             search=search if search else None,
-            status=status
+            status=status,
+            organization_id=scope_org_id
         )
 
         # Add course info to response
@@ -433,6 +446,23 @@ def bulk_unenroll_users(current_user_id, current_org_id, is_superadmin, course_i
         user_ids = data.get('user_ids', [])
         if not user_ids:
             return jsonify({'error': 'user_ids is required'}), 400
+
+        # Same org scoping as bulk-enroll: never touch another org's students
+        # on a shared Optio course.
+        scope_org_id = data.get('organization_id') if is_superadmin else current_org_id
+        if scope_org_id:
+            org_users = client.table('users')\
+                .select('id')\
+                .in_('id', user_ids)\
+                .eq('organization_id', scope_org_id)\
+                .execute()
+            valid_user_ids = set(u['id'] for u in (org_users.data or []))
+            invalid_users = [uid for uid in user_ids if uid not in valid_user_ids]
+            if invalid_users:
+                return jsonify({
+                    'error': f'{len(invalid_users)} users are not in this organization',
+                    'invalid_user_ids': invalid_users
+                }), 400
 
         # Verify users are actually enrolled before unenrolling
         enrolled_result = client.table('course_enrollments')\

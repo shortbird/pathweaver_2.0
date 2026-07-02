@@ -285,18 +285,16 @@ class DirectMessageService(BaseService):
 
     # ==================== Message Operations ====================
 
-    def send_message(self, sender_id: str, recipient_id: str, content: str) -> Dict[str, Any]:
+    def send_message(self, sender_id: str, recipient_id: str, content: str,
+                     reply_to_message_id: str = None, attachments: list = None) -> Dict[str, Any]:
         """
-        Send a message from one user to another
-
-        Args:
-            sender_id: UUID of the sender
-            recipient_id: UUID of the recipient
-            content: Message content
+        Send a message from one user to another. Supports replying to a message
+        and attachments ([{url, type, name, size}], pre-uploaded).
 
         Returns:
-            Created message record
+            Created message record (enriched with reply preview)
         """
+        from services import messaging_extras_service as extras
         try:
             # Verify permission
             if not self.can_message_user(sender_id, recipient_id):
@@ -307,6 +305,13 @@ class DirectMessageService(BaseService):
 
             supabase = self._get_client()
 
+            clean_atts = extras.clean_attachments(attachments)
+            if reply_to_message_id:
+                target = supabase.table('direct_messages').select('id, conversation_id').eq(
+                    'id', reply_to_message_id).limit(1).execute()
+                if not target.data or target.data[0]['conversation_id'] != conversation['id']:
+                    reply_to_message_id = None
+
             # Create message
             message = {
                 'id': str(uuid.uuid4()),
@@ -314,6 +319,8 @@ class DirectMessageService(BaseService):
                 'sender_id': sender_id,
                 'recipient_id': recipient_id,
                 'message_content': content,
+                'reply_to_message_id': reply_to_message_id,
+                'attachments': clean_atts,
                 'read_at': None,
                 'created_at': datetime.utcnow().isoformat()
             }
@@ -325,13 +332,17 @@ class DirectMessageService(BaseService):
                 conversation['id'],
                 sender_id,
                 recipient_id,
-                content[:100]
+                (content or 'Sent an attachment')[:100]
             )
 
             # Send notification to recipient
-            self._notify_recipient(sender_id, recipient_id, content)
+            self._notify_recipient(sender_id, recipient_id, content or 'Sent an attachment')
 
-            return result.data[0]
+            row = result.data[0]
+            enriched = extras.enrich_messages('dm', [row], sender_id)[0]
+            # Instant delivery to whoever has this conversation open.
+            extras.broadcast_dm(conversation['id'], 'message', enriched)
+            return enriched
 
         except Exception as e:
             print(f"Error sending message: {str(e)}", file=sys.stderr, flush=True)
@@ -430,7 +441,8 @@ class DirectMessageService(BaseService):
                 'conversation_id', actual_conversation_id
             ).order('created_at', desc=False).range(offset, offset + limit - 1).execute()
 
-            return messages.data if messages.data else []
+            from services import messaging_extras_service as extras
+            return extras.enrich_messages('dm', messages.data or [], user_id)
 
         except Exception as e:
             print(f"Error getting conversation messages: {str(e)}", file=sys.stderr, flush=True)

@@ -84,10 +84,13 @@ export function BountyCard({
                 </View>
               )}
             </HStack>
+            {/* Cap the reward side so a long custom-reward text can't crush the
+                pillar badge into a vertical sliver; flexShrink lets the text
+                actually truncate inside the row. */}
             {(() => { const r = rewardLabel(bounty); return (
-              <HStack className="items-center gap-1">
+              <HStack className="items-center gap-1" style={{ maxWidth: '55%', flexShrink: 1 }}>
                 <Ionicons name={r.icon as any} size={14} color={r.color} />
-                <UIText size="sm" className="font-poppins-bold" style={{ color: r.color }} numberOfLines={1}>{r.text}</UIText>
+                <UIText size="sm" className="font-poppins-bold" style={{ color: r.color, flexShrink: 1 }} numberOfLines={1}>{r.text}</UIText>
               </HStack>
             ); })()}
           </HStack>

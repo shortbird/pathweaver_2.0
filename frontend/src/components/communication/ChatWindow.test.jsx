@@ -9,8 +9,17 @@ vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1
 vi.mock('../../hooks/api/useDirectMessages', () => ({
   useConversationMessages: () => messagesState,
   useSendMessage: () => ({ mutateAsync: sendMutate, isPending: false }),
-  useMarkAsRead: () => ({ mutate: vi.fn() })
+  useMarkAsRead: () => ({ mutate: vi.fn() }),
+  useToggleMessageReaction: () => ({ mutate: vi.fn() }),
+  useEditMessage: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteMessage: () => ({ mutate: vi.fn() })
 }))
+vi.mock('../../hooks/api/useMessagingRealtime', () => ({
+  default: vi.fn(),
+  useMessagingRealtime: vi.fn()
+}))
+vi.mock('../../services/api', () => ({ default: { post: vi.fn() } }))
+vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }))
 
 const advisor = { id: 'c1', type: 'advisor', other_user: { id: 'a1', first_name: 'Ada', last_name: 'Lovelace' } }
 const support = { id: 'sup', type: 'support', other_user: { id: 'sup', display_name: 'Optio Support' } }

@@ -158,19 +158,20 @@ export const useLeaveGroup = () => {
   })
 }
 
-// Send message to group
+// Send message to group (supports replies and attachments)
 export const useSendGroupMessage = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupId, content, currentUserId }) => {
-      const response = await api.post(`/api/groups/${groupId}/messages`, {
-        content
-      })
+    mutationFn: async ({ groupId, content, replyToMessageId, attachments }) => {
+      const body = { content }
+      if (replyToMessageId) body.reply_to_message_id = replyToMessageId
+      if (attachments?.length) body.attachments = attachments
+      const response = await api.post(`/api/groups/${groupId}/messages`, body)
       return response.data.data || response.data
     },
     // Optimistic update - show message immediately
-    onMutate: async ({ groupId, content, currentUserId }) => {
+    onMutate: async ({ groupId, content, currentUserId, attachments, replyToPreview }) => {
       await queryClient.cancelQueries({ queryKey: ['group-messages', groupId] })
 
       const previousMessages = queryClient.getQueryData(['group-messages', groupId])
@@ -182,6 +183,10 @@ export const useSendGroupMessage = () => {
         message_content: content,
         created_at: new Date().toISOString(),
         is_deleted: false,
+        reactions: [],
+        attachments: attachments || [],
+        reply_to: replyToPreview || null,
+        edited_at: null,
         isOptimistic: true,
         sender: {
           id: currentUserId,
@@ -213,6 +218,132 @@ export const useSendGroupMessage = () => {
           context.previousMessages
         )
       }
+    }
+  })
+}
+
+// Toggle a reaction on a group message. Returns { added, reactions }.
+export const useToggleGroupMessageReaction = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ groupId, messageId, emoji }) => {
+      const response = await api.post(`/api/groups/${groupId}/messages/${messageId}/reactions`, { emoji })
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { groupId, messageId }) => {
+      if (!data?.reactions) return
+      queryClient.setQueryData(['group-messages', groupId], (old) => {
+        if (!old?.messages) return old
+        return {
+          ...old,
+          messages: old.messages.map((m) =>
+            m.id === messageId ? { ...m, reactions: data.reactions } : m
+          )
+        }
+      })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to update reaction')
+    }
+  })
+}
+
+// Edit own group message
+export const useEditGroupMessage = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ groupId, messageId, content }) => {
+      const response = await api.patch(`/api/groups/${groupId}/messages/${messageId}`, { content })
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { groupId, messageId, content }) => {
+      queryClient.setQueryData(['group-messages', groupId], (old) => {
+        if (!old?.messages) return old
+        return {
+          ...old,
+          messages: old.messages.map((m) =>
+            m.id === messageId
+              ? { ...m, message_content: content, edited_at: data?.edited_at || new Date().toISOString() }
+              : m
+          )
+        }
+      })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to edit message')
+    }
+  })
+}
+
+// Delete a group message (own message, or any message for group admins)
+export const useDeleteGroupMessage = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ groupId, messageId }) => {
+      const response = await api.delete(`/api/groups/${groupId}/messages/${messageId}`)
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { groupId, messageId }) => {
+      queryClient.setQueryData(['group-messages', groupId], (old) => {
+        if (!old?.messages) return old
+        return {
+          ...old,
+          messages: old.messages.map((m) =>
+            m.id === messageId
+              ? { ...m, is_deleted: true, message_content: '', attachments: [], reactions: [] }
+              : m
+          )
+        }
+      })
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to delete message')
+    }
+  })
+}
+
+// Pin (or unpin with messageId=null) a group message - group admins only
+export const usePinGroupMessage = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ groupId, messageId }) => {
+      const response = await api.post(`/api/groups/${groupId}/pin`, { message_id: messageId })
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { groupId }) => {
+      queryClient.invalidateQueries({ queryKey: ['group', groupId] })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to update pinned message')
+    }
+  })
+}
+
+// Update group settings (announcement-only) - group admins only
+export const useUpdateGroupSettings = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ groupId, announcementOnly }) => {
+      const response = await api.patch(`/api/groups/${groupId}/settings`, {
+        announcement_only: announcementOnly
+      })
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { groupId, announcementOnly }) => {
+      queryClient.setQueryData(['group', groupId], (old) => {
+        if (!old) return old
+        if (old.group) return { ...old, group: { ...old.group, announcement_only: announcementOnly } }
+        return { ...old, announcement_only: announcementOnly }
+      })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to update group settings')
     }
   })
 }

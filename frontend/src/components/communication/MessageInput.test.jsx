@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import MessageInput from './MessageInput'
 
+vi.mock('../../services/api', () => ({ default: { post: vi.fn() } }))
+vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }))
+
 describe('MessageInput', () => {
   it('sends on Enter and clears the input', () => {
     const onSend = vi.fn()
@@ -9,7 +12,7 @@ describe('MessageInput', () => {
     const input = screen.getByPlaceholderText('Type a message...')
     fireEvent.change(input, { target: { value: 'hi' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(onSend).toHaveBeenCalledWith('hi')
+    expect(onSend).toHaveBeenCalledWith('hi', { attachments: [], replyToMessageId: null })
     expect(input.value).toBe('')
   })
 

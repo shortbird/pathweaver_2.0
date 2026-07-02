@@ -34,19 +34,20 @@ export const useConversationMessages = (conversationId, userId, options = {}) =>
   })
 }
 
-// Send a message
+// Send a message (supports replies and attachments)
 export const useSendMessage = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ targetUserId, content, currentUserId }) => {
-      const response = await api.post(`/api/messages/conversations/${targetUserId}/send`, {
-        content
-      })
+    mutationFn: async ({ targetUserId, content, replyToMessageId, attachments }) => {
+      const body = { content }
+      if (replyToMessageId) body.reply_to_message_id = replyToMessageId
+      if (attachments?.length) body.attachments = attachments
+      const response = await api.post(`/api/messages/conversations/${targetUserId}/send`, body)
       return response.data.data || response.data
     },
     // Optimistic update - show message immediately
-    onMutate: async ({ targetUserId, content, currentUserId }) => {
+    onMutate: async ({ targetUserId, content, currentUserId, attachments, replyToPreview }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['conversation-messages', targetUserId] })
 
@@ -61,6 +62,11 @@ export const useSendMessage = () => {
         message_content: content,
         created_at: new Date().toISOString(),
         read_at: null,
+        reactions: [],
+        attachments: attachments || [],
+        reply_to: replyToPreview || null,
+        edited_at: null,
+        is_deleted: false,
         isOptimistic: true // Flag to identify optimistic messages
       }
 
@@ -98,6 +104,91 @@ export const useSendMessage = () => {
           context.previousMessages
         )
       }
+    }
+  })
+}
+
+// Toggle a reaction on a DM. Backend returns { added, reactions } where
+// reactions is the full up-to-date list for the message.
+export const useToggleMessageReaction = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId, emoji }) => {
+      const response = await api.post(`/api/messages/${messageId}/reactions`, { emoji })
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { conversationId, messageId }) => {
+      if (!data?.reactions) return
+      queryClient.setQueryData(['conversation-messages', conversationId], (old) => {
+        if (!old?.messages) return old
+        return {
+          ...old,
+          messages: old.messages.map((m) =>
+            m.id === messageId ? { ...m, reactions: data.reactions } : m
+          )
+        }
+      })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to update reaction')
+    }
+  })
+}
+
+// Edit own DM
+export const useEditMessage = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId, content }) => {
+      const response = await api.patch(`/api/messages/${messageId}`, { content })
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { conversationId, messageId, content }) => {
+      queryClient.setQueryData(['conversation-messages', conversationId], (old) => {
+        if (!old?.messages) return old
+        return {
+          ...old,
+          messages: old.messages.map((m) =>
+            m.id === messageId
+              ? { ...m, message_content: content, edited_at: data?.edited_at || new Date().toISOString() }
+              : m
+          )
+        }
+      })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to edit message')
+    }
+  })
+}
+
+// Delete own DM (renders as a tombstone)
+export const useDeleteMessage = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId }) => {
+      const response = await api.delete(`/api/messages/${messageId}`)
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { conversationId, messageId }) => {
+      queryClient.setQueryData(['conversation-messages', conversationId], (old) => {
+        if (!old?.messages) return old
+        return {
+          ...old,
+          messages: old.messages.map((m) =>
+            m.id === messageId
+              ? { ...m, is_deleted: true, message_content: '', attachments: [], reactions: [] }
+              : m
+          )
+        }
+      })
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to delete message')
     }
   })
 }

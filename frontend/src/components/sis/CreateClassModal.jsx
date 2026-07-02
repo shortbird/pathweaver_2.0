@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react'
 import { XMarkIcon, AcademicCapIcon, PhotoIcon } from '@heroicons/react/24/outline'
 import { ModalOverlay } from '../ui'
+import SearchSelect from '../ui/SearchSelect'
 
 /**
  * CreateClassModal — create or edit a SIS class.
  *
- * Collects: name, description, image, meeting days (Mon-Fri), start time, duration
- * (minutes), capacity (max students), optional supply fee, and an age range.
+ * Collects: name, description, image, teacher (from the org's staff), meeting days
+ * (Mon-Fri), start time, duration (minutes), capacity (max students), optional
+ * supply fee, and an age range.
  *
  * onSubmit(payload, imageFile) is called by the caller, which creates/updates the
  * class, reconciles its meetings, and uploads the image (needs the class id).
  *
  * Pass `initial` (a hydrated class incl. `meetings`) to edit an existing class.
+ * Pass `staff` (rows from /api/sis/staff) to enable the teacher picker.
  */
 
 const DAY_OPTIONS = [
@@ -50,17 +53,19 @@ const meetingsToForm = (meetings = []) => {
   }
 }
 
-export default function CreateClassModal({ onClose, onSubmit, initial = null }) {
+export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], embedded = false }) {
   const isEdit = Boolean(initial)
   const seed = initial ? meetingsToForm(initial.meetings) : null
 
   const [formData, setFormData] = useState({
     name: initial?.name || '',
     description: initial?.description || '',
+    primary_instructor_id: initial?.primary_instructor_id || '',
     days_of_week: seed?.days_of_week || [],
     start_time: seed?.start_time || '',
     duration_minutes: seed?.duration_minutes || '',
     max_students: initial?.capacity != null ? String(initial.capacity) : '',
+    tuition: initial?.price_cents != null ? String(initial.price_cents / 100) : '',
     supply_fee: initial?.supply_fee != null ? String(initial.supply_fee) : '',
     age_min: initial?.min_age != null ? String(initial.min_age) : '',
     age_max: initial?.max_age != null ? String(initial.max_age) : '',
@@ -130,10 +135,12 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null }) 
     const payload = {
       name: formData.name.trim(),
       description: formData.description,
+      primary_instructor_id: formData.primary_instructor_id || null,
       days_of_week: dow,                          // SIS day_of_week ints (0=Sun..6=Sat)
       start_time: formData.start_time || undefined,
       duration_minutes: numOrUndef(formData.duration_minutes),
       capacity: numOrUndef(formData.max_students),
+      price_cents: formData.tuition === '' ? null : Math.round(Number(formData.tuition) * 100),
       supply_fee: numOrUndef(formData.supply_fee),
       min_age: ageMin,
       max_age: ageMax,
@@ -147,29 +154,11 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null }) 
     }
   }
 
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
-              <AcademicCapIcon className="w-6 h-6 text-white" />
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Class' : 'Create Class'}</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
-          <div className="p-4 space-y-4 overflow-y-auto">
+  // Embedded mode renders just the form (fields + Save) inside a host modal —
+  // same pattern as CourseEnrollmentManager's embedded mode.
+  const form = (
+        <form onSubmit={handleSubmit} className={embedded ? '' : 'flex flex-col min-h-0 flex-1'}>
+          <div className={embedded ? 'space-y-4' : 'p-4 space-y-4 overflow-y-auto'}>
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                 Class Name <span className="text-red-500">*</span>
@@ -209,6 +198,21 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null }) 
               <input id="class-image" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
             </div>
 
+            {/* Teacher */}
+            {staff.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teacher</label>
+                <SearchSelect
+                  value={formData.primary_instructor_id}
+                  onChange={(id) => setFormData((prev) => ({ ...prev, primary_instructor_id: id }))}
+                  options={staff}
+                  getId={(s) => s.id}
+                  getLabel={(s) => s.name}
+                  placeholder="Search staff…"
+                />
+              </div>
+            )}
+
             {/* Days of week */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Days Offered</label>
@@ -242,17 +246,23 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null }) 
               </div>
             </div>
 
-            {/* Max students + Supply fee */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Max students + Tuition + Supply fee */}
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label htmlFor="max_students" className="block text-sm font-medium text-gray-700 mb-1">Max Students</label>
                 <input type="number" id="max_students" name="max_students" value={formData.max_students}
                   onChange={handleChange} min={1} placeholder="12" className={inputClass} />
               </div>
               <div>
-                <label htmlFor="supply_fee" className="block text-sm font-medium text-gray-700 mb-1">
-                  Supply Fee <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
+                <label htmlFor="tuition" className="block text-sm font-medium text-gray-700 mb-1">Tuition</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <input type="number" id="tuition" name="tuition" value={formData.tuition}
+                    onChange={handleChange} min={0} step="0.01" placeholder="0.00" className={`${inputClass} pl-7`} />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="supply_fee" className="block text-sm font-medium text-gray-700 mb-1">Supply Fee</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <input type="number" id="supply_fee" name="supply_fee" value={formData.supply_fee}
@@ -277,17 +287,45 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null }) 
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 shrink-0">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-              Cancel
-            </button>
+          <div className={embedded
+            ? 'flex items-center justify-end gap-3 pt-4 mt-2 border-t border-gray-100'
+            : 'flex items-center justify-end gap-3 p-4 border-t border-gray-200 shrink-0'}>
+            {!embedded && (
+              <button type="button" onClick={onClose}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                Cancel
+              </button>
+            )}
             <button type="submit" disabled={submitting || !formData.name.trim()}
               className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
               {submitting ? 'Saving...' : isEdit ? 'Save changes' : 'Create Class'}
             </button>
           </div>
         </form>
+  )
+
+  if (embedded) return form
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+              <AcademicCapIcon className="w-6 h-6 text-white" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Class' : 'Create Class'}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+        {form}
       </div>
     </ModalOverlay>
   )

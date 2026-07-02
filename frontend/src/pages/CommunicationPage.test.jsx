@@ -102,9 +102,9 @@ describe('CommunicationPage', () => {
       expect(screen.getByTestId('chat-window')).toBeInTheDocument()
     })
 
-    it('renders push notification banner', () => {
+    it('does not render the push notification banner (removed 2026-07-01)', () => {
       renderCommunication()
-      expect(screen.getByTestId('push-banner')).toBeInTheDocument()
+      expect(screen.queryByTestId('push-banner')).not.toBeInTheDocument()
     })
 
     it('renders create group button in conversation list', () => {

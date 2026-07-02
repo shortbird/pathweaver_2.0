@@ -168,3 +168,92 @@ def cancel_absence(user_id, absence_id):
         code = 404 if result['error'] == 'Absence not found' else 403
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True})
+
+
+# ── Schedule builder: add/drop/waitlist until the first day of school ─────────
+@bp.route('/students/<student_id>/schedule', methods=['GET'])
+@require_auth
+def student_schedule(user_id, student_id):
+    """The student's current schedule (active classes + waitlist) plus whether
+    self-service changes are still open (locks on the first day of school)."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.student_schedule(user_id, org_id, student_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 403
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/students/<student_id>/classes', methods=['POST'])
+@require_auth
+def add_student_class(user_id, student_id):
+    """Add a class to the student's schedule: enrolls if there's a seat, joins
+    the waitlist when full (and allowed)."""
+    data = request.json or {}
+    org_id = _org(request)
+    class_id = data.get('class_id')
+    if not org_id or not class_id:
+        return jsonify({'success': False, 'error': 'organization_id and class_id are required'}), 400
+    result = parent.add_class(user_id, org_id, student_id, class_id)
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/students/<student_id>/classes/<class_id>', methods=['DELETE'])
+@require_auth
+def drop_student_class(user_id, student_id, class_id):
+    """Drop a class from the student's schedule (and/or leave its waitlist)."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.drop_class(user_id, org_id, student_id, class_id)
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+# ── At-home learning: Optio courses (untimed) in the Schedule Builder ─────────
+@bp.route('/courses', methods=['GET'])
+@require_auth
+def home_learning_courses(user_id):
+    """Optio courses a family can add for at-home learning (empty when the org
+    has the Optio-courses toggle off)."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    courses = parent.home_learning_courses(user_id, org_id)
+    if courses is None:
+        return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
+    return jsonify({'success': True, 'courses': courses})
+
+
+@bp.route('/students/<student_id>/courses', methods=['POST'])
+@require_auth
+def add_student_course(user_id, student_id):
+    data = request.json or {}
+    org_id = _org(request)
+    course_id = data.get('course_id')
+    if not org_id or not course_id:
+        return jsonify({'success': False, 'error': 'organization_id and course_id are required'}), 400
+    result = parent.add_course(user_id, org_id, student_id, course_id)
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/students/<student_id>/courses/<course_id>', methods=['DELETE'])
+@require_auth
+def drop_student_course(user_id, student_id, course_id):
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.drop_course(user_id, org_id, student_id, course_id)
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})

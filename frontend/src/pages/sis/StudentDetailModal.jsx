@@ -29,10 +29,14 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
     role: student.role || (isStudent ? 'student' : ''),
     first_name: student.first_name || '',
     last_name: student.last_name || '',
+    preferred_name: student.preferred_name || '',
+    gender: student.gender || '',
     email: student.email || '',
     date_of_birth: student.date_of_birth || '',
     status: student.enrollment_status === 'unassigned' ? 'enrolled' : student.enrollment_status,
     grade_level: student.grade_level || '',
+    allergies: student.allergies || '',
+    medications: student.medications || '',
   })
   const [saving, setSaving] = useState(false)
   const setField = (k, v) => setForm((p) => ({ ...p, [k]: v }))
@@ -42,6 +46,8 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
     try {
       const reqs = [api.patch(`/api/sis/students/${student.student_id}`, {
         first_name: form.first_name, last_name: form.last_name,
+        preferred_name: form.preferred_name || null, gender: form.gender || null,
+        allergies: form.allergies || null, medications: form.medications || null,
         email: form.email || null, date_of_birth: form.date_of_birth || null, organization_id: orgId,
       })]
       if (form.role) {
@@ -143,6 +149,30 @@ const ProfileFields = ({ form, set, isStudent }) => (
         <RoleField form={form} set={set} />
       </div>
     )}
+    {isStudent && (
+      <>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs text-neutral-500">Preferred name
+            <input value={form.preferred_name} onChange={(e) => set('preferred_name', e.target.value)} className={field} placeholder="If different" />
+          </label>
+          <label className="text-xs text-neutral-500">Gender
+            <select value={form.gender || ''} onChange={(e) => set('gender', e.target.value)} className={field}>
+              <option value="">—</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs text-neutral-500">Allergies
+            <textarea rows={2} value={form.allergies} onChange={(e) => set('allergies', e.target.value)} className={`${field} resize-none`} placeholder="None" />
+          </label>
+          <label className="text-xs text-neutral-500">Medications
+            <textarea rows={2} value={form.medications} onChange={(e) => set('medications', e.target.value)} className={`${field} resize-none`} placeholder="None" />
+          </label>
+        </div>
+      </>
+    )}
     <p className="text-xs text-neutral-400 -mt-1">Changing the email updates the user's login.</p>
   </section>
 )
@@ -230,7 +260,8 @@ const FamilySection = ({ student, orgId, onSaved }) => {
 const ContactsSection = ({ student, orgId }) => {
   const [contacts, setContacts] = useState([])
   const [adding, setAdding] = useState(false)
-  const [nc, setNc] = useState({ name: '', relationship: '', phone: '', email: '' })
+  const emptyContact = { name: '', relationship: '', phone: '', email: '' }
+  const [nc, setNc] = useState(emptyContact)
 
   const reload = useCallback(() => {
     api.get(`/api/sis/students/${student.student_id}/emergency-contacts`)
@@ -255,7 +286,7 @@ const ContactsSection = ({ student, orgId }) => {
     try {
       const r = await api.post(`/api/sis/students/${student.student_id}/emergency-contacts`, { ...nc, organization_id: orgId })
       setContacts((c) => [...c, r.data.contact])
-      setNc({ name: '', relationship: '', phone: '', email: '' })
+      setNc(emptyContact)
       setAdding(false)
     } catch { toast.error('Could not add contact') }
   }
@@ -299,7 +330,7 @@ const ContactsSection = ({ student, orgId }) => {
           </div>
           <div className="mt-2 flex gap-2">
             <Button size="sm" onClick={add}>Add contact</Button>
-            <button onClick={() => { setAdding(false); setNc({ name: '', relationship: '', phone: '', email: '' }) }} className="text-sm text-neutral-500 hover:underline">Cancel</button>
+            <button onClick={() => { setAdding(false); setNc(emptyContact) }} className="text-sm text-neutral-500 hover:underline">Cancel</button>
           </div>
         </div>
       )}

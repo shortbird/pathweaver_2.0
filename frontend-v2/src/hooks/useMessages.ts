@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { messageAPI, groupAPI } from '../services/api';
+import { messageAPI, groupAPI, type MessageAttachment, type SendMessageExtras } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useAppActive } from './useAppActive';
 import { captureException } from '../services/sentry';
@@ -42,6 +42,21 @@ export interface Conversation {
   unread_count: number;
 }
 
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  /** True when the current viewer reacted with this emoji. */
+  reacted: boolean;
+}
+
+export interface ReplyPreview {
+  id: string;
+  sender_name: string;
+  content: string;
+}
+
+export type { MessageAttachment };
+
 export interface Message {
   id: string;
   sender_id: string;
@@ -57,6 +72,13 @@ export interface Message {
     last_name?: string;
     avatar_url?: string;
   };
+  // Messaging overhaul fields (present on enriched GET/send/broadcast payloads).
+  reactions?: MessageReaction[];
+  reply_to?: ReplyPreview | null;
+  reply_to_message_id?: string | null;
+  attachments?: MessageAttachment[];
+  edited_at?: string | null;
+  is_deleted?: boolean;
   isOptimistic?: boolean;
 }
 
@@ -66,17 +88,33 @@ export interface Group {
   description: string | null;
   created_by: string;
   member_count: number;
+  /** When true, only group admins may post (others see a notice). */
+  announcement_only?: boolean;
+  pinned_message_id?: string | null;
+  /** Hydrated pinned message for the pin banner (GET /api/groups/:id only). */
+  pinned_message?: (Partial<Message> & { id: string }) | null;
   last_message_at: string | null;
   last_message_preview: string | null;
   unread_count: number;
+  // Matches GET /api/groups/:id — each member row carries its `role` in the
+  // group ('admin' | 'member') plus a hydrated `user` object.
   members?: Array<{
     id: string;
     user_id: string;
-    display_name: string;
+    role: string;
+    user?: {
+      id: string;
+      display_name?: string;
+      first_name?: string;
+      last_name?: string;
+      avatar_url?: string | null;
+      role?: string;
+    };
+    // Some payloads flatten the user fields onto the member row.
+    display_name?: string;
     first_name?: string;
     last_name?: string;
-    avatar_url?: string;
-    role_in_group: string;
+    avatar_url?: string | null;
   }>;
 }
 
@@ -208,14 +246,63 @@ export function useUnreadCount() {
 }
 
 /** Send a DM (imperative, not a hook) */
-export async function sendDirectMessage(targetUserId: string, content: string) {
-  const { data } = await messageAPI.send(targetUserId, content);
+export async function sendDirectMessage(
+  targetUserId: string,
+  content: string,
+  extras: SendMessageExtras = {},
+) {
+  const { data } = await messageAPI.send(targetUserId, content, extras);
   return data.data || data;
 }
 
 /** Mark a message as read */
 export async function markMessageRead(messageId: string) {
   const { data } = await messageAPI.markRead(messageId);
+  return data.data || data;
+}
+
+// ── Messaging overhaul: reactions, edit, delete (DM + group variants) ──
+
+/** Toggle an emoji reaction. Returns { added, reactions } (fresh aggregate). */
+export async function toggleDmReaction(messageId: string, emoji: string) {
+  const { data } = await messageAPI.toggleReaction(messageId, emoji);
+  return data.data || data;
+}
+
+export async function toggleGroupReaction(groupId: string, messageId: string, emoji: string) {
+  const { data } = await groupAPI.toggleReaction(groupId, messageId, emoji);
+  return data.data || data;
+}
+
+export async function editDirectMessage(messageId: string, content: string) {
+  const { data } = await messageAPI.editMessage(messageId, content);
+  return data.data || data;
+}
+
+export async function editGroupMessage(groupId: string, messageId: string, content: string) {
+  const { data } = await groupAPI.editMessage(groupId, messageId, content);
+  return data.data || data;
+}
+
+export async function deleteDirectMessage(messageId: string) {
+  const { data } = await messageAPI.deleteMessage(messageId);
+  return data.data || data;
+}
+
+export async function deleteGroupMessage(groupId: string, messageId: string) {
+  const { data } = await groupAPI.deleteMessage(groupId, messageId);
+  return data.data || data;
+}
+
+/** Pin (or unpin with null) a group message. Group admins only. */
+export async function pinGroupMessage(groupId: string, messageId: string | null) {
+  const { data } = await groupAPI.pin(groupId, messageId);
+  return data.data || data;
+}
+
+/** Toggle announcement-only mode (admins-only posting). Group admins only. */
+export async function setGroupAnnouncementOnly(groupId: string, enabled: boolean) {
+  const { data } = await groupAPI.updateSettings(groupId, { announcement_only: enabled });
   return data.data || data;
 }
 
@@ -311,8 +398,12 @@ export function useGroupMessages(groupId: string | null) {
 }
 
 /** Send a group message (imperative) */
-export async function sendGroupMessage(groupId: string, content: string) {
-  const { data } = await groupAPI.sendMessage(groupId, content);
+export async function sendGroupMessage(
+  groupId: string,
+  content: string,
+  extras: SendMessageExtras = {},
+) {
+  const { data } = await groupAPI.sendMessage(groupId, content, extras);
   return data.data || data;
 }
 

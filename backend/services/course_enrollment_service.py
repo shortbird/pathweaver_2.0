@@ -488,7 +488,8 @@ class CourseEnrollmentService(BaseService):
         page: int = 1,
         per_page: int = 25,
         search: Optional[str] = None,
-        status: Optional[str] = None
+        status: Optional[str] = None,
+        organization_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Get all enrollments for a course with progress data.
@@ -499,6 +500,8 @@ class CourseEnrollmentService(BaseService):
             per_page: Enrollments per page (max 50)
             search: Optional search term for user email/name
             status: Optional filter by enrollment status
+            organization_id: When set, only enrollments of that org's users
+                (tenant isolation on shared Optio courses)
 
         Returns:
             Dict with enrollments and pagination:
@@ -514,10 +517,17 @@ class CourseEnrollmentService(BaseService):
             per_page = min(per_page, 50)
             offset = (page - 1) * per_page
 
-            # Build base query for enrollments
+            # Build base query for enrollments. The org filter needs an inner
+            # join so non-matching rows are excluded (a plain embed only nulls
+            # out the user).
+            users_embed = ('users!inner(id, email, display_name, first_name, last_name)'
+                           if organization_id else
+                           'users(id, email, display_name, first_name, last_name)')
             query = self.client.table('course_enrollments')\
-                .select('*, users(id, email, display_name, first_name, last_name)', count='exact')\
+                .select(f'*, {users_embed}', count='exact')\
                 .eq('course_id', course_id)
+            if organization_id:
+                query = query.eq('users.organization_id', organization_id)
 
             if status:
                 query = query.eq('status', status)

@@ -166,3 +166,6 @@ ds-bundle/
 .design-sync/node_modules
 frontend/.ds-styles.css
 frontend/.ds-brand-safelist.html
+
+# Saved third-party registration pages used as porting reference (contain account-session artifacts)
+OSH Form/

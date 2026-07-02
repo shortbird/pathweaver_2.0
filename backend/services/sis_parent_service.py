@@ -236,6 +236,244 @@ def submit(user_id: str, org_id: str, reg_id: str) -> Dict[str, Any]:
     return {'registration': regs.submit(org_id, reg_id)}
 
 
+# ── Schedule builder (guardian-scoped add/drop/waitlist until first day) ──────
+def _first_day_of_school(org_id: str) -> Optional[str]:
+    """ISO date (YYYY-MM-DD) from feature_flags.sis_settings.first_day_of_school, or None."""
+    row = (
+        _admin().table('organizations').select('feature_flags')
+        .eq('id', org_id).limit(1).execute()
+    ).data or []
+    flags = (row[0].get('feature_flags') or {}) if row else {}
+    return (flags.get('sis_settings') or {}).get('first_day_of_school') or None
+
+
+def _changes_locked(org_id: str) -> bool:
+    """Families may self-serve schedule changes only BEFORE the first day of school.
+    From that day on, changes are staff-only. No date configured = never locked."""
+    from datetime import date
+    first_day = _first_day_of_school(org_id)
+    if not first_day:
+        return False
+    try:
+        return date.today() >= date.fromisoformat(str(first_day)[:10])
+    except ValueError:
+        return False
+
+
+# ── At-home learning: Optio courses (untimed) selectable in the builder ───────
+import re as _re
+
+_COURSE_CODE_RE = _re.compile(r'^[A-Za-z]{2,8}\s\d{3,4}\b')
+
+
+def _selectable_courses(org_id: str) -> List[Dict[str, Any]]:
+    """Optio platform courses an org family can pick for at-home learning.
+    Mirrors the SIS staff catalog filter: published + public + not the org's own,
+    not credit-bearing, not a college course code."""
+    rows = (
+        _admin().table('courses')
+        .select('id, title, description, status, visibility, organization_id, '
+                'credit_subject, cover_image_url, estimated_hours, age_range')
+        .eq('status', 'published').eq('visibility', 'public').execute()
+    ).data or []
+    from services import sis_catalog_service
+    tuition_cents = sis_catalog_service.optio_course_tuition_cents(org_id)
+    return [{
+        'id': c['id'], 'title': c['title'], 'description': c.get('description'),
+        'estimated_hours': c.get('estimated_hours'), 'age_range': c.get('age_range'),
+        'cover_image_url': c.get('cover_image_url'),
+        'tuition_cents': tuition_cents,
+    } for c in rows
+        if c.get('organization_id') != org_id
+        and not c.get('credit_subject')
+        and not _COURSE_CODE_RE.match((c.get('title') or '').strip())]
+
+
+def _student_course_enrollments(student_user_id: str) -> List[str]:
+    rows = (
+        _admin().table('course_enrollments').select('course_id, status')
+        .eq('user_id', student_user_id).execute()
+    ).data or []
+    return [r['course_id'] for r in rows if r.get('status') != 'dropped']
+
+
+def _optio_courses_enabled(org_id: str) -> bool:
+    """Org toggle: whether Optio platform courses (at-home learning) are offered
+    to this org's families in the Schedule Builder. Defaults ON."""
+    row = (
+        _admin().table('organizations').select('feature_flags')
+        .eq('id', org_id).limit(1).execute()
+    ).data or []
+    flags = (row[0].get('feature_flags') or {}) if row else {}
+    return bool((flags.get('sis_settings') or {}).get('optio_courses_enabled', True))
+
+
+def home_learning_courses(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
+    if not _has_org_access(user_id, org_id):
+        return None
+    if not _optio_courses_enabled(org_id):
+        return []
+    return _selectable_courses(org_id)
+
+
+def add_course(user_id: str, org_id: str, student_user_id: str, course_id: str) -> Dict[str, Any]:
+    """Enroll the student in an Optio course for at-home learning. Same first-day
+    lock as class changes."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    if _changes_locked(org_id):
+        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    if not _optio_courses_enabled(org_id):
+        return {'error': 'Optio courses are not enabled for your school'}
+    if not any(c['id'] == course_id for c in _selectable_courses(org_id)):
+        return {'error': 'This course is not available'}
+    from services.course_enrollment_service import CourseEnrollmentService
+    result = CourseEnrollmentService(_admin()).enroll_user(student_user_id, course_id)
+    if not result.get('success') and result.get('status') != 'already_enrolled':
+        return {'error': result.get('error') or 'Could not enroll in the course'}
+    return {'enrolled': True, 'already': result.get('status') == 'already_enrolled'}
+
+
+def drop_course(user_id: str, org_id: str, student_user_id: str, course_id: str) -> Dict[str, Any]:
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    if _changes_locked(org_id):
+        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    from services.course_enrollment_service import CourseEnrollmentService
+    result = CourseEnrollmentService(_admin()).unenroll_user(student_user_id, course_id)
+    if not result.get('success'):
+        return {'error': result.get('error') or 'Could not drop the course'}
+    return {'ok': True}
+
+
+def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
+    """The student's current schedule: active class enrollments (with meetings)
+    plus live waitlist entries, at-home Optio courses, and whether self-service
+    changes are still open."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+
+    enrolled_ids = {
+        r['class_id'] for r in (
+            _admin().table('class_enrollments').select('class_id, status')
+            .eq('student_id', student_user_id).eq('status', 'active').execute()
+        ).data or []
+    }
+    all_classes = catalog.list_classes(org_id)
+    classes = [c for c in all_classes if c['id'] in enrolled_ids]
+
+    waitlist_rows = (
+        _admin().table('sis_waitlist_entries').select('*')
+        .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+        .in_('status', ['waiting', 'offered']).execute()
+    ).data or []
+    by_id = {c['id']: c for c in all_classes}
+    waitlist = [{
+        'entry_id': w['id'], 'class_id': w['class_id'],
+        'class_name': (by_id.get(w['class_id']) or {}).get('name') or 'Class',
+        'position': w.get('position'), 'status': w.get('status'),
+        'meetings': (by_id.get(w['class_id']) or {}).get('meetings') or [],
+    } for w in waitlist_rows]
+
+    # At-home learning: the student's Optio course enrollments (untimed).
+    # Shown even if the org later disables the course catalog.
+    course_ids = _student_course_enrollments(student_user_id)
+    courses = []
+    if course_ids:
+        rows = (
+            _admin().table('courses')
+            .select('id, title, estimated_hours, cover_image_url, description, age_range')
+            .in_('id', course_ids).execute()
+        ).data or []
+        tuition_cents = catalog.optio_course_tuition_cents(org_id)
+        courses = [{'id': r['id'], 'title': r['title'], 'estimated_hours': r.get('estimated_hours'),
+                    'cover_image_url': r.get('cover_image_url'), 'description': r.get('description'),
+                    'age_range': r.get('age_range'), 'tuition_cents': tuition_cents} for r in rows]
+
+    return {
+        'classes': classes,
+        'waitlist': waitlist,
+        'courses': courses,
+        'optio_courses_enabled': _optio_courses_enabled(org_id),
+        'first_day_of_school': _first_day_of_school(org_id),
+        'changes_locked': _changes_locked(org_id),
+    }
+
+
+def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -> Dict[str, Any]:
+    """Self-service add: enroll immediately if there's a seat, otherwise join the
+    waitlist (when the class allows one). Locked from the first day of school."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    if _changes_locked(org_id):
+        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+
+    klass = next((c for c in catalog.list_classes(org_id) if c['id'] == class_id), None)
+    if not klass or klass.get('registration_status') != 'open':
+        return {'error': 'This class is not open for registration'}
+
+    existing = (
+        _admin().table('class_enrollments').select('id, status')
+        .eq('class_id', class_id).eq('student_id', student_user_id).execute()
+    ).data or []
+    if existing and existing[0].get('status') == 'active':
+        return {'enrolled': True, 'already': True}
+
+    enrolled_count = (
+        _admin().table('class_enrollments').select('id', count='exact')
+        .eq('class_id', class_id).eq('status', 'active').execute()
+    ).count or 0
+    capacity = klass.get('capacity')
+    if capacity is not None and enrolled_count >= capacity:
+        if not klass.get('waitlist_enabled', True):
+            return {'error': 'This class is full'}
+        from services import sis_waitlist_service
+        entry = sis_waitlist_service.add_to_waitlist(org_id, class_id, student_user_id)
+        return {'waitlisted': True, 'position': (entry or {}).get('position')}
+
+    _admin().table('class_enrollments').upsert({
+        'class_id': class_id,
+        'student_id': student_user_id,
+        'status': 'active',
+        'enrolled_by': user_id,
+    }, on_conflict='class_id,student_id').execute()
+    from services.class_group_sync_service import sync_class_group
+    sync_class_group(class_id, actor_id=user_id)
+    return {'enrolled': True}
+
+
+def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -> Dict[str, Any]:
+    """Self-service drop: withdraw an active enrollment and/or leave the waitlist.
+    Locked from the first day of school."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    if _changes_locked(org_id):
+        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+
+    dropped = False
+    enr = (
+        _admin().table('class_enrollments').select('id, status')
+        .eq('class_id', class_id).eq('student_id', student_user_id).execute()
+    ).data or []
+    if enr and enr[0].get('status') == 'active':
+        _admin().table('class_enrollments').update({'status': 'withdrawn'}).eq('id', enr[0]['id']).execute()
+        from services.class_group_sync_service import sync_class_group
+        sync_class_group(class_id, actor_id=user_id)
+        dropped = True
+
+    wl = (
+        _admin().table('sis_waitlist_entries').select('id')
+        .eq('organization_id', org_id).eq('class_id', class_id)
+        .eq('student_user_id', student_user_id)
+        .in_('status', ['waiting', 'offered']).execute()
+    ).data or []
+    for w in wl:
+        _admin().table('sis_waitlist_entries').delete().eq('id', w['id']).execute()
+        dropped = True
+
+    return {'ok': True, 'dropped': dropped}
+
+
 # ── Planned absences (guardian-scoped) ────────────────────────────────────────
 def list_absences(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
     """Upcoming planned absences for a child + the classes the parent can pick from."""

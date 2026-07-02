@@ -6,7 +6,7 @@
 // Note: @testing-library/jest-native is deprecated.
 // Use built-in matchers from @testing-library/react-native v13+ instead.
 
-// ── @supabase/supabase-js (used by supabaseClient.ts for OAuth) ──
+// ── @supabase/supabase-js (used by supabaseClient.ts for OAuth + realtime) ──
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({
     auth: {
@@ -15,6 +15,16 @@ jest.mock('@supabase/supabase-js', () => ({
       getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
       onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } })),
     },
+    // Realtime broadcast (useMessagingRealtime): chainable channel mock.
+    channel: jest.fn(() => {
+      const channel: any = {
+        on: jest.fn(() => channel),
+        subscribe: jest.fn(() => channel),
+        unsubscribe: jest.fn(),
+      };
+      return channel;
+    }),
+    removeChannel: jest.fn(),
   })),
 }));
 

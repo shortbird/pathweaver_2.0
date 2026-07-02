@@ -16,7 +16,8 @@ import {
   useAddMember,
   useRemoveMember,
   useLeaveGroup,
-  useAvailableMembers
+  useAvailableMembers,
+  useUpdateGroupSettings
 } from '../../hooks/api/useGroupMessages'
 
 const GroupSettingsModal = ({ isOpen, onClose, group }) => {
@@ -40,9 +41,11 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
   const addMemberMutation = useAddMember()
   const removeMemberMutation = useRemoveMember()
   const leaveGroupMutation = useLeaveGroup()
+  const updateSettingsMutation = useUpdateGroupSettings()
 
   const groupDetails = groupData?.group || group
   const members = groupDetails?.members || []
+  const announcementOnly = !!groupDetails?.announcement_only
   const availableMembers = availableMembersData?.available_members || []
 
   // Check if current user is admin
@@ -94,6 +97,18 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
       await removeMemberMutation.mutateAsync({
         groupId: group.id,
         userId
+      })
+      refetchGroup()
+    } catch (error) {
+      // Error handled by mutation
+    }
+  }
+
+  const handleToggleAnnouncementOnly = async () => {
+    try {
+      await updateSettingsMutation.mutateAsync({
+        groupId: group.id,
+        announcementOnly: !announcementOnly
       })
       refetchGroup()
     } catch (error) {
@@ -409,6 +424,37 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
                         : 'Unknown'}
                     </p>
                   </div>
+
+                  {/* Announcement-only toggle (admins) */}
+                  {isAdmin && (
+                    <div className="flex items-start justify-between gap-3 pt-4 border-t border-gray-100">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Announcement-only
+                        </label>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Only group admins (teachers) can post
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={announcementOnly}
+                        aria-label="Announcement-only"
+                        onClick={handleToggleAnnouncementOnly}
+                        disabled={updateSettingsMutation.isPending}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                          announcementOnly ? 'bg-optio-purple' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                            announcementOnly ? 'translate-x-[22px]' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

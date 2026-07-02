@@ -306,7 +306,9 @@ export default function BountyDetailPage() {
                       {r.pillar && <PillarBadge pillar={r.pillar} size="sm" />}
                     </HStack>
                   ) : (
-                    <View key={i} className="bg-amber-50 px-3 py-1.5 rounded-full">
+                    // flexShrink keeps a long custom-reward pill inside the
+                    // card; the text wraps within the pill instead.
+                    <View key={i} className="bg-amber-50 px-3 py-1.5 rounded-full" style={{ flexShrink: 1 }}>
                       <UIText size="sm" className="font-poppins-medium text-amber-700">{r.text}</UIText>
                     </View>
                   )

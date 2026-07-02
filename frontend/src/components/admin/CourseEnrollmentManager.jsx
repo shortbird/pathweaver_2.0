@@ -14,14 +14,16 @@ import api from '../../services/api'
  *   courseName - Optional course name for display
  *   orgId - Optional org ID (for org_admin context)
  *   isSuperadmin - Whether the user is a superadmin
- *   onClose - Close handler
+ *   onClose - Close handler (unused when embedded)
+ *   embedded - Render inline (tabs + tables only, no overlay/header) inside a host modal
  */
 export default function CourseEnrollmentManager({
   courseId,
   courseName = 'Course',
   orgId,
   isSuperadmin = false,
-  onClose
+  onClose,
+  embedded = false
 }) {
   const [activeTab, setActiveTab] = useState('enroll') // 'enroll' | 'enrolled'
 
@@ -59,6 +61,8 @@ export default function CourseEnrollmentManager({
         per_page: perPage.toString()
       })
       if (searchTerm) params.append('search', searchTerm)
+      // Scope superadmins to the org they're acting in (org_admins are scoped server-side)
+      if (orgId) params.append('organization_id', orgId)
 
       const response = await api.get(`/api/admin/courses/${courseId}/enrollable-users?${params}`)
       setUsers(response.data.users || [])
@@ -82,6 +86,7 @@ export default function CourseEnrollmentManager({
         per_page: perPage.toString()
       })
       if (enrolledSearchTerm) params.append('search', enrolledSearchTerm)
+      if (orgId) params.append('organization_id', orgId)
 
       const response = await api.get(`/api/admin/courses/${courseId}/enrollments?${params}`)
       setEnrollments(response.data.enrollments || [])
@@ -165,7 +170,8 @@ export default function CourseEnrollmentManager({
 
     try {
       const response = await api.post(`/api/admin/courses/${courseId}/bulk-enroll`, {
-        user_ids: Array.from(selectedUsers)
+        user_ids: Array.from(selectedUsers),
+        ...(orgId ? { organization_id: orgId } : {})
       })
 
       const { enrolled, failed, skipped } = response.data
@@ -193,7 +199,8 @@ export default function CourseEnrollmentManager({
     setUnenrolling(true)
     try {
       const response = await api.post(`/api/admin/courses/${courseId}/bulk-unenroll`, {
-        user_ids: Array.from(selectedEnrollments)
+        user_ids: Array.from(selectedEnrollments),
+        ...(orgId ? { organization_id: orgId } : {})
       })
 
       const { unenrolled, failed } = response.data
@@ -292,33 +299,11 @@ export default function CourseEnrollmentManager({
 
   const enrollableUsers = users.filter(u => !u.is_enrolled)
 
-  return createPortal(
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Manage Enrollments</h2>
-            <p className="text-sm text-gray-600 mt-0.5">{courseName}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+  // Tabs + tables, shared by the standalone modal and the embedded (host-modal) mode.
+  const inner = (
+    <>
         {/* Tab Navigation */}
-        <div className="px-6 pt-4 border-b border-gray-100">
+        <div className={embedded ? 'border-b border-gray-100' : 'px-6 pt-4 border-b border-gray-100'}>
           <div className="flex gap-4">
             <button
               onClick={() => setActiveTab('enroll')}
@@ -344,7 +329,7 @@ export default function CourseEnrollmentManager({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className={embedded ? 'flex-1 overflow-y-auto pt-4' : 'flex-1 overflow-y-auto p-6'}>
           {activeTab === 'enroll' ? (
             <div className="space-y-4">
               {/* Search and Bulk Actions */}
@@ -572,6 +557,36 @@ export default function CourseEnrollmentManager({
             </div>
           )}
         </div>
+    </>
+  )
+
+  if (embedded) return inner
+
+  return createPortal(
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Manage Enrollments</h2>
+            <p className="text-sm text-gray-600 mt-0.5">{courseName}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {inner}
       </div>
     </div>,
     document.body

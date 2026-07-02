@@ -276,9 +276,16 @@ const ConversationList = ({
 
         <div className="flex-1 min-w-0 text-left">
           <div className="flex items-center justify-between gap-2">
-            <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
-              {group.name}
-            </h3>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
+                {group.name}
+              </h3>
+              {group.source_class_id && (
+                <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-optio-purple bg-purple-100 px-1.5 py-0.5 rounded-full">
+                  Class
+                </span>
+              )}
+            </div>
             {group.last_message_at && (
               <span className="text-xs text-gray-400 flex-shrink-0">
                 {formatTime(group.last_message_at)}

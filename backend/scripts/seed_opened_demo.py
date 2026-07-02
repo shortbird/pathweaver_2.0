@@ -30,7 +30,10 @@ Idempotent: re-running deletes the prior OpenEd demo (parent by
 touch the @optio-demo.example Mitchell family.
 
 Usage:
-  cd backend && .venv/bin/python scripts/seed_opened_demo.py
+  cd backend && .venv/bin/python scripts/seed_opened_demo.py             # full reseed
+  cd backend && .venv/bin/python scripts/seed_opened_demo.py --extras-only
+    # re-seed only bounties + message history onto the EXISTING demo users
+    # (keeps user ids / active sessions stable)
 """
 
 from __future__ import annotations
@@ -54,8 +57,12 @@ DEMO_PASSWORD = "OptioDemo2026!"
 PARENT_EMAIL = f"jenna.rivera{DEMO_EMAIL_DOMAIN}"
 
 
-def avatar(seed: str) -> str:
-    return f"https://api.dicebear.com/9.x/personas/png?seed={seed}&size=256"
+def avatar(seed: str, extra: str = "") -> str:
+    # skinColor pinned so the whole family matches; seeds are hand-picked to
+    # look like the right age/gender AT THIS TONE (changing the tone can
+    # reveal features like facial hair that were invisible on the default).
+    # `extra` pins additional dicebear options (e.g. "&hair=pigtails").
+    return f"https://api.dicebear.com/9.x/personas/png?seed={seed}&size=256&skinColor=e5a07e{extra}"
 
 
 # Verified public Unsplash photos (reused from seed_demo_family.py so links resolve)
@@ -118,6 +125,8 @@ def delete_existing_demo(sb: Client) -> None:
     sb.table("user_quests").delete().in_("user_id", ids).execute()
     sb.table("user_subject_xp").delete().in_("user_id", ids).execute()
 
+    delete_extras(sb, ids)
+
     if quest_ids:
         # Remove any enrollments/tasks other rows may reference, then the quests.
         sb.table("user_quest_tasks").delete().in_("quest_id", quest_ids).execute()
@@ -165,7 +174,8 @@ def create_parent(sb: Client) -> str:
 
 
 def create_dependent(sb: Client, parent_id: str, first: str, last: str,
-                     dob: str, bio: str) -> str:
+                     dob: str, bio: str, avatar_seed: str,
+                     avatar_extra: str = "") -> str:
     """Create a COPPA-style dependent (auth user + public.users row).
 
     Mirrors DependentRepository.create_dependent: a placeholder auth email that
@@ -198,7 +208,9 @@ def create_dependent(sb: Client, parent_id: str, first: str, last: str,
         "managed_by_parent_id": parent_id,
         "bio": bio,
         "date_of_birth": dob,
-        "avatar_url": avatar(first + last),
+        # Explicit seed: dicebear personas seeds are random-looking; these were
+        # hand-picked to actually look like kids of the right age/gender.
+        "avatar_url": avatar(avatar_seed, avatar_extra),
         "total_xp": 0,
         "level": 1,
         "tos_accepted_at": "2026-06-01T00:00:00Z",
@@ -332,6 +344,275 @@ def seed_subject_xp(sb: Client, user_id: str, xp_per_subject: dict) -> None:
     print(f"    + {total} XP across {len(xp_per_subject)} subjects")
 
 
+# ── Bounties + message history ("extras") ─────────────────────────────────────
+
+def delete_extras(sb: Client, ids: list[str]) -> None:
+    """Remove bounties + DM history tied to the demo users (idempotent extras)."""
+    if not ids:
+        return
+    sb.table("bounty_claims").delete().in_("student_id", ids).execute()
+    sb.table("bounties").delete().in_("poster_id", ids).execute()
+    sb.table("direct_messages").delete().in_("sender_id", ids).execute()
+    sb.table("direct_messages").delete().in_("recipient_id", ids).execute()
+    sb.table("message_conversations").delete().in_("participant_1_id", ids).execute()
+    sb.table("message_conversations").delete().in_("participant_2_id", ids).execute()
+
+
+def seed_bounties(sb: Client, parent_id: str, kids: dict[str, str]) -> None:
+    """Jenna posts family bounties for the kids.
+
+    rewards jsonb shape matches bounties/create.tsx:
+      XP     → {type:'xp', value, pillar, text:''}
+      custom → {id, type:'custom', value:0, pillar:'', text}
+    Keep custom-reward text SHORT — long text overflows the browse-card header
+    (known UI bug).
+    """
+    now = datetime.now(timezone.utc)
+    bounties = [
+        {
+            "title": "Teach us your chemistry unit",
+            "description": "You just finished atomic structure on Khan Academy. Teach the family how atoms work at dinner — whiteboard welcome.",
+            "requirements": "A 10-minute dinner-table lesson plus one question for each of us.",
+            "pillar": "communication",
+            "xp_reward": 100,
+            "deliverables": [
+                {"id": str(uuid.uuid4()), "text": "Prepare a 10-minute mini lesson"},
+                {"id": str(uuid.uuid4()), "text": "Quiz the family with 3 questions"},
+            ],
+            "rewards": [
+                {"type": "xp", "value": 100, "pillar": "communication", "text": ""},
+                {"id": str(uuid.uuid4()), "type": "custom", "value": 0, "pillar": "", "text": "Pick Friday's movie"},
+            ],
+            "kids": [kids["liam"]],
+            "days": 14,
+        },
+        {
+            "title": "Demo your hydraulic claw at co-op",
+            "description": "Bring the KiwiCo claw to Friday co-op and show the group how the syringes move it.",
+            "requirements": "Do the demo and explain how water pressure does the lifting.",
+            "pillar": "stem",
+            "xp_reward": 75,
+            "deliverables": [
+                {"id": str(uuid.uuid4()), "text": "Demo the claw for the co-op group"},
+                {"id": str(uuid.uuid4()), "text": "Explain how the hydraulics work"},
+            ],
+            "rewards": [
+                {"type": "xp", "value": 75, "pillar": "stem", "text": ""},
+                {"id": str(uuid.uuid4()), "type": "custom", "value": 0, "pillar": "", "text": "Ice cream run"},
+            ],
+            "kids": [kids["sofia"]],
+            "days": 10,
+        },
+        {
+            "title": "Read a story to Grandma",
+            "description": "Video-call Grandma and read her one of your phonics stories, start to finish.",
+            "requirements": "Read the whole story out loud on the call.",
+            "pillar": "communication",
+            "xp_reward": 50,
+            "deliverables": [
+                {"id": str(uuid.uuid4()), "text": "Read one full story on the call"},
+            ],
+            "rewards": [
+                {"type": "xp", "value": 50, "pillar": "communication", "text": ""},
+            ],
+            "kids": [kids["noah"]],
+            "days": 7,
+        },
+        {
+            "title": "Science museum scavenger hunt",
+            "description": "Saturday museum trip: each of you finds one exhibit that connects to something you're learning and journals it.",
+            "requirements": "One journal entry each with a photo of your exhibit.",
+            "pillar": "stem",
+            "xp_reward": 100,
+            "deliverables": [
+                {"id": str(uuid.uuid4()), "text": "Find an exhibit tied to your learning"},
+                {"id": str(uuid.uuid4()), "text": "Add a journal entry with a photo"},
+            ],
+            "rewards": [
+                {"type": "xp", "value": 100, "pillar": "stem", "text": ""},
+                {"id": str(uuid.uuid4()), "type": "custom", "value": 0, "pillar": "", "text": "Gift-shop pick"},
+            ],
+            "kids": [kids["liam"], kids["sofia"], kids["noah"]],
+            "days": 21,
+        },
+    ]
+    for b in bounties:
+        sb.table("bounties").insert({
+            "title": b["title"],
+            "description": b["description"],
+            "requirements": b["requirements"],
+            "pillar": b["pillar"],
+            "bounty_type": "family",
+            "xp_reward": b["xp_reward"],
+            "deliverables": b["deliverables"],
+            "rewards": b["rewards"],
+            "poster_id": parent_id,
+            "status": "active",
+            "moderation_status": "manually_approved",
+            "max_participants": 1,
+            "visibility": "family",
+            "allowed_student_ids": b["kids"],
+            "deadline": (now + timedelta(days=b["days"])).isoformat(),
+        }).execute()
+    print(f"    + {len(bounties)} family bounties from Jenna")
+
+
+def seed_submissions(sb: Client, parent_id: str, kids: dict[str, str]) -> None:
+    """Two kids turn in their bounties so the parent has submissions to review.
+
+    Claim evidence shape matches bounty_service.toggle_deliverable /
+    review/[id].tsx:
+      evidence = {completed_deliverables: [ids],
+                  deliverable_evidence: {id: [{type, content}]}}
+      items: {type:'text', content:{text}} | {type:'image', content:{items:[{url}]}}
+    """
+    now = datetime.now(timezone.utc)
+    subs = [
+        {
+            "title": "Teach us your chemistry unit",
+            "kid": kids["liam"],
+            "hours_ago": 20,
+            "evidence_by_index": [
+                [{"type": "text", "content": {"text": "Did my mini lesson at dinner Tuesday. Walked everyone through protons, neutrons, and electrons with the whiteboard, then showed how the periodic table is organized by atomic number."}}],
+                [{"type": "text", "content": {"text": "Quizzed the family: 1) What's in a nucleus? 2) Why does sodium react so strongly? 3) What does the atomic number tell you? Mom got 3/3, Sofia got 2."}}],
+            ],
+        },
+        {
+            "title": "Demo your hydraulic claw at co-op",
+            "kid": kids["sofia"],
+            "hours_ago": 8,
+            "evidence_by_index": [
+                [{"type": "text", "content": {"text": "Did the demo Friday morning. I showed how squeezing one syringe makes the claw close, then let three kids try grabbing the marker with it."}}],
+                [{"type": "text", "content": {"text": "I explained that pushing the syringe pushes water through the tube, and water can't squish, so the other end has to move. Everyone got a turn lifting the marker with it."}}],
+            ],
+        },
+    ]
+    for s in subs:
+        bounty = sb.table("bounties").select("id, deliverables").eq(
+            "poster_id", parent_id).eq("title", s["title"]).execute()
+        if not bounty.data:
+            print(f"    ! bounty not found, skipping: {s['title']}")
+            continue
+        b = bounty.data[0]
+        deliv_ids = [d["id"] for d in (b.get("deliverables") or [])]
+        submitted_at = (now - timedelta(hours=s["hours_ago"])).isoformat()
+        sb.table("bounty_claims").insert({
+            "bounty_id": b["id"],
+            "student_id": s["kid"],
+            "status": "submitted",
+            "submitted_at": submitted_at,
+            "created_at": (now - timedelta(hours=s["hours_ago"] + 48)).isoformat(),
+            "evidence": {
+                "completed_deliverables": deliv_ids,
+                "deliverable_evidence": {
+                    did: s["evidence_by_index"][i]
+                    for i, did in enumerate(deliv_ids)
+                    if i < len(s["evidence_by_index"])
+                },
+            },
+        }).execute()
+    print(f"    + {len(subs)} submitted bounty claims awaiting review")
+
+
+def seed_conversations(sb: Client, parent_id: str, kids: dict[str, str]) -> None:
+    """Parent ↔ kid DM history. Matches direct_message_service: participant_1
+    is the smaller UUID; unread counts and preview mirror the last message."""
+    now = datetime.now(timezone.utc)
+
+    # (kid_key, [(sender, hours_ago, text)]) — oldest first
+    threads = {
+        "liam": [
+            ("kid",    50, "Passed the quadratics mastery challenge! 8/9"),
+            ("parent", 49, "That's awesome. Which one got you?"),
+            ("kid",    49, "Vertex form. Retried it and got it right"),
+            ("parent", 48, "Nice recovery. Log it in your journal so it lands in this week's OpenEd report"),
+            ("kid",    26, "Done. Also my Outschool teacher liked the lighthouse story"),
+            ("parent",  3, "Can't wait to read the revision. Dinner chemistry lesson still on for Friday?"),
+        ],
+        "sofia": [
+            ("parent", 30, "How was Beast Academy today?"),
+            ("kid",    29, "Finished chapter 1! The bar models are actually fun"),
+            ("parent", 29, "Love it. Claw demo Friday at co-op — you ready?"),
+            ("kid",    28, "Yes!! It lifted a whole water bottle yesterday"),
+            ("parent",  5, "Grab a photo of the claw for your journal before co-op"),
+        ],
+        "noah": [
+            ("parent", 24, "Did you help JiJi today?"),
+            ("kid",    23, "5 puzzles!!"),
+            ("parent", 23, "Wow! Story time with Grandma tomorrow — pick your favorite one"),
+            ("kid",     4, "the cat sat one"),
+        ],
+    }
+
+    for key, msgs in threads.items():
+        kid_id = kids[key]
+        p1, p2 = (parent_id, kid_id) if parent_id < kid_id else (kid_id, parent_id)
+        convo_id = str(uuid.uuid4())
+
+        last = msgs[-1]
+        last_at = (now - timedelta(hours=last[1])).isoformat()
+        last_sender = parent_id if last[0] == "parent" else kid_id
+        # One unread for the receiver of the final message
+        unread_p1 = 1 if last_sender != p1 else 0
+        unread_p2 = 1 if last_sender != p2 else 0
+
+        sb.table("message_conversations").insert({
+            "id": convo_id,
+            "participant_1_id": p1,
+            "participant_2_id": p2,
+            "last_message_at": last_at,
+            "last_message_preview": last[2][:80],
+            "unread_count_p1": unread_p1,
+            "unread_count_p2": unread_p2,
+        }).execute()
+
+        rows = []
+        for sender, hours_ago, text in msgs:
+            sender_id = parent_id if sender == "parent" else kid_id
+            recipient_id = kid_id if sender == "parent" else parent_id
+            sent_at = (now - timedelta(hours=hours_ago)).isoformat()
+            rows.append({
+                "conversation_id": convo_id,
+                "sender_id": sender_id,
+                "recipient_id": recipient_id,
+                "message_content": text,
+                "created_at": sent_at,
+                # everything read except the final message
+                "read_at": None if (sender, hours_ago, text) == last else sent_at,
+            })
+        sb.table("direct_messages").insert(rows).execute()
+        print(f"    + {len(msgs)} messages with {key.capitalize()}")
+
+
+def get_existing_family(sb: Client) -> tuple[str, dict[str, str]]:
+    """Look up the already-seeded Rivera family. Returns (parent_id, kids)."""
+    parent = sb.table("users").select("id").eq("email", PARENT_EMAIL).execute()
+    if not parent.data:
+        sys.exit(f"No existing demo parent ({PARENT_EMAIL}); run without --extras-only first.")
+    parent_id = parent.data[0]["id"]
+    deps = sb.table("users").select("id, first_name").eq("managed_by_parent_id", parent_id).execute()
+    kids = {r["first_name"].lower(): r["id"] for r in (deps.data or [])}
+    missing = {"liam", "sofia", "noah"} - set(kids)
+    if missing:
+        sys.exit(f"Missing dependents {missing}; run a full reseed instead.")
+    return parent_id, kids
+
+
+def seed_extras_only(sb: Client) -> None:
+    print("=" * 64)
+    print("Re-seeding extras (bounties + messages) on existing demo users")
+    print("=" * 64)
+    parent_id, kids = get_existing_family(sb)
+    ids = [parent_id, *kids.values()]
+    print("\n[1/2] Removing prior bounties + messages…")
+    delete_extras(sb, ids)
+    print("\n[2/2] Seeding bounties + conversations…")
+    seed_bounties(sb, parent_id, kids)
+    seed_submissions(sb, parent_id, kids)
+    seed_conversations(sb, parent_id, kids)
+    print("\nDone.")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -347,11 +628,12 @@ def main() -> None:
     print("\n[2/5] Creating parent + dependents…")
     parent = create_parent(sb)
     liam = create_dependent(sb, parent, "Liam", "Rivera", "2010-02-10",
-                            "16. Into chemistry, algebra, and writing sci-fi.")
+                            "16. Into chemistry, algebra, and writing sci-fi.", "Liam16")
     sofia = create_dependent(sb, parent, "Sofia", "Rivera", "2016-04-18",
-                             "10. Loves puzzles, building things, and Spanish.")
+                             "10. Loves puzzles, building things, and Spanish.", "Sofie",
+                             avatar_extra="&hair=pigtails")
     noah = create_dependent(sb, parent, "Noah", "Rivera", "2019-05-22",
-                            "7. Learning to read and loves math puzzles.")
+                            "7. Learning to read and loves math puzzles.", "Oliver")
 
     # ── Liam (16) ─────────────────────────────────────────────────────────────
     print("\n[3/5] Seeding Liam (16)…")
@@ -495,6 +777,12 @@ def main() -> None:
             ["stem", "art"], "Built a jellyfish and painted an ocean scene from my Koala Crate.", 24, "nature")
     seed_subject_xp(sb, noah, {"math": 50, "language_arts": 50, "science": 25, "fine_arts": 25})
 
+    print("\n[extras] Bounties + conversations…")
+    kids = {"liam": liam, "sofia": sofia, "noah": noah}
+    seed_bounties(sb, parent, kids)
+    seed_submissions(sb, parent, kids)
+    seed_conversations(sb, parent, kids)
+
     print("\n" + "=" * 64)
     print("Seeded OpenEd demo successfully.")
     print("=" * 64)
@@ -505,4 +793,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if "--extras-only" in sys.argv:
+        seed_extras_only(get_client())
+    else:
+        main()

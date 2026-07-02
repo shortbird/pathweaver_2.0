@@ -177,19 +177,21 @@ def send_message(user_id: str, target_user_id: str):
     try:
         data = request.get_json()
 
-        # Validate required fields
-        validate_required_fields(data, ['content'])
+        content = (data.get('content') or '').strip()
+        attachments = data.get('attachments') or []
 
-        content = data['content'].strip()
-
-        # Validate content
-        if not content:
+        # Attachment-only messages are allowed; otherwise content is required.
+        if not content and not attachments:
             raise ValidationError("Message content cannot be empty")
-
-        validate_string_length(content, 'content', max_length=2000)
+        if content:
+            validate_string_length(content, 'content', max_length=2000)
 
         # Send message
-        message = message_service.send_message(user_id, target_user_id, content)
+        message = message_service.send_message(
+            user_id, target_user_id, content,
+            reply_to_message_id=data.get('reply_to_message_id'),
+            attachments=attachments,
+        )
 
         return success_response({
             'message': message,
@@ -638,3 +640,89 @@ def handle_validation_error(error):
 @bp.errorhandler(ValueError)
 def handle_value_error(error):
     return error_response(str(error), "forbidden", status_code=403)
+
+
+# ── Messaging overhaul: reactions, edit/delete, attachment upload ─────────────
+@bp.route('/<message_id>/reactions', methods=['POST'])
+@require_auth
+def toggle_reaction(user_id: str, message_id: str):
+    """Toggle an emoji reaction on a direct message."""
+    from services import messaging_extras_service as extras
+    data = request.get_json() or {}
+    result = extras.toggle_reaction(user_id, 'dm', message_id, (data.get('emoji') or '').strip())
+    if result.get('error'):
+        return error_response(result['error'], status_code=400, error_code="validation_error")
+    return success_response(result)
+
+
+@bp.route('/<message_id>', methods=['PATCH'])
+@require_auth
+def edit_message(user_id: str, message_id: str):
+    """Edit your own direct message."""
+    from services import messaging_extras_service as extras
+    data = request.get_json() or {}
+    result = extras.edit_message(user_id, 'dm', message_id, data.get('content') or '')
+    if result.get('error'):
+        return error_response(result['error'], status_code=403 if 'own' in result['error'] else 400,
+                              error_code="forbidden")
+    return success_response(result)
+
+
+@bp.route('/<message_id>', methods=['DELETE'])
+@require_auth
+def delete_message(user_id: str, message_id: str):
+    """Delete your own direct message (soft delete)."""
+    from services import messaging_extras_service as extras
+    result = extras.delete_message(user_id, 'dm', message_id)
+    if result.get('error'):
+        return error_response(result['error'], status_code=403 if 'own' in result['error'] else 404,
+                              error_code="forbidden")
+    return success_response(result)
+
+
+@bp.route('/attachments', methods=['POST'])
+@require_auth
+def upload_attachment(user_id: str):
+    """Upload a message attachment (image/video/pdf/audio/doc) to storage and
+    return its metadata for inclusion in a send call. Shared by DMs and groups."""
+    import uuid as _uuid
+    from database import get_supabase_admin_client
+    from services.messaging_extras_service import MAX_ATTACHMENT_MB
+
+    if 'file' not in request.files:
+        return error_response('No file provided', status_code=400, error_code="validation_error")
+    file = request.files['file']
+    if not file.filename:
+        return error_response('No file selected', status_code=400, error_code="validation_error")
+
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    allowed = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'mp4', 'mov', 'webm',
+               'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'm4a', 'mp3', 'wav'}
+    if ext not in allowed:
+        return error_response('This file type is not supported', status_code=400, error_code="validation_error")
+    file.seek(0, 2)
+    size = file.tell()
+    if size > MAX_ATTACHMENT_MB * 1024 * 1024:
+        return error_response(f'File must be under {MAX_ATTACHMENT_MB}MB', status_code=400,
+                              error_code="validation_error")
+    file.seek(0)
+
+    supabase = get_supabase_admin_client()
+    bucket = 'user-uploads'
+    path = f"messages/{user_id}/{_uuid.uuid4().hex}.{ext}"
+    try:
+        supabase.storage.from_(bucket).upload(
+            path=path, file=file.read(),
+            file_options={'content-type': file.content_type or 'application/octet-stream'},
+        )
+        url = supabase.storage.from_(bucket).get_public_url(path)
+    except Exception as e:
+        logger.error(f"Message attachment upload failed: {e}")
+        return error_response('Failed to upload the file', status_code=500, error_code="internal_error")
+
+    kind = 'image' if ext in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif') \
+        else 'video' if ext in ('mp4', 'mov', 'webm') \
+        else 'audio' if ext in ('m4a', 'mp3', 'wav') else 'file'
+    return success_response({'attachment': {
+        'url': url, 'type': kind, 'name': file.filename[:255], 'size': size,
+    }})

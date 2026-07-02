@@ -66,7 +66,8 @@ def _org_students(org_id: str) -> List[Dict[str, Any]]:
     resp = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, '
-                'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth')
+                'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth, '
+                'preferred_name, gender, allergies, medications')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -135,6 +136,10 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'first_name': s.get('first_name'),
             'last_name': s.get('last_name'),
             'date_of_birth': s.get('date_of_birth'),
+            'preferred_name': s.get('preferred_name'),
+            'gender': s.get('gender'),
+            'allergies': s.get('allergies'),
+            'medications': s.get('medications'),
             'email': s.get('email'),
             'username': s.get('username'),
             'total_xp': s.get('total_xp'),
@@ -224,6 +229,7 @@ def add_emergency_contact(student_id: str, org_id: Optional[str],
         'phone': fields.get('phone'),
         'email': fields.get('email'),
         'priority': fields.get('priority') or 1,
+        'can_pickup': bool(fields.get('can_pickup')),
     }
     resp = _admin().table('emergency_contacts').insert(payload).execute()
     return resp.data[0] if resp.data else None
@@ -362,7 +368,7 @@ def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
     resp = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, '
-                'role, org_role, org_roles, last_active, created_at')
+                'role, org_role, org_roles, last_active, created_at, bio, avatar_url')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -375,14 +381,122 @@ def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
         out.append({
             'id': u['id'],
             'name': _full_name(u),
+            'first_name': u.get('first_name'),
+            'last_name': u.get('last_name'),
             'email': u.get('email'),
             'roles': staff_roles,
             'role_labels': [_STAFF_ROLE_LABEL.get(r, r) for r in staff_roles],
             'last_active': u.get('last_active'),
+            'bio': u.get('bio'),
+            'avatar_url': u.get('avatar_url'),
         })
     # Org admins first, then advisors; alphabetical within.
     out.sort(key=lambda r: ('org_admin' not in r['roles'], r['name'].lower()))
     return out
+
+
+def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a teacher (advisor) account in this org, with an optional bio.
+
+    Creates the auth user with a placeholder password and sends the standard
+    set-password (signup confirmation) email best-effort — same pattern as the
+    iCreate registration student accounts. Returns {'error': ...} on bad input
+    or a duplicate email."""
+    import secrets
+
+    first = (fields.get('first_name') or '').strip()
+    last = (fields.get('last_name') or '').strip()
+    email = (fields.get('email') or '').strip().lower()
+    if not first or not last:
+        return {'error': 'First and last name are required'}
+    if not email or '@' not in email:
+        return {'error': 'A valid email is required'}
+    admin = _admin()
+    existing = admin.table('users').select('id').eq('email', email).limit(1).execute().data
+    if existing:
+        return {'error': 'A user with this email already exists'}
+    try:
+        auth = admin.auth.admin.create_user({
+            'email': email,
+            'password': secrets.token_urlsafe(18),  # placeholder; teacher sets their own via email
+            'email_confirm': False,
+            'user_metadata': {'first_name': first, 'last_name': last},
+        })
+    except Exception as e:
+        logger.error(f"SIS teacher auth create failed: {e}")
+        return {'error': 'Could not create the account (is the email already in use?)'}
+    if not auth.user:
+        return {'error': 'Could not create the account'}
+    profile = {
+        'id': auth.user.id,
+        'email': email,
+        'first_name': first,
+        'last_name': last,
+        'display_name': f'{first} {last}'.strip(),
+        'role': 'org_managed',
+        'org_role': 'advisor',
+        'org_roles': ['advisor'],
+        'organization_id': org_id,
+        'bio': (fields.get('bio') or '').strip() or None,
+    }
+    # The auth user can take a beat to be visible to the users FK — retry briefly
+    # (same race the iCreate registration insert handles).
+    import time
+    for attempt in range(3):
+        try:
+            admin.table('users').insert(profile).execute()
+            break
+        except Exception as e:
+            msg = str(e).lower()
+            if ('foreign key' in msg or '23503' in msg) and attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            logger.error(f"SIS teacher profile insert failed: {e}")
+            try:
+                admin.auth.admin.delete_user(auth.user.id)
+            except Exception:
+                pass
+            return {'error': 'Could not create the account'}
+    try:
+        admin.auth.resend({'type': 'signup', 'email': email})
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"SIS teacher set-password email failed for {email}: {e}")
+    return {'teacher': {'id': auth.user.id, 'name': profile['display_name'], 'email': email}}
+
+
+_STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio')
+
+
+def update_staff_member(org_id: str, staff_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Edit a staff member's profile (name/email/bio). Keeps display_name in sync
+    and best-effort syncs the auth email, mirroring update_student_profile."""
+    row = (
+        _admin().table('users').select('id, organization_id, first_name, last_name, email')
+        .eq('id', staff_id).limit(1).execute()
+    ).data
+    if not row or row[0].get('organization_id') != org_id:
+        return None
+    cur = row[0]
+    payload: Dict[str, Any] = {}
+    for k in _STAFF_EDIT_FIELDS:
+        if k in fields:
+            v = fields[k]
+            payload[k] = (v.strip() if isinstance(v, str) else v) or None
+    first = payload.get('first_name', cur.get('first_name')) or ''
+    last = payload.get('last_name', cur.get('last_name')) or ''
+    combined = f"{first} {last}".strip()
+    if combined:
+        payload['display_name'] = combined
+    if not payload:
+        return {'id': staff_id}
+    resp = _admin().table('users').update(payload).eq('id', staff_id).execute()
+    new_email = payload.get('email')
+    if new_email and new_email != cur.get('email'):
+        try:
+            _admin().auth.admin.update_user_by_id(staff_id, {'email': new_email})
+        except Exception as e:
+            logger.warning(f"Auth email sync failed for {staff_id[:8]}: {e}")
+    return resp.data[0] if resp.data else {'id': staff_id}
 
 
 def student_in_org(student_id: str, org_id: str) -> bool:
@@ -393,7 +507,8 @@ def student_in_org(student_id: str, org_id: str) -> bool:
     return bool(row and row[0].get('organization_id') == org_id)
 
 
-_PROFILE_FIELDS = ('first_name', 'last_name', 'email', 'date_of_birth')
+_PROFILE_FIELDS = ('first_name', 'last_name', 'email', 'date_of_birth',
+                   'preferred_name', 'gender', 'allergies', 'medications')
 
 
 def update_student_profile(org_id: str, student_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -555,6 +670,33 @@ def get_org_user(org_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         'household_id': hh.get('household_id'),
         'household_name': hh.get('household_name'),
     }
+
+
+def household_registration(org_id: str, household_id: str) -> Optional[Dict[str, Any]]:
+    """The latest iCreate registration submitted by any guardian in this household
+    (answers, signed paperwork, kids, fee) — surfaced on the Family detail modal.
+    Returns None for orgs/households without one."""
+    members = (
+        _admin().table('household_members')
+        .select('user_id, is_primary_guardian, relationship')
+        .eq('household_id', household_id)
+        .execute()
+    ).data or []
+    guardian_ids = [m['user_id'] for m in members
+                    if m.get('is_primary_guardian') or m.get('relationship') in ('guardian', 'parent')]
+    if not guardian_ids:
+        return None
+    rows = (
+        _admin().table('icreate_registrations')
+        .select('id, parent_user_id, status, kids, paperwork, answers, emergency_contacts, '
+                'fee_cents, fee_recorded_at, scheduling_emailed_at, created_at, completed_at')
+        .eq('organization_id', org_id)
+        .in_('parent_user_id', guardian_ids)
+        .order('created_at', desc=True)
+        .limit(1)
+        .execute()
+    ).data or []
+    return rows[0] if rows else None
 
 
 def message_household_guardians(org_id: str, household_id: str, sender_id: str,

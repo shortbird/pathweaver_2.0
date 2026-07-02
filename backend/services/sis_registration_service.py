@@ -275,6 +275,8 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
                 'status': 'active',
                 'enrolled_by': completed_by,
             }, on_conflict='class_id,student_id').execute()
+            from services.class_group_sync_service import sync_class_group
+            sync_class_group(item['class_id'], actor_id=completed_by)
             new_status = 'enrolled'
         _admin().table('sis_registration_items').update(
             {'status': new_status, 'updated_at': _now()}

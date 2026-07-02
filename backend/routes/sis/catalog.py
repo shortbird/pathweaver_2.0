@@ -39,6 +39,15 @@ def _truthy(v):
     return str(v).lower() in ('1', 'true', 'yes')
 
 
+def _instructor_in_org(org_id, instructor_id):
+    """True when the given user belongs to this org (for primary_instructor_id)."""
+    row = (
+        get_supabase_admin_client().table('users').select('id, organization_id')
+        .eq('id', instructor_id).limit(1).execute()
+    ).data
+    return bool(row and row[0].get('organization_id') == org_id)
+
+
 # ── Programs ─────────────────────────────────────────────────────────────────
 # ── Classes (org_classes SIS view) ───────────────────────────────────────────
 @bp.route('/classes', methods=['GET'])
@@ -86,6 +95,8 @@ def create_class(user_id):
     invalid = _validate_class_fields(data)
     if invalid:
         return jsonify({'success': False, 'error': invalid}), 400
+    if data.get('primary_instructor_id') and not _instructor_in_org(org_id, data['primary_instructor_id']):
+        return jsonify({'success': False, 'error': 'Teacher not found in this organization'}), 400
     repo = SisClassRepository(client=get_supabase_admin_client())
     fields = {**data, 'name': name}
     cls = repo.create_for_org(org_id, created_by=user_id, fields=fields)
@@ -114,6 +125,8 @@ def update_class(user_id, class_id):
     invalid = _validate_class_fields(data)
     if invalid:
         return jsonify({'success': False, 'error': invalid}), 400
+    if data.get('primary_instructor_id') and not _instructor_in_org(org_id, data['primary_instructor_id']):
+        return jsonify({'success': False, 'error': 'Teacher not found in this organization'}), 400
     repo = SisClassRepository(client=get_supabase_admin_client())
     existing = repo.find_by_id(class_id)
     if not existing or existing.get('organization_id') != org_id:
@@ -256,16 +269,47 @@ def enroll_student(user_id, class_id):
         supabase.table('class_enrollments').select('id, status')
         .eq('class_id', class_id).eq('student_id', student_id).limit(1).execute()
     ).data
+    from services.class_group_sync_service import sync_class_group
     if existing:
         if existing[0].get('status') != 'active':
             supabase.table('class_enrollments').update({'status': 'active'}).eq('id', existing[0]['id']).execute()
+            sync_class_group(class_id, actor_id=user_id)
         return jsonify({'success': True, 'already_enrolled': True})
 
     supabase.table('class_enrollments').insert({
         'class_id': class_id, 'student_id': student_id,
         'enrolled_by': user_id, 'status': 'active',
     }).execute()
+    sync_class_group(class_id, actor_id=user_id)
     return jsonify({'success': True}), 201
+
+
+# ── Optio-course settings ────────────────────────────────────────────────────
+# Per-org details for the Optio courses an org offers (the "iCreate versions" of
+# at-home-learning courses). Teacher is per-course (org_course_settings); tuition
+# is ONE org-wide price for all Optio courses (sis_settings, edited in Settings).
+@bp.route('/course-settings', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_course_settings(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, **catalog.list_course_settings(org_id)})
+
+
+@bp.route('/courses/<course_id>/settings', methods=['PUT'])
+@require_role(*STAFF_ROLES)
+def update_course_settings(user_id, course_id):
+    """Set this org's teacher for an Optio course (teacher_id: null clears it)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    fields = {k: data[k] for k in ('teacher_id',) if k in data}
+    result = catalog.update_course_settings(org_id, course_id, fields, assigned_by=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
 
 
 # ── Class image upload ───────────────────────────────────────────────────────

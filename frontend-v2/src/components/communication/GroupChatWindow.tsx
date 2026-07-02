@@ -2,10 +2,15 @@
  * GroupChatWindow - Group message chat view.
  * Desktop: panel with optional member sidebar.
  * Mobile: full-screen with back button, member list as bottom sheet.
+ *
+ * Messaging overhaul: long-press actions (react/reply/copy/edit/delete/pin),
+ * reactions row, reply quoting, photo/video attachments, pinned-message banner,
+ * announcement-only mode (admins-only posting), and instant delivery via
+ * Supabase Realtime broadcast (polling stays as the fallback).
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Alert } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Alert, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -19,9 +24,30 @@ import {
   sendGroupMessage,
   markGroupRead,
   deleteGroup,
+  toggleGroupReaction,
+  editGroupMessage,
+  deleteGroupMessage,
+  pinGroupMessage,
+  setGroupAnnouncementOnly,
   type Group,
   type Message,
 } from '@/src/hooks/useMessages';
+import {
+  useMessagingRealtime,
+  appendRealtimeMessage,
+  patchMessageReactions,
+  patchMessageEdited,
+  patchMessageDeleted,
+} from '@/src/hooks/useMessagingRealtime';
+import {
+  ReactionPills,
+  ReplyQuote,
+  MessageAttachments,
+  ComposerBanner,
+  PendingAttachmentChips,
+  usePendingAttachments,
+} from './MessageParts';
+import { MessageActionsSheet } from './MessageActionsSheet';
 
 interface Props {
   group: Group;
@@ -60,7 +86,7 @@ const roleLabels: Record<string, string> = {
   owner: 'Owner',
 };
 
-function MembersList({ members, userId, onClose }: { members: any[]; userId?: string; onClose?: () => void }) {
+function MembersList({ members, userId }: { members: any[]; userId?: string; onClose?: () => void }) {
   const c = useThemeColors();
   return (
     <ScrollView className="flex-1" contentContainerStyle={{ paddingVertical: 4 }}>
@@ -106,19 +132,84 @@ function MembersList({ members, userId, onClose }: { members: any[]; userId?: st
   );
 }
 
+/** Admin-only group settings row: announcement-only toggle. Lives inside the
+ *  member sheet/panel (the existing "settings UI" for a group). */
+function AdminSettings({
+  announcementOnly,
+  saving,
+  onToggle,
+}: {
+  announcementOnly: boolean;
+  saving: boolean;
+  onToggle: (value: boolean) => void;
+}) {
+  return (
+    <View className="px-4 py-3 border-t border-surface-200 dark:border-dark-surface-300">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 pr-3">
+          <UIText size="sm" className="font-poppins-medium text-typo-800">Announcement-only</UIText>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 mt-0.5">
+            Only group admins can post
+          </UIText>
+        </View>
+        <Switch
+          value={announcementOnly}
+          disabled={saving}
+          onValueChange={onToggle}
+          trackColor={{ true: '#6D469B', false: undefined }}
+          accessibilityLabel="Announcement-only"
+        />
+      </View>
+    </View>
+  );
+}
+
 export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
-  const { messages, loading, refetch, setMessages } = useGroupMessages(group.id);
+  const { messages, loading, setMessages } = useGroupMessages(group.id);
   const { group: groupDetail, loading: detailLoading } = useGroupDetail(group.id);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
+  // Long-press actions sheet. `actionsFor` persists through the close animation
+  // (only `actionsVisible` flips) so the deferred action keeps its message.
+  const [actionsFor, setActionsFor] = useState<Message | null>(null);
+  const [actionsVisible, setActionsVisible] = useState(false);
+  // Pin + announcement-only state, seeded from the group detail fetch and kept
+  // live by realtime 'pinned' / 'settings' events.
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const [pinnedFallback, setPinnedFallback] = useState<Message | null>(null);
+  const [announcementOnly, setAnnouncementOnly] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const {
+    pending, pickAttachments, removeAttachment, clearAttachments, readyAttachments, uploading,
+  } = usePendingAttachments();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
   const isMobile = !!onBack;
+
+  useEffect(() => {
+    if (!groupDetail) return;
+    setPinnedId(groupDetail.pinned_message_id || groupDetail.pinned_message?.id || null);
+    setPinnedFallback((groupDetail.pinned_message as Message) || null);
+    setAnnouncementOnly(!!groupDetail.announcement_only);
+  }, [groupDetail]);
+
+  // Instant delivery: apply broadcast events straight to local state. The 15s
+  // poll in useGroupMessages remains the fallback.
+  useMessagingRealtime(group.id ? `group:${group.id}` : null, {
+    onMessage: (m) => setMessages((prev) => appendRealtimeMessage(prev, m)),
+    onReactions: (p) => setMessages((prev) => patchMessageReactions(prev, p.message_id, p.reactions)),
+    onEdited: (p) => setMessages((prev) => patchMessageEdited(prev, p)),
+    onDeleted: (p) => setMessages((prev) => patchMessageDeleted(prev, p.message_id)),
+    onPinned: (p) => setPinnedId(p.pinned_message_id),
+    onSettings: (p) => setAnnouncementOnly(!!p.announcement_only),
+  });
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -150,9 +241,124 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     if (!isMobile) inputRef.current?.focus();
   }, [group.id, isMobile]);
 
+  const members = groupDetail?.members || [];
+
+  // Group admins (the creator is added as admin) and superadmins can delete.
+  const myMembership = members.find((m: any) => (m.user || m).id === user?.id);
+  const isGroupAdmin = myMembership?.role === 'admin' || myMembership?.role === 'owner';
+  const canDelete = isGroupAdmin || user?.role === 'superadmin';
+  const canPost = isGroupAdmin || !announcementOnly;
+
+  // The pinned message for the banner: prefer the live copy from the message
+  // list (tracks edits), fall back to the hydrated copy from the detail fetch.
+  const pinnedMessage = pinnedId
+    ? messages.find((m) => m.id === pinnedId) || (pinnedFallback?.id === pinnedId ? pinnedFallback : null)
+    : null;
+
+  const openActions = (msg: Message) => {
+    setActionsFor(msg);
+    setActionsVisible(true);
+  };
+
+  const startEdit = (msg: Message) => {
+    setReplyTo(null);
+    setEditing(msg);
+    setInput(msg.message_content);
+    inputRef.current?.focus();
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setInput('');
+  };
+
+  const handleToggleReaction = async (msg: Message, emoji: string) => {
+    try {
+      const res = await toggleGroupReaction(group.id, msg.id, emoji);
+      if (res?.reactions) {
+        setMessages((prev) => patchMessageReactions(prev, msg.id, res.reactions));
+      }
+    } catch {
+      toast.error('Could not update the reaction');
+    }
+  };
+
+  const handleDeleteMessage = async (msg: Message) => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Delete this message?')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert('Delete Message', 'Delete this message?', [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+          ]);
+        });
+    if (!confirmed) return;
+    try {
+      await deleteGroupMessage(group.id, msg.id);
+      setMessages((prev) => patchMessageDeleted(prev, msg.id));
+      if (pinnedId === msg.id) setPinnedId(null);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to delete the message');
+    }
+  };
+
+  const handleTogglePin = async (msg: Message) => {
+    const nextId = pinnedId === msg.id ? null : msg.id;
+    try {
+      await pinGroupMessage(group.id, nextId);
+      setPinnedId(nextId);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to update the pin');
+    }
+  };
+
+  const handleUnpin = async () => {
+    try {
+      await pinGroupMessage(group.id, null);
+      setPinnedId(null);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to unpin');
+    }
+  };
+
+  const handleToggleAnnouncementOnly = async (value: boolean) => {
+    setSavingSettings(true);
+    const prev = announcementOnly;
+    setAnnouncementOnly(value);
+    try {
+      await setGroupAnnouncementOnly(group.id, value);
+    } catch (e: any) {
+      setAnnouncementOnly(prev);
+      toast.error(e?.response?.data?.error || 'Failed to update the setting');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   const handleSend = async () => {
     const content = input.trim();
-    if (!content || sending) return;
+
+    // Edit mode: PATCH the existing message instead of sending a new one.
+    if (editing) {
+      if (!content || sending) return;
+      setSending(true);
+      try {
+        await editGroupMessage(group.id, editing.id, content);
+        const edited_at = new Date().toISOString();
+        setMessages((prev) => patchMessageEdited(prev, { message_id: editing.id, content, edited_at }));
+        setEditing(null);
+        setInput('');
+      } catch (e: any) {
+        toast.error(e?.response?.data?.error || 'Failed to edit the message');
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    const attachments = readyAttachments;
+    if ((!content && attachments.length === 0) || sending || uploading) return;
+    const replying = replyTo;
 
     // Optimistic update
     const optimisticMsg: Message = {
@@ -168,18 +374,49 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
         first_name: user?.first_name,
         last_name: user?.last_name,
       },
+      attachments,
+      reply_to: replying
+        ? {
+            id: replying.id,
+            sender_name: replying.sender_id === user?.id ? 'You' : senderName(replying),
+            content: (replying.message_content || '').slice(0, 140),
+          }
+        : null,
       isOptimistic: true,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     setInput('');
+    setReplyTo(null);
+    clearAttachments();
 
     try {
       setSending(true);
-      await sendGroupMessage(group.id, content);
-      refetch();
-    } catch {
+      const sent = await sendGroupMessage(group.id, content, {
+        ...(replying ? { reply_to_message_id: replying.id } : {}),
+        ...(attachments.length ? { attachments } : {}),
+      });
+      // Swap the optimistic bubble for the saved message in place (no refetch
+      // flicker); the realtime broadcast may have delivered it first.
+      const saved: Message | undefined = (sent as any)?.message || ((sent as any)?.id ? sent : undefined);
+      setMessages((prev) => {
+        if (saved?.id && prev.some((m) => m.id === saved.id)) {
+          return prev.filter((m) => m.id !== optimisticMsg.id);
+        }
+        return prev.map((m) =>
+          m.id === optimisticMsg.id
+            ? { ...optimisticMsg, ...(saved || {}), id: saved?.id || optimisticMsg.id, isOptimistic: false }
+            : m,
+        );
+      });
+    } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
       setInput(content);
+      setReplyTo(replying);
+      // 403: announcement-only groups reject non-admin posts.
+      if (e?.response?.status === 403) {
+        setAnnouncementOnly(true);
+        toast.error(e?.response?.data?.error || 'Only teachers can post in this group');
+      }
     } finally {
       setSending(false);
     }
@@ -191,13 +428,6 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
       handleSend();
     }
   };
-
-  const members = groupDetail?.members || [];
-
-  // Group admins (the creator is added as admin) and superadmins can delete.
-  const myMembership = members.find((m: any) => (m.user || m).id === user?.id);
-  const isGroupAdmin = myMembership?.role === 'admin' || myMembership?.role === 'owner';
-  const canDelete = isGroupAdmin || user?.role === 'superadmin';
 
   const handleDelete = async () => {
     const confirmed = Platform.OS === 'web'
@@ -293,6 +523,29 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     </View>
   );
 
+  // Pinned-message banner under the header (admins can unpin from it).
+  const pinnedBanner = pinnedMessage ? (
+    <View
+      className="flex-row items-center border-b border-surface-200 dark:border-dark-surface-300"
+      style={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: '#EDE9F0' }}
+    >
+      <Ionicons name="pin" size={16} color="#6D469B" />
+      <View className="flex-1">
+        <UIText size="xs" className="font-poppins-semibold" style={{ color: '#6D469B' }} numberOfLines={1}>
+          Pinned{pinnedMessage.sender ? ` · ${senderName(pinnedMessage)}` : ''}
+        </UIText>
+        <UIText size="xs" style={{ color: '#4A3564' }} numberOfLines={2}>
+          {pinnedMessage.message_content || 'Attachment'}
+        </UIText>
+      </View>
+      {isGroupAdmin && (
+        <Pressable onPress={handleUnpin} hitSlop={8} accessibilityRole="button" accessibilityLabel="Unpin message">
+          <Ionicons name="close" size={16} color="#6D469B" />
+        </Pressable>
+      )}
+    </View>
+  ) : null;
+
   const messageList = (
     <ScrollView
       ref={scrollRef}
@@ -340,7 +593,11 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                 )}
                 {!isMine && !showSender && <View style={{ width: 40 }} />}
 
-                <View
+                <Pressable
+                  onLongPress={
+                    msg.is_deleted || msg.isOptimistic ? undefined : () => openActions(msg)
+                  }
+                  delayLongPress={300}
                   style={{
                     maxWidth: '70%',
                     paddingHorizontal: 14,
@@ -357,22 +614,62 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                     opacity: msg.isOptimistic ? 0.7 : 1,
                   }}
                 >
-                  <UIText size="sm" style={{ color: isMine ? '#fff' : c.text, lineHeight: 20 }}>
-                    {msg.message_content}
-                  </UIText>
-                  <UIText
-                    size="xs"
-                    style={{
-                      color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint,
-                      fontSize: 10,
-                      marginTop: 4,
-                      textAlign: 'right',
-                    }}
-                  >
-                    {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
-                  </UIText>
-                </View>
+                  {msg.is_deleted ? (
+                    <UIText
+                      size="sm"
+                      style={{
+                        color: isMine ? 'rgba(255,255,255,0.7)' : c.textFaint,
+                        fontStyle: 'italic',
+                        lineHeight: 20,
+                      }}
+                    >
+                      Message deleted
+                    </UIText>
+                  ) : (
+                    <>
+                      <ReplyQuote replyTo={msg.reply_to} isMine={isMine} />
+                      <MessageAttachments attachments={msg.attachments} isMine={isMine} />
+                      {msg.message_content ? (
+                        <UIText size="sm" style={{ color: isMine ? '#fff' : c.text, lineHeight: 20 }}>
+                          {msg.message_content}
+                        </UIText>
+                      ) : null}
+                    </>
+                  )}
+                  <View className="flex-row items-center justify-end gap-2" style={{ marginTop: 4 }}>
+                    {pinnedId === msg.id && !msg.is_deleted ? (
+                      <Ionicons name="pin" size={10} color={isMine ? 'rgba(255,255,255,0.6)' : c.textFaint} />
+                    ) : null}
+                    {msg.edited_at && !msg.is_deleted ? (
+                      <UIText
+                        size="xs"
+                        style={{ color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 10 }}
+                      >
+                        (edited)
+                      </UIText>
+                    ) : null}
+                    <UIText
+                      size="xs"
+                      style={{
+                        color: isMine ? 'rgba(255,255,255,0.6)' : c.textFaint,
+                        fontSize: 10,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
+                    </UIText>
+                  </View>
+                </Pressable>
               </View>
+              {!msg.is_deleted && (
+                <View style={!isMine ? { marginLeft: 40 } : undefined}>
+                  <ReactionPills
+                    reactions={msg.reactions}
+                    isMine={isMine}
+                    onToggle={(emoji) => handleToggleReaction(msg, emoji)}
+                  />
+                </View>
+              )}
             </View>
           );
         })
@@ -380,44 +677,120 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     </ScrollView>
   );
 
-  const inputBar = (
+  // Announcement-only notice replaces the composer for non-admins.
+  const announcementNotice = (
     <View
-      className="border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 px-3"
-      style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
+      className="flex-row items-center justify-center border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100"
+      style={{ paddingTop: 12, paddingBottom: isMobile ? Math.max(insets.bottom, 12) : 12, gap: 8, paddingHorizontal: 16 }}
     >
-      <View className="flex-row items-end gap-2">
-        <TextInput
-          ref={inputRef}
-          value={input}
-          onChangeText={setInput}
-          onKeyPress={handleKeyPress}
-          placeholder="Type a message..."
-          placeholderTextColor={c.textFaint}
-          multiline
-          maxLength={2000}
-          className="flex-1 bg-surface-100 dark:bg-dark-surface-200 rounded-2xl px-4 py-2 font-poppins text-sm text-typo dark:text-dark-typo"
-          style={{
-            outline: 'none',
-            minHeight: 36,
-            maxHeight: 100,
-          } as any}
+      <Ionicons name="megaphone-outline" size={16} color={c.iconMuted} />
+      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">
+        Only teachers can post in this group
+      </UIText>
+    </View>
+  );
+
+  const canSend = editing
+    ? !!input.trim() && !sending
+    : (!!input.trim() || readyAttachments.length > 0) && !sending && !uploading;
+
+  const composer = (
+    <View>
+      {editing ? (
+        <ComposerBanner
+          icon="pencil-outline"
+          title="Editing message"
+          snippet={editing.message_content}
+          onCancel={cancelEdit}
         />
-        <Pressable
-          onPress={handleSend}
-          disabled={!input.trim() || sending}
-          style={{
-            backgroundColor: input.trim() && !sending ? '#6D469B' : c.border,
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+      ) : replyTo ? (
+        <ComposerBanner
+          icon="arrow-undo-outline"
+          title={`Replying to ${replyTo.sender_id === user?.id ? 'yourself' : senderName(replyTo)}`}
+          snippet={replyTo.message_content || 'Attachment'}
+          onCancel={() => setReplyTo(null)}
+        />
+      ) : null}
+      <View className="border-t border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100">
+        {!editing && <PendingAttachmentChips items={pending} onRemove={removeAttachment} />}
+        <View
+          className="flex-row items-end gap-2 px-3"
+          style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
         >
-          <Ionicons name="arrow-up" size={18} color="#fff" />
-        </Pressable>
+          {!editing && (
+            <Pressable
+              onPress={pickAttachments}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Attach a photo or video"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="attach" size={22} color="#6D469B" />
+            </Pressable>
+          )}
+          <TextInput
+            ref={inputRef}
+            value={input}
+            onChangeText={setInput}
+            onKeyPress={handleKeyPress}
+            placeholder="Type a message..."
+            placeholderTextColor={c.textFaint}
+            multiline
+            maxLength={2000}
+            className="flex-1 bg-surface-100 dark:bg-dark-surface-200 rounded-2xl px-4 py-2 font-poppins text-sm text-typo dark:text-dark-typo"
+            style={{
+              outline: 'none',
+              minHeight: 36,
+              maxHeight: 100,
+            } as any}
+          />
+          <Pressable
+            onPress={handleSend}
+            disabled={!canSend}
+            style={{
+              backgroundColor: canSend ? '#6D469B' : c.border,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name={editing ? 'checkmark' : 'arrow-up'} size={18} color="#fff" />
+          </Pressable>
+        </View>
       </View>
     </View>
+  );
+
+  const inputBar = canPost ? composer : announcementNotice;
+
+  const actionsSheet = (
+    <MessageActionsSheet
+      visible={actionsVisible}
+      onClose={() => setActionsVisible(false)}
+      message={actionsFor}
+      isOwn={actionsFor?.sender_id === user?.id}
+      canDelete={actionsFor?.sender_id === user?.id || isGroupAdmin}
+      canPin={isGroupAdmin}
+      isPinned={!!actionsFor && pinnedId === actionsFor.id}
+      onReact={(emoji) => actionsFor && handleToggleReaction(actionsFor, emoji)}
+      onReply={() => {
+        if (!actionsFor) return;
+        setEditing(null);
+        setReplyTo(actionsFor);
+        inputRef.current?.focus();
+      }}
+      onEdit={() => actionsFor && startEdit(actionsFor)}
+      onDelete={() => actionsFor && handleDeleteMessage(actionsFor)}
+      onPin={() => actionsFor && handleTogglePin(actionsFor)}
+    />
   );
 
   // ── Mobile members modal ──
@@ -448,6 +821,13 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
           ) : (
             <MembersList members={members} userId={user?.id} />
           )}
+          {isGroupAdmin && (
+            <AdminSettings
+              announcementOnly={announcementOnly}
+              saving={savingSettings}
+              onToggle={handleToggleAnnouncementOnly}
+            />
+          )}
           {groupDetail?.description ? (
             <View className="px-4 py-3 border-t border-surface-200 dark:border-dark-surface-300">
               <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 mb-1">About</UIText>
@@ -468,9 +848,11 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
         keyboardVerticalOffset={0}
       >
         {header}
+        {pinnedBanner}
         {messageList}
         {inputBar}
         {memberModal}
+        {actionsSheet}
       </KeyboardAvoidingView>
     );
   }
@@ -481,6 +863,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
       {/* Main chat area */}
       <View className="flex-1">
         {header}
+        {pinnedBanner}
         {messageList}
         {inputBar}
       </View>
@@ -507,6 +890,13 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
           ) : (
             <MembersList members={members} userId={user?.id} />
           )}
+          {isGroupAdmin && (
+            <AdminSettings
+              announcementOnly={announcementOnly}
+              saving={savingSettings}
+              onToggle={handleToggleAnnouncementOnly}
+            />
+          )}
           {groupDetail?.description ? (
             <View className="px-4 py-3 border-t border-surface-200 dark:border-dark-surface-300">
               <UIText size="xs" className="font-poppins-semibold text-typo-500 dark:text-dark-typo-500 mb-1">About</UIText>
@@ -515,6 +905,8 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
           ) : null}
         </View>
       )}
+
+      {actionsSheet}
     </View>
   );
 }

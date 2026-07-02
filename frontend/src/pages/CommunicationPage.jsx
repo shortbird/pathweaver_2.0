@@ -7,7 +7,6 @@ import ConversationList from '../components/communication/ConversationList'
 import ChatWindow from '../components/communication/ChatWindow'
 import GroupChatWindow from '../components/communication/GroupChatWindow'
 import CreateGroupModal from '../components/communication/CreateGroupModal'
-import PushNotificationBanner from '../components/notifications/PushNotificationBanner'
 
 const CommunicationPage = () => {
   const { user } = useAuth()
@@ -72,12 +71,7 @@ const CommunicationPage = () => {
 
   return (
     <div className="h-[calc(100vh-4rem)] bg-gray-50">
-      {/* Push notification prompt - fixed at top */}
-      <div className="absolute top-16 left-0 right-0 z-10">
-        <PushNotificationBanner />
-      </div>
-
-      <div className="max-w-[1600px] mx-auto h-full">
+      <div className="max-w-5xl mx-auto h-full md:px-6 md:py-4">
         <div className="h-full flex bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Left Sidebar - Conversations List
               Mobile: full width, hidden when a conversation is selected

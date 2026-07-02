@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
 
 const PrivateRoute = ({ requiredRole, blockRoles }) => {
   const { isAuthenticated, user, effectiveRole, loading } = useAuth()
   const location = useLocation()
+  // iCreate parents with an unfinished registration funnel are locked to it.
+  const icreateGate = useICreateRegistrationGate(user, isAuthenticated, effectiveRole)
 
   // Initialize graceLoading synchronously to prevent flash on first render
   const [graceLoading, setGraceLoading] = useState(() => {
@@ -56,6 +59,18 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
+
+  // iCreate parents must finish the registration funnel before using Optio.
+  if (icreateGate.checking) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+  if (icreateGate.mustRegister) {
+    return <Navigate to="/register/icreate/resume" replace />
   }
 
   // blockRoles: deny these effective roles and bounce them to their own home.

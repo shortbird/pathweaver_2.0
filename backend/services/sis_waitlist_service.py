@@ -140,6 +140,8 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
         'status': 'active',
         'enrolled_by': enrolled_by,
     }, on_conflict='class_id,student_id').execute()
+    from services.class_group_sync_service import sync_class_group
+    sync_class_group(entry['class_id'], actor_id=enrolled_by)
     resp = (
         _admin().table('sis_waitlist_entries')
         .update({'status': 'promoted', 'updated_at': _now().isoformat()})
