@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { create } from 'zustand';
 import { router } from 'expo-router';
 import { useScrollToTop, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +30,25 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { getFlag, setFlag, PrefsKeys } from '@/src/stores/prefsStore';
 
 const DESKTOP_BREAKPOINT = 768;
+
+/**
+ * Which feed rows are currently on-screen. Kept in an external store rather than
+ * FeedScreen state so that a scroll (which changes visibility constantly) does
+ * NOT re-render the whole screen and rebuild `renderItem`. Each FeedRow
+ * subscribes to just its own id, so only the one or two cards whose visibility
+ * actually flips re-render — that's what pauses an inline video once it scrolls
+ * off-screen. Feeding this through React state instead made every mounted card
+ * re-render on every scroll frame, which is what made the feed choppy as you
+ * scrolled down (more cards mounted = more wasted re-renders per frame).
+ */
+interface FeedVisibilityState {
+  activeIds: Set<string>;
+  setActiveIds: (ids: Set<string>) => void;
+}
+const useFeedVisibilityStore = create<FeedVisibilityState>((set) => ({
+  activeIds: new Set<string>(),
+  setActiveIds: (activeIds) => set({ activeIds }),
+}));
 
 const OPTIO_ICON_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
@@ -395,6 +415,39 @@ function ParentWelcomeModal({ visible, onClose }: { visible: boolean; onClose: (
   );
 }
 
+/**
+ * A single feed row. Subscribes to the visibility store for its OWN id so that
+ * scrolling only re-renders the handful of rows whose on-screen state changed,
+ * instead of the whole list. All handlers passed in are stable (see renderItem),
+ * so React.memo keeps every other row from re-rendering on a scroll.
+ */
+const FeedRow = React.memo(function FeedRow({
+  item,
+  isDesktop,
+  viewerCanModerate,
+  onPress,
+  onHighlightChange,
+}: {
+  item: any;
+  isDesktop: boolean;
+  viewerCanModerate: boolean;
+  onPress: () => void;
+  onHighlightChange: (id: string, on: boolean) => void;
+}) {
+  const isActive = useFeedVisibilityStore((s) => s.activeIds.has(item.id));
+  return (
+    <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
+      <FeedCard
+        item={item}
+        viewerCanModerate={viewerCanModerate}
+        isActive={isActive}
+        onPress={onPress}
+        onHighlightChange={onHighlightChange}
+      />
+    </View>
+  );
+});
+
 export default function FeedScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
@@ -422,12 +475,15 @@ export default function FeedScreen() {
 
   // Track which feed items are on-screen so an inline video pauses when scrolled
   // past instead of playing audio off-screen. onViewableItemsChanged must keep a
-  // stable identity (FlatList errors otherwise), hence the refs.
-  const [viewableIds, setViewableIds] = useState<Set<string>>(new Set());
+  // stable identity (FlatList errors otherwise), hence the ref. Push the result
+  // into the visibility store (NOT component state) so a scroll only re-renders
+  // the rows whose visibility changed — see useFeedVisibilityStore above.
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ item: any }> }) => {
-      setViewableIds(new Set(viewableItems.map((v) => v.item?.id).filter(Boolean) as string[]));
+      useFeedVisibilityStore.getState().setActiveIds(
+        new Set(viewableItems.map((v) => v.item?.id).filter(Boolean) as string[]),
+      );
     },
   ).current;
   useScrollToTop(studentsScrollRef);
@@ -504,19 +560,21 @@ export default function FeedScreen() {
     useFeedDetailStore.getState().setItem(item);
     router.push(`/(app)/post/${item.id}` as any);
   }, []);
+  // No `viewableIds` dependency here — that's the whole point. renderItem stays
+  // stable across scrolls, so FlatList doesn't rebuild every mounted row (and the
+  // inline onPress closures don't churn and defeat FeedCard's memo). Visibility
+  // is delivered to each row via the store inside FeedRow.
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
-      <View className={isDesktop ? 'max-w-2xl w-full mx-auto' : ''}>
-        <FeedCard
-          item={item}
-          viewerCanModerate={canModerateItem(item)}
-          isActive={viewableIds.has(item.id)}
-          onPress={() => openPost(item)}
-          onHighlightChange={(id, on) => setHighlighted(id, on)}
-        />
-      </View>
+      <FeedRow
+        item={item}
+        isDesktop={isDesktop}
+        viewerCanModerate={canModerateItem(item)}
+        onPress={() => openPost(item)}
+        onHighlightChange={setHighlighted}
+      />
     ),
-    [isDesktop, canModerateItem, viewableIds, openPost, setHighlighted],
+    [isDesktop, canModerateItem, openPost, setHighlighted],
   );
 
   const renderHeader = () => (
