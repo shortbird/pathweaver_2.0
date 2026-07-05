@@ -7,7 +7,8 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, FlatList, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView, AppState } from 'react-native';
+import { View, ActivityIndicator, useWindowDimensions, Platform, Pressable, Image, ScrollView, Modal, KeyboardAvoidingView, AppState } from 'react-native';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 import { router } from 'expo-router';
@@ -469,7 +470,7 @@ export default function FeedScreen() {
     highlightsOnly: segment === 'highlights',
   });
   const { children: parentKids } = useMyChildren();
-  const listRef = useRef<FlatList<any>>(null);
+  const listRef = useRef<FlashListRef<any>>(null);
   const studentsScrollRef = useRef<ScrollView>(null);
   useScrollToTop(listRef);
 
@@ -561,7 +562,7 @@ export default function FeedScreen() {
     router.push(`/(app)/post/${item.id}` as any);
   }, []);
   // No `viewableIds` dependency here — that's the whole point. renderItem stays
-  // stable across scrolls, so FlatList doesn't rebuild every mounted row (and the
+  // stable across scrolls, so the list doesn't rebuild every mounted row (and the
   // inline onPress closures don't churn and defeat FeedCard's memo). Visibility
   // is delivered to each row via the store inside FeedRow.
   const renderItem = useCallback(
@@ -576,6 +577,17 @@ export default function FeedScreen() {
     ),
     [isDesktop, canModerateItem, openPost, setHighlighted],
   );
+
+  // Coarse recycling buckets for FlashList: cells recycle within the same type,
+  // so a media-heavy card is reused for another media card (similar layout)
+  // rather than for a text-only one. Keeps recycling cheap and layout stable.
+  const getItemType = useCallback((item: any) => {
+    const hasMedia =
+      (Array.isArray(item.media) && item.media.length > 0) ||
+      item.evidence?.type === 'image' ||
+      item.evidence?.type === 'video';
+    return `${item.type}:${hasMedia ? 'media' : 'text'}`;
+  }, []);
 
   const renderHeader = () => (
     <>
@@ -744,11 +756,19 @@ export default function FeedScreen() {
           <StudentsList isDesktop={isDesktop} />
         </ScrollView>
       ) : (
-        <FlatList
+        // FlashList recycles cell views instead of keeping the whole render
+        // window mounted (the old FlatList kept ~7 screens of heavy image/video
+        // cards live with clipping off, so memory — and jank — grew the further
+        // you scrolled). Recycling caps mounted cells to roughly what's on screen,
+        // which is also what keeps decoded-image RAM flat. FeedCard re-syncs its
+        // prop-seeded state on item.id change so recycling doesn't bleed stale
+        // counts across rows; getItemType keeps recycling within like layouts.
+        <FlashList
           ref={listRef}
           data={items}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          getItemType={getItemType}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
@@ -761,15 +781,6 @@ export default function FeedScreen() {
           refreshing={false}
           onRefresh={refetch}
           showsVerticalScrollIndicator={false}
-          // removeClippedSubviews detaches off-screen rows; with variable-height
-          // feed images that made images flash in then blank out on scroll
-          // (RN re-clips on the aspect-ratio layout pass). Keep it off and hold a
-          // few more rows mounted so scrolling back doesn't remount/reload them.
-          windowSize={7}
-          maxToRenderPerBatch={5}
-          removeClippedSubviews={false}
-          initialNumToRender={5}
-          updateCellsBatchingPeriod={100}
           scrollEventThrottle={64}
         />
       )}

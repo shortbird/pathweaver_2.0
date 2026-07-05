@@ -7,6 +7,9 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@legal/(.*)$': '<rootDir>/../shared/legal/$1',
+    // FlashList renders nothing without a measured layout in Jest — map it to a
+    // plain eager-rendering stub so screen tests can assert on list content.
+    '^@shopify/flash-list$': '<rootDir>/src/__tests__/mocks/flashListMock.tsx',
     '^@/(.*)$': '<rootDir>/$1',
   },
   setupFiles: [
