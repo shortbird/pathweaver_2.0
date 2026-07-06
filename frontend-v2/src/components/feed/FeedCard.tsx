@@ -5,7 +5,7 @@
  * Shows student info, content, evidence, pillar tags, and social actions.
  */
 
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { View, Pressable, Platform, Share, ScrollView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { router } from 'expo-router';
@@ -124,6 +124,40 @@ function ExpandableText({ text }: { text: string }) {
   );
 }
 
+/** Lightweight stand-in for an inline video while its card is OFF-screen.
+ *  Mounting a real expo-video player allocates a native decoder, and hardware
+ *  decoders are a scarce resource — keeping one alive for every video card in
+ *  the render window is a major scroll-jank source. So we only mount the real
+ *  VideoPlayer for the on-screen (active) card and show this poster otherwise.
+ *  Same dimensions as VideoPlayer's frame so swapping poster<->player doesn't
+ *  reflow the list. Tap opens the full-screen player. */
+function VideoPoster({ uri, onPress }: { uri?: string | null; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Play video"
+      className="w-full rounded-lg overflow-hidden bg-black"
+      style={{ aspectRatio: 3 / 4, minHeight: 300 }}
+    >
+      {uri ? (
+        <ExpoImage
+          source={{ uri }}
+          style={{ width: '100%', height: '100%' }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={100}
+        />
+      ) : null}
+      <View className="absolute inset-0 items-center justify-center bg-black/20">
+        <View className="w-14 h-14 rounded-full bg-white/90 items-center justify-center">
+          <Ionicons name="play" size={28} color="#1F2937" style={{ marginLeft: 3 }} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 function EvidenceDisplay({ evidence, media, description, isActive = true, uploadingPct }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null; isActive?: boolean; uploadingPct?: number }) {
   const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
 
@@ -156,9 +190,12 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
   );
   const hasImage = imageUrls.length > 0;
 
-  const videoUrl = allMedia.find((m) => m.type === 'video')?.url ||
+  const videoMedia = allMedia.find((m) => m.type === 'video');
+  const videoUrl = videoMedia?.url ||
     (evidence?.type === 'video' ? evidence?.url : null) ||
     evidence?.blocks?.find((b) => b.type === 'video')?.url;
+  // Poster shown while the card is off-screen (see VideoPoster / lazy mount).
+  const videoPoster = videoMedia?.preview || null;
 
   const textContent = evidence?.preview_text ||
     evidence?.blocks?.find((b) => b.type === 'text')?.content;
@@ -198,9 +235,16 @@ function EvidenceDisplay({ evidence, media, description, isActive = true, upload
           Always render the video when one is present. */}
       {videoUrl && (
         <View>
-          {/* Pause the inline player while the full-screen player is open so
-              you don't hear the audio twice (bug #29). */}
-          <VideoPlayer uri={videoUrl} isActive={isActive && modal?.type !== 'video'} />
+          {/* Only mount the real (native-decoder-backed) player for the card
+              that's actually on-screen; show a cheap poster otherwise. This caps
+              live video decoders to ~1-2 at a time instead of one per card in the
+              render window. Pause the inline player while the full-screen player
+              is open so you don't hear the audio twice (bug #29). */}
+          {isActive ? (
+            <VideoPlayer uri={videoUrl} isActive={modal?.type !== 'video'} />
+          ) : (
+            <VideoPoster uri={videoPoster} onPress={() => setModal({ type: 'video', uri: videoUrl })} />
+          )}
           <Pressable
             onPress={() => setModal({ type: 'video', uri: videoUrl })}
             className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/50 items-center justify-center"
@@ -323,6 +367,23 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const { user } = useAuthStore();
   const c = useThemeColors();
   const canHighlight = user?.role === 'superadmin';
+
+  // FlashList recycles a cell's component instance across different feed items,
+  // so prop-seeded useState initializers (views/comments/privacy/etc.) do NOT
+  // re-run when the cell is reused for a new item — they'd show the previous
+  // item's counts/state. Re-sync them (and reset transient UI) whenever the
+  // item id changes. Keyed on item.id so it's a no-op on ordinary re-renders.
+  useEffect(() => {
+    setViewsCount(item.views_count || 0);
+    setCommentsCount(item.comments_count);
+    setIsConfidential(item.is_confidential);
+    setIsHighlighted(!!item.is_highlighted);
+    setHidden(false);
+    setShowComments(false);
+    setShowViewersList(false);
+    setMenuOpen(false);
+    setShareToast('');
+  }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleHighlight = async () => {
     if (togglingHighlight) return;
