@@ -552,3 +552,44 @@ def admin_docs_analytics(user_id):
     except Exception as e:
         logger.error(f"Error getting docs analytics: {str(e)}")
         return jsonify({'error': 'Failed to load analytics'}), 500
+
+
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+@admin_docs_bp.route('/images', methods=['POST'])
+@require_superadmin
+def admin_upload_docs_image(user_id):
+    """Upload an image for docs articles to the public docs-images bucket."""
+    try:
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image file provided'}), 400
+
+        file = request.files['image']
+        ext = (file.filename or '').rsplit('.', 1)[-1].lower()
+        if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            return jsonify({'error': 'Unsupported image type. Use png, jpg, gif, or webp.'}), 400
+
+        data = file.read()
+        if len(data) > MAX_IMAGE_BYTES:
+            return jsonify({'error': 'Image exceeds the 5MB limit'}), 400
+
+        import uuid
+        from utils.storage_url import fix_storage_url
+
+        client = get_supabase_admin_client()
+        path = f"articles/{uuid.uuid4().hex}.{ext}"
+        client.storage.from_('docs-images').upload(
+            path, data, {'content-type': file.mimetype or f'image/{ext}'}
+        )
+        public_url = fix_storage_url(
+            client.storage.from_('docs-images').get_public_url(path)
+        )
+
+        logger.info(f"Docs image uploaded: {path}")
+        return jsonify({'success': True, 'url': public_url}), 200
+
+    except Exception as e:
+        logger.error(f"Error uploading docs image: {str(e)}")
+        return jsonify({'error': 'Failed to upload image'}), 500

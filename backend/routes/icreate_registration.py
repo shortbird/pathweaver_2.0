@@ -18,9 +18,13 @@ existing one) BEFORE seeing the rest of the form.
     POST /api/icreate/registrations/<id>/photo     -> required photo for the parent / each kid
     POST /api/icreate/registrations/<id>/details   -> emergency contacts + org questions
     POST /api/icreate/registrations/<id>/paperwork -> acknowledge/e-sign paperwork
-    POST /api/icreate/registrations/<id>/fee       -> record fee + email scheduling link -> 'schedule'
-    POST /api/icreate/registrations/<id>/schedule-done    -> parent built the schedule -> 'appointment'
-    POST /api/icreate/registrations/<id>/appointment-done -> appointment booked (or deferred) -> 'completed'
+    POST /api/icreate/registrations/<id>/fee       -> record fee + email scheduling link -> 'completed'
+    POST /api/icreate/registrations/<id>/schedule-done    -> legacy (pre-2026-07 funnels): schedule built -> 'appointment'
+    POST /api/icreate/registrations/<id>/appointment-done -> legacy (pre-2026-07 funnels): booked/deferred -> 'completed'
+
+The funnel ends at the fee step: the final page lists the next steps (book the
+Customized Learning Plan appointment + build the schedule) with links, and both
+remain reachable afterward (booking link email, Schedule Builder header button).
 
 Security model: all endpoints are public/pre-session (CSRF-exempt). The funnel
 access_token is only revealed AFTER the email is verified (new accounts) or the
@@ -431,6 +435,14 @@ def my_registration(user_id):
         .execute()
     ).data or []
     reg = rows[0] if rows else None
+    # Legacy in-flight rows from when schedule/appointment were funnel steps:
+    # the funnel now ends at the fee step, so settle these as completed.
+    if reg and reg.get('status') in ('schedule', 'appointment'):
+        now = datetime.utcnow().isoformat()
+        admin.table('icreate_registrations').update({
+            'status': 'completed', 'completed_at': now, 'updated_at': now,
+        }).eq('id', reg['id']).execute()
+        reg['status'] = 'completed'
     if not reg or reg.get('status') == 'completed':
         return jsonify({'success': True, 'registration': None}), 200
 
@@ -462,8 +474,7 @@ def my_registration(user_id):
                .eq('primary_contact_user_id', user_id).limit(1).execute()).data or []
     household = hh_rows[0] if hh_rows else None
 
-    # Current photos, so the family step can show what's already uploaded and
-    # the resumed schedule/appointment steps know the funnel is photo-complete.
+    # Current photos, so the family step can show what's already uploaded.
     kids = reg.get('kids') or []
     member_ids = [k['user_id'] for k in kids if k.get('user_id')] + [user_id]
     avatar_by_id = {}
@@ -983,9 +994,10 @@ def _abs_url(v):
 
 
 def _finish_fee_step(admin, reg, cfg, extra_fields=None):
-    """Shared fee completion: email the scheduling link and advance the funnel
-    to the post-payment steps (build schedule -> book appointment -> done).
-    Returns the response payload."""
+    """Shared fee completion: email the scheduling link and complete the
+    registration. Building the schedule and booking the appointment are
+    post-registration next steps shown on the final page (and reachable later
+    from the Schedule Builder), not funnel gates. Returns the response payload."""
     scheduling_url = _abs_url(cfg.get('scheduling_url'))
     now = datetime.utcnow().isoformat()
 
@@ -994,13 +1006,18 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
     org = admin.table('organizations').select('name').eq('id', reg['organization_id']).single().execute().data
     if scheduling_url and parent.get('email'):
         try:
+            from app_config import Config
             org_name = (org or {}).get('name') or 'iCreate'
+            builder_url = f"{Config.FRONTEND_URL.rstrip('/')}/schedule-builder"
             html = (
                 f"<p>Hi {parent.get('first_name') or 'there'},</p>"
                 f"<p>Thanks for registering with {org_name}! Don't forget to book your "
-                f"customized learning plan appointment.</p>"
+                f"appointment with {org_name} staff to build your Customized Learning Plan.</p>"
                 f"<p><a href=\"{scheduling_url}\">Book your appointment</a></p>"
-                f"<p>If the link doesn't work, copy and paste this into your browser:<br>{scheduling_url}</p>"
+                f"<p>Before the meeting, please use the "
+                f"<a href=\"{builder_url}\">Schedule Builder</a> to create your family's "
+                f"schedule for the coming school year so our team can review it with you.</p>"
+                f"<p>If a link doesn't work, copy and paste this into your browser:<br>{scheduling_url}</p>"
             )
             if email_service.send_email(parent['email'], f'{org_name}: book your appointment', html):
                 emailed_at = now
@@ -1009,12 +1026,12 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
 
     payload = {
         'fee_recorded_at': now, 'scheduling_emailed_at': emailed_at,
-        'status': 'schedule', 'updated_at': now,
+        'status': 'completed', 'completed_at': now, 'updated_at': now,
         **(extra_fields or {}),
     }
     admin.table('icreate_registrations').update(payload).eq('id', reg['id']).execute()
     return {
-        'success': True, 'status': 'schedule',
+        'success': True, 'status': 'completed',
         'scheduling_url': scheduling_url,
         'scheduling_emailed': bool(emailed_at),
     }
@@ -1155,12 +1172,15 @@ def record_fee(reg_id):
 @bp.route('/registrations/<reg_id>/schedule-done', methods=['POST'])
 @rate_limit(max_requests=30, window_seconds=300)
 def schedule_done(reg_id):
-    """The parent finished (or deferred) building the class schedule — advance to
-    the appointment step."""
+    """Legacy (pre-2026-07 funnels): the parent finished (or deferred) building
+    the class schedule — advance to the appointment step. New funnels complete
+    at the fee step and never call this."""
     body = request.get_json(silent=True) or {}
     reg = _load_registration(reg_id)
     if not _authz(reg, body.get('access_token')):
         return jsonify({'error': 'Not authorized'}), 403
+    if reg.get('status') == 'completed':
+        return jsonify({'success': True, 'status': 'completed', 'already': True}), 200
     if reg.get('status') not in ('schedule', 'appointment'):
         return jsonify({'error': 'The schedule step is not open for this registration'}), 400
 
@@ -1175,8 +1195,9 @@ def schedule_done(reg_id):
 @bp.route('/registrations/<reg_id>/appointment-done', methods=['POST'])
 @rate_limit(max_requests=30, window_seconds=300)
 def appointment_done(reg_id):
-    """The parent booked their customized learning plan appointment (booked=true)
-    or chose to book later — either way the funnel is complete."""
+    """Legacy (pre-2026-07 funnels): the parent booked their customized learning
+    plan appointment (booked=true) or chose to book later — either way the
+    funnel is complete. New funnels complete at the fee step and never call this."""
     body = request.get_json(silent=True) or {}
     reg = _load_registration(reg_id)
     if not _authz(reg, body.get('access_token')):

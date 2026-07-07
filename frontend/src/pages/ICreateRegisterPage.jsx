@@ -17,20 +17,21 @@ import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGat
 //   details     emergency contacts + org questions
 //   paperwork   acknowledge/e-sign each configured item (rich body text)
 //   fee         Stripe card / external payment link / record-only
-//   schedule    "Your account is ready" -> build the class schedule
-//   appointment book the customized learning plan appointment
-//   done        all set
+//   done        "Your account is ready" — final page listing the next steps:
+//               book the Customized Learning Plan appointment + build the
+//               schedule beforehand. Both stay reachable after leaving (the
+//               booking link is emailed; the Schedule Builder has a
+//               "Book appointment" button), so this page never has to be found again.
 
-const STEPS = ['account', 'family', 'details', 'paperwork', 'fee', 'schedule', 'appointment', 'done']
+const STEPS = ['account', 'family', 'details', 'paperwork', 'fee', 'done']
 const STEP_LABELS = {
   account: 'Account', family: 'Your family', details: 'Contacts & questions',
-  paperwork: 'Paperwork', fee: 'Registration fee', schedule: 'Build your schedule',
-  appointment: 'Book appointment', done: 'Done',
+  paperwork: 'Paperwork', fee: 'Registration fee', done: 'Next steps',
 }
 
 // Steps after the fee is settled: the family data is final, so completed steps
 // are no longer back-editable from here.
-const POST_FEE_STEPS = new Set(['schedule', 'appointment', 'done'])
+const POST_FEE_STEPS = new Set(['done'])
 
 const CONTACT_RELATIONSHIPS = ['Grandparent', 'Guardian', 'Parent', 'Family friend', 'Neighbor', 'Other']
 
@@ -315,7 +316,9 @@ const ICreateRegisterPage = () => {
             setSignatures(Object.fromEntries(regData.paperwork.map((p) => [p.key, p.signed_name || ''])))
             setAgreed(Object.fromEntries(regData.paperwork.map((p) => [p.key, true])))
           }
-          setStep(regData.status)
+          // Legacy statuses from when schedule/appointment were funnel steps
+          // all land on the final next-steps page.
+          setStep(['schedule', 'appointment', 'completed'].includes(regData.status) ? 'done' : regData.status)
         })
         .catch(() => { if (alive) setFatal('Could not load your registration. Please log in and try again.') })
         .finally(() => { if (alive) setLoading(false) })
@@ -568,44 +571,13 @@ const ICreateRegisterPage = () => {
       setScheduling({ url: absUrl(data.scheduling_url), emailed: !!data.scheduling_emailed })
       clearICreateRegistrationGate()  // fee settled — the app no longer redirects here
       sessionStorage.removeItem('icreate_funnel')
-      setStep(data.status === 'completed' ? 'done' : (data.status || 'schedule'))
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not finish registration')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [reg])
-
-  // ── Post-payment steps: build the schedule, then book the appointment ──────
-
-  const scheduleDone = async () => {
-    setSubmitting(true)
-    try {
-      await api.post(`/api/icreate/registrations/${reg.registration_id}/schedule-done`, {
-        access_token: reg.access_token,
-      })
-      setStep('appointment')
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not save your progress')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const appointmentDone = async (booked) => {
-    setSubmitting(true)
-    try {
-      await api.post(`/api/icreate/registrations/${reg.registration_id}/appointment-done`, {
-        access_token: reg.access_token, booked,
-      })
-      clearICreateRegistrationGate()
       setStep('done')
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not finish registration')
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [reg])
 
   // ── Stripe card payment (verified server-side) ─────────────────────────────
 
@@ -641,7 +613,7 @@ const ICreateRegisterPage = () => {
         setScheduling({ url: absUrl(data.scheduling_url), emailed: !!data.scheduling_emailed })
         clearICreateRegistrationGate()
         sessionStorage.removeItem('icreate_funnel')
-        setStep(data.status === 'completed' ? 'done' : data.status)
+        setStep('done')
       }
     } catch (e) {
       toast.error(e.response?.data?.error || "We couldn't confirm your payment yet — try again in a moment.")
@@ -1060,72 +1032,39 @@ const ICreateRegisterPage = () => {
           </div>
         )}
 
-        {step === 'schedule' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-              <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
-              <p className="text-neutral-500 mb-6">
-                Now build your family's schedule — pick the classes each of your children will take.
-                The Schedule Builder opens in a new tab; come back here when you're done.
-              </p>
-              <a href="/schedule-builder" target="_blank" rel="noreferrer"
-                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                Open the Schedule Builder
-              </a>
-            </div>
-            <PrimaryButton onClick={scheduleDone} disabled={submitting}>
-              {submitting ? 'One moment…' : "I've built our schedule — continue"}
-            </PrimaryButton>
-            <button onClick={scheduleDone} disabled={submitting}
-              className="w-full text-sm text-neutral-500 hover:underline disabled:opacity-50">
-              Skip for now — I'll build it later
-            </button>
-          </div>
-        )}
-
-        {step === 'appointment' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">Book your Customized Learning Plan appointment</h2>
-              <p className="text-neutral-500 mb-6">
-                The last step is a short appointment to build your child's customized learning plan.
-                {scheduling.emailed && ' We also emailed you this booking link.'}
-              </p>
-              {scheduling.url ? (
-                <a href={scheduling.url} target="_blank" rel="noreferrer"
-                  className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                  Book your appointment
-                </a>
-              ) : (
-                <p className="text-sm text-neutral-400">The school will reach out to schedule your appointment.</p>
-              )}
-            </div>
-            <PrimaryButton onClick={() => appointmentDone(true)} disabled={submitting}>
-              {submitting ? 'One moment…' : "I've booked my appointment — finish"}
-            </PrimaryButton>
-            <button onClick={() => appointmentDone(false)} disabled={submitting}
-              className="w-full text-sm text-neutral-500 hover:underline disabled:opacity-50">
-              I'll book it later
-            </button>
-          </div>
-        )}
-
         {step === 'done' && (
           <div className="space-y-6 text-center">
             <div className="bg-white rounded-xl border border-gray-200 p-8">
               <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">You're all set!</h2>
-              <p className="text-neutral-500 mb-6">
-                Registration is complete. You can sign in at any time with your email and password to
-                manage your family's schedule.
-                {scheduling.emailed && ' Your appointment booking link is also in your email.'}
+              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
+              <p className="text-neutral-500 mb-5">
+                Your account has been created. Next, book an appointment with iCreate staff to
+                build your Customized Learning Plan.
+                {scheduling.emailed && ' We also emailed you the booking link.'}
               </p>
-              <a href="/"
-                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                Go to Optio
-              </a>
+              {scheduling.url ? (
+                <a href={scheduling.url} target="_blank" rel="noreferrer"
+                  className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
+                  Book appointment
+                </a>
+              ) : (
+                <p className="text-sm text-neutral-400">The school will reach out to schedule your appointment.</p>
+              )}
+              <div className="border-t border-gray-100 mt-7 pt-6">
+                <p className="text-neutral-500 mb-5">
+                  We ask that you use the Schedule Builder to create your schedule for the coming
+                  school year prior to the meeting, so our team can review it with you.
+                </p>
+                <a href="/schedule-builder"
+                  className="inline-block px-5 py-2.5 rounded-lg border border-optio-purple text-optio-purple font-semibold hover:bg-optio-purple/5">
+                  Open the Schedule Builder
+                </a>
+              </div>
             </div>
+            <p className="text-sm text-neutral-400">
+              Registration is complete. You can sign in at any time with your email and password —
+              the Schedule Builder also has a Book appointment button if you need it later.
+            </p>
           </div>
         )}
         </div>

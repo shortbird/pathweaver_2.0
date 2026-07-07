@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, memo } from 'react'
 import { Link, useParams, useLocation } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import ReactMarkdown from 'react-markdown'
 import { ClockIcon, LinkIcon } from '@heroicons/react/24/outline'
 import { CheckIcon } from '@heroicons/react/24/solid'
 import toast from 'react-hot-toast'
 import DocsLayout from '../../components/docs/DocsLayout'
 import DocsBreadcrumbs from '../../components/docs/DocsBreadcrumbs'
+import DocsMarkdown from '../../components/docs/DocsMarkdown'
 import api from '../../services/api'
 
 const slugify = (text) =>
@@ -55,24 +55,6 @@ const HeadingWithAnchor = ({ level, children, activeHash }) => {
   )
 }
 
-const proseClasses = `
-  prose prose-lg max-w-none docs-prose
-  prose-headings:font-bold prose-headings:text-gray-900
-  prose-h1:text-4xl
-  prose-h2:text-2xl prose-h2:text-optio-purple prose-h2:border-l-4 prose-h2:border-optio-purple prose-h2:pl-4
-  prose-h3:text-xl
-  prose-p:text-gray-700 prose-p:leading-relaxed
-  prose-a:text-optio-purple-light prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:transition-all
-  prose-strong:text-gray-900 prose-strong:font-semibold
-  prose-em:italic prose-em:text-gray-600
-  prose-ul:text-gray-700 prose-ul:my-4
-  prose-ol:text-gray-700 prose-ol:my-4
-  prose-li:my-1.5
-  prose-code:bg-gray-100 prose-code:px-2 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono prose-code:text-optio-purple
-  prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:rounded-xl prose-pre:p-5 prose-pre:shadow-lg
-  prose-blockquote:border-l-4 prose-blockquote:border-optio-purple prose-blockquote:pl-6 prose-blockquote:italic prose-blockquote:text-gray-600 prose-blockquote:bg-gradient-to-r prose-blockquote:from-optio-purple/5 prose-blockquote:to-transparent prose-blockquote:py-2
-`.trim()
-
 const DocsArticlePage = () => {
   const { categorySlug, articleSlug } = useParams()
   const location = useLocation()
@@ -105,11 +87,6 @@ const DocsArticlePage = () => {
     h2: ({ children }) => <HeadingWithAnchor level={2} activeHash={activeHash}>{children}</HeadingWithAnchor>,
     h3: ({ children }) => <HeadingWithAnchor level={3} activeHash={activeHash}>{children}</HeadingWithAnchor>,
     h4: ({ children }) => <HeadingWithAnchor level={4} activeHash={activeHash}>{children}</HeadingWithAnchor>,
-    a: ({ href, children }) => (
-      <Link to={href} className="text-optio-purple-light font-medium no-underline hover:underline underline-offset-4 decoration-2 transition-all">
-        {children}
-      </Link>
-    ),
   }
 
   const loadArticle = async () => {
@@ -198,9 +175,7 @@ const DocsArticlePage = () => {
             )}
           </header>
 
-          <div className={proseClasses}>
-            <ReactMarkdown components={markdownComponents}>{article.content}</ReactMarkdown>
-          </div>
+          <DocsMarkdown content={article.content} components={markdownComponents} />
         </article>
 
         {/* Back to category link */}

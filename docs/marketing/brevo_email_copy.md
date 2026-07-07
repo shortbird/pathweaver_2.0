@@ -19,6 +19,7 @@ CTA URLs:
 - iOS: https://apps.apple.com/us/app/optio-education/id6773061928
 - Android: https://play.google.com/store/apps/details?id=com.optioeducation.optio
 - Web (secondary): https://www.optioeducation.com/register (UTMs per plan doc)
+- Help Center articles: https://www.optioeducation.com/docs/high-school-classes/<slug> (each email links the article matching its topic; UTMs per plan doc §8)
 
 Badge images (Brevo-hosted):
 - App Store: https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png
@@ -39,12 +40,14 @@ You grabbed a free class on our site. Here's how to get it:
 
 1. Download the Optio app (links below).
 2. Create your free account. It takes about a minute.
-3. Create your class: choose a name, choose the subject you want to earn credit for, then personalize your assignments (we call them tasks) by adding them yourself or using AI suggestions.
+3. Create your class: choose a name, choose the subject you want to earn credit for, then personalize your assignments (we call them tasks) by adding them yourself or using AI suggestions. Here is a [step-by-step guide](/docs/high-school-classes/creating-your-class).
 4. Reply to this email and tell me the class you created. I'll make it your free class. No credit card, nothing to cancel.
 
 [App Store badge] [Google Play badge]
 
 Prefer a computer? Everything also works on the web at optioeducation.com. The app is the best way to use Optio, though.
+
+New to Optio? [How classes work](/docs/high-school-classes/how-high-school-classes-work) is a two minute read.
 
 Dr. Bowman
 
@@ -57,7 +60,7 @@ Most students I talk to are already doing something that should count.
 
 Training for a team? That's PE. Practicing a language every day? That's a world language class. Building games, editing videos, baking, running a small business? Real classes too.
 
-An Optio class doesn't add new work on top of your life. You create a class around what you already do, and Optio gives it structure and makes it count.
+An Optio class doesn't add new work on top of your life. You create a class around what you already do, and Optio gives it structure and makes it count. Here is [how the work adds up](/docs/high-school-classes/tasks-evidence-and-xp).
 
 Your first one is free. Grab the app:
 
@@ -72,7 +75,7 @@ Dr. Bowman
 
 The first question almost everyone asks: does an Optio class really count?
 
-Yes. When you finish a class, we send your local high school an official transcript. It's issued through Optio Academy, which is accredited by the Western Association of Schools and Colleges (WASC), the same kind of accreditation your local public school has.
+Yes. When you finish a class, we send your local high school an official transcript. It's issued through Optio Academy, which is accredited by the Western Association of Schools and Colleges (WASC), the same kind of accreditation your local public school has. The full details are in [Transcripts and Accreditation](/docs/high-school-classes/transcripts-and-accreditation).
 
 Your free class is still open. Create it in the app:
 
@@ -89,7 +92,7 @@ Dr. Bowman
 
 No lectures. No worksheets. Here's the actual shape of it:
 
-You create your class and fill it with real projects, done at your own pace. As you go, you capture evidence right from your phone: photos, videos, writing, the work itself. It all builds into a portfolio you can show people. An Optio teacher reviews everything before the class counts.
+You create your class and fill it with real projects, done at your own pace. As you go, you capture evidence right from your phone: photos, videos, writing, the work itself. It all builds into a portfolio you can show people. An Optio teacher reviews everything before the class counts. Here is [what teachers look for](/docs/high-school-classes/teacher-review-and-earning-credit).
 
 You can also invite supporters. Parents, grandparents, and mentors can see your progress and cheer you on.
 
@@ -113,6 +116,8 @@ If you need to get a parent on board, forward them this. The short version:
 - Every class is teacher-reviewed before it counts. The transcript is issued through Optio Academy, which is WASC-accredited.
 - Everything runs in the Optio app (iOS and Android, plus the web), and parents can join as supporters to follow progress.
 
+More details in our Help Center: [pricing](/docs/high-school-classes/pricing-and-your-free-class) and [how parents can follow along](/docs/high-school-classes/for-parents-following-along).
+
 Parents: happy to answer anything directly. Just reply and it comes straight to me.
 
 Dr. Bowman
@@ -124,7 +129,7 @@ Dr. Bowman
 
 I'll keep your free class available. No expiration games. But I don't want to keep emailing you if the timing isn't right.
 
-If you're in, it's three steps: download the app, create your class, reply to tell me about it.
+If you're in, it's three steps: download the app, [create your class](/docs/high-school-classes/creating-your-class), reply to tell me about it.
 
 [App Store badge] [Google Play badge]
 
@@ -149,6 +154,8 @@ Your free class is still yours. Here's how to get it:
 2. Create your free account, then create your class: choose a name and subject, and add your own tasks or use AI suggestions.
 3. Reply and tell me the class you made. I'll make it your free class. No credit card, no commitment.
 
+Want the overview first? [How classes work](/docs/high-school-classes/how-high-school-classes-work) is a two minute read.
+
 [App Store badge] [Google Play badge]
 
 Questions? Just reply. I read and answer every message myself.
@@ -164,7 +171,7 @@ Dr. Bowman
 
 Hi {FIRSTNAME}, Dr. Bowman here from Optio. Thanks for reaching out about your family.
 
-Optio is built for the whole K-12 range. Your student creates classes around what they already love, does real projects, and captures the work as they go: photos, videos, writing. It all grows into a portfolio they can be proud of. You can join as a supporter, along with grandparents or mentors, to see their progress and cheer them on.
+Optio is built for the whole K-12 range. Your student creates classes around what they already love, does real projects, and captures the work as they go: photos, videos, writing. It all grows into a portfolio they can be proud of. You can [join as a supporter](/docs/high-school-classes/for-parents-following-along), along with grandparents or mentors, to see their progress and cheer them on.
 
 It all runs in the Optio mobile app (iOS and Android, with a web version too). For older students, classes are teacher-reviewed and can go on an official transcript. The first class is free.
 
@@ -198,7 +205,7 @@ Dr. Bowman
 
 Hi {FIRSTNAME}, Dr. Bowman from Optio. Your student documented their Pipe Organ Encounter week with us this summer and put real work toward a half fine-arts class on an accredited transcript.
 
-The same approach works for everything else they're into: sports, languages, coding, art. In the Optio app they create a class around what they already do, capture the work from their phone into a growing portfolio, and you can follow along as a supporter. The first class is free.
+The same approach works for everything else they're into: sports, languages, coding, art. In the Optio app they create a class around what they already do, capture the work from their phone into a growing portfolio, and you can [follow along as a supporter](/docs/high-school-classes/for-parents-following-along). The first class is free.
 
 Want help setting up a class for fall? Reply to this email and it comes straight to me.
 

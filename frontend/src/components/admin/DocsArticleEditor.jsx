@@ -1,35 +1,18 @@
 import React, { useState, useEffect, memo } from 'react'
-import ReactMarkdown from 'react-markdown'
 import toast from 'react-hot-toast'
 import {
-  ArrowLeftIcon, EyeIcon, PencilIcon
+  ArrowLeftIcon, EyeIcon, PencilIcon, ViewColumnsIcon
 } from '@heroicons/react/24/outline'
 import MarkdownEditor from '../curriculum/MarkdownEditor'
+import DocsMarkdown from '../docs/DocsMarkdown'
 import api from '../../services/api'
-
-const proseClasses = `
-  prose prose-lg max-w-none
-  prose-headings:font-bold prose-headings:text-gray-900
-  prose-h1:text-4xl prose-h1:mb-6 prose-h1:mt-8
-  prose-h2:text-2xl prose-h2:mb-4 prose-h2:mt-6 prose-h2:text-optio-purple prose-h2:border-l-4 prose-h2:border-optio-purple prose-h2:pl-4
-  prose-h3:text-xl prose-h3:mb-3 prose-h3:mt-5
-  prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-3
-  prose-a:text-optio-purple prose-a:font-medium
-  prose-strong:text-gray-900 prose-strong:font-semibold
-  prose-ul:text-gray-700 prose-ul:my-4
-  prose-ol:text-gray-700 prose-ol:my-4
-  prose-li:my-1.5
-  prose-code:bg-gray-100 prose-code:px-2 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono prose-code:text-optio-purple
-  prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:rounded-xl prose-pre:p-5 prose-pre:shadow-lg
-  prose-blockquote:border-l-4 prose-blockquote:border-optio-purple prose-blockquote:pl-6 prose-blockquote:italic prose-blockquote:text-gray-600
-`.trim()
 
 const ROLE_OPTIONS = ['student', 'parent', 'advisor', 'org_admin', 'observer']
 
 const DocsArticleEditor = ({ articleId, onBack }) => {
   const isEditing = !!articleId
   const [categories, setCategories] = useState([])
-  const [tab, setTab] = useState('edit') // 'edit' | 'preview'
+  const [tab, setTab] = useState('split') // 'edit' | 'split' | 'preview'
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!!articleId)
   const [form, setForm] = useState({
@@ -96,6 +79,20 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
     }))
   }
 
+  const handleImageUpload = async (file) => {
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      const res = await api.post('/api/admin/docs/images', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      return res.data.url
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Image upload failed')
+      return null
+    }
+  }
+
   const handleSave = async () => {
     if (!form.title.trim()) {
       toast.error('Title is required')
@@ -153,6 +150,14 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
             <PencilIcon className="w-4 h-4" /> Edit
           </button>
           <button
+            onClick={() => setTab('split')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'split' ? 'bg-optio-purple text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <ViewColumnsIcon className="w-4 h-4" /> Split
+          </button>
+          <button
             onClick={() => setTab('preview')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               tab === 'preview' ? 'bg-optio-purple text-white' : 'text-gray-600 hover:bg-gray-100'
@@ -163,7 +168,7 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
         </div>
       </div>
 
-      {tab === 'edit' ? (
+      {tab !== 'preview' ? (
         <div className="space-y-4">
           {/* Title & Slug */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -262,23 +267,36 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
           {/* Content editor */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Content (Markdown)</label>
-            <MarkdownEditor
-              value={form.content}
-              onChange={(val) => setForm(prev => ({ ...prev, content: val }))}
-              placeholder="Write your article content in markdown..."
-            />
+            {tab === 'split' ? (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                <MarkdownEditor
+                  value={form.content}
+                  onChange={(val) => setForm(prev => ({ ...prev, content: val }))}
+                  placeholder="Write your article content in markdown..."
+                  onImageUpload={handleImageUpload}
+                />
+                <div className="border border-gray-200 rounded-lg bg-white p-6 max-h-[600px] overflow-y-auto">
+                  <DocsMarkdown content={form.content || '*Live preview appears here as you type*'} />
+                </div>
+              </div>
+            ) : (
+              <MarkdownEditor
+                value={form.content}
+                onChange={(val) => setForm(prev => ({ ...prev, content: val }))}
+                placeholder="Write your article content in markdown..."
+                onImageUpload={handleImageUpload}
+              />
+            )}
           </div>
         </div>
       ) : (
-        /* Preview tab */
+        /* Preview tab - full-page render identical to the public article page */
         <div className="bg-white border border-gray-200 rounded-xl p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">{form.title || 'Untitled'}</h1>
           {form.summary && (
             <p className="text-gray-600 mb-6 italic">{form.summary}</p>
           )}
-          <div className={proseClasses}>
-            <ReactMarkdown>{form.content || '*No content yet*'}</ReactMarkdown>
-          </div>
+          <DocsMarkdown content={form.content || '*No content yet*'} />
         </div>
       )}
 

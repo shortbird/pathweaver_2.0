@@ -243,6 +243,12 @@ const ScheduleBuilderPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
         <h1 className="text-2xl font-bold text-neutral-900">Schedule Builder</h1>
         <div className="flex items-center gap-2">
+          {org?.scheduling_url && (
+            <a href={org.scheduling_url} target="_blank" rel="noreferrer"
+              className="text-sm px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium hover:opacity-90">
+              Book appointment
+            </a>
+          )}
           {ctx.orgs.length > 1 && (
             <select className={field} value={orgId || ''} onChange={(e) => {
               setOrgId(e.target.value)

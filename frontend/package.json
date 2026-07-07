@@ -38,7 +38,8 @@
     "react-masonry-css": "^1.0.16",
     "react-pdf": "^9.2.1",
     "react-router-dom": "^6.24.1",
-    "recharts": "^2.15.4"
+    "recharts": "^2.15.4",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@sentry/vite-plugin": "^2.23.1",

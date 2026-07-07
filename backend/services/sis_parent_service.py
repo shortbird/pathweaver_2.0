@@ -127,12 +127,19 @@ def context(user_id: str) -> Dict[str, Any]:
                               'avatar_url': avatar_by_id.get(s['student_id'])})
     if orgs:
         rows = (
-            _admin().table('organizations').select('id, name')
+            _admin().table('organizations').select('id, name, feature_flags')
             .in_('id', list(orgs.keys())).execute()
         ).data or []
         for r in rows:
             if r['id'] in orgs:
                 orgs[r['id']]['organization_name'] = r['name']
+                # Appointment-booking link (e.g. iCreate's Customized Learning Plan
+                # meetings) so the Schedule Builder can offer "Book appointment".
+                icfg = ((r.get('feature_flags') or {}).get('icreate_registration') or {})
+                sched = (icfg.get('scheduling_url') or '').strip()
+                if sched and not _re.match(r'^https?://', sched, _re.I):
+                    sched = f'https://{sched}'
+                orgs[r['id']]['scheduling_url'] = sched
     return {'orgs': list(orgs.values()), 'my_avatar_url': avatar_by_id.get(user_id)}
 
 

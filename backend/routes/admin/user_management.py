@@ -1081,7 +1081,7 @@ def get_user_observer_links(admin_user_id: str, user_id: str):
 
         # Links where user is an observer
         as_observer = supabase.table('observer_student_links') \
-            .select('id, student_id, relationship, created_at') \
+            .select('id, student_id, created_at') \
             .eq('observer_id', user_id) \
             .execute()
 
@@ -1104,7 +1104,7 @@ def get_user_observer_links(admin_user_id: str, user_id: str):
 
         # Links where user is a student being observed
         as_student = supabase.table('observer_student_links') \
-            .select('id, observer_id, relationship, created_at') \
+            .select('id, observer_id, created_at') \
             .eq('student_id', user_id) \
             .execute()
 
@@ -1129,7 +1129,7 @@ def get_user_observer_links(admin_user_id: str, user_id: str):
 
     except Exception as e:
         logger.error(f"Error fetching observer links for {user_id}: {str(e)}")
-        return error_response(code='FETCH_ERROR', message='Failed to load observer links', status=500)
+        return error_response('Failed to load observer links', status_code=500, error_code='FETCH_ERROR')
 
 
 @bp.route('/users/<user_id>/observer-links', methods=['POST'])
@@ -1141,7 +1141,7 @@ def add_observer_link(admin_user_id: str, user_id: str):
         other_id = data.get('other_user_id')
         direction = data.get('direction')
         if not other_id or direction not in ('observing', 'observed_by'):
-            return error_response(code='BAD_REQUEST', message='other_user_id and direction required', status=400)
+            return error_response('other_user_id and direction required', status_code=400, error_code='BAD_REQUEST')
 
         observer_id = user_id if direction == 'observing' else other_id
         student_id = other_id if direction == 'observing' else user_id
@@ -1156,12 +1156,11 @@ def add_observer_link(admin_user_id: str, user_id: str):
             .eq('student_id', student_id) \
             .execute()
         if existing.data:
-            return error_response(code='DUPLICATE', message='Observer link already exists', status=409)
+            return error_response('Observer link already exists', status_code=409, error_code='DUPLICATE')
 
         result = supabase.table('observer_student_links').insert({
             'observer_id': observer_id,
             'student_id': student_id,
-            'relationship': 'other',
             'can_comment': True,
             'can_view_evidence': True,
             'notifications_enabled': True
@@ -1171,7 +1170,7 @@ def add_observer_link(admin_user_id: str, user_id: str):
 
     except Exception as e:
         logger.error(f"Error creating observer link for {user_id}: {str(e)}")
-        return error_response(code='CREATE_ERROR', message='Failed to create observer link', status=500)
+        return error_response('Failed to create observer link', status_code=500, error_code='CREATE_ERROR')
 
 
 @bp.route('/users/<user_id>/observer-links/<link_id>', methods=['DELETE'])
@@ -1185,4 +1184,4 @@ def remove_observer_link(admin_user_id: str, user_id: str, link_id: str):
         return success_response(message='Observer link removed')
     except Exception as e:
         logger.error(f"Error removing observer link {link_id}: {str(e)}")
-        return error_response(code='DELETE_ERROR', message='Failed to remove observer link', status=500)
+        return error_response('Failed to remove observer link', status_code=500, error_code='DELETE_ERROR')

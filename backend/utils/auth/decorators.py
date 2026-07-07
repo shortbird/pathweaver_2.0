@@ -146,6 +146,9 @@ def require_admin(f):
         _set_sentry_user(user_id)
 
         # Verify superadmin status with retry logic (use admin client to bypass RLS)
+        # The route call stays OUTSIDE this loop: retrying f() would re-execute
+        # route side effects, and catching its exceptions would mask real route
+        # errors as 403s.
         from database import get_supabase_admin_client
         max_retries = 2
         for attempt in range(max_retries):
@@ -157,7 +160,7 @@ def require_admin(f):
                 if not user.data or len(user.data) == 0 or user.data[0].get('role') != 'superadmin':
                     raise AuthorizationError('Superadmin access required')
 
-                return f(user_id, *args, **kwargs)
+                break
 
             except (AuthenticationError, AuthorizationError):
                 raise
@@ -170,6 +173,8 @@ def require_admin(f):
                     # Final attempt failed
                     print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
                     raise AuthorizationError('Failed to verify admin status')
+
+        return f(user_id, *args, **kwargs)
 
     return decorated_function
 
@@ -206,6 +211,9 @@ def require_role(*allowed_roles):
             request.user_id = user_id
 
             # Verify user role with retry logic (use admin client to bypass RLS)
+            # The route call stays OUTSIDE this loop: retrying f() would re-execute
+            # route side effects, and catching its exceptions would mask real route
+            # errors as 403s.
             from database import get_supabase_admin_client
             max_retries = 2
             for attempt in range(max_retries):
@@ -221,11 +229,11 @@ def require_role(*allowed_roles):
 
                     # Superadmin has access to everything
                     if user_data.get('role') == 'superadmin':
-                        return f(user_id, *args, **kwargs)
+                        break
 
                     # Check if user has ANY of the allowed roles (supports multiple roles)
                     if has_any_role(user_data, list(allowed_roles)):
-                        return f(user_id, *args, **kwargs)
+                        break
 
                     raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
 
@@ -240,6 +248,8 @@ def require_role(*allowed_roles):
                         # Final attempt failed
                         print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
                         raise AuthorizationError('Failed to verify user role')
+
+            return f(user_id, *args, **kwargs)
 
         return decorated_function
     return decorator
@@ -349,13 +359,14 @@ def require_advisor(f):
             # Store user_id in request context
             request.user_id = effective_user_id
 
-            return f(effective_user_id, *args, **kwargs)
-
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
             print(f"Error verifying advisor status: {str(e)}", file=sys.stderr, flush=True)
             raise AuthorizationError('Failed to verify advisor status')
+
+        # Outside the try so route exceptions aren't masked as 403s
+        return f(effective_user_id, *args, **kwargs)
 
     return decorated_function
 
@@ -408,12 +419,13 @@ def require_advisor_for_student(f):
 
             user_data = user.data[0]
 
-            # Superadmin always has access
-            if user_data.get('role') == 'superadmin':
-                return f(user_id, *args, **kwargs)
+            # Superadmin always has access; advisors/org_admins need an active
+            # assignment to this student
+            if user_data.get('role') != 'superadmin':
+                if not has_any_role(user_data, ['advisor', 'org_admin']):
+                    # Other roles don't have access
+                    raise AuthorizationError('Advisor or admin access required')
 
-            # For users with advisor or org_admin role, check if they're assigned to this student
-            if has_any_role(user_data, ['advisor', 'org_admin']):
                 assignment = supabase.table('advisor_student_assignments')\
                     .select('id')\
                     .eq('advisor_id', user_id)\
@@ -421,19 +433,17 @@ def require_advisor_for_student(f):
                     .eq('is_active', True)\
                     .execute()
 
-                if assignment.data and len(assignment.data) > 0:
-                    return f(user_id, *args, **kwargs)
-                else:
+                if not assignment.data or len(assignment.data) == 0:
                     raise AuthorizationError('Not authorized to access this student')
-
-            # Other roles don't have access
-            raise AuthorizationError('Advisor or admin access required')
 
         except (AuthenticationError, AuthorizationError, ValidationError):
             raise
         except Exception as e:
             print(f"Error verifying advisor-student assignment: {str(e)}", file=sys.stderr, flush=True)
             raise AuthorizationError('Failed to verify access permissions')
+
+        # Outside the try so route exceptions aren't masked as 403s
+        return f(user_id, *args, **kwargs)
 
     return decorated_function
 
@@ -472,13 +482,14 @@ def require_superadmin(f):
             if not user.data or user.data['role'] != 'superadmin':
                 raise AuthorizationError('Superadmin access required')
 
-            return f(user_id, *args, **kwargs)
-
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
             print(f"Error verifying superadmin status: {str(e)}", file=sys.stderr, flush=True)
             raise AuthorizationError('Failed to verify superadmin status')
+
+        # Outside the try so route exceptions aren't masked as 403s
+        return f(user_id, *args, **kwargs)
 
     return decorated_function
 
@@ -513,16 +524,17 @@ def require_showcase_access(f):
                 raise AuthorizationError('User not found')
 
             row = user.data[0]
-            if row.get('role') == 'superadmin' or row.get('can_view_showcase') is True:
-                return f(user_id, *args, **kwargs)
-
-            raise AuthorizationError('Showcase access required')
+            if not (row.get('role') == 'superadmin' or row.get('can_view_showcase') is True):
+                raise AuthorizationError('Showcase access required')
 
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
             logger.error(f"Error verifying showcase access: {str(e)}")
             raise AuthorizationError('Failed to verify showcase access')
+
+        # Outside the try so route exceptions aren't masked as 403s
+        return f(user_id, *args, **kwargs)
 
     return decorated_function
 
@@ -572,13 +584,14 @@ def require_school_admin(f):
             if user_data.get('role') != 'superadmin' and not has_any_role(user_data, ['org_admin']) and not is_org_admin_flag:
                 raise AuthorizationError('Organization admin access required')
 
-            return f(user_id, *args, **kwargs)
-
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
             print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
             raise AuthorizationError('Failed to verify org admin status')
+
+        # Outside the try so route exceptions aren't masked as 403s
+        return f(user_id, *args, **kwargs)
 
     return decorated_function
 
@@ -656,14 +669,14 @@ def require_org_admin(f):
                         # When masquerading, use the target's role context
                         effective_is_superadmin = target_user.data.get('role') == 'superadmin'
 
-            # Pass user info to handler
-            return f(user_id, organization_id, effective_is_superadmin, *args, **kwargs)
-
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
             print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
             raise AuthorizationError('Failed to verify organization admin status')
+
+        # Outside the try so route exceptions aren't masked as 403s
+        return f(user_id, organization_id, effective_is_superadmin, *args, **kwargs)
 
     return decorated_function
 

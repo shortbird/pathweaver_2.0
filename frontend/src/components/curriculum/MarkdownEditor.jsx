@@ -1,14 +1,21 @@
-import React, { useRef, useCallback } from 'react'
+import React, { useRef, useCallback, useState } from 'react'
 
 /**
  * MarkdownEditor - Clean markdown editor with auto-list features
+ *
+ * Optional props:
+ * - onImageUpload: async (file) => url | null. When provided, an Image toolbar
+ *   button appears; the returned URL is inserted as markdown at the cursor.
  */
 const MarkdownEditor = ({
   value,
   onChange,
-  placeholder = "Enter your curriculum content here..."
+  placeholder = "Enter your curriculum content here...",
+  onImageUpload = null
 }) => {
   const textareaRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
 
   // Insert markdown at cursor position
   const insertMarkdown = useCallback((before, after = '') => {
@@ -147,6 +154,23 @@ const MarkdownEditor = ({
     }
   }, [value, onChange, insertMarkdown])
 
+  const handleImageFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !onImageUpload) return
+    setUploading(true)
+    try {
+      const url = await onImageUpload(file)
+      if (url) {
+        insertMarkdown(`\n![Screenshot](${url})\n`, '')
+      }
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const tableTemplate = '\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |\n\n'
+
   const toolbarButtons = [
     { label: 'Heading 1', action: () => insertMarkdown('# ', ''), icon: 'H1', className: 'text-lg font-bold' },
     { label: 'Heading 2', action: () => insertMarkdown('## ', ''), icon: 'H2', className: 'text-base font-bold' },
@@ -155,8 +179,15 @@ const MarkdownEditor = ({
     { label: 'Italic (Ctrl+I)', action: () => insertMarkdown('*', '*'), icon: 'I', className: 'italic' },
     { label: 'Bullet List', action: () => insertMarkdown('- ', ''), icon: '•', className: 'text-lg' },
     { label: 'Numbered List', action: () => insertMarkdown('1. ', ''), icon: '1.', className: 'text-sm font-medium' },
+    { label: 'Table', action: () => insertMarkdown(tableTemplate, ''), icon: '⊞', className: 'text-base' },
     { label: 'Link (Ctrl+K)', action: () => insertMarkdown('[', '](url)'), icon: 'Link', className: 'text-optio-purple underline text-sm' },
     { label: 'Code', action: () => insertMarkdown('`', '`'), icon: '</>', className: 'font-mono text-sm' },
+    ...(onImageUpload ? [{
+      label: uploading ? 'Uploading...' : 'Insert Image',
+      action: () => !uploading && fileInputRef.current?.click(),
+      icon: uploading ? '...' : 'Img',
+      className: 'text-sm font-medium text-optio-purple'
+    }] : []),
   ]
 
   return (
@@ -175,6 +206,16 @@ const MarkdownEditor = ({
           </button>
         ))}
       </div>
+
+      {onImageUpload && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          className="hidden"
+          onChange={handleImageFile}
+        />
+      )}
 
       {/* Editor */}
       <div className="bg-white">
