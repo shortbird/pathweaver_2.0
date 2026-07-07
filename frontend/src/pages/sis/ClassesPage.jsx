@@ -66,7 +66,7 @@ const ClassesPage = () => {
   const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
   // cards | table — table is the spreadsheet view of the org's classes.
   const [view, setViewState] = useState(() => {
-    try { return localStorage.getItem('sis_classes_view') || 'cards' } catch { return 'cards' }
+    try { return localStorage.getItem('sis_classes_view') || 'table' } catch { return 'table' }
   })
   const setView = (v) => {
     setViewState(v)

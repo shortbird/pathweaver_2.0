@@ -56,6 +56,21 @@ const fmtHour = (min) => {
 }
 const slotEnd = (f) => f.end || f.min + 60
 const slotLabel = (f) => `${SLOT_DAYS[f.day]} ${fmtHour(f.min)}–${fmtHour(slotEnd(f))}`
+
+// The student's age as of a date (first day of school when known — families
+// register for the coming year, so "is my kid old enough" is judged then).
+const ageOn = (dob, onDate) => {
+  if (!dob) return null
+  const d = new Date(`${String(dob).slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  const t = onDate ? new Date(`${onDate}T00:00:00`) : new Date()
+  let a = t.getFullYear() - d.getFullYear()
+  if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a -= 1
+  return a
+}
+// Unknown age (no DOB on file) never hides classes.
+const fitsAge = (c, age) => age == null
+  || ((c.min_age == null || age >= c.min_age) && (c.max_age == null || age <= c.max_age))
 const meetsAt = (c, f) => (c.meetings || []).some((m) => {
   if (m.day_of_week !== f.day) return false
   const s = toMin(m.start_time); const e = toMin(m.end_time)
@@ -143,6 +158,7 @@ const ScheduleBuilderPage = () => {
   const student = students.find((s) => s.student_id === studentId)
   const locked = !!schedule?.changes_locked
   const firstDay = schedule?.first_day_of_school
+  const studentAge = ageOn(student?.date_of_birth, firstDay)
 
   const enrolled = schedule?.classes || []
   const waitlist = schedule?.waitlist || []
@@ -408,7 +424,8 @@ const ScheduleBuilderPage = () => {
       {slotModal && (
         <SlotClassesModal
           slot={slotModal}
-          classes={openClasses.filter((c) => meetsAt(c, slotModal))}
+          classes={openClasses.filter((c) => meetsAt(c, slotModal) && fitsAge(c, studentAge))}
+          age={studentAge}
           enrolled={enrolled}
           busy={busy}
           onClose={() => setSlotModal(null)}
@@ -451,20 +468,22 @@ const ScheduleBuilderPage = () => {
 
 // Classes offered in the clicked time slot. Rows add directly; "Details" swaps
 // to the full read-only class modal.
-const SlotClassesModal = ({ slot, classes, enrolled, busy, onClose, onDetails, onAdd }) => (
+const SlotClassesModal = ({ slot, classes, age, enrolled, busy, onClose, onDetails, onAdd }) => (
   <ModalOverlay onClose={onClose}>
     <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Classes at {slotLabel(slot)}</h2>
-          <p className="text-xs text-neutral-400">Pick a class for this time slot.</p>
+          <p className="text-xs text-neutral-400">
+            Pick a class for this time slot.{age != null ? ` Showing classes for age ${age}.` : ''}
+          </p>
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
       </div>
       <div className="p-4 pt-2 overflow-y-auto flex-1 space-y-2">
         {classes.length === 0 && (
           <p className="text-sm text-neutral-400 py-4 text-center">
-            No open classes meet at this time — try another slot.
+            No open classes{age != null ? ` for age ${age}` : ''} meet at this time — try another slot.
           </p>
         )}
         {classes.map((c) => {

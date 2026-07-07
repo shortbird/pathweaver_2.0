@@ -62,15 +62,31 @@ import ClassesPage from './ClassesPage'
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
-  // the card/table choice persists to localStorage — reset to cards per test
+  // the card/table choice persists to localStorage — clear any stored choice
   try { window.localStorage.removeItem('sis_classes_view') } catch { /* jsdom quirk */ }
   vi.clearAllMocks()
 })
 
+// Card-view specs: render and switch to cards (table is the default view).
+// localStorage isn't dependable in this jsdom env, so click the toggle instead.
+const renderCards = async () => {
+  render(<ClassesPage />)
+  await screen.findByText('Pottery')
+  const btn = screen.getByTitle('Card view')
+  if (btn.getAttribute('aria-pressed') !== 'true') fireEvent.click(btn)
+  await screen.findByText('Pottery')
+}
+
 describe('ClassesPage', () => {
-  it('lists class cards and opens the editor modal with the class data', async () => {
+  it('defaults to the table view when no preference is stored', async () => {
     render(<ClassesPage />)
-    expect(await screen.findByText('Pottery')).toBeInTheDocument()
+    await screen.findByText('Pottery')
+    expect(screen.getByTitle('Table view')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument() // table shows the teacher column
+  })
+
+  it('lists class cards and opens the editor modal with the class data', async () => {
+    await renderCards()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/classes'))
     fireEvent.click(screen.getByText('Pottery')) // card opens the editor modal
     expect(await screen.findByDisplayValue('Pottery')).toBeInTheDocument() // name field
@@ -93,8 +109,7 @@ describe('ClassesPage', () => {
   })
 
   it('edits a class via the card modal', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
+    await renderCards()
     fireEvent.click(screen.getByText('Pottery')) // card opens the editor modal
     fireEvent.change(await screen.findByDisplayValue('Pottery'), { target: { value: 'Pottery II' } })
     fireEvent.click(screen.getByText('Save changes'))
@@ -104,8 +119,7 @@ describe('ClassesPage', () => {
   })
 
   it('toggles registration status from the card modal', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
+    await renderCards()
     fireEvent.click(screen.getByText('Pottery'))
     fireEvent.click(await screen.findByRole('switch'))
     await waitFor(() =>
@@ -115,8 +129,7 @@ describe('ClassesPage', () => {
 
   it('archives a class after confirm', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
+    await renderCards()
     fireEvent.click(screen.getByText('Pottery'))
     fireEvent.click(await screen.findByText('Archive class'))
     await waitFor(() =>
@@ -125,8 +138,7 @@ describe('ClassesPage', () => {
   })
 
   it('opens the course modal with Details and Enrollments tabs only', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery') // default view = org classes
+    await renderCards()
     fireEvent.click(screen.getByText(/^Optio Courses \(/))
     fireEvent.click(await screen.findByText('Intro to Robotics')) // card opens the detail modal
     expect(await screen.findByText('Details')).toBeInTheDocument()
@@ -135,8 +147,7 @@ describe('ClassesPage', () => {
   })
 
   it('manages enrollments from the modal tab', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
+    await renderCards()
     fireEvent.click(screen.getByText(/^Optio Courses \(/))
     fireEvent.click(await screen.findByText('Intro to Robotics'))
     fireEvent.click(await screen.findByText('Enrollments')) // tab inside the modal
@@ -147,8 +158,7 @@ describe('ClassesPage', () => {
   })
 
   it('shows the class teacher and tuition in the modal, and includes them in edits', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
+    await renderCards()
     fireEvent.click(screen.getByText('Pottery')) // card opens the editor modal
     expect(await screen.findByPlaceholderText('Search staff…')).toHaveValue('Jane Doe') // current teacher
     fireEvent.change(screen.getByLabelText('Tuition'), { target: { value: '150' } })
@@ -161,8 +171,7 @@ describe('ClassesPage', () => {
   })
 
   it('shows course details and reassigns the teacher via the card modal', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
+    await renderCards()
     fireEvent.click(screen.getByText(/^Optio Courses \(/))
     fireEvent.click(await screen.findByText('Intro to Robotics')) // card opens the detail modal
     expect(screen.queryByText('$250.00')).not.toBeInTheDocument() // tuition is parent-facing only, not shown in SIS
@@ -179,8 +188,7 @@ describe('ClassesPage', () => {
   })
 
   it('filters to courses only', async () => {
-    render(<ClassesPage />)
-    await screen.findByText('Pottery')
+    await renderCards()
     fireEvent.click(screen.getByText(/^Optio Courses \(/))
     expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
     expect(screen.queryByText('Pottery')).not.toBeInTheDocument()

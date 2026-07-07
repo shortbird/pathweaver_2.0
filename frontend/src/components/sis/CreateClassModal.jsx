@@ -34,7 +34,7 @@ const inputClass =
 
 export const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
-const minutesBetween = (start, end) => {
+export const minutesBetween = (start, end) => {
   if (!start || !end) return ''
   const [sh, sm] = hhmm(start).split(':').map(Number)
   const [eh, em] = hhmm(end).split(':').map(Number)
@@ -50,6 +50,37 @@ const fmt12 = (t) => {
   return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}`
 }
 export const blockLabel = (b) => `${fmt12(b.start)}–${fmt12(b.end)}`
+
+const toMin = (t) => {
+  const [h, m] = hhmm(t).split(':').map(Number)
+  return Number.isNaN(h) ? null : h * 60 + (m || 0)
+}
+// "HH:MM" start + duration minutes -> "HH:MM" end.
+export const addMin = (t, mins) => {
+  const total = (toMin(t) ?? 0) + Number(mins || 0)
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+// 12h time with am/pm, for end-time choices shown outside a block-pill context.
+export const fmt12ap = (t) => {
+  const [h, m] = hhmm(t).split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${h >= 12 ? 'pm' : 'am'}`
+}
+// End-time choices for a class starting at `start`: the end of that block and of
+// every later teaching block — long classes span multiple blocks (a 2-hour class,
+// a full school day). Label-only blocks (e.g. Lunch) aren't valid end points, and
+// a pre-existing custom end time stays selectable so opening the editor never
+// silently changes a class.
+export const blockEndOptions = (timeBlocks, start, currentEnd = null) => {
+  const s = toMin(start)
+  if (s == null) return []
+  const ends = timeBlocks
+    .filter((b) => !b.label && toMin(b.end) != null && toMin(b.end) > s)
+    .map((b) => hhmm(b.end))
+  if (currentEnd && toMin(currentEnd) > s && !ends.includes(hhmm(currentEnd))) ends.push(hhmm(currentEnd))
+  return [...new Set(ends)].sort((a, b) => toMin(a) - toMin(b))
+}
 
 // Derive the form's single {days, start_time, duration} from a class's meetings.
 export const meetingsToForm = (meetings = []) => {
@@ -138,7 +169,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
     }
     if (formData.days_of_week.length && (!formData.start_time || !formData.duration_minutes)) {
       setError(timeBlocks.length
-        ? 'Pick a time block for the selected days'
+        ? 'Pick a starting block for the selected days'
         : 'Add a start time and duration for the selected days')
       return
     }
@@ -203,9 +234,10 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
                 </div>
               ) : (
                 <label htmlFor="class-image"
-                  className="flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
+                  className="flex flex-col items-center justify-center gap-1.5 w-full h-28 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
                   <PhotoIcon className="w-7 h-7 text-gray-400" />
                   <span className="text-sm text-gray-500">Click to upload an image (max 5MB)</span>
+                  <span className="text-xs text-gray-400">Best: wide landscape, about 1400×500px — shown center-cropped</span>
                 </label>
               )}
               <input id="class-image" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
@@ -246,18 +278,19 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
               </div>
             </div>
 
-            {/* Time block — classes meet in the school's standard periods. The
+            {/* Time block — classes meet in the school's standard periods. Pills
+                pick the starting block; "Ends at" lets a class run past it (a
+                2-hour class or a full school day spans several blocks). The
                 custom start/duration inputs only exist for orgs WITHOUT blocks. */}
             {timeBlocks.length > 0 ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Time Block</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Starting Block</label>
                 <div className="flex flex-wrap gap-2">
                   {timeBlocks.filter((b) => !b.label).map((b, i) => {
-                    const dur = blockMinutes(b)
-                    const selected = formData.start_time === hhmm(b.start) && String(formData.duration_minutes) === String(dur)
+                    const selected = formData.start_time === hhmm(b.start)
                     return (
                       <button key={i} type="button" aria-pressed={selected}
-                        onClick={() => setFormData((prev) => ({ ...prev, start_time: hhmm(b.start), duration_minutes: String(dur) }))}
+                        onClick={() => setFormData((prev) => ({ ...prev, start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) }))}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                           selected
                             ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white border-transparent'
@@ -268,6 +301,21 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
                     )
                   })}
                 </div>
+                {formData.start_time && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <label htmlFor="block_end" className="text-sm text-gray-600 shrink-0">Ends at</label>
+                    <select id="block_end" className={`${inputClass} !w-auto`}
+                      value={addMin(formData.start_time, formData.duration_minutes)}
+                      onChange={(e) => setFormData((prev) => ({
+                        ...prev, duration_minutes: String(minutesBetween(prev.start_time, e.target.value)),
+                      }))}>
+                      {blockEndOptions(timeBlocks, formData.start_time, addMin(formData.start_time, formData.duration_minutes)).map((end) => (
+                        <option key={end} value={end}>{fmt12ap(end)}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-gray-400">Pick a later block's end for a longer class.</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">

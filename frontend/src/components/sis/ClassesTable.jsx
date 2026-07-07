@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { ChevronDownIcon } from '@heroicons/react/24/outline'
 import SearchSelect from '../ui/SearchSelect'
-import { meetingsToForm, blockMinutes, blockLabel, hhmm } from './CreateClassModal'
+import { meetingsToForm, blockMinutes, blockEndOptions, addMin, minutesBetween, hhmm } from './CreateClassModal'
 
 // Spreadsheet-style view of the org's classes. Rows stay scannable — name,
 // teacher, days, time, enrollment — and clicking a row expands an inline
@@ -40,6 +40,12 @@ const daysText = (meetings = []) => {
 const timeText = (meetings = []) => {
   const first = meetings.find((m) => m.start_time && m.end_time)
   return first ? `${fmt12(first.start_time)}–${fmt12(first.end_time)}` : '—'
+}
+const agesText = (c) => {
+  if (c.min_age != null && c.max_age != null) return `${c.min_age}–${c.max_age}`
+  if (c.min_age != null) return `${c.min_age}+`
+  if (c.max_age != null) return `Up to ${c.max_age}`
+  return '—'
 }
 
 // A class's editable attributes as flat draft fields.
@@ -108,20 +114,16 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
     } finally { setSaving(null) }
   }
 
-  const blockValue = (d) => {
-    const i = pickable.findIndex((b) => hhmm(b.start) === d.start_time && String(blockMinutes(b)) === String(d.duration_minutes))
-    return i >= 0 ? String(i) : ''
-  }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-      <table className="w-full text-sm min-w-[640px]">
+      <table className="w-full text-sm min-w-[700px]">
         <thead>
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-gray-100">
             <th className="px-4 py-2.5">Name</th>
             <th className="px-4 py-2.5">Teacher</th>
             <th className="px-4 py-2.5">Days</th>
             <th className="px-4 py-2.5">Time</th>
+            <th className="px-4 py-2.5">Ages</th>
             <th className="px-4 py-2.5">Enrolled</th>
             <th className="px-4 py-2.5 w-8" />
           </tr>
@@ -145,6 +147,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                   <td className="px-4 py-3 text-neutral-600">{c.primary_instructor?.name || c.primary_instructor?.display_name || '—'}</td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{daysText(c.meetings)}</td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{timeText(c.meetings)}</td>
+                  <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{agesText(c)}</td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">
                     {c.enrolled_count ?? 0}{c.capacity != null ? `/${c.capacity}` : ''}
                     {c.is_full && <span className="ml-1.5 text-[10px] font-semibold text-red-500">FULL</span>}
@@ -155,7 +158,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                 </tr>
                 {open && (
                   <tr className="border-b border-gray-100 bg-optio-purple/[0.02]">
-                    <td colSpan={6} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td colSpan={7} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
                         <Field label="Name" className="col-span-2">
                           <input className={cell} value={d.name} onChange={(e) => edit(c, { name: e.target.value })} />
@@ -194,16 +197,24 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                         </Field>
                         <Field label="Time">
                           {pickable.length ? (
-                            <select className={cell} value={blockValue(d)}
-                              onChange={(e) => {
-                                const b = pickable[Number(e.target.value)]
-                                if (b) edit(c, { start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
-                              }}>
-                              <option value="" disabled>
-                                {d.start_time ? `${d.start_time} · ${d.duration_minutes || '?'} min` : 'Pick a block'}
-                              </option>
-                              {pickable.map((b, i) => <option key={i} value={String(i)}>{blockLabel(b)}</option>)}
-                            </select>
+                            <div className="flex items-center gap-1">
+                              <select className={cell} value={d.start_time} aria-label="Start block"
+                                onChange={(e) => {
+                                  const b = pickable.find((x) => hhmm(x.start) === e.target.value)
+                                  if (b) edit(c, { start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
+                                }}>
+                                <option value="" disabled>Start</option>
+                                {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12(b.start)}</option>)}
+                              </select>
+                              <span className="text-neutral-300">–</span>
+                              <select className={cell} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
+                                disabled={!d.start_time}
+                                onChange={(e) => edit(c, { duration_minutes: String(minutesBetween(d.start_time, e.target.value)) })}>
+                                {blockEndOptions(timeBlocks, d.start_time, addMin(d.start_time, d.duration_minutes)).map((end) => (
+                                  <option key={end} value={end}>{fmt12(end)}</option>
+                                ))}
+                              </select>
+                            </div>
                           ) : (
                             <div className="flex gap-1.5">
                               <input type="time" className={cell} value={d.start_time}

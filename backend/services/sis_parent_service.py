@@ -92,7 +92,7 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
     users_map = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -103,7 +103,8 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
             org_enabled[oid] = org_has_feature(oid, 'sis_enabled')
         if not org_enabled[oid]:
             continue
-        out.append({**v, 'name': _student_name(users_map.get(sid, {}))})
+        out.append({**v, 'name': _student_name(users_map.get(sid, {})),
+                    'date_of_birth': (users_map.get(sid) or {}).get('date_of_birth')})
     return out
 
 
@@ -124,6 +125,7 @@ def context(user_id: str) -> Dict[str, Any]:
         o = orgs.setdefault(s['org_id'], {'organization_id': s['org_id'], 'students': []})
         o['students'].append({'student_id': s['student_id'], 'name': s['name'],
                               'household_id': s['household_id'],
+                              'date_of_birth': s.get('date_of_birth'),
                               'avatar_url': avatar_by_id.get(s['student_id'])})
     if orgs:
         rows = (
