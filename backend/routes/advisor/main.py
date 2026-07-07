@@ -268,6 +268,7 @@ def get_invitable_quests(user_id):
 def _assign_one_quest(admin, quest_id, user_ids, now):
     """Enroll user_ids into one quest (copying template tasks). Returns (title, enrolled, skipped)."""
     from routes.quest_types import get_template_tasks
+    from utils.template_tasks import copy_template_tasks_to_enrollment
 
     quest = admin.table('quests').select('id, title').eq('id', quest_id).execute()
     if not quest.data:
@@ -291,24 +292,10 @@ def _assign_one_quest(admin, quest_id, user_ids, now):
         enrolled += 1
 
         if template_tasks and insert_result.data:
-            user_quest_id = insert_result.data[0]['id']
-            tasks_to_insert = [{
-                'user_id': student_id, 'quest_id': quest_id, 'user_quest_id': user_quest_id,
-                'title': t['title'], 'description': t.get('description', ''), 'pillar': t['pillar'],
-                'xp_value': t.get('xp_value', 100), 'order_index': t.get('order_index', 0),
-                'is_required': t.get('is_required', False), 'is_manual': False,
-                'approval_status': 'approved',
-                'diploma_subjects': t.get('diploma_subjects', ['Electives']),
-                'subject_xp_distribution': t.get('subject_xp_distribution'),
-                'source_template_task_id': t.get('id'), 'source_task_id': t.get('id'),
-            } for t in template_tasks]
-            try:
-                admin.table('user_quest_tasks').insert(tasks_to_insert).execute()
-            except Exception as task_err:
-                logger.error(
-                    f"Error copying template tasks for student {student_id} on quest {quest_id}: {task_err}",
-                    exc_info=True,
-                )
+            copy_template_tasks_to_enrollment(
+                admin, quest_id, student_id, insert_result.data[0]['id'],
+                template_tasks=template_tasks,
+            )
     return quest_title, enrolled, len(already_enrolled)
 
 

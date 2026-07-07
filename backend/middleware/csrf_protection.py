@@ -92,6 +92,9 @@ def init_csrf(app):
         'icreate_registration.create_checkout',
         'icreate_registration.confirm_payment',
         'icreate_registration.record_fee',
+        'icreate_registration.upload_photo',
+        'icreate_registration.schedule_done',
+        'icreate_registration.appointment_done',
     ]
 
     for endpoint in exempt_endpoints:

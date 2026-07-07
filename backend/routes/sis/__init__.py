@@ -655,3 +655,7 @@ def register_sis_routes(app):
     app.register_blueprint(parent_bp)
     from routes.sis.resources import bp as resources_bp
     app.register_blueprint(resources_bp)
+    from routes.sis.events import bp as events_bp
+    app.register_blueprint(events_bp)
+    from routes.sis.schedule_ai import bp as schedule_ai_bp
+    app.register_blueprint(schedule_ai_bp)

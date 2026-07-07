@@ -32,7 +32,7 @@ const DOW_TO_CODE = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri' }
 const inputClass =
   'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent'
 
-const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
+export const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
 const minutesBetween = (start, end) => {
   if (!start || !end) return ''
@@ -42,8 +42,17 @@ const minutesBetween = (start, end) => {
   return (eh * 60 + em) - (sh * 60 + sm)
 }
 
+export const blockMinutes = (b) => minutesBetween(b.start, b.end) || 60
+const fmt12 = (t) => {
+  const [h, m] = hhmm(t).split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}`
+}
+export const blockLabel = (b) => `${fmt12(b.start)}–${fmt12(b.end)}`
+
 // Derive the form's single {days, start_time, duration} from a class's meetings.
-const meetingsToForm = (meetings = []) => {
+export const meetingsToForm = (meetings = []) => {
   const days = meetings.map((m) => DOW_TO_CODE[m.day_of_week]).filter(Boolean)
   const first = meetings[0]
   return {
@@ -53,7 +62,7 @@ const meetingsToForm = (meetings = []) => {
   }
 }
 
-export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], embedded = false }) {
+export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], embedded = false, timeBlocks = [] }) {
   const isEdit = Boolean(initial)
   const seed = initial ? meetingsToForm(initial.meetings) : null
 
@@ -61,6 +70,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
     name: initial?.name || '',
     description: initial?.description || '',
     primary_instructor_id: initial?.primary_instructor_id || '',
+    location: initial?.location || '',
     days_of_week: seed?.days_of_week || [],
     start_time: seed?.start_time || '',
     duration_minutes: seed?.duration_minutes || '',
@@ -127,7 +137,9 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
       return
     }
     if (formData.days_of_week.length && (!formData.start_time || !formData.duration_minutes)) {
-      setError('Add a start time and duration for the selected days')
+      setError(timeBlocks.length
+        ? 'Pick a time block for the selected days'
+        : 'Add a start time and duration for the selected days')
       return
     }
 
@@ -135,6 +147,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
     const payload = {
       name: formData.name.trim(),
       description: formData.description,
+      location: formData.location.trim() || null,
       primary_instructor_id: formData.primary_instructor_id || null,
       days_of_week: dow,                          // SIS day_of_week ints (0=Sun..6=Sat)
       start_time: formData.start_time || undefined,
@@ -233,17 +246,50 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
               </div>
             </div>
 
-            {/* Start time + Duration */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Time block — classes meet in the school's standard periods. The
+                custom start/duration inputs only exist for orgs WITHOUT blocks. */}
+            {timeBlocks.length > 0 ? (
               <div>
-                <label htmlFor="start_time" className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                <input type="time" id="start_time" name="start_time" value={formData.start_time} onChange={handleChange} className={inputClass} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Time Block</label>
+                <div className="flex flex-wrap gap-2">
+                  {timeBlocks.filter((b) => !b.label).map((b, i) => {
+                    const dur = blockMinutes(b)
+                    const selected = formData.start_time === hhmm(b.start) && String(formData.duration_minutes) === String(dur)
+                    return (
+                      <button key={i} type="button" aria-pressed={selected}
+                        onClick={() => setFormData((prev) => ({ ...prev, start_time: hhmm(b.start), duration_minutes: String(dur) }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                          selected
+                            ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white border-transparent'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-optio-purple'
+                        }`}>
+                        {blockLabel(b)}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-              <div>
-                <label htmlFor="duration_minutes" className="block text-sm font-medium text-gray-700 mb-1">Duration (min)</label>
-                <input type="number" id="duration_minutes" name="duration_minutes" value={formData.duration_minutes}
-                  onChange={handleChange} min={5} step={5} placeholder="60" className={inputClass} />
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="start_time" className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                  <input type="time" id="start_time" name="start_time" value={formData.start_time} onChange={handleChange} className={inputClass} />
+                </div>
+                <div>
+                  <label htmlFor="duration_minutes" className="block text-sm font-medium text-gray-700 mb-1">Duration (min)</label>
+                  <input type="number" id="duration_minutes" name="duration_minutes" value={formData.duration_minutes}
+                    onChange={handleChange} min={5} step={5} placeholder="60" className={inputClass} />
+                </div>
               </div>
+            )}
+
+            {/* Classroom */}
+            <div>
+              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Classroom</label>
+              <input
+                type="text" id="location" name="location" value={formData.location} onChange={handleChange}
+                placeholder="e.g., Room 3" className={inputClass}
+              />
             </div>
 
             {/* Max students + Tuition + Supply fee */}

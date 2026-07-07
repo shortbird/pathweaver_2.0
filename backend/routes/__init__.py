@@ -66,6 +66,9 @@ def register_all(app):
     from routes.organizations import bp as organizations_bp
     app.register_blueprint(organizations_bp, url_prefix='/api/organizations')
 
+    from routes.quest_groups import bp as quest_groups_bp
+    app.register_blueprint(quest_groups_bp)
+
     from routes.courses import bp as courses_bp
     app.register_blueprint(courses_bp)
 

@@ -27,9 +27,9 @@ const ArchiveModal = ({ questTitle, onClose, onConfirm, busy }) => {
   return (
     <ModalOverlay onClose={busy ? undefined : onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-gray-900">Archive "{questTitle}"?</h3>
+        <h3 className="text-lg font-bold text-gray-900">Save "{questTitle}" for later?</h3>
         <p className="text-sm text-gray-600 mt-1">
-          This hides it from your active quests but keeps all your progress and XP — you can bring it back anytime.
+          This moves it to your "Saved for Later" list and keeps all your progress and XP — you can bring it back anytime.
         </p>
         <p className="text-sm font-medium text-gray-700 mt-4">Mind sharing why? (optional)</p>
         <div className="flex flex-wrap gap-2 mt-2">
@@ -57,7 +57,7 @@ const ArchiveModal = ({ questTitle, onClose, onConfirm, busy }) => {
             disabled={busy}
             className="px-4 py-2 text-sm font-semibold text-white bg-optio-purple rounded-lg disabled:opacity-50"
           >
-            {busy ? 'Archiving…' : 'Archive quest'}
+            {busy ? 'Saving…' : 'Save for later'}
           </button>
         </div>
       </div>
@@ -189,8 +189,8 @@ const QuestCardSimple = ({ quest }) => {
         {isInProgress && (
           <button
             onClick={(e) => { e.stopPropagation(); setShowArchive(true); }}
-            title="Archive this quest"
-            aria-label="Archive this quest"
+            title="Save this quest for later"
+            aria-label="Save this quest for later"
             className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

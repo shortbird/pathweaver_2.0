@@ -87,7 +87,7 @@ const FAQS = [
   },
   {
     q: 'What does a class cost after the first one?',
-    a: '$50 per class after your first free class. If you want one-on-one support from an Optio teacher during the class, that\'s available as an add-on.',
+    a: '$149 per class after your first free class. If you want one-on-one support from an Optio teacher during the class, that\'s available as an add-on.',
   },
   {
     q: 'Will my local school accept the class?',

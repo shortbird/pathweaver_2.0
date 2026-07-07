@@ -86,6 +86,23 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
       {/* Class schedule (SIS families only; renders nothing otherwise) */}
       {!isObserver && <StudentSchedulePreview studentId={studentId} />}
 
+      {/* Brand-new student: with hideEmptySections active, every section below
+          would vanish and the page reads as broken. Explain what will appear
+          here and what to do if a class was expected but isn't showing. */}
+      {data.enrolledCourses?.length === 0 && data.activeQuests?.length === 0 && !data.totalXp && (
+        <div className="bg-purple-50 border border-purple-100 rounded-xl p-5">
+          <h3 className="font-semibold text-gray-900 mb-2">
+            {data.user?.first_name || 'Your student'} is just getting started
+          </h3>
+          <p className="text-sm text-gray-600">
+            Classes, projects, and completed work will appear on this page as{' '}
+            {data.user?.first_name || 'your student'} gets going. If you expected to see a class
+            here already, their school or program still needs to enroll them — once that happens,
+            the class and its projects show up automatically.
+          </p>
+        </div>
+      )}
+
       <StudentOverviewSections
         data={data}
         studentId={studentId}

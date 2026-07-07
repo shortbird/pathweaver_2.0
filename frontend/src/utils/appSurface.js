@@ -54,6 +54,17 @@ export function getAppSurface() {
 }
 
 /**
+ * Absolute origin of the Learning app — where every family-facing link (e.g.
+ * the iCreate registration link) must point. On real Optio hosts this is always
+ * the www origin, even when the current page is the SIS console: links copied
+ * from sis.optioeducation.com must never send families to the SIS host.
+ */
+export function getLearningOrigin() {
+  if (typeof window === 'undefined') return LEARNING_PROD_URL
+  return isRealOptioHost() ? LEARNING_PROD_URL : window.location.origin
+}
+
+/**
  * Local-dev override for the per-org `sis_enabled` flag, so the carve-out can be
  * tested without writing the flag to a real org. Toggle via ?sisflag=1 / ?sisflag=0.
  * Has NO effect on production hosts (real flag comes from organizations.feature_flags).

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import api from '../../services/api'
 import QuestVisibilityManager from '../admin/QuestVisibilityManager'
+import QuestGroupsManager from './QuestGroupsManager'
 import QuestForm from '../admin/QuestForm'
 
 export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
@@ -103,6 +104,9 @@ export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
           </div>
         )}
       </div>
+
+      {/* Quest Groups - subcategories for batch assignment */}
+      <QuestGroupsManager orgId={orgId} refreshKey={refreshKey} />
 
       {/* Quest Visibility Manager */}
       <QuestVisibilityManager

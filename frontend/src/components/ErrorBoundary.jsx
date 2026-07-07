@@ -1,6 +1,7 @@
 import React from 'react';
 import { captureError } from '../services/posthog';
 import { captureException } from '../services/sentry';
+import { isFocusMode, getFocusConfig } from '../utils/focusMode';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -37,16 +38,25 @@ class ErrorBoundary extends React.Component {
   }
 
   handleReset = () => {
+    // A bare state reset re-renders the same crashed tree, so a deterministic
+    // render error just crashes again ("Try Again doesn't work"). After the
+    // first failed reset, reload the page instead — that reliably recovers.
+    if (this.state.errorCount > 1) {
+      window.location.reload();
+      return;
+    }
     this.setState({
       hasError: false,
       error: null,
       errorInfo: null
     });
-    
-    // Optionally reload the page if errors keep occurring
-    if (this.state.errorCount > 3) {
-      window.location.reload();
-    }
+  };
+
+  handleGoHome = () => {
+    // In kiosk/focus mode (Treehouse), "/" would dump the student out of the
+    // program shell — go to the program's home instead.
+    const home = (isFocusMode() && getFocusConfig().homeRoute) || '/';
+    window.location.href = home;
   };
 
   render() {
@@ -101,7 +111,7 @@ class ErrorBoundary extends React.Component {
               </button>
               
               <button
-                onClick={() => window.location.href = '/'}
+                onClick={this.handleGoHome}
                 className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
               >
                 Go to Home

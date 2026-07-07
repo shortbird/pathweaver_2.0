@@ -283,7 +283,6 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
 const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
   const [hold, setHold] = useState(!!household.registration_hold)
   const [reason, setReason] = useState(household.registration_hold_reason || '')
-  const [tier, setTier] = useState(household.registration_tier != null ? String(household.registration_tier) : '')
   const [busy, setBusy] = useState(false)
 
   const patch = async (fields, apply) => {
@@ -307,12 +306,6 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
     if ((household.registration_hold_reason || '') === reason.trim()) return
     patch({ registration_hold_reason: reason.trim() || null })
   }
-  const saveTier = (value) => {
-    setTier(value)
-    patch({ registration_tier: value === '' ? null : Number(value) },
-      () => toast.success(value === '' ? 'Tier cleared' : `Tier ${value} saved`))
-  }
-
   return (
     <section className="rounded-lg border border-gray-200 p-3 space-y-3">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Class registration access</h4>
@@ -334,19 +327,6 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
             className={field} placeholder="e.g. registration fee unpaid" />
         </label>
       )}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-neutral-900">Priority tier</div>
-          <div className="text-xs text-neutral-500">When class registration opens for this family (dates in Settings).</div>
-        </div>
-        <select value={tier} onChange={(e) => saveTier(e.target.value)} disabled={busy} aria-label="Priority tier"
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50">
-          <option value="">Default</option>
-          <option value="1">Tier 1</option>
-          <option value="2">Tier 2</option>
-          <option value="3">Tier 3</option>
-        </select>
-      </div>
       <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} />
     </section>
   )

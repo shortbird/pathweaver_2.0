@@ -45,10 +45,19 @@ const Layout = () => {
         <main id="main-content" className="min-h-screen pb-28">
           <Outlet />
         </main>
-        {/* Large, easy-to-reach Back button on every non-home page */}
+        {/* Large, easy-to-reach Back button on every non-home page. Steps back
+            through history (so leaving a sub-screen returns to the previous
+            screen, not all the way home); falls back to the program home when
+            this is the first in-app page. */}
         {!onHome && (
           <button
-            onClick={() => navigate(focusConfig.homeRoute || '/')}
+            onClick={() => {
+              if (window.history.state?.idx > 0) {
+                navigate(-1)
+              } else {
+                navigate(focusConfig.homeRoute || '/')
+              }
+            }}
             className="fixed bottom-6 left-6 z-50 flex items-center gap-2 rounded-full bg-optio-purple text-white text-xl font-bold px-8 py-5 shadow-lg active:scale-95 transition"
           >
             ← Back

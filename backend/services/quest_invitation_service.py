@@ -186,6 +186,7 @@ class QuestInvitationService(BaseService):
                 'user_id': user_id,
                 'quest_id': quest_id,
                 'status': 'picked_up',
+                'is_active': True,
                 'started_at': datetime.utcnow().isoformat(),
                 'last_picked_up_at': datetime.utcnow().isoformat()
             }
@@ -193,6 +194,15 @@ class QuestInvitationService(BaseService):
             enrollment = self.admin_client.table('user_quests')\
                 .insert(enrollment_data)\
                 .execute()
+
+            # Materialize the facilitator's template tasks (and skip the wizard)
+            # exactly like the normal enroll path — an accepted invitation must
+            # never land the student on "Start Personalizing" with no tasks.
+            if enrollment.data:
+                from utils.template_tasks import copy_template_tasks_to_enrollment
+                copy_template_tasks_to_enrollment(
+                    self.admin_client, quest_id, user_id, enrollment.data[0]['id']
+                )
 
             logger.info(f"Student {user_id} accepted invitation and enrolled in quest {quest_id}")
 

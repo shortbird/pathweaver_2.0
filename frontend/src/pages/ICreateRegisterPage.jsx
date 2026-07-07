@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon } from '@heroicons/react/24/outline'
+import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon, PhotoIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
 
@@ -11,19 +11,26 @@ import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGat
 //
 // Steps (ported from the OSH registration wizard — see
 // docs/icreate/osh-registration-inventory.md):
-//   account   create an Optio account (name/email/password + emailed 6-digit
-//             code) OR sign into an existing one (auto-attached to iCreate)
-//   family    phone/address + kids (DOB, allergies, medications)
-//   details   emergency contacts + org questions
-//   paperwork acknowledge/e-sign each configured item (rich body text)
-//   fee       external payment link, record-only
-//   done      scheduling handoff
+//   account     create an Optio account (name/email/password + emailed 6-digit
+//               code) OR sign into an existing one (auto-attached to iCreate)
+//   family      phone/address + kids (photo, DOB, allergies, medications)
+//   details     emergency contacts + org questions
+//   paperwork   acknowledge/e-sign each configured item (rich body text)
+//   fee         Stripe card / external payment link / record-only
+//   schedule    "Your account is ready" -> build the class schedule
+//   appointment book the customized learning plan appointment
+//   done        all set
 
-const STEPS = ['account', 'family', 'details', 'paperwork', 'fee', 'done']
+const STEPS = ['account', 'family', 'details', 'paperwork', 'fee', 'schedule', 'appointment', 'done']
 const STEP_LABELS = {
   account: 'Account', family: 'Your family', details: 'Contacts & questions',
-  paperwork: 'Paperwork', fee: 'Registration fee', done: 'Done',
+  paperwork: 'Paperwork', fee: 'Registration fee', schedule: 'Build your schedule',
+  appointment: 'Book appointment', done: 'Done',
 }
+
+// Steps after the fee is settled: the family data is final, so completed steps
+// are no longer back-editable from here.
+const POST_FEE_STEPS = new Set(['schedule', 'appointment', 'done'])
 
 const CONTACT_RELATIONSHIPS = ['Grandparent', 'Guardian', 'Parent', 'Family friend', 'Neighbor', 'Other']
 
@@ -46,11 +53,68 @@ const absUrl = (v) => {
 }
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
+// ── Date of birth as validated text (MM/DD/YYYY) ─────────────────────────────
+// A plain masked text input with real calendar validation: impossible dates
+// like 2/31/2008 are rejected with an inline error instead of being accepted
+// (or silently mangled) the way loosely-handled date boxes do.
+
+// Keep only digits and group them as MM/DD/YYYY while the parent types.
+const formatMdy = (raw) => {
+  const d = String(raw || '').replace(/\D/g, '').slice(0, 8)
+  if (d.length <= 2) return d
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
+}
+
+// "MM/DD/YYYY" -> ISO date, or null when incomplete, impossible, or in the future.
+const mdyToIso = (text) => {
+  const m = String(text || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!m) return null
+  const [, mm, dd, yyyy] = m
+  const mo = Number(mm); const da = Number(dd); const yr = Number(yyyy)
+  const d = new Date(yr, mo - 1, da)
+  if (d.getFullYear() !== yr || d.getMonth() !== mo - 1 || d.getDate() !== da) return null
+  if (yr < 1900 || d > new Date()) return null
+  return `${yyyy}-${mm}-${dd}`
+}
+
+const isoToMdy = (iso) => {
+  const [y, mo, d] = String(iso || '').slice(0, 10).split('-')
+  return (y && mo && d) ? `${mo}/${d}/${y}` : ''
+}
+
 const emptyKid = () => ({
-  first_name: '', last_name: '', preferred_name: '', gender: '', date_of_birth: '',
-  email: '', as_dependent: false, allergies: '', medications: '',
+  first_name: '', last_name: '', preferred_name: '', gender: '',
+  date_of_birth: '', dob_text: '',
+  email: '', allergies: '', medications: '',
+  photo_file: null, photo_preview: '', avatar_url: '',
 })
 const emptyContact = () => ({ name: '', relationship: '', phone: '', email: '' })
+
+// Circular photo preview + picker. Photos are required for every family member.
+const PhotoPicker = ({ label, url, onSelect }) => (
+  <div className="flex items-center gap-3">
+    {url ? (
+      <img src={url} alt="" className="w-14 h-14 rounded-full object-cover border border-gray-200 shrink-0" />
+    ) : (
+      <div className="w-14 h-14 rounded-full bg-neutral-100 border border-dashed border-gray-300 flex items-center justify-center shrink-0">
+        <PhotoIcon className="w-6 h-6 text-neutral-300" />
+      </div>
+    )}
+    <label className="text-sm font-medium text-optio-purple hover:underline cursor-pointer">
+      {url ? 'Change photo' : label}
+      <input
+        type="file" accept="image/*" className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onSelect(f)
+          e.target.value = ''
+        }}
+      />
+    </label>
+  </div>
+)
 
 // Vertical stepper (desktop, left rail). Steps are sequential and all required:
 // completed steps get a check and can be clicked to go back and edit, the
@@ -67,7 +131,7 @@ const VerticalStepper = ({ step, onNavigate }) => {
           {STEPS.map((s, i) => {
             const done = i < idx
             const current = i === idx
-            const clickable = done && BACK_EDITABLE.has(s) && step !== 'done'
+            const clickable = done && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step)
             return (
               <li key={s} className="relative pb-7 last:pb-0">
                 {i < STEPS.length - 1 && (
@@ -117,7 +181,7 @@ const MobileStepper = ({ step, onNavigate }) => {
     <div className="md:hidden mb-6">
       <div className="flex items-center gap-1.5 justify-center">
         {STEPS.map((s, i) => {
-          const clickable = i < idx && BACK_EDITABLE.has(s) && step !== 'done'
+          const clickable = i < idx && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step)
           return (
             <React.Fragment key={s}>
               <button type="button" disabled={!clickable} onClick={() => clickable && onNavigate(s)}
@@ -188,6 +252,7 @@ const ICreateRegisterPage = () => {
   // family step
   const [family, setFamily] = useState({ phone: '', address_line1: '', address_line2: '', city: '', state: '', postal_code: '' })
   const [kids, setKids] = useState([emptyKid()])
+  const [parentPhoto, setParentPhoto] = useState({ file: null, preview: '', avatar_url: '' })
 
   // details step
   const [contacts, setContacts] = useState([emptyContact()])
@@ -232,11 +297,14 @@ const ICreateRegisterPage = () => {
               first_name: k.first_name || (k.name || '').split(' ')[0] || '',
               last_name: k.last_name || (k.name || '').split(' ').slice(1).join(' ') || '',
               preferred_name: k.preferred_name || '', gender: k.gender || '',
-              date_of_birth: k.dob || '', email: k.email || '',
-              as_dependent: k.type === 'dependent' && k.dob && ageFromDob(k.dob) >= 13,
+              date_of_birth: k.dob || '', dob_text: isoToMdy(k.dob),
+              email: k.email || '',
               allergies: k.allergies || '', medications: k.medications || '',
+              photo_file: null, photo_preview: '', avatar_url: k.avatar_url || '',
             })))
           }
+          setParentPhoto({ file: null, preview: '', avatar_url: regData.parent_avatar_url || '' })
+          setScheduling({ url: absUrl(regData.scheduling_url), emailed: !!regData.scheduling_emailed })
           if ((regData.emergency_contacts || []).length) {
             setContacts(regData.emergency_contacts.map((c) => ({
               name: c.name || '', relationship: c.relationship || '', phone: c.phone || '', email: c.email || '',
@@ -300,6 +368,14 @@ const ICreateRegisterPage = () => {
     }
   }
 
+  // Quietly establish a real app session (httpOnly cookies) so the later
+  // "build your schedule" step can open the Schedule Builder without another
+  // sign-in. The wizard itself keeps working off the funnel access_token, so a
+  // failure here is invisible.
+  const establishSession = async (email, password) => {
+    try { await api.post('/api/auth/login', { email, password }) } catch { /* wizard works without it */ }
+  }
+
   const submitVerify = async () => {
     if (!/^\d{6}$/.test(otp.trim())) return toast.error('Enter the 6-digit code from your email')
     setSubmitting(true)
@@ -308,6 +384,7 @@ const ICreateRegisterPage = () => {
         registration_id: pendingVerify.registration_id, code: otp.trim(),
       })
       setReg({ registration_id: pendingVerify.registration_id, access_token: data.access_token })
+      await establishSession(account.email.trim(), account.password)
       setStep('family')
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not verify the code')
@@ -335,6 +412,7 @@ const ICreateRegisterPage = () => {
         code, email: account.email.trim(), password: account.password,
       })
       setReg({ registration_id: data.registration_id, access_token: data.access_token })
+      await establishSession(account.email.trim(), account.password)
       toast.success(`Welcome back${data.first_name ? `, ${data.first_name}` : ''}!`)
       setStep('family')
     } catch (e) {
@@ -346,18 +424,56 @@ const ICreateRegisterPage = () => {
 
   // ── Family step ─────────────────────────────────────────────────────────────
 
+  // Photos upload AFTER the family submit (accounts must exist first). Kids in
+  // the response are matched back to the form by name + DOB. Best-effort: the
+  // registration stands even if an upload hiccups (the parent can re-upload by
+  // back-editing this step).
+  const uploadFamilyPhotos = async (createdKids) => {
+    const send = (targetUserId, file) => {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('access_token', reg.access_token)
+      form.append('target_user_id', targetUserId)
+      return api.post(`/api/icreate/registrations/${reg.registration_id}/photo`, form)
+    }
+    let failed = 0
+    if (parentPhoto.file) {
+      try {
+        const { data } = await send('parent', parentPhoto.file)
+        setParentPhoto({ file: null, preview: '', avatar_url: data.avatar_url })
+      } catch { failed += 1 }
+    }
+    for (const k of kids) {
+      if (!k.photo_file) continue
+      const match = (createdKids || []).find((ck) => (
+        ck.first_name === k.first_name.trim() && ck.last_name === k.last_name.trim() && ck.dob === k.date_of_birth
+      ))
+      if (!match?.user_id) { failed += 1; continue }
+      try {
+        const { data } = await send(match.user_id, k.photo_file)
+        setKids((ks) => ks.map((x) => (x === k ? { ...x, photo_file: null, photo_preview: '', avatar_url: data.avatar_url } : x)))
+      } catch { failed += 1 }
+    }
+    if (failed) toast.error(`${failed} photo${failed === 1 ? '' : 's'} did not upload — you can retry from this step later.`)
+  }
+
   const submitFamily = async () => {
     if (!family.phone.trim()) return toast.error('Enter your phone number')
     if (!family.address_line1.trim() || !family.city.trim() || !family.state.trim() || !family.postal_code.trim()) {
       return toast.error('Enter your street address, city, state, and ZIP')
     }
+    if (!parentPhoto.file && !parentPhoto.avatar_url) {
+      return toast.error('Add a photo of yourself — photos are required for every family member')
+    }
     for (const [i, k] of kids.entries()) {
       if (!k.first_name.trim() || !k.last_name.trim()) return toast.error(`Child #${i + 1} needs a first and last name`)
-      if (!k.date_of_birth) return toast.error(`Child #${i + 1} needs a date of birth`)
+      if (!k.date_of_birth) return toast.error(`Child #${i + 1} needs a valid date of birth (MM/DD/YYYY)`)
       if (!k.gender) return toast.error(`Select a gender for ${k.first_name || `child #${i + 1}`}`)
-      const age = ageFromDob(k.date_of_birth)
-      if (age >= 13 && !k.as_dependent && !EMAIL_RE.test(k.email)) {
-        return toast.error(`${k.first_name} is 13+, so add their email or mark them as managed by you`)
+      if (k.email.trim() && !EMAIL_RE.test(k.email)) {
+        return toast.error(`The email for ${k.first_name || `child #${i + 1}`} doesn't look right`)
+      }
+      if (!k.photo_file && !k.avatar_url) {
+        return toast.error(`Add a photo of ${k.first_name || `child #${i + 1}`} — photos are required for every family member`)
       }
     }
     setSubmitting(true)
@@ -370,11 +486,15 @@ const ICreateRegisterPage = () => {
         kids: kids.map((k) => ({
           first_name: k.first_name.trim(), last_name: k.last_name.trim(),
           preferred_name: k.preferred_name.trim(), gender: k.gender,
-          date_of_birth: k.date_of_birth, email: k.email.trim(), as_dependent: k.as_dependent,
+          date_of_birth: k.date_of_birth, email: k.email.trim(),
+          // Email is optional: a 13+ kid without one is managed under the
+          // parent's account instead of getting their own login.
+          as_dependent: !k.email.trim(),
           allergies: k.allergies.trim(), medications: k.medications.trim(),
         })),
       })
       setFeeCents(data.fee_cents || 0)
+      await uploadFamilyPhotos(data.kids)
       setStep('details')
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not save your family')
@@ -446,15 +566,46 @@ const ICreateRegisterPage = () => {
         access_token: reg.access_token,
       })
       setScheduling({ url: absUrl(data.scheduling_url), emailed: !!data.scheduling_emailed })
-      clearICreateRegistrationGate()  // funnel complete — stop redirecting this session
+      clearICreateRegistrationGate()  // fee settled — the app no longer redirects here
       sessionStorage.removeItem('icreate_funnel')
-      setStep('done')
+      setStep(data.status === 'completed' ? 'done' : (data.status || 'schedule'))
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not finish registration')
     } finally {
       setSubmitting(false)
     }
   }, [reg])
+
+  // ── Post-payment steps: build the schedule, then book the appointment ──────
+
+  const scheduleDone = async () => {
+    setSubmitting(true)
+    try {
+      await api.post(`/api/icreate/registrations/${reg.registration_id}/schedule-done`, {
+        access_token: reg.access_token,
+      })
+      setStep('appointment')
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not save your progress')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const appointmentDone = async (booked) => {
+    setSubmitting(true)
+    try {
+      await api.post(`/api/icreate/registrations/${reg.registration_id}/appointment-done`, {
+        access_token: reg.access_token, booked,
+      })
+      clearICreateRegistrationGate()
+      setStep('done')
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not finish registration')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   // ── Stripe card payment (verified server-side) ─────────────────────────────
 
@@ -486,11 +637,11 @@ const ICreateRegisterPage = () => {
       const { data } = await api.post(`/api/icreate/registrations/${r.registration_id}/confirm-payment`, {
         access_token: r.access_token,
       })
-      if (data.status === 'completed') {
+      if (['schedule', 'appointment', 'completed'].includes(data.status)) {
         setScheduling({ url: absUrl(data.scheduling_url), emailed: !!data.scheduling_emailed })
         clearICreateRegistrationGate()
         sessionStorage.removeItem('icreate_funnel')
-        setStep('done')
+        setStep(data.status === 'completed' ? 'done' : data.status)
       }
     } catch (e) {
       toast.error(e.response?.data?.error || "We couldn't confirm your payment yet — try again in a moment.")
@@ -649,16 +800,25 @@ const ICreateRegisterPage = () => {
                 <div className="sm:col-span-1"><label className="block text-xs font-medium text-neutral-500 mb-1">ZIP</label>
                   <input className={field} value={family.postal_code} onChange={(e) => setFamily({ ...family, postal_code: e.target.value })} /></div>
               </div>
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <label className="block text-xs font-medium text-neutral-500 mb-2">
+                  Your photo <span className="text-red-400">*</span>
+                </label>
+                <PhotoPicker
+                  label="Add your photo"
+                  url={parentPhoto.preview || parentPhoto.avatar_url}
+                  onSelect={(f) => setParentPhoto({ file: f, preview: URL.createObjectURL(f), avatar_url: '' })}
+                />
+                <p className="text-xs text-neutral-400 mt-1.5">Photos are required for every family member so staff can recognize your family.</p>
+              </div>
             </Section>
 
             <Section title="Children">
-              <div className="flex justify-end -mt-8 mb-3">
-                <button onClick={() => setKids((ks) => [...ks, emptyKid()])} className="text-sm font-medium text-optio-purple hover:underline">+ Add another child</button>
-              </div>
               <div className="space-y-5">
                 {kids.map((k, i) => {
                   const age = ageFromDob(k.date_of_birth)
                   const teen = age != null && age >= 13
+                  const dobInvalid = k.dob_text.length === 10 && !k.date_of_birth
                   return (
                     <div key={i} className="rounded-lg border border-gray-200 p-4">
                       <div className="flex items-center justify-between mb-3">
@@ -676,7 +836,30 @@ const ICreateRegisterPage = () => {
                         </select>
                         <div className="sm:col-span-2">
                           <label className="block text-xs font-medium text-neutral-500 mb-1">Date of birth</label>
-                          <input type="date" className={field} value={k.date_of_birth} onChange={(e) => setKid(i, { date_of_birth: e.target.value })} />
+                          <input
+                            className={`${field} ${dobInvalid ? 'border-red-400 focus:ring-red-400' : ''}`}
+                            placeholder="MM/DD/YYYY" inputMode="numeric" maxLength={10}
+                            value={k.dob_text}
+                            onChange={(e) => {
+                              const text = formatMdy(e.target.value)
+                              setKid(i, { dob_text: text, date_of_birth: mdyToIso(text) || '' })
+                            }}
+                          />
+                          {dobInvalid && (
+                            <p className="text-xs text-red-500 mt-1" role="alert">
+                              That date doesn't exist — double-check the month and day.
+                            </p>
+                          )}
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-medium text-neutral-500 mb-1">
+                            Photo <span className="text-red-400">*</span>
+                          </label>
+                          <PhotoPicker
+                            label={`Add ${k.first_name.trim() ? `${k.first_name.trim()}'s` : "this child's"} photo`}
+                            url={k.photo_preview || k.avatar_url}
+                            onSelect={(f) => setKid(i, { photo_file: f, photo_preview: URL.createObjectURL(f), avatar_url: '' })}
+                          />
                         </div>
                         <div className="sm:col-span-2">
                           <label className="block text-xs font-medium text-neutral-500 mb-1">Allergies <span className="text-neutral-400"></span></label>
@@ -689,16 +872,13 @@ const ICreateRegisterPage = () => {
                       </div>
                       {teen && (
                         <div className="mt-3">
-                          {!k.as_dependent && (
-                            <input type="email" className={field} placeholder="Child's email (they'll get their own login)"
-                              value={k.email} onChange={(e) => setKid(i, { email: e.target.value })} />
-                          )}
-                          <label className="mt-2 flex items-center gap-2 text-sm text-neutral-600">
-                            <input type="checkbox" checked={k.as_dependent}
-                              onChange={(e) => setKid(i, { as_dependent: e.target.checked, email: '' })}
-                              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                            No email — I'll manage this child's account
-                          </label>
+                          <label className="block text-xs font-medium text-neutral-500 mb-1">Child's Email (Optional)</label>
+                          <input type="email" className={field} placeholder="name@example.com"
+                            value={k.email} onChange={(e) => setKid(i, { email: e.target.value })} />
+                          <p className="mt-1 text-xs text-neutral-400">
+                            With an email, {k.first_name.trim() || 'your child'} gets their own login. Leave it blank to
+                            manage their account under yours.
+                          </p>
                         </div>
                       )}
                       {age != null && age < 13 && (
@@ -708,11 +888,14 @@ const ICreateRegisterPage = () => {
                   )
                 })}
               </div>
+              <div className="mt-4">
+                <button onClick={() => setKids((ks) => [...ks, emptyKid()])} className="text-sm font-medium text-optio-purple hover:underline">+ Add another child</button>
+              </div>
             </Section>
 
             {estimateFeeCents() > 0 && (
               <p className="text-center text-sm text-neutral-500">
-                Estimated registration fee: <span className="font-semibold text-neutral-800">{money(estimateFeeCents())}</span>
+                Registration fee: <span className="font-semibold text-neutral-800">{money(estimateFeeCents())}</span>
               </p>
             )}
 
@@ -772,6 +955,9 @@ const ICreateRegisterPage = () => {
                             )
                           })}
                         </div>
+                      ) : q.type === 'text' ? (
+                        <textarea rows={3} className={field} value={answers[q.key] || ''}
+                          onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))} />
                       ) : (
                         <select className={field} value={answers[q.key] || ''} onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))}>
                           <option value="">-- Please select --</option>
@@ -874,21 +1060,71 @@ const ICreateRegisterPage = () => {
           </div>
         )}
 
-        {step === 'done' && (
-          <div className="space-y-6 text-center">
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
+        {step === 'schedule' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
               <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">You're registered!</h2>
+              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
               <p className="text-neutral-500 mb-6">
-                Your account is ready — you can sign in at any time with your email and password.
-                {scheduling.emailed && ' We also emailed you a link to book your custom learning plan appointment.'}
+                Now build your family's schedule — pick the classes each of your children will take.
+                The Schedule Builder opens in a new tab; come back here when you're done.
               </p>
-              {scheduling.url && (
+              <a href="/schedule-builder" target="_blank" rel="noreferrer"
+                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
+                Open the Schedule Builder
+              </a>
+            </div>
+            <PrimaryButton onClick={scheduleDone} disabled={submitting}>
+              {submitting ? 'One moment…' : "I've built our schedule — continue"}
+            </PrimaryButton>
+            <button onClick={scheduleDone} disabled={submitting}
+              className="w-full text-sm text-neutral-500 hover:underline disabled:opacity-50">
+              Skip for now — I'll build it later
+            </button>
+          </div>
+        )}
+
+        {step === 'appointment' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+              <h2 className="text-xl font-bold text-neutral-900 mb-2">Book your Customized Learning Plan appointment</h2>
+              <p className="text-neutral-500 mb-6">
+                The last step is a short appointment to build your child's customized learning plan.
+                {scheduling.emailed && ' We also emailed you this booking link.'}
+              </p>
+              {scheduling.url ? (
                 <a href={scheduling.url} target="_blank" rel="noreferrer"
                   className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
                   Book your appointment
                 </a>
+              ) : (
+                <p className="text-sm text-neutral-400">The school will reach out to schedule your appointment.</p>
               )}
+            </div>
+            <PrimaryButton onClick={() => appointmentDone(true)} disabled={submitting}>
+              {submitting ? 'One moment…' : "I've booked my appointment — finish"}
+            </PrimaryButton>
+            <button onClick={() => appointmentDone(false)} disabled={submitting}
+              className="w-full text-sm text-neutral-500 hover:underline disabled:opacity-50">
+              I'll book it later
+            </button>
+          </div>
+        )}
+
+        {step === 'done' && (
+          <div className="space-y-6 text-center">
+            <div className="bg-white rounded-xl border border-gray-200 p-8">
+              <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
+              <h2 className="text-xl font-bold text-neutral-900 mb-2">You're all set!</h2>
+              <p className="text-neutral-500 mb-6">
+                Registration is complete. You can sign in at any time with your email and password to
+                manage your family's schedule.
+                {scheduling.emailed && ' Your appointment booking link is also in your email.'}
+              </p>
+              <a href="/"
+                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
+                Go to Optio
+              </a>
             </div>
           </div>
         )}

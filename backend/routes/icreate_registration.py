@@ -15,9 +15,12 @@ existing one) BEFORE seeing the rest of the form.
     POST /api/icreate/resend-code                  -> re-email a fresh code
     POST /api/icreate/login                        -> existing Optio account (password) -> attach to iCreate
     POST /api/icreate/registrations/<id>/family    -> phone/address + kids -> creates accounts + household
+    POST /api/icreate/registrations/<id>/photo     -> required photo for the parent / each kid
     POST /api/icreate/registrations/<id>/details   -> emergency contacts + org questions
     POST /api/icreate/registrations/<id>/paperwork -> acknowledge/e-sign paperwork
-    POST /api/icreate/registrations/<id>/fee       -> record fee + email scheduling link
+    POST /api/icreate/registrations/<id>/fee       -> record fee + email scheduling link -> 'schedule'
+    POST /api/icreate/registrations/<id>/schedule-done    -> parent built the schedule -> 'appointment'
+    POST /api/icreate/registrations/<id>/appointment-done -> appointment booked (or deferred) -> 'completed'
 
 Security model: all endpoints are public/pre-session (CSRF-exempt). The funnel
 access_token is only revealed AFTER the email is verified (new accounts) or the
@@ -376,7 +379,7 @@ def _org_config(admin, org_id):
 
 
 def _parent_row(admin, parent_id):
-    r = admin.table('users').select('id, email, first_name, last_name').eq('id', parent_id).single().execute()
+    r = admin.table('users').select('id, email, first_name, last_name, avatar_url').eq('id', parent_id).single().execute()
     return r.data or {}
 
 
@@ -459,18 +462,33 @@ def my_registration(user_id):
                .eq('primary_contact_user_id', user_id).limit(1).execute()).data or []
     household = hh_rows[0] if hh_rows else None
 
+    # Current photos, so the family step can show what's already uploaded and
+    # the resumed schedule/appointment steps know the funnel is photo-complete.
+    kids = reg.get('kids') or []
+    member_ids = [k['user_id'] for k in kids if k.get('user_id')] + [user_id]
+    avatar_by_id = {}
+    try:
+        rows = (admin.table('users').select('id, avatar_url')
+                .in_('id', member_ids).execute()).data or []
+        avatar_by_id = {r['id']: r.get('avatar_url') for r in rows}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'iCreate resume: avatar lookup failed: {e}')
+
     return jsonify({
         'success': True,
         'registration': {
             'registration_id': reg['id'],
             'access_token': reg['access_token'],
             'status': reg['status'],
-            'kids': reg.get('kids') or [],
+            'kids': [{**k, 'avatar_url': avatar_by_id.get(k.get('user_id'))} for k in kids],
+            'parent_avatar_url': avatar_by_id.get(user_id),
             'fee_cents': reg.get('fee_cents'),
             'answers': reg.get('answers') or {},
             'emergency_contacts': reg.get('emergency_contacts') or [],
             'paperwork': reg.get('paperwork') or [],
             'household': household,
+            'scheduling_url': _abs_url(cfg.get('scheduling_url')),
+            'scheduling_emailed': bool(reg.get('scheduling_emailed_at')),
         },
         **_public_config(org, cfg, _paperwork_resource_urls(admin, reg['organization_id'])),
     }), 200
@@ -727,6 +745,20 @@ def submit_family(reg_id):
     # accounts, links, contacts, household) and rebuild from the new payload.
     # Runs only AFTER validation so bad input never leaves a half-deleted family.
     # Safe mid-funnel: the accounts were created moments ago and have no activity.
+    # Photos survive the rebuild: the storage file isn't deleted with the account,
+    # so an unchanged kid (same name + DOB) gets their avatar_url carried over.
+    prior_avatars = {}
+    if prior_kids:
+        try:
+            rows = (admin.table('users')
+                    .select('id, first_name, last_name, date_of_birth, avatar_url')
+                    .in_('id', prior_kids).execute()).data or []
+            prior_avatars = {
+                (r.get('first_name'), r.get('last_name'), str(r.get('date_of_birth') or '')[:10]): r['avatar_url']
+                for r in rows if r.get('avatar_url')
+            }
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'iCreate family re-edit: avatar carry-over lookup failed: {e}')
     if prior_kids:
         try:
             admin.table('emergency_contacts').delete().in_('student_user_id', prior_kids).execute()
@@ -760,6 +792,9 @@ def submit_family(reg_id):
                 kid_id = _create_dependent(admin, parent_id, org_id, k['first'], k['last'], k['dob'])
                 ktype = 'dependent'
             extras = {f: k[f] for f in ('preferred_name', 'gender', 'allergies', 'medications') if k.get(f)}
+            carried = prior_avatars.get((k['first'], k['last'], str(k['dob'])))
+            if carried:
+                extras['avatar_url'] = carried
             if extras:
                 admin.table('users').update(extras).eq('id', kid_id).execute()
             created_kids.append({
@@ -798,7 +833,6 @@ def submit_family(reg_id):
             'phone': phone or None,
             'registration_hold': bool(directive and directive.get('registration_hold')),
             'registration_hold_reason': (directive or {}).get('hold_reason'),
-            'registration_tier': (directive or {}).get('registration_tier'),
         }).execute()
         household_id = hh.data[0]['id']
         members = [{'household_id': household_id, 'user_id': parent_id,
@@ -948,8 +982,9 @@ def _abs_url(v):
     return s if re.match(r'^https?://', s, re.I) else f'https://{s}'
 
 
-def _complete_registration(admin, reg, cfg, extra_fields=None):
-    """Shared completion: email the scheduling link and mark the funnel done.
+def _finish_fee_step(admin, reg, cfg, extra_fields=None):
+    """Shared fee completion: email the scheduling link and advance the funnel
+    to the post-payment steps (build schedule -> book appointment -> done).
     Returns the response payload."""
     scheduling_url = _abs_url(cfg.get('scheduling_url'))
     now = datetime.utcnow().isoformat()
@@ -962,8 +997,8 @@ def _complete_registration(admin, reg, cfg, extra_fields=None):
             org_name = (org or {}).get('name') or 'iCreate'
             html = (
                 f"<p>Hi {parent.get('first_name') or 'there'},</p>"
-                f"<p>Thanks for registering with {org_name}! The last step is to book your "
-                f"custom learning plan appointment.</p>"
+                f"<p>Thanks for registering with {org_name}! Don't forget to book your "
+                f"customized learning plan appointment.</p>"
                 f"<p><a href=\"{scheduling_url}\">Book your appointment</a></p>"
                 f"<p>If the link doesn't work, copy and paste this into your browser:<br>{scheduling_url}</p>"
             )
@@ -974,12 +1009,12 @@ def _complete_registration(admin, reg, cfg, extra_fields=None):
 
     payload = {
         'fee_recorded_at': now, 'scheduling_emailed_at': emailed_at,
-        'status': 'completed', 'completed_at': now, 'updated_at': now,
+        'status': 'schedule', 'updated_at': now,
         **(extra_fields or {}),
     }
     admin.table('icreate_registrations').update(payload).eq('id', reg['id']).execute()
     return {
-        'success': True, 'status': 'completed',
+        'success': True, 'status': 'schedule',
         'scheduling_url': scheduling_url,
         'scheduling_emailed': bool(emailed_at),
     }
@@ -1057,8 +1092,9 @@ def confirm_payment(reg_id):
 
     admin = _admin()
     cfg = _org_config(admin, reg['organization_id'])
-    if reg.get('status') == 'completed':
-        return jsonify({'success': True, 'status': 'completed', 'already': True, 'paid': True,
+    if reg.get('status') in ('schedule', 'appointment', 'completed'):
+        # Fee already settled — idempotent re-verify (e.g. a Stripe return-page reload).
+        return jsonify({'success': True, 'status': reg['status'], 'already': True, 'paid': True,
                         'scheduling_url': _abs_url(cfg.get('scheduling_url')),
                         'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
     secret = cfg.get('stripe_secret_key')
@@ -1083,7 +1119,7 @@ def confirm_payment(reg_id):
                        f'{session.get("amount_total")} != {reg.get("fee_cents")}')
         return jsonify({'error': 'Payment amount mismatch — please contact the school.'}), 400
 
-    result = _complete_registration(admin, reg, cfg, extra_fields={
+    result = _finish_fee_step(admin, reg, cfg, extra_fields={
         'fee_paid_at': datetime.utcnow().isoformat(),
         'stripe_payment_ref': str(session.get('payment_intent') or session_id),
     })
@@ -1104,9 +1140,96 @@ def record_fee(reg_id):
 
     admin = _admin()
     cfg = _org_config(admin, reg['organization_id'])
+    if reg.get('status') in ('schedule', 'appointment', 'completed'):
+        return jsonify({'success': True, 'status': reg['status'], 'already': True,
+                        'scheduling_url': _abs_url(cfg.get('scheduling_url')),
+                        'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
     fee_cents = int(reg.get('fee_cents') or 0)  # computed per-family at the family step
     if cfg.get('stripe_secret_key') and fee_cents > 0:
         return jsonify({'error': 'Please pay the registration fee by card to finish.'}), 402
 
-    result = _complete_registration(admin, reg, cfg, extra_fields={'fee_cents': fee_cents})
+    result = _finish_fee_step(admin, reg, cfg, extra_fields={'fee_cents': fee_cents})
     return jsonify(result), 200
+
+
+@bp.route('/registrations/<reg_id>/schedule-done', methods=['POST'])
+@rate_limit(max_requests=30, window_seconds=300)
+def schedule_done(reg_id):
+    """The parent finished (or deferred) building the class schedule — advance to
+    the appointment step."""
+    body = request.get_json(silent=True) or {}
+    reg = _load_registration(reg_id)
+    if not _authz(reg, body.get('access_token')):
+        return jsonify({'error': 'Not authorized'}), 403
+    if reg.get('status') not in ('schedule', 'appointment'):
+        return jsonify({'error': 'The schedule step is not open for this registration'}), 400
+
+    now = datetime.utcnow().isoformat()
+    _admin().table('icreate_registrations').update({
+        'schedule_done_at': reg.get('schedule_done_at') or now,
+        'status': 'appointment', 'updated_at': now,
+    }).eq('id', reg_id).execute()
+    return jsonify({'success': True, 'status': 'appointment'}), 200
+
+
+@bp.route('/registrations/<reg_id>/appointment-done', methods=['POST'])
+@rate_limit(max_requests=30, window_seconds=300)
+def appointment_done(reg_id):
+    """The parent booked their customized learning plan appointment (booked=true)
+    or chose to book later — either way the funnel is complete."""
+    body = request.get_json(silent=True) or {}
+    reg = _load_registration(reg_id)
+    if not _authz(reg, body.get('access_token')):
+        return jsonify({'error': 'Not authorized'}), 403
+    if reg.get('status') == 'completed':
+        return jsonify({'success': True, 'status': 'completed', 'already': True}), 200
+    if reg.get('status') not in ('schedule', 'appointment'):
+        return jsonify({'error': 'The appointment step is not open for this registration'}), 400
+
+    now = datetime.utcnow().isoformat()
+    _admin().table('icreate_registrations').update({
+        'appointment_confirmed_at': now if body.get('booked') else None,
+        'status': 'completed', 'completed_at': now, 'updated_at': now,
+    }).eq('id', reg_id).execute()
+    return jsonify({'success': True, 'status': 'completed'}), 200
+
+
+@bp.route('/registrations/<reg_id>/photo', methods=['POST'])
+@rate_limit(max_requests=60, window_seconds=300)
+def upload_photo(reg_id):
+    """Required photo for a family member (the parent or one of this
+    registration's kids). Multipart form: file, target_user_id, access_token."""
+    import uuid as _uuid
+    reg = _load_registration(reg_id)
+    if not _authz(reg, request.form.get('access_token')):
+        return jsonify({'error': 'Not authorized'}), 403
+
+    # 'parent' sentinel: the browser never learns the parent's user id.
+    target = (request.form.get('target_user_id') or '').strip()
+    if target in ('', 'parent'):
+        target = reg['parent_user_id']
+    allowed = {reg['parent_user_id']} | {k.get('user_id') for k in (reg.get('kids') or [])}
+    if target not in allowed:
+        return jsonify({'error': 'This person is not part of your registration'}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'):
+        return jsonify({'error': 'Please upload a photo (JPG, PNG, WEBP, or HEIC)'}), 400
+    file.seek(0, 2)
+    if file.tell() > 5 * 1024 * 1024:
+        return jsonify({'error': 'Photos must be under 5MB'}), 400
+    file.seek(0)
+
+    admin = _admin()
+    from services.user_photo_service import upload_user_photo
+    try:
+        avatar_url = upload_user_photo(admin, target, file, ext)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'iCreate photo: upload failed for {target[:8]}: {e}')
+        return jsonify({'error': 'Could not upload the photo. Please try again.'}), 500
+    return jsonify({'success': True, 'user_id': target, 'avatar_url': avatar_url}), 200

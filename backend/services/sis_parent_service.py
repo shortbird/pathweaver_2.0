@@ -108,13 +108,23 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
 
 
 def context(user_id: str) -> Dict[str, Any]:
-    """Orgs (SIS-enabled) where the user is a guardian, each with its registerable students."""
+    """Orgs (SIS-enabled) where the user is a guardian, each with its registerable students.
+    Includes each person's avatar_url so family surfaces can prompt for missing photos."""
     students = registerable_students(user_id)
+    avatar_by_id: Dict[str, Any] = {}
+    ids = list({s['student_id'] for s in students} | {user_id})
+    try:
+        rows = (_admin().table('users').select('id, avatar_url')
+                .in_('id', ids).execute()).data or []
+        avatar_by_id = {r['id']: r.get('avatar_url') for r in rows}
+    except Exception:  # noqa: BLE001
+        pass
     orgs: Dict[str, Dict[str, Any]] = {}
     for s in students:
         o = orgs.setdefault(s['org_id'], {'organization_id': s['org_id'], 'students': []})
         o['students'].append({'student_id': s['student_id'], 'name': s['name'],
-                              'household_id': s['household_id']})
+                              'household_id': s['household_id'],
+                              'avatar_url': avatar_by_id.get(s['student_id'])})
     if orgs:
         rows = (
             _admin().table('organizations').select('id, name')
@@ -123,7 +133,7 @@ def context(user_id: str) -> Dict[str, Any]:
         for r in rows:
             if r['id'] in orgs:
                 orgs[r['id']]['organization_name'] = r['name']
-    return {'orgs': list(orgs.values())}
+    return {'orgs': list(orgs.values()), 'my_avatar_url': avatar_by_id.get(user_id)}
 
 
 def _has_org_access(user_id: str, org_id: str) -> bool:
@@ -274,7 +284,7 @@ def _sis_settings(org_id: str) -> Dict[str, Any]:
 
 
 def _student_household(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
-    """The student's household in this org (hold/tier fields), or None."""
+    """The student's household in this org (hold fields), or None."""
     memberships = (
         _admin().table('household_members').select('household_id')
         .eq('user_id', student_user_id).execute()
@@ -284,42 +294,18 @@ def _student_household(org_id: str, student_user_id: str) -> Optional[Dict[str, 
         return None
     rows = (
         _admin().table('households')
-        .select('id, organization_id, registration_hold, registration_hold_reason, registration_tier')
+        .select('id, organization_id, registration_hold, registration_hold_reason')
         .in_('id', hh_ids).eq('organization_id', org_id).limit(1).execute()
     ).data or []
     return rows[0] if rows else None
 
 
-def _tier_opens_on(org_id: str, tier: Optional[int]) -> Optional[str]:
-    """The ISO date class registration opens for this tier, if it hasn't yet.
-
-    Dates come from sis_settings.registration_tier_dates ({"1": date, ...,
-    "default": date} — "default" covers untiered families). Returns None when
-    already open, and treats missing config as open so the feature stays dormant
-    until a school sets it up.
-    """
-    from datetime import date
-    dates = _sis_settings(org_id).get('registration_tier_dates') or {}
-    if not dates:
-        return None
-    val = dates.get(str(tier)) if tier is not None else None
-    if not val:
-        val = dates.get('default')
-    if not val:
-        return None
-    try:
-        opens = date.fromisoformat(str(val)[:10])
-    except ValueError:
-        return None
-    return str(opens) if date.today() < opens else None
-
-
-def _family_gate(org_id: str, student_user_id: str,
-                 check_tier: bool = True) -> Optional[Dict[str, Any]]:
+def _family_gate(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
     """The error blocking this family from class signup, or None if clear.
 
-    A registration hold (unresolved fee/question from the school) always blocks;
-    the tier window blocks until the family's opening date. Families with no
+    A registration hold (unresolved fee/question from the school) blocks all
+    self-service adds. Access to registration itself is controlled by who has
+    the registration link — there are no date-staggered tiers. Families with no
     household are not gated — staff-created edge cases shouldn't lock parents out.
     """
     household = _student_household(org_id, student_user_id)
@@ -327,14 +313,6 @@ def _family_gate(org_id: str, student_user_id: str,
         return {'error': "Your family's registration is on hold — please contact the school "
                          'to resolve it before signing up for classes.',
                 'registration_hold': True}
-    if check_tier:
-        opens_on = _tier_opens_on(org_id, (household or {}).get('registration_tier'))
-        if opens_on:
-            from datetime import date
-            d = date.fromisoformat(opens_on)
-            nice = f'{d.strftime("%B")} {d.day}, {d.year}'
-            return {'error': f'Class registration opens for your family on {nice}.',
-                    'registration_opens_on': opens_on}
     return None
 
 
@@ -401,9 +379,7 @@ def add_course(user_id: str, org_id: str, student_user_id: str, course_id: str) 
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
-    # Holds block ALL self-service adds; the tier window only staggers seat-limited
-    # classes, so untimed at-home courses skip it.
-    gate = _family_gate(org_id, student_user_id, check_tier=False)
+    gate = _family_gate(org_id, student_user_id)
     if gate:
         return gate
     if not _optio_courses_enabled(org_id):
@@ -482,7 +458,7 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'first_day_of_school': _first_day_of_school(org_id),
         'changes_locked': _changes_locked(org_id),
         'registration_hold': bool((household or {}).get('registration_hold')),
-        'registration_opens_on': _tier_opens_on(org_id, (household or {}).get('registration_tier')),
+        'time_blocks': _sis_settings(org_id).get('time_blocks') or [],
     }
 
 

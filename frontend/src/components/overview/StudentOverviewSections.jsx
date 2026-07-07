@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 import LearningSnapshot from './LearningSnapshot';
+import EnrolledCoursesSection from './EnrolledCoursesSection';
 import SkillsGrowth from './SkillsGrowth';
 import PortfolioSection from './PortfolioSection';
 import LearningJournalSection from './LearningJournalSection';
@@ -23,6 +24,12 @@ const icons = {
   portfolio: (
     <svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+    </svg>
+  ),
+  classes: (
+    <svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
     </svg>
   ),
   journal: (
@@ -71,6 +78,20 @@ const StudentOverviewSections = ({
 
   return (
     <>
+      {/* Classes (course enrollments) — always shown when enrollments exist,
+          even at zero progress, so parents can see what their child is
+          enrolled in before any work has been completed. Only the parent
+          child-overview endpoint supplies enrolledCourses today. */}
+      {data.enrolledCourses?.length > 0 && (
+        <CollapsibleSection title="Classes" icon={icons.classes}>
+          <EnrolledCoursesSection
+            courses={data.enrolledCourses}
+            studentId={studentId}
+            isDependent={isDependent}
+          />
+        </CollapsibleSection>
+      )}
+
       {/* Learning Snapshot */}
       {hasSnapshotData && (
         <CollapsibleSection title="Learning Snapshot" icon={icons.snapshot}>
@@ -145,6 +166,7 @@ StudentOverviewSections.propTypes = {
   data: PropTypes.shape({
     engagementData: PropTypes.object,
     activeQuests: PropTypes.array,
+    enrolledCourses: PropTypes.array,
     recentCompletions: PropTypes.array,
     xpByPillar: PropTypes.object,
     subjectXp: PropTypes.object,

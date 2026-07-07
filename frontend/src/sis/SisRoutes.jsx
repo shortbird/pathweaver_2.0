@@ -1,6 +1,17 @@
-import React, { lazy } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { lazy, useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
+import { goToLearningSurface } from '../utils/appSurface'
+
+// Family-facing links (registration invitations) belong on the Learning app.
+// If one is opened on the SIS host anyway — e.g. an old link copied before the
+// www fix — bounce it to the same path on the learning surface instead of
+// dead-ending on the staff login.
+const LearningRedirect = () => {
+  const location = useLocation()
+  useEffect(() => { goToLearningSurface(location.pathname + location.search) }, [location])
+  return null
+}
 
 // New SIS console pages
 const SisDashboard = lazy(() => import('../pages/sis/SisDashboard'))
@@ -37,6 +48,9 @@ const AdminPage = lazy(() => import('../pages/AdminPage'))
  */
 const SisRoutes = () => (
   <Routes>
+    {/* Family-facing paths escape the staff console entirely */}
+    <Route path="invitation/:code" element={<LearningRedirect />} />
+    <Route path="register/icreate/*" element={<LearningRedirect />} />
     <Route element={<SisLayout />}>
       <Route index element={<SisDashboard />} />
       <Route path="users" element={<RosterPage />} />

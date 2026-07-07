@@ -47,7 +47,7 @@ const Fact = ({ label, children }) => (
   </div>
 )
 
-const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd }) => {
+const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd, onRemove }) => {
   const isCourse = type === 'course'
   const [quests, setQuests] = useState([])
 
@@ -82,6 +82,12 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd 
           className="px-4 py-2 rounded-lg text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors">
           Close
         </button>
+        {!locked && onRemove && (
+          <button onClick={onRemove} disabled={busy}
+            className="px-5 py-2 rounded-lg text-sm font-semibold border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50">
+            {busy ? 'One moment…' : isCourse ? 'Drop course' : 'Drop class'}
+          </button>
+        )}
         {!locked && onAdd && (
           <button onClick={onAdd} disabled={busy}
             className="px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">

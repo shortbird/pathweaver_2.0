@@ -8,8 +8,10 @@ import ICreateRegistrationSettings from '../../components/sis/ICreateRegistratio
 /**
  * SIS Registration page (Operations) — everything about how families register:
  * the parent registration funnel config (link, fees, paperwork, questions),
- * staggered tier opening dates for class signup, and the imported legacy
- * registration list (who's prepaid / on hold, and who has re-registered).
+ * the first day of school (closes self-service schedule changes), and the
+ * prepaid/hold family list (who's prepaid / on hold, and who has registered).
+ * Access to registration itself is controlled by who has the registration
+ * link — there are no date-staggered tiers.
  */
 const RegistrationPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
@@ -45,83 +47,46 @@ const RegistrationPage = () => {
       ) : (
         <div className="grid gap-6">
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
-          <TierOpeningCard key={`tiers-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
+          <SchoolYearCard key={`year-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <ICreateRegistrationSettings key={`icr-${orgId}`} orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
-          <ImportedFamiliesCard key={`dir-${orgId}`} orgId={orgId} />
+          <FamilyDirectivesCard key={`dir-${orgId}`} orgId={orgId} />
         </div>
       )}
     </div>
   )
 }
 
-// The class-registration window: staggered tier opening dates (each family tier
-// gets its own open date; "default" covers untiered families; no dates =
-// registration always open) and the first day of school, which closes parent
-// self-service schedule changes.
-const TierOpeningCard = ({ orgId, org, onUpdate }) => {
+// The first day of school closes parent self-service schedule changes. Class
+// registration itself opens as soon as a family registers — access is
+// controlled by who has the registration link, not by dates.
+const SchoolYearCard = ({ orgId, org, onUpdate }) => {
   const settings = org.feature_flags?.sis_settings || {}
-  const stored = settings.registration_tier_dates || {}
-  const [dates, setDates] = useState({
-    1: stored['1'] || '', 2: stored['2'] || '',
-    3: stored['3'] || '', default: stored.default || '',
-  })
   const [firstDay, setFirstDay] = useState(settings.first_day_of_school || '')
   const [saving, setSaving] = useState(false)
 
-  const saveSettings = async (patch, successMsg) => {
+  const saveFirstDay = async (value) => {
+    setFirstDay(value)
     setSaving(true)
     try {
       await api.put(`/api/admin/organizations/${orgId}`, {
         feature_flags: {
           ...(org.feature_flags || {}),
-          sis_settings: { ...settings, ...patch },
+          sis_settings: { ...settings, first_day_of_school: value || null },
         },
       })
-      toast.success(successMsg)
+      toast.success(value ? 'First day of school saved' : 'First day of school cleared')
       onUpdate && onUpdate()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Failed to save')
     } finally { setSaving(false) }
   }
 
-  const saveDate = (key, value) => {
-    const next = { ...dates, [key]: value }
-    setDates(next)
-    const cleaned = Object.fromEntries(Object.entries(next).filter(([, v]) => v))
-    saveSettings({ registration_tier_dates: Object.keys(cleaned).length ? cleaned : null },
-      'Registration opening dates saved')
-  }
-
-  const saveFirstDay = (value) => {
-    setFirstDay(value)
-    saveSettings({ first_day_of_school: value || null },
-      value ? 'First day of school saved' : 'First day of school cleared')
-  }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-neutral-900 mb-1">Class registration opens</h2>
-      <p className="text-sm text-neutral-500 mb-4">
-        Stagger when families can start signing up for classes. Assign each family a tier on its
-        Families card; families without a tier use the "Everyone else" date. Leave all blank to
-        keep registration open to everyone.
-      </p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[['1', 'Tier 1'], ['2', 'Tier 2'], ['3', 'Tier 3'], ['default', 'Everyone else']].map(([key, label]) => (
-          <label key={key} className="text-xs text-neutral-500 block">{label}
-            <input
-              type="date" value={dates[key]} disabled={saving}
-              onChange={(e) => saveDate(key, e.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50"
-            />
-          </label>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4 mt-5 pt-5 border-t border-gray-100">
+      <div className="flex flex-wrap items-center gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-neutral-900">First day of school</div>
-          <div className="text-xs text-neutral-500">
+          <h2 className="text-lg font-semibold text-neutral-900">First day of school</h2>
+          <div className="text-sm text-neutral-500">
             Families can add, drop, and waitlist classes in the Schedule Builder until this date; after
             that, schedule changes are made by staff here. Leave blank to keep it open.
           </div>
@@ -136,23 +101,56 @@ const TierOpeningCard = ({ orgId, org, onUpdate }) => {
   )
 }
 
-// Families imported from the school's legacy registration list: their staged
-// fee/hold/tier, and whether they've re-registered here yet (matched household).
-// Renders nothing when no import has been loaded.
-const ImportedFamiliesCard = ({ orgId }) => {
+// Parse a pasted list of emails: commas, semicolons, whitespace, and newlines
+// all separate entries; "Name <email>" address-book formats are unwrapped.
+const parseEmails = (text) => {
+  const found = String(text || '').match(/[^\s,;<>"']+@[^\s,;<>"']+\.[^\s,;<>"']+/g) || []
+  return [...new Set(found.map((e) => e.toLowerCase()))]
+}
+
+// Pre-staged family settings (sis_family_directives): who has already paid the
+// registration fee (the school emails these in), who's on hold, and whether
+// they've registered here yet (matched household). The paste box marks parents
+// prepaid by email — applied automatically when they register with that email.
+const FamilyDirectivesCard = ({ orgId }) => {
   const [directives, setDirectives] = useState(null)
   const [filter, setFilter] = useState('all') // all | pending | hold
+  const [pasted, setPasted] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     api.get(withOrg('/api/sis/family-directives', orgId))
       .then((r) => setDirectives(r.data?.directives || []))
       .catch(() => setDirectives([]))
   }, [orgId])
 
-  if (!directives || directives.length === 0) return null
+  useEffect(() => { reload() }, [reload])
 
-  const registered = directives.filter((d) => d.matched_household_id)
-  const shown = directives.filter((d) => {
+  const emails = parseEmails(pasted)
+
+  const markPrepaid = async () => {
+    if (!emails.length) return toast.error('Paste at least one email address')
+    setSaving(true)
+    try {
+      const byEmail = Object.fromEntries((directives || []).map((d) => [d.email, d]))
+      const { data } = await api.post(withOrg('/api/sis/family-directives', orgId), {
+        directives: emails.map((email) => ({
+          ...(byEmail[email] || {}), // keep an existing hold/notes when re-marking
+          email,
+          fee_prepaid: true,
+        })),
+      })
+      toast.success(`Marked ${data.saved} famil${data.saved === 1 ? 'y' : 'ies'} as prepaid`)
+      setPasted('')
+      reload()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not save')
+    } finally { setSaving(false) }
+  }
+
+  const list = directives || []
+  const registered = list.filter((d) => d.matched_household_id)
+  const shown = list.filter((d) => {
     if (filter === 'pending') return !d.matched_household_id
     if (filter === 'hold') return d.registration_hold
     return true
@@ -170,55 +168,79 @@ const ImportedFamiliesCard = ({ orgId }) => {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <h2 className="text-lg font-semibold text-neutral-900">Imported families</h2>
-        <span className="text-sm text-neutral-500">{registered.length} of {directives.length} re-registered</span>
+        <h2 className="text-lg font-semibold text-neutral-900">Prepaid & held families</h2>
+        {list.length > 0 && (
+          <span className="text-sm text-neutral-500">{registered.length} of {list.length} registered</span>
+        )}
       </div>
       <p className="text-sm text-neutral-500 mb-3">
-        From the school's previous registration list. Each family's fee status, hold, and tier are
-        applied automatically when they register here with the same email.
+        Paste the emails of parents who have already paid the registration fee. When they register
+        with that email, their fee is waived automatically. Holds staged here are applied the same way.
       </p>
-      <div className="flex gap-2 mb-3">
-        <FilterBtn value="all" label={`All (${directives.length})`} />
-        <FilterBtn value="pending" label={`Not registered yet (${directives.length - registered.length})`} />
-        <FilterBtn value="hold" label={`On hold (${directives.filter((d) => d.registration_hold).length})`} />
+
+      <div className="mb-5">
+        <textarea
+          rows={3}
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder={'parent1@example.com\nparent2@example.com, parent3@example.com'}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-optio-purple"
+        />
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs text-neutral-400">
+            {emails.length ? `${emails.length} email${emails.length === 1 ? '' : 's'} found` : 'Commas, spaces, or new lines all work.'}
+          </span>
+          <button onClick={markPrepaid} disabled={saving || !emails.length}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Mark as prepaid'}
+          </button>
+        </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-gray-100">
-              <th className="py-2 pr-3">Family</th>
-              <th className="py-2 pr-3">Email</th>
-              <th className="py-2 pr-3">Tier</th>
-              <th className="py-2 pr-3">Fee</th>
-              <th className="py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((d) => (
-              <tr key={d.id} className="border-b border-gray-50">
-                <td className="py-2 pr-3 text-neutral-800">{(d.notes || '').split(' | ')[0] || '—'}</td>
-                <td className="py-2 pr-3 text-neutral-500">{d.email}</td>
-                <td className="py-2 pr-3 text-neutral-600">{d.registration_tier != null ? `Tier ${d.registration_tier}` : 'Default'}</td>
-                <td className="py-2 pr-3">
-                  {d.fee_prepaid
-                    ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Paid</span>
-                    : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-700">Unpaid</span>}
-                </td>
-                <td className="py-2">
-                  <span className="inline-flex items-center gap-1.5 flex-wrap">
-                    {d.matched_household_id
-                      ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Registered</span>
-                      : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-neutral-100 text-neutral-500">Not registered</span>}
-                    {d.registration_hold && (
-                      <span className="text-xs font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700" title={d.hold_reason || ''}>Hold</span>
-                    )}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {list.length > 0 && (
+        <>
+          <div className="flex gap-2 mb-3">
+            <FilterBtn value="all" label={`All (${list.length})`} />
+            <FilterBtn value="pending" label={`Not registered yet (${list.length - registered.length})`} />
+            <FilterBtn value="hold" label={`On hold (${list.filter((d) => d.registration_hold).length})`} />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-gray-100">
+                  <th className="py-2 pr-3">Family</th>
+                  <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Fee</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((d) => (
+                  <tr key={d.id} className="border-b border-gray-50">
+                    <td className="py-2 pr-3 text-neutral-800">{(d.notes || '').split(' | ')[0] || '—'}</td>
+                    <td className="py-2 pr-3 text-neutral-500">{d.email}</td>
+                    <td className="py-2 pr-3">
+                      {d.fee_prepaid
+                        ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Paid</span>
+                        : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-700">Unpaid</span>}
+                    </td>
+                    <td className="py-2">
+                      <span className="inline-flex items-center gap-1.5 flex-wrap">
+                        {d.matched_household_id
+                          ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Registered</span>
+                          : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-neutral-100 text-neutral-500">Not registered</span>}
+                        {d.registration_hold && (
+                          <span className="text-xs font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700" title={d.hold_reason || ''}>Hold</span>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   )
 }

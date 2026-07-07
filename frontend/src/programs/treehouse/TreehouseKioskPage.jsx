@@ -17,10 +17,26 @@ import { setFocusMode } from '../../utils/focusMode'
 
 const TOKEN_KEY = 'treehouse_kiosk_token'
 
+const StudentButton = ({ student, busy, onPick }) => (
+  <button
+    disabled={busy}
+    onClick={() => onPick(student.id)}
+    className="flex flex-col items-center gap-3 bg-white rounded-3xl p-5 shadow-sm hover:shadow-md active:scale-95 transition disabled:opacity-50"
+  >
+    {student.avatar_url
+      ? <img src={student.avatar_url} alt="" className="w-24 h-24 rounded-full object-cover" />
+      : <div className="w-24 h-24 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white text-3xl font-bold">
+          {(student.name || '?').charAt(0).toUpperCase()}
+        </div>}
+    <span className="text-lg font-bold text-neutral-900">{student.name}</span>
+  </button>
+)
+
 export default function TreehouseKioskPage() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '')
   const [entered, setEntered] = useState('')
   const [students, setStudents] = useState(null)
+  const [cohorts, setCohorts] = useState([])
   const [orgLogo, setOrgLogo] = useState(null)
   const [orgName, setOrgName] = useState('')
   const [error, setError] = useState('')
@@ -31,6 +47,7 @@ export default function TreehouseKioskPage() {
     try {
       const { data } = await treehouseAPI.kioskRoster(t)
       setStudents(data.students || [])
+      setCohorts(data.cohorts || [])
       setOrgLogo(data.org_logo || null)
       setOrgName(data.org_name || '')
       localStorage.setItem(TOKEN_KEY, t)
@@ -95,24 +112,28 @@ export default function TreehouseKioskPage() {
         )}
         <h1 className="text-3xl font-bold text-neutral-900 text-center">Who's learning?</h1>
         {error && <p className="text-rose-600 text-center mt-2">{error}</p>}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 mt-8">
-          {students.map((s) => (
-            <button
-              key={s.id}
-              disabled={busy}
-              onClick={() => pick(s.id)}
-              className="flex flex-col items-center gap-3 bg-white rounded-3xl p-5 shadow-sm hover:shadow-md active:scale-95 transition disabled:opacity-50"
-            >
-              {s.avatar_url
-                ? <img src={s.avatar_url} alt="" className="w-24 h-24 rounded-full object-cover" />
-                : <div className="w-24 h-24 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white text-3xl font-bold">
-                    {(s.name || '?').charAt(0).toUpperCase()}
-                  </div>}
-              <span className="text-lg font-bold text-neutral-900">{s.name}</span>
-            </button>
-          ))}
-          {students.length === 0 && <p className="text-neutral-500 col-span-full text-center">No students on this device yet.</p>}
-        </div>
+        {/* One section per cohort (littles first) so young students find their
+            own name without sifting through the whole org. Flat grid fallback
+            when no cohorts are set up. */}
+        {cohorts.length > 0 ? (
+          cohorts.map((cohort) => (
+            <div key={cohort.id || 'unassigned'} className="mt-8">
+              <h2 className="text-xl font-bold text-neutral-700">{cohort.name}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 mt-3">
+                {cohort.students.map((s) => (
+                  <StudentButton key={s.id} student={s} busy={busy} onPick={pick} />
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 mt-8">
+            {students.map((s) => (
+              <StudentButton key={s.id} student={s} busy={busy} onPick={pick} />
+            ))}
+            {students.length === 0 && <p className="text-neutral-500 col-span-full text-center">No students on this device yet.</p>}
+          </div>
+        )}
         <div className="text-center mt-10">
           <button onClick={forget} className="text-sm text-neutral-400 underline">Forget this device</button>
         </div>

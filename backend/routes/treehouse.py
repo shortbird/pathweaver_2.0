@@ -50,12 +50,14 @@ _org_id_cache = {}
 # ── membership / context ─────────────────────────────────────────────────────
 def _treehouse_org_id():
     """Return the Treehouse organization id (cached for the process)."""
-    if 'id' in _org_id_cache:
+    if _org_id_cache.get('id'):
         return _org_id_cache['id']
     admin = get_supabase_admin_client()
     res = admin.table('organizations').select('id').eq('slug', TREEHOUSE_SLUG).limit(1).execute()
     org_id = res.data[0]['id'] if res.data else None
-    _org_id_cache['id'] = org_id
+    # Only cache a hit — a cached miss would 403 every Treehouse route until restart.
+    if org_id:
+        _org_id_cache['id'] = org_id
     return org_id
 
 
@@ -177,6 +179,7 @@ def treehouse_me(user_id):
         'is_facilitator': ctx['is_facilitator'],
         'is_admin': _is_admin(ctx),
         'simplified': simplified,
+        'organization_id': ctx['org_id'],
     }), 200
 
 
@@ -275,6 +278,103 @@ def list_quests(user_id):
         'uncategorized': uncategorized,
         'count': len(visible),
     }), 200
+
+
+# ── student: "More ideas" — AI task suggestions in the same vein ─────────────
+@bp.route('/quests/<quest_id>/more-ideas', methods=['POST'])
+@require_auth
+@validate_uuid_param('quest_id')
+def quest_more_ideas(user_id, quest_id):
+    """
+    Littles-friendly alternative to the personalization wizard: a few short AI
+    task ideas in the same vein as the facilitator's task list for this quest,
+    tuned to the student's age band. The student adds a chosen idea via the
+    standard add-manual-tasks endpoint. Not gated by the org AI-access flag —
+    this is a single bounded suggestion call, not open-ended generation.
+    """
+    ctx = _context(user_id)
+    if not ctx['is_member']:
+        return jsonify({'success': False, 'error': 'Not a Treehouse member'}), 403
+    admin = get_supabase_admin_client()
+
+    q = admin.table('quests').select('id, title, big_idea').eq('id', quest_id).limit(1).execute()
+    if not q.data:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    quest = q.data[0]
+
+    # The student's current task list (= the facilitator's tasks) defines
+    # "the same vein" and is excluded so ideas don't repeat it.
+    tasks = (admin.table('user_quest_tasks')
+             .select('title, pillar, xp_value')
+             .eq('quest_id', quest_id).eq('user_id', user_id)
+             .eq('approval_status', 'approved').order('order_index').execute()).data or []
+    existing_titles = [t['title'] for t in tasks]
+
+    pillar_counts = {}
+    for t in tasks:
+        if t.get('pillar'):
+            pillar_counts[t['pillar']] = pillar_counts.get(t['pillar'], 0) + 1
+    dominant_pillar = max(pillar_counts, key=pillar_counts.get) if pillar_counts else 'art'
+    xp_values = [t.get('xp_value') for t in tasks if t.get('xp_value')]
+    xp_value = min(xp_values) if xp_values else 25
+
+    # Age band from the student's cohort name ('Littles (5-7)' / 'Bigs (8-13)').
+    age_hint = 'a young learner'
+    try:
+        enr = (admin.table('class_enrollments').select('class_id')
+               .eq('student_id', user_id).eq('status', 'active').limit(1).execute())
+        if enr.data:
+            cls = (admin.table('org_classes').select('name')
+                   .eq('id', enr.data[0]['class_id']).limit(1).execute())
+            name = (cls.data[0]['name'] if cls.data else '') or ''
+            if '5-7' in name:
+                age_hint = 'a 5-7 year old child'
+            elif '8-13' in name:
+                age_hint = 'an 8-13 year old learner'
+    except Exception as e:
+        logger.warning(f"Treehouse more-ideas age derivation failed: {e}")
+
+    existing = '\n'.join(f'- {t}' for t in existing_titles) or '(none yet)'
+    prompt = f"""You suggest hands-on activity ideas for {age_hint} at a self-directed learning center.
+
+Quest: "{quest['title']}"
+About: {quest.get('big_idea') or ''}
+
+The learner's current activities for this quest:
+{existing}
+
+Suggest exactly 3 NEW activities in the same spirit as the current ones — same theme and difficulty, just different ways to practice. Rules:
+- Title: at most 8 simple words a child understands when read aloud. No emojis.
+- Description: one short, friendly sentence.
+- Must be doable with everyday classroom materials.
+- Do not repeat or lightly reword the current activities.
+
+Return ONLY a JSON array: [{{"title": "...", "description": "..."}}, ...]"""
+
+    try:
+        from services.quest_ai_service import QuestAIService
+        ideas = QuestAIService().generate_json(prompt, generation_config_preset='creative_generation')
+    except Exception as e:
+        logger.error(f"Treehouse more-ideas generation failed for quest {quest_id}: {e}")
+        return jsonify({'success': False, 'error': 'Could not get ideas right now. Try again soon.'}), 502
+
+    if isinstance(ideas, dict):
+        ideas = ideas.get('tasks') or ideas.get('ideas') or []
+    suggestions = []
+    for idea in (ideas or [])[:3]:
+        title = (idea.get('title') or '').strip() if isinstance(idea, dict) else ''
+        if not title:
+            continue
+        suggestions.append({
+            'title': title,
+            'description': (idea.get('description') or '').strip(),
+            'pillar': dominant_pillar,
+            'xp_value': xp_value,
+        })
+    if not suggestions:
+        return jsonify({'success': False, 'error': 'Could not get ideas right now. Try again soon.'}), 502
+
+    return jsonify({'success': True, 'ideas': suggestions}), 200
 
 
 # ── student: signals (I Need Help / I'm Proud) ───────────────────────────────
@@ -899,6 +999,39 @@ def kiosk_roster():
            .eq('organization_id', device['organization_id']).eq('org_role', 'student').execute())
     students = [{'id': s['id'], 'name': s.get('first_name') or s.get('display_name'),
                  'avatar_url': s.get('avatar_url')} for s in (res.data or [])]
+    students.sort(key=lambda s: (s.get('name') or '').lower())
+
+    # Group the picker by cohort so littles don't sift through the whole org's
+    # names: simple-UI (littles) cohorts first, then the rest, then anyone not
+    # in a cohort. The flat `students` list stays for backward compatibility.
+    cohorts = []
+    try:
+        classes = (admin.table('org_classes').select('id, name, ui_mode')
+                   .eq('organization_id', device['organization_id']).execute()).data or []
+        class_ids = [c['id'] for c in classes]
+        enrollments = []
+        if class_ids:
+            enrollments = (admin.table('class_enrollments').select('student_id, class_id')
+                           .in_('class_id', class_ids).eq('status', 'active').execute()).data or []
+        by_id = {s['id']: s for s in students}
+        members = {}
+        assigned = set()
+        for e in enrollments:
+            s = by_id.get(e['student_id'])
+            if s:
+                members.setdefault(e['class_id'], []).append(s)
+                assigned.add(s['id'])
+        classes.sort(key=lambda c: (0 if c.get('ui_mode') == 'simple' else 1, (c.get('name') or '').lower()))
+        cohorts = [{'id': c['id'], 'name': c.get('name'), 'ui_mode': c.get('ui_mode'),
+                    'students': members[c['id']]} for c in classes if members.get(c['id'])]
+        unassigned = [s for s in students if s['id'] not in assigned]
+        if unassigned and cohorts:
+            cohorts.append({'id': None, 'name': 'Everyone else', 'ui_mode': None,
+                            'students': unassigned})
+    except Exception as e:
+        logger.warning(f"Kiosk roster cohort grouping failed (falling back to flat list): {e}")
+        cohorts = []
+
     # Org name + logo for kiosk branding (logo is uploaded via /organization →
     # branding_config.logo_url; may be absent until set).
     org = (admin.table('organizations').select('name, branding_config')
@@ -907,7 +1040,7 @@ def kiosk_roster():
     if org.data:
         org_name = org.data[0].get('name')
         org_logo = (org.data[0].get('branding_config') or {}).get('logo_url')
-    return jsonify({'success': True, 'students': students,
+    return jsonify({'success': True, 'students': students, 'cohorts': cohorts,
                     'org_name': org_name, 'org_logo': org_logo}), 200
 
 

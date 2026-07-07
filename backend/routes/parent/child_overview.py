@@ -4,7 +4,7 @@ Returns all data needed for the StudentOverviewPage components when viewing a ch
 Part of parent dashboard refactoring (Jan 2026).
 """
 from flask import Blueprint, jsonify, request
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.error_handler import AuthorizationError, NotFoundError, ValidationError
@@ -173,6 +173,169 @@ def get_child_overview(user_id, student_id):
                     'title': quest['title']
                 }
             })
+
+        # 3b. Enrollments with a structure -> quest breakdown, covering BOTH
+        # containers orgs use: courses (course_enrollments) and org classes
+        # (class_enrollments). Parents need to see what their child is
+        # enrolled in even when no tasks have been completed yet, so these
+        # render at zero progress.
+        enrolled_courses = []
+        enrolled_classes = []
+        try:
+            course_enr_response = supabase.table('course_enrollments').select('''
+                course_id, status, enrolled_at, completed_at,
+                courses!inner(id, title, description, cover_image_url, credit_subject, credit_amount)
+            ''').eq('user_id', student_id).in_('status', ['active', 'completed']).execute()
+            course_enr_rows = course_enr_response.data or []
+
+            class_enr_response = supabase.table('class_enrollments').select('''
+                class_id, status, enrolled_at, completed_at,
+                org_classes!inner(id, name, description, image_url, xp_threshold, status)
+            ''').eq('student_id', student_id).in_('status', ['active', 'completed']).execute()
+            class_enr_rows = [
+                e for e in (class_enr_response.data or [])
+                if (e.get('org_classes') or {}).get('status') == 'active'
+            ]
+
+            course_quests_map = {}
+            class_quests_map = {}
+            container_quest_ids = set()
+
+            enrolled_course_ids = [e['course_id'] for e in course_enr_rows]
+            if enrolled_course_ids:
+                cq_response = supabase.table('course_quests').select('''
+                    course_id, quest_id, sequence_order, custom_title, is_published,
+                    quests(id, title, image_url, header_image_url)
+                ''').in_('course_id', enrolled_course_ids).order('sequence_order').execute()
+                for cq in (cq_response.data or []):
+                    if cq.get('is_published') is False:
+                        continue
+                    course_quests_map.setdefault(cq['course_id'], []).append(cq)
+                    container_quest_ids.add(cq['quest_id'])
+
+            enrolled_class_ids = [e['class_id'] for e in class_enr_rows]
+            if enrolled_class_ids:
+                clsq_response = supabase.table('class_quests').select('''
+                    class_id, quest_id, sequence_order, publish_at, due_date,
+                    quests(id, title, image_url, header_image_url)
+                ''').in_('class_id', enrolled_class_ids).order('sequence_order').execute()
+                now_utc = datetime.now(dt_timezone.utc)
+                for cq in (clsq_response.data or []):
+                    # Match the student view: scheduled-but-unpublished quests stay hidden
+                    publish_at = cq.get('publish_at')
+                    if publish_at:
+                        try:
+                            if datetime.fromisoformat(publish_at.replace('Z', '+00:00')) > now_utc:
+                                continue
+                        except ValueError:
+                            pass
+                    class_quests_map.setdefault(cq['class_id'], []).append(cq)
+                    container_quest_ids.add(cq['quest_id'])
+
+            # One batch of per-student lookups shared by both container types
+            container_tasks_map = {}
+            container_completions_map = {}
+            container_xp_map = {}
+            uq_status_map = {}
+            if container_quest_ids:
+                quest_id_list = list(container_quest_ids)
+                ct_response = supabase.table('user_quest_tasks').select('id, quest_id').eq(
+                    'user_id', student_id
+                ).in_('quest_id', quest_id_list).execute()
+                for task in (ct_response.data or []):
+                    container_tasks_map.setdefault(task['quest_id'], []).append(task['id'])
+
+                cc_response = supabase.table('quest_task_completions').select('''
+                    quest_id, user_quest_task_id, task_id,
+                    user_quest_tasks!quest_task_completions_user_quest_task_id_fkey(xp_value)
+                ''').eq('user_id', student_id).in_('quest_id', quest_id_list).execute()
+                for comp in (cc_response.data or []):
+                    tid = comp.get('user_quest_task_id') or comp.get('task_id')
+                    qid = comp['quest_id']
+                    if tid:
+                        container_completions_map.setdefault(qid, []).append(tid)
+                    xp = (comp.get('user_quest_tasks') or {}).get('xp_value', 0) or 0
+                    container_xp_map[qid] = container_xp_map.get(qid, 0) + xp
+
+                uq_response = supabase.table('user_quests').select(
+                    'quest_id, status, completed_at'
+                ).eq('user_id', student_id).in_('quest_id', quest_id_list).execute()
+                uq_status_map = {r['quest_id']: r for r in (uq_response.data or [])}
+
+            def build_quest_entry(cq):
+                quest = cq.get('quests') or {}
+                quest_id = cq['quest_id']
+                total_tasks = len(container_tasks_map.get(quest_id, []))
+                completed_tasks = len(container_completions_map.get(quest_id, []))
+                uq = uq_status_map.get(quest_id, {})
+
+                if uq.get('completed_at') or (total_tasks > 0 and completed_tasks >= total_tasks):
+                    quest_status = 'completed'
+                elif completed_tasks > 0:
+                    quest_status = 'in_progress'
+                else:
+                    quest_status = 'not_started'
+
+                return {
+                    'quest_id': quest_id,
+                    'title': cq.get('custom_title') or quest.get('title', 'Project'),
+                    'image_url': quest.get('image_url') or quest.get('header_image_url'),
+                    'sequence_order': cq.get('sequence_order'),
+                    'due_date': cq.get('due_date'),
+                    'status': quest_status,
+                    'progress': {
+                        'completed_tasks': completed_tasks,
+                        'total_tasks': total_tasks,
+                        'percentage': round(completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+                    }
+                }
+
+            for enrollment in course_enr_rows:
+                course = enrollment.get('courses') or {}
+                course_id = enrollment['course_id']
+                quest_entries = [build_quest_entry(cq) for cq in course_quests_map.get(course_id, [])]
+                quests_completed = sum(1 for q in quest_entries if q['status'] == 'completed')
+                enrolled_courses.append({
+                    'course_id': course_id,
+                    'title': course.get('title', 'Course'),
+                    'description': course.get('description'),
+                    'cover_image_url': course.get('cover_image_url'),
+                    'credit_subject': course.get('credit_subject'),
+                    'credit_amount': course.get('credit_amount'),
+                    'enrollment_status': enrollment.get('status'),
+                    'enrolled_at': enrollment.get('enrolled_at'),
+                    'completed_at': enrollment.get('completed_at'),
+                    'quests': quest_entries,
+                    'quests_completed': quests_completed,
+                    'total_quests': len(quest_entries)
+                })
+
+            for enrollment in class_enr_rows:
+                cls = enrollment.get('org_classes') or {}
+                class_id = enrollment['class_id']
+                quest_entries = [build_quest_entry(cq) for cq in class_quests_map.get(class_id, [])]
+                quests_completed = sum(1 for q in quest_entries if q['status'] == 'completed')
+                earned_xp = sum(container_xp_map.get(q['quest_id'], 0) for q in quest_entries)
+                xp_threshold = cls.get('xp_threshold') or 0
+                enrolled_classes.append({
+                    'class_id': class_id,
+                    'title': cls.get('name', 'Class'),
+                    'description': cls.get('description'),
+                    'cover_image_url': cls.get('image_url'),
+                    'enrollment_status': enrollment.get('status'),
+                    'enrolled_at': enrollment.get('enrolled_at'),
+                    'completed_at': enrollment.get('completed_at'),
+                    'xp_progress': {
+                        'earned_xp': earned_xp,
+                        'xp_threshold': xp_threshold,
+                        'percentage': min(100, round(earned_xp / xp_threshold * 100)) if xp_threshold > 0 else 0
+                    },
+                    'quests': quest_entries,
+                    'quests_completed': quests_completed,
+                    'total_quests': len(quest_entries)
+                })
+        except Exception as e:
+            logger.warning(f"Could not fetch enrollments for child overview: {str(e)}")
 
         # 4. Get recent completions (last 10)
         recent_completions_response = supabase.table('quest_task_completions').select('''
@@ -560,6 +723,8 @@ def get_child_overview(user_id, student_id):
                 'total_xp': total_xp,
                 'xp_by_pillar': xp_by_pillar,
                 'active_quests': active_quests,
+                'enrolled_courses': enrolled_courses,
+                'enrolled_classes': enrolled_classes,
                 'recent_completions': recent_completions,
                 'completed_tasks_count': completed_tasks_count,
                 'moments_count': moments_count

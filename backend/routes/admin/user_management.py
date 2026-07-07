@@ -882,46 +882,6 @@ def update_org_user_role(admin_user_id, user_id):
         }), 500
 
 
-@bp.route('/organizations', methods=['GET'])
-@require_admin
-def get_organizations(admin_user_id):
-    """
-    Get all organizations for admin dropdown/selection.
-    Returns organization list with user counts.
-    """
-    try:
-        from repositories.organization_repository import OrganizationRepository
-        org_repo = OrganizationRepository()
-
-        # Get all active organizations
-        orgs = org_repo.get_all_active()
-
-        # Return organizations with basic info (stats can be added later if needed)
-        orgs_list = []
-        for org in orgs:
-            orgs_list.append({
-                'id': org['id'],
-                'name': org['name'],
-                'slug': org['slug'],
-                'full_domain': org.get('full_domain'),
-                'subdomain': org.get('subdomain'),
-                'is_active': org['is_active']
-            })
-
-        return jsonify({
-            'success': True,
-            'organizations': orgs_list,
-            'total': len(orgs_list)
-        }), 200
-
-    except Exception as e:
-        logger.error(f"Error fetching organizations: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch organizations'
-        }), 500
-
-
 @bp.route('/users/<target_user_id>/assign-advisor', methods=['POST'])
 @require_admin
 def assign_advisor_role(user_id, target_user_id):

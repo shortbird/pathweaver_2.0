@@ -61,6 +61,11 @@ export function useStudentOverviewData(studentId, endpoint) {
           summary: apiData.engagement.summary
         },
         activeQuests: apiData.dashboard.active_quests || [],
+        // Org classes first: they're the org-curated container, courses second
+        enrolledCourses: [
+          ...(apiData.dashboard.enrolled_classes || []),
+          ...(apiData.dashboard.enrolled_courses || [])
+        ],
         recentCompletions: apiData.dashboard.recent_completions || [],
 
         // For SkillsGrowth

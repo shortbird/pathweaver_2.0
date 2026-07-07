@@ -82,17 +82,43 @@ def get_quest_detail(user_id: str, quest_id: str):
                 # Truly completed (has completed_at AND is_active=False)
                 completed_enrollment = enrollment
 
+        # Template tasks are needed both for the self-heal below and for the
+        # response payload further down, so fetch them once up front.
+        from routes.quest_types import get_template_tasks
+        all_template_tasks = get_template_tasks(quest_id, filter_type='all')
+
         # Get user-specific tasks if enrolled (regardless of personalization_completed status)
         if active_enrollment or completed_enrollment:
             # Prioritize active enrollment over completed (fixes restart bug)
             enrollment_to_use = active_enrollment or completed_enrollment
-            # Get user's personalized tasks (select only needed columns)
-            user_tasks = supabase.table('user_quest_tasks')\
-                .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id, source_moment_id')\
-                .eq('user_quest_id', enrollment_to_use['id'])\
-                .eq('approval_status', 'approved')\
-                .order('order_index')\
-                .execute()
+
+            def _fetch_user_tasks():
+                return supabase.table('user_quest_tasks')\
+                    .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id, source_moment_id')\
+                    .eq('user_quest_id', enrollment_to_use['id'])\
+                    .eq('approval_status', 'approved')\
+                    .order('order_index')\
+                    .execute()
+
+            user_tasks = _fetch_user_tasks()
+
+            # Self-heal: enrollments created by advisor assignment or invitation
+            # accept before template-task copying existed (or whose copy failed)
+            # have zero tasks even though the facilitator authored a task list.
+            # Materialize the creator's tasks now so the student lands on them
+            # instead of the personalization wizard.
+            if (active_enrollment
+                    and not (user_tasks.data or [])
+                    and all_template_tasks
+                    and not enrollment_to_use.get('personalization_completed')):
+                from utils.template_tasks import copy_template_tasks_to_enrollment
+                copied = copy_template_tasks_to_enrollment(
+                    supabase, quest_id, user_id, enrollment_to_use['id'],
+                    template_tasks=all_template_tasks,
+                )
+                if copied:
+                    logger.info(f"[QUEST DETAIL] Self-healed enrollment {enrollment_to_use['id']}: copied {copied} template tasks")
+                    user_tasks = _fetch_user_tasks()
 
             # Get task completions with evidence (only columns that exist in table)
             task_completions = supabase.table('quest_task_completions')\
@@ -177,12 +203,11 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         # Add template tasks for users who can enroll (not actively enrolled)
         # This allows frontend to determine whether to show "Choose Your Path" or template tasks
-        from routes.quest_types import get_template_tasks, get_sample_tasks_for_quest, get_course_tasks_for_quest
+        from routes.quest_types import get_sample_tasks_for_quest, get_course_tasks_for_quest
 
         quest_type = quest_data.get('quest_type', 'optio')
 
         # Check if quest has template tasks (persists regardless of enrollment)
-        all_template_tasks = get_template_tasks(quest_id, filter_type='all')
         quest_data['has_template_tasks'] = len(all_template_tasks) > 0
 
         # Always include template_tasks when user is not actively enrolled

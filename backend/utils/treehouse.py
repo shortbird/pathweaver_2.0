@@ -12,11 +12,15 @@ _cache = {}
 
 def get_treehouse_org_id(client):
     """Return the Treehouse org id (cached per process), or None if it doesn't exist."""
-    if 'org_id' in _cache:
+    if _cache.get('org_id'):
         return _cache['org_id']
     res = client.table('organizations').select('id').eq('slug', TREEHOUSE_SLUG).limit(1).execute()
     org_id = res.data[0]['id'] if res.data else None
-    _cache['org_id'] = org_id
+    # Only cache a hit: caching a miss (e.g. a transient query failure at first
+    # call) would make every membership check False for the process lifetime,
+    # which breaks evidence-optional completion for all Treehouse students.
+    if org_id:
+        _cache['org_id'] = org_id
     return org_id
 
 

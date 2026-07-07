@@ -537,6 +537,23 @@ class DashboardService:
 
         return response.data or []
 
+    def get_archived_quests(self, user_id: str, limit: int = 24) -> List[Dict[str, Any]]:
+        """
+        H1-archived (saved-for-later) enrollments: is_active=False,
+        archived_at set, never completed. Shown on the dashboard as their own
+        "Saved for later" section so they don't read as finished quests.
+        """
+        response = self.client.table('user_quests')\
+            .select('id, quest_id, archived_at, archive_reason, quests(id, title, description, image_url, header_image_url)')\
+            .eq('user_id', user_id)\
+            .is_('completed_at', 'null')\
+            .not_.is_('archived_at', 'null')\
+            .order('archived_at', desc=True)\
+            .limit(limit)\
+            .execute()
+
+        return response.data or []
+
     def get_completed_tasks_count(self, user_id: str) -> int:
         """Get total count of completed tasks for a user."""
         response = self.client.table('quest_task_completions')\
@@ -613,6 +630,7 @@ class DashboardService:
         completed_tasks_count = self.get_completed_tasks_count(user_id)
         moments_count = self.get_moments_count(user_id)
         recent_completed_quests = self.get_recent_completed_quests(user_id)
+        archived_quests = self.get_archived_quests(user_id)
 
         # Get XP stats (using helper functions from dashboard helpers)
         from routes.users.helpers import calculate_user_xp, get_user_level, format_skill_data
@@ -633,5 +651,6 @@ class DashboardService:
             'skill_xp_data': skill_data,
             'active_quests': active_quests,
             'enrolled_courses': enrolled_courses,
-            'recent_completed_quests': recent_completed_quests
+            'recent_completed_quests': recent_completed_quests,
+            'archived_quests': archived_quests
         }

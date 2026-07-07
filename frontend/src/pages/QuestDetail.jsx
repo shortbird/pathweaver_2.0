@@ -15,6 +15,7 @@ import { useActivityTracking } from '../hooks/useActivityTracking';
 import { useDeleteEnrollment } from '../hooks/api/useQuests';
 import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
 import { useProgramQuestView } from '../programs/registry';
+import { isFocusMode, getFocusConfig } from '../utils/focusMode';
 
 // Lazy load heavy components
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
@@ -488,10 +489,10 @@ const QuestDetail = () => {
             Retry
           </button>
           <button
-            onClick={() => navigate('/quests')}
+            onClick={() => navigate((isFocusMode() && getFocusConfig().homeRoute) || '/quests')}
             className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all min-h-[44px] touch-manipulation"
           >
-            Back to Quests
+            {isFocusMode() ? 'Go Home' : 'Back to Quests'}
           </button>
         </div>
       </div>
@@ -580,7 +581,9 @@ const QuestDetail = () => {
 
         {/* Collaborators Section removed (March 2026 - Feature pruning) */}
 
-        {/* Enrollment and Sample/Preset Tasks */}
+        {/* Enrollment and Sample/Preset Tasks. Programs with a simplified task
+            view (Treehouse littles) never see the "Start Personalizing" wizard
+            prompt — their task view handles the empty state itself. */}
         <QuestEnrollment
           quest={quest}
           isQuestCompleted={isQuestCompleted}
@@ -589,6 +592,7 @@ const QuestDetail = () => {
           onEnroll={handleEnroll}
           onShowPersonalizationWizard={() => setShowPersonalizationWizard(true)}
           onPreloadWizard={preloadWizard}
+          hidePersonalizationPrompt={!!programQuest.simpleTasksView}
         />
 
         {/* Program-specific in-quest UI (e.g. Treehouse help/proud signal bar).
@@ -596,7 +600,7 @@ const QuestDetail = () => {
         {programQuest.signalBar}
 
         {/* Task Display - Single Container with Integrated Task List */}
-        {quest.user_enrollment && quest.quest_tasks && quest.quest_tasks.length > 0 && (
+        {quest.user_enrollment && (programQuest.simpleTasksView || quest.quest_tasks?.length > 0) && (
           /* A program may supply a custom task view (e.g. Treehouse's simplified
              big-button view for young learners); otherwise the core workspace. */
           programQuest.simpleTasksView || (
@@ -723,7 +727,10 @@ const QuestDetail = () => {
                 questTitle={quest.title}
                 onComplete={handlePersonalizationComplete}
                 onCancel={handlePersonalizationCancel}
-                approachExamples={quest.approach_examples}
+                /* Creator tasks win: when the facilitator authored a task list,
+                   never offer the AI-generated "paths" — those are only a
+                   fallback for quests with no authored tasks. */
+                approachExamples={quest.has_template_tasks ? [] : quest.approach_examples}
                 xpThreshold={quest.xp_threshold}
               />
             </div>

@@ -3,11 +3,16 @@ import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ClassDetailsModal, { meetingText, money } from '../components/schedule/ClassDetailsModal'
+import { ModalOverlay } from '../components/ui'
 
-// Family Schedule Builder: pick a child, see their week at a glance, and add /
-// drop / waitlist classes. Self-service is open until the org's first day of
-// school (feature_flags.sis_settings.first_day_of_school); after that, changes
-// are staff-only and this page is read-only.
+// Family Schedule Builder — the weekly calendar IS the interface:
+//   - enrolled classes show as colored blocks; click one for details / drop
+//   - empty time-block slots are gray "+ Pick a class" boxes; clicking one pops
+//     up the classes offered at that time
+//   - at-home (untimed) Optio courses live in a section under the calendar
+// Self-service is open until the org's first day of school
+// (feature_flags.sis_settings.first_day_of_school); after that, changes are
+// staff-only and this page is read-only.
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -40,44 +45,47 @@ const fmtDate = (d) => {
   catch { return d }
 }
 
-// Slot filter (an hour clicked on the calendar): label + does-this-class-meet-then.
+// A clicked slot on the calendar: f = { day, min, end }.
 const SLOT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const fmtHour = (min) => {
   const h = Math.floor(min / 60)
+  const m = min % 60
   const ampm = h >= 12 ? 'pm' : 'am'
   const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${ampm}`
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
 }
-const slotLabel = (f) => `${SLOT_DAYS[f.day]} ${fmtHour(f.min)}–${fmtHour(f.min + 60)}`
+const slotEnd = (f) => f.end || f.min + 60
+const slotLabel = (f) => `${SLOT_DAYS[f.day]} ${fmtHour(f.min)}–${fmtHour(slotEnd(f))}`
 const meetsAt = (c, f) => (c.meetings || []).some((m) => {
   if (m.day_of_week !== f.day) return false
   const s = toMin(m.start_time); const e = toMin(m.end_time)
-  return s != null && e != null && s < f.min + 60 && f.min < e
+  return s != null && e != null && s < slotEnd(f) && f.min < e
 })
 
 const ScheduleBuilderPage = () => {
   const [ctx, setCtx] = useState(null)          // { orgs: [{organization_id, organization_name, students[]}] }
   const [orgId, setOrgId] = useState(null)
   const [studentId, setStudentId] = useState(null)
-  const [schedule, setSchedule] = useState(null) // { classes, waitlist, courses, first_day_of_school, changes_locked }
+  const [schedule, setSchedule] = useState(null) // { classes, waitlist, courses, time_blocks, first_day_of_school, changes_locked }
   const [catalog, setCatalog] = useState([])
   const [courseCatalog, setCourseCatalog] = useState([])
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(null)         // class_id being added/dropped
-  const [ghost, setGhost] = useState(null)       // hover preview on the calendar
-  const [search, setSearch] = useState('')
-  const [catalogTab, setCatalogTab] = useState('scheduled') // scheduled | home
-  const [detail, setDetail] = useState(null)     // { type: 'class' | 'course', item }
-  const [slotFilter, setSlotFilter] = useState(null) // { day, min } — hour clicked on the calendar
+  const [busy, setBusy] = useState(null)         // class/course id being added/dropped
+  const [slotModal, setSlotModal] = useState(null)   // { day, min, end } — classes offered then
+  const [coursesModal, setCoursesModal] = useState(false)
+  const [detail, setDetail] = useState(null)     // { type: 'class' | 'course', item, enrolled }
+  const [myAvatar, setMyAvatar] = useState(null)
+  const [photoBusy, setPhotoBusy] = useState(null) // student_id or 'me' mid-upload
 
-  // A time filter for one child's week doesn't carry over to another schedule.
-  useEffect(() => { setSlotFilter(null) }, [orgId, studentId])
+  // Modals for one child's week don't carry over to another schedule.
+  useEffect(() => { setSlotModal(null); setCoursesModal(false); setDetail(null) }, [orgId, studentId])
 
   useEffect(() => {
     api.get('/api/sis/parent/context')
       .then((r) => {
         const orgs = r.data?.orgs || []
         setCtx({ orgs })
+        setMyAvatar(r.data?.my_avatar_url || null)
         if (orgs.length) {
           setOrgId(orgs[0].organization_id)
           setStudentId(orgs[0].students?.[0]?.student_id || null)
@@ -86,6 +94,34 @@ const ScheduleBuilderPage = () => {
       .catch(() => toast.error('Could not load your family'))
       .finally(() => setLoading(false))
   }, [])
+
+  // Soft prompt: the school asks every family member to have a photo. Uploads
+  // happen inline; nothing is blocked while photos are missing.
+  const uploadPhoto = async (studentIdOrMe, file) => {
+    setPhotoBusy(studentIdOrMe)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      if (studentIdOrMe === 'me') {
+        const { data } = await api.post('/api/sis/parent/photo', form)
+        setMyAvatar(data.avatar_url)
+      } else {
+        form.append('organization_id', orgId)
+        const { data } = await api.post(`/api/sis/parent/students/${studentIdOrMe}/photo`, form)
+        setCtx((c) => ({
+          orgs: (c?.orgs || []).map((o) => ({
+            ...o,
+            students: (o.students || []).map((s) => (
+              s.student_id === studentIdOrMe ? { ...s, avatar_url: data.avatar_url } : s
+            )),
+          })),
+        }))
+      }
+      toast.success('Photo added')
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not upload the photo')
+    } finally { setPhotoBusy(null) }
+  }
 
   const reload = useCallback(() => {
     if (!orgId || !studentId) return
@@ -116,25 +152,19 @@ const ScheduleBuilderPage = () => {
   const homeCourseIds = new Set(homeCourses.map((c) => c.id))
 
   // Running tuition total across everything on the schedule (waitlist excluded —
-  // those seats aren't confirmed). "Estimated" because billing cadence can vary.
+  // those seats aren't confirmed).
   const tuitionCents = [...enrolled.map((c) => c.price_cents), ...homeCourses.map((c) => c.tuition_cents)]
     .reduce((sum, v) => sum + (v || 0), 0)
   const tuitionCount = enrolled.length + homeCourses.length
 
-  const available = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return catalog
-      .filter((c) => !enrolledIds.has(c.id) && !waitlistIds.has(c.id))
-      .filter((c) => !q || (c.name || '').toLowerCase().includes(q))
-      .filter((c) => !slotFilter || meetsAt(c, slotFilter))
-  }, [catalog, schedule, search, slotFilter]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const availableCourses = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return courseCatalog
-      .filter((c) => !homeCourseIds.has(c.id))
-      .filter((c) => !q || (c.title || '').toLowerCase().includes(q))
-  }, [courseCatalog, schedule, search]) // eslint-disable-line react-hooks/exhaustive-deps
+  const openClasses = useMemo(
+    () => catalog.filter((c) => !enrolledIds.has(c.id) && !waitlistIds.has(c.id)),
+    [catalog, schedule], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const availableCourses = useMemo(
+    () => courseCatalog.filter((c) => !homeCourseIds.has(c.id)),
+    [courseCatalog, schedule], // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   const addClass = async (c) => {
     setBusy(c.id)
@@ -144,7 +174,6 @@ const ScheduleBuilderPage = () => {
       })
       if (data.waitlisted) toast.success(`${c.name} is full — added to the waitlist${data.position ? ` (#${data.position})` : ''}`)
       else toast.success(`Added ${c.name}`)
-      setGhost(null)
       reload()
       return true
     } catch (e) {
@@ -169,27 +198,31 @@ const ScheduleBuilderPage = () => {
   }
 
   const dropCourse = async (c) => {
-    if (!window.confirm(`Drop "${c.title}"? Their progress in its quests is removed.`)) return
+    if (!window.confirm(`Drop "${c.title}"? Their progress in its quests is removed.`)) return false
     setBusy(c.id)
     try {
       await api.delete(`/api/sis/parent/students/${studentId}/courses/${c.id}?organization_id=${orgId}`)
       toast.success(`Dropped ${c.title}`)
       reload()
+      return true
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not drop the course')
+      return false
     } finally { setBusy(null) }
   }
 
   const dropClass = async (c, isWaitlist = false) => {
     const verb = isWaitlist ? `Leave the waitlist for "${c.name || c.class_name}"?` : `Drop "${c.name}"?`
-    if (!window.confirm(verb)) return
+    if (!window.confirm(verb)) return false
     setBusy(c.id || c.class_id)
     try {
       await api.delete(`/api/sis/parent/students/${studentId}/classes/${c.id || c.class_id}?organization_id=${orgId}`)
       toast.success(isWaitlist ? 'Left the waitlist' : `Dropped ${c.name}`)
       reload()
+      return true
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not drop the class')
+      return false
     } finally { setBusy(null) }
   }
 
@@ -235,7 +268,8 @@ const ScheduleBuilderPage = () => {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <p className="text-sm text-neutral-500">
-          Build {student ? `${student.name.split(' ')[0]}'s` : 'your student\'s'} week — add, drop, or waitlist classes and see the schedule fill in.
+          Build {student ? `${student.name.split(' ')[0]}'s` : 'your student\'s'} week — click an open
+          slot to pick a class, or a scheduled class to see details.
         </p>
         {tuitionCount > 0 && (
           <div className="inline-flex items-baseline gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2">
@@ -252,12 +286,36 @@ const ScheduleBuilderPage = () => {
           resolve it before signing up for classes.
         </div>
       )}
-      {!schedule?.registration_hold && schedule?.registration_opens_on && (
-        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-600">
-          Class registration opens for your family on <span className="font-medium text-neutral-800">{fmtDate(schedule.registration_opens_on)}</span>.
-          You can browse classes now and sign up once it opens.
-        </div>
-      )}
+      {(() => {
+        const missing = [
+          ...(!myAvatar ? [{ id: 'me', name: 'yourself' }] : []),
+          ...students.filter((s) => !s.avatar_url).map((s) => ({ id: s.student_id, name: s.name?.split(' ')[0] || 'your student' })),
+        ]
+        if (!missing.length) return null
+        return (
+          <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3">
+            <p className="text-sm font-medium text-neutral-800">Add a photo for each family member</p>
+            <p className="text-xs text-neutral-500 mt-0.5 mb-2">
+              {org?.organization_name || 'Your school'} asks every family member to have a photo so staff can
+              recognize students and parents.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {missing.map((m) => (
+                <label key={m.id}
+                  className={`inline-flex items-center px-3 py-1.5 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-medium cursor-pointer hover:bg-optio-purple/5 ${photoBusy === m.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {photoBusy === m.id ? 'Uploading…' : `Add a photo of ${m.name}`}
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) uploadPhoto(m.id, f)
+                      e.target.value = ''
+                    }} />
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
       {locked ? (
         <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           The school year has started{firstDay ? ` (first day was ${fmtDate(firstDay)})` : ''} — schedule changes are now made by
@@ -269,189 +327,99 @@ const ScheduleBuilderPage = () => {
         </div>
       ) : null}
 
-      {/* Weekly calendar — clicking an open hour filters the catalog to that time */}
+      {/* The calendar is the schedule: gray boxes are open slots, colored blocks
+          are enrolled classes. At-home learning lives just below, same card. */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6">
-        <p className="text-xs text-neutral-400 mb-3">
-          {enrolled.length === 0 && !ghost
-            ? 'No classes yet — click a time to see what\'s offered then, or browse below.'
-            : 'Click an open time to see the classes offered then.'}
-        </p>
         <WeeklySchedule
           classes={enrolled}
-          ghost={ghost}
-          selectedSlot={slotFilter}
-          onSlotClick={(day, min) => {
-            setSlotFilter((f) => (f && f.day === day && f.min === min) ? null : { day, min })
-            setCatalogTab('scheduled')
-          }}
+          timeBlocks={schedule?.time_blocks || []}
+          selectedSlot={slotModal}
+          onSlotClick={locked ? null : (day, min, end) => setSlotModal({ day, min, end })}
+          onClassClick={(c) => setDetail({ type: 'class', item: c, enrolled: true })}
         />
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Current schedule — self-start so it hugs its content instead of
-            stretching to match the (usually taller) available-classes column */}
-        <section className="bg-white rounded-xl border border-gray-200 p-5 self-start">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-3">
-            {student ? `${student.name.split(' ')[0]}'s classes` : 'Enrolled classes'} ({enrolled.length})
-          </h2>
-          {enrolled.length === 0 && <p className="text-sm text-neutral-400">Not enrolled in any classes yet.</p>}
-          <div className="space-y-2">
-            {enrolled.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="font-medium text-neutral-900 truncate">{c.name}</div>
-                  <div className="text-xs text-neutral-500">{meetingText(c.meetings)}</div>
-                </div>
-                <div className="shrink-0 ml-3 flex items-center gap-3">
-                  <button onClick={() => setDetail({ type: 'class', item: c, enrolled: true })}
-                    className="text-sm text-optio-purple hover:underline">Details</button>
+        {waitlist.length > 0 && (
+          <div className="mt-5 pt-4 border-t border-gray-100">
+            <h3 className="text-sm font-semibold text-neutral-700 mb-2">Waitlisted</h3>
+            <div className="space-y-2">
+              {waitlist.map((w) => (
+                <div key={w.entry_id} className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="font-medium text-neutral-900 truncate">{w.class_name}</div>
+                    <div className="text-xs text-amber-700">
+                      {w.status === 'offered' ? 'Seat offered — the school will confirm with you' : `Waitlist${w.position ? ` #${w.position}` : ''}`}
+                      {' · '}{meetingText(w.meetings)}
+                    </div>
+                  </div>
                   {!locked && (
-                    <button onClick={() => dropClass(c)} disabled={busy === c.id}
-                      className="text-sm text-red-500 hover:underline disabled:opacity-50">Drop</button>
+                    <button onClick={() => dropClass(w, true)} disabled={busy === w.class_id}
+                      className="text-sm text-red-500 hover:underline disabled:opacity-50 shrink-0 ml-3">Leave</button>
                   )}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+        )}
 
-          {homeCourses.length > 0 && (
-            <>
-              <h3 className="text-sm font-semibold text-neutral-700 mt-5 mb-2">At-home learning</h3>
-              <div className="space-y-2">
-                {homeCourses.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5">
-                    <div className="min-w-0">
-                      <div className="font-medium text-neutral-900 truncate">{c.title}</div>
-                      {c.estimated_hours && <div className="text-xs text-neutral-500">~{c.estimated_hours} hrs</div>}
-                    </div>
-                    <div className="shrink-0 ml-3 flex items-center gap-3">
-                      <button onClick={() => setDetail({ type: 'course', item: c, enrolled: true })}
-                        className="text-sm text-optio-purple hover:underline">Details</button>
-                      {!locked && (
-                        <button onClick={() => dropCourse(c)} disabled={busy === c.id}
-                          className="text-sm text-red-500 hover:underline disabled:opacity-50">Drop</button>
-                      )}
+        {(homeCourses.length > 0 || (!locked && availableCourses.length > 0)) && (
+          <div className="mt-5 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-neutral-700">At-home learning</h3>
+              {!locked && availableCourses.length > 0 && (
+                <button onClick={() => setCoursesModal(true)}
+                  className="text-sm font-medium text-optio-purple hover:underline">+ Add a course</button>
+              )}
+            </div>
+            {homeCourses.length === 0 && (
+              <p className="text-sm text-neutral-400">
+                No at-home courses yet — teacher-supported online courses {student ? `${student.name.split(' ')[0]} works` : 'your student works'} on from home.
+              </p>
+            )}
+            <div className="space-y-2">
+              {homeCourses.map((c) => (
+                <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="font-medium text-neutral-900 truncate">{c.title}</div>
+                    <div className="text-xs text-neutral-500">
+                      {[c.estimated_hours ? `~${c.estimated_hours} hrs` : null, money(c.tuition_cents)].filter(Boolean).join(' · ')}
                     </div>
                   </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {waitlist.length > 0 && (
-            <>
-              <h3 className="text-sm font-semibold text-neutral-700 mt-5 mb-2">Waitlisted</h3>
-              <div className="space-y-2">
-                {waitlist.map((w) => (
-                  <div key={w.entry_id} className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5">
-                    <div className="min-w-0">
-                      <div className="font-medium text-neutral-900 truncate">{w.class_name}</div>
-                      <div className="text-xs text-amber-700">
-                        {w.status === 'offered' ? 'Seat offered — the school will confirm with you' : `Waitlist${w.position ? ` #${w.position}` : ''}`}
-                        {' · '}{meetingText(w.meetings)}
-                      </div>
-                    </div>
+                  <div className="shrink-0 ml-3 flex items-center gap-3">
+                    <button onClick={() => setDetail({ type: 'course', item: c, enrolled: true })}
+                      className="text-sm text-optio-purple hover:underline">Details</button>
                     {!locked && (
-                      <button onClick={() => dropClass(w, true)} disabled={busy === w.class_id}
-                        className="text-sm text-red-500 hover:underline disabled:opacity-50 shrink-0 ml-3">Leave</button>
+                      <button onClick={() => dropCourse(c)} disabled={busy === c.id}
+                        className="text-sm text-red-500 hover:underline disabled:opacity-50">Drop</button>
                     )}
                   </div>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-
-        {/* Available classes */}
-        <section className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <h2 className="text-lg font-semibold text-neutral-900">Available classes</h2>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…"
-              className={`${field} w-36 sm:w-44`} />
-          </div>
-
-          {courseCatalog.length > 0 && (
-            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-neutral-50 mb-3">
-              <button onClick={() => setCatalogTab('scheduled')}
-                className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${catalogTab === 'scheduled' ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}>
-                Scheduled classes
-              </button>
-              <button onClick={() => setCatalogTab('home')}
-                className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${catalogTab === 'home' ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}>
-                At-home learning
-              </button>
-            </div>
-          )}
-
-          {slotFilter && catalogTab === 'scheduled' && (
-            <div className="flex items-center gap-2 mb-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-semibold px-3 py-1">
-                Meets {slotLabel(slotFilter)}
-                <button onClick={() => setSlotFilter(null)} aria-label="Clear time filter"
-                  className="hover:text-optio-pink font-bold leading-none">×</button>
-              </span>
-            </div>
-          )}
-
-          {catalogTab === 'scheduled' && available.length === 0 && (
-            <p className="text-sm text-neutral-400">
-              {slotFilter
-                ? `No open classes meet ${slotLabel(slotFilter)} — pick another time or clear the filter.`
-                : 'Nothing else available right now.'}
-            </p>
-          )}
-          {catalogTab === 'home' && availableCourses.length === 0 && (
-            <p className="text-sm text-neutral-400">No more at-home courses available.</p>
-          )}
-          <div className="space-y-2">
-            {catalogTab === 'scheduled' && available.map((c) => {
-              const conflict = conflictsWith(c, enrolled)
-              const full = c.is_full
-              return (
-                <div key={c.id}
-                  onMouseEnter={() => setGhost(c)} onMouseLeave={() => setGhost(null)}
-                  className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
-                  <div className="min-w-0">
-                    <div className="font-medium text-neutral-900 truncate">{c.name}</div>
-                    <div className="text-xs text-neutral-500">
-                      {meetingText(c.meetings)}
-                      {money(c.price_cents) ? ` · ${money(c.price_cents)}` : ''}
-                      {c.spots_left != null && !full ? ` · ${c.spots_left} spot${c.spots_left === 1 ? '' : 's'} left` : ''}
-                    </div>
-                    <div className="flex gap-1.5 mt-0.5">
-                      {full && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Full — waitlist</span>}
-                      {conflict && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Overlaps {conflict}</span>}
-                    </div>
-                  </div>
-                  <button onClick={() => setDetail({ type: 'class', item: c })}
-                    className="shrink-0 ml-3 px-3 py-1.5 rounded-lg text-sm font-semibold border border-optio-purple/40 text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                    Details
-                  </button>
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
-
-          <div className="space-y-2">
-            {catalogTab === 'home' && availableCourses.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
-                <div className="min-w-0">
-                  <div className="font-medium text-neutral-900 truncate">{c.title}</div>
-                  <div className="text-xs text-neutral-500">
-                    {[c.estimated_hours ? `~${c.estimated_hours} hrs` : null,
-                      c.age_range ? `ages ${c.age_range}` : null,
-                      money(c.tuition_cents)].filter(Boolean).join(' · ')}
-                  </div>
-                </div>
-                <button onClick={() => setDetail({ type: 'course', item: c })}
-                  className="shrink-0 ml-3 px-3 py-1.5 rounded-lg text-sm font-semibold border border-optio-purple/40 text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                  Details
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
+        )}
       </div>
+
+      {slotModal && (
+        <SlotClassesModal
+          slot={slotModal}
+          classes={openClasses.filter((c) => meetsAt(c, slotModal))}
+          enrolled={enrolled}
+          busy={busy}
+          onClose={() => setSlotModal(null)}
+          onDetails={(c) => { setSlotModal(null); setDetail({ type: 'class', item: c }) }}
+          onAdd={async (c) => { const ok = await addClass(c); if (ok) setSlotModal(null) }}
+        />
+      )}
+
+      {coursesModal && (
+        <CoursesModal
+          courses={availableCourses}
+          busy={busy}
+          onClose={() => setCoursesModal(false)}
+          onDetails={(c) => { setCoursesModal(false); setDetail({ type: 'course', item: c }) }}
+          onAdd={async (c) => { const ok = await addCourse(c); if (ok) setCoursesModal(false) }}
+        />
+      )}
 
       {detail && (
         <ClassDetailsModal
@@ -459,10 +427,14 @@ const ScheduleBuilderPage = () => {
           type={detail.type}
           locked={locked}
           busy={busy === detail.item.id}
-          conflict={detail.type === 'class' ? conflictsWith(detail.item, enrolled) : null}
+          conflict={detail.type === 'class' && !detail.enrolled ? conflictsWith(detail.item, enrolled) : null}
           onClose={() => setDetail(null)}
           onAdd={detail.enrolled ? null : async () => {
             const ok = detail.type === 'class' ? await addClass(detail.item) : await addCourse(detail.item)
+            if (ok) setDetail(null)
+          }}
+          onRemove={!detail.enrolled ? null : async () => {
+            const ok = detail.type === 'class' ? await dropClass(detail.item) : await dropCourse(detail.item)
             if (ok) setDetail(null)
           }}
         />
@@ -470,5 +442,94 @@ const ScheduleBuilderPage = () => {
     </div>
   )
 }
+
+// Classes offered in the clicked time slot. Rows add directly; "Details" swaps
+// to the full read-only class modal.
+const SlotClassesModal = ({ slot, classes, enrolled, busy, onClose, onDetails, onAdd }) => (
+  <ModalOverlay onClose={onClose}>
+    <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Classes at {slotLabel(slot)}</h2>
+          <p className="text-xs text-neutral-400">Pick a class for this time slot.</p>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+      </div>
+      <div className="p-4 pt-2 overflow-y-auto flex-1 space-y-2">
+        {classes.length === 0 && (
+          <p className="text-sm text-neutral-400 py-4 text-center">
+            No open classes meet at this time — try another slot.
+          </p>
+        )}
+        {classes.map((c) => {
+          const conflict = conflictsWith(c, enrolled)
+          const full = c.is_full
+          return (
+            <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
+              <div className="min-w-0">
+                <div className="font-medium text-neutral-900 truncate">{c.name}</div>
+                <div className="text-xs text-neutral-500">
+                  {meetingText(c.meetings)}
+                  {money(c.price_cents) ? ` · ${money(c.price_cents)}` : ''}
+                  {c.spots_left != null && !full ? ` · ${c.spots_left} spot${c.spots_left === 1 ? '' : 's'} left` : ''}
+                </div>
+                <div className="flex gap-1.5 mt-0.5">
+                  {full && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Full — waitlist</span>}
+                  {conflict && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Overlaps {conflict}</span>}
+                </div>
+              </div>
+              <div className="shrink-0 ml-3 flex items-center gap-2">
+                <button onClick={() => onDetails(c)} className="text-sm text-optio-purple hover:underline">Details</button>
+                <button onClick={() => onAdd(c)} disabled={busy === c.id}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+                  {busy === c.id ? 'Adding…' : full ? 'Waitlist' : 'Add'}
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  </ModalOverlay>
+)
+
+// At-home Optio courses the family can add (untimed, teacher-supported).
+const CoursesModal = ({ courses, busy, onClose, onDetails, onAdd }) => (
+  <ModalOverlay onClose={onClose}>
+    <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">At-home learning</h2>
+          <p className="text-xs text-neutral-400">Online courses your student works on from home, teacher supported.</p>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+      </div>
+      <div className="p-4 pt-2 overflow-y-auto flex-1 space-y-2">
+        {courses.length === 0 && (
+          <p className="text-sm text-neutral-400 py-4 text-center">No more at-home courses available.</p>
+        )}
+        {courses.map((c) => (
+          <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
+            <div className="min-w-0">
+              <div className="font-medium text-neutral-900 truncate">{c.title}</div>
+              <div className="text-xs text-neutral-500">
+                {[c.estimated_hours ? `~${c.estimated_hours} hrs` : null,
+                  c.age_range ? `ages ${c.age_range}` : null,
+                  money(c.tuition_cents)].filter(Boolean).join(' · ')}
+              </div>
+            </div>
+            <div className="shrink-0 ml-3 flex items-center gap-2">
+              <button onClick={() => onDetails(c)} className="text-sm text-optio-purple hover:underline">Details</button>
+              <button onClick={() => onAdd(c)} disabled={busy === c.id}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+                {busy === c.id ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </ModalOverlay>
+)
 
 export default ScheduleBuilderPage

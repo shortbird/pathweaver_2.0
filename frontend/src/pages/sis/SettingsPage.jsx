@@ -4,6 +4,7 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SisOrgSettings from '../../components/sis/SisOrgSettings'
+import TimeBlocksCard from '../../components/sis/TimeBlocksCard'
 
 /**
  * SIS Settings page — org details, branding/logo, AI feature toggles, and School
@@ -53,6 +54,7 @@ const SettingsPage = () => {
             onUpdate={fetchOrg}
             onLogoChange={refreshOrganization}
           />
+          <TimeBlocksCard key={`blocks-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           {/* Parent-registration config moved to the Registration page (Operations). */}
         </div>
       )}

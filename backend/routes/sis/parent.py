@@ -126,6 +126,64 @@ def submit(user_id, reg_id):
     return jsonify({'success': True, 'registration': result['registration']})
 
 
+# ── Family photos (self-service) ──────────────────────────────────────────────
+def _photo_file_or_error():
+    """Validate the multipart photo upload; returns (file, ext, None) or (None, None, response)."""
+    if 'file' not in request.files:
+        return None, None, (jsonify({'success': False, 'error': 'No file provided'}), 400)
+    file = request.files['file']
+    if not file.filename:
+        return None, None, (jsonify({'success': False, 'error': 'No file selected'}), 400)
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'):
+        return None, None, (jsonify({'success': False, 'error': 'Please upload a photo (JPG, PNG, WEBP, or HEIC)'}), 400)
+    file.seek(0, 2)
+    if file.tell() > 5 * 1024 * 1024:
+        return None, None, (jsonify({'success': False, 'error': 'Photos must be under 5MB'}), 400)
+    file.seek(0)
+    return file, ext, None
+
+
+@bp.route('/photo', methods=['POST'])
+@require_auth
+def upload_my_photo(user_id):
+    """A guardian uploads (or replaces) their own photo."""
+    file, ext, err = _photo_file_or_error()
+    if err:
+        return err
+    from database import get_supabase_admin_client
+    from services.user_photo_service import upload_user_photo
+    try:
+        avatar_url = upload_user_photo(get_supabase_admin_client(), user_id, file, ext)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'parent photo: upload failed for {user_id[:8]}: {e}')
+        return jsonify({'success': False, 'error': 'Could not upload the photo'}), 500
+    return jsonify({'success': True, 'avatar_url': avatar_url})
+
+
+@bp.route('/students/<student_id>/photo', methods=['POST'])
+@require_auth
+def upload_student_photo(user_id, student_id):
+    """A guardian uploads (or replaces) one of their students' photos."""
+    org_id = request.form.get('organization_id') or request.args.get('organization_id')
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    if not any(s['student_id'] == student_id and s['org_id'] == org_id
+               for s in parent.registerable_students(user_id)):
+        return jsonify({'success': False, 'error': 'Not authorized for this student'}), 403
+    file, ext, err = _photo_file_or_error()
+    if err:
+        return err
+    from database import get_supabase_admin_client
+    from services.user_photo_service import upload_user_photo
+    try:
+        avatar_url = upload_user_photo(get_supabase_admin_client(), student_id, file, ext)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'parent photo: upload failed for student {student_id[:8]}: {e}')
+        return jsonify({'success': False, 'error': 'Could not upload the photo'}), 500
+    return jsonify({'success': True, 'avatar_url': avatar_url})
+
+
 # ── Planned absences (guardian reports a child will be out) ───────────────────
 @bp.route('/absences', methods=['GET'])
 @require_auth

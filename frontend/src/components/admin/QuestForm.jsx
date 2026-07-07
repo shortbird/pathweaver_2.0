@@ -422,7 +422,11 @@ const QuestForm = ({
   const [loadingTasks, setLoadingTasks] = useState(mode === 'edit');
   const [expandedTasks, setExpandedTasks] = useState(new Set());
   const [quickAddValue, setQuickAddValue] = useState('');
-  const [showTaskEditor, setShowTaskEditor] = useState(false);
+  // Task editor is open by default: the creator's task list is what students
+  // actually receive on assign/enroll, so authoring it must not be an
+  // easy-to-miss optional step (Treehouse round-2 feedback).
+  const [showTaskEditor, setShowTaskEditor] = useState(true);
+  const [confirmedNoTasks, setConfirmedNoTasks] = useState(false);
   const quickAddRef = useRef(null);
 
   const [formData, setFormData] = useState({
@@ -605,6 +609,15 @@ const QuestForm = ({
       if (tasksWithErrors.length > 0) {
         setExpandedTasks(new Set(tasksWithErrors));
       }
+      return;
+    }
+
+    // Saving with no task list means students are sent to the create-your-own
+    // wizard (AI paths as fallback) instead of the creator's tasks. Make that
+    // an explicit choice, not an accident.
+    if (formData.tasks.length === 0 && !confirmedNoTasks) {
+      setConfirmedNoTasks(true);
+      toast('No tasks added yet — students will build their own task list. Save again to confirm.', { icon: '⚠️' });
       return;
     }
 

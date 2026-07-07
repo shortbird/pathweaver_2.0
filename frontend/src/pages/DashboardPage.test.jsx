@@ -22,7 +22,8 @@ vi.mock('../hooks/api/useUserData', () => ({
 }))
 
 vi.mock('../hooks/api/useQuests', () => ({
-  useGlobalEngagement: () => ({ data: engagementData })
+  useGlobalEngagement: () => ({ data: engagementData }),
+  useUnarchiveEnrollment: () => ({ mutate: vi.fn(), isPending: false })
 }))
 
 // Mock child components

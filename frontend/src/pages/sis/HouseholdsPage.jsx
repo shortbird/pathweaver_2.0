@@ -110,11 +110,6 @@ const HouseholdsPage = () => {
                     <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700 flex-shrink-0"
                       title={h.registration_hold_reason || 'Registration on hold'}>Hold</span>
                   )}
-                  {h.registration_tier != null && (
-                    <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple flex-shrink-0">
-                      Tier {h.registration_tier}
-                    </span>
-                  )}
                 </div>
                 <p className="text-sm text-neutral-500 truncate mt-0.5">{memberPreview(h.members)}</p>
               </div>

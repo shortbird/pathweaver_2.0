@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { useQuestEngagement, useStudentQuestEngagement } from '../../hooks/api/useQuests';
 import { useActingAs } from '../../contexts/ActingAsContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Simple engagement heatmap cell
 const HeatmapCell = ({ intensity, date, activities, size = 'normal' }) => {
@@ -298,6 +299,10 @@ const LearningSnapshot = ({
   dependentName = null // Display name of the dependent (for act-as switching)
 }) => {
   const { calendar = [], rhythm, summary } = engagementData;
+  const { user } = useAuth();
+  // StudentOverviewPage passes the student's own id as studentId, so studentId
+  // alone doesn't mean "viewing someone else" — compare against the viewer.
+  const viewingOwnData = !studentId || user?.id === studentId;
 
   const content = (
     <div className="space-y-6">
@@ -341,12 +346,20 @@ const LearningSnapshot = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
               <p className="text-gray-500 mb-3">No active quests</p>
-              <Link
-                to="/quests"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium text-sm hover:shadow-md transition-shadow"
-              >
-                Discover Quests
-              </Link>
+              {/* /quests is a student surface; parents/advisors viewing a child
+                  get a descriptive line instead of a link they can't follow. */}
+              {viewingOwnData ? (
+                <Link
+                  to="/quests"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium text-sm hover:shadow-md transition-shadow"
+                >
+                  Discover Quests
+                </Link>
+              ) : (
+                <p className="text-sm text-gray-400">
+                  Quests will appear here once {dependentName || 'this student'} starts working on one.
+                </p>
+              )}
             </div>
           )}
         </div>

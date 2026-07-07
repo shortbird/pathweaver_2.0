@@ -5,7 +5,8 @@ import OrganizationDashboard from './OrganizationDashboard'
 vi.mock('../../services/api', () => ({
   default: {
     get: vi.fn(),
-    post: vi.fn()
+    post: vi.fn(),
+    put: vi.fn()
   }
 }))
 
@@ -22,7 +23,8 @@ const mockOrganizations = [
     id: 'org-2',
     name: 'Riverside School',
     slug: 'riverside',
-    quest_visibility_policy: 'curated'
+    quest_visibility_policy: 'curated',
+    feature_flags: { sis_enabled: true, hide_public_bounties: true }
   }
 ]
 
@@ -31,6 +33,7 @@ describe('OrganizationDashboard', () => {
     vi.clearAllMocks()
     api.get.mockResolvedValue({ data: { organizations: mockOrganizations } })
     api.post.mockResolvedValue({ data: {} })
+    api.put.mockResolvedValue({ data: {} })
   })
 
   describe('loading state', () => {
@@ -86,6 +89,68 @@ describe('OrganizationDashboard', () => {
         const manageLinks = screen.getAllByText('Manage')
         expect(manageLinks.length).toBe(2)
       })
+    })
+  })
+
+  describe('SIS toggle', () => {
+    it('renders an Enable SIS toggle per org with correct state', async () => {
+      render(<OrganizationDashboard />)
+      await waitFor(() => {
+        expect(screen.getAllByText('Enable SIS').length).toBe(2)
+      })
+      expect(screen.getByRole('switch', { name: 'Enable SIS for Springfield Academy' })).toHaveAttribute('aria-checked', 'false')
+      expect(screen.getByRole('switch', { name: 'Enable SIS for Riverside School' })).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('enables SIS via PUT with merged feature_flags and refetches', async () => {
+      render(<OrganizationDashboard />)
+      await waitFor(() => {
+        expect(screen.getByText('Springfield Academy')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Springfield Academy' }))
+
+      await waitFor(() => {
+        expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-1', {
+          feature_flags: { sis_enabled: true }
+        })
+      })
+      // initial fetch + refetch after toggle
+      await waitFor(() => {
+        expect(api.get).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it('disables SIS while preserving other feature flags', async () => {
+      render(<OrganizationDashboard />)
+      await waitFor(() => {
+        expect(screen.getByText('Riverside School')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Riverside School' }))
+
+      await waitFor(() => {
+        expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-2', {
+          feature_flags: { sis_enabled: false, hide_public_bounties: true }
+        })
+      })
+    })
+
+    it('shows an alert when the update fails', async () => {
+      api.put.mockRejectedValue({ response: { data: { error: 'Update failed' } } })
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+
+      render(<OrganizationDashboard />)
+      await waitFor(() => {
+        expect(screen.getByText('Springfield Academy')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Springfield Academy' }))
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('Update failed')
+      })
+      alertSpy.mockRestore()
     })
   })
 

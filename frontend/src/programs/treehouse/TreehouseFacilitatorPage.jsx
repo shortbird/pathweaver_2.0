@@ -462,6 +462,8 @@ function CaptureTab({ cohortId }) {
 function AssignTab({ cohortId }) {
   const [quests, setQuests] = useState([])
   const [students, setStudents] = useState([])
+  const [cohorts, setCohorts] = useState([])
+  const [questGroups, setQuestGroups] = useState([])
   const [pickedQuests, setPickedQuests] = useState({})
   const [pickedStudents, setPickedStudents] = useState({})
   const [loading, setLoading] = useState(true)
@@ -480,11 +482,33 @@ function AssignTab({ cohortId }) {
       })
       .catch(() => setQuests([]))
       .finally(() => setLoading(false))
+    // Cohorts (with student_ids) for one-tap whole-cohort selection.
+    treehouseAPI.cohorts().then(({ data }) => setCohorts(data.cohorts || [])).catch(() => setCohorts([]))
+    // Quest groups (org quest board subcategories) for one-tap batch selection.
+    treehouseAPI.me()
+      .then(({ data }) => data.organization_id
+        ? api.get(`/api/organizations/${data.organization_id}/quest-groups`)
+        : { data: { groups: [] } })
+      .then(({ data }) => setQuestGroups(data.groups || []))
+      .catch(() => setQuestGroups([]))
   }, [])
 
   const toggle = (setter) => (id) => setter(s => ({ ...s, [id]: !s[id] }))
   const questIds = Object.keys(pickedQuests).filter(id => pickedQuests[id])
   const studentIds = Object.keys(pickedStudents).filter(id => pickedStudents[id])
+
+  // Chip select-all helpers: if the whole set is already selected, tapping the
+  // chip deselects it; otherwise it selects the whole set.
+  const toggleSet = (setter, current) => (ids) => {
+    const allOn = ids.length > 0 && ids.every(id => current[id])
+    setter(s => {
+      const next = { ...s }
+      ids.forEach(id => { next[id] = !allOn })
+      return next
+    })
+  }
+  const visibleStudentIds = new Set(students.map(s => s.id))
+  const visibleQuestIds = new Set(quests.map(q => q.id))
 
   const assign = async () => {
     if (questIds.length === 0) return toast('Pick at least one quest')
@@ -506,6 +530,21 @@ function AssignTab({ cohortId }) {
     <div className="grid sm:grid-cols-2 gap-4">
       <div>
         <p className="text-sm font-semibold text-neutral-700 mb-1">Quests ({questIds.length})</p>
+        {questGroups.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {questGroups.map(g => {
+              const ids = (g.quest_ids || []).filter(id => visibleQuestIds.has(id))
+              if (ids.length === 0) return null
+              const allOn = ids.every(id => pickedQuests[id])
+              return (
+                <button key={g.id} onClick={() => toggleSet(setPickedQuests, pickedQuests)(ids)}
+                  className={`text-xs px-2.5 py-1 rounded-full border font-medium ${allOn ? 'bg-optio-purple text-white border-optio-purple' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>
+                  {g.name} ({ids.length})
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
           {quests.map(q => (
             <label key={q.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">
@@ -518,6 +557,21 @@ function AssignTab({ cohortId }) {
       </div>
       <div>
         <p className="text-sm font-semibold text-neutral-700 mb-1">Students ({studentIds.length})</p>
+        {cohorts.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {cohorts.map(c => {
+              const ids = (c.student_ids || []).filter(id => visibleStudentIds.has(id))
+              if (ids.length === 0) return null
+              const allOn = ids.every(id => pickedStudents[id])
+              return (
+                <button key={c.id} onClick={() => toggleSet(setPickedStudents, pickedStudents)(ids)}
+                  className={`text-xs px-2.5 py-1 rounded-full border font-medium ${allOn ? 'bg-optio-purple text-white border-optio-purple' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>
+                  {c.name} ({ids.length})
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-50">
           {students.map(s => (
             <label key={s.id} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-neutral-50">

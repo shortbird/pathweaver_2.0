@@ -500,8 +500,13 @@ function App() {
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />
-                {/* Student Overview - Unified page combining profile, diploma, and constellation */}
-                <Route path="overview" element={<StudentOverviewPage />} />
+                {/* Student Overview - Unified page combining profile, diploma, and constellation.
+                    Blocked for parents/observers: it renders the viewer's OWN (empty) student
+                    portfolio, which reads as "the app thinks I'm a student". Parents see their
+                    child's overview inside /parent/dashboard instead. */}
+                <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
+                  <Route path="overview" element={<StudentOverviewPage />} />
+                </Route>
                 {/* Legacy routes - redirect to overview with hash anchors */}
                 <Route path="profile" element={<Navigate to="/overview" replace />} />
                 <Route path="friends" element={<Navigate to="/dashboard" replace />} />

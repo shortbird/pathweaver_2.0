@@ -57,10 +57,27 @@ export default function OrganizationDashboard() {
 }
 
 function OrganizationCard({ organization, onUpdate }) {
+  const [savingSis, setSavingSis] = useState(false);
+  const sisEnabled = Boolean(organization.feature_flags?.sis_enabled);
+
   const policyLabels = {
     all_optio: 'All Optio Quests',
     curated: 'Curated Quests',
     private_only: 'Private Only'
+  };
+
+  const handleToggleSis = async () => {
+    setSavingSis(true);
+    try {
+      await api.put(`/api/admin/organizations/${organization.id}`, {
+        feature_flags: { ...(organization.feature_flags || {}), sis_enabled: !sisEnabled }
+      });
+      onUpdate();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to update SIS access');
+    } finally {
+      setSavingSis(false);
+    }
   };
 
   return (
@@ -72,6 +89,25 @@ function OrganizationCard({ organization, onUpdate }) {
           <p className="text-sm text-gray-500 mt-2">
             Policy: {policyLabels[organization.quest_visibility_policy]}
           </p>
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={handleToggleSis}
+              disabled={savingSis}
+              role="switch"
+              aria-checked={sisEnabled}
+              aria-label={`Enable SIS for ${organization.name}`}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                sisEnabled ? 'bg-optio-purple' : 'bg-gray-300'
+              } ${savingSis ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  sisEnabled ? 'translate-x-4' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className="text-sm text-gray-700">Enable SIS</span>
+          </div>
         </div>
         <div className="flex gap-2">
           <a

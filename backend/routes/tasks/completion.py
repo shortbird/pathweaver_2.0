@@ -207,7 +207,9 @@ def complete_task(user_id: str, task_id: str):
                 'evidence_text': None if skip_evidence else (evidence_content if evidence_type == 'text' else None),
                 'evidence_url': None if skip_evidence else (evidence_content if evidence_type != 'text' else None),
                 'is_confidential': is_confidential,
-                'xp_awarded': final_xp,
+                # No xp_awarded here: quest_task_completions has no such column
+                # (XP is derived from the task's xp_value — see utils/xp_reversal).
+                # Inserting it makes PostgREST reject EVERY completion (PGRST204).
                 'diploma_status': 'none',  # Student must explicitly request diploma credit
                 'revision_number': 1
             })
@@ -376,7 +378,7 @@ def finalize_task(user_id: str, task_id: str):
         # Get the completion record for this task
         completion = admin_supabase.table('quest_task_completions')\
             .select('''
-                id, user_id, diploma_status, xp_awarded,
+                id, user_id, diploma_status,
                 user_quest_task_id,
                 user_quest_tasks!user_quest_task_id(
                     diploma_subjects, subject_xp_distribution, xp_value, title
@@ -418,7 +420,7 @@ def finalize_task(user_id: str, task_id: str):
         if not subject_xp_distribution:
             # Convert diploma_subjects to XP distribution
             diploma_subjects = task_data.get('diploma_subjects')
-            task_xp = task_data.get('xp_value') or completion_data.get('xp_awarded', 0)
+            task_xp = task_data.get('xp_value') or 0
 
             if diploma_subjects:
                 if isinstance(diploma_subjects, dict):

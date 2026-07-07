@@ -62,6 +62,8 @@ import ClassesPage from './ClassesPage'
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
+  // the card/table choice persists to localStorage — reset to cards per test
+  try { window.localStorage.removeItem('sis_classes_view') } catch { /* jsdom quirk */ }
   vi.clearAllMocks()
 })
 
@@ -182,5 +184,55 @@ describe('ClassesPage', () => {
     fireEvent.click(screen.getByText(/^Optio Courses \(/))
     expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
     expect(screen.queryByText('Pottery')).not.toBeInTheDocument()
+  })
+
+  it('switches to the table view: compact rows that expand into an inline editor', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    // compact row shows the basics (courses are not in the table)
+    expect(await screen.findByText('Jane Doe')).toBeInTheDocument()
+    expect(screen.getByText('2/10')).toBeInTheDocument()
+    expect(screen.queryByText('Intro to Robotics')).not.toBeInTheDocument()
+    expect(screen.queryByDisplayValue('Clay')).not.toBeInTheDocument() // collapsed = no editor
+    // clicking the row expands every attribute as editable fields
+    fireEvent.click(screen.getByText('Pottery'))
+    expect(await screen.findByDisplayValue('Pottery')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Clay')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search staff…')).toHaveValue('Jane Doe')
+    expect(screen.getByLabelText('Capacity')).toHaveValue(10)
+    expect(screen.getByLabelText('Tuition')).toHaveValue(120)
+    expect(screen.getByLabelText('Supply fee')).toHaveValue(15)
+    expect(screen.getByLabelText('Minimum age')).toHaveValue(8)
+    expect(screen.getByLabelText('Maximum age')).toHaveValue(12)
+    // clicking the row again collapses it
+    fireEvent.click(screen.getByText('Pottery'))
+    expect(screen.queryByDisplayValue('Clay')).not.toBeInTheDocument()
+  })
+
+  it('edits an expanded row inline and saves it from the table view', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(await screen.findByText('Pottery'))
+    fireEvent.change(await screen.findByDisplayValue('Pottery'), { target: { value: 'Pottery II' } })
+    fireEvent.change(screen.getByLabelText('Capacity'), { target: { value: '14' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({
+        name: 'Pottery II', capacity: 14,
+      })),
+    )
+  })
+
+  it('toggles registration from the expanded table row', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(await screen.findByText('Pottery'))
+    fireEvent.click(await screen.findByRole('switch', { name: /Toggle registration for Pottery/ }))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
+    )
   })
 })

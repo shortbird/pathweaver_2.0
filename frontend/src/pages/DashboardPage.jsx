@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useActingAs } from '../contexts/ActingAsContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
-import { useGlobalEngagement } from '../hooks/api/useQuests'
+import { useGlobalEngagement, useUnarchiveEnrollment } from '../hooks/api/useQuests'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
 import CourseCardWithQuests from '../components/course/CourseCardWithQuests'
 import RhythmIndicator from '../components/quest/RhythmIndicator'
@@ -259,6 +259,9 @@ const DashboardPage = () => {
 
   // Fetch global engagement data
   const { data: engagement } = useGlobalEngagement()
+
+  // Restore a "Saved for later" (archived) quest to the active list
+  const unarchiveMutation = useUnarchiveEnrollment()
 
   // ✅ SSO FIX: Clear sso_pending flag from URL on mount
   useEffect(() => {
@@ -525,6 +528,64 @@ const DashboardPage = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Saved for Later (archived quests) — distinct from Completed so paused
+          quests don't read as finished */}
+      {dashboardData?.archived_quests && dashboardData.archived_quests.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-gray-900 font-['Poppins'] mb-2">Saved for Later</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Quests you set aside. Your progress is safe — pick them back up any time.
+          </p>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="space-y-3">
+              {dashboardData.archived_quests.map((archived) => {
+                const quest = archived.quests || {};
+                return (
+                  <div
+                    key={archived.id}
+                    className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg"
+                  >
+                    <Link
+                      to={`/quests/${archived.quest_id}`}
+                      className="flex items-center gap-4 flex-1 min-w-0 group"
+                    >
+                      <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-200">
+                        {(quest.image_url || quest.header_image_url) ? (
+                          <img
+                            src={quest.image_url || quest.header_image_url}
+                            alt={quest.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <ClipboardDocumentListIcon className="w-8 h-8" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate" style={{ fontFamily: 'Poppins' }}>
+                          {quest.title}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Saved on {new Date(archived.archived_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </Link>
+                    <button
+                      onClick={() => unarchiveMutation.mutate({ questId: archived.quest_id })}
+                      disabled={unarchiveMutation.isPending}
+                      className="flex-shrink-0 px-4 py-2 text-sm font-semibold text-optio-purple border border-optio-purple/40 rounded-full hover:bg-optio-purple/5 transition-colors disabled:opacity-50 min-h-[44px] touch-manipulation"
+                    >
+                      Resume
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

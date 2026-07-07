@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { toast } from 'react-hot-toast'
+import { Squares2X2Icon, TableCellsIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { ModalOverlay } from '../../components/ui'
@@ -9,6 +10,9 @@ import SisOrgPicker from './SisOrgPicker'
 import CreateClassModal from '../../components/sis/CreateClassModal'
 import CourseEnrollmentManager from '../../components/admin/CourseEnrollmentManager'
 import SearchSelect from '../../components/ui/SearchSelect'
+import ParentClassPreview from '../../components/schedule/ClassDetailsModal'
+import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
+import ClassesTable from '../../components/sis/ClassesTable'
 
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
@@ -59,6 +63,15 @@ const ClassesPage = () => {
   const [settingsCourse, setSettingsCourse] = useState(null) // course open in the detail modal (settings/enroll/enrollments tabs)
   const [filter, setFilter] = useState('classes')  // all | classes | courses; default: org's own classes
   const [search, setSearch] = useState('')
+  const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
+  // cards | table — table is the spreadsheet view of the org's classes.
+  const [view, setViewState] = useState(() => {
+    try { return localStorage.getItem('sis_classes_view') || 'cards' } catch { return 'cards' }
+  })
+  const setView = (v) => {
+    setViewState(v)
+    try { localStorage.setItem('sis_classes_view', v) } catch { /* ignore */ }
+  }
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -68,8 +81,9 @@ const ClassesPage = () => {
       api.get('/api/courses?filter=all').catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} })),
+      api.get(`/api/admin/organizations/${orgId}`).catch(() => ({ data: {} })),
     ])
-      .then(([cls, crs, stf, ct]) => {
+      .then(([cls, crs, stf, ct, org]) => {
         setClasses(cls.data?.classes || [])
         const all = crs.data?.courses || []
         setCourses(all.filter((c) => isSelectableCourse(c, orgId)))
@@ -78,6 +92,7 @@ const ClassesPage = () => {
         for (const row of ct.data?.course_settings || []) map[row.course_id] = row
         setCourseSettings(map)
         setCourseTuition(ct.data?.optio_course_tuition_cents ?? null)
+        setTimeBlocks(org.data?.organization?.feature_flags?.sis_settings?.time_blocks || [])
       })
       .catch(() => toast.error('Failed to load catalog'))
       .finally(() => setLoading(false))
@@ -102,6 +117,7 @@ const ClassesPage = () => {
   const classBody = (payload) => ({
     name: payload.name,
     description: payload.description,
+    location: payload.location ?? null,
     primary_instructor_id: payload.primary_instructor_id ?? null,
     capacity: payload.capacity ?? null,
     price_cents: payload.price_cents ?? null,
@@ -133,18 +149,25 @@ const ClassesPage = () => {
     }
   }
 
-  const handleUpdate = async (payload, imageFile) => {
-    const id = editing.id
+  // Shared save path for the card editor and the table's inline rows.
+  const saveClass = async (cls, payload, imageFile = null) => {
     try {
-      await api.patch(`/api/sis/classes/${id}`, classBody(payload))
-      await syncMeetings(id, payload.days_of_week, payload.start_time, payload.duration_minutes, editing.meetings || [])
-      if (imageFile) await uploadImage(id, imageFile)
+      await api.patch(`/api/sis/classes/${cls.id}`, classBody(payload))
+      await syncMeetings(cls.id, payload.days_of_week, payload.start_time, payload.duration_minutes, cls.meetings || [])
+      if (imageFile) await uploadImage(cls.id, imageFile)
       toast.success('Class updated')
-      setEditing(null)
       load()
+      return true
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not update class')
+      return false
     }
+  }
+
+  const handleUpdate = async (payload, imageFile) => {
+    const cls = classes.find((c) => c.id === editing.id) || editing
+    const ok = await saveClass(cls, payload, imageFile)
+    if (ok) setEditing(null)
   }
 
   const archiveClass = async (c) => {
@@ -175,6 +198,12 @@ const ClassesPage = () => {
     return list
   }, [classes, courses, filter, search])
 
+  // Table view is the org's classes only (Optio courses aren't org-editable).
+  const tableClasses = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return q ? classes.filter((c) => (c.name || '').toLowerCase().includes(q)) : classes
+  }, [classes, search])
+
   const FILTERS = [
     { key: 'all', label: `All (${classes.length + courses.length})` },
     { key: 'classes', label: `${orgName} classes (${classes.length})` },
@@ -191,18 +220,30 @@ const ClassesPage = () => {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters + view toggle */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
+        {view === 'cards' && (
+          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${filter === f.key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${filter === f.key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}
-            >
-              {f.label}
-            </button>
-          ))}
+          <button onClick={() => setView('cards')} title="Card view" aria-pressed={view === 'cards'}
+            className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'cards' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+            <Squares2X2Icon className="w-4 h-4" />
+          </button>
+          <button onClick={() => setView('table')} title="Table view" aria-pressed={view === 'table'}
+            className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'table' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+            <TableCellsIcon className="w-4 h-4" />
+          </button>
         </div>
         <input
           value={search}
@@ -210,40 +251,55 @@ const ClassesPage = () => {
           placeholder="Search…"
           className="flex-1 min-w-[160px] max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
         />
+        {orgId && <ScheduleAiEditor orgId={orgId} onApplied={load} />}
       </div>
 
       {loading && <p className="text-neutral-500">Loading…</p>}
-      {!loading && !items.length && (
+      {!loading && view === 'cards' && !items.length && (
         <p className="text-neutral-500">
           {search ? 'Nothing matches your search.' : 'Nothing here yet. Create a class to get started.'}
         </p>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {items.map((item) => (
-          item.kind === 'class' ? (
-            <ClassCard
-              key={`class-${item.id}`}
-              c={item}
-              onOpen={() => setEditing(item)}
-            />
-          ) : (
-            <CourseCard
-              key={`course-${item.id}`}
-              c={item}
-              onOpen={() => setSettingsCourse(item)}
-            />
-          )
-        ))}
-      </div>
+      {!loading && view === 'table' && (
+        <ClassesTable
+          classes={tableClasses}
+          staff={staff}
+          timeBlocks={timeBlocks}
+          onSave={saveClass}
+          onToggleRegistration={toggleRegistration}
+          onOpen={(c) => setEditing(c)}
+        />
+      )}
+
+      {view === 'cards' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {items.map((item) => (
+            item.kind === 'class' ? (
+              <ClassCard
+                key={`class-${item.id}`}
+                c={item}
+                onOpen={() => setEditing(item)}
+              />
+            ) : (
+              <CourseCard
+                key={`course-${item.id}`}
+                c={item}
+                onOpen={() => setSettingsCourse(item)}
+              />
+            )
+          ))}
+        </div>
+      )}
 
       {creating && (
-        <CreateClassModal staff={staff} onClose={() => setCreating(false)} onSubmit={handleCreate} />
+        <CreateClassModal staff={staff} timeBlocks={timeBlocks} onClose={() => setCreating(false)} onSubmit={handleCreate} />
       )}
       {editing && (
         <ClassDetailModal
           cls={classes.find((c) => c.id === editing.id) || editing}
           staff={staff}
+          timeBlocks={timeBlocks}
           orgId={orgId}
           onClose={() => setEditing(null)}
           onSubmit={handleUpdate}
@@ -453,16 +509,36 @@ const CLASS_TABS = [
 
 // Same shell as CourseDetailModal, but a class is org-owned so every field is
 // editable (the embedded CreateClassModal form), plus registration + archive.
-const ClassDetailModal = ({ cls, staff, orgId, onClose, onSubmit, onToggleRegistration, onArchive }) => {
+// "Preview" renders the exact read-only modal parents and students see in the
+// Schedule Builder.
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmit, onToggleRegistration, onArchive }) => {
   const [tab, setTab] = useState('details')
+  const [previewing, setPreviewing] = useState(false)
   const isOpen = cls.registration_status === 'open'
+
+  if (previewing) {
+    return (
+      <ParentClassPreview
+        item={cls}
+        type="class"
+        locked
+        onClose={() => setPreviewing(false)}
+      />
+    )
+  }
 
   return (
     <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-4 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{cls.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setPreviewing(true)}
+              className="text-sm font-medium text-optio-purple hover:underline">
+              Preview
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          </div>
         </div>
         <div className="flex gap-4 px-4 mt-2 border-b border-gray-200 shrink-0">
           {CLASS_TABS.map((t) => (
@@ -493,7 +569,7 @@ const ClassDetailModal = ({ cls, staff, orgId, onClose, onSubmit, onToggleRegist
                 </button>
               </div>
 
-              <CreateClassModal embedded initial={cls} staff={staff} onClose={onClose} onSubmit={onSubmit} />
+              <CreateClassModal embedded initial={cls} staff={staff} timeBlocks={timeBlocks} onClose={onClose} onSubmit={onSubmit} />
 
               <div className="pt-1">
                 <button onClick={onArchive} className="text-sm text-red-500 hover:underline">Archive class</button>

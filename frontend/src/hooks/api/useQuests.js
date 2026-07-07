@@ -204,6 +204,30 @@ export const useArchiveEnrollment = () => {
 }
 
 /**
+ * Hook for restoring an H1-archived ("saved for later") enrollment to the
+ * active list.
+ */
+export const useUnarchiveEnrollment = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: ['unarchiveEnrollment'],
+    mutationFn: async ({ questId }) => {
+      const response = await api.post(`/api/quests/${questId}/unarchive`, {})
+      return response.data
+    },
+    onSuccess: () => {
+      queryKeys.invalidateQuests(queryClient)
+      queryClient.invalidateQueries(queryKeys.user.dashboard())
+      toast.success('Quest is back on your list')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to restore quest')
+    },
+  })
+}
+
+/**
  * Hook for ending/finishing a quest
  */
 export const useEndQuest = () => {

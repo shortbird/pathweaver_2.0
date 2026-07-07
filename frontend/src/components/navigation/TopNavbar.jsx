@@ -154,8 +154,13 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 )}
 
                 {/* User Name - Show dependent's name when acting as them */}
+                {/* /overview is the student portfolio; parents go to their family
+                    dashboard instead (acting-as sessions carry the child's role,
+                    so they still resolve to /overview). */}
                 <Link
-                  to={effectiveRole === 'observer' ? '/observer/feed' : '/overview'}
+                  to={effectiveRole === 'observer' ? '/observer/feed'
+                    : effectiveRole === 'parent' ? '/parent/dashboard'
+                    : '/overview'}
                   className="hidden sm:block text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
                 >
                   {actingAsDependent ? (`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name) : `${user?.first_name} ${user?.last_name}`}

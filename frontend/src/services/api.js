@@ -144,6 +144,19 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
+    // Normalize v1-style nested error payloads ({error: {code, message, ...}})
+    // to a plain string. Hundreds of call sites do
+    // `toast.error(err.response?.data?.error || '...')`; handing react-hot-toast
+    // an OBJECT makes React throw "Objects are not valid as a React child",
+    // which replaces the whole page with the ErrorBoundary (seen by Treehouse
+    // kids on task completion). The original object stays on `error_detail`.
+    const nestedError = error.response?.data?.error
+    if (nestedError && typeof nestedError === 'object' && !Array.isArray(nestedError)) {
+      error.response.data.error_detail = nestedError
+      error.response.data.error =
+        nestedError.message || nestedError.code || 'Something went wrong'
+    }
+
     // Handle 403 responses with consent_required flag for COPPA compliance
     // This triggers the ConsentBlockedOverlay component
     if (error.response?.status === 403 && error.response?.data?.consent_required) {
@@ -764,6 +777,9 @@ export const treehouseAPI = {
   home: () => api.get('/api/treehouse/home'),
   // Visual quest/badge browse grouped by pillar/category.
   quests: () => api.get('/api/treehouse/quests'),
+  // Littles "More ideas": a few AI task suggestions in the same vein as the
+  // quest's current task list (added via the standard add-manual-tasks call).
+  questMoreIdeas: (questId) => api.post(`/api/treehouse/quests/${questId}/more-ideas`, {}),
 
   // Student raises a help/proud signal. type: 'help' | 'proud'.
   createSignal: (body) => api.post('/api/treehouse/signals', body),

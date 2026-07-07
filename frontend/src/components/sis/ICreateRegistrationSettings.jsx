@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import { CheckIcon, ClipboardIcon } from '@heroicons/react/24/solid'
 import api from '../../services/api'
+import { getLearningOrigin } from '../../utils/appSurface'
 
 // Slugify a label into a stable paperwork key (used when adding new items).
 const slugKey = (label) => (label || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `item_${Date.now()}`
@@ -81,7 +82,9 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
   // Not an iCreate-registration org — render nothing.
   if (!cfg) return null
 
-  const regLinkUrl = regLink ? `${window.location.origin}/invitation/${regLink.invitation_code}` : ''
+  // Always the www (learning) origin — a link copied from the SIS console must
+  // never point families at sis.optioeducation.com.
+  const regLinkUrl = regLink ? `${getLearningOrigin()}/invitation/${regLink.invitation_code}` : ''
 
   const copyRegLink = async () => {
     await navigator.clipboard.writeText(regLinkUrl)
@@ -158,9 +161,10 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
       .filter((q) => (q.label || '').trim())
       .map((q) => ({
         key: q.key || slugKey(q.label), label: q.label.trim(), help: (q.help || '').trim(),
-        type: q.type === 'multi' ? 'multi' : 'select',
-        options: (Array.isArray(q.options) ? q.options : String(q.options || '').split('|'))
-          .map((o) => String(o).trim()).filter(Boolean),
+        type: ['multi', 'text'].includes(q.type) ? q.type : 'select',
+        options: q.type === 'text' ? []
+          : (Array.isArray(q.options) ? q.options : String(q.options || '').split('|'))
+            .map((o) => String(o).trim()).filter(Boolean),
         required: q.required !== false,
       }))
 
@@ -353,6 +357,7 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
                     onChange={(e) => setQ(i, { type: e.target.value })}>
                     <option value="select">Pick one</option>
                     <option value="multi">Pick multiple</option>
+                    <option value="text">Text answer</option>
                   </select>
                   <button onClick={() => setQuestions((qs) => qs.filter((_, j) => j !== i))}
                     className="text-red-500 text-sm px-2 hover:underline">Remove</button>
@@ -360,6 +365,9 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
                 <textarea rows={2} className={field} placeholder="Help text shown under the question (optional)"
                   value={q.help || ''} onChange={(e) => setQ(i, { help: e.target.value })} />
 
+                {q.type === 'text' ? (
+                  <p className="pl-1 text-xs text-neutral-400">Parents type their answer in a free-text box.</p>
+                ) : (
                 <div className="pl-1">
                   <p className="text-[11px] font-medium text-neutral-400 uppercase tracking-wide mb-1.5">Answer options</p>
                   <div className="space-y-1.5">
@@ -386,6 +394,7 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
                     + Add option
                   </button>
                 </div>
+                )}
 
                 <label className="flex items-center gap-2 text-xs text-neutral-500 select-none pl-1">
                   <input type="checkbox" checked={q.required !== false}
