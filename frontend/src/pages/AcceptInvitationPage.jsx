@@ -70,7 +70,8 @@ export default function AcceptInvitationPage() {
           // funnel (parent + kids -> paperwork -> fee -> scheduling). Every other
           // org keeps this standard single-account flow.
           if (inv.organization?.slug === 'icreate' && inv.role === 'parent' && inv.is_link_based) {
-            navigate(`/register/icreate/${code}`, { replace: true });
+            // Keep the query string — ?preview=1 rides along to the funnel.
+            navigate(`/register/icreate/${code}${window.location.search}`, { replace: true });
             return;
           }
           setInvitation(inv);

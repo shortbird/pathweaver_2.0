@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import { useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
@@ -9,10 +10,14 @@ import { ModalOverlay } from '../components/ui'
 //   - enrolled classes show as colored blocks; click one for details / drop
 //   - empty time-block slots are gray "+ Pick a class" boxes; clicking one pops
 //     up the classes offered at that time
-//   - at-home (untimed) Optio courses live in a section under the calendar
 // Self-service is open until the org's first day of school
 // (feature_flags.sis_settings.first_day_of_school); after that, changes are
 // staff-only and this page is read-only.
+//
+// /schedule-builder/preview/:previewCode — staff walkthrough (public route,
+// reached from the registration funnel's ?preview=1 final step): the org's real
+// open-class catalog and time blocks with a sample student, add/drop simulated
+// locally, nothing saved.
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -77,25 +82,50 @@ const meetsAt = (c, f) => (c.meetings || []).some((m) => {
   return s != null && e != null && s < slotEnd(f) && f.min < e
 })
 
+// The fake student a staff preview builds a week for. avatar_url is truthy so
+// the missing-photo prompt stays hidden; no DOB so age never hides classes.
+const PREVIEW_STUDENT = { student_id: 'preview-student', name: 'Casey Sample', avatar_url: 'preview' }
+
 const ScheduleBuilderPage = () => {
+  const { previewCode } = useParams()           // staff walkthrough — see header comment
   const [ctx, setCtx] = useState(null)          // { orgs: [{organization_id, organization_name, students[]}] }
   const [orgId, setOrgId] = useState(null)
   const [studentId, setStudentId] = useState(null)
   const [schedule, setSchedule] = useState(null) // { classes, waitlist, courses, time_blocks, first_day_of_school, changes_locked }
   const [catalog, setCatalog] = useState([])
-  const [courseCatalog, setCourseCatalog] = useState([])
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(null)         // class/course id being added/dropped
+  const [busy, setBusy] = useState(null)         // class id being added/dropped
   const [slotModal, setSlotModal] = useState(null)   // { day, min, end } — classes offered then
-  const [coursesModal, setCoursesModal] = useState(false)
-  const [detail, setDetail] = useState(null)     // { type: 'class' | 'course', item, enrolled }
+  const [detail, setDetail] = useState(null)     // { item, enrolled }
   const [myAvatar, setMyAvatar] = useState(null)
   const [photoBusy, setPhotoBusy] = useState(null) // student_id or 'me' mid-upload
 
   // Modals for one child's week don't carry over to another schedule.
-  useEffect(() => { setSlotModal(null); setCoursesModal(false); setDetail(null) }, [orgId, studentId])
+  useEffect(() => { setSlotModal(null); setDetail(null) }, [orgId, studentId])
 
   useEffect(() => {
+    if (previewCode) {
+      // Staff preview: the org's real catalog with a sample student, no auth.
+      api.get(`/api/icreate/schedule-preview/${previewCode}`)
+        .then((r) => {
+          setCtx({ orgs: [{
+            organization_id: 'preview', organization_name: r.data?.organization_name,
+            scheduling_url: r.data?.scheduling_url, students: [PREVIEW_STUDENT],
+          }] })
+          setMyAvatar('preview')
+          setOrgId('preview')
+          setStudentId(PREVIEW_STUDENT.student_id)
+          setSchedule({
+            classes: [], waitlist: [], changes_locked: false,
+            time_blocks: r.data?.time_blocks || [],
+            first_day_of_school: r.data?.first_day_of_school || null,
+          })
+          setCatalog(r.data?.classes || [])
+        })
+        .catch((e) => toast.error(e.response?.data?.error || 'Could not load the schedule preview'))
+        .finally(() => setLoading(false))
+      return
+    }
     api.get('/api/sis/parent/context')
       .then((r) => {
         const orgs = r.data?.orgs || []
@@ -108,7 +138,7 @@ const ScheduleBuilderPage = () => {
       })
       .catch(() => toast.error('Could not load your family'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [previewCode])
 
   // Soft prompt: the school asks every family member to have a photo. Uploads
   // happen inline; nothing is blocked while photos are missing.
@@ -139,6 +169,7 @@ const ScheduleBuilderPage = () => {
   }
 
   const reload = useCallback(() => {
+    if (previewCode) return // preview state lives in memory only
     if (!orgId || !studentId) return
     api.get(`/api/sis/parent/students/${studentId}/schedule?organization_id=${orgId}`)
       .then((r) => setSchedule(r.data))
@@ -146,10 +177,7 @@ const ScheduleBuilderPage = () => {
     api.get(`/api/sis/parent/classes?organization_id=${orgId}`)
       .then((r) => setCatalog(r.data?.classes || []))
       .catch(() => { /* catalog list is supplementary */ })
-    api.get(`/api/sis/parent/courses?organization_id=${orgId}`)
-      .then((r) => setCourseCatalog(r.data?.courses || []))
-      .catch(() => { /* course catalog is supplementary */ })
-  }, [orgId, studentId])
+  }, [orgId, studentId, previewCode])
 
   useEffect(() => { reload() }, [reload])
 
@@ -162,27 +190,34 @@ const ScheduleBuilderPage = () => {
 
   const enrolled = schedule?.classes || []
   const waitlist = schedule?.waitlist || []
-  const homeCourses = schedule?.courses || []
   const enrolledIds = new Set(enrolled.map((c) => c.id))
   const waitlistIds = new Set(waitlist.map((w) => w.class_id))
-  const homeCourseIds = new Set(homeCourses.map((c) => c.id))
 
   // Running tuition total across everything on the schedule (waitlist excluded —
   // those seats aren't confirmed).
-  const tuitionCents = [...enrolled.map((c) => c.price_cents), ...homeCourses.map((c) => c.tuition_cents)]
-    .reduce((sum, v) => sum + (v || 0), 0)
-  const tuitionCount = enrolled.length + homeCourses.length
+  const tuitionCents = enrolled.map((c) => c.price_cents).reduce((sum, v) => sum + (v || 0), 0)
+  const tuitionCount = enrolled.length
 
   const openClasses = useMemo(
     () => catalog.filter((c) => !enrolledIds.has(c.id) && !waitlistIds.has(c.id)),
     [catalog, schedule], // eslint-disable-line react-hooks/exhaustive-deps
   )
-  const availableCourses = useMemo(
-    () => courseCatalog.filter((c) => !homeCourseIds.has(c.id)),
-    [courseCatalog, schedule], // eslint-disable-line react-hooks/exhaustive-deps
-  )
 
   const addClass = async (c) => {
+    if (previewCode) {
+      // Simulate the real add: full classes go to the waitlist, nothing saved.
+      if (c.is_full) {
+        setSchedule((s) => ({ ...s, waitlist: [...s.waitlist, {
+          entry_id: `preview-${c.id}`, class_id: c.id, class_name: c.name,
+          position: 1, status: 'waiting', meetings: c.meetings || [],
+        }] }))
+        toast.success(`${c.name} is full — added to the waitlist (#1)`)
+      } else {
+        setSchedule((s) => ({ ...s, classes: [...s.classes, c] }))
+        toast.success(`Added ${c.name}`)
+      }
+      return true
+    }
     setBusy(c.id)
     try {
       const { data } = await api.post(`/api/sis/parent/students/${studentId}/classes`, {
@@ -198,38 +233,18 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
-  const addCourse = async (c) => {
-    setBusy(c.id)
-    try {
-      await api.post(`/api/sis/parent/students/${studentId}/courses`, {
-        organization_id: orgId, course_id: c.id,
-      })
-      toast.success(`Added ${c.title}`)
-      reload()
-      return true
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not add the course')
-      return false
-    } finally { setBusy(null) }
-  }
-
-  const dropCourse = async (c) => {
-    if (!window.confirm(`Drop "${c.title}"? Their progress in its quests is removed.`)) return false
-    setBusy(c.id)
-    try {
-      await api.delete(`/api/sis/parent/students/${studentId}/courses/${c.id}?organization_id=${orgId}`)
-      toast.success(`Dropped ${c.title}`)
-      reload()
-      return true
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not drop the course')
-      return false
-    } finally { setBusy(null) }
-  }
-
   const dropClass = async (c, isWaitlist = false) => {
     const verb = isWaitlist ? `Leave the waitlist for "${c.name || c.class_name}"?` : `Drop "${c.name}"?`
     if (!window.confirm(verb)) return false
+    if (previewCode) {
+      const id = c.id || c.class_id
+      setSchedule((s) => ({ ...s,
+        classes: s.classes.filter((x) => x.id !== id),
+        waitlist: s.waitlist.filter((w) => w.class_id !== id),
+      }))
+      toast.success(isWaitlist ? 'Left the waitlist' : `Dropped ${c.name}`)
+      return true
+    }
     setBusy(c.id || c.class_id)
     try {
       await api.delete(`/api/sis/parent/students/${studentId}/classes/${c.id || c.class_id}?organization_id=${orgId}`)
@@ -249,13 +264,24 @@ const ScheduleBuilderPage = () => {
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">
         <h1 className="text-xl font-bold text-neutral-900 mb-2">Schedule Builder</h1>
-        <p className="text-neutral-500">No school schedules to manage — this page is for families of schools that use Optio's class scheduling.</p>
+        <p className="text-neutral-500">
+          {previewCode
+            ? 'Could not load the schedule preview — check that the registration link is still active.'
+            : "No school schedules to manage — this page is for families of schools that use Optio's class scheduling."}
+        </p>
       </div>
     )
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+      {previewCode && (
+        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          <span className="font-semibold">Preview mode</span> — this is the Schedule Builder parents
+          use after registering, with your school's real classes and a sample student. Adds and
+          drops here aren't saved.
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
         <h1 className="text-2xl font-bold text-neutral-900">Schedule Builder</h1>
         <div className="flex items-center gap-2">
@@ -350,14 +376,14 @@ const ScheduleBuilderPage = () => {
       ) : null}
 
       {/* The calendar is the schedule: gray boxes are open slots, colored blocks
-          are enrolled classes. At-home learning lives just below, same card. */}
+          are enrolled classes. */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6">
         <WeeklySchedule
           classes={enrolled}
           timeBlocks={schedule?.time_blocks || []}
           selectedSlot={slotModal}
           onSlotClick={locked ? null : (day, min, end) => setSlotModal({ day, min, end })}
-          onClassClick={(c) => setDetail({ type: 'class', item: c, enrolled: true })}
+          onClassClick={(c) => setDetail({ item: c, enrolled: true })}
         />
 
         {waitlist.length > 0 && (
@@ -383,42 +409,6 @@ const ScheduleBuilderPage = () => {
           </div>
         )}
 
-        {(homeCourses.length > 0 || (!locked && availableCourses.length > 0)) && (
-          <div className="mt-5 pt-4 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-neutral-700">At-home learning</h3>
-              {!locked && availableCourses.length > 0 && (
-                <button onClick={() => setCoursesModal(true)}
-                  className="text-sm font-medium text-optio-purple hover:underline">+ Add a course</button>
-              )}
-            </div>
-            {homeCourses.length === 0 && (
-              <p className="text-sm text-neutral-400">
-                No at-home courses yet — teacher-supported online courses {student ? `${student.name.split(' ')[0]} works` : 'your student works'} on from home.
-              </p>
-            )}
-            <div className="space-y-2">
-              {homeCourses.map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <div className="font-medium text-neutral-900 truncate">{c.title}</div>
-                    <div className="text-xs text-neutral-500">
-                      {[c.estimated_hours ? `~${c.estimated_hours} hrs` : null, money(c.tuition_cents)].filter(Boolean).join(' · ')}
-                    </div>
-                  </div>
-                  <div className="shrink-0 ml-3 flex items-center gap-3">
-                    <button onClick={() => setDetail({ type: 'course', item: c, enrolled: true })}
-                      className="text-sm text-optio-purple hover:underline">Details</button>
-                    {!locked && (
-                      <button onClick={() => dropCourse(c)} disabled={busy === c.id}
-                        className="text-sm text-red-500 hover:underline disabled:opacity-50">Drop</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {slotModal && (
@@ -429,35 +419,25 @@ const ScheduleBuilderPage = () => {
           enrolled={enrolled}
           busy={busy}
           onClose={() => setSlotModal(null)}
-          onDetails={(c) => { setSlotModal(null); setDetail({ type: 'class', item: c }) }}
+          onDetails={(c) => { setSlotModal(null); setDetail({ item: c }) }}
           onAdd={async (c) => { const ok = await addClass(c); if (ok) setSlotModal(null) }}
-        />
-      )}
-
-      {coursesModal && (
-        <CoursesModal
-          courses={availableCourses}
-          busy={busy}
-          onClose={() => setCoursesModal(false)}
-          onDetails={(c) => { setCoursesModal(false); setDetail({ type: 'course', item: c }) }}
-          onAdd={async (c) => { const ok = await addCourse(c); if (ok) setCoursesModal(false) }}
         />
       )}
 
       {detail && (
         <ClassDetailsModal
           item={detail.item}
-          type={detail.type}
+          type="class"
           locked={locked}
           busy={busy === detail.item.id}
-          conflict={detail.type === 'class' && !detail.enrolled ? conflictsWith(detail.item, enrolled) : null}
+          conflict={!detail.enrolled ? conflictsWith(detail.item, enrolled) : null}
           onClose={() => setDetail(null)}
           onAdd={detail.enrolled ? null : async () => {
-            const ok = detail.type === 'class' ? await addClass(detail.item) : await addCourse(detail.item)
+            const ok = await addClass(detail.item)
             if (ok) setDetail(null)
           }}
           onRemove={!detail.enrolled ? null : async () => {
-            const ok = detail.type === 'class' ? await dropClass(detail.item) : await dropCourse(detail.item)
+            const ok = await dropClass(detail.item)
             if (ok) setDetail(null)
           }}
         />
@@ -513,45 +493,6 @@ const SlotClassesModal = ({ slot, classes, age, enrolled, busy, onClose, onDetai
             </div>
           )
         })}
-      </div>
-    </div>
-  </ModalOverlay>
-)
-
-// At-home Optio courses the family can add (untimed, teacher-supported).
-const CoursesModal = ({ courses, busy, onClose, onDetails, onAdd }) => (
-  <ModalOverlay onClose={onClose}>
-    <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">At-home learning</h2>
-          <p className="text-xs text-neutral-400">Online courses your student works on from home, teacher supported.</p>
-        </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-      </div>
-      <div className="p-4 pt-2 overflow-y-auto flex-1 space-y-2">
-        {courses.length === 0 && (
-          <p className="text-sm text-neutral-400 py-4 text-center">No more at-home courses available.</p>
-        )}
-        {courses.map((c) => (
-          <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
-            <div className="min-w-0">
-              <div className="font-medium text-neutral-900 truncate">{c.title}</div>
-              <div className="text-xs text-neutral-500">
-                {[c.estimated_hours ? `~${c.estimated_hours} hrs` : null,
-                  c.age_range ? `ages ${c.age_range}` : null,
-                  money(c.tuition_cents)].filter(Boolean).join(' · ')}
-              </div>
-            </div>
-            <div className="shrink-0 ml-3 flex items-center gap-2">
-              <button onClick={() => onDetails(c)} className="text-sm text-optio-purple hover:underline">Details</button>
-              <button onClick={() => onAdd(c)} disabled={busy === c.id}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
-                {busy === c.id ? 'Adding…' : 'Add'}
-              </button>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   </ModalOverlay>

@@ -10,6 +10,7 @@ Account-first flow: the parent creates their Optio account (or signs into an
 existing one) BEFORE seeing the rest of the form.
 
     GET  /api/icreate/config/<invitation_code>    -> branding + questions + paperwork + fee config
+    GET  /api/icreate/schedule-preview/<invitation_code> -> open classes + time blocks (staff funnel preview)
     POST /api/icreate/start                        -> create parent account, email a 6-digit code
     POST /api/icreate/verify                       -> confirm the code -> issues the funnel access_token
     POST /api/icreate/resend-code                  -> re-email a fresh code
@@ -181,6 +182,10 @@ def _public_config(org, cfg, paperwork_urls=None):
         'registration_fee_cents': int(cfg.get('registration_fee_cents') or 0),
         'per_student_fee_cents': int(cfg.get('per_student_fee_cents') or 0),
         'payment_url': cfg.get('payment_url') or '',
+        # Appointment-booking link — parents receive it after the fee anyway
+        # (email + final page); exposing it here lets ?preview=1 render the
+        # real final step.
+        'scheduling_url': _abs_url(cfg.get('scheduling_url')),
         # Whether verified card payment (the org's own Stripe account) is on.
         # The key itself is never exposed.
         'stripe_enabled': bool(cfg.get('stripe_secret_key')),
@@ -416,6 +421,25 @@ def get_config(invitation_code):
     org = data['organization']
     paperwork_urls = _paperwork_resource_urls(_admin(), org['id'])
     return jsonify({'success': True, **_public_config(org, data['config'], paperwork_urls)}), 200
+
+
+@bp.route('/schedule-preview/<invitation_code>', methods=['GET'])
+@rate_limit(max_requests=60, window_seconds=60)
+def schedule_preview(invitation_code):
+    """Public: the org's open-class catalog + time blocks so the ?preview=1
+    walkthrough can show the Schedule Builder exactly as a parent sees it.
+    Exposes nothing a family with the registration link wouldn't get anyway."""
+    data, err = _load_icreate_invite(invitation_code)
+    if err:
+        return err
+    from services import sis_parent_service
+    org = data['organization']
+    return jsonify({
+        'success': True,
+        'organization_name': org.get('name'),
+        'scheduling_url': _abs_url(data['config'].get('scheduling_url')),
+        **sis_parent_service.schedule_preview(org['id']),
+    }), 200
 
 
 @bp.route('/my-registration', methods=['GET'])
@@ -1093,6 +1117,52 @@ def create_checkout(reg_id):
         'stripe_session_id': session.id, 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
 
+    return jsonify({'success': True, 'checkout_url': session.url}), 200
+
+
+@bp.route('/preview-checkout', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=300)
+def preview_checkout():
+    """Staff walkthrough (?preview=1) of the card-payment step: a real Stripe
+    Checkout session on the school's account so the preview shows exactly what
+    families see. Stripe doesn't allow $0 in payment mode, so it's created for
+    the 50-cent minimum and clearly labeled — nothing is charged unless someone
+    actually pays it. Gated by the public invitation code, same as /config;
+    no registration exists and nothing is recorded."""
+    body = request.get_json(silent=True) or {}
+    data, err = _load_icreate_invite((body.get('code') or '').strip())
+    if err:
+        return err
+    org = data['organization']
+    cfg = data['config']
+    secret = cfg.get('stripe_secret_key')
+    if not secret:
+        return jsonify({'error': 'Card payment is not set up for this school'}), 400
+    return_url = (body.get('return_url') or '').strip()
+    if not return_url.startswith('http'):
+        return jsonify({'error': 'Invalid return URL'}), 400
+
+    try:
+        import stripe
+        sep = '&' if '?' in return_url else '?'
+        session = stripe.checkout.Session.create(
+            api_key=secret,
+            mode='payment',
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {'name': f'{org.get("name") or "iCreate"} registration fee (PREVIEW — do not pay)'},
+                    'unit_amount': 50,
+                },
+                'quantity': 1,
+            }],
+            metadata={'preview': 'true', 'organization_id': org['id']},
+            success_url=f'{return_url}{sep}payment=preview-return',
+            cancel_url=f'{return_url}{sep}payment=preview-canceled',
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'iCreate preview-checkout: session creation failed: {e}')
+        return jsonify({'error': 'Could not start the preview payment'}), 502
     return jsonify({'success': True, 'checkout_url': session.url}), 200
 
 

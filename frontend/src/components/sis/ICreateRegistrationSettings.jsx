@@ -253,6 +253,16 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
         )}
         <p className="text-xs text-neutral-400 mt-1">
           Share this standing link with families — it opens the registration flow configured below.
+          {regLink && (
+            <>
+              {' '}
+              <a href={`${getLearningOrigin()}/register/icreate/${regLink.invitation_code}?preview=1`}
+                target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">
+                Preview the form
+              </a>
+              {' '}— step through every page with sample data; nothing is saved and no card is charged.
+            </>
+          )}
         </p>
       </div>
 

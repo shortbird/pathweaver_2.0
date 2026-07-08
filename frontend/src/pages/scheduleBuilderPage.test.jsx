@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
@@ -18,13 +18,12 @@ import ScheduleBuilderPage from './ScheduleBuilderPage'
 
 const ORG = { organization_id: 'org1', organization_name: 'Micro School', students: [{ student_id: 's1', name: 'Kid One', avatar_url: 'x.jpg' }] }
 
-const mockApi = ({ orgs = [ORG], schedule = {}, classes = [], courses = [] } = {}) => (url) => {
+const mockApi = ({ orgs = [ORG], schedule = {}, classes = [] } = {}) => (url) => {
   if (url.includes('/parent/context')) return Promise.resolve({ data: { orgs, my_avatar_url: 'me.jpg' } })
   if (url.includes('/schedule')) {
-    return Promise.resolve({ data: { classes: [], waitlist: [], courses: [], time_blocks: [], first_day_of_school: null, changes_locked: false, ...schedule } })
+    return Promise.resolve({ data: { classes: [], waitlist: [], time_blocks: [], first_day_of_school: null, changes_locked: false, ...schedule } })
   }
   if (url.includes('/parent/classes')) return Promise.resolve({ data: { classes } })
-  if (url.includes('/parent/courses')) return Promise.resolve({ data: { courses } })
   return Promise.resolve({ data: {} })
 }
 
@@ -120,21 +119,30 @@ describe('ScheduleBuilderPage', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalled())
   })
 
-  it('lists at-home courses under the calendar and adds from the courses popup', async () => {
-    api.get.mockImplementation(mockApi({
-      schedule: { courses: [{ id: 'h1', title: 'Astronomy at Home', estimated_hours: 12, tuition_cents: 7500 }] },
-      courses: [{ id: 'h2', title: 'Creative Writing', estimated_hours: 8, tuition_cents: 7500 }],
-    }))
-    api.post.mockResolvedValue({ data: { success: true } })
-    render(<ScheduleBuilderPage />)
-    expect(await screen.findByText('At-home learning')).toBeInTheDocument()
-    expect(screen.getByText('Astronomy at Home')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '+ Add a course' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Add' }))
-    await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/sis/parent/students/s1/courses',
-        expect.objectContaining({ organization_id: 'org1', course_id: 'h2' })),
+  it('preview route walks the builder with the real catalog and saves nothing', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/api/icreate/schedule-preview/abc123') {
+        return Promise.resolve({ data: {
+          organization_name: 'Micro School', scheduling_url: '',
+          classes: [POTTERY], time_blocks: [], first_day_of_school: null,
+        } })
+      }
+      return Promise.reject(new Error(`unexpected ${url}`))
+    })
+    rtlRender(
+      <MemoryRouter initialEntries={['/schedule-builder/preview/abc123']}>
+        <Routes>
+          <Route path="/schedule-builder/preview/:previewCode" element={<ScheduleBuilderPage />} />
+        </Routes>
+      </MemoryRouter>,
     )
+    expect(await screen.findByText('Preview mode')).toBeInTheDocument()
+    expect(screen.getByText('Casey Sample')).toBeInTheDocument()
+    clickTue9am()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add' }))
+    // added to the calendar locally — no write hits the API
+    expect(await screen.findByText('Pottery')).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
   })
 
   it('totals estimated tuition across the selected classes', async () => {

@@ -635,6 +635,9 @@ function App() {
                 (PrivateRoute forces iCreate parents here until they complete it). */}
             <Route path="register/icreate/resume" element={<ICreateRegisterPage />} />
             <Route path="register/icreate/:code" element={<ICreateRegisterPage />} />
+            {/* Staff walkthrough of the parent Schedule Builder (nothing saved),
+                reached from the registration funnel preview's final step. */}
+            <Route path="schedule-builder/preview/:previewCode" element={<ScheduleBuilderPage />} />
             <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
 
             {/* Mobile demo - superadmin only, full-screen iframe */}

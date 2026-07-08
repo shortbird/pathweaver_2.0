@@ -471,6 +471,19 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     }
 
 
+def schedule_preview(org_id: str) -> Dict[str, Any]:
+    """Org-wide Schedule Builder data with no student attached: the open-class
+    catalog plus time blocks / first day. Powers the staff-facing preview of the
+    builder (reached from the registration-link preview), so it must not require
+    a guardian relationship."""
+    return {
+        'classes': [c for c in catalog.list_classes(org_id)
+                    if c.get('registration_status') == 'open'],
+        'time_blocks': _sis_settings(org_id).get('time_blocks') or [],
+        'first_day_of_school': _first_day_of_school(org_id),
+    }
+
+
 def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -> Dict[str, Any]:
     """Self-service add: enroll immediately if there's a seat, otherwise join the
     waitlist (when the class allows one). Locked from the first day of school."""

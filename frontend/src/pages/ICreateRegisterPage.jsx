@@ -123,7 +123,7 @@ const PhotoPicker = ({ label, url, onSelect }) => (
 // they unlock only by finishing the one before them.
 const BACK_EDITABLE = new Set(['family', 'details', 'paperwork'])
 
-const VerticalStepper = ({ step, onNavigate }) => {
+const VerticalStepper = ({ step, onNavigate, freeNav = false }) => {
   const idx = STEPS.indexOf(step)
   return (
     <aside className="hidden md:block w-56 shrink-0">
@@ -132,7 +132,8 @@ const VerticalStepper = ({ step, onNavigate }) => {
           {STEPS.map((s, i) => {
             const done = i < idx
             const current = i === idx
-            const clickable = done && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step)
+            // freeNav (preview mode): every step is one click away.
+            const clickable = freeNav ? !current : (done && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step))
             return (
               <li key={s} className="relative pb-7 last:pb-0">
                 {i < STEPS.length - 1 && (
@@ -176,13 +177,13 @@ const VerticalStepper = ({ step, onNavigate }) => {
 
 // Compact horizontal stepper for small screens. Completed steps are tappable
 // to go back and edit.
-const MobileStepper = ({ step, onNavigate }) => {
+const MobileStepper = ({ step, onNavigate, freeNav = false }) => {
   const idx = STEPS.indexOf(step)
   return (
     <div className="md:hidden mb-6">
       <div className="flex items-center gap-1.5 justify-center">
         {STEPS.map((s, i) => {
-          const clickable = i < idx && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step)
+          const clickable = freeNav ? i !== idx : (i < idx && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step))
           return (
             <React.Fragment key={s}>
               <button type="button" disabled={!clickable} onClick={() => clickable && onNavigate(s)}
@@ -238,6 +239,10 @@ const PrimaryButton = ({ onClick, disabled, children }) => (
 
 const ICreateRegisterPage = () => {
   const { code } = useParams()
+  // ?preview=1 — staff walkthrough: step through the whole funnel with sample
+  // data and NO writes (no accounts, no emails, no charges). Safe on a public
+  // page because every mutating call is short-circuited to a local step change.
+  const previewMode = !!code && new URLSearchParams(window.location.search).has('preview')
   const [loading, setLoading] = useState(true)
   const [fatal, setFatal] = useState(null)
   const [config, setConfig] = useState(null)
@@ -329,6 +334,43 @@ const ICreateRegisterPage = () => {
   // Always start each step at the top of the page.
   useEffect(() => { window.scrollTo(0, 0) }, [step])
 
+  // Preview mode: prefill every step with sample data so the form reads like a
+  // real registration without typing anything.
+  useEffect(() => {
+    if (!previewMode || !config) return
+    setAccount({ first_name: 'Pat', last_name: 'Sample', email: 'pat.sample@example.com', password: 'preview-only', confirm: 'preview-only' })
+    setFamily({ phone: '(555) 555-0100', address_line1: '123 Sample St', address_line2: '', city: 'Lehi', state: 'UT', postal_code: '84043' })
+    setKids([{ ...emptyKid(), first_name: 'Casey', last_name: 'Sample', gender: 'female', date_of_birth: '2018-03-14', dob_text: '03/14/2018' }])
+    setContacts([{ name: 'Alex Sample', relationship: 'Grandparent', phone: '(555) 555-0101', email: '' }])
+    setReg({ registration_id: 'preview', access_token: 'preview' })
+    // Fee estimate for one sample kid, mirroring the backend fee model.
+    const family_ = config.registration_fee_cents || 0
+    const per = config.per_student_fee_cents || 0
+    const opts = [family_, per].filter((v) => v > 0)
+    setFeeCents(config.fee_mode === 'per_student' ? per
+      : config.fee_mode === 'lesser' ? (opts.length ? Math.min(...opts) : 0)
+      : family_)
+    // Coming back from the preview Stripe page (full reload): land on the
+    // right step instead of restarting at the account step.
+    const payment = new URLSearchParams(window.location.search).get('payment')
+    if (payment) {
+      window.history.replaceState({}, '', `${window.location.pathname}?preview=1`)
+      if (payment === 'preview-return') {
+        setScheduling({ url: absUrl(config.scheduling_url), emailed: true })
+        setStep('done')
+      } else {
+        setStep('fee')
+        toast('Preview payment canceled — you can try again.')
+      }
+    }
+  }, [previewMode, config])
+
+  // Preview mode: the payment/fee actions land here instead of hitting the API.
+  const previewFinish = () => {
+    setScheduling({ url: absUrl(config?.scheduling_url), emailed: true })
+    setStep('done')
+  }
+
   // Mirror the backend fee model so parents see a live estimate as they add kids.
   const estimateFeeCents = () => {
     if (!config) return 0
@@ -347,6 +389,7 @@ const ICreateRegisterPage = () => {
   // ── Account step ────────────────────────────────────────────────────────────
 
   const submitCreate = async () => {
+    if (previewMode) return setStep('family')
     if (!account.first_name.trim() || !account.last_name.trim()) return toast.error('Enter your first and last name')
     if (!EMAIL_RE.test(account.email)) return toast.error('Enter a valid email')
     if (account.password.length < 8) return toast.error('Password must be at least 8 characters')
@@ -407,6 +450,7 @@ const ICreateRegisterPage = () => {
   }
 
   const submitSignin = async () => {
+    if (previewMode) return setStep('family')
     if (!EMAIL_RE.test(account.email)) return toast.error('Enter a valid email')
     if (!account.password) return toast.error('Enter your password')
     setSubmitting(true)
@@ -461,6 +505,7 @@ const ICreateRegisterPage = () => {
   }
 
   const submitFamily = async () => {
+    if (previewMode) return setStep('details')
     if (!family.phone.trim()) return toast.error('Enter your phone number')
     if (!family.address_line1.trim() || !family.city.trim() || !family.state.trim() || !family.postal_code.trim()) {
       return toast.error('Enter your street address, city, state, and ZIP')
@@ -509,6 +554,7 @@ const ICreateRegisterPage = () => {
   // ── Details / paperwork / fee (unchanged mechanics) ─────────────────────────
 
   const submitDetails = async () => {
+    if (previewMode) return setStep((config.paperwork || []).length ? 'paperwork' : 'fee')
     const validContacts = contacts.filter((c) => c.name.trim() || c.phone.trim())
     if (!validContacts.length) return toast.error('Add at least one emergency contact')
     for (const [i, c] of validContacts.entries()) {
@@ -541,6 +587,7 @@ const ICreateRegisterPage = () => {
   }
 
   const submitPaperwork = async () => {
+    if (previewMode) return setStep('fee')
     const items = config.paperwork || []
     for (const it of items) {
       if (!agreed[it.key]) return toast.error(`Please confirm you agree to: ${it.label}`)
@@ -563,6 +610,7 @@ const ICreateRegisterPage = () => {
   }
 
   const finishFee = useCallback(async () => {
+    if (previewMode) return previewFinish()
     setSubmitting(true)
     try {
       const { data } = await api.post(`/api/icreate/registrations/${reg.registration_id}/fee`, {
@@ -582,6 +630,21 @@ const ICreateRegisterPage = () => {
   // ── Stripe card payment (verified server-side) ─────────────────────────────
 
   const startCheckout = async () => {
+    if (previewMode) {
+      // Real Stripe Checkout page (labeled preview, 50-cent line item — $0
+      // isn't allowed) so staff sees exactly what families navigate.
+      setSubmitting(true)
+      try {
+        const { data } = await api.post('/api/icreate/preview-checkout', {
+          code, return_url: `${window.location.origin}${window.location.pathname}?preview=1`,
+        })
+        window.location.href = data.checkout_url
+      } catch (e) {
+        toast.error(e.response?.data?.error || 'Could not start the preview payment')
+        setSubmitting(false)
+      }
+      return
+    }
     setSubmitting(true)
     try {
       // Persist the funnel identity across the redirect to Stripe and back.
@@ -602,6 +665,7 @@ const ICreateRegisterPage = () => {
   // The passback: ask OUR server to verify the payment with Stripe. Never
   // trusts the browser's word that payment happened.
   const confirmPayment = useCallback(async (rOverride) => {
+    if (previewMode) return previewFinish()
     const r = rOverride || reg
     if (!r) return
     setSubmitting(true)
@@ -680,9 +744,17 @@ const ICreateRegisterPage = () => {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 flex gap-10">
-        <VerticalStepper step={step} onNavigate={setStep} />
+        <VerticalStepper step={step} onNavigate={setStep} freeNav={previewMode} />
         <div className="flex-1 min-w-0 max-w-2xl">
-        <MobileStepper step={step} onNavigate={setStep} />
+        <MobileStepper step={step} onNavigate={setStep} freeNav={previewMode} />
+
+        {previewMode && (
+          <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            <span className="font-semibold">Preview mode</span> — nothing is saved. Buttons advance
+            without creating accounts, sending emails, or charging cards, and you can jump to any
+            step from the stepper.
+          </div>
+        )}
 
         {step === 'account' && !pendingVerify && (
           <div className="space-y-6">
@@ -1038,27 +1110,31 @@ const ICreateRegisterPage = () => {
               <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
               <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
               <p className="text-neutral-500 mb-5">
-                Your account has been created. Next, book an appointment with iCreate staff to
-                build your Customized Learning Plan.
-                {scheduling.emailed && ' We also emailed you the booking link.'}
+                Your account has been created. Next, use the Schedule Builder to create your
+                family's schedule for the coming school year.
               </p>
-              {scheduling.url ? (
-                <a href={scheduling.url} target="_blank" rel="noreferrer"
-                  className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                  Book appointment
-                </a>
-              ) : (
-                <p className="text-sm text-neutral-400">The school will reach out to schedule your appointment.</p>
-              )}
+              {/* Preview mode opens the staff walkthrough of the builder (real
+                  catalog, sample student, nothing saved) in a new tab so the
+                  funnel preview stays put. */}
+              <a href={previewMode ? `/schedule-builder/preview/${code}` : '/schedule-builder'}
+                target={previewMode ? '_blank' : undefined} rel={previewMode ? 'noreferrer' : undefined}
+                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
+                Open the Schedule Builder
+              </a>
               <div className="border-t border-gray-100 mt-7 pt-6">
                 <p className="text-neutral-500 mb-5">
-                  We ask that you use the Schedule Builder to create your schedule for the coming
-                  school year prior to the meeting, so our team can review it with you.
+                  Then book an appointment with iCreate staff to build your Customized Learning
+                  Plan — our team will review your schedule with you at the meeting.
+                  {scheduling.emailed && ' We also emailed you the booking link.'}
                 </p>
-                <a href="/schedule-builder"
-                  className="inline-block px-5 py-2.5 rounded-lg border border-optio-purple text-optio-purple font-semibold hover:bg-optio-purple/5">
-                  Open the Schedule Builder
-                </a>
+                {scheduling.url ? (
+                  <a href={scheduling.url} target="_blank" rel="noreferrer"
+                    className="inline-block px-5 py-2.5 rounded-lg border border-optio-purple text-optio-purple font-semibold hover:bg-optio-purple/5">
+                    Book appointment
+                  </a>
+                ) : (
+                  <p className="text-sm text-neutral-400">The school will reach out to schedule your appointment.</p>
+                )}
               </div>
             </div>
             <p className="text-sm text-neutral-400">
