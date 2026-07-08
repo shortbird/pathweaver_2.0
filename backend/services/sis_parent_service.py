@@ -498,6 +498,31 @@ def schedule_preview(org_id: str) -> Dict[str, Any]:
     }
 
 
+def _meetings_overlap(a_meetings, b_meetings) -> bool:
+    """Do any two weekly meetings share a day and overlapping times?"""
+    def mins(t):
+        try:
+            h, m = str(t).split(':')[:2]
+            return int(h) * 60 + int(m)
+        except (ValueError, TypeError):
+            return None
+    for am in a_meetings or []:
+        if am.get('day_of_week') is None:
+            continue
+        a_start, a_end = mins(am.get('start_time')), mins(am.get('end_time'))
+        if a_start is None or a_end is None:
+            continue
+        for bm in b_meetings or []:
+            if bm.get('day_of_week') != am.get('day_of_week'):
+                continue
+            b_start, b_end = mins(bm.get('start_time')), mins(bm.get('end_time'))
+            if b_start is None or b_end is None:
+                continue
+            if a_start < b_end and b_start < a_end:
+                return True
+    return False
+
+
 def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -> Dict[str, Any]:
     """Self-service add: enroll immediately if there's a seat, otherwise join the
     waitlist (when the class allows one). Locked from the first day of school."""
@@ -509,7 +534,8 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
     if gate:
         return gate
 
-    klass = next((c for c in catalog.list_classes(org_id) if c['id'] == class_id), None)
+    all_classes = catalog.list_classes(org_id)
+    klass = next((c for c in all_classes if c['id'] == class_id), None)
     if not klass or klass.get('registration_status') != 'open':
         return {'error': 'This class is not open for registration'}
 
@@ -519,6 +545,20 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
     ).data or []
     if existing and existing[0].get('status') == 'active':
         return {'enrolled': True, 'already': True}
+
+    # No double-booking: a student can't add a class that overlaps one they're
+    # already in (the builder also disables these adds, but the API is the
+    # enforcement point). Staff-side enrollment is intentionally unrestricted.
+    enrolled_ids = {
+        r['class_id'] for r in (
+            _admin().table('class_enrollments').select('class_id')
+            .eq('student_id', student_user_id).eq('status', 'active').execute()
+        ).data or []
+    }
+    conflict = next((c for c in all_classes if c['id'] in enrolled_ids
+                     and _meetings_overlap(klass.get('meetings'), c.get('meetings'))), None)
+    if conflict:
+        return {'error': f'That class overlaps "{conflict["name"]}" on this schedule — drop it first.'}
 
     enrolled_count = (
         _admin().table('class_enrollments').select('id', count='exact')

@@ -89,7 +89,8 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd,
           </button>
         )}
         {!locked && onAdd && (
-          <button onClick={onAdd} disabled={busy}
+          <button onClick={onAdd} disabled={busy || !!conflict}
+            title={conflict ? `Overlaps ${conflict} — drop it first` : undefined}
             className="px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
             {busy ? 'Adding…' : isFull ? 'Join waitlist' : isCourse ? 'Add course' : 'Add class'}
           </button>

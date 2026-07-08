@@ -108,6 +108,19 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.queryByRole('button', { name: /Drop class|Add class|Join waitlist/ })).not.toBeInTheDocument()
   })
 
+  it('blocks adding a class that overlaps an enrolled class', async () => {
+    const twoHour = { ...POTTERY, id: 'c9', name: 'Fashion 101', meetings: [{ day_of_week: 2, start_time: '10:30', end_time: '12:30' }] }
+    const overlapping = { ...POTTERY, id: 'c8', name: 'Lego Lab', meetings: [{ day_of_week: 2, start_time: '11:30', end_time: '12:30' }] }
+    api.get.mockImplementation(mockApi({ schedule: { classes: [twoHour] }, classes: [overlapping] }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByText('Fashion 101')
+    // Tue at 11:30 — inside the enrolled 2-hour class: (11.5h - 8h) * 60min * 0.9px
+    fireEvent.click(screen.getByTestId('schedule-day-2'), { clientY: 189 })
+    expect(await screen.findByText('Lego Lab')).toBeInTheDocument()
+    expect(screen.getByText(/Overlaps Fashion 101/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+  })
+
   it('offers the waitlist for full classes in the slot popup', async () => {
     api.get.mockImplementation(mockApi({ classes: [{ ...POTTERY, is_full: true, spots_left: 0 }] }))
     api.post.mockResolvedValue({ data: { success: true, waitlisted: true, position: 2 } })

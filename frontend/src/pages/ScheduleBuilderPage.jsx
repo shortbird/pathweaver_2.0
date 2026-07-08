@@ -538,7 +538,8 @@ const SlotClassesModal = ({ slot, classes, age, enrolled, busy, onClose, onDetai
               </div>
               <div className="shrink-0 ml-3 flex items-center gap-2">
                 <button onClick={() => onDetails(c)} className="text-sm text-optio-purple hover:underline">Details</button>
-                <button onClick={() => onAdd(c)} disabled={busy === c.id}
+                <button onClick={() => onAdd(c)} disabled={busy === c.id || !!conflict}
+                  title={conflict ? `Overlaps ${conflict} — drop it first` : undefined}
                   className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
                   {busy === c.id ? 'Adding…' : full ? 'Waitlist' : 'Add'}
                 </button>
