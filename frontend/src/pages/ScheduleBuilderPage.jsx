@@ -79,13 +79,17 @@ const fitsAge = (c, age) => age == null
 
 // ── Block-based tuition ───────────────────────────────────────────────────────
 // The org can define weekly-block pricing tiers (sis_settings.block_pricing,
-// e.g. 5 blocks = $1500/yr or $160/mo). A class's block count is how many
-// teaching blocks its meetings overlap each week — a 2-hour class is 2 blocks,
-// a full school day is 5 (the labeled Lunch block never counts). Tuition is the
-// LESSER of the per-class price sum and the cheapest tier covering the total
-// (so below-tier schedules stay per-class priced). UFA academy students pay a
-// flat plan price instead. Supply fees are always separate, due up front.
+// e.g. 5 blocks = $1500/yr). A class's block count is how many teaching blocks
+// its meetings overlap each week — a 2-hour class is 2 blocks, a full school
+// day is 5 (the labeled Lunch block never counts) — unless the class carries a
+// billing_blocks override (e.g. Exceptional Kids bills as 4 for its staffing
+// ratio). Tuition is the LESSER of the per-class price sum and the cheapest
+// tier covering the total (below-tier schedules stay per-class priced). UFA
+// academy students pay a flat plan price instead, with a minimum block count.
+// Supply fees roll into the financed total; the installment plan adds the
+// org's convenience fee and splits into equal payments.
 const classBlocks = (c, timeBlocks) => {
+  if (c.billing_blocks != null) return c.billing_blocks
   const teaching = (timeBlocks || []).filter((b) => !b.label)
   let n = 0
   for (const m of c.meetings || []) {
@@ -224,18 +228,23 @@ const ScheduleBuilderPage = () => {
 
   // Running tuition across the schedule (waitlist excluded — those seats aren't
   // confirmed): lesser of the per-class sum and the covering block tier, or the
-  // student's flat plan (UFA academy).
+  // student's flat plan (UFA academy). Supplies roll into the financed total.
   const perClassCents = enrolled.map((c) => c.price_cents).reduce((sum, v) => sum + (v || 0), 0)
   const totalBlocks = enrolled.reduce((n, c) => n + classBlocks(c, schedule?.time_blocks), 0)
   const supplyCents = Math.round(enrolled.reduce((s, c) => s + (Number(c.supply_fee) || 0), 0) * 100)
   const blockPricing = schedule?.block_pricing
   const tier = totalBlocks > 0 ? tierFor(blockPricing?.tiers, totalBlocks) : null
-  const isUfa = schedule?.tuition_plan === 'ufa_academy' && (blockPricing?.ufa_year_cents || 0) > 0
-  const tuition = isUfa
-    ? { year: blockPricing.ufa_year_cents, month: null, note: 'UFA academy tuition' }
-    : tier && tier.year_cents <= perClassCents
-      ? { year: tier.year_cents, month: tier.month_cents || null, note: `${totalBlocks}-block plan` }
-      : { year: perClassCents, month: null, note: null }
+  const ufa = schedule?.tuition_plan === 'ufa_academy' ? (blockPricing?.ufa || null) : null
+  const tuitionYearCents = ufa?.year_cents
+    ? ufa.year_cents
+    : tier && tier.year_cents <= perClassCents ? tier.year_cents : perClassCents
+  const tuitionNote = ufa?.year_cents ? 'UFA academy tuition'
+    : tier && tier.year_cents <= perClassCents ? `${totalBlocks}-block plan` : null
+  const totalYearCents = tuitionYearCents + supplyCents
+  const installments = blockPricing?.installments || 0
+  const feePct = blockPricing?.convenience_fee_pct || 0
+  const perPaymentCents = installments > 1 ? Math.round((totalYearCents * (1 + feePct / 100)) / installments) : null
+  const ufaShortfall = ufa?.min_blocks && totalBlocks < ufa.min_blocks ? ufa.min_blocks - totalBlocks : 0
   const tuitionCount = enrolled.length
 
   const openClasses = useMemo(
@@ -362,25 +371,34 @@ const ScheduleBuilderPage = () => {
         {tuitionCount > 0 && (
           <div className="rounded-lg border border-gray-200 bg-white px-4 py-2">
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Estimated tuition</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Estimated total</span>
               <span className="text-lg font-bold text-neutral-900">
-                {money(tuition.year)}<span className="text-xs font-medium text-neutral-400">/yr</span>
+                {money(totalYearCents)}<span className="text-xs font-medium text-neutral-400">/yr</span>
               </span>
-              {tuition.month != null && <span className="text-sm text-neutral-500">or {money(tuition.month)}/mo</span>}
+              {perPaymentCents != null && (
+                <span className="text-sm text-neutral-500">or {installments} payments of {money(perPaymentCents)}</span>
+              )}
               <span className="text-xs text-neutral-400">
                 {tuitionCount} {tuitionCount === 1 ? 'class' : 'classes'} · {totalBlocks} block{totalBlocks === 1 ? '' : 's'}/wk
-                {tuition.note ? ` · ${tuition.note}` : ''}
+                {tuitionNote ? ` · ${tuitionNote}` : ''}
               </span>
             </div>
-            {supplyCents > 0 && (
+            {(supplyCents > 0 || perPaymentCents != null) && (
               <p className="text-xs text-neutral-400 mt-0.5">
-                + {money(supplyCents)} supply fees, due up front (not part of monthly payments)
+                {supplyCents > 0 ? `Includes ${money(supplyCents)} in supply fees.` : ''}
+                {perPaymentCents != null ? `${supplyCents > 0 ? ' ' : ''}The payment plan includes a ${feePct}% convenience fee.` : ''}
               </p>
             )}
           </div>
         )}
       </div>
 
+      {ufaShortfall > 0 && (
+        <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          UFA academy students must schedule at least {ufa.min_blocks} blocks (one full instructional
+          day) — this schedule has {totalBlocks}. Add {ufaShortfall} more block{ufaShortfall === 1 ? '' : 's'} of classes.
+        </div>
+      )}
       {schedule?.registration_hold && (
         <div className="mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
           Your family's registration is on hold — please contact {org?.organization_name || 'your school'} to
