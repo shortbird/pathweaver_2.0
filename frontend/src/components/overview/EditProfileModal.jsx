@@ -13,6 +13,7 @@ const EditProfileModal = ({ isOpen, onClose, user, onUserUpdate }) => {
     defaultValues: {
       first_name: user?.first_name || '',
       last_name: user?.last_name || '',
+      date_of_birth: user?.date_of_birth || '',
       bio: user?.bio || ''
     }
   });
@@ -24,6 +25,7 @@ const EditProfileModal = ({ isOpen, onClose, user, onUserUpdate }) => {
       reset({
         first_name: user.first_name || '',
         last_name: user.last_name || '',
+        date_of_birth: user.date_of_birth || '',
         bio: user.bio || ''
       });
     }
@@ -191,6 +193,18 @@ const EditProfileModal = ({ isOpen, onClose, user, onUserUpdate }) => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Birthday
+              </label>
+              <input
+                {...register('date_of_birth')}
+                type="date"
+                max={new Date().toISOString().split('T')[0]}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Bio
               </label>
               <textarea
@@ -235,6 +249,7 @@ EditProfileModal.propTypes = {
   user: PropTypes.shape({
     first_name: PropTypes.string,
     last_name: PropTypes.string,
+    date_of_birth: PropTypes.string,
     bio: PropTypes.string,
     avatar_url: PropTypes.string
   }),

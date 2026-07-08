@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import api from '../services/api';
+import TranscriptSignatureBlock from '../components/transcript/TranscriptSignatureBlock';
 import {
   ACCREDITATION_ACTIVE,
   WASC_LOGO_SRC,
@@ -220,10 +221,6 @@ const PublicTranscriptPage = () => {
                 <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Student Name:</span>
                 <span className="font-semibold text-gray-900">{studentName}</span>
               </div>
-              <div className="flex">
-                <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Date Issued:</span>
-                <span className="text-gray-900">{dateIssued}</span>
-              </div>
               {dateOfBirth && (
                 <div className="flex">
                   <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Date of Birth:</span>
@@ -296,6 +293,9 @@ const PublicTranscriptPage = () => {
               </div>
             ))}
           </div>
+
+          {/* Certification */}
+          <TranscriptSignatureBlock show={accreditation?.source === 'optio'} issuedDate={dateIssued} />
 
           {/* Footer */}
           <div className="border-t-4 border-double border-gray-900 px-4 sm:px-10 py-4 sm:py-6 mt-4">

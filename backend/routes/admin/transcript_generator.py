@@ -11,6 +11,10 @@ Endpoints:
 - DELETE /api/admin/transcript/<user_id>/planned-credits/<credit_id> - Delete a planned credit
 """
 
+import base64
+import re
+from datetime import datetime
+
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_school_admin
@@ -18,6 +22,7 @@ from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from services.portfolio_service import PortfolioService
 from utils.accreditation import resolve_transcript_accreditation
+from app_config import Config
 
 logger = get_logger(__name__)
 
@@ -501,4 +506,220 @@ def save_overrides(admin_user_id, user_id):
         return success_response({'message': 'Overrides saved'})
     except Exception as e:
         logger.error(f"Error saving transcript overrides: {str(e)}")
+        return error_response(str(e), status_code=500)
+
+
+# --- Transfer to school (official transcript email) ---
+
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+MAX_TRANSCRIPT_PDF_BYTES = 15 * 1024 * 1024
+
+
+@bp.route('/<user_id>/transfers', methods=['GET'])
+@require_school_admin
+def get_transfer_history(admin_user_id, user_id):
+    """List prior transcript transfers for a student (most recent first)."""
+    try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+        supabase = get_supabase_admin_client()
+        result = supabase.table('transcript_transfer_log').select(
+            'id, school_name, recipient_name, recipient_email, status, created_at'
+        ).eq('user_id', user_id).order('created_at', desc=True).limit(20).execute()
+        return success_response({'transfers': result.data or []})
+    except Exception as e:
+        logger.error(f"Error fetching transfer history: {str(e)}")
+        return error_response(str(e), status_code=500)
+
+
+@bp.route('/<user_id>/send', methods=['POST'])
+@require_school_admin
+def send_transcript_to_school(admin_user_id, user_id):
+    """
+    Email the official transcript PDF to a registrar at another school.
+
+    The PDF is generated client-side (same html2pdf path as Download PDF, so
+    the sent document is identical to the downloaded one) and posted here as
+    base64. Sends from the records address with the student's verification
+    link, and logs the transfer for auditing.
+    """
+    try:
+        payload = request.json or {}
+        school_name = (payload.get('school_name') or '').strip()
+        recipient_name = (payload.get('recipient_name') or '').strip()
+        recipient_email = (payload.get('recipient_email') or '').strip()
+        message = (payload.get('message') or '').strip()
+        pdf_base64 = payload.get('pdf_base64') or ''
+
+        if not school_name:
+            return error_response('School name is required', status_code=400)
+        if not EMAIL_RE.match(recipient_email):
+            return error_response('A valid recipient email is required', status_code=400)
+        if not pdf_base64:
+            return error_response('Transcript PDF is missing', status_code=400)
+
+        # Accept both raw base64 and data-URI form from html2pdf
+        if ',' in pdf_base64[:100]:
+            pdf_base64 = pdf_base64.split(',', 1)[1]
+        try:
+            pdf_bytes = base64.b64decode(pdf_base64)
+        except Exception:
+            return error_response('Transcript PDF is not valid base64', status_code=400)
+        if not pdf_bytes.startswith(b'%PDF'):
+            return error_response('Attachment is not a PDF', status_code=400)
+        if len(pdf_bytes) > MAX_TRANSCRIPT_PDF_BYTES:
+            return error_response('Transcript PDF is too large', status_code=400)
+
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+        supabase = get_supabase_admin_client()
+
+        user_result = supabase.table('users').select(
+            'id, first_name, last_name, date_of_birth, organization_id, email, '
+            'is_dependent, managed_by_parent_id'
+        ).eq('id', user_id).execute()
+        if not user_result.data:
+            return error_response('User not found', status_code=404)
+        student = user_result.data[0]
+
+        org_row = None
+        if student.get('organization_id'):
+            try:
+                org_result = supabase.table('organizations').select(
+                    'name, accreditation_source'
+                ).eq('id', student['organization_id']).execute()
+                org_row = org_result.data[0] if org_result.data else None
+            except Exception:
+                org_row = None
+        accreditation = resolve_transcript_accreditation(
+            student.get('organization_id'), org_row
+        )
+
+        # Overrides may carry a corrected display name / issue date / DOB.
+        overrides_result = supabase.table('transcript_overrides').select('overrides').eq(
+            'user_id', user_id
+        ).execute()
+        overrides = overrides_result.data[0]['overrides'] if overrides_result.data else None
+        if overrides is None:
+            # The public verification page only resolves for students with an
+            # overrides row; make sure the link in the email works.
+            supabase.table('transcript_overrides').insert({
+                'user_id': user_id, 'overrides': {}, 'updated_by': admin_user_id
+            }).execute()
+            overrides = {}
+
+        default_name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
+        student_name = overrides.get('student_name') or default_name or 'Student'
+        date_issued = overrides.get('date_issued') or datetime.now().strftime('%B %d, %Y').replace(' 0', ' ')
+
+        # Format a raw YYYY-MM-DD DOB for display; naive string parse, never
+        # through a timezone (a tz round-trip shifts it a day early).
+        date_of_birth = overrides.get('date_of_birth') or ''
+        if not date_of_birth and student.get('date_of_birth'):
+            raw_dob = str(student['date_of_birth'])[:10]
+            try:
+                dob = datetime.strptime(raw_dob, '%Y-%m-%d')
+                date_of_birth = dob.strftime('%B %d, %Y').replace(' 0', ' ')
+            except ValueError:
+                date_of_birth = raw_dob
+
+        verification_url = f"https://www.optioeducation.com/public/transcript/{user_id}"
+        safe_name = re.sub(r'[^A-Za-z0-9]+', '_', student_name).strip('_') or 'Student'
+        filename = f"Transcript_{safe_name}_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+
+        from services.email_service import email_service
+        html_body = email_service.jinja_env.get_template('email/transcript_transfer.html').render(
+            student_name=student_name,
+            date_of_birth=date_of_birth,
+            date_issued=date_issued,
+            school_name=school_name,
+            recipient_name=recipient_name,
+            message=message,
+            verification_url=verification_url,
+            # Contact + Reply-To are tanner@ (ADMIN_EMAIL): support@ delivers to
+            # the rarely-checked optio inbox, while tanner@ auto-forwards to the
+            # monitored gmail account. Keep every registrar path on tanner@.
+            records_email=Config.ADMIN_EMAIL,
+            is_wasc_accredited=accreditation.get('source') == 'optio',
+        )
+        text_body = (
+            f"Official academic transcript for {student_name}, issued by Optio Academy "
+            f"on {date_issued}, is attached. Verify at {verification_url}. "
+            f"Questions: reply to this email ({Config.ADMIN_EMAIL})."
+        )
+
+        sent = email_service.send_email(
+            to_email=recipient_email,
+            subject=f"Official Transcript - {student_name} - Optio Academy",
+            html_body=html_body,
+            text_body=text_body,
+            sender_name_override='Optio Academy Records',
+            reply_to=Config.ADMIN_EMAIL,
+            attachments=[{
+                'filename': filename,
+                'content': pdf_bytes,
+                'mimetype': 'application/pdf',
+            }],
+        )
+
+        log_row = {
+            'user_id': user_id,
+            'sent_by': admin_user_id,
+            'school_name': school_name,
+            'recipient_name': recipient_name or None,
+            'recipient_email': recipient_email,
+            'message': message or None,
+            'status': 'sent' if sent else 'failed',
+        }
+        supabase.table('transcript_transfer_log').insert(log_row).execute()
+
+        if not sent:
+            return error_response('Failed to send transcript email', status_code=502)
+
+        # Notify the student (or, for dependent accounts without their own
+        # mailbox, the managing parent). Best-effort: a notification failure
+        # never fails the transfer itself.
+        try:
+            notify_email = student.get('email')
+            for_parent = False
+            if student.get('is_dependent') and student.get('managed_by_parent_id'):
+                parent_result = supabase.table('users').select('email, first_name').eq(
+                    'id', student['managed_by_parent_id']
+                ).execute()
+                if parent_result.data and parent_result.data[0].get('email'):
+                    notify_email = parent_result.data[0]['email']
+                    notify_first_name = parent_result.data[0].get('first_name') or 'there'
+                    for_parent = True
+            if not for_parent:
+                notify_first_name = student.get('first_name') or 'there'
+
+            if notify_email and EMAIL_RE.match(notify_email):
+                student_html = email_service.jinja_env.get_template(
+                    'email/transcript_sent_student.html'
+                ).render(
+                    first_name=notify_first_name,
+                    student_name=student_name,
+                    school_name=school_name,
+                    date_sent=datetime.now().strftime('%B %d, %Y').replace(' 0', ' '),
+                    for_parent=for_parent,
+                )
+                who = "your" if not for_parent else f"{student_name}'s"
+                student_text = (
+                    f"We sent {who} official transcript to {school_name}. It went directly "
+                    f"to their records office, so there is nothing you need to do. "
+                    f"Questions? Reply to this email."
+                )
+                email_service.send_email(
+                    to_email=notify_email,
+                    subject=f"Your transcript was sent to {school_name}" if not for_parent
+                    else f"{student_name}'s transcript was sent to {school_name}",
+                    html_body=student_html,
+                    text_body=student_text,
+                    sender_name_override='Optio Academy Records',
+                    reply_to=Config.ADMIN_EMAIL,
+                )
+        except Exception as notify_err:
+            logger.error(f"Transcript sent but student notification failed: {notify_err}")
+
+        return success_response({'message': f'Transcript sent to {recipient_email}'})
+    except Exception as e:
+        logger.error(f"Error sending transcript to school: {str(e)}")
         return error_response(str(e), status_code=500)

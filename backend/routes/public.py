@@ -4,6 +4,8 @@ API endpoints that do not require authentication.
 Used for public course pages, discovery, and marketing.
 """
 
+import uuid
+
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -217,6 +219,12 @@ def get_public_transcript(user_id):
     has been created for the student (transcript_overrides row exists).
     No authentication required.
     """
+    # Unauthenticated + linked from transcript emails, so scanners hit it with
+    # mangled IDs. A non-UUID is a clean 404, not a Postgres 22P02 error.
+    try:
+        uuid.UUID(user_id)
+    except (ValueError, AttributeError, TypeError):
+        return jsonify({'error': 'Transcript not found'}), 404
     try:
         # admin client justified: unauthenticated public catalog reads (courses, quests, marketing); RLS would have to permit anonymous reads which adds policy complexity
         client = get_supabase_admin_client()

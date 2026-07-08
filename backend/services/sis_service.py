@@ -67,7 +67,7 @@ def _org_users(org_id: str) -> List[Dict[str, Any]]:
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, '
                 'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth, '
-                'preferred_name, gender, allergies, medications')
+                'preferred_name, gender, allergies, medications, sis_tuition_plan')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -154,6 +154,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'username': s.get('username'),
             'total_xp': s.get('total_xp'),
             'last_active': s.get('last_active'),
+            'sis_tuition_plan': s.get('sis_tuition_plan'),
             'enrollment_status': ((enr or {}).get('status') or 'unassigned') if student else None,
             'grade_level': (enr or {}).get('grade_level'),
             'start_date': (enr or {}).get('start_date'),
@@ -526,7 +527,8 @@ def student_in_org(student_id: str, org_id: str) -> bool:
 
 
 _PROFILE_FIELDS = ('first_name', 'last_name', 'email', 'date_of_birth',
-                   'preferred_name', 'gender', 'allergies', 'medications')
+                   'preferred_name', 'gender', 'allergies', 'medications',
+                   'sis_tuition_plan')
 
 
 def update_student_profile(org_id: str, student_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -545,6 +547,9 @@ def update_student_profile(org_id: str, student_id: str, fields: Dict[str, Any])
         if k in fields:
             v = fields[k]
             payload[k] = (v.strip() if isinstance(v, str) else v) or None
+    # Only known tuition plans (NULL = standard block/class pricing).
+    if payload.get('sis_tuition_plan') not in (None, 'ufa_academy'):
+        payload.pop('sis_tuition_plan')
     # Recompute display_name from the resulting first/last.
     first = payload.get('first_name', cur.get('first_name')) or ''
     last = payload.get('last_name', cur.get('last_name')) or ''

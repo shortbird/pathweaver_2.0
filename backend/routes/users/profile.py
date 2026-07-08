@@ -8,6 +8,7 @@ User profile routes
 """
 
 import uuid
+from datetime import datetime, date
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError, ValidationError
@@ -62,8 +63,33 @@ def update_profile(user_id):
     data = request.json
 
     # Validate allowed fields
-    allowed_fields = ['first_name', 'last_name', 'bio', 'avatar_url', 'display_name', 'portfolio_slug']
+    allowed_fields = ['first_name', 'last_name', 'bio', 'avatar_url', 'display_name', 'portfolio_slug', 'date_of_birth']
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
+
+    if 'date_of_birth' in update_data:
+        dob_raw = (update_data['date_of_birth'] or '').strip() if isinstance(update_data['date_of_birth'], str) else update_data['date_of_birth']
+        if not dob_raw:
+            # Empty value clears the field
+            update_data['date_of_birth'] = None
+        else:
+            try:
+                dob = datetime.strptime(dob_raw, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                raise ValidationError('Invalid date of birth format. Use YYYY-MM-DD')
+            today = date.today()
+            if dob > today:
+                raise ValidationError('Date of birth cannot be in the future')
+            if today.year - dob.year > 120:
+                raise ValidationError('Invalid date of birth')
+            # COPPA: under-13 accounts must be parent-managed, so a self-service
+            # edit can't set a DOB that makes the account under 13.
+            age = (today - dob).days / 365.25
+            if age < 13:
+                raise ValidationError(
+                    'Accounts for children under 13 must be managed by a parent. '
+                    'Please contact support to correct this date of birth.'
+                )
+            update_data['date_of_birth'] = dob.isoformat()
 
     # Derive display_name from first + last so there's a single source of truth.
     # The mobile profile editor dropped its separate display_name field (it read

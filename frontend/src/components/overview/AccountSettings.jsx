@@ -18,6 +18,7 @@ const AccountSettings = ({
     defaultValues: {
       first_name: user?.first_name || '',
       last_name: user?.last_name || '',
+      date_of_birth: user?.date_of_birth || '',
       bio: user?.bio || ''
     }
   });
@@ -133,6 +134,18 @@ const AccountSettings = ({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Birthday
+                  </label>
+                  <input
+                    {...register('date_of_birth')}
+                    type="date"
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors min-h-[44px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Learning Vision
                   </label>
                   <p className="text-xs text-gray-500 mb-2">
@@ -164,6 +177,7 @@ const AccountSettings = ({
                       reset({
                         first_name: user?.first_name || '',
                         last_name: user?.last_name || '',
+                        date_of_birth: user?.date_of_birth || '',
                         bio: user?.bio || ''
                       });
                     }}
@@ -183,6 +197,14 @@ const AccountSettings = ({
                   <p className="text-sm text-gray-500">Email</p>
                   <p className="text-gray-900">{user?.email}</p>
                 </div>
+                {user?.date_of_birth && (
+                  <div>
+                    <p className="text-sm text-gray-500">Birthday</p>
+                    <p className="text-gray-900">
+                      {new Date(`${user.date_of_birth}T00:00:00`).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
                 {user?.bio && (
                   <div>
                     <p className="text-sm text-gray-500">Learning Vision</p>

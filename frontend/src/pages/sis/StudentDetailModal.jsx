@@ -37,6 +37,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
     grade_level: student.grade_level || '',
     allergies: student.allergies || '',
     medications: student.medications || '',
+    sis_tuition_plan: student.sis_tuition_plan || '',
   })
   const [saving, setSaving] = useState(false)
   const setField = (k, v) => setForm((p) => ({ ...p, [k]: v }))
@@ -48,7 +49,8 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         first_name: form.first_name, last_name: form.last_name,
         preferred_name: form.preferred_name || null, gender: form.gender || null,
         allergies: form.allergies || null, medications: form.medications || null,
-        email: form.email || null, date_of_birth: form.date_of_birth || null, organization_id: orgId,
+        email: form.email || null, date_of_birth: form.date_of_birth || null,
+        sis_tuition_plan: form.sis_tuition_plan || null, organization_id: orgId,
       })]
       if (form.role) {
         reqs.push(api.patch(`/api/sis/users/${student.student_id}/role`, { role: form.role, organization_id: orgId }))
@@ -171,6 +173,19 @@ const ProfileFields = ({ form, set, isStudent }) => (
             <textarea rows={2} value={form.medications} onChange={(e) => set('medications', e.target.value)} className={`${field} resize-none`} placeholder="None" />
           </label>
         </div>
+        <label className="flex items-start gap-2 text-sm text-neutral-700">
+          <input
+            type="checkbox" className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+            checked={form.sis_tuition_plan === 'ufa_academy'}
+            onChange={(e) => set('sis_tuition_plan', e.target.checked ? 'ufa_academy' : '')}
+          />
+          <span>
+            UFA private school academy student
+            <span className="block text-xs text-neutral-400">
+              Flat academy tuition regardless of blocks taken — replaces block/class pricing in the Schedule Builder.
+            </span>
+          </span>
+        </label>
       </>
     )}
     <p className="text-xs text-neutral-400 -mt-1">Changing the email updates the user's login.</p>

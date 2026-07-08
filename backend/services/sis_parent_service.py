@@ -459,6 +459,16 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
                     'age_range': r.get('age_range'), 'tuition_cents': tuition_cents} for r in rows]
 
     household = _student_household(org_id, student_user_id)
+    # Block-based tuition: the org's tier config plus this student's plan
+    # override (e.g. flat UFA academy tuition) so the builder can price the week.
+    tuition_plan = None
+    try:
+        prow = (_admin().table('users').select('sis_tuition_plan')
+                .eq('id', student_user_id).limit(1).execute()).data
+        tuition_plan = (prow[0] or {}).get('sis_tuition_plan') if prow else None
+    except Exception:  # noqa: BLE001
+        pass
+    settings = _sis_settings(org_id)
     return {
         'classes': classes,
         'waitlist': waitlist,
@@ -467,7 +477,9 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'first_day_of_school': _first_day_of_school(org_id),
         'changes_locked': _changes_locked(org_id),
         'registration_hold': bool((household or {}).get('registration_hold')),
-        'time_blocks': _sis_settings(org_id).get('time_blocks') or [],
+        'time_blocks': settings.get('time_blocks') or [],
+        'block_pricing': settings.get('block_pricing') or None,
+        'tuition_plan': tuition_plan,
     }
 
 
@@ -476,10 +488,12 @@ def schedule_preview(org_id: str) -> Dict[str, Any]:
     catalog plus time blocks / first day. Powers the staff-facing preview of the
     builder (reached from the registration-link preview), so it must not require
     a guardian relationship."""
+    settings = _sis_settings(org_id)
     return {
         'classes': [c for c in catalog.list_classes(org_id)
                     if c.get('registration_status') == 'open'],
-        'time_blocks': _sis_settings(org_id).get('time_blocks') or [],
+        'time_blocks': settings.get('time_blocks') or [],
+        'block_pricing': settings.get('block_pricing') or None,
         'first_day_of_school': _first_day_of_school(org_id),
     }
 

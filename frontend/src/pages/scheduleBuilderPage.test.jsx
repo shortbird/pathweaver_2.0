@@ -152,6 +152,67 @@ describe('ScheduleBuilderPage', () => {
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText('Estimated tuition')).toBeInTheDocument()
     expect(screen.getByText('$75.50')).toBeInTheDocument()
-    expect(screen.getByText('2 classes')).toBeInTheDocument()
+    expect(screen.getByText(/2 classes/)).toBeInTheDocument()
+  })
+
+  // ── Block-based tuition (sis_settings.block_pricing) ────────────────────────
+  const BLOCKS = [
+    { start: '09:30', end: '10:30' }, { start: '10:30', end: '11:30' }, { start: '11:30', end: '12:30' },
+    { start: '12:30', end: '13:00', label: 'Lunch' }, { start: '13:00', end: '14:00' }, { start: '14:00', end: '15:00' },
+  ]
+  const PRICING = {
+    tiers: [
+      { blocks: 5, year_cents: 150000, month_cents: 16000 },
+      { blocks: 10, year_cents: 280000, month_cents: 29000 },
+    ],
+    ufa_year_cents: 475000,
+  }
+  // A one-block class aligned to the 9:30 block on a given day.
+  const oneBlock = (id, day) => ({
+    ...POTTERY, id, name: `Class ${id}`, price_cents: 36500,
+    meetings: [{ day_of_week: day, start_time: '09:30', end_time: '10:30' }],
+  })
+
+  it('block tier wins when cheaper than the per-class sum (lesser of the two)', async () => {
+    // 5 one-block classes = $1825 per-class vs the 5-block tier at $1500.
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [1, 2, 3, 4, 5].map((i) => oneBlock(`c${i}`, (i % 4) + 1)),
+        time_blocks: BLOCKS, block_pricing: PRICING,
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('Estimated tuition')).toBeInTheDocument()
+    expect(screen.getByText('$1500.00')).toBeInTheDocument()
+    expect(screen.getByText('or $160.00/mo')).toBeInTheDocument()
+    expect(screen.getByText(/5 blocks\/wk · 5-block plan/)).toBeInTheDocument()
+  })
+
+  it('stays per-class priced below the tiers, with supply fees called out up front', async () => {
+    // 2 blocks = $730 per-class, cheaper than the covering 5-block tier ($1500).
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [{ ...oneBlock('c1', 2), supply_fee: 35 }, oneBlock('c2', 4)],
+        time_blocks: BLOCKS, block_pricing: PRICING,
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('Estimated tuition')).toBeInTheDocument()
+    expect(screen.getByText('$730.00')).toBeInTheDocument()
+    expect(screen.queryByText(/\/mo/)).not.toBeInTheDocument()
+    expect(screen.getByText(/\+ \$35\.00 supply fees, due up front/)).toBeInTheDocument()
+  })
+
+  it('UFA academy students pay the flat plan price regardless of blocks', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [oneBlock('c1', 2)],
+        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('Estimated tuition')).toBeInTheDocument()
+    expect(screen.getByText('$4750.00')).toBeInTheDocument()
+    expect(screen.getByText(/UFA academy tuition/)).toBeInTheDocument()
   })
 })

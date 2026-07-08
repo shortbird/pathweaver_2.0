@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import TranscriptSignatureBlock from '../../components/transcript/TranscriptSignatureBlock';
+import TransferToSchoolModal from '../../components/transcript/TransferToSchoolModal';
 import {
   ACCREDITATION_ACTIVE,
   WASC_LOGO_SRC,
@@ -162,9 +164,30 @@ const TranscriptGeneratorPage = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const [downloading, setDownloading] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+
+  // Shared html2pdf options: keeps Download PDF and Transfer to School
+  // producing the identical document. Hides edit-only UI in the clone.
+  const pdfOptions = (filename) => ({
+    margin: [10, 10, 10, 10],
+    filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      onclone: (doc) => {
+        doc.querySelectorAll(
+          '#printable-transcript .no-print, #printable-transcript .no-print-edit'
+        ).forEach((n) => { n.style.display = 'none'; });
+      },
+    },
+    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+    pagebreak: { mode: 'css' },
+  });
 
   // Generate a clean PDF straight from the transcript element (no browser
-  // print chrome / URL / title header). Hides edit-only UI in the clone.
+  // print chrome / URL / title header).
   const handleDownloadPdf = async () => {
     const el = document.getElementById('printable-transcript');
     if (!el) return;
@@ -174,28 +197,20 @@ const TranscriptGeneratorPage = () => {
       const last = data?.student?.last_name || '';
       const initials = ((first[0] || '') + (last[0] || '')).toUpperCase() || 'XX';
       const dateStr = new Date().toISOString().split('T')[0];
-      await html2pdf().set({
-        margin: [10, 10, 10, 10],
-        filename: `Transcript_${initials}_${dateStr}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          onclone: (doc) => {
-            doc.querySelectorAll(
-              '#printable-transcript .no-print, #printable-transcript .no-print-edit'
-            ).forEach((n) => { n.style.display = 'none'; });
-          },
-        },
-        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
-        pagebreak: { mode: 'css' },
-      }).from(el).save();
+      await html2pdf().set(pdfOptions(`Transcript_${initials}_${dateStr}.pdf`)).from(el).save();
     } catch (err) {
       toast.error('Failed to generate PDF');
     } finally {
       setDownloading(false);
     }
+  };
+
+  // Same PDF as Download, but returned as a base64 data URI for the
+  // Transfer to School email endpoint.
+  const generatePdfBase64 = async () => {
+    const el = document.getElementById('printable-transcript');
+    if (!el) throw new Error('Transcript not ready');
+    return html2pdf().set(pdfOptions('transcript.pdf')).from(el).outputPdf('datauristring');
   };
 
   // Auto-save overrides with debounce
@@ -386,7 +401,18 @@ const TranscriptGeneratorPage = () => {
   }
 
   const { student, earned_credits, class_credits, transfer_credits, planned_credits, totals, accreditation } = data;
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  // Timezone-safe: date-only strings (YYYY-MM-DD) must be split manually.
+  // new Date('2008-07-22') parses as UTC midnight and renders a day early
+  // in any western timezone.
+  const formatDate = (d) => {
+    if (!d) return '';
+    const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      return `${months[parseInt(m[2], 10) - 1]} ${parseInt(m[3], 10)}, ${m[1]}`;
+    }
+    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
   // Show the ACS WASC mark only when this transcript is issued under Optio
   // Academy's accreditation (partners with their own accreditation are excluded).
   const isWascAccredited = ACCREDITATION_ACTIVE && accreditation?.source === 'optio';
@@ -509,7 +535,7 @@ const TranscriptGeneratorPage = () => {
 
   // Displayed field values (override or default)
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
-  const dateIssued = field('date_issued', formatDate(new Date().toISOString()));
+  const dateIssued = field('date_issued', new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }));
   const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
   const orgName = field('organization_name', student.organization_name || '');
 
@@ -562,6 +588,15 @@ const TranscriptGeneratorPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 4v12m0 0l-4-4m4 4l4-4" />
               </svg>
               {downloading ? 'Generating...' : 'Download PDF'}
+            </button>
+            <button
+              onClick={() => setShowTransferModal(true)}
+              className="px-3 py-1.5 text-sm bg-blue-700 text-white rounded-lg hover:bg-blue-800 flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+              Transfer to School
             </button>
           </div>
         </div>
@@ -789,14 +824,6 @@ const TranscriptGeneratorPage = () => {
                 />
               </div>
               <div className="flex">
-                <span className="w-32 text-gray-500 flex-shrink-0">Date Issued:</span>
-                <EditableField
-                  value={dateIssued}
-                  onChange={v => updateOverride('date_issued', v)}
-                  className="text-gray-900"
-                />
-              </div>
-              <div className="flex">
                 <span className="w-32 text-gray-500 flex-shrink-0">Date of Birth:</span>
                 <DatePickerField
                   value={dateOfBirth}
@@ -949,6 +976,9 @@ const TranscriptGeneratorPage = () => {
             </table>
           </div>
 
+          {/* Certification */}
+          <TranscriptSignatureBlock show={accreditation?.source === 'optio'} issuedDate={dateIssued} />
+
           {/* Footer */}
           <div className="border-t-4 border-double border-gray-900 px-10 py-6 mt-4">
             <div className="flex justify-between gap-3 text-xs text-gray-500">
@@ -975,6 +1005,15 @@ const TranscriptGeneratorPage = () => {
           </div>
         </div>
       </div>
+
+      {showTransferModal && (
+        <TransferToSchoolModal
+          userId={userId}
+          studentName={`${student.first_name || ''} ${student.last_name || ''}`.trim()}
+          generatePdfBase64={generatePdfBase64}
+          onClose={() => setShowTransferModal(false)}
+        />
+      )}
 
       {/* Print styles */}
       <style>{`

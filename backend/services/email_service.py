@@ -5,6 +5,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from typing import Optional, List, Dict, Any
 from services.base_service import BaseService
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
@@ -46,7 +47,10 @@ class EmailService(BaseService):
         text_body: Optional[str] = None,
         cc: Optional[List[str]] = None,
         bcc: Optional[List[str]] = None,
-        sender_name_override: Optional[str] = None
+        sender_name_override: Optional[str] = None,
+        sender_email_override: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        reply_to: Optional[str] = None
     ) -> bool:
         """
         Send an email using configured SMTP settings
@@ -58,18 +62,32 @@ class EmailService(BaseService):
             text_body: Plain text content (optional)
             cc: List of CC recipients (optional)
             bcc: List of BCC recipients (optional)
+            sender_email_override: From address (must be on the authenticated
+                sending domain, e.g. records@optioeducation.com)
+            attachments: List of {'filename': str, 'content': bytes,
+                'mimetype': str} dicts (optional)
 
         Returns:
             True if email sent successfully, False otherwise
         """
         try:
-            # Create message
-            msg = MIMEMultipart('alternative')
-            # Use sender_name_override if provided, otherwise use default
+            # Create message. With attachments, the standard structure is a
+            # 'mixed' outer part holding an 'alternative' body part plus the
+            # attachment parts; without them, 'alternative' alone suffices.
             sender_display_name = sender_name_override if sender_name_override else self.sender_name
-            msg['From'] = f"{sender_display_name} <{self.sender_email}>"
+            sender_email = sender_email_override if sender_email_override else self.sender_email
+            if attachments:
+                msg = MIMEMultipart('mixed')
+                body = MIMEMultipart('alternative')
+                msg.attach(body)
+            else:
+                msg = MIMEMultipart('alternative')
+                body = msg
+            msg['From'] = f"{sender_display_name} <{sender_email}>"
             msg['To'] = to_email
             msg['Subject'] = subject
+            if reply_to:
+                msg['Reply-To'] = reply_to
 
             if cc:
                 msg['Cc'] = ', '.join(cc)
@@ -81,11 +99,23 @@ class EmailService(BaseService):
             # Add plain text part if provided
             if text_body:
                 text_part = MIMEText(text_body, 'plain')
-                msg.attach(text_part)
+                body.attach(text_part)
 
             # Add HTML part
             html_part = MIMEText(html_body, 'html')
-            msg.attach(html_part)
+            body.attach(html_part)
+
+            # Add file attachments (e.g. transcript PDFs)
+            for attachment in (attachments or []):
+                part = MIMEApplication(
+                    attachment['content'],
+                    _subtype=attachment.get('mimetype', 'application/pdf').split('/')[-1]
+                )
+                part.add_header(
+                    'Content-Disposition', 'attachment',
+                    filename=attachment['filename']
+                )
+                msg.attach(part)
 
             # Automatically copy support email for monitoring all outgoing emails
             # Note: We'll send a separate copy instead of BCC due to SendGrid SMTP limitations
@@ -130,7 +160,7 @@ class EmailService(BaseService):
                 try:
                     # Create a copy of the message with support email as recipient
                     support_msg = MIMEMultipart('alternative')
-                    support_msg['From'] = f"{sender_display_name} <{self.sender_email}>"
+                    support_msg['From'] = f"{sender_display_name} <{sender_email}>"
                     support_msg['To'] = support_copy_email
                     support_msg['Subject'] = f"[COPY] {subject}"  # Mark as copy for clarity
 

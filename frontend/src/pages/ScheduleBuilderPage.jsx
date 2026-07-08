@@ -76,6 +76,34 @@ const ageOn = (dob, onDate) => {
 // Unknown age (no DOB on file) never hides classes.
 const fitsAge = (c, age) => age == null
   || ((c.min_age == null || age >= c.min_age) && (c.max_age == null || age <= c.max_age))
+
+// ── Block-based tuition ───────────────────────────────────────────────────────
+// The org can define weekly-block pricing tiers (sis_settings.block_pricing,
+// e.g. 5 blocks = $1500/yr or $160/mo). A class's block count is how many
+// teaching blocks its meetings overlap each week — a 2-hour class is 2 blocks,
+// a full school day is 5 (the labeled Lunch block never counts). Tuition is the
+// LESSER of the per-class price sum and the cheapest tier covering the total
+// (so below-tier schedules stay per-class priced). UFA academy students pay a
+// flat plan price instead. Supply fees are always separate, due up front.
+const classBlocks = (c, timeBlocks) => {
+  const teaching = (timeBlocks || []).filter((b) => !b.label)
+  let n = 0
+  for (const m of c.meetings || []) {
+    const s = toMin(m.start_time); const e = toMin(m.end_time)
+    if (s == null || e == null) continue
+    for (const b of teaching) {
+      const bs = toMin(b.start); const be = toMin(b.end)
+      if (bs != null && be != null && s < be && bs < e) n += 1
+    }
+  }
+  return n
+}
+
+// Cheapest tier whose block allowance covers the schedule (round up);
+// null when the block count exceeds the top tier.
+const tierFor = (tiers, blocks) => [...(tiers || [])]
+  .sort((a, b) => a.blocks - b.blocks)
+  .find((t) => blocks <= t.blocks) || null
 const meetsAt = (c, f) => (c.meetings || []).some((m) => {
   if (m.day_of_week !== f.day) return false
   const s = toMin(m.start_time); const e = toMin(m.end_time)
@@ -118,6 +146,7 @@ const ScheduleBuilderPage = () => {
           setSchedule({
             classes: [], waitlist: [], changes_locked: false,
             time_blocks: r.data?.time_blocks || [],
+            block_pricing: r.data?.block_pricing || null,
             first_day_of_school: r.data?.first_day_of_school || null,
           })
           setCatalog(r.data?.classes || [])
@@ -193,9 +222,20 @@ const ScheduleBuilderPage = () => {
   const enrolledIds = new Set(enrolled.map((c) => c.id))
   const waitlistIds = new Set(waitlist.map((w) => w.class_id))
 
-  // Running tuition total across everything on the schedule (waitlist excluded —
-  // those seats aren't confirmed).
-  const tuitionCents = enrolled.map((c) => c.price_cents).reduce((sum, v) => sum + (v || 0), 0)
+  // Running tuition across the schedule (waitlist excluded — those seats aren't
+  // confirmed): lesser of the per-class sum and the covering block tier, or the
+  // student's flat plan (UFA academy).
+  const perClassCents = enrolled.map((c) => c.price_cents).reduce((sum, v) => sum + (v || 0), 0)
+  const totalBlocks = enrolled.reduce((n, c) => n + classBlocks(c, schedule?.time_blocks), 0)
+  const supplyCents = Math.round(enrolled.reduce((s, c) => s + (Number(c.supply_fee) || 0), 0) * 100)
+  const blockPricing = schedule?.block_pricing
+  const tier = totalBlocks > 0 ? tierFor(blockPricing?.tiers, totalBlocks) : null
+  const isUfa = schedule?.tuition_plan === 'ufa_academy' && (blockPricing?.ufa_year_cents || 0) > 0
+  const tuition = isUfa
+    ? { year: blockPricing.ufa_year_cents, month: null, note: 'UFA academy tuition' }
+    : tier && tier.year_cents <= perClassCents
+      ? { year: tier.year_cents, month: tier.month_cents || null, note: `${totalBlocks}-block plan` }
+      : { year: perClassCents, month: null, note: null }
   const tuitionCount = enrolled.length
 
   const openClasses = useMemo(
@@ -320,10 +360,23 @@ const ScheduleBuilderPage = () => {
           slot to pick a class, or a scheduled class to see details.
         </p>
         {tuitionCount > 0 && (
-          <div className="inline-flex items-baseline gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Estimated tuition</span>
-            <span className="text-lg font-bold text-neutral-900">{money(tuitionCents)}</span>
-            <span className="text-xs text-neutral-400">{tuitionCount} {tuitionCount === 1 ? 'class' : 'classes'}</span>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-2">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Estimated tuition</span>
+              <span className="text-lg font-bold text-neutral-900">
+                {money(tuition.year)}<span className="text-xs font-medium text-neutral-400">/yr</span>
+              </span>
+              {tuition.month != null && <span className="text-sm text-neutral-500">or {money(tuition.month)}/mo</span>}
+              <span className="text-xs text-neutral-400">
+                {tuitionCount} {tuitionCount === 1 ? 'class' : 'classes'} · {totalBlocks} block{totalBlocks === 1 ? '' : 's'}/wk
+                {tuition.note ? ` · ${tuition.note}` : ''}
+              </span>
+            </div>
+            {supplyCents > 0 && (
+              <p className="text-xs text-neutral-400 mt-0.5">
+                + {money(supplyCents)} supply fees, due up front (not part of monthly payments)
+              </p>
+            )}
           </div>
         )}
       </div>

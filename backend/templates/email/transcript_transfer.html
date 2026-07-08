@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Official Transcript - {{ student_name }}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Georgia, 'Times New Roman', serif; background-color: #f8f9fa;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; max-width: 90%; border-collapse: collapse; background-color: #ffffff; border: 1px solid #e5e5e5;">
+                    <!-- Letterhead -->
+                    <tr>
+                        <td style="padding: 36px 48px 24px 48px; text-align: center; border-bottom: 3px double #1f2937;">
+                            <p style="margin: 0; font-size: 24px; font-weight: 700; color: #1f2937; letter-spacing: 0.5px;">Optio Academy</p>
+                            <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280; letter-spacing: 2px; text-transform: uppercase;">Office of Records</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 36px 48px;">
+                            <p style="margin: 0 0 18px 0; font-size: 15px; line-height: 1.7; color: #1f2937;">
+                                {% if recipient_name %}Dear {{ recipient_name }},{% else %}To the Records Office of {{ school_name }},{% endif %}
+                            </p>
+                            <p style="margin: 0 0 18px 0; font-size: 15px; line-height: 1.7; color: #1f2937;">
+                                Please find attached the official academic transcript for
+                                <strong>{{ student_name }}</strong>{% if date_of_birth %} (date of birth {{ date_of_birth }}){% endif %},
+                                issued by Optio Academy on {{ date_issued }}. This document is sent
+                                as official school-to-school correspondence in connection with the
+                                student's records at {{ school_name }}.
+                            </p>
+                            {% if message %}
+                            <p style="margin: 0 0 18px 0; padding: 14px 18px; font-size: 15px; line-height: 1.7; color: #1f2937; background-color: #f9fafb; border-left: 3px solid #9ca3af;">
+                                {{ message }}
+                            </p>
+                            {% endif %}
+                            <p style="margin: 0 0 18px 0; font-size: 15px; line-height: 1.7; color: #1f2937;">
+                                To independently verify this transcript, you may view the copy
+                                hosted by Optio Academy at:
+                                <br>
+                                <a href="{{ verification_url }}" style="color: #1d4ed8; word-break: break-all;">{{ verification_url }}</a>
+                            </p>
+                            <p style="margin: 0 0 18px 0; font-size: 15px; line-height: 1.7; color: #1f2937;">
+                                If you have any questions regarding this transcript or require
+                                additional documentation, please reply to this email.
+                            </p>
+                            <p style="margin: 28px 0 0 0; font-size: 15px; line-height: 1.7; color: #1f2937;">
+                                Sincerely,
+                                <br><br>
+                                <strong>Dr. Tanner Bowman</strong>
+                                <br>
+                                Head of School, Optio Academy
+                                <br>
+                                <a href="mailto:{{ records_email }}" style="color: #1d4ed8;">{{ records_email }}</a>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Partnership note: deliberately separated from the official
+                         correspondence above, letterhead-footer style. Avoids the
+                         word "accredited" so it never makes a WASC claim outside
+                         the conditional commission block below. -->
+                    <tr>
+                        <td style="padding: 20px 48px; border-top: 1px solid #e5e5e5; background-color: #f9fafb;">
+                            <p style="margin: 0 0 6px 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #9ca3af;">For school administrators</p>
+                            <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #4b5563;">
+                                Optio partners with schools and districts on credit recovery,
+                                acceleration and early graduation, and supplemental online courses
+                                that earn transferable credit. The platform also integrates with
+                                your existing LMS through our LTI. Learn more at
+                                <a href="https://www.optioeducation.com/for-schools" style="color: #1d4ed8;">optioeducation.com/for-schools</a>
+                                or reply to this email to start a conversation.
+                            </p>
+                        </td>
+                    </tr>
+
+                    {% if is_wasc_accredited %}
+                    <!-- Accreditation block (commission identity required with any claim) -->
+                    <tr>
+                        <td style="padding: 20px 48px 28px 48px; border-top: 1px solid #e5e5e5;">
+                            <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #6b7280;">
+                                Optio Academy is accredited by the Accrediting Commission for
+                                Schools, Western Association of Schools and Colleges (ACS WASC).
+                                <br>
+                                533 Airport Blvd., Suite 200, Burlingame, CA 94010 &middot;
+                                <a href="https://www.acswasc.org" style="color: #6b7280;">www.acswasc.org</a>
+                            </p>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
