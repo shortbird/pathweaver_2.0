@@ -319,6 +319,44 @@ def get_public_transcript(user_id):
                     'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject)
                 }
 
+        # Awarded classes (approved in admin class reviews) — mirrors
+        # routes/admin/transcript_generator.py. POE classes whose credit was
+        # deposited into user_subject_xp by the POE award endpoint are
+        # excluded to avoid double-counting with earned_credits.
+        CLASS_CREDIT_VALUE = 0.5
+        class_result = client.table('quests').select(
+            'id, title, transcript_subject, class_review_submitted_at'
+        ).eq('created_by', user_id).eq('quest_type', 'class').eq(
+            'class_review_status', 'credit_awarded'
+        ).order('class_review_submitted_at', desc=False).execute()
+
+        poe_quest_ids = set()
+        if class_result.data:
+            poe_result = client.table('poe_participants').select(
+                'class_quest_id'
+            ).eq('user_id', user_id).not_.is_(
+                'credit_awarded_at', 'null'
+            ).execute()
+            poe_quest_ids = {
+                p['class_quest_id'] for p in (poe_result.data or [])
+                if p.get('class_quest_id')
+            }
+
+        class_credits = []
+        for cq in (class_result.data or []):
+            if cq['id'] in poe_quest_ids:
+                continue
+            subject = cq.get('transcript_subject') or 'electives'
+            class_credits.append({
+                'quest_id': cq['id'],
+                'school_subject': subject,
+                'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject),
+                'course_name': cq.get('title'),
+                'credits': CLASS_CREDIT_VALUE,
+                'grade': 'A',
+                'awarded_at': cq.get('class_review_submitted_at')
+            })
+
         # Planned credits
         planned_result = client.table('planned_credits').select('*').eq(
             'user_id', user_id
@@ -336,6 +374,7 @@ def get_public_transcript(user_id):
             })
 
         total_earned = sum(c['credits'] for c in earned_credits.values())
+        total_class = sum(cc['credits'] for cc in class_credits)
         total_transfer = sum(tc['total_credits'] for tc in transfer_credits)
         total_planned = sum(pc['credits'] for pc in planned_credits if pc['status'] == 'in_progress')
 
@@ -351,14 +390,16 @@ def get_public_transcript(user_id):
                 },
                 'accreditation': accreditation,
                 'earned_credits': earned_credits,
+                'class_credits': class_credits,
                 'transfer_credits': transfer_credits,
                 'planned_credits': planned_credits,
                 'overrides': overrides,
                 'totals': {
                     'earned_credits': round(total_earned, 2),
+                    'class_credits': round(total_class, 2),
                     'transfer_credits': round(total_transfer, 2),
                     'planned_credits': round(total_planned, 2),
-                    'total_completed': round(total_earned + total_transfer, 2)
+                    'total_completed': round(total_earned + total_class + total_transfer, 2)
                 }
             }
         }), 200

@@ -198,6 +198,15 @@ def enroll_in_poe():
             logger.error(f"[POE] signup insert failed for {mask_email(email)}: {signup_err}")
             return jsonify({'error': 'Could not save your signup. Please try again.'}), 500
 
+        # Marketing sync: parent email only, never the student's (all POE
+        # signups are minors). Fire-and-forget.
+        if parent_email:
+            try:
+                from services.brevo_service import sync_poe_parent
+                sync_poe_parent(parent_email, first_name=parent_first_name, last_name=parent_last_name)
+            except Exception as brevo_err:
+                logger.warning(f"[POE] Brevo parent sync skipped: {brevo_err}")
+
         # --- Send the confirmation email (also to the parent for minors) ---
         email_sent = False
         try:

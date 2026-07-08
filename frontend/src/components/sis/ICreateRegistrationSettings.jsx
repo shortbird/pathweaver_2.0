@@ -18,6 +18,11 @@ const absUrl = (v) => {
   return /^https?:\/\//i.test(s) ? s : `https://${s}`
 }
 
+// Stripe secret keys are sk_… (or restricted rk_…) and much longer than 20
+// chars; anything else breaks the funnel at "Pay securely", so reject it at
+// save time. Kept loose enough for legacy keys without the live/test segment.
+const STRIPE_KEY_RE = /^(sk|rk)_[A-Za-z0-9_]{20,}$/
+
 /**
  * Admin config for the iCreate parent registration funnel, stored in
  * organizations.feature_flags.icreate_registration. Rendered on the SIS Settings
@@ -151,6 +156,9 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
     const perStudentCents = Math.round(parseFloat(perStudentFee || '0') * 100)
     if (Number.isNaN(feeCents) || feeCents < 0) return toast.error('Enter a valid per-family fee')
     if (Number.isNaN(perStudentCents) || perStudentCents < 0) return toast.error('Enter a valid per-student fee')
+    if (stripeKey.trim() && !STRIPE_KEY_RE.test(stripeKey.trim())) {
+      return toast.error("That doesn't look like a Stripe secret key — copy the full key (sk_live_… or rk_live_…) from Stripe Dashboard → Developers → API keys.")
+    }
     const items = paperwork
       .filter((it) => (it.label || '').trim())
       .map((it) => ({
@@ -282,6 +290,12 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
           <label className="block text-xs font-medium text-neutral-500 mb-1">Stripe secret key (school's own Stripe account)</label>
           <input type="password" className={field} value={stripeKey} onChange={(e) => setStripeKey(e.target.value)}
             placeholder="rk_live_… (restricted key recommended)" autoComplete="off" />
+          {stripeKey.trim() && !STRIPE_KEY_RE.test(stripeKey.trim()) && (
+            <p className="text-xs text-red-600 mt-1" role="alert">
+              This doesn't look like a Stripe secret key — it should start with sk_ or rk_ (e.g. sk_live_…)
+              and be much longer. Copy the full key from Stripe Dashboard → Developers → API keys.
+            </p>
+          )}
           <p className="text-xs text-neutral-400 mt-1">
             With a key set, parents pay by card at checkout and the platform verifies the payment with Stripe
             before completing registration. Funds go directly to the school's Stripe account. Create a

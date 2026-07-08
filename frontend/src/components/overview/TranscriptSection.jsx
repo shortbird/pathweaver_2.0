@@ -44,7 +44,7 @@ const TranscriptSection = ({ studentId }) => {
 
   if (loading || !exists || !data) return null;
 
-  const { student, earned_credits, transfer_credits, planned_credits, overrides, totals } = data;
+  const { student, earned_credits, class_credits, transfer_credits, planned_credits, overrides, totals } = data;
   const field = (key, fallback) => overrides?.[key] !== undefined && overrides[key] !== '' ? overrides[key] : fallback;
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
@@ -62,6 +62,22 @@ const TranscriptSection = ({ studentId }) => {
         status: 'Completed'
       });
     }
+  });
+
+  const classesBySubject = {};
+  (class_credits || []).forEach(cc => {
+    if (!classesBySubject[cc.school_subject]) classesBySubject[cc.school_subject] = [];
+    classesBySubject[cc.school_subject].push(cc);
+  });
+  Object.entries(classesBySubject).forEach(([subject, classes]) => {
+    const overrideKey = `class_courses_${subject}`;
+    rows.push({
+      subject: classes[0].display_name,
+      course: field(overrideKey, classes.map(c => c.course_name).join(', ')),
+      source: 'Optio',
+      credits: classes.reduce((sum, c) => sum + c.credits, 0),
+      status: 'Completed'
+    });
   });
 
   (transfer_credits || []).forEach(tc => {

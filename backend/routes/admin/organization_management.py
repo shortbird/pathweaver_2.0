@@ -164,6 +164,16 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         if not update_data:
             return jsonify({'error': 'No valid fields to update'}), 400
 
+        # A malformed Stripe key breaks the iCreate registration funnel at the
+        # "Pay securely" step, so reject it at save time. Secret keys are sk_…
+        # (or restricted rk_…); loose enough for legacy keys without live/test.
+        stripe_key = (((update_data.get('feature_flags') or {}).get('icreate_registration') or {})
+                      .get('stripe_secret_key') or '').strip()
+        if stripe_key and not re.match(r'^(sk|rk)_[A-Za-z0-9_]{20,}$', stripe_key):
+            return jsonify({'error': "That doesn't look like a Stripe secret key — it should start with "
+                                     "sk_live_ or rk_live_. Copy the full key from Stripe Dashboard -> "
+                                     "Developers -> API keys."}), 400
+
         service = OrganizationService()
         org = None
 

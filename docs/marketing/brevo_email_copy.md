@@ -185,6 +185,24 @@ Dr. Bowman
 
 ---
 
+## Segment: B2B catch-up apology (Brevo DRAFT campaign #23, list #6 — awaiting go)
+**Subject:** Your Optio demo (and an apology)
+**Preheader:** I let your request sit longer than I should have. Still happy to show you around.
+
+Hi {FIRSTNAME},
+
+You reached out about Optio for your organization a while back, and I let it sit longer than I should have. That's my miss, and I'm sorry. I'd still love to connect.
+
+If you're open to it, just reply with a couple of times that work and I'll send over an invite. A demo takes about 30 minutes, and I'll tailor it to what you're building.
+
+A quick refresher on what Optio does: students turn self-directed projects into accredited classes and transcripts, and schools and programs get the tools to run it, including rosters, attendance, messaging, and credit review.
+
+I hope we can talk soon.
+
+Dr. Bowman
+
+---
+
 ## Segment: B2B (demo/sales — personal template, sent manually; track as Brevo CRM deal)
 **Subject:** Your Optio demo
 

@@ -25,6 +25,10 @@ bp = Blueprint('admin_transcript_generator', __name__, url_prefix='/api/admin/tr
 
 XP_PER_CREDIT = 2000
 
+# Each approved class (quest_type='class', 1000 subject XP target) is worth a
+# fixed half credit on the transcript, with an A grade.
+CLASS_CREDIT_VALUE = 0.5
+
 SUBJECT_DISPLAY_NAMES = {
     'language_arts': 'Language Arts',
     'math': 'Mathematics',
@@ -141,6 +145,45 @@ def get_transcript_data(admin_user_id, user_id):
                     'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject)
                 }
 
+        # Awarded classes: class quests approved in admin class reviews.
+        # Derived from class_review_status so already-approved classes appear
+        # without any backfill. A POE class whose credit was awarded through
+        # the POE award endpoint is excluded — that path deposits subject XP
+        # into user_subject_xp (routes/admin/poe.py), so it already surfaces
+        # through earned_credits above and a row here would double-count it.
+        class_result = supabase.table('quests').select(
+            'id, title, transcript_subject, class_review_submitted_at'
+        ).eq('created_by', user_id).eq('quest_type', 'class').eq(
+            'class_review_status', 'credit_awarded'
+        ).order('class_review_submitted_at', desc=False).execute()
+
+        poe_quest_ids = set()
+        if class_result.data:
+            poe_result = supabase.table('poe_participants').select(
+                'class_quest_id'
+            ).eq('user_id', user_id).not_.is_(
+                'credit_awarded_at', 'null'
+            ).execute()
+            poe_quest_ids = {
+                p['class_quest_id'] for p in (poe_result.data or [])
+                if p.get('class_quest_id')
+            }
+
+        class_credits = []
+        for cq in (class_result.data or []):
+            if cq['id'] in poe_quest_ids:
+                continue
+            subject = cq.get('transcript_subject') or 'electives'
+            class_credits.append({
+                'quest_id': cq['id'],
+                'school_subject': subject,
+                'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject),
+                'course_name': cq.get('title'),
+                'credits': CLASS_CREDIT_VALUE,
+                'grade': 'A',
+                'awarded_at': cq.get('class_review_submitted_at')
+            })
+
         # Planned/in-progress credits
         planned_result = supabase.table('planned_credits').select('*').eq(
             'user_id', user_id
@@ -184,6 +227,7 @@ def get_transcript_data(admin_user_id, user_id):
 
         # Totals
         total_earned_credits = sum(c['credits'] for c in earned_credits.values())
+        total_class_credits = sum(cc['credits'] for cc in class_credits)
         total_transfer_credits = sum(tc['total_credits'] for tc in transfer_credits)
         total_planned_credits = sum(pc['credits'] for pc in planned_credits if pc['status'] == 'in_progress')
 
@@ -199,15 +243,17 @@ def get_transcript_data(admin_user_id, user_id):
             },
             'accreditation': accreditation,
             'earned_credits': earned_credits,
+            'class_credits': class_credits,
             'transfer_credits': transfer_credits,
             'planned_credits': planned_credits,
             'completed_quests': completed_quests,
             'overrides': overrides,
             'totals': {
                 'earned_credits': round(total_earned_credits, 2),
+                'class_credits': round(total_class_credits, 2),
                 'transfer_credits': round(total_transfer_credits, 2),
                 'planned_credits': round(total_planned_credits, 2),
-                'total_completed': round(total_earned_credits + total_transfer_credits, 2)
+                'total_completed': round(total_earned_credits + total_class_credits + total_transfer_credits, 2)
             }
         })
 

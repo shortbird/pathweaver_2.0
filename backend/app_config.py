@@ -174,6 +174,10 @@ class Config:
     # Pexels Image API
     PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
 
+    # Brevo marketing email sync (services/brevo_service.py). Standard API
+    # key, NOT the MCP token. Unset = sync silently skips (local dev is fine).
+    BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+
     # Email / SMTP Configuration
     SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.sendgrid.net')
     SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))

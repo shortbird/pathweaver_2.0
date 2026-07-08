@@ -183,7 +183,9 @@ def get_class_review_detail(user_id: str, quest_id: str):
             'tasks': task_rows,
             'approved_subject_xp': approved_xp,
             'target_xp': 1000,
-            'credits_earned': approved_xp // 1000,
+            # A class awards a fixed half transcript credit once the 1000 XP
+            # target is met (matches CLASS_CREDIT_VALUE in transcript_generator).
+            'credits_earned': 0.5 if approved_xp >= 1000 else 0,
         })
 
     except Exception as e:

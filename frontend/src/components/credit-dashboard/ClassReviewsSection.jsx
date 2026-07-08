@@ -177,7 +177,7 @@ const ClassReviewsSection = ({ onReviewed }) => {
               <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
                 <div className="text-[10px] uppercase tracking-wider text-pink-600 font-semibold">Target</div>
                 <div className="text-2xl font-bold text-pink-900">{detail.target_xp}</div>
-                <div className="text-xs text-pink-700">per credit</div>
+                <div className="text-xs text-pink-700">for 0.5 credit</div>
               </div>
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="text-[10px] uppercase tracking-wider text-green-600 font-semibold">Credits</div>

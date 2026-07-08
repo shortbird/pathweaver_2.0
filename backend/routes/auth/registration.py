@@ -491,6 +491,15 @@ def register():
                 except Exception as promo_update_error:
                     logger.error(f"[REGISTRATION] Failed to mark promo code as redeemed: {promo_update_error}")
 
+            # Marketing: if this email was a lead, mark it converted in Brevo.
+            # Moving it to the Customers list exits it from the nurture
+            # automation. Fire-and-forget; 404 (never a lead) is the norm.
+            try:
+                from services.brevo_service import mark_converted
+                mark_converted(email)
+            except Exception as brevo_err:
+                logger.warning(f"[REGISTRATION] Brevo conversion sync failed: {brevo_err}")
+
             # If no session, email verification is required
             if not auth_response.session:
                 response_data = {

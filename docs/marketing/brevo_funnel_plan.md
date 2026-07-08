@@ -113,16 +113,18 @@ Official hosted server — no local install ([docs](https://developers.brevo.com
 - [x] **D. Backfill import** — 35 contacts imported 2026-07-07 (8 free-class, 2 families, 5 B2B, 20 POE parents; internal/test emails excluded).
 - [x] **E. Templates** — created (inactive, nothing sent): Nurture 1–6 = template ids **1–6**, Catch-up = **7**, Families welcome = **8**, POE parents = **9**.
 - [ ] **F. Automation "Free Class Nurture"** (Brevo automation builder is UI-only): trigger = contact added to *Free Class Leads* (#4), existing list members excluded; send templates 1–6 with delays 1h / d2 / d4 / d7 / d10 / d14; exit rule = **contact is added to list *Customers* (#8)** (Brevo's exit rules are list/event-based, not attribute-based). Fallback if list-exit isn't offered: an If/Else condition step on `CONVERTED is true` before each send. The backend conversion hook therefore does all three: add to Customers, remove from Free Class Leads, set `CONVERTED=true`.
-- [ ] **G. Send the catch-up email** (template 7) to the 8 existing free-class leads + personal replies to the 4 demo leads. **Blocked on DNS auth (A) and explicit go-ahead — nothing sends until Tanner says so.**
+- [x] **G. Catch-up track for the 8 pre-automation free-class leads** — SENT 2026-07-07 18:42 MDT. They live in list **Catch-up Free Class Leads (Jul 2026) (#11)** and receive the nurture as scheduled campaigns (automations can't pick up pre-existing list members): catch-up (campaign 17, sent, 8 recipients), then N2–N6 (campaigns 18–22) queued for Jul 10 / 12 / 15 / 18 / 22 at 9am MDT. Conversions drop off automatically: `mark_converted` unlinks list #11, and scheduled campaigns resolve recipients at send time. To pull someone out manually, remove them from list #11. Still open: personal replies to the 4 demo leads (B2B template in the copy doc).
 
 ---
 
-## 6. Ongoing sync (backend, build after lists exist — needs real list IDs)
+## 6. Ongoing sync (BUILT + tested end-to-end 2026-07-08)
 
-- New `backend/services/brevo_service.py`: `create_or_update_contact(email, list_ids, attributes)` → `POST https://api.brevo.com/v3/contacts` with `updateEnabled: true`, `api-key: Config.BREVO_API_KEY` (via `app_config.py` per repo rule — never `os.getenv`). No-op with a log warning when the key is unset (local dev).
-- Hook in `backend/routes/contact.py` right after the DB insert (line ~81): fire-and-forget try/except — a Brevo outage must never fail the form.
-- Conversion hook: on registration, if the email exists in Brevo, set `CONVERTED=true` and add to *Customers* (automation exit handles unsubscription from nurture). Registration flow lives in the auth routes; wire the same fire-and-forget pattern.
-- POE signups: add parent email to *POE Parents* in the POE signup route (same service).
+`backend/services/brevo_service.py` (key via `Config.BREVO_API_KEY`; no-op with a warning when unset; every call fire-and-forget with 5s timeout):
+- `sync_lead(email, contact_type, name)` — hooked in `routes/contact.py` after the DB insert. Maps contact_type → list (claim_free_class→#4 which **starts the nurture automation**, families/general→#5, demo/sales/academy→#6). Skips emails that already have accounts.
+- `mark_converted(email)` — hooked in `routes/auth/registration.py` after account creation. Sets `CONVERTED=true`, moves the contact to *Customers* (#8) and off the lead lists; the automation's exit rule does the rest. 404 = wasn't a lead, normal.
+- `sync_poe_parent(...)` — hooked in `routes/poe.py` after signup upsert; parent email only.
+
+`BREVO_API_KEY` lives in `backend/.env` (local) and the prod backend Render env (set 2026-07-08). Verified locally: test lead → contact created in list #5 with attributes → mark_converted → moved to #8 with CONVERTED=true → test data deleted.
 
 ---
 

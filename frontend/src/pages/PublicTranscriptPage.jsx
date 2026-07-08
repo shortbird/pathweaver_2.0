@@ -92,7 +92,7 @@ const PublicTranscriptPage = () => {
     );
   }
 
-  const { student, earned_credits, transfer_credits, planned_credits, overrides, totals, accreditation } = data;
+  const { student, earned_credits, class_credits, transfer_credits, planned_credits, overrides, totals, accreditation } = data;
   const field = (key, fallback) => overrides?.[key] !== undefined && overrides[key] !== '' ? overrides[key] : fallback;
   // Show the ACS WASC mark only when this transcript is issued under Optio
   // Academy's accreditation (backend decides; partners with their own
@@ -124,6 +124,24 @@ const PublicTranscriptPage = () => {
         status: 'Completed'
       });
     }
+  });
+
+  // Awarded classes - grouped into one row per subject; course names are
+  // listed together and credits summed (0.5 per class, A grade)
+  const classesBySubject = {};
+  (class_credits || []).forEach(cc => {
+    if (!classesBySubject[cc.school_subject]) classesBySubject[cc.school_subject] = [];
+    classesBySubject[cc.school_subject].push(cc);
+  });
+  Object.entries(classesBySubject).forEach(([subject, classes]) => {
+    const overrideKey = `class_courses_${subject}`;
+    rows.push({
+      subject: classes[0].display_name,
+      course: field(overrideKey, classes.map(c => c.course_name).join(', ')),
+      source: 'Optio',
+      credits: classes.reduce((sum, c) => sum + c.credits, 0),
+      status: 'Completed'
+    });
   });
 
   (transfer_credits || []).forEach(tc => {
@@ -173,7 +191,6 @@ const PublicTranscriptPage = () => {
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
   const dateIssued = field('date_issued', formatDate(new Date().toISOString().split('T')[0]));
   const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
-  const enrollmentDate = field('enrollment_date', formatDate(student.enrolled_date));
   const orgName = field('organization_name', student.organization_name || '');
 
   return (
@@ -213,10 +230,6 @@ const PublicTranscriptPage = () => {
                   <span className="text-gray-900">{dateOfBirth}</span>
                 </div>
               )}
-              <div className="flex">
-                <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Enrollment Date:</span>
-                <span className="text-gray-900">{enrollmentDate}</span>
-              </div>
             </div>
           </div>
 
@@ -227,7 +240,6 @@ const PublicTranscriptPage = () => {
                 <tr className="border-b-2 border-gray-900">
                   <th className="text-left py-2 font-semibold text-gray-900">Subject Area</th>
                   <th className="text-left py-2 font-semibold text-gray-900">Course</th>
-                  <th className="text-left py-2 font-semibold text-gray-900">Source</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Credits</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Grade</th>
                 </tr>
@@ -240,7 +252,6 @@ const PublicTranscriptPage = () => {
                   >
                     <td className="py-2 text-gray-900">{row.subject}</td>
                     <td className="py-2 text-gray-700">{row.course}</td>
-                    <td className="py-2 text-gray-700">{row.source}</td>
                     <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
                     <td className="py-2 text-center">
                       {row.status === 'Completed' ? (
@@ -281,7 +292,6 @@ const PublicTranscriptPage = () => {
                   )}
                 </div>
                 <p className="text-xs text-gray-700">{row.course}</p>
-                {row.source && <p className="text-xs text-gray-500">{row.source}</p>}
                 <p className="text-xs font-bold text-gray-900 mt-1">{row.credits.toFixed(2)} credits</p>
               </div>
             ))}

@@ -86,6 +86,17 @@ def submit_contact():
 
         logger.info(f"Contact form submitted: type={contact_type}, email={email}")
 
+        # Push the lead into Brevo so the marketing automations pick it up.
+        # Existing account holders are customers, not leads, so skip them
+        # (a free-class-lead list add would drop them into the nurture flow).
+        try:
+            existing_user = supabase.table('users').select('id').ilike('email', email).limit(1).execute()
+            if not existing_user.data:
+                from services.brevo_service import sync_lead
+                sync_lead(email, contact_type, name=name)
+        except Exception as brevo_err:
+            logger.warning(f"Brevo lead sync skipped: {brevo_err}")
+
         # Send confirmation email for demo requests
         if contact_type == 'demo':
             try:

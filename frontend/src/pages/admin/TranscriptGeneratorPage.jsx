@@ -385,7 +385,7 @@ const TranscriptGeneratorPage = () => {
     );
   }
 
-  const { student, earned_credits, transfer_credits, planned_credits, totals, accreditation } = data;
+  const { student, earned_credits, class_credits, transfer_credits, planned_credits, totals, accreditation } = data;
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
   // Show the ACS WASC mark only when this transcript is issued under Optio
   // Academy's accreditation (partners with their own accreditation are excluded).
@@ -409,6 +409,26 @@ const TranscriptGeneratorPage = () => {
           status: 'Completed'
         });
       }
+    });
+
+    // Awarded classes - grouped into one row per subject; course names are
+    // listed together and credits summed (0.5 per class, A grade)
+    const classesBySubject = {};
+    (class_credits || []).forEach(cc => {
+      if (!classesBySubject[cc.school_subject]) classesBySubject[cc.school_subject] = [];
+      classesBySubject[cc.school_subject].push(cc);
+    });
+    Object.entries(classesBySubject).forEach(([subject, classes]) => {
+      const overrideKey = `class_courses_${subject}`;
+      rows.push({
+        type: 'class',
+        subject: classes[0].display_name,
+        course: field(overrideKey, classes.map(c => c.course_name).join(', ')),
+        courseOverrideKey: overrideKey,
+        source: 'Optio',
+        credits: classes.reduce((sum, c) => sum + c.credits, 0),
+        status: 'Completed'
+      });
     });
 
     // Transfer credits - expand into individual courses if course_names breakdown exists
@@ -491,7 +511,6 @@ const TranscriptGeneratorPage = () => {
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
   const dateIssued = field('date_issued', formatDate(new Date().toISOString()));
   const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
-  const enrollmentDate = field('enrollment_date', formatDate(student.enrolled_date));
   const orgName = field('organization_name', student.organization_name || '');
 
   return (
@@ -517,7 +536,15 @@ const TranscriptGeneratorPage = () => {
             <button
               onClick={() => {
                 const url = `${window.location.origin}/public/transcript/${userId}`;
-                navigator.clipboard.writeText(url).then(() => toast.success('Public link copied!'));
+                // The public endpoint only serves students with a saved
+                // transcript record, so persist overrides (even empty) before
+                // sharing — otherwise the link 404s until a field is edited.
+                // Clipboard write stays first: it must run inside the click
+                // gesture or Safari rejects it.
+                navigator.clipboard.writeText(url)
+                  .then(() => api.put(`/api/admin/transcript/${userId}/overrides`, overrides || {}))
+                  .then(() => toast.success('Public link copied!'))
+                  .catch(() => toast.error('Failed to copy public link'));
               }}
               className="px-3 py-1.5 text-sm bg-optio-purple text-white rounded-lg hover:bg-purple-700 flex items-center gap-1.5"
             >
@@ -787,14 +814,6 @@ const TranscriptGeneratorPage = () => {
                   className="text-gray-900"
                 />
               </div>
-              <div className="flex">
-                <span className="w-32 text-gray-500 flex-shrink-0">Enrollment Date:</span>
-                <EditableField
-                  value={enrollmentDate}
-                  onChange={v => updateOverride('enrollment_date', v)}
-                  className="text-gray-900"
-                />
-              </div>
             </div>
           </div>
 
@@ -805,7 +824,7 @@ const TranscriptGeneratorPage = () => {
                 <tr className="border-b-2 border-gray-900">
                   <th className="text-left py-2 font-semibold text-gray-900">Subject Area</th>
                   <th className="text-left py-2 font-semibold text-gray-900">Course</th>
-                  <th className="text-left py-2 font-semibold text-gray-900">Source</th>
+                  <th className="text-left py-2 font-semibold text-gray-900 no-print">Source</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Credits</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Grade</th>
                   <th className="text-center py-2 font-semibold text-gray-900 no-print w-16">Actions</th>
@@ -826,7 +845,7 @@ const TranscriptGeneratorPage = () => {
                         />
                       ) : row.course}
                     </td>
-                    <td className="py-2 text-gray-700">
+                    <td className="py-2 text-gray-700 no-print">
                       {row.source}
                       {row.transcriptUrl && (
                         <a

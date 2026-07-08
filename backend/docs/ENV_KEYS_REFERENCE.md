@@ -20,6 +20,7 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | Key | Purpose | Config Attribute | Provider |
 |-----|---------|-----------------|----------|
 | `PEXELS_API_KEY` | Image search for quests | `Config.PEXELS_API_KEY` | [Pexels API](https://www.pexels.com/api/) |
+| `BREVO_API_KEY` | Brevo marketing sync (leads/conversions; standard key, NOT the MCP token) | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
 | `SMTP_PASS` | SendGrid email delivery | `Config.SMTP_PASS` | [SendGrid API Keys](https://app.sendgrid.com/settings/api_keys) |
 | `STRIPE_SECRET_KEY` | Payment processing | `Config.STRIPE_SECRET_KEY` | [Stripe Dashboard](https://dashboard.stripe.com/apikeys) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook verification | `Config.STRIPE_WEBHOOK_SECRET` | [Stripe Webhooks](https://dashboard.stripe.com/webhooks) |
