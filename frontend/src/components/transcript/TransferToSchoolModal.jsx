@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import ModalOverlay from '../ui/ModalOverlay';
 
 /**
  * "Transfer to School" form: emails the official transcript PDF to a registrar
@@ -57,11 +58,8 @@ const TransferToSchoolModal = ({ userId, studentName, generatePdfBase64, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Transfer to School</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
@@ -164,7 +162,7 @@ const TransferToSchoolModal = ({ userId, studentName, generatePdfBase64, onClose
           )}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 };
 
