@@ -6,6 +6,7 @@ const LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-
 
 const NAV_LINKS = [
   { label: 'Classes', path: '/classes' },
+  { label: 'Academy', path: '/academy' },
   { label: 'For Families', path: '/for-families' },
   { label: 'For Schools', path: '/for-schools' },
   { label: 'How It Works', path: '/how-it-works' },

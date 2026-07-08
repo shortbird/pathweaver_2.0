@@ -19,6 +19,7 @@ import {
  *
  * Variants:
  * - "card"        Boxed callout for marketing sections (logo + phrase + block).
+ * - "large"       Unboxed hero placement: big logo, small identity block below.
  * - "inline"      Compact logo + short disclosure, for footers.
  * - "transcript"  Print-friendly, serif-neutral block for official transcripts.
  *
@@ -52,6 +53,18 @@ const WascBadge = ({ variant = 'card', className = '' }) => {
             {COMMISSION_WEBSITE}
           </a>
         </p>
+      </div>
+    )
+  }
+
+  if (variant === 'large') {
+    return (
+      <div className={`flex flex-col items-center gap-4 ${className}`}>
+        <img src={WASC_LOGO_SRC} alt={WASC_LOGO_ALT} className="h-32 sm:h-40 w-auto" />
+        <IdentityBlock
+          className="text-center text-xs text-gray-500 leading-relaxed"
+          showPhrase={false}
+        />
       </div>
     )
   }

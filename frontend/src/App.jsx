@@ -113,6 +113,7 @@ const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const ClassesPage = lazy(() => import('./pages/marketing/ClassesPage'))
 const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
 const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
+const AcademyPage = lazy(() => import('./pages/marketing/AcademyPage'))
 const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))
 const PhilosophyPage = lazy(() => import('./pages/marketing/PhilosophyPage'))
 // Help Center / Docs pages (February 2026)
@@ -426,6 +427,7 @@ function App() {
               {/* /for-students is the legacy URL for the same offering; preserve external links by redirecting. */}
               <Route path="for-students" element={<Navigate to="/classes" replace />} />
               <Route path="for-families" element={<ForFamiliesPage />} />
+              <Route path="academy" element={<AcademyPage />} />
               <Route path="for-schools" element={<ForSchoolsPage />} />
               <Route path="how-it-works" element={<HowItWorksPage />} />
               <Route path="philosophy" element={<PhilosophyPage />} />
