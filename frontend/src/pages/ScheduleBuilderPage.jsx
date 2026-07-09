@@ -454,7 +454,7 @@ const ScheduleBuilderPage = () => {
           timeBlocks={schedule?.time_blocks || []}
           selectedSlot={slotModal}
           onSlotClick={locked ? null : (day, min, end) => setSlotModal({ day, min, end })}
-          onClassClick={(c) => setDetail({ item: c, enrolled: true })}
+          onClassClick={(c, slot) => setDetail({ item: c, enrolled: true, slot })}
         />
 
         {waitlist.length > 0 && (
@@ -511,6 +511,9 @@ const ScheduleBuilderPage = () => {
             const ok = await dropClass(detail.item)
             if (ok) setDetail(null)
           }}
+          onSeeAlternatives={detail.enrolled && detail.slot && !locked
+            ? () => { const s = detail.slot; setDetail(null); setSlotModal(s) }
+            : null}
         />
       )}
     </div>

@@ -47,7 +47,7 @@ const Fact = ({ label, children }) => (
   </div>
 )
 
-const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd, onRemove }) => {
+const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd, onRemove, onSeeAlternatives }) => {
   const isCourse = type === 'course'
   const [quests, setQuests] = useState([])
 
@@ -78,6 +78,12 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd,
     <Modal isOpen onClose={onClose} size="md" bodyClassName="!p-0" footer={
       <div className="flex items-center justify-end gap-3 w-full">
         {conflict && <p className="mr-auto text-xs font-medium text-red-600">Overlaps {conflict} on the current schedule</p>}
+        {onSeeAlternatives && (
+          <button onClick={onSeeAlternatives}
+            className={`${conflict ? '' : 'mr-auto '}px-4 py-2 rounded-lg text-sm font-medium text-optio-purple hover:bg-optio-purple/5 transition-colors`}>
+            See other classes at this time
+          </button>
+        )}
         <button onClick={onClose}
           className="px-4 py-2 rounded-lg text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors">
           Close

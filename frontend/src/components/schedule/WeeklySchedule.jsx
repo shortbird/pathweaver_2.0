@@ -92,6 +92,7 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
         name: c.name, cls: isGhost ? null : c, top: (s - startMin) * pxPerMin,
         height: Math.max((e - s) * pxPerMin, compact ? 14 : 22),
         label: `${fmt(m.start_time)}–${fmt(m.end_time)}`,
+        day: d, startAt: s, endAt: e,
         color: isGhost ? 'bg-neutral-400/50 text-white border border-dashed border-neutral-500' : colorFor(i),
       })
     }
@@ -181,7 +182,7 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
                 style={{ top: b.top, height: b.height }}
                 onClick={(onSlotClick || onClassClick) ? (e) => {
                   e.stopPropagation()
-                  if (onClassClick && b.cls) onClassClick(b.cls)
+                  if (onClassClick && b.cls) onClassClick(b.cls, { day: b.day, min: b.startAt, end: b.endAt })
                 } : undefined}
                 title={`${b.name} · ${b.label}`}>
                 <div className={`font-semibold leading-tight truncate ${compact ? 'text-[10px]' : 'text-xs'}`}>{b.name}</div>
