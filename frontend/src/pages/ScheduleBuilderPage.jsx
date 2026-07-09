@@ -511,12 +511,18 @@ const ScheduleBuilderPage = () => {
         <SlotClassesModal
           slot={slotModal}
           classes={openClasses.filter((c) => meetsAt(c, slotModal) && fitsAge(c, studentAge))}
+          enrolledHere={enrolled.filter((c) => meetsAt(c, slotModal))}
           age={studentAge}
           enrolled={enrolled}
           busy={busy}
+          locked={locked}
           onClose={() => setSlotModal(null)}
-          onDetails={(c) => { setSlotModal(null); setDetail({ item: c }) }}
+          onDetails={(c, isEnrolled = false) => {
+            setSlotModal(null)
+            setDetail({ item: c, enrolled: isEnrolled, slot: isEnrolled ? slotModal : undefined })
+          }}
           onAdd={async (c) => { const ok = await addClass(c); if (ok) setSlotModal(null) }}
+          onDrop={async (c) => { const ok = await dropClass(c); if (ok) setSlotModal(null) }}
         />
       )}
 
@@ -547,20 +553,44 @@ const ScheduleBuilderPage = () => {
 
 // Classes offered in the clicked time slot. Rows add directly; "Details" swaps
 // to the full read-only class modal.
-const SlotClassesModal = ({ slot, classes, age, enrolled, busy, onClose, onDetails, onAdd }) => (
+const SlotClassesModal = ({ slot, classes, enrolledHere = [], age, enrolled, busy, locked, onClose, onDetails, onAdd, onDrop }) => (
   <ModalOverlay onClose={onClose}>
     <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Classes at {slotLabel(slot)}</h2>
           <p className="text-xs text-neutral-400">
-            Pick a class for this time slot.{age != null ? ` Showing classes for age ${age}.` : ''}
+            {enrolledHere.length ? 'What’s scheduled now, plus other classes at this time.' : 'Pick a class for this time slot.'}
+            {age != null ? ` Showing classes for age ${age}.` : ''}
           </p>
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
       </div>
       <div className="p-4 pt-2 overflow-y-auto flex-1 space-y-2">
-        {classes.length === 0 && (
+        {/* Already on the schedule for this slot — so a multi-block class never hides
+            the other options in the blocks it covers. */}
+        {enrolledHere.map((c) => (
+          <div key={`enr-${c.id}`} className="flex items-center justify-between rounded-lg border border-optio-purple/40 bg-optio-purple/5 px-3 py-2.5">
+            <div className="min-w-0">
+              <div className="font-medium text-neutral-900 truncate">{c.name}</div>
+              <div className="text-xs text-neutral-500">{meetingText(c.meetings)}</div>
+              <span className="inline-flex mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-optio-purple/10 text-optio-purple">Enrolled</span>
+            </div>
+            <div className="shrink-0 ml-3 flex items-center gap-2">
+              <button onClick={() => onDetails(c, true)} className="text-sm text-optio-purple hover:underline">Details</button>
+              {!locked && onDrop && (
+                <button onClick={() => onDrop(c)} disabled={busy === c.id}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50">
+                  {busy === c.id ? '…' : 'Drop'}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        {enrolledHere.length > 0 && classes.length > 0 && (
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 pt-1">Other classes at this time</p>
+        )}
+        {classes.length === 0 && enrolledHere.length === 0 && (
           <p className="text-sm text-neutral-400 py-4 text-center">
             No open classes{age != null ? ` for age ${age}` : ''} meet at this time — try another slot.
           </p>

@@ -182,7 +182,20 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
                 style={{ top: b.top, height: b.height }}
                 onClick={(onSlotClick || onClassClick) ? (e) => {
                   e.stopPropagation()
-                  if (onClassClick && b.cls) onClassClick(b.cls, { day: b.day, min: b.startAt, end: b.endAt })
+                  if (!b.cls) return
+                  // Builder mode: clicking an enrolled block opens the picker for the
+                  // block under the pointer, so families can still see (and switch to)
+                  // other classes offered in a slot a multi-block class covers. Outside
+                  // the builder (no onSlotClick) it just opens the class details.
+                  if (onSlotClick) {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const min = b.startAt + (e.clientY - rect.top) / pxPerMin
+                    const blk = blocks.length ? (blockAt(min) || blockAt(b.startAt)) : null
+                    if (blk && !blk.label) onSlotClick(b.day, toMin(blk.start), toMin(blk.end))
+                    else onSlotClick(b.day, b.startAt, b.endAt)
+                  } else if (onClassClick) {
+                    onClassClick(b.cls, { day: b.day, min: b.startAt, end: b.endAt })
+                  }
                 } : undefined}
                 title={`${b.name} · ${b.label}`}>
                 <div className={`font-semibold leading-tight truncate ${compact ? 'text-[10px]' : 'text-xs'}`}>{b.name}</div>
