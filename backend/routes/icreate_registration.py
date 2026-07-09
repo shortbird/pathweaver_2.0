@@ -693,6 +693,66 @@ def login():
     }).eq('id', user['id']).execute()
 
     now = datetime.utcnow().isoformat()
+
+    # Reuse the parent's existing registration rather than starting a fresh funnel
+    # run. Blindly inserting a new 'family' registration here let a returning
+    # parent re-run the family step with an empty prior_kids list, which created a
+    # SECOND set of children (plus emergency contacts + household) instead of
+    # editing the first. Mirror /my-registration's resume behavior instead.
+    existing = (
+        admin.table('icreate_registrations')
+        .select('*')
+        .eq('parent_user_id', user['id'])
+        .eq('organization_id', org_id)
+        .order('created_at', desc=True)
+        .limit(1)
+        .execute()
+    ).data or []
+    reg_row = existing[0] if existing else None
+
+    # Legacy in-flight statuses (schedule/appointment were once funnel steps)
+    # settle as completed, same as /my-registration.
+    if reg_row and reg_row.get('status') in ('schedule', 'appointment'):
+        admin.table('icreate_registrations').update({
+            'status': 'completed', 'completed_at': now, 'updated_at': now,
+        }).eq('id', reg_row['id']).execute()
+        reg_row['status'] = 'completed'
+
+    if reg_row and reg_row.get('status') == 'completed':
+        # Already registered — send them into the app; never restart the funnel.
+        logger.info(f'iCreate login: {user["id"][:8]} already registered for org {org_id}')
+        return jsonify({
+            'success': True,
+            'registration_id': reg_row['id'],
+            'access_token': reg_row['access_token'],
+            'status': 'completed',
+            'first_name': user.get('first_name'),
+            'last_name': user.get('last_name'),
+        }), 200
+
+    if reg_row:
+        # Resume an unfinished registration in place. Password login proves
+        # ownership, so a row still awaiting the email code can advance to family.
+        status = reg_row.get('status')
+        updates = {'email_verified_at': reg_row.get('email_verified_at') or now, 'updated_at': now}
+        if status == 'verify':
+            updates.update({'otp_hash': None, 'otp_expires_at': None, 'status': 'family'})
+            status = 'family'
+        if not reg_row.get('access_token'):
+            updates['access_token'] = secrets.token_urlsafe(32)
+        admin.table('icreate_registrations').update(updates).eq('id', reg_row['id']).execute()
+        reg_row = {**reg_row, **updates, 'status': status}
+        logger.info(f'iCreate login: resumed registration {reg_row["id"][:8]} for org {org_id} at {status}')
+        return jsonify({
+            'success': True,
+            'registration_id': reg_row['id'],
+            'access_token': reg_row['access_token'],
+            'status': status,
+            'first_name': user.get('first_name'),
+            'last_name': user.get('last_name'),
+        }), 200
+
+    # No prior registration: genuinely new funnel run for this existing account.
     reg = admin.table('icreate_registrations').insert({
         'organization_id': org_id,
         'parent_user_id': user['id'],

@@ -461,7 +461,14 @@ const ICreateRegisterPage = () => {
       setReg({ registration_id: data.registration_id, access_token: data.access_token })
       await establishSession(account.email.trim(), account.password)
       toast.success(`Welcome back${data.first_name ? `, ${data.first_name}` : ''}!`)
-      setStep('family')
+      // Already-registered parents go straight to the app — never back through the
+      // family step (re-running it used to duplicate their children). Only truly
+      // in-flight registrations resume at their current funnel step.
+      if (['completed', 'schedule', 'appointment'].includes(data.status)) {
+        window.location.replace('/')
+        return
+      }
+      setStep(data.status || 'family')
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not sign in')
     } finally {
