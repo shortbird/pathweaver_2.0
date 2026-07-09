@@ -35,8 +35,10 @@ email (no dependency on Supabase auth email templates).
 
 Existing-account guardrails on /login: superadmins are refused; accounts already
 in a DIFFERENT organization are refused (we never silently move someone between
-orgs); iCreate student/advisor accounts are refused (this is a parent flow).
-Platform accounts are attached as org_managed/parent automatically.
+orgs); iCreate student/observer accounts are refused (this is a parent flow).
+Platform accounts are attached as org_managed/parent automatically. Same-org
+STAFF (org_admin/advisor) may register their own kids: they keep their staff
+role as primary and gain 'parent' in org_roles.
 
 Account model (see memory: project_icreate_program):
 - Kids under 13 (or 13+ opted "no email") -> COPPA dependents on the parent.
@@ -666,31 +668,45 @@ def login():
         return jsonify({'error': 'Email and password are required'}), 400
 
     row = (admin.table('users')
-           .select('id, role, org_role, organization_id, first_name, last_name')
+           .select('id, role, org_role, org_roles, organization_id, first_name, last_name')
            .eq('email', email).limit(1).execute()).data
     if not row:
         return jsonify({'error': 'No Optio account with this email — create one instead.'}), 404
     user = row[0]
 
     # Guardrails: never silently move accounts between orgs or repurpose
-    # privileged/student accounts as iCreate parents.
+    # privileged/student accounts as iCreate parents. Same-org STAFF
+    # (org_admin/advisor) are allowed through — school staff have their own
+    # kids to register — and keep their staff role (see the attach step).
+    STAFF_ORG_ROLES = ('org_admin', 'advisor')
+    current_org_role = user.get('org_role') or ((user.get('org_roles') or [None])[0])
     if user.get('role') == 'superadmin':
         return jsonify({'error': 'This account cannot be used here.'}), 403
     if user.get('organization_id') and user['organization_id'] != org_id:
         return jsonify({'error': 'This account belongs to another school. Please contact iCreate.'}), 409
-    if user.get('organization_id') == org_id and user.get('org_role') and user['org_role'] != 'parent':
+    if (user.get('organization_id') == org_id and current_org_role
+            and current_org_role not in ('parent',) + STAFF_ORG_ROLES):
         return jsonify({'error': 'This is not a parent account. Please register with a parent email.'}), 409
 
     if not _password_ok(email, password):
         return jsonify({'error': 'Incorrect password. If you signed up with Google, use "Create account" with a different email or contact iCreate.'}), 401
 
-    # Attach to iCreate as a parent (no-op for existing iCreate parents).
-    admin.table('users').update({
-        'organization_id': org_id,
-        'role': 'org_managed',
-        'org_role': 'parent',
-        'org_roles': ['parent'],
-    }).eq('id', user['id']).execute()
+    if user.get('organization_id') == org_id and current_org_role in STAFF_ORG_ROLES:
+        # Staff registering their own kids: append 'parent' to org_roles but keep
+        # the staff role PRIMARY (first) — get_effective_role and every staff
+        # surface stay untouched, and the parent-side features (Schedule Builder,
+        # sidebar link) key off household guardianship / any-role checks.
+        roles = [r for r in (user.get('org_roles') or [current_org_role]) if r]
+        if 'parent' not in roles:
+            admin.table('users').update({'org_roles': roles + ['parent']}).eq('id', user['id']).execute()
+    else:
+        # Attach to iCreate as a parent (no-op for existing iCreate parents).
+        admin.table('users').update({
+            'organization_id': org_id,
+            'role': 'org_managed',
+            'org_role': 'parent',
+            'org_roles': ['parent'],
+        }).eq('id', user['id']).execute()
 
     now = datetime.utcnow().isoformat()
 
@@ -830,7 +846,9 @@ def submit_family(reg_id):
             # not a conflict (the prior account is replaced below).
             taken = (admin.table('users').select('id').eq('email', kemail).execute()).data or []
             if any(t['id'] not in prior_kids for t in taken):
-                return jsonify({'error': f'The email for {kf} is already in use'}), 409
+                return jsonify({'error': f'{kf} already has an Optio account with this email. '
+                                         'The school can connect their existing account to your '
+                                         'family instead — contact iCreate rather than re-creating them.'}), 409
         kids.append({'first': kf, 'last': kl, 'dob': kdob, 'email': kemail,
                      'own_account': wants_own_account,
                      'preferred_name': sanitize_input(k.get('preferred_name', '')) or None,
