@@ -247,6 +247,25 @@ const ScheduleBuilderPage = () => {
   const ufaShortfall = ufa?.min_blocks && totalBlocks < ufa.min_blocks ? ufa.min_blocks - totalBlocks : 0
   const tuitionCount = enrolled.length
 
+  // Program classes (requires_full_day, e.g. the microschool programs meeting
+  // blocks 1 & 5) anchor their meeting days: the student must fill every
+  // teaching block on those days with classes.
+  const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const teachingBlocks = (schedule?.time_blocks || []).filter((b) => !b.label)
+  const fullDayGaps = enrolled.filter((c) => c.requires_full_day).map((p) => {
+    const days = [...new Set((p.meetings || []).map((m) => m.day_of_week))].sort()
+    let open = 0
+    for (const d of days) {
+      for (const b of teachingBlocks) {
+        const bs = toMin(b.start); const be = toMin(b.end)
+        const covered = enrolled.some((e) => (e.meetings || []).some((m) =>
+          m.day_of_week === d && toMin(m.start_time) < be && bs < toMin(m.end_time)))
+        if (!covered) open += 1
+      }
+    }
+    return { name: p.name, open, daysText: days.map((d) => DAY_FULL[d]).join(' and ') }
+  }).filter((g) => g.open > 0)
+
   const openClasses = useMemo(
     () => catalog.filter((c) => !enrolledIds.has(c.id) && !waitlistIds.has(c.id)),
     [catalog, schedule], // eslint-disable-line react-hooks/exhaustive-deps
@@ -399,6 +418,12 @@ const ScheduleBuilderPage = () => {
           day) — this schedule has {totalBlocks}. Add {ufaShortfall} more block{ufaShortfall === 1 ? '' : 's'} of classes.
         </div>
       )}
+      {fullDayGaps.map((g) => (
+        <div key={g.name} className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          {g.name} requires a full day of classes — pick classes for the {g.open} open
+          block{g.open === 1 ? '' : 's'} on {g.daysText}.
+        </div>
+      ))}
       {schedule?.registration_hold && (
         <div className="mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
           Your family's registration is on hold — please contact {org?.organization_name || 'your school'} to

@@ -236,6 +236,26 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText(/5 blocks\/wk · 5-block plan/)).toBeInTheDocument()
   })
 
+  it('requires-full-day programs prompt until every block on their days is filled', async () => {
+    // Program anchors blocks 1 & 5 on Mon/Wed; blocks 2-4 are open on both
+    // days (6 open) minus one filler on Monday block 2 = 5 open blocks.
+    const program = {
+      ...POTTERY, id: 'p1', name: 'Middle School Microschool (Mon/Wed)', price_cents: 122500,
+      requires_full_day: true,
+      meetings: [
+        { day_of_week: 1, start_time: '09:30', end_time: '10:30' }, { day_of_week: 1, start_time: '14:00', end_time: '15:00' },
+        { day_of_week: 3, start_time: '09:30', end_time: '10:30' }, { day_of_week: 3, start_time: '14:00', end_time: '15:00' },
+      ],
+    }
+    const filler = { ...POTTERY, id: 'f1', name: 'Pre-Algebra', meetings: [{ day_of_week: 1, start_time: '10:30', end_time: '11:30' }] }
+    api.get.mockImplementation(mockApi({
+      schedule: { classes: [program, filler], time_blocks: BLOCKS, block_pricing: PRICING },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/requires a full day of classes/)).toBeInTheDocument()
+    expect(screen.getByText(/5 open blocks on Monday and Wednesday/)).toBeInTheDocument()
+  })
+
   it('UFA academy students pay the flat plan price and must reach the block minimum', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
