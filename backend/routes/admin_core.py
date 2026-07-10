@@ -178,6 +178,13 @@ def update_user_profile(admin_id, user_id):
     data = request.json
 
     try:
+        # Blank strings for these optional fields must be stored as NULL, not ''.
+        # Critically, dependents must have email IS NULL (check_dependent_no_email):
+        # edit forms submit the whole user object with an empty email for a
+        # dependent, and persisting '' would violate the constraint on ANY update.
+        def _blank_to_none(value):
+            return None if isinstance(value, str) and value.strip() == '' else value
+
         # Update user profile
         update_data = {}
         if 'first_name' in data:
@@ -185,23 +192,33 @@ def update_user_profile(admin_id, user_id):
         if 'last_name' in data:
             update_data['last_name'] = data['last_name']
         if 'email' in data:
-            update_data['email'] = data['email']
+            update_data['email'] = _blank_to_none(data['email'])
         if 'phone_number' in data:
-            update_data['phone_number'] = data['phone_number']
+            update_data['phone_number'] = _blank_to_none(data['phone_number'])
         if 'address_line1' in data:
-            update_data['address_line1'] = data['address_line1']
+            update_data['address_line1'] = _blank_to_none(data['address_line1'])
         if 'address_line2' in data:
-            update_data['address_line2'] = data['address_line2']
+            update_data['address_line2'] = _blank_to_none(data['address_line2'])
         if 'city' in data:
-            update_data['city'] = data['city']
+            update_data['city'] = _blank_to_none(data['city'])
         if 'state' in data:
-            update_data['state'] = data['state']
+            update_data['state'] = _blank_to_none(data['state'])
         if 'postal_code' in data:
-            update_data['postal_code'] = data['postal_code']
+            update_data['postal_code'] = _blank_to_none(data['postal_code'])
         if 'country' in data:
-            update_data['country'] = data['country']
+            update_data['country'] = _blank_to_none(data['country'])
         if 'date_of_birth' in data:
             update_data['date_of_birth'] = data['date_of_birth'] or None
+
+        # Keep the COPPA promotion date in sync when a dependent's birthday
+        # changes (mirrors DependentRepository.update_dependent). Non-dependents
+        # leave promotion_eligible_at NULL.
+        if update_data.get('date_of_birth'):
+            target = supabase.table('users').select('is_dependent').eq('id', user_id).single().execute()
+            if target.data and target.data.get('is_dependent'):
+                from dateutil.relativedelta import relativedelta
+                dob = datetime.strptime(update_data['date_of_birth'], '%Y-%m-%d').date()
+                update_data['promotion_eligible_at'] = str(dob + relativedelta(years=13))
 
         if update_data:
             response = supabase.table('users')\
@@ -212,12 +229,14 @@ def update_user_profile(admin_id, user_id):
             if not response.data:
                 return jsonify({'error': 'User not found'}), 404
 
-        # If email was updated, also update auth.users
-        if 'email' in data:
+        # If a non-blank email was provided, also sync it to auth.users. Skip when
+        # blank/None (e.g. dependents, who have no auth account until promoted) —
+        # pushing an empty email to auth would error.
+        if update_data.get('email'):
             try:
                 supabase.auth.admin.update_user_by_id(
                     user_id,
-                    {'email': data['email']}
+                    {'email': update_data['email']}
                 )
                 logger.info(f"Admin {admin_id} updated email for user {user_id}")
             except Exception as e:
