@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon, PhotoIcon } from '@heroicons/react/24/outline'
@@ -92,6 +92,27 @@ const emptyKid = () => ({
   photo_file: null, photo_preview: '', avatar_url: '',
 })
 const emptyContact = () => ({ name: '', relationship: '', phone: '', email: '' })
+
+// Browser/password-manager autofill can paint values into inputs WITHOUT firing
+// the events React listens to, so the field looks filled while state stays ''.
+// The submit then fails validation ("add an address") even though the parent
+// sees their address on screen. Before validating, trust the DOM for any
+// state-empty field: read input[name=...] values out of the section and merge.
+export const mergeAutofilledFields = (state, container, nameByKey) => {
+  if (!container) return state
+  const merged = { ...state }
+  for (const [key, inputName] of Object.entries(nameByKey)) {
+    if (String(merged[key] || '').trim()) continue
+    const el = container.querySelector(`input[name="${inputName}"]`)
+    if (el && el.value.trim()) merged[key] = el.value
+  }
+  return merged
+}
+
+const FAMILY_INPUT_NAMES = {
+  phone: 'phone', address_line1: 'address-line1', address_line2: 'address-line2',
+  city: 'city', state: 'state', postal_code: 'zip',
+}
 
 // Circular photo preview + picker. Photos are required for every family member.
 const PhotoPicker = ({ label, url, onSelect }) => (
@@ -257,6 +278,7 @@ const ICreateRegisterPage = () => {
 
   // family step
   const [family, setFamily] = useState({ phone: '', address_line1: '', address_line2: '', city: '', state: '', postal_code: '' })
+  const addressBoxRef = useRef(null)  // autofill reconciliation (mergeAutofilledFields)
   const [kids, setKids] = useState([emptyKid()])
   const [parentPhoto, setParentPhoto] = useState({ file: null, preview: '', avatar_url: '' })
 
@@ -513,8 +535,13 @@ const ICreateRegisterPage = () => {
 
   const submitFamily = async () => {
     if (previewMode) return setStep('details')
-    if (!family.phone.trim()) return toast.error('Enter your phone number')
-    if (!family.address_line1.trim() || !family.city.trim() || !family.state.trim() || !family.postal_code.trim()) {
+    // Reconcile autofilled-but-unsynced inputs before validating (see
+    // mergeAutofilledFields) — otherwise a parent whose browser autofilled the
+    // address is told to "add an address" they can plainly see.
+    const fam = mergeAutofilledFields(family, addressBoxRef.current, FAMILY_INPUT_NAMES)
+    if (fam !== family) setFamily(fam)
+    if (!fam.phone.trim()) return toast.error('Enter your phone number')
+    if (!fam.address_line1.trim() || !fam.city.trim() || !fam.state.trim() || !fam.postal_code.trim()) {
       return toast.error('Enter your street address, city, state, and ZIP')
     }
     if (!parentPhoto.file && !parentPhoto.avatar_url) {
@@ -535,9 +562,9 @@ const ICreateRegisterPage = () => {
     try {
       const { data } = await api.post(`/api/icreate/registrations/${reg.registration_id}/family`, {
         access_token: reg.access_token,
-        phone: family.phone.trim(),
-        address_line1: family.address_line1.trim(), address_line2: family.address_line2.trim(),
-        city: family.city.trim(), state: family.state.trim(), postal_code: family.postal_code.trim(),
+        phone: fam.phone.trim(),
+        address_line1: fam.address_line1.trim(), address_line2: fam.address_line2.trim(),
+        city: fam.city.trim(), state: fam.state.trim(), postal_code: fam.postal_code.trim(),
         kids: kids.map((k) => ({
           first_name: k.first_name.trim(), last_name: k.last_name.trim(),
           preferred_name: k.preferred_name.trim(), gender: k.gender,
@@ -837,19 +864,19 @@ const ICreateRegisterPage = () => {
         {step === 'family' && (
           <div className="space-y-6">
             <Section title="Contact & address">
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
+              <div ref={addressBoxRef} className="grid grid-cols-1 sm:grid-cols-6 gap-4">
                 <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Phone</label>
-                  <input type="tel" className={field} placeholder="XXX-XXX-XXXX" value={family.phone} onChange={(e) => setFamily({ ...family, phone: e.target.value })} /></div>
+                  <input type="tel" name="phone" autoComplete="tel" className={field} placeholder="XXX-XXX-XXXX" value={family.phone} onChange={(e) => setFamily({ ...family, phone: e.target.value })} /></div>
                 <div className="sm:col-span-4"><label className="block text-xs font-medium text-neutral-500 mb-1">Street address</label>
-                  <input className={field} value={family.address_line1} onChange={(e) => setFamily({ ...family, address_line1: e.target.value })} /></div>
+                  <input name="address-line1" autoComplete="address-line1" className={field} value={family.address_line1} onChange={(e) => setFamily({ ...family, address_line1: e.target.value })} /></div>
                 <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Apt / unit (optional)</label>
-                  <input className={field} value={family.address_line2} onChange={(e) => setFamily({ ...family, address_line2: e.target.value })} /></div>
+                  <input name="address-line2" autoComplete="address-line2" className={field} value={family.address_line2} onChange={(e) => setFamily({ ...family, address_line2: e.target.value })} /></div>
                 <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">City</label>
-                  <input className={field} value={family.city} onChange={(e) => setFamily({ ...family, city: e.target.value })} /></div>
+                  <input name="city" autoComplete="address-level2" className={field} value={family.city} onChange={(e) => setFamily({ ...family, city: e.target.value })} /></div>
                 <div className="sm:col-span-1"><label className="block text-xs font-medium text-neutral-500 mb-1">State</label>
-                  <input className={field} placeholder="UT" value={family.state} onChange={(e) => setFamily({ ...family, state: e.target.value })} /></div>
+                  <input name="state" autoComplete="address-level1" className={field} placeholder="UT" value={family.state} onChange={(e) => setFamily({ ...family, state: e.target.value })} /></div>
                 <div className="sm:col-span-1"><label className="block text-xs font-medium text-neutral-500 mb-1">ZIP</label>
-                  <input className={field} value={family.postal_code} onChange={(e) => setFamily({ ...family, postal_code: e.target.value })} /></div>
+                  <input name="zip" autoComplete="postal-code" className={field} value={family.postal_code} onChange={(e) => setFamily({ ...family, postal_code: e.target.value })} /></div>
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <label className="block text-xs font-medium text-neutral-500 mb-2">
