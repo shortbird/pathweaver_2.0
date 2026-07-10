@@ -10,6 +10,7 @@ from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from repositories.base_repository import BaseRepository, NotFoundError, PermissionError, ValidationError
 from utils.logger import get_logger
+from utils.roles import get_effective_roles
 
 logger = get_logger(__name__)
 
@@ -59,11 +60,19 @@ class DependentRepository(BaseRepository):
             PermissionError: If parent doesn't have permission
         """
         # Validate parent exists and has parent or admin role (get organization_id too)
-        parent = self.client.table('users').select('id, role, organization_id, first_name, last_name').eq('id', parent_id).single().execute()
+        parent = self.client.table('users').select(
+            'id, role, org_role, org_roles, organization_id, first_name, last_name'
+        ).eq('id', parent_id).single().execute()
         if not parent.data:
             raise NotFoundError(f"Parent with ID {parent_id} not found")
 
-        if parent.data.get('role') not in ['parent', 'superadmin']:
+        # Resolve org_managed users to their real role(s) so org-based parents
+        # (role='org_managed', org_role/org_roles='parent') are allowed, not just
+        # platform parents. Previously this checked only the raw `role` column,
+        # which the route-layer verify_parent_role does not, so org parents passed
+        # the route gate but were rejected here.
+        effective_roles = get_effective_roles(parent.data)
+        if 'parent' not in effective_roles and 'superadmin' not in effective_roles:
             raise PermissionError(f"User {parent_id} is not a parent or superadmin")
 
         # Validate age (must be under 13)

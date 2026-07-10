@@ -77,36 +77,45 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
                   className="fixed inset-0 z-10"
                   onClick={() => state.setShowActionsDropdown(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
                   <button
                     onClick={() => {
                       state.setShowActionsDropdown(false)
                       state.setShowInviteModal(true)
                     }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-gray-50 flex items-start gap-3"
                   >
-                    <EnvelopeIcon className="w-4 h-4" />
-                    Invite by Email
+                    <EnvelopeIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
+                    <span>
+                      <span className="block text-sm font-medium">Invite by Email</span>
+                      <span className="block text-xs text-gray-500">Send a sign-up link. Best for parents, teachers, or students with an email address.</span>
+                    </span>
                   </button>
                   <button
                     onClick={() => {
                       state.setShowActionsDropdown(false)
                       state.setShowCreateUsernameModal(true)
                     }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-gray-50 flex items-start gap-3"
                   >
-                    <UserPlusIcon className="w-4 h-4" />
-                    Create Student (No Email)
+                    <UserPlusIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
+                    <span>
+                      <span className="block text-sm font-medium">Create Student (No Email)</span>
+                      <span className="block text-xs text-gray-500">Generate a username + password to hand out. Best for young students — including your own child.</span>
+                    </span>
                   </button>
                   <button
                     onClick={() => {
                       state.setShowActionsDropdown(false)
                       state.setShowBulkImportModal(true)
                     }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-gray-50 flex items-start gap-3"
                   >
-                    <UsersIcon className="w-4 h-4" />
-                    Bulk Import CSV
+                    <UsersIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
+                    <span>
+                      <span className="block text-sm font-medium">Bulk Import CSV</span>
+                      <span className="block text-xs text-gray-500">Add many students at once from a spreadsheet.</span>
+                    </span>
                   </button>
                 </div>
               </>

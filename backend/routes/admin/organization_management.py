@@ -906,6 +906,9 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
         first_name = data.get('first_name', '').strip()
         last_name = data.get('last_name', '').strip()
         org_role = data.get('org_role', 'student')
+        # When the admin creating the account is the student's own parent, link the
+        # new student to the admin's account so it appears on their parent surfaces.
+        link_to_me = bool(data.get('link_to_me'))
 
         # Validate required fields
         if not username:
@@ -1008,9 +1011,52 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
 
             logger.info(f"Created username-based student {user_id} ({username}) in org {org_id} by {current_user_id}")
 
+            # Optionally link the new student to the admin as their parent. Only
+            # meaningful for student accounts; mirrors how the iCreate funnel lets
+            # same-org staff register their own kids (keeps their admin role primary
+            # and gains 'parent' so parent surfaces light up).
+            linked_to_parent = False
+            if link_to_me and org_role == 'student':
+                try:
+                    now = datetime.utcnow().isoformat()
+                    client.table('parent_student_links').insert({
+                        'parent_user_id': current_user_id,
+                        'student_user_id': user_id,
+                        'status': 'approved',
+                        'admin_verified': True,
+                        'verified_by_admin_id': current_user_id,
+                        'verified_at': now,
+                        'admin_notes': 'Linked by org admin who is the student\'s parent'
+                    }).execute()
+
+                    # Ensure the admin carries a 'parent' role so parent-side
+                    # features appear, without disturbing their primary admin role.
+                    admin_row = client.table('users') \
+                        .select('org_roles, org_role') \
+                        .eq('id', current_user_id) \
+                        .single() \
+                        .execute()
+                    current_roles = admin_row.data.get('org_roles') if admin_row.data else None
+                    if not isinstance(current_roles, list):
+                        legacy = (admin_row.data or {}).get('org_role')
+                        current_roles = [legacy] if legacy else []
+                    current_roles = [r for r in current_roles if r]
+                    if 'parent' not in current_roles:
+                        client.table('users') \
+                            .update({'org_roles': current_roles + ['parent']}) \
+                            .eq('id', current_user_id) \
+                            .execute()
+
+                    linked_to_parent = True
+                    logger.info(f"Linked student {user_id} to parent/admin {current_user_id}")
+                except Exception as link_error:
+                    # Linking is best-effort; the account was created successfully.
+                    logger.error(f"Failed to link student {user_id} to admin {current_user_id}: {link_error}")
+
             return jsonify({
                 'success': True,
                 'user': result.data[0],
+                'linked_to_parent': linked_to_parent,
                 'login_credentials': {
                     'username': username,
                     'password': password,  # Include generated password for org admin to share
