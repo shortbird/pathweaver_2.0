@@ -66,6 +66,70 @@ def validate_simple_password(password: str):
 
     return False, 'Password must be a PIN (4+ digits) followed by a word (4+ letters), like "1234apple"'
 
+
+def _ensure_shared_household(client, org_id, guardian_id, guardian_last_name, student_id):
+    """Ensure the guardian and student share a household in this org.
+
+    Family surfaces (Schedule Builder, parent context) resolve a parent's
+    children from household membership and users.managed_by_parent_id, NOT from
+    parent_student_links. So linking a student to a guardian is only fully
+    effective if they also share a household. This find-or-creates the guardian's
+    household and adds the student as a member. Idempotent.
+    """
+    household_id = None
+
+    # 1) Reuse a household in this org where the guardian is already a guardian.
+    memberships = (client.table('household_members')
+                   .select('household_id, relationship')
+                   .eq('user_id', guardian_id).execute().data) or []
+    guardian_hh_ids = [m['household_id'] for m in memberships
+                       if m.get('relationship') in ('guardian', 'other') and m.get('household_id')]
+    if guardian_hh_ids:
+        rows = (client.table('households').select('id')
+                .in_('id', guardian_hh_ids).eq('organization_id', org_id)
+                .limit(1).execute().data) or []
+        if rows:
+            household_id = rows[0]['id']
+
+    # 2) Otherwise reuse a household they're the primary contact of, or create one,
+    #    then ensure the guardian membership row exists.
+    if not household_id:
+        owned = (client.table('households').select('id')
+                 .eq('organization_id', org_id)
+                 .eq('primary_contact_user_id', guardian_id)
+                 .limit(1).execute().data) or []
+        if owned:
+            household_id = owned[0]['id']
+        else:
+            created = (client.table('households').insert({
+                'organization_id': org_id,
+                'name': f"{(guardian_last_name or 'New').strip() or 'New'} Family",
+                'primary_contact_user_id': guardian_id,
+            }).execute().data)
+            household_id = created[0]['id']
+
+        already_guardian = (client.table('household_members').select('id')
+                            .eq('household_id', household_id)
+                            .eq('user_id', guardian_id).execute().data) or []
+        if not already_guardian:
+            client.table('household_members').insert({
+                'household_id': household_id, 'user_id': guardian_id,
+                'relationship': 'guardian', 'is_primary_guardian': True,
+            }).execute()
+
+    # 3) Add the student to the household (idempotent).
+    already_member = (client.table('household_members').select('id')
+                      .eq('household_id', household_id)
+                      .eq('user_id', student_id).execute().data) or []
+    if not already_member:
+        client.table('household_members').insert({
+            'household_id': household_id, 'user_id': student_id,
+            'relationship': 'student', 'is_primary_guardian': False,
+        }).execute()
+
+    return household_id
+
+
 bp = Blueprint('organization_management', __name__)
 
 
@@ -1032,7 +1096,7 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
                     # Ensure the admin carries a 'parent' role so parent-side
                     # features appear, without disturbing their primary admin role.
                     admin_row = client.table('users') \
-                        .select('org_roles, org_role') \
+                        .select('org_roles, org_role, last_name') \
                         .eq('id', current_user_id) \
                         .single() \
                         .execute()
@@ -1046,6 +1110,16 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
                             .update({'org_roles': current_roles + ['parent']}) \
                             .eq('id', current_user_id) \
                             .execute()
+
+                    # Put the student in the admin's household. The Schedule Builder
+                    # and other family surfaces resolve a parent's children from
+                    # household membership (and managed_by_parent_id), NOT from
+                    # parent_student_links, so a link alone leaves the child invisible
+                    # there. Mirror the iCreate funnel by ensuring a shared household.
+                    _ensure_shared_household(
+                        client, org_id, current_user_id,
+                        (admin_row.data or {}).get('last_name'), user_id
+                    )
 
                     linked_to_parent = True
                     logger.info(f"Linked student {user_id} to parent/admin {current_user_id}")
