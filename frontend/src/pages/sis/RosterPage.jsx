@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
+import SisNewUserModal from '../../components/sis/SisNewUserModal'
 import { RolePill } from '../../components/ui/RolePill'
 import { startMasquerade } from '../../services/masqueradeService'
 import { switchSurfaceInApp } from '../../utils/appSurface'
@@ -25,6 +26,7 @@ const RosterPage = () => {
   const [roster, setRoster] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)   // Manage modal (tabbed)
+  const [showNewUser, setShowNewUser] = useState(false)  // + New User modal
   const [menuFor, setMenuFor] = useState(null)      // open actions menu (student_id)
   const [search, setSearch] = useState('')
   const [hideInactive, setHideInactive] = useState(true)
@@ -122,6 +124,7 @@ const RosterPage = () => {
         <div className="flex items-center gap-3">
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
+          <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
         </div>
       </div>
 
@@ -217,6 +220,14 @@ const RosterPage = () => {
           orgId={orgId}
           onClose={() => setSelected(null)}
           onSaved={load}
+        />
+      )}
+
+      {showNewUser && (
+        <SisNewUserModal
+          orgId={orgId}
+          onClose={() => setShowNewUser(false)}
+          onCreated={load}
         />
       )}
     </div>
