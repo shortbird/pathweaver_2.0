@@ -411,6 +411,32 @@ def _family_directive(admin, org_id, email):
         return None
 
 
+def _apply_prepaid_directive(admin, reg):
+    """Honor a fee_prepaid directive staged AFTER the family step computed the fee.
+
+    The family step zeroes the fee for directives that already exist, but the
+    school often imports its legacy prepaid list late. Without this, a prepaid
+    family whose registration already stored fee_cents > 0 is stuck at the fee
+    step ("Please pay the registration fee by card to finish") with no way
+    through. Re-check on resume/fee/checkout and zero the stored fee.
+    Returns the (possibly updated) registration row.
+    """
+    try:
+        if reg.get('status') == 'completed' or int(reg.get('fee_cents') or 0) <= 0:
+            return reg
+        parent = _parent_row(admin, reg['parent_user_id'])
+        directive = _family_directive(admin, reg['organization_id'], parent.get('email'))
+        if directive and directive.get('fee_prepaid'):
+            admin.table('icreate_registrations').update({
+                'fee_cents': 0, 'updated_at': datetime.utcnow().isoformat(),
+            }).eq('id', reg['id']).execute()
+            reg = {**reg, 'fee_cents': 0}
+            logger.info(f"iCreate: prepaid directive zeroed fee for registration {reg['id']}")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"iCreate: prepaid-directive check failed for registration {reg.get('id')}: {e}")
+    return reg
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @bp.route('/config/<invitation_code>', methods=['GET'])
@@ -471,6 +497,10 @@ def my_registration(user_id):
         reg['status'] = 'completed'
     if not reg or reg.get('status') == 'completed':
         return jsonify({'success': True, 'registration': None}), 200
+
+    # A prepaid directive staged after the fee was computed zeroes it on resume,
+    # so the fee step renders the no-payment finish instead of demanding a card.
+    reg = _apply_prepaid_directive(admin, reg)
 
     # A logged-in session proves account ownership, so a registration still
     # waiting on the email code can skip straight to the family step.
@@ -1154,6 +1184,9 @@ def create_checkout(reg_id):
     admin = _admin()
     cfg = _org_config(admin, reg['organization_id'])
     secret = cfg.get('stripe_secret_key')
+    # A stale tab could still show the card button after the school staged a
+    # prepaid credit — never charge a family that already paid.
+    reg = _apply_prepaid_directive(admin, reg)
     fee_cents = int(reg.get('fee_cents') or 0)
     if not secret:
         return jsonify({'error': 'Card payment is not set up for this school'}), 400
@@ -1309,6 +1342,7 @@ def record_fee(reg_id):
         return jsonify({'success': True, 'status': reg['status'], 'already': True,
                         'scheduling_url': _abs_url(cfg.get('scheduling_url')),
                         'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
+    reg = _apply_prepaid_directive(admin, reg)
     fee_cents = int(reg.get('fee_cents') or 0)  # computed per-family at the family step
     if cfg.get('stripe_secret_key') and fee_cents > 0:
         return jsonify({'error': 'Please pay the registration fee by card to finish.'}), 402
