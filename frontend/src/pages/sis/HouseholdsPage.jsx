@@ -14,6 +14,7 @@ const HouseholdsPage = () => {
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
+  const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
 
   const load = useCallback(() => {
@@ -57,6 +58,15 @@ const HouseholdsPage = () => {
     return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '')
   }
 
+  // Search matches the family name AND every member's name, so a kid whose
+  // last name differs from the household name is still findable.
+  const q = search.trim().toLowerCase()
+  const visibleHouseholds = q
+    ? households.filter((h) =>
+        (h.name || '').toLowerCase().includes(q) ||
+        (h.members || []).some((m) => (m.name || '').toLowerCase().includes(q)))
+    : households
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -75,13 +85,25 @@ const HouseholdsPage = () => {
         <Button size="sm" onClick={createHousehold}>Create family</Button>
       </div>
 
+      {!loading && households.length > 0 && (
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={`${field} w-full sm:w-80 mb-4`}
+          placeholder="Search families or any family member…"
+        />
+      )}
+
       {loading && <p className="text-neutral-500">Loading…</p>}
       {!loading && !households.length && (
         <p className="text-neutral-500">No families yet. Create one above to group students and guardians.</p>
       )}
+      {!loading && households.length > 0 && !visibleHouseholds.length && (
+        <p className="text-neutral-500">No family or member matches "{search}".</p>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {households.map((h) => {
+        {visibleHouseholds.map((h) => {
           const count = (h.members || []).length
           return (
             <button

@@ -641,25 +641,44 @@ def _guardian_households(user_id: str, org_id: str) -> List[Dict[str, Any]]:
         return []
     return (
         _admin().table('households')
-        .select('id, name, phone, directory_opt_in')
+        .select('id, name, phone, directory_opt_in, '
+                'directory_share_email, directory_share_phone, directory_share_address')
         .in_('id', hh_ids).eq('organization_id', org_id).execute()
     ).data or []
+
+
+DIRECTORY_SHARE_FIELDS = ('directory_share_email', 'directory_share_phone',
+                          'directory_share_address')
 
 
 def directory_opt_in_status(user_id: str, org_id: str) -> Dict[str, Any]:
     households = _guardian_households(user_id, org_id)
     if not households:
         return {'error': 'No family found for your account'}
-    return {'opted_in': any(h.get('directory_opt_in') for h in households)}
+    first = households[0]
+    return {'opted_in': any(h.get('directory_opt_in') for h in households),
+            'share_email': bool(first.get('directory_share_email', True)),
+            'share_phone': bool(first.get('directory_share_phone', True)),
+            'share_address': bool(first.get('directory_share_address', False))}
 
 
-def set_directory_opt_in(user_id: str, org_id: str, opted_in: bool) -> Dict[str, Any]:
+def set_directory_opt_in(user_id: str, org_id: str, opted_in: bool,
+                         shares: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Families choose what the directory shows about them: opted_in is the
+    master switch, and share_email/share_phone/share_address pick the fields."""
     households = _guardian_households(user_id, org_id)
     if not households:
         return {'error': 'No family found for your account'}
-    _admin().table('households').update({'directory_opt_in': bool(opted_in)}) \
+    payload = {'directory_opt_in': bool(opted_in)}
+    for key in ('email', 'phone', 'address'):
+        if shares and f'share_{key}' in shares:
+            payload[f'directory_share_{key}'] = bool(shares[f'share_{key}'])
+    _admin().table('households').update(payload) \
         .in_('id', [h['id'] for h in households]).execute()
-    return {'opted_in': bool(opted_in)}
+    return {'opted_in': bool(opted_in),
+            **{f'share_{k}': payload.get(f'directory_share_{k}')
+               for k in ('email', 'phone', 'address')
+               if f'directory_share_{k}' in payload}}
 
 
 def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
@@ -670,7 +689,8 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
         return None
     households = (
         _admin().table('households')
-        .select('id, name, phone')
+        .select('id, name, phone, address_line1, city, '
+                'directory_share_email, directory_share_phone, directory_share_address')
         .eq('organization_id', org_id).eq('directory_opt_in', True)
         .order('name').execute()
     ).data or []
@@ -700,13 +720,28 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
             slot['students'].append(u.get('first_name') or (u.get('display_name') or '').split(' ')[0] or 'Student')
         elif m.get('relationship') in GUARDIAN_RELATIONSHIPS:
             slot['guardians'].append({'name': _student_name(u), 'email': u.get('email')})
-    return [{
-        'household_id': h['id'],
-        'family_name': h['name'],
-        'phone': h.get('phone'),
-        'guardians': by_household[h['id']]['guardians'],
-        'students': sorted(by_household[h['id']]['students']),
-    } for h in households]
+
+    # Per-field privacy: each family chooses whether email / phone / address
+    # appear. Email/phone default on (the directory always showed them);
+    # address defaults OFF and only shows street + city, never the full address.
+    out = []
+    for h in households:
+        share_email = h.get('directory_share_email', True)
+        guardians = by_household[h['id']]['guardians']
+        if not share_email:
+            guardians = [{'name': g['name'], 'email': None} for g in guardians]
+        address = None
+        if h.get('directory_share_address'):
+            address = ', '.join(v for v in (h.get('address_line1'), h.get('city')) if v) or None
+        out.append({
+            'household_id': h['id'],
+            'family_name': h['name'],
+            'phone': h.get('phone') if h.get('directory_share_phone', True) else None,
+            'address': address,
+            'guardians': guardians,
+            'students': sorted(by_household[h['id']]['students']),
+        })
+    return out
 
 
 # ── Planned absences (guardian-scoped) ────────────────────────────────────────

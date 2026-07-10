@@ -361,8 +361,9 @@ def set_directory_opt_in(user_id):
     org_id = _org(request)
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
-    opted_in = bool((request.json or {}).get('opted_in'))
-    result = parent.set_directory_opt_in(user_id, org_id, opted_in)
+    body = request.json or {}
+    result = parent.set_directory_opt_in(user_id, org_id, bool(body.get('opted_in')),
+                                         shares=body)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
     return jsonify({'success': True, **result})

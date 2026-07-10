@@ -244,6 +244,42 @@ def delete_prerequisite(user_id, class_id, prerequisite_id):
     return jsonify({'success': True})
 
 
+@bp.route('/classes/<class_id>/enrollments', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def class_roster(user_id, class_id):
+    """The class's enrolled students (active), for the class Roster tab."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    repo = SisClassRepository(client=supabase)
+    if not _load_class(repo, org_id, class_id):
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    enrollments = (
+        supabase.table('class_enrollments').select('student_id, created_at')
+        .eq('class_id', class_id).eq('status', 'active').execute()
+    ).data or []
+    ids = [e['student_id'] for e in enrollments]
+    users = {}
+    if ids:
+        rows = (supabase.table('users')
+                .select('id, first_name, last_name, display_name, email, username')
+                .in_('id', ids).execute()).data or []
+        users = {u['id']: u for u in rows}
+    roster = []
+    for e in enrollments:
+        u = users.get(e['student_id']) or {}
+        name = (u.get('display_name')
+                or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                or u.get('username') or u.get('email') or 'Unknown')
+        roster.append({'student_id': e['student_id'], 'name': name,
+                       'last_name': u.get('last_name'),
+                       'email': u.get('email'), 'username': u.get('username'),
+                       'enrolled_at': e.get('created_at')})
+    roster.sort(key=lambda r: (r.get('last_name') or r['name']).lower())
+    return jsonify({'success': True, 'roster': roster})
+
+
 # ── Direct enrollment (staff enroll a student into a class) ───────────────────
 @bp.route('/classes/<class_id>/enrollments', methods=['POST'])
 @require_role(*STAFF_ROLES)

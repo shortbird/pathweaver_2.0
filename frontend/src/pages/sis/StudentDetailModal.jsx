@@ -4,6 +4,7 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
+import WeeklyScheduleGrid from '../../components/sis/WeeklyScheduleGrid'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 
 /**
@@ -26,7 +27,10 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const isStudent = student.is_student !== false
   const [tab, setTab] = useState('profile')
   const [form, setForm] = useState({
-    role: student.role || (isStudent ? 'student' : ''),
+    // A person can hold several roles at once (teacher who is also a parent).
+    // Order matters: the first role is primary.
+    roles: (student.roles && student.roles.length ? student.roles
+      : student.role ? [student.role] : (isStudent ? ['student'] : [])),
     first_name: student.first_name || '',
     last_name: student.last_name || '',
     preferred_name: student.preferred_name || '',
@@ -52,8 +56,8 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         email: form.email || null, date_of_birth: form.date_of_birth || null,
         sis_tuition_plan: form.sis_tuition_plan || null, organization_id: orgId,
       })]
-      if (form.role) {
-        reqs.push(api.patch(`/api/sis/users/${student.student_id}/role`, { role: form.role, organization_id: orgId }))
+      if (form.roles.length) {
+        reqs.push(api.patch(`/api/sis/users/${student.student_id}/role`, { roles: form.roles, organization_id: orgId }))
       }
       if (isStudent) {
         reqs.push(api.patch(`/api/sis/enrollments/${student.student_id}`, {
@@ -112,13 +116,36 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   )
 }
 
-const RoleField = ({ form, set }) => (
-  <label className="text-xs text-neutral-500">Role
-    <select value={form.role} onChange={(e) => set('role', e.target.value)} className={field}>
-      {ROLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-    </select>
-  </label>
-)
+// Multi-role picker: a person can be several things at once (e.g. a teacher
+// who is also a parent). Checked order is kept — the first is the primary role.
+const RolesField = ({ form, set }) => {
+  const toggle = (value) => {
+    const has = form.roles.includes(value)
+    if (has && form.roles.length === 1) {
+      toast.error('A user needs at least one role')
+      return
+    }
+    set('roles', has ? form.roles.filter((r) => r !== value) : [...form.roles, value])
+  }
+  return (
+    <div>
+      <span className="block text-xs text-neutral-500 mb-1">Roles</span>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {ROLE_OPTIONS.map(([v, l]) => (
+          <label key={v} className="inline-flex items-center gap-1.5 text-sm text-neutral-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.roles.includes(v)}
+              onChange={() => toggle(v)}
+              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+            />
+            {l}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 const ProfileFields = ({ form, set, isStudent }) => (
   <section className="space-y-3">
@@ -133,24 +160,17 @@ const ProfileFields = ({ form, set, isStudent }) => (
     <label className="text-xs text-neutral-500 block">Email
       <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} className={field} />
     </label>
-    {isStudent ? (
-      <div className="grid grid-cols-3 gap-3">
-        <label className="text-xs text-neutral-500">Date of birth
-          <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
-        </label>
-        <RoleField form={form} set={set} />
+    <div className="grid grid-cols-2 gap-3">
+      <label className="text-xs text-neutral-500">Date of birth
+        <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
+      </label>
+      {isStudent && (
         <label className="text-xs text-neutral-500">Grade
           <input value={form.grade_level} onChange={(e) => set('grade_level', e.target.value)} className={field} placeholder="e.g. 9th" />
         </label>
-      </div>
-    ) : (
-      <div className="grid grid-cols-2 gap-3">
-        <label className="text-xs text-neutral-500">Date of birth
-          <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
-        </label>
-        <RoleField form={form} set={set} />
-      </div>
-    )}
+      )}
+    </div>
+    <RolesField form={form} set={set} />
     {isStudent && (
       <>
         <div className="grid grid-cols-2 gap-3">
@@ -360,6 +380,7 @@ const SchedulePanel = ({ student, orgId }) => {
   const [all, setAll] = useState([])
   const [chosen, setChosen] = useState('')
   const [busy, setBusy] = useState(false)
+  const [view, setView] = useState('grid') // grid (block schedule) | list
 
   const reload = useCallback(() => {
     setLoading(true)
@@ -394,18 +415,32 @@ const SchedulePanel = ({ student, orgId }) => {
       {loading ? <p className="text-sm text-neutral-500">Loading…</p>
         : classes.length === 0 ? <p className="text-sm text-neutral-400">Not enrolled in any classes yet.</p>
         : (
-          <div className="space-y-2">
-            {classes.map((c) => (
-              <div key={c.class_id} className="rounded-lg border border-gray-200 px-3 py-2.5">
-                <div className="font-medium text-neutral-900">{c.name}</div>
-                <div className="text-sm text-neutral-500">{c.teacher_name ? `Teacher: ${c.teacher_name}` : 'No teacher assigned'}</div>
-                {c.quest_id
-                  ? <button onClick={() => switchSurfaceInApp('learning', `/quests/${c.quest_id}`)} className="text-sm text-optio-purple font-medium hover:underline">
-                      Open quest{c.quest_title ? `: ${c.quest_title}` : ''} →
-                    </button>
-                  : <span className="text-xs text-neutral-400">No quest linked</span>}
+          <div>
+            <div className="flex justify-end mb-2">
+              <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
+                {[['grid', 'Block schedule'], ['list', 'List']].map(([v, l]) => (
+                  <button key={v} onClick={() => setView(v)} aria-pressed={view === v}
+                    className={`px-2 py-1 rounded-md transition-colors ${view === v ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+                    {l}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+            {view === 'grid' ? <WeeklyScheduleGrid classes={classes} /> : (
+              <div className="space-y-2">
+                {classes.map((c) => (
+                  <div key={c.class_id} className="rounded-lg border border-gray-200 px-3 py-2.5">
+                    <div className="font-medium text-neutral-900">{c.name}</div>
+                    <div className="text-sm text-neutral-500">{c.teacher_name ? `Teacher: ${c.teacher_name}` : 'No teacher assigned'}</div>
+                    {c.quest_id
+                      ? <button onClick={() => switchSurfaceInApp('learning', `/quests/${c.quest_id}`)} className="text-sm text-optio-purple font-medium hover:underline">
+                          Open quest{c.quest_title ? `: ${c.quest_title}` : ''} →
+                        </button>
+                      : <span className="text-xs text-neutral-400">No quest linked</span>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

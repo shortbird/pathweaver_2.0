@@ -517,6 +517,7 @@ const Row = ({ label, value }) => (
 
 const CLASS_TABS = [
   { key: 'details', label: 'Details' },
+  { key: 'roster', label: 'Roster' },
   { key: 'waitlist', label: 'Waitlist' },
 ]
 
@@ -590,10 +591,37 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmi
             </div>
           )}
 
+          {tab === 'roster' && <ClassRoster classId={cls.id} orgId={orgId} />}
           {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} />}
         </div>
       </div>
     </ModalOverlay>
+  )
+}
+
+// Enrolled students for the class (sorted by last name).
+const ClassRoster = ({ classId, orgId }) => {
+  const [roster, setRoster] = useState(null)
+  useEffect(() => {
+    api.get(withOrg(`/api/sis/classes/${classId}/enrollments`, orgId))
+      .then((r) => setRoster(r.data?.roster || []))
+      .catch(() => { toast.error('Failed to load the roster'); setRoster([]) })
+  }, [classId, orgId])
+
+  if (roster === null) return <p className="text-sm text-neutral-400">Loading…</p>
+  if (!roster.length) return <p className="text-sm text-neutral-400">No students enrolled yet.</p>
+  return (
+    <div>
+      <p className="text-xs text-neutral-400 mb-2">{roster.length} enrolled</p>
+      <ul className="divide-y divide-gray-100">
+        {roster.map((s) => (
+          <li key={s.student_id} className="py-2 flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-neutral-800">{s.name}</span>
+            <span className="text-xs text-neutral-400 truncate">{s.email || s.username || ''}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

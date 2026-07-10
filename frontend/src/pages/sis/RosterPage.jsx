@@ -80,10 +80,13 @@ const RosterPage = () => {
     }
   }
 
+  // Every account gets Manage (profile, roles, message); the student-specific
+  // actions stay student-only. Teachers/parents previously had NO menu at all,
+  // which made their roles uneditable from this page.
   const actionsFor = (s) => [
     { label: 'Manage', onClick: () => setSelected(s) },
-    { label: 'Overview', onClick: () => goOverview(s) },
-    isSuperadmin && { label: 'View as student', onClick: () => viewAsStudent(s) },
+    s.is_student && { label: 'Overview', onClick: () => goOverview(s) },
+    s.is_student && isSuperadmin && { label: 'View as student', onClick: () => viewAsStudent(s) },
   ].filter(Boolean)
 
   const toggleSort = (key) => setSort((prev) => (
@@ -103,6 +106,8 @@ const RosterPage = () => {
       let cmp
       if (sort.key === 'family') {
         cmp = (a.household_name || '').toLowerCase().localeCompare((b.household_name || '').toLowerCase())
+      } else if (sort.key === 'last') {
+        cmp = (a.last_name || '').toLowerCase().localeCompare((b.last_name || '').toLowerCase())
       } else if (sort.key === 'last_active') {
         cmp = new Date(a.last_active || 0) - new Date(b.last_active || 0)
       } else if (sort.key === 'role') {
@@ -161,7 +166,16 @@ const RosterPage = () => {
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-neutral-500 text-left">
               <tr>
-                <SortHeader label="Name" col="name" sort={sort} onSort={toggleSort} arrow={sortArrow} />
+                <th className="px-4 py-3 font-medium">
+                  <button onClick={() => toggleSort('name')}
+                    className={`inline-flex items-center hover:text-neutral-800 ${sort.key === 'name' ? 'text-neutral-800' : ''}`}>
+                    Name{sortArrow('name')}
+                  </button>
+                  <button onClick={() => toggleSort('last')}
+                    className={`ml-3 inline-flex items-center text-xs hover:text-neutral-800 ${sort.key === 'last' ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                    Last name{sortArrow('last')}
+                  </button>
+                </th>
                 <SortHeader label="Role" col="role" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Family" col="family" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Last active" col="last_active" sort={sort} onSort={toggleSort} arrow={sortArrow} />
@@ -172,8 +186,8 @@ const RosterPage = () => {
               {visibleRoster.map((s) => (
                 <tr
                   key={s.student_id}
-                  onClick={() => s.is_student && setSelected(s)}
-                  className={`hover:bg-neutral-50 ${s.is_student ? 'cursor-pointer' : ''}`}
+                  onClick={() => setSelected(s)}
+                  className="hover:bg-neutral-50 cursor-pointer"
                 >
                   <td className="px-4 py-3">
                     <div className="font-medium text-neutral-900">{s.name}</div>
@@ -191,14 +205,12 @@ const RosterPage = () => {
                   </td>
                   <td className="px-4 py-3 text-neutral-500">{fmtDate(s.last_active)}</td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    {s.is_student && (
-                      <RowActions
-                        open={menuFor === s.student_id}
-                        onOpen={() => setMenuFor(s.student_id)}
-                        onClose={() => setMenuFor(null)}
-                        actions={actionsFor(s)}
-                      />
-                    )}
+                    <RowActions
+                      open={menuFor === s.student_id}
+                      onOpen={() => setMenuFor(s.student_id)}
+                      onClose={() => setMenuFor(null)}
+                      actions={actionsFor(s)}
+                    />
                   </td>
                 </tr>
               ))}

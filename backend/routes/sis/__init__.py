@@ -387,8 +387,9 @@ def update_user_role(user_id, target_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    role = (request.get_json() or {}).get('role')
-    result = sis_service.update_user_role(org_id, target_id, role)
+    body = request.get_json() or {}
+    result = sis_service.update_user_role(org_id, target_id,
+                                          role=body.get('role'), roles=body.get('roles'))
     if result.get('error'):
         code = 404 if result['error'] == 'User not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code

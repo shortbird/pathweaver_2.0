@@ -616,6 +616,20 @@ def list_student_classes(org_id: str, student_id: str) -> List[Dict[str, Any]]:
                   .in_('id', list(set(first_quest.values()))).execute()).data or []:
             quest_titles[q['id']] = q.get('title')
 
+    # Weekly meetings (for the block-schedule grid view).
+    meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
+    for m in (_admin().table('class_meetings')
+              .select('class_id, day_of_week, start_time, end_time, location')
+              .in_('class_id', cids).execute()).data or []:
+        if m.get('day_of_week') is None:
+            continue
+        meetings_by_class.setdefault(m['class_id'], []).append({
+            'day_of_week': m['day_of_week'],
+            'start_time': str(m.get('start_time') or '')[:5],
+            'end_time': str(m.get('end_time') or '')[:5],
+            'location': m.get('location'),
+        })
+
     out = []
     for c in classes:
         tid = c.get('primary_instructor_id') or advisors_by_class.get(c['id'])
@@ -626,6 +640,8 @@ def list_student_classes(org_id: str, student_id: str) -> List[Dict[str, Any]]:
             'teacher_name': teacher_names.get(tid) if tid else None,
             'quest_id': qid,
             'quest_title': quest_titles.get(qid) if qid else None,
+            'meetings': sorted(meetings_by_class.get(c['id'], []),
+                               key=lambda m: (m['day_of_week'], m['start_time'])),
         })
     out.sort(key=lambda r: (r['name'] or '').lower())
     return out
@@ -641,23 +657,35 @@ def get_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
 ASSIGNABLE_ROLES = ('student', 'parent', 'advisor', 'org_admin', 'observer')
 
 
-def update_user_role(org_id: str, user_id: str, role: str) -> Dict[str, Any]:
-    """Change a user's org role (org_managed users). Sets org_role + org_roles.
-    Returns {'error': ...} on a bad role / cross-org user."""
-    if role not in ASSIGNABLE_ROLES:
-        return {'error': f'Invalid role: {role}'}
+def update_user_role(org_id: str, user_id: str, role: str = None,
+                     roles: List[str] = None) -> Dict[str, Any]:
+    """Change a user's org role(s) (org_managed users). Sets org_role + org_roles.
+
+    Accepts a single `role` (legacy) or a `roles` list — a person can be several
+    things at once (e.g. a teacher who is also a parent). The first role in the
+    list is primary (drives org_role / get_effective_role).
+    Returns {'error': ...} on a bad role / cross-org user.
+    """
+    role_list = [r for r in (roles if roles is not None else [role]) if r]
+    if not role_list:
+        return {'error': 'Pick at least one role'}
+    seen = set()
+    role_list = [r for r in role_list if not (r in seen or seen.add(r))]
+    for r in role_list:
+        if r not in ASSIGNABLE_ROLES:
+            return {'error': f'Invalid role: {r}'}
     row = (
         _admin().table('users').select('id, role, organization_id')
         .eq('id', user_id).limit(1).execute()
     ).data
     if not row or row[0].get('organization_id') != org_id:
         return {'error': 'User not found'}
-    payload = {'org_role': role, 'org_roles': [role]}
+    payload = {'org_role': role_list[0], 'org_roles': role_list}
     # Org users are 'org_managed' at the platform level; keep that invariant.
     if row[0].get('role') != 'superadmin':
         payload['role'] = 'org_managed'
     _admin().table('users').update(payload).eq('id', user_id).execute()
-    return {'role': role}
+    return {'role': role_list[0], 'roles': role_list}
 
 
 def get_org_user(org_id: str, user_id: str) -> Optional[Dict[str, Any]]:

@@ -125,4 +125,10 @@ class TestFamilyDirectory:
     def test_status_reflects_household_flag(self):
         client, _ = _fake_admin(_resolver)
         with patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
-            assert parent.directory_opt_in_status('g1', 'org1') == {'opted_in': True}
+            status = parent.directory_opt_in_status('g1', 'org1')
+        assert status['opted_in'] is True
+        # Per-field sharing defaults: email/phone on (the directory always
+        # showed them), address off (never shown before — explicit opt-in).
+        assert status['share_email'] is True
+        assert status['share_phone'] is True
+        assert status['share_address'] is False
