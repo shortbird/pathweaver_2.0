@@ -659,3 +659,5 @@ def register_sis_routes(app):
     app.register_blueprint(events_bp)
     from routes.sis.schedule_ai import bp as schedule_ai_bp
     app.register_blueprint(schedule_ai_bp)
+    from routes.sis.schedule_sync import bp as schedule_sync_bp
+    app.register_blueprint(schedule_sync_bp)

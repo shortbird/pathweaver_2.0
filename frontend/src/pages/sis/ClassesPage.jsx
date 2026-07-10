@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { toast } from 'react-hot-toast'
-import { Squares2X2Icon, TableCellsIcon } from '@heroicons/react/24/outline'
+import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { ModalOverlay } from '../../components/ui'
@@ -12,6 +12,7 @@ import CourseEnrollmentManager from '../../components/admin/CourseEnrollmentMana
 import SearchSelect from '../../components/ui/SearchSelect'
 import ParentClassPreview from '../../components/schedule/ClassDetailsModal'
 import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
+import ScheduleSyncModal from '../../components/sis/ScheduleSyncModal'
 import ClassesTable from '../../components/sis/ClassesTable'
 
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
@@ -64,6 +65,7 @@ const ClassesPage = () => {
   const [filter, setFilter] = useState('classes')  // all | classes | courses; default: org's own classes
   const [search, setSearch] = useState('')
   const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
+  const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
   // cards | table — table is the spreadsheet view of the org's classes.
   const [view, setViewState] = useState(() => {
     try { return localStorage.getItem('sis_classes_view') || 'table' } catch { return 'table' }
@@ -252,7 +254,18 @@ const ClassesPage = () => {
           className="flex-1 min-w-[160px] max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
         />
         {orgId && <ScheduleAiEditor orgId={orgId} onApplied={load} />}
+        {orgId && (
+          <button onClick={() => setShowSync(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-medium hover:bg-optio-purple/5 transition-colors">
+            <ArrowPathIcon className="w-4 h-4" />
+            Sync from Sheet
+          </button>
+        )}
       </div>
+
+      {showSync && orgId && (
+        <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={load} />
+      )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
       {!loading && view === 'cards' && !items.length && (
