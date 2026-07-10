@@ -71,11 +71,11 @@ def create_group(user_id: str):
         }, status_code=201)
 
     except ValidationError as e:
-        logger.error(f"Validation error creating group: {str(e)}")
+        logger.warning(f"Validation error creating group: {str(e)}")
         return error_response(str(e), status_code=400, error_code="validation_error")
 
     except ValueError as e:
-        logger.error(f"Permission error creating group: {str(e)}")
+        logger.warning(f"Permission error creating group: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -124,7 +124,7 @@ def get_group(user_id: str, group_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Permission error getting group: {str(e)}")
+        logger.warning(f"Permission error getting group: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -172,11 +172,11 @@ def update_group(user_id: str, group_id: str):
         })
 
     except ValidationError as e:
-        logger.error(f"Validation error updating group: {str(e)}")
+        logger.warning(f"Validation error updating group: {str(e)}")
         return error_response(str(e), status_code=400, error_code="validation_error")
 
     except ValueError as e:
-        logger.error(f"Permission error updating group: {str(e)}")
+        logger.warning(f"Permission error updating group: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -204,7 +204,7 @@ def delete_group(user_id: str, group_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Permission error deleting group: {str(e)}")
+        logger.warning(f"Permission error deleting group: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -237,11 +237,11 @@ def add_member(user_id: str, group_id: str):
         }, status_code=201)
 
     except ValidationError as e:
-        logger.error(f"Validation error adding member: {str(e)}")
+        logger.warning(f"Validation error adding member: {str(e)}")
         return error_response(str(e), status_code=400, error_code="validation_error")
 
     except ValueError as e:
-        logger.error(f"Permission error adding member: {str(e)}")
+        logger.warning(f"Permission error adding member: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -268,7 +268,7 @@ def remove_member(user_id: str, group_id: str, target_user_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Permission error removing member: {str(e)}")
+        logger.warning(f"Permission error removing member: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -334,7 +334,7 @@ def get_messages(user_id: str, group_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Permission error getting messages: {str(e)}")
+        logger.warning(f"Permission error getting messages: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -378,11 +378,15 @@ def send_message(user_id: str, group_id: str):
         }, status_code=201)
 
     except ValidationError as e:
-        logger.error(f"Validation error sending message: {str(e)}")
+        # Expected client error (400) — a bad request, not a server fault. Log at
+        # warning so it stays a Sentry breadcrumb instead of becoming an issue.
+        logger.warning(f"Validation error sending message: {str(e)}")
         return error_response(str(e), status_code=400, error_code="validation_error")
 
     except ValueError as e:
-        logger.error(f"Permission error sending message: {str(e)}")
+        # Expected permission denial (403) — user isn't a member / can't post to
+        # this group. Not a server fault; log at warning to keep it out of Sentry.
+        logger.warning(f"Permission error sending message: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -409,7 +413,7 @@ def mark_as_read(user_id: str, group_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Permission error marking as read: {str(e)}")
+        logger.warning(f"Permission error marking as read: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -436,7 +440,7 @@ def get_available_members(user_id: str, group_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Permission error getting available members: {str(e)}")
+        logger.warning(f"Permission error getting available members: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:

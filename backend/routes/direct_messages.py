@@ -155,7 +155,7 @@ def get_conversation_messages(user_id: str, conversation_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Validation error getting conversation messages: {str(e)}")
+        logger.warning(f"Validation error getting conversation messages: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -199,11 +199,16 @@ def send_message(user_id: str, target_user_id: str):
         })
 
     except ValidationError as e:
-        logger.error(f"Validation error sending message: {str(e)}")
+        # Expected client error (400) — a bad request, not a server fault. Log at
+        # warning so it stays a Sentry breadcrumb instead of becoming an issue.
+        logger.warning(f"Validation error sending message: {str(e)}")
         return error_response(str(e), status_code=400, error_code="validation_error")
 
     except ValueError as e:
-        logger.error(f"Permission error sending message: {str(e)}")
+        # Expected permission denial (403) — user tried to message someone they
+        # aren't linked to. Not a server fault; log at warning to keep it out of
+        # Sentry issues.
+        logger.warning(f"Permission error sending message: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -231,7 +236,8 @@ def mark_message_as_read(user_id: str, message_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Permission error marking message as read: {str(e)}")
+        # Expected permission denial (403), not a server fault — log at warning.
+        logger.warning(f"Permission error marking message as read: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
@@ -619,7 +625,7 @@ def get_child_conversation_messages(user_id: str, child_id: str, conversation_id
         })
 
     except ValueError as e:
-        logger.error(f"Validation error getting child conversation messages: {str(e)}")
+        logger.warning(f"Validation error getting child conversation messages: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
