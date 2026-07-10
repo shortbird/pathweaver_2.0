@@ -158,13 +158,34 @@ def update_user(user_id, target_user_id):
             'city', 'state', 'postal_code', 'country',
             'date_of_birth'
         ]
+        # Blank strings for these optional fields must be stored as NULL, not ''.
+        # Critically, dependents must have email IS NULL (check_dependent_no_email):
+        # edit forms submit the whole user object with an empty email for a
+        # dependent, and persisting '' would violate the constraint on ANY update.
+        nullable_fields = {
+            'email', 'phone_number', 'address_line1', 'address_line2',
+            'city', 'state', 'postal_code', 'country', 'date_of_birth'
+        }
 
         for field in allowed_fields:
             if field in data:
-                update_data[field] = data[field]
+                value = data[field]
+                if field in nullable_fields and isinstance(value, str) and value.strip() == '':
+                    value = None
+                update_data[field] = value
 
         if not update_data:
             return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+
+        # Keep the COPPA promotion date in sync when a dependent's birthday
+        # changes (mirrors DependentRepository.update_dependent). Non-dependents
+        # leave promotion_eligible_at NULL.
+        if update_data.get('date_of_birth'):
+            target = supabase.table('users').select('is_dependent').eq('id', target_user_id).single().execute()
+            if target.data and target.data.get('is_dependent'):
+                from dateutil.relativedelta import relativedelta
+                dob = datetime.strptime(update_data['date_of_birth'], '%Y-%m-%d').date()
+                update_data['promotion_eligible_at'] = str(dob + relativedelta(years=13))
 
         # Note: users table has no updated_at column
 
