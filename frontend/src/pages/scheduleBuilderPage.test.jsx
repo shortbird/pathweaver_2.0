@@ -36,6 +36,15 @@ const POTTERY = {
 // jsdom's getBoundingClientRect().top is 0, so clientY 54 → 9:00.
 const clickTue9am = () => fireEvent.click(screen.getByTestId('schedule-day-2'), { clientY: 54 })
 
+// The page resolves several mocked fetches in separate microtasks, and each
+// re-render can replace the day-column node. A click that lands on a node
+// React just swapped out is silently lost (flaky in CI). Retry the click
+// until the slot popup actually appears.
+const openTue9am = () => waitFor(() => {
+  clickTue9am()
+  expect(screen.getByText(/Classes at Tue 9am–10am/)).toBeInTheDocument()
+})
+
 beforeEach(() => { vi.clearAllMocks() })
 
 describe('ScheduleBuilderPage', () => {
@@ -55,8 +64,7 @@ describe('ScheduleBuilderPage', () => {
     await screen.findByTestId('schedule-day-2')
     // the catalog is no longer listed on the page itself
     expect(screen.queryByText('Pottery')).not.toBeInTheDocument()
-    clickTue9am()
-    expect(await screen.findByText(/Classes at Tue 9am–10am/)).toBeInTheDocument()
+    await openTue9am()
     expect(screen.getByText('Pottery')).toBeInTheDocument()
     expect(screen.queryByText('Basketry')).not.toBeInTheDocument() // meets Wed, not this slot
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
@@ -73,7 +81,7 @@ describe('ScheduleBuilderPage', () => {
     api.post.mockResolvedValue({ data: { success: true, enrolled: true } })
     render(<ScheduleBuilderPage />)
     await screen.findByTestId('schedule-day-2')
-    clickTue9am()
+    await openTue9am()
     fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
     expect(await screen.findByText('Wheel-thrown pots.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Add class' }))
@@ -114,9 +122,12 @@ describe('ScheduleBuilderPage', () => {
     api.get.mockImplementation(mockApi({ schedule: { classes: [twoHour] }, classes: [overlapping] }))
     render(<ScheduleBuilderPage />)
     await screen.findByText('Fashion 101')
-    // Tue at 11:30 — inside the enrolled 2-hour class: (11.5h - 8h) * 60min * 0.9px
-    fireEvent.click(screen.getByTestId('schedule-day-2'), { clientY: 189 })
-    expect(await screen.findByText('Lego Lab')).toBeInTheDocument()
+    // Tue at 11:30 — inside the enrolled 2-hour class: (11.5h - 8h) * 60min * 0.9px.
+    // Retried like openTue9am: a click during a data-driven re-render is lost.
+    await waitFor(() => {
+      fireEvent.click(screen.getByTestId('schedule-day-2'), { clientY: 189 })
+      expect(screen.getByText('Lego Lab')).toBeInTheDocument()
+    })
     expect(screen.getByText(/Overlaps Fashion 101/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
   })
@@ -126,7 +137,7 @@ describe('ScheduleBuilderPage', () => {
     api.post.mockResolvedValue({ data: { success: true, waitlisted: true, position: 2 } })
     render(<ScheduleBuilderPage />)
     await screen.findByTestId('schedule-day-2')
-    clickTue9am()
+    await openTue9am()
     expect(await screen.findByText('Full — waitlist')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Waitlist' }))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
@@ -151,7 +162,7 @@ describe('ScheduleBuilderPage', () => {
     )
     expect(await screen.findByText('Preview mode')).toBeInTheDocument()
     expect(screen.getByText('Casey Sample')).toBeInTheDocument()
-    clickTue9am()
+    await openTue9am()
     fireEvent.click(await screen.findByRole('button', { name: 'Add' }))
     // added to the calendar locally — no write hits the API
     expect(await screen.findByText('Pottery')).toBeInTheDocument()
