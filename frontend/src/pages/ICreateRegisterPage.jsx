@@ -1102,8 +1102,13 @@ const ICreateRegisterPage = () => {
               <div className="text-center">
                 {feeCents > 0
                   ? <p className="text-3xl font-bold text-optio-purple my-3">{money(feeCents)}</p>
-                  : <p className="text-sm text-neutral-500 my-3">Complete your registration below.</p>}
-                {config.stripe_enabled && feeCents > 0 ? (
+                  : <p className="text-sm text-neutral-500 my-3">
+                      No payment is due — complete your registration below.
+                    </p>}
+                {/* Payment affordances only render when something is actually
+                    owed: a $0 family (prepaid credit) must never be handed a
+                    payment link. */}
+                {feeCents > 0 && (config.stripe_enabled ? (
                   <p className="text-xs text-neutral-400">
                     You'll be taken to a secure Stripe checkout. Your registration completes automatically once the payment is verified.
                   </p>
@@ -1111,13 +1116,13 @@ const ICreateRegisterPage = () => {
                   <>
                     <a href={paymentUrl} target="_blank" rel="noreferrer"
                       className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                      Pay {feeCents > 0 ? money(feeCents) : 'registration fee'}
+                      Pay {money(feeCents)}
                     </a>
                     <p className="text-xs text-neutral-400 mt-3">Payment opens in a new tab. Return here and continue once you've paid.</p>
                   </>
                 ) : (
                   <p className="text-sm text-neutral-400">Your school will collect the fee separately.</p>
-                )}
+                ))}
               </div>
             </Section>
             {config.stripe_enabled && feeCents > 0 ? (
@@ -1132,7 +1137,9 @@ const ICreateRegisterPage = () => {
               </>
             ) : (
               <PrimaryButton onClick={() => finishFee()} disabled={submitting}>
-                {submitting ? 'Finishing…' : paymentUrl ? "I've paid — finish registration" : 'Finish registration'}
+                {submitting ? 'Finishing…'
+                  : paymentUrl && feeCents > 0 ? "I've paid — finish registration"
+                  : 'Finish registration'}
               </PrimaryButton>
             )}
           </div>
