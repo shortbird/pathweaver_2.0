@@ -168,6 +168,83 @@ Dr. Bowman
 
 ---
 
+## Sequence: General Interest Nurture (trigger: added to "General Interest Leads" #12; exit: added to Customers)
+
+Audience: the homepage "Get More Info" CTA (`contact_type` demo/general — confirmation subject
+"Thanks for Your Interest in Optio!"). The actual leads are mostly homeschool/alt-ed **parents**
+asking questions, so the sequence is parent-voiced ("your student"), like Families/POE. 4 emails
+over 10 days. Brevo templates **24–27**; UTM `utm_campaign=general_interest_nurture`, content e1–e4.
+
+### Email 1 — ~1 hour after submission (template 24)
+**Subject:** The info you asked for
+
+Hi {FIRSTNAME}, this is Dr. Bowman from Optio. Thanks for reaching out for more info.
+
+Here's Optio in a nutshell: your student creates classes around the things they already love doing, whether that's coding, animals, music, or starting a small business. They work through real projects at their own pace, capture photos, videos, and writing right from their phone, and all of it builds into a portfolio they can be proud of. For high schoolers, each class is reviewed by an Optio teacher and goes on an official transcript. If you want the fuller picture, [How classes work](/docs/high-school-classes/how-high-school-classes-work) is a quick two minute read.
+
+The best way to see if it fits is to have your student try it. The first class is free, with no credit card and nothing to cancel:
+
+[App Store badge] [Google Play badge]
+
+And if you asked a specific question when you reached out, just reply to this email. It comes straight to me, and I answer everything myself.
+
+Dr. Bowman
+
+---
+
+### Email 2 — day 3 (template 25)
+**Subject:** They're probably already doing the work
+
+Most of the families I talk to discover their student is already doing something that deserves a spot on a transcript.
+
+Training with a team is PE. Practicing a language every day is a world language class. The same goes for building games, editing videos, baking, and running a small business.
+
+An Optio class doesn't pile new work on top of your family's life. Your student creates a class around what they're already doing, and Optio gives it structure and makes it count. Here's a closer look at [how the work adds up](/docs/high-school-classes/tasks-evidence-and-xp).
+
+You can also [join as a supporter](/docs/high-school-classes/for-parents-following-along), along with grandparents or mentors, to see the work as it happens and cheer your student on.
+
+The first class is free, so it's easy to try:
+
+[App Store badge] [Google Play badge]
+
+Dr. Bowman
+
+---
+
+### Email 3 — day 6 (template 26)
+**Subject:** Does it actually count?
+
+The question every parent asks first: will a class my student built themselves actually count?
+
+It does. When your student finishes a class, we send their school an official transcript issued through Optio Academy, which is accredited by the Western Association of Schools and Colleges (WASC), the same kind of accreditation your local public school has. The full details are in [Transcripts and Accreditation](/docs/high-school-classes/transcripts-and-accreditation).
+
+And if your student is younger, the transcript matters less than the habit. Optio is built for the whole K-12 range, and for younger kids the portfolio, the quests, and the experience of finishing real work they chose themselves are the point.
+
+The first class is free whenever your student is ready to create it:
+
+[App Store badge] [Google Play badge]
+
+If you have questions about your student's specific school, just reply. I've walked a lot of families through this.
+
+Dr. Bowman
+
+---
+
+### Email 4 — day 10 (template 27)
+**Subject:** Worth trying while it's free
+
+I'll keep this one short.
+
+The easiest way to know whether Optio fits your family is to have your student create their first class, which is free, with no credit card and nothing to cancel. They choose a name and a subject, then make it their own by adding their own tasks or using AI suggestions. If they want a walkthrough, here's the [step-by-step guide](/docs/high-school-classes/creating-your-class).
+
+[App Store badge] [Google Play badge]
+
+If you still have questions, reply and ask; every message comes straight to me. And if the timing isn't right, no hard feelings. The unsubscribe link below works, and Optio will be here if you come back.
+
+Dr. Bowman
+
+---
+
 ## Segment: Families (parent-voiced welcome — manual send or 1-step automation)
 **Subject:** Your questions about Optio, answered directly
 

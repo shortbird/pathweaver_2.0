@@ -74,10 +74,15 @@ Ads → /classes → FreeClassModal → POST /api/contact → contact_submission
 | Brevo list | Source | Sequence |
 |------------|--------|----------|
 | Free Class Leads | `claim_free_class` | 6-email nurture |
-| Families | `families`, `general` | Parent-voiced welcome + newsletter |
-| B2B Inquiries | `demo`, `sales`, `academy` | No drip — Brevo CRM deal pipeline + personal template |
+| Families | `families` | Parent-voiced welcome + newsletter |
+| General Interest Leads (#12) | `demo`, `general` (homepage "Get More Info" CTA) | 4-email parent-voiced nurture (templates 24–27) — see §10 |
+| B2B Inquiries | `sales`, `academy` | No drip — Brevo CRM deal pipeline + personal template |
 | POE Parents | `poe_signups.parent_email` | One post-camp email (fall classes) + newsletter |
 | Customers | any lead that registers | Suppressed from nurture; phase-2 activation |
+
+> **Remap 2026-07-13**: `demo` was originally classed as B2B, but the actual homepage
+> "Get More Info" submissions are almost all homeschool parents asking about their own
+> kids (see §10 audit). `demo`/`general` now sync to #12; only `sales`/`academy` remain B2B.
 
 **Contact attributes**: `LEAD_TYPE` (text), `LEAD_SOURCE` (text, e.g. `classes_lp`), `LEAD_DATE` (date), `CONVERTED` (boolean), `NOTES` (text).
 
@@ -160,3 +165,24 @@ Add UTMs when linking from emails. Articles are edited via the superadmin Docs a
 - PostHog already captures `marketing_form_submitted` (lead) and registration; funnel = ad click → lead → account → class started → class completed.
 - Brevo campaign stats (opens are unreliable post-Apple-MPP; judge by clicks and replies).
 - Weekly review: leads in, catch-up/auto emails sent, replies, accounts created, classes claimed. `contact_submissions.status` should move `new → contacted → converted/closed` — update as part of the weekly pass so the table stays a truthful CRM.
+
+## 10. General Interest Nurture (built 2026-07-13, awaiting automation activation)
+
+Funnel for the homepage "Get More Info" CTA (contact types `demo`/`general`; confirmation email
+subject "Thanks for Your Interest in Optio!"). Separate from the free-class and POE funnels.
+
+**Audience audit (2026-07-13)**: 5 genuine `demo` leads, zero `general` (non-test). Four of five
+read as homeschool/alt-ed parents (homeschooled daughter + microschool; HS student questions;
+transferring credits / leaving traditional HS; community portfolio program), one org
+(sailfuture.org). Hence parent-voiced nurture, not the B2B track they were originally mapped to.
+
+**Built via MCP:**
+- [x] List **General Interest Leads (#12)**, folder "Optio Marketing" (3)
+- [x] Templates (inactive drafts, sender id 1, reply-to tanner@): **24** "The info you asked for" (~1h), **25** "They're probably already doing the work" (d3), **26** "Does it actually count?" (d6), **27** "Worth trying while it's free" (d10). Copy in `brevo_email_copy.md`; HTML in `brevo_email_html/24–27`.
+- [x] Backend remap in `brevo_service.py`: `demo`/`general` → #12 (was B2B #6 / Families #5); `mark_converted` also unlinks #12. **Needs deploy to prod before new leads route to #12.**
+
+**Dashboard-only (Tanner):**
+- [ ] Automation "General Interest Nurture": trigger = contact added to list #12, exclude existing list members; send templates 24 (delay 1h) / 25 (day 3) / 26 (day 6) / 27 (day 10); exit rule = contact added to Customers (#8). Same pattern as Free Class Nurture.
+- [ ] Decide on the 5 pre-automation demo leads sitting in B2B #6 (they will NOT be picked up by the automation, and two asked specific questions months ago). Recommended: short personal replies (Amber's lead is from 2026-07-13, so a normal reply is still timely), or a catch-up campaign to a "Catch-up General Interest" list mirroring the free-class approach. Move the parent-type leads out of #6 either way; sailfuture.org stays B2B.
+
+**UTMs**: `utm_source=brevo&utm_medium=email&utm_campaign=general_interest_nurture&utm_content=e1…e4`.

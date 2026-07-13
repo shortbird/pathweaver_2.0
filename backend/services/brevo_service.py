@@ -34,15 +34,19 @@ LIST_CUSTOMERS = 8
 # time. Safe to keep once the sequence finishes; unlinking an absent member
 # is a no-op.
 LIST_CATCHUP_FREE_CLASS = 11
+# Homepage "Get More Info" leads (demo/general types). These turned out to be
+# mostly homeschool parents, not B2B, so they get their own parent-voiced
+# nurture (templates 24-27) instead of the B2B pipeline.
+LIST_GENERAL_INTEREST = 12
 
 # Which list a contact_submissions.contact_type lands in. Adding a contact to
-# Free Class Leads triggers the live nurture automation, so callers must only
-# sync genuinely new leads (not existing account holders).
+# Free Class Leads or General Interest Leads triggers a nurture automation, so
+# callers must only sync genuinely new leads (not existing account holders).
 LEAD_TYPE_LISTS = {
     'claim_free_class': LIST_FREE_CLASS_LEADS,
     'families': LIST_FAMILIES,
-    'general': LIST_FAMILIES,
-    'demo': LIST_B2B,
+    'general': LIST_GENERAL_INTEREST,
+    'demo': LIST_GENERAL_INTEREST,
     'sales': LIST_B2B,
     'academy': LIST_B2B,
 }
@@ -149,7 +153,7 @@ def mark_converted(email):
             json={
                 'attributes': {'CONVERTED': True},
                 'listIds': [LIST_CUSTOMERS],
-                'unlinkListIds': [LIST_FREE_CLASS_LEADS, LIST_FAMILIES, LIST_B2B, LIST_CATCHUP_FREE_CLASS],
+                'unlinkListIds': [LIST_FREE_CLASS_LEADS, LIST_FAMILIES, LIST_B2B, LIST_CATCHUP_FREE_CLASS, LIST_GENERAL_INTEREST],
             },
             timeout=REQUEST_TIMEOUT,
         )

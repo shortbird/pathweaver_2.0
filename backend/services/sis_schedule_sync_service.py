@@ -1,11 +1,17 @@
 """
 SIS Schedule Sync — the org's Google Sheet master schedule as source of truth.
 
-The school keeps its master schedule in a Google Sheet laid out as a grid:
-columns are teachers, row groups are DAY -> "Block N - Class Title / Ages /
-Room" triplets. "Sync from Sheet" fetches the sheet's CSV export, parses that
-grid deterministically, diffs it against the org's classes, and PROPOSES
-operations in the exact vocabulary of sis_schedule_ai_service
+Two sheet layouts are recognized (auto-detected from the header):
+  1. Grid: columns are teachers, row groups are DAY -> "Block N - Class Title /
+     Ages / Room" triplets.
+  2. Flat class list: one row per class with columns like Class Name / Ages /
+     Class Start Time / Length of Class / Day / Classroom / Teacher (the
+     iCreate master sheet). Days may combine ("Tuesday & Thursday") and times
+     are explicit, so no time-block configuration is needed.
+
+"Sync from Sheet" fetches the sheet's CSV export, parses it deterministically,
+diffs it against the org's classes, and PROPOSES operations in the exact
+vocabulary of sis_schedule_ai_service
 (create_class / update_class / set_meetings / archive_class). Nothing is
 written here — staff review the diff and apply through the existing
 /api/sis/schedule-ai/apply endpoint (which also provides undo).
@@ -37,7 +43,11 @@ DAY_TO_DOW = {'SUNDAY': 0, 'MONDAY': 1, 'TUESDAY': 2, 'WEDNESDAY': 3,
               'THURSDAY': 4, 'FRIDAY': 5, 'SATURDAY': 6}
 BLOCK_ROW_RE = re.compile(r'^block\s*(\d+)\s*-\s*(class\s*title|ages|room)$', re.I)
 DAY_ROW_RE = re.compile(r'^(sun|mon|tues|wednes|thurs|fri|satur)day$', re.I)
+DAY_TOKEN_RE = re.compile(r'\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b', re.I)
+TOKEN_TO_DOW = {'sun': 0, 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6}
 PLACEHOLDER_RE = re.compile(r'placeholder', re.I)
+# Flat sheets mark unassigned teachers as "TBD" or "Teacher A" — same meaning.
+FLAT_PLACEHOLDER_RE = re.compile(r'^(?:tbd|teacher\s+[a-z]\.?)$', re.I)
 # Blocks labeled as breaks don't count when mapping "Block N" to times.
 BREAK_LABEL_RE = re.compile(r'lunch|break|recess|transition', re.I)
 SHEET_URL_RE = re.compile(
@@ -159,9 +169,148 @@ def parse_master_grid(csv_text: str) -> Tuple[List[Dict[str, Any]], List[str]]:
     flush_day()
 
     if not entries:
-        raise SheetSyncError('No classes found — expected day headings (e.g. TUESDAY) '
-                             'with "Block N - Class Title / Ages / Room" rows.')
+        raise SheetSyncError(
+            'No classes found — expected either a class-list table (Class Name / '
+            'Ages / Class Start Time / Length / Day columns) or day headings '
+            '(e.g. TUESDAY) with "Block N - Class Title / Ages / Room" rows.')
     return entries, warnings
+
+
+# ── Parse: flat class list (one row per class) ────────────────────────────────
+
+# Header cell -> entry field. Extra columns (description, tuition, ...) are
+# deliberately not synced.
+FLAT_ALIASES = {
+    'title': ('class name', 'class title'),
+    'ages': ('ages', 'age', 'age range'),
+    'start': ('class start time', 'start time', 'start'),
+    'length': ('length of class', 'class length', 'length', 'duration'),
+    'day': ('day', 'days', 'day(s)'),
+    'room': ('classroom', 'room'),
+    'teacher': ('teacher', 'instructor'),
+}
+
+
+def parse_day_names(raw: str) -> List[int]:
+    """'Tuesday & Thursday' -> [2, 4]; 'Mon/Wed' -> [1, 3]; '' -> []."""
+    days: List[int] = []
+    for tok in DAY_TOKEN_RE.findall(raw or ''):
+        d = TOKEN_TO_DOW[tok.lower()]
+        if d not in days:
+            days.append(d)
+    return days
+
+
+def parse_clock(raw: str) -> Optional[str]:
+    """'2:00 PM' -> '14:00'; '9:30 AM' -> '09:30'. None if unreadable."""
+    m = re.match(r'^\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m?\.?\s*$', raw or '', re.I)
+    if not m:
+        return None
+    h, minute = int(m.group(1)), int(m.group(2) or 0)
+    if not 1 <= h <= 12 or minute > 59:
+        return None
+    if m.group(3).lower() == 'p' and h != 12:
+        h += 12
+    if m.group(3).lower() == 'a' and h == 12:
+        h = 0
+    return f'{h:02d}:{minute:02d}'
+
+
+def parse_length_minutes(raw: str) -> Optional[int]:
+    """'1 hour' -> 60; '2 hours' -> 120; '90 min' -> 90; '1.5 hours' -> 90."""
+    m = re.search(r'(\d+(?:\.\d+)?)\s*(hour|hr|minute|min)', raw or '', re.I)
+    if not m:
+        return None
+    n = float(m.group(1))
+    return int(round(n * 60)) if m.group(2).lower().startswith('h') else int(round(n))
+
+
+def _find_flat_header(rows: List[List[str]]) -> Optional[Tuple[int, Dict[str, int], List[str]]]:
+    """Locate a flat class-list header row near the top of the sheet.
+
+    Returns (row_index, field->column map, unsynced column names) or None.
+    """
+    alias_to_field = {a: f for f, aliases in FLAT_ALIASES.items() for a in aliases}
+    for idx, row in enumerate(rows[:10]):
+        colmap: Dict[str, int] = {}
+        extras: List[str] = []
+        for col, cell in enumerate(row):
+            label = re.sub(r'\s+', ' ', (cell or '').strip().lower())
+            field = alias_to_field.get(label)
+            if field and field not in colmap:
+                colmap[field] = col
+            elif (cell or '').strip():
+                extras.append((cell or '').strip())
+        if {'title', 'day', 'start'} <= set(colmap):
+            return idx, colmap, extras
+    return None
+
+
+def parse_flat_list(rows: List[List[str]], header_idx: int,
+                    colmap: Dict[str, int], extras: List[str]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Parse a one-row-per-class sheet into the same entries as the grid parser,
+    except each entry carries explicit 'start'/'end' times instead of a block."""
+    warnings: List[str] = []
+    entries: List[Dict[str, Any]] = []
+    if extras:
+        warnings.append('Not synced from the sheet: ' + ', '.join(extras) +
+                        ' — only name, teacher, ages, room, and meeting days/times sync.')
+
+    def cell(row: List[str], field: str) -> str:
+        col = colmap.get(field)
+        if col is None or col >= len(row):
+            return ''
+        return (row[col] or '').strip()
+
+    for row in rows[header_idx + 1:]:
+        title = cell(row, 'title')
+        if not title:
+            continue
+        days = parse_day_names(cell(row, 'day'))
+        if not days:
+            warnings.append(f'Skipped "{title}" — could not read its day '
+                            f'"{cell(row, "day")}".')
+            continue
+        start = parse_clock(cell(row, 'start'))
+        if not start:
+            warnings.append(f'Skipped "{title}" — could not read its start time '
+                            f'"{cell(row, "start")}".')
+            continue
+        minutes = parse_length_minutes(cell(row, 'length'))
+        if minutes is None:
+            minutes = 60
+            warnings.append(f'"{title}": could not read class length '
+                            f'"{cell(row, "length")}" — assuming 1 hour.')
+        total = int(start[:2]) * 60 + int(start[3:]) + minutes
+        end = f'{total // 60:02d}:{total % 60:02d}'
+        teacher = cell(row, 'teacher')
+        room = cell(row, 'room')
+        if room.lower() == 'tbd':
+            room = ''
+        for day in days:
+            entries.append({
+                'day_of_week': day, 'start': start, 'end': end,
+                'teacher': teacher,
+                'is_placeholder': bool(PLACEHOLDER_RE.search(teacher)
+                                       or FLAT_PLACEHOLDER_RE.match(teacher)),
+                'title': title,
+                'ages_raw': cell(row, 'ages'),
+                'room': room,
+            })
+
+    if not entries:
+        raise SheetSyncError('The class list has no readable rows — each class '
+                             'needs a name, a day, and a start time.')
+    return entries, warnings
+
+
+def parse_schedule_csv(csv_text: str) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Auto-detect the sheet layout and parse it."""
+    rows = list(csv.reader(io.StringIO(csv_text)))
+    header = _find_flat_header(rows)
+    if header:
+        return parse_flat_list(rows, *header)
+    return parse_master_grid(csv_text)
 
 
 # ── Desired state (group grid cells into classes) ─────────────────────────────
@@ -189,7 +338,8 @@ def build_desired_classes(entries: List[Dict[str, Any]],
     """
     warnings: List[str] = []
     blocks = teaching_blocks(time_blocks)
-    if not blocks:
+    # Flat-list entries carry explicit times; only grid entries need blocks.
+    if not blocks and any('block' in e for e in entries):
         raise SheetSyncError('No time blocks configured for this school — set them '
                              'on the Settings page first so "Block 1..N" map to times.')
 
@@ -216,10 +366,14 @@ def build_desired_classes(entries: List[Dict[str, Any]],
         min_age, max_age = parse_ages(e['ages_raw'])
         if e['ages_raw'] and (min_age, max_age) == (None, None) and 'all' not in e['ages_raw'].lower():
             warnings.append(f'"{e["title"]}": could not read ages "{e["ages_raw"]}" — leaving unset.')
-        if e['block'] < 1 or e['block'] > len(blocks):
+        if e.get('start') and e.get('end'):
+            start, end = e['start'], e['end']
+        elif e['block'] < 1 or e['block'] > len(blocks):
             bad_blocks.add(e['block'])
             continue
-        block = blocks[e['block'] - 1]
+        else:
+            block = blocks[e['block'] - 1]
+            start, end = block['start'], block['end']
         instructor_id = None
         if not e['is_placeholder'] and e['teacher']:
             instructor_id = resolve_teacher(e['teacher'])
@@ -238,8 +392,8 @@ def build_desired_classes(entries: List[Dict[str, Any]],
             g['rooms'][e['room']] += 1
         g['meetings'].append({
             'day_of_week': e['day_of_week'],
-            'start_time': f"{block['start']}:00",
-            'end_time': f"{block['end']}:00",
+            'start_time': f'{start}:00',
+            'end_time': f'{end}:00',
             'room': e['room'] or None,
         })
 
@@ -271,6 +425,20 @@ def build_desired_classes(entries: List[Dict[str, Any]],
 
 # ── Diff ──────────────────────────────────────────────────────────────────────
 
+DOW_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+
+def _fmt_meeting_keys(keys) -> str:
+    """Human-readable meeting set for review details: 'Tue 09:30-10:30 (Gym)'."""
+    if not keys:
+        return 'none'
+    parts = []
+    for day, start, end, room in sorted(keys, key=lambda k: (k[0] or 0, k[1])):
+        label = f'{DOW_NAMES[day]} {start}-{end}' if day is not None else f'{start}-{end}'
+        parts.append(f'{label} ({room})' if room else label)
+    return ', '.join(parts)
+
+
 def _meeting_key(m: Dict[str, Any], default_location: Optional[str] = None) -> Tuple:
     """Comparable meeting identity. A meeting without its own location
     effectively happens at the class's location, so compare that — existing
@@ -289,6 +457,76 @@ DAY_SUFFIX_RE = re.compile(
 
 def _day_stripped_norm(name: str) -> str:
     return _norm(DAY_SUFFIX_RE.sub('', name or ''))
+
+
+def _suffix_days(name: str) -> frozenset:
+    """Days named by a trailing parenthetical: 'Choir (Tue/Thu)' -> {2, 4}."""
+    m = DAY_SUFFIX_RE.search(name or '')
+    return frozenset(parse_day_names(m.group(0))) if m else frozenset()
+
+
+def _split_day_pairs(d_left: List[Dict[str, Any]],
+                     e_left: List[Dict[str, Any]]) -> List[Tuple[Dict, Dict]]:
+    """Pair a combined sheet class with Optio's per-day split classes.
+
+    Some schools keep multi-day classes split per day in Optio ("Choir
+    (Tuesday)" / "Choir (Thursday)") where the sheet has one "Choir" row
+    meeting twice. When the split classes' suffix days exactly partition the
+    sheet class's days — and the age range matches, since ages are identity —
+    pair each split class with that day's slice of the sheet class instead of
+    warning. Deterministic, keeps the existing names, moves no enrollments.
+    Consumes matched items from d_left/e_left in place.
+    """
+    e_by_name: Dict[str, List[Tuple[Dict, frozenset]]] = {}
+    for e in e_left:
+        days = _suffix_days(e.get('name') or '')
+        if days:
+            e_by_name.setdefault(_day_stripped_norm(e.get('name') or ''), []).append((e, days))
+
+    pairs: List[Tuple[Dict, Dict]] = []
+    for d in list(d_left):
+        d_days = {m['day_of_week'] for m in d['meetings']}
+        # Only classes whose suffix days fit inside this sheet class's days are
+        # candidates — "Choir (Tue/Thu)" is not a candidate for a Mon/Wed class.
+        cands = [(e, days) for e, days in e_by_name.get(_day_stripped_norm(d['name']), [])
+                 if e in e_left and days <= d_days
+                 and (e.get('min_age'), e.get('max_age')) == (d.get('min_age'), d.get('max_age'))]
+        if not cands:
+            continue
+        claimed: set = set()
+        ok = True
+        for _, days in cands:
+            if days & claimed:
+                ok = False  # two split classes claim the same day — ambiguous
+                break
+            claimed |= days
+        if not ok or claimed != d_days:
+            continue  # not a clean partition — leave to the count guard/warnings
+
+        for e, days in cands:
+            rooms = Counter()
+            slice_meetings = []
+            for m in d['meetings']:
+                if m['day_of_week'] not in days:
+                    continue
+                room = m.get('location') or d.get('location')
+                if room:
+                    rooms[room] += 1
+                slice_meetings.append((m, room))
+            location = rooms.most_common(1)[0][0] if rooms else None
+            meetings = []
+            for m, room in slice_meetings:
+                mm = {'day_of_week': m['day_of_week'],
+                      'start_time': m['start_time'], 'end_time': m['end_time']}
+                if room and room != location:
+                    mm['location'] = room
+                meetings.append(mm)
+            # Keep the existing per-day name so this never proposes a rename.
+            pairs.append(({**d, 'name': e['name'], 'location': location,
+                           'meetings': meetings}, e))
+            e_left.remove(e)
+        d_left.remove(d)
+    return pairs
 
 
 def reconcile_leftovers(new_classes: List[Dict[str, Any]],
@@ -338,7 +576,8 @@ def reconcile_leftovers(new_classes: List[Dict[str, Any]],
 
 
 def _match_and_reconcile(desired: List[Dict[str, Any]],
-                         existing: List[Dict[str, Any]]) -> Tuple[
+                         existing: List[Dict[str, Any]],
+                         existing_meetings: Optional[Dict[str, List[Dict[str, Any]]]] = None) -> Tuple[
                              List[Tuple[Dict, Dict]], set, List[str],
                              List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Full deterministic matching: exact keys, then safety guards.
@@ -351,12 +590,18 @@ def _match_and_reconcile(desired: List[Dict[str, Any]],
 
     Returns (pairs, fuzzy_matched_ids, warnings, leftover_desired, leftover_existing).
     """
-    pairs, d_left, e_left = _match(desired, existing)
+    pairs, d_left, e_left = _match(desired, existing, existing_meetings)
+    pairs += _split_day_pairs(d_left, e_left)
 
+    # Names fully resolved by the day-split pass (nothing left on either side)
+    # are exempt from the count guard — their sheet-vs-Optio counts legitimately
+    # differ (1 combined sheet class vs N per-day classes).
+    unresolved = ({_day_stripped_norm(d['name']) for d in d_left} |
+                  {_day_stripped_norm(e.get('name') or '') for e in e_left})
     d_all = Counter(_day_stripped_norm(d['name']) for d in desired)
     e_all = Counter(_day_stripped_norm(e.get('name') or '') for e in existing)
     suppressed = {n for n, dc in d_all.items()
-                  if n and e_all.get(n) and e_all[n] != dc}
+                  if n and e_all.get(n) and e_all[n] != dc and n in unresolved}
     warnings = []
     if suppressed:
         rep = {}  # representative display name + counts per suppressed key
@@ -379,11 +624,20 @@ def _match_and_reconcile(desired: List[Dict[str, Any]],
 
 
 def _match(desired: List[Dict[str, Any]],
-           existing: List[Dict[str, Any]]) -> Tuple[List[Tuple[Dict, Dict]], List[Dict], List[Dict]]:
+           existing: List[Dict[str, Any]],
+           existing_meetings: Optional[Dict[str, List[Dict[str, Any]]]] = None
+           ) -> Tuple[List[Tuple[Dict, Dict]], List[Dict], List[Dict]]:
     """Pair desired classes with existing ones, most-specific key first."""
     pairs: List[Tuple[Dict, Dict]] = []
     d_left = list(desired)
     e_left = list(existing)
+
+    def meeting_days(c, is_d):
+        if is_d:
+            return frozenset(m['day_of_week'] for m in c['meetings'])
+        return frozenset(m.get('day_of_week')
+                         for m in (existing_meetings or {}).get(c['id'], [])
+                         if m.get('day_of_week') is not None)
 
     def run(keyfn, require_unique):
         nonlocal d_left, e_left
@@ -406,6 +660,10 @@ def _match(desired: List[Dict[str, Any]],
     # K1: name + instructor + ages (handles same class at two age ranges)
     run(lambda c, is_d: (_norm(c['name']), c.get('instructor_id') or c.get('primary_instructor_id'),
                          c.get('min_age'), c.get('max_age')), False)
+    # K1b: name + ages + meeting days — pairs same-name sections that differ
+    # by day/ages even when the teacher changed (unique on both sides).
+    run(lambda c, is_d: (_norm(c['name']), c.get('min_age'), c.get('max_age'),
+                         meeting_days(c, is_d)), True)
     # K2: name + instructor (unique on both sides)
     run(lambda c, is_d: (_norm(c['name']), c.get('instructor_id') or c.get('primary_instructor_id')), True)
     # K3: name only (unique on both sides)
@@ -425,7 +683,8 @@ def build_operations(desired: List[Dict[str, Any]],
     apply_operations ignores them.
     """
     staff_names = {s['id']: s.get('name') for s in staff or []}
-    pairs, fuzzy_matched_ids, warnings, new_classes, missing = _match_and_reconcile(desired, existing)
+    pairs, fuzzy_matched_ids, warnings, new_classes, missing = _match_and_reconcile(
+        desired, existing, existing_meetings)
     for d, e in (ai_pairs or []):
         if d in new_classes and e in missing:
             pairs.append((d, e))
@@ -475,7 +734,8 @@ def build_operations(desired: List[Dict[str, Any]],
         if current != wanted:
             ops.append({'action': 'set_meetings', 'class_id': e['id'], 'meetings': d['meetings'],
                         'group': 'schedule', 'default_selected': True,
-                        'detail': [f'{len(current)} meeting(s) → {len(wanted)} meeting(s)'],
+                        'detail': [f'now: {_fmt_meeting_keys(current)}',
+                                   f'sheet: {_fmt_meeting_keys(wanted)}'],
                         'label': f'Reschedule "{d["name"]}"{ai_note}'})
 
     for e in sorted(missing, key=lambda x: _norm(x.get('name') or '')):
@@ -556,7 +816,7 @@ def propose_sync(org_id: str, sheet_url: str) -> Dict[str, Any]:
     from database import get_supabase_admin_client
 
     csv_text = fetch_sheet_csv(sheet_url)
-    entries, warnings = parse_master_grid(csv_text)
+    entries, warnings = parse_schedule_csv(csv_text)
 
     snapshot = _org_snapshot(org_id)
     desired, w2 = build_desired_classes(entries, snapshot['time_blocks'], snapshot['staff'])
@@ -577,7 +837,7 @@ def propose_sync(org_id: str, sheet_url: str) -> Dict[str, Any]:
 
     # AI pairing runs only on leftovers that survive exact matching AND the
     # name-count/per-day reconciliation guards (true typos/renames).
-    _, _, _, d_left, e_left = _match_and_reconcile(desired, existing)
+    _, _, _, d_left, e_left = _match_and_reconcile(desired, existing, by_class)
     ai_pairs = ai_match_leftovers(d_left, e_left)
 
     result = build_operations(desired, existing, by_class, snapshot['staff'],
