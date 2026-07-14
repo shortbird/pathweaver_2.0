@@ -13,7 +13,7 @@ import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
-import { captureException } from '@/src/services/sentry';
+import { captureException, captureMessage } from '@/src/services/sentry';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
@@ -195,6 +195,9 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       const maxMB = maxSize / (1024 * 1024);
       if (asset.fileSize && asset.fileSize > maxSize) {
         const fileMB = (asset.fileSize / (1024 * 1024)).toFixed(1);
+        captureMessage('Evidence media rejected: over size limit', {
+          surface: 'capture', type: asset.type, fileSize: asset.fileSize, limit: maxSize,
+        });
         Alert.alert('File too large', `${asset.fileName || (isVideo ? 'Video' : 'Photo')} is ${fileMB}MB. Maximum for ${isVideo ? 'videos' : 'images'} is ${maxMB}MB.`);
         continue;
       }
@@ -221,6 +224,9 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       if (a.type === 'video' && a.duration && a.duration > MAX_VIDEO_DURATION_MS) {
         const mins = (a.duration / 60000).toFixed(1);
         const maxMins = MAX_VIDEO_DURATION_MS / 60000;
+        captureMessage('Evidence video rejected: over duration limit', {
+          surface: 'capture', durationMs: a.duration, fileSize: a.fileSize, limitMs: MAX_VIDEO_DURATION_MS,
+        });
         Alert.alert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
         return false;
       }

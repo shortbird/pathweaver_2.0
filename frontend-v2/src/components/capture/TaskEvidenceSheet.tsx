@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
-import { captureException } from '@/src/services/sentry';
+import { captureException, captureMessage } from '@/src/services/sentry';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -160,6 +160,9 @@ export function TaskEvidenceSheet({
       if (a.fileSize && a.fileSize > max) {
         const mb = (a.fileSize / (1024 * 1024)).toFixed(1);
         const maxMB = max / (1024 * 1024);
+        captureMessage('Evidence media rejected: over size limit', {
+          surface: 'task-evidence', type: a.type, fileSize: a.fileSize, limit: max,
+        });
         Alert.alert('File too large', `${a.fileName || 'File'} is ${mb}MB. Max is ${maxMB}MB.`);
         continue;
       }
@@ -180,6 +183,9 @@ export function TaskEvidenceSheet({
       if (a.type === 'video' && a.duration && a.duration > MAX_VIDEO_DURATION_MS) {
         const mins = (a.duration / 60000).toFixed(1);
         const maxMins = MAX_VIDEO_DURATION_MS / 60000;
+        captureMessage('Evidence video rejected: over duration limit', {
+          surface: 'task-evidence', durationMs: a.duration, fileSize: a.fileSize, limitMs: MAX_VIDEO_DURATION_MS,
+        });
         Alert.alert('Video too long', `${a.fileName || 'That video'} is ${mins} min. Videos are limited to ${maxMins} min.`);
         return false;
       }

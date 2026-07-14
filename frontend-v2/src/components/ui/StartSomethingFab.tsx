@@ -17,6 +17,7 @@ import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { StartSomethingSheet } from '@/src/components/journal/StartSomethingSheet';
 import { CreateQuestSheet } from '@/src/components/journal/CreateQuestSheet';
 import { CreateClassSheet } from '@/src/components/class/CreateClassSheet';
+import { AddBirthdaySheet } from '@/src/components/class/AddBirthdaySheet';
 
 interface StartSomethingFabProps {
   /** Open the parent-owned CaptureSheet — wired by (tabs)/_layout.tsx since
@@ -28,18 +29,22 @@ interface StartSomethingFabProps {
   onCreated?: () => void;
 }
 
-function computeCanStartClass(user: any): boolean {
-  if (!user) return false;
-  if (user.role === 'superadmin') return true;
+// 'needs-dob' still shows the row: a missing birthday shouldn't silently lock
+// an eligible student out — tapping it explains how to unlock instead.
+type ClassGate = 'ok' | 'needs-dob' | 'under-13';
+
+function computeClassGate(user: any): ClassGate {
+  if (!user) return 'under-13';
+  if (user.role === 'superadmin') return 'ok';
   const dob = user.date_of_birth;
-  if (!dob) return false;
+  if (!dob) return 'needs-dob';
   const birth = new Date(dob);
-  if (isNaN(birth.getTime())) return false;
+  if (isNaN(birth.getTime())) return 'needs-dob';
   const today = new Date();
   let age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
-  return age >= 13;
+  return age >= 13 ? 'ok' : 'under-13';
 }
 
 export function StartSomethingFab({ onCaptureMoment, onCreated }: StartSomethingFabProps) {
@@ -51,16 +56,28 @@ export function StartSomethingFab({ onCaptureMoment, onCreated }: StartSomething
   const questSheetVisible = useStartSomethingStore((s) => s.createQuestVisible);
   const closeQuestSheet = useStartSomethingStore((s) => s.closeCreateQuest);
   const [classSheetVisible, setClassSheetVisible] = useState(false);
-  const canStartClass = computeCanStartClass(user);
+  const [birthdaySheetVisible, setBirthdaySheetVisible] = useState(false);
+  const classGate = computeClassGate(user);
 
   return (
     <>
       <StartSomethingSheet
         visible={sheetVisible}
         onClose={closeSheet}
-        canStartClass={canStartClass}
+        canStartClass={classGate !== 'under-13'}
         onCaptureMoment={onCaptureMoment}
-        onStartClass={() => setClassSheetVisible(true)}
+        onStartClass={() => {
+          if (classGate === 'needs-dob') setBirthdaySheetVisible(true);
+          else setClassSheetVisible(true);
+        }}
+      />
+
+      <AddBirthdaySheet
+        visible={birthdaySheetVisible}
+        onClose={() => setBirthdaySheetVisible(false)}
+        // The backend rejects a self-service DOB under 13, so a successful
+        // save means the class gate now passes — continue straight in.
+        onSaved={() => setClassSheetVisible(true)}
       />
 
       <CreateQuestSheet

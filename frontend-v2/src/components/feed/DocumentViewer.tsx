@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Platform, Pressable, Image, Dimensions, GestureResponderEvent } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import { Ionicons } from '@expo/vector-icons';
-import { HStack, UIText } from '../ui';
+import { HStack, UIText, toast } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 interface DocumentViewerProps {
@@ -307,9 +307,15 @@ function NativeDocumentViewer({ uri, title }: DocumentViewerProps) {
     );
   }
 
-  // Fallback: open externally
+  // Fallback: open externally. A dead tap reads as "it won't open the
+  // document" — say so when the URL can't be routed.
+  const openExternally = async () => {
+    const opened = await safeOpenURL(uri);
+    if (!opened) toast.error("Couldn't open this document");
+  };
+
   return (
-    <Pressable onPress={() => safeOpenURL(uri)} className="bg-surface-50 dark:bg-dark-surface-50 p-4 rounded-lg border border-surface-200 dark:border-dark-surface-300">
+    <Pressable onPress={openExternally} className="bg-surface-50 dark:bg-dark-surface-50 p-4 rounded-lg border border-surface-200 dark:border-dark-surface-300">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View className="w-10 h-10 rounded-lg bg-optio-purple/10 items-center justify-center">
           <Ionicons name={isPdf ? 'document-text-outline' : 'document-attach-outline'} size={20} color="#6D469B" />

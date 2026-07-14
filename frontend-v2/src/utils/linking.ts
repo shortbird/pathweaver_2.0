@@ -41,9 +41,27 @@ export async function safeOpenURL(raw?: string | null): Promise<boolean> {
   const scheme = url.slice(0, url.indexOf(':') + 1).toLowerCase();
   if (!SAFE_SCHEMES.includes(scheme)) return false;
 
+  // Percent-encode if the value isn't already encoded — a document URL whose
+  // filename contains spaces ("My Report.pdf") is otherwise unopenable, and
+  // the tap silently did nothing. Skip when %-escapes are present so an
+  // already-encoded URL isn't double-encoded.
+  if (!/%[0-9A-Fa-f]{2}/.test(url)) {
+    try {
+      url = encodeURI(url);
+    } catch {
+      return false;
+    }
+  }
+
   try {
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) return false;
+    // http(s) always routes to a browser, and canOpenURL false-negatives on
+    // Android (package-visibility rules) — attempt directly and let the
+    // try/catch absorb genuine failures. Keep the canOpenURL probe for
+    // mailto:/tel:, where no handler may exist (e.g. tablets without a dialer).
+    if (scheme !== 'http:' && scheme !== 'https:') {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) return false;
+    }
     await Linking.openURL(url);
     return true;
   } catch {

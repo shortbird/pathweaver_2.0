@@ -25,6 +25,11 @@
 import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { compressImageAsset } from './imageCompression';
+import { captureMessage } from '@/src/services/sentry';
+
+// Past this, compression is likely the reason an upload "never happens" from
+// the user's perspective — report it so bug reports are diagnosable.
+const SLOW_COMPRESSION_MS = 30_000;
 
 // 720p balanced: cap the longest edge at 1280 px (= 720p for 16:9) and target
 // ~2 Mbps H.264. Enough fidelity for evidence playback, ~6x smaller than raw.
@@ -69,6 +74,7 @@ export async function compressVideoAsset(
   if (asset.type !== 'video') return asset;
   if ((asset.fileSize ?? 0) > 0 && (asset.fileSize ?? 0) <= SKIP_BELOW_BYTES) return asset;
 
+  const startedAt = Date.now();
   try {
     const outUri = await mod.Video.compress(
       asset.uri,
@@ -79,6 +85,14 @@ export async function compressVideoAsset(
       },
       (progress) => onProgress?.(Math.round(progress * 100)),
     );
+    const elapsedMs = Date.now() - startedAt;
+    if (elapsedMs > SLOW_COMPRESSION_MS) {
+      captureMessage('Video compression slow', {
+        elapsedMs,
+        fileSize: asset.fileSize,
+        durationMs: asset.duration,
+      });
+    }
     return {
       ...asset,
       uri: outUri,
@@ -89,9 +103,15 @@ export async function compressVideoAsset(
       // large value isn't used for limit checks or sent to the upload-init.
       fileSize: undefined,
     };
-  } catch {
+  } catch (err) {
     // Compression can fail on unusual codecs or low device storage. Falling
     // back to the raw asset is fine — we upload the original.
+    captureMessage('Video compression failed; uploading raw', {
+      error: String(err),
+      elapsedMs: Date.now() - startedAt,
+      fileSize: asset.fileSize,
+      durationMs: asset.duration,
+    });
     return asset;
   }
 }

@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Alert, Switch } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Alert, Switch, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/src/components/ui';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { useKeyboardPadding } from '@/src/hooks/useKeyboardPadding';
 import {
   useGroupMessages,
   useGroupDetail,
@@ -190,6 +191,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   } = usePendingAttachments();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
+  const keyboardPad = useKeyboardPadding();
   const insets = useSafeAreaInsets();
   const isMobile = !!onBack;
 
@@ -260,11 +262,19 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     setActionsVisible(true);
   };
 
+  // Reply/edit are chosen from the actions sheet: on Android, focus() right
+  // as its Modal releases window focus doesn't raise the IME ("keyboard didn't
+  // pop up to reply") — defer a beat so the chat window has focus again.
+  const focusInput = () => {
+    if (Platform.OS === 'android') setTimeout(() => inputRef.current?.focus(), 120);
+    else inputRef.current?.focus();
+  };
+
   const startEdit = (msg: Message) => {
     setReplyTo(null);
     setEditing(msg);
     setInput(msg.message_content);
-    inputRef.current?.focus();
+    focusInput();
   };
 
   const cancelEdit = () => {
@@ -785,7 +795,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
         if (!actionsFor) return;
         setEditing(null);
         setReplyTo(actionsFor);
-        inputRef.current?.focus();
+        focusInput();
       }}
       onEdit={() => actionsFor && startEdit(actionsFor)}
       onDelete={() => actionsFor && handleDeleteMessage(actionsFor)}
@@ -840,11 +850,29 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   ) : null;
 
   // ── Mobile layout ──
+  // iOS resizes via KeyboardAvoidingView; Android is edge-to-edge (window
+  // never resizes for the IME), so pad manually off Keyboard events —
+  // behavior="height" left the keyboard covering the input bar.
   if (isMobile) {
+    if (Platform.OS === 'android') {
+      return (
+        <Animated.View
+          className="flex-1 bg-white dark:bg-dark-surface-100"
+          style={{ paddingBottom: keyboardPad }}
+        >
+          {header}
+          {pinnedBanner}
+          {messageList}
+          {inputBar}
+          {memberModal}
+          {actionsSheet}
+        </Animated.View>
+      );
+    }
     return (
       <KeyboardAvoidingView
         className="flex-1 bg-white dark:bg-dark-surface-100"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         keyboardVerticalOffset={0}
       >
         {header}

@@ -151,7 +151,7 @@ export function MediaModal({ visible, onClose, type, uri, title }: MediaModalPro
 
             {type === 'video' && (
               <View style={{ width: mediaW, height: mediaH }}>
-                <VideoPlayer uri={uri} autoPlay fillContainer />
+                <VideoPlayer uri={uri} autoPlay fillContainer nativeControls />
               </View>
             )}
           </View>

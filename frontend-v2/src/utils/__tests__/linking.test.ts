@@ -39,10 +39,27 @@ describe('safeOpenURL', () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it('returns false (no throw) when the OS cannot open the URL', async () => {
+  it('skips the canOpenURL probe for http(s) — it false-negatives on Android', async () => {
     canOpen.mockResolvedValue(false);
-    await expect(safeOpenURL('https://example.com')).resolves.toBe(false);
+    await expect(safeOpenURL('https://example.com')).resolves.toBe(true);
+    expect(canOpen).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith('https://example.com');
+  });
+
+  it('returns false (no throw) when the OS cannot open a tel: URL', async () => {
+    canOpen.mockResolvedValue(false);
+    await expect(safeOpenURL('tel:+15551234567')).resolves.toBe(false);
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it('percent-encodes a document URL with spaces in the filename', async () => {
+    await expect(safeOpenURL('https://example.com/My Report.pdf')).resolves.toBe(true);
+    expect(open).toHaveBeenCalledWith('https://example.com/My%20Report.pdf');
+  });
+
+  it('does not double-encode an already-encoded URL', async () => {
+    await expect(safeOpenURL('https://example.com/My%20Report.pdf')).resolves.toBe(true);
+    expect(open).toHaveBeenCalledWith('https://example.com/My%20Report.pdf');
   });
 
   it('returns false for empty / nullish input', async () => {

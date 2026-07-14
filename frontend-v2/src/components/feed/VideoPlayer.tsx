@@ -16,9 +16,13 @@ interface VideoPlayerProps {
   /** When false (e.g. the card scrolled out of view in the feed), the video is
    *  paused so audio doesn't keep playing off-screen. Defaults to true. */
   isActive?: boolean;
+  /** Show the OS player controls (play/pause + draggable timeline). Used by
+   *  the fullscreen MediaModal so videos can be scrubbed; inline feed cards
+   *  keep the minimal tap-to-play overlay. Defaults to false. */
+  nativeControls?: boolean;
 }
 
-export function VideoPlayer({ uri, className = '', autoPlay = false, fillContainer = false, isActive = true }: VideoPlayerProps) {
+export function VideoPlayer({ uri, className = '', autoPlay = false, fillContainer = false, isActive = true, nativeControls = false }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [errored, setErrored] = useState(false);
 
@@ -72,7 +76,7 @@ export function VideoPlayer({ uri, className = '', autoPlay = false, fillContain
           player={player}
           style={{ width: '100%', height: '100%' }}
           contentFit={fillContainer ? 'contain' : 'cover'}
-          nativeControls={false}
+          nativeControls={nativeControls}
         />
         {errored ? (
           /* Load failed (e.g. URL not ready yet) — let the user retry in place. */
@@ -82,6 +86,10 @@ export function VideoPlayer({ uri, className = '', autoPlay = false, fillContain
               <Text className="text-white text-xs mt-1 font-poppins-medium">Tap to retry</Text>
             </View>
           </Pressable>
+        ) : nativeControls ? (
+          /* OS controls own play/pause + seeking — no overlay, it would
+             swallow their taps. */
+          null
         ) : (
           /* Tap overlay - always present so pause works even while playing */
           <Pressable onPress={handlePlay} className="absolute inset-0 items-center justify-center">
