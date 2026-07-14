@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import ICreateRegistrationSettings from '../../components/sis/ICreateRegistrationSettings'
+import AgeExceptionRequestsCard from '../../components/sis/AgeExceptionRequestsCard'
 
 /**
  * SIS Registration page (Operations) — everything about how families register:
@@ -47,6 +48,7 @@ const RegistrationPage = () => {
       ) : (
         <div className="grid gap-6">
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
+          <AgeExceptionRequestsCard key={`aex-${orgId}`} orgId={orgId} />
           <SchoolYearCard key={`year-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <ICreateRegistrationSettings key={`icr-${orgId}`} orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
           <FamilyDirectivesCard key={`dir-${orgId}`} orgId={orgId} />
