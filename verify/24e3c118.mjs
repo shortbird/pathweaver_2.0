@@ -24,7 +24,9 @@ export default async function run(page) {
   page.on('request', (req) => {
     const u = req.url()
     const i = u.indexOf('/api/')
-    if (i > 0 && !apiOrigin && !u.startsWith(BASE + '/assets')) {
+    // only origins that are plausibly OUR api — third parties (posthog etc.)
+    // also serve /api/ paths and must not win the sniff
+    if (i > 0 && !apiOrigin && /optio|onrender/.test(new URL(u).origin)) {
       apiOrigin = new URL(u).origin
     }
   })
@@ -62,12 +64,14 @@ export default async function run(page) {
   // 4. Optional deeper pass when the runner provides the designated test
   //    account (the login flow has no captcha): sign in through the real form
   //    and confirm the Schedule Builder route renders.
-  const email = process.env.TEST_USER_EMAIL
-  const password = process.env.TEST_USER_PASSWORD
+  const email = process.env.OPTIO_TEST_EMAIL
+  // Optio-specific creds only — the runner's global TEST_USER_* belong to
+  // other projects and must not trigger a login attempt here.
+  const password = process.env.OPTIO_TEST_PASSWORD
   if (email && password) {
     await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
     await page.getByLabel(/email/i).fill(email)
-    await page.getByLabel(/password/i).fill(password)
+    await page.getByLabel(/^password$/i).first().fill(password)
     await page.getByRole('button', { name: /log in|sign in/i }).click()
     await page.waitForLoadState('networkidle')
     await page.goto(`${BASE}/schedule-builder`, { waitUntil: 'networkidle' })
