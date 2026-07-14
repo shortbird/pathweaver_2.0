@@ -182,16 +182,27 @@ const ForFamiliesPage = () => {
             </RevealSection>
           </div>
 
-          {/* Testimonial */}
+          {/* Testimonials */}
           <RevealSection ref={testimonialRef}>
-            <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 max-w-3xl mx-auto mt-12">
-              <p className="text-base sm:text-lg text-gray-700 italic mb-4 leading-relaxed text-center" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                "My husband and I feel like Optio was created just for us. We homeschool our 7 kids and this is the perfect platform to track all the unique types of learning we do in our family."
-              </p>
-              <p className="text-center">
-                <span className="font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Paige H.</span>
-                <span className="text-sm text-gray-500 ml-2" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Homeschool Parent, Utah</span>
-              </p>
+            <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto mt-12">
+              <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 flex flex-col">
+                <p className="text-base sm:text-lg text-gray-700 italic mb-4 leading-relaxed text-center flex-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  "My husband and I feel like Optio was created just for us. We homeschool our 7 kids and this is the perfect platform to track all the unique types of learning we do in our family."
+                </p>
+                <p className="text-center">
+                  <span className="font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Paige H.</span>
+                  <span className="text-sm text-gray-500 ml-2" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Homeschool Parent, Utah</span>
+                </p>
+              </div>
+              <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 flex flex-col">
+                <p className="text-base sm:text-lg text-gray-700 italic mb-4 leading-relaxed text-center flex-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  "I've loved helping my son recognize learning whenever it happens, like a spontaneous conversation about rhyme scheme at the dinner table, or when he won a rap battle playing games with friends and I told him to earn some XP for the grammar."
+                </p>
+                <p className="text-center">
+                  <span className="font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Andrea F.</span>
+                  <span className="text-sm text-gray-500 ml-2" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Optio Parent</span>
+                </p>
+              </div>
             </div>
           </RevealSection>
         </div>

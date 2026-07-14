@@ -20,7 +20,8 @@ import {
  * Variants:
  * - "card"        Boxed callout for marketing sections (logo + phrase + block).
  * - "large"       Unboxed hero placement: big logo, small identity block below.
- * - "inline"      Compact logo + short disclosure, for footers.
+ * - "inline"      Compact logo + short disclosure, for footers. Accepts
+ *                 logoClassName to override the default h-10 logo size.
  * - "transcript"  Print-friendly, serif-neutral block for official transcripts.
  *
  * Renders nothing when accreditation is inactive (kill-switch honored).
@@ -38,13 +39,13 @@ const IdentityBlock = ({ className = '', showPhrase = true }) => (
   </div>
 )
 
-const WascBadge = ({ variant = 'card', className = '' }) => {
+const WascBadge = ({ variant = 'card', className = '', logoClassName = '' }) => {
   if (!ACCREDITATION_ACTIVE) return null
 
   if (variant === 'inline') {
     return (
       <div className={`flex flex-col items-center sm:items-start gap-2 ${className}`}>
-        <img src={WASC_LOGO_SRC} alt={WASC_LOGO_ALT} className="h-10 w-auto bg-white rounded p-1" />
+        <img src={WASC_LOGO_SRC} alt={WASC_LOGO_ALT} className={`${logoClassName || 'h-10'} w-auto bg-white rounded p-1`} />
         <p className="text-gray-500 text-xs leading-relaxed text-center sm:text-left">
           {COMMISSION_NAME}
           <br />

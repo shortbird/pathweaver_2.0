@@ -17,6 +17,11 @@ const TestimonialsSection = forwardRef(({ isVisible = true }, ref) => {
       author: "Alex T., age 14",
       role: "Student, Texas",
     },
+    {
+      quote: "I've loved helping my son recognize learning whenever it happens, like a spontaneous dinner-table conversation about rhyme scheme, or a rap battle with friends that earned him XP for grammar.",
+      author: "Andrea F.",
+      role: "Optio Parent",
+    },
   ]
 
   return (
@@ -38,7 +43,7 @@ const TestimonialsSection = forwardRef(({ isVisible = true }, ref) => {
         </div>
 
         {/* Testimonial Cards */}
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 gap-8">
           {testimonials.map((testimonial, index) => (
             <div
               key={index}

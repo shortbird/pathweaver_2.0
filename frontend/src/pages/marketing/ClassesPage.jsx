@@ -118,6 +118,11 @@ const TESTIMONIALS = [
     name: 'Paige H.',
     context: 'Optio Parent',
   },
+  {
+    quote: 'He LOVES the ability to work in any order, and he loves that it isn\'t graded. Some days he types his answers, and lots of days he takes a picture of his notes. I really hope this is how he wants to do his economics class next summer, because I\'m having a great time, and I know he\'s learning a lot more than he would be just clicking through an online course.',
+    name: 'Andrea F.',
+    context: 'Optio Parent',
+  },
 ]
 
 const Hero = ({ onClaim }) => {
@@ -487,10 +492,10 @@ const Transfer = () => {
               When you finish an Optio class, we send your local high school an official transcript showing the class you completed. That transcript is issued through Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges (WASC).
             </p>
             <div className="mb-6">
-              <WascBadge variant="inline" className="text-gray-500" />
+              <WascBadge variant="inline" logoClassName="h-28 sm:h-32" className="text-gray-500" />
             </div>
             <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -500,9 +505,6 @@ const Transfer = () => {
                   Transfer Guarantee
                 </h3>
               </div>
-              <p className="text-gray-700 leading-relaxed text-sm" style={{ fontFamily: 'Poppins' }}>
-                If your local school won't accept the class, we'll refund you in full. Take it risk-free.
-              </p>
             </div>
           </div>
         </div>
@@ -519,7 +521,7 @@ const Testimonials = () => {
         <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 text-center mb-12" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
           What families are saying
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {TESTIMONIALS.map((t) => (
             <figure key={t.name} className="bg-white border border-gray-200 rounded-2xl p-7 shadow-sm">
               <svg className="w-8 h-8 text-optio-pink/40 mb-4" fill="currentColor" viewBox="0 0 24 24">

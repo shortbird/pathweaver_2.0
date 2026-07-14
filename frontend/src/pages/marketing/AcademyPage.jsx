@@ -61,6 +61,11 @@ const TESTIMONIALS = [
     name: 'Paige H.',
     context: 'Optio Parent',
   },
+  {
+    quote: 'My son loves that he can work in any order and that it isn\'t graded, and I\'ve watched him use the AI steps generator to break down tasks on his own. He was excited to get an accurate read on his progress, and I know he\'s learning a lot more than he would be just clicking through an online course.',
+    name: 'Andrea F.',
+    context: 'Optio Parent',
+  },
 ]
 
 const FaqItem = ({ q, a, defaultOpen = false }) => {
@@ -637,7 +642,7 @@ const AcademyPage = () => {
               </h2>
             </div>
           </RevealSection>
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {TESTIMONIALS.map((t, i) => (
               <RevealItem key={t.name} index={i}>
                 <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 sm:p-8 border border-optio-purple/10 h-full flex flex-col">
