@@ -135,8 +135,6 @@ const BASELINE = [
   'src/components/student/QuestIdeaSubmission.jsx',
   'src/components/ui/mobile/MobileModal.jsx',
   'src/components/verification/VerificationModal.jsx',
-  'src/pages/HomePage.jsx',
-  'src/pages/PromoStudentPage.jsx',
   'src/pages/QuestDetail.jsx',
   'src/pages/TaskLibraryBrowser.jsx',
   'src/pages/admin/CourseGenerationQueue.jsx',

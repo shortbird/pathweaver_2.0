@@ -491,14 +491,21 @@ def register():
                 except Exception as promo_update_error:
                     logger.error(f"[REGISTRATION] Failed to mark promo code as redeemed: {promo_update_error}")
 
-            # Marketing: if this email was a lead, mark it converted in Brevo.
-            # Moving it to the Customers list exits it from the nurture
-            # automation. Fire-and-forget; 404 (never a lead) is the norm.
+            # Marketing: sync the new account into Brevo. Eligible platform
+            # self-signups (student/parent, 13+) join the Customers list plus
+            # the New Account Welcome list, which starts the welcome
+            # automation. Everyone else (org users, under-13, observers) only
+            # gets conversion-marked so any nurture sequence they were in
+            # exits without new marketing. Fire-and-forget either way.
             try:
-                from services.brevo_service import mark_converted
-                mark_converted(email)
+                from services.brevo_service import mark_converted, sync_new_account
+                final_role = user_data.get('role', 'student')
+                if user_data.get('organization_id') or requires_parental_consent or final_role not in ('student', 'parent'):
+                    mark_converted(email)
+                else:
+                    sync_new_account(email, sanitized_first_name, sanitized_last_name, role=final_role)
             except Exception as brevo_err:
-                logger.warning(f"[REGISTRATION] Brevo conversion sync failed: {brevo_err}")
+                logger.warning(f"[REGISTRATION] Brevo sync failed: {brevo_err}")
 
             # If no session, email verification is required
             if not auth_response.session:

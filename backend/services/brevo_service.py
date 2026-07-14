@@ -38,6 +38,11 @@ LIST_CATCHUP_FREE_CLASS = 11
 # mostly homeschool parents, not B2B, so they get their own parent-voiced
 # nurture (templates 24-27) instead of the B2B pipeline.
 LIST_GENERAL_INTEREST = 12
+# Trigger list for the New Account Welcome automation. Separate from
+# Customers (#8) on purpose: mark_converted also adds ineligible registrants
+# (org users, under-13) to Customers so their nurture sequences exit, and
+# those must NOT receive the welcome emails. Only sync_new_account adds here.
+LIST_NEW_ACCOUNTS = 13
 
 # Which list a contact_submissions.contact_type lands in. Adding a contact to
 # Free Class Leads or General Interest Leads triggers a nurture automation, so
@@ -67,13 +72,15 @@ def _headers():
     }
 
 
-def _upsert_contact(email, list_id, attributes):
+def _upsert_contact(email, list_ids, attributes):
+    if isinstance(list_ids, int):
+        list_ids = [list_ids]
     resp = requests.post(
         f'{BREVO_BASE}/contacts',
         headers=_headers(),
         json={
             'email': email,
-            'listIds': [list_id],
+            'listIds': list_ids,
             'updateEnabled': True,
             'attributes': attributes,
         },
@@ -137,6 +144,50 @@ def sync_poe_parent(parent_email, first_name=None, last_name=None):
             logger.info('Brevo POE parent synced')
     except Exception as e:
         logger.warning(f'Brevo POE parent sync error: {e}')
+
+
+def sync_new_account(email, first_name=None, last_name=None, role=None):
+    """Sync an eligible new registration into Brevo: adds the contact to
+    Customers (#8, exits any nurture automation and suppresses future lead
+    sends) and to New Account Welcome (#13, starts the welcome automation),
+    then unlinks any lead lists. Deliberately does not touch LEAD_TYPE /
+    LEAD_SOURCE / LEAD_DATE so ex-lead provenance survives.
+
+    Callers gate eligibility (see routes/auth/registration.py): platform
+    self-signups with role student or parent, not under-13. Ineligible
+    registrants go through mark_converted instead."""
+    if not _enabled():
+        return
+    attributes = {
+        'CONVERTED': True,
+        'SIGNUP_DATE': date.today().isoformat(),
+    }
+    if role:
+        attributes['ROLE'] = role
+    if first_name:
+        attributes['FIRSTNAME'] = first_name
+    if last_name:
+        attributes['LASTNAME'] = last_name
+
+    try:
+        if not _upsert_contact(email, [LIST_CUSTOMERS, LIST_NEW_ACCOUNTS], attributes):
+            return
+        # Second call: POST /contacts can't unlink lists, so drop any lead-list
+        # memberships with a PUT (no-op for organic signups).
+        resp = requests.put(
+            f'{BREVO_BASE}/contacts/{quote(email, safe="")}',
+            headers=_headers(),
+            json={
+                'unlinkListIds': [LIST_FREE_CLASS_LEADS, LIST_FAMILIES, LIST_B2B, LIST_CATCHUP_FREE_CLASS, LIST_GENERAL_INTEREST],
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        if resp.status_code >= 400:
+            logger.warning(f'Brevo new-account unlink failed ({resp.status_code}): {resp.text[:200]}')
+        else:
+            logger.info('Brevo new account synced')
+    except Exception as e:
+        logger.warning(f'Brevo new-account sync error: {e}')
 
 
 def mark_converted(email):

@@ -74,17 +74,18 @@ Ads → /classes → FreeClassModal → POST /api/contact → contact_submission
 | Brevo list | Source | Sequence |
 |------------|--------|----------|
 | Free Class Leads | `claim_free_class` | 6-email nurture |
-| Families | `families` | Parent-voiced welcome + newsletter |
+| Families | `families` | 3-email parent-voiced nurture (templates 8, 33, 34) — see §11 |
 | General Interest Leads (#12) | `demo`, `general` (homepage "Get More Info" CTA) | 4-email parent-voiced nurture (templates 24–27) — see §10 |
 | B2B Inquiries | `sales`, `academy` | No drip — Brevo CRM deal pipeline + personal template |
 | POE Parents | `poe_signups.parent_email` | One post-camp email (fall classes) + newsletter |
-| Customers | any lead that registers | Suppressed from nurture; phase-2 activation |
+| Customers | any registrant (lead or organic) | Suppressed from nurture |
+| New Account Welcome (#13) | eligible self-registrations | 3-email welcome (templates 35–37) — see §11 |
 
 > **Remap 2026-07-13**: `demo` was originally classed as B2B, but the actual homepage
 > "Get More Info" submissions are almost all homeschool parents asking about their own
 > kids (see §10 audit). `demo`/`general` now sync to #12; only `sales`/`academy` remain B2B.
 
-**Contact attributes**: `LEAD_TYPE` (text), `LEAD_SOURCE` (text, e.g. `classes_lp`), `LEAD_DATE` (date), `CONVERTED` (boolean), `NOTES` (text).
+**Contact attributes**: `LEAD_TYPE` (text), `LEAD_SOURCE` (text, e.g. `classes_lp`), `LEAD_DATE` (date), `CONVERTED` (boolean), `NOTES` (text), `ROLE` (text, set at registration: student/parent), `SIGNUP_DATE` (date, set at registration).
 
 ---
 
@@ -186,3 +187,31 @@ transferring credits / leaving traditional HS; community portfolio program), one
 - [ ] Decide on the 5 pre-automation demo leads sitting in B2B #6 (they will NOT be picked up by the automation, and two asked specific questions months ago). Recommended: short personal replies (Amber's lead is from 2026-07-13, so a normal reply is still timely), or a catch-up campaign to a "Catch-up General Interest" list mirroring the free-class approach. Move the parent-type leads out of #6 either way; sailfuture.org stays B2B.
 
 **UTMs**: `utm_source=brevo&utm_medium=email&utm_campaign=general_interest_nurture&utm_content=e1…e4`.
+
+## 11. Families Nurture + New Account Welcome (built 2026-07-14, awaiting automation activation)
+
+### Families Nurture
+Closes the capture-without-follow-up gap on `/for-families` (leads landed in list #5 with no
+automation; template 8 sat inactive since 2026-07-07).
+
+- [x] Templates (inactive drafts, sender 1, reply-to tanner@): **8** "Your questions about Optio, answered directly" (~1h, pre-existing), **33** "What Optio looks like day to day" (day 4), **34** "The first class is free" (day 8). Copy in `brevo_email_copy.md`; HTML in `brevo_email_html/08, 33, 34`.
+- [ ] Automation "Families Nurture" (dashboard-only): trigger = contact added to list #5, exclude existing list members; send 8 (delay 1h) / 33 (day 4) / 34 (day 8); exit rule = contact added to Customers (#8).
+- [ ] Decide on the 3 contacts already sitting in #5 (automations skip pre-existing members): short personal replies or a manual send of template 8.
+
+**UTMs**: `utm_campaign=families_welcome&utm_content=e1…e3`.
+
+### New Account Welcome
+Onboarding funnel for organic registrations, which previously created no Brevo contact at all
+(only ex-leads reached Brevo via `mark_converted`).
+
+- [x] List **New Account Welcome (#13)**, folder "Optio Marketing" (3) — the automation trigger list. Deliberately separate from Customers (#8): `mark_converted` also adds ineligible registrants (org users, under-13) to #8 to exit their nurtures, and those must not get welcome emails.
+- [x] Attributes `ROLE` (text), `SIGNUP_DATE` (date).
+- [x] Backend `sync_new_account(email, first, last, role)` in `brevo_service.py`, hooked in `routes/auth/registration.py`. Eligibility gate: platform self-signups only (no `organization_id`), role `student`/`parent` (observers excluded), not `requires_parental_consent` (under-13). Eligible → Customers #8 + New Account Welcome #13 + unlink lead lists + `CONVERTED=true`, `ROLE`, `SIGNUP_DATE`; ineligible → `mark_converted` only. Preserves `LEAD_*` provenance on ex-leads. **Needs deploy to prod.**
+- [x] Templates (inactive drafts, sender 1, reply-to tanner@): **35** "You're in. Here's how to start." (~1h), **36** "One task at a time" (day 3), **37** "The transcript part" (day 7). HTML in `brevo_email_html/35–37`.
+- [ ] Automation "New Account Welcome" (dashboard-only): trigger = contact added to list #13, exclude existing list members; send 35 (delay 1h) / 36 (day 3) / 37 (day 7); no exit rule (it's onboarding, not conversion).
+- [ ] No backfill: existing users are intentionally NOT imported into #13 (they'd get welcome emails meant for day-one accounts) or #8 (nothing sends there today; revisit if a customer newsletter needs suppression-by-list).
+
+**UTMs**: `utm_campaign=new_account_welcome&utm_content=e1…e3`.
+
+### Related cleanup (same change set)
+Dead promo-capture code deleted: v1 `pages/HomePage.jsx` (old unrouted homepage), `pages/PromoStudentPage.jsx`, `components/landing/*`, backend `routes/promo.py` (`POST /api/promo/interest`). The `promo_interest` table keeps its historical rows. The `philosophy` contact type still stores to `contact_submissions` but doesn't sync to Brevo — accepted, low priority (no live page submits it heavily; revisit if `/philosophy` lead volume appears).

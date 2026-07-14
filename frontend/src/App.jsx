@@ -111,7 +111,6 @@ const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
 const ClassesPage = lazy(() => import('./pages/marketing/ClassesPage'))
-const PromoStudentPage = lazy(() => import('./pages/PromoStudentPage'))
 const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
 const AcademyPage = lazy(() => import('./pages/marketing/AcademyPage'))
 const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))

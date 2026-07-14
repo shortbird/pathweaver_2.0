@@ -51,9 +51,6 @@ def register_all(app):
     from routes.contact import bp as contact_bp
     app.register_blueprint(contact_bp, url_prefix='/api')
 
-    from routes.promo import bp as promo_bp
-    app.register_blueprint(promo_bp, url_prefix='/api')
-
     from routes.demo import bp as demo_bp
     app.register_blueprint(demo_bp)
 

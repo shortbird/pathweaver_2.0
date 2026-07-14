@@ -258,7 +258,9 @@ Dr. Bowman
 
 ---
 
-## Segment: Families (parent-voiced welcome — manual send or 1-step automation)
+## Sequence: Families Nurture (trigger: added to "Families" #5; exit: added to Customers #8)
+
+### Email 1 — ~1 hour after submission (template 8)
 **Subject:** Your questions about Optio, answered directly
 
 Hi {FIRSTNAME}, this is Dr. Bowman from Optio. Thanks for reaching out about your family.
@@ -270,6 +272,88 @@ Everything runs in the Optio mobile app (iOS and Android, with a web version too
 The easiest way to see if Optio fits your family is to download the app and have your student start something. And if you have questions, just reply to this email; it comes straight to me, and I answer everything myself.
 
 [App Store badge] [Google Play badge]
+
+Dr. Bowman
+
+### Email 2 — day 4 (template 33)
+**Subject:** What Optio looks like day to day
+
+Hi {FIRSTNAME}, Dr. Bowman again from Optio.
+
+The question I hear most from parents is what this actually looks like once the novelty wears off, so here is the honest answer.
+
+Your student picks something they already care about and turns it into a class. Baking, robotics, guitar, a small business, anything real. In the app they break it into tasks, and every task ends with evidence: a photo, a video, or a bit of writing that shows what they did. That evidence builds into a portfolio you can open any day and actually see. Not a grade at the end of the term, the work itself.
+
+You can [join as a supporter](/docs/high-school-classes/for-parents-following-along) to follow along and cheer them on, and grandparents or mentors can too.
+
+For high schoolers, classes are teacher-reviewed and can go on an official transcript. For younger kids, it is the portfolio and the habit of finishing things that matter.
+
+If you're wondering whether a particular interest could work as a class, reply and describe it. I read every one of these.
+
+Dr. Bowman
+
+### Email 3 — day 8 (template 34)
+**Subject:** The first class is free
+
+Hi {FIRSTNAME}, this is Dr. Bowman from Optio. Last note from me for now.
+
+Whether you homeschool or your student is enrolled somewhere, Optio works alongside whatever you're already doing. There's no schedule to rearrange and no curriculum to abandon.
+
+The first class is free. No credit card, nothing to cancel. So the whole experiment is this: have your student download the app, create a class about something they love, and finish one task this week. That's enough to know whether it fits your family.
+
+[App Store badge] [Google Play badge]
+
+If it doesn't fit, that's genuinely fine. And if you have a question first, reply to this email. It comes straight to me and I answer everything myself.
+
+Dr. Bowman
+
+---
+
+## Sequence: New Account Welcome (trigger: added to "New Account Welcome" #13; no exit rule)
+
+Audience: eligible platform self-registrations (student/parent, 13+, non-org) synced by
+`brevo_service.sync_new_account`. Ex-leads flow here after their nurture exits on conversion.
+
+### Email 1 — ~1 hour after registration (template 35)
+**Subject:** You're in. Here's how to start.
+
+Hi {FIRSTNAME}, this is Dr. Bowman from Optio. Thanks for creating an account.
+
+The best first step is to start a class about something you already love doing. Pick one from the catalog or create your own: name it, choose the subject, then add tasks you actually want to do (your own ideas or AI suggestions). If you want a walkthrough, here's the [step-by-step guide](/docs/high-school-classes/creating-your-class).
+
+Then do one task today. Keep it small. Every task ends with evidence, a photo, a video, or a few sentences about what you did, and that first piece of evidence is what makes the whole thing click.
+
+Your first class is free, with no credit card required. Once you've created one, reply to this email with its name and I'll set it as your free class.
+
+[App Store badge] [Google Play badge]
+
+Questions at any point, just reply. This address comes straight to me.
+
+Dr. Bowman
+
+### Email 2 — day 3 (template 36)
+**Subject:** One task at a time
+
+Hi {FIRSTNAME}, Dr. Bowman here. A quick note on how Optio actually works, because it's different from school on purpose.
+
+Everything happens in tasks. A task is something real you do, like building, writing, practicing, or making something, and you finish it by capturing evidence of the work. Each completed task earns XP toward your class, and when the class hits its XP target it's ready for teacher review. The full picture is in [Tasks, evidence, and XP](/docs/high-school-classes/tasks-evidence-and-xp), a short read.
+
+There are no due dates and no grades along the way. The point is the doing, and the portfolio grows out of it naturally.
+
+If you've already finished a task, you know all this. Keep going. If you haven't, pick the smallest one on your list and do it today. And if you're stuck on what tasks to add, reply and tell me what your class is about. I'll send you ideas myself.
+
+Dr. Bowman
+
+### Email 3 — day 7 (template 37)
+**Subject:** The transcript part
+
+Hi {FIRSTNAME}, Dr. Bowman from Optio. One more note this week, about the part parents always ask me about.
+
+When you finish a class, a licensed teacher reviews your work, and the class goes on an official transcript issued through Optio Academy, which is WASC-accredited. That's the same accreditation schools themselves carry, and it's what makes the credit transferable. The details are in [Transcripts and accreditation](/docs/high-school-classes/transcripts-and-accreditation).
+
+If your parents want to see what you're working on, they can [join as supporters](/docs/high-school-classes/for-parents-following-along) and follow along. And if you're a parent reading this because you set up the account for your student, those same links cover everything you'll want to know.
+
+That's the last of my getting-started notes. From here it's just you and the work. If anything gets in the way, reply to this email and I'll help you sort it out.
 
 Dr. Bowman
 
