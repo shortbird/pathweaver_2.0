@@ -311,19 +311,23 @@ Dr. Bowman
 
 ## Sequence: New Account Welcome (trigger: added to "New Account Welcome" #13; no exit rule)
 
-Audience: eligible platform self-registrations (student/parent, 13+, non-org) synced by
+Audience: any eligible self-registration (student/parent role, 13+, platform or org) synced by
 `brevo_service.sync_new_account`. Ex-leads flow here after their nurture exits on conversion.
+Copy rule (2026-07-14): these emails assume NOTHING about the account's context. New accounts
+come from ads, org schools (iCreate etc.), parents, students, anyone. No free-class offer, no
+transcript pitch as the frame, no assumed parents. Core Optio only: do real things, capture
+evidence, build a portfolio. Context-specific paths get one conditional mention in email 3.
 
 ### Email 1 — ~1 hour after registration (template 35)
 **Subject:** You're in. Here's how to start.
 
 Hi {FIRSTNAME}, this is Dr. Bowman from Optio. Thanks for creating an account.
 
-The best first step is to start a class about something you already love doing. Pick one from the catalog or create your own: name it, choose the subject, then add tasks you actually want to do (your own ideas or AI suggestions). If you want a walkthrough, here's the [step-by-step guide](/docs/high-school-classes/creating-your-class).
+Optio is built on a simple idea: the things you actually do, like building, writing, practicing, or exploring, count as real learning when you capture them. That's what the app is for.
 
-Then do one task today. Keep it small. Every task ends with evidence, a photo, a video, or a few sentences about what you did, and that first piece of evidence is what makes the whole thing click.
+Getting started takes one sitting. Start a class about something that genuinely interests you, add a few tasks (small, real things you'd do anyway), and finish one today. Finishing a task means capturing evidence: a photo, a video, or a few sentences about what you did. That first piece of evidence is what makes everything click. If you want a walkthrough, here's the [step-by-step guide](/docs/high-school-classes/creating-your-class).
 
-Your first class is free, with no credit card required. Once you've created one, reply to this email with its name and I'll set it as your free class.
+If you're setting this up for someone else, the same steps apply. The fastest way to understand Optio is to run one small task through it yourself.
 
 [App Store badge] [Google Play badge]
 
@@ -334,26 +338,26 @@ Dr. Bowman
 ### Email 2 — day 3 (template 36)
 **Subject:** One task at a time
 
-Hi {FIRSTNAME}, Dr. Bowman here. A quick note on how Optio actually works, because it's different from school on purpose.
+Hi {FIRSTNAME}, Dr. Bowman here. A quick note on how Optio works, because it runs on a different engine than most learning software.
 
-Everything happens in tasks. A task is something real you do, like building, writing, practicing, or making something, and you finish it by capturing evidence of the work. Each completed task earns XP toward your class, and when the class hits its XP target it's ready for teacher review. The full picture is in [Tasks, evidence, and XP](/docs/high-school-classes/tasks-evidence-and-xp), a short read.
+Everything happens in tasks. A task is something real you do, like building, writing, practicing, or making something, and you finish it by capturing evidence of the work. Each completed task earns XP, and XP is how progress adds up in everything you do on Optio, whatever you're using it for. The full picture is in [Tasks, evidence, and XP](/docs/high-school-classes/tasks-evidence-and-xp), a short read.
 
-There are no due dates and no grades along the way. The point is the doing, and the portfolio grows out of it naturally.
+Optio doesn't grade you along the way. We say the process is the goal: the point is the doing, and the record builds itself while you do it.
 
 If you've already finished a task, you know all this. Keep going. If you haven't, pick the smallest one on your list and do it today. And if you're stuck on what tasks to add, reply and tell me what your class is about. I'll send you ideas myself.
 
 Dr. Bowman
 
 ### Email 3 — day 7 (template 37)
-**Subject:** The transcript part
+**Subject:** What your work adds up to
 
-Hi {FIRSTNAME}, Dr. Bowman from Optio. One more note this week, about the part parents always ask me about.
+Hi {FIRSTNAME}, Dr. Bowman from Optio. Last getting-started note from me.
 
-When you finish a class, a licensed teacher reviews your work, and the class goes on an official transcript issued through Optio Academy, which is WASC-accredited. That's the same accreditation schools themselves carry, and it's what makes the credit transferable. The details are in [Transcripts and accreditation](/docs/high-school-classes/transcripts-and-accreditation).
+Every task you finish lands in a portfolio: a real record of what you've done, in your own words, images, and video. It grows on its own while you work, it's yours to share with anyone, and it says more than a grade ever could.
 
-If your parents want to see what you're working on, they can [join as supporters](/docs/high-school-classes/for-parents-following-along) and follow along. And if you're a parent reading this because you set up the account for your student, those same links cover everything you'll want to know.
+From there, Optio fits however you're using it. Family members can [join as supporters](/docs/high-school-classes/for-parents-following-along) to follow along and cheer the work on. High schoolers can take classes through teacher review to an [accredited transcript](/docs/high-school-classes/transcripts-and-accreditation). And if you're part of a school or program that runs on Optio, your work carries into whatever your program does with it.
 
-That's the last of my getting-started notes. From here it's just you and the work. If anything gets in the way, reply to this email and I'll help you sort it out.
+That's the last of these notes. From here it's just you and the work. If anything gets in the way, reply to this email and I'll help you sort it out.
 
 Dr. Bowman
 

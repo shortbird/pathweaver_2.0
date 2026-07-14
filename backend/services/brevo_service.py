@@ -153,9 +153,9 @@ def sync_new_account(email, first_name=None, last_name=None, role=None):
     then unlinks any lead lists. Deliberately does not touch LEAD_TYPE /
     LEAD_SOURCE / LEAD_DATE so ex-lead provenance survives.
 
-    Callers gate eligibility (see routes/auth/registration.py): platform
-    self-signups with role student or parent, not under-13. Ineligible
-    registrants go through mark_converted instead."""
+    Callers gate eligibility (see routes/auth/registration.py): self-signups
+    with an effective role of student or parent (platform or org), not
+    under-13. Ineligible registrants go through mark_converted instead."""
     if not _enabled():
         return
     attributes = {

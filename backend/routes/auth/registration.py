@@ -491,19 +491,21 @@ def register():
                 except Exception as promo_update_error:
                     logger.error(f"[REGISTRATION] Failed to mark promo code as redeemed: {promo_update_error}")
 
-            # Marketing: sync the new account into Brevo. Eligible platform
-            # self-signups (student/parent, 13+) join the Customers list plus
-            # the New Account Welcome list, which starts the welcome
-            # automation. Everyone else (org users, under-13, observers) only
-            # gets conversion-marked so any nurture sequence they were in
-            # exits without new marketing. Fire-and-forget either way.
+            # Marketing: sync the new account into Brevo. Eligible signups
+            # (student/parent role, 13+, platform or org) join the Customers
+            # list plus the New Account Welcome list, which starts the welcome
+            # automation (copy is context-neutral by design). Under-13 and
+            # non-student/parent roles (observers etc.) only get
+            # conversion-marked so any nurture sequence they were in exits
+            # without new marketing. Fire-and-forget either way.
             try:
                 from services.brevo_service import mark_converted, sync_new_account
-                final_role = user_data.get('role', 'student')
-                if user_data.get('organization_id') or requires_parental_consent or final_role not in ('student', 'parent'):
+                platform_role = user_data.get('role', 'student')
+                effective_role = user_data.get('org_role') if platform_role == 'org_managed' else platform_role
+                if requires_parental_consent or effective_role not in ('student', 'parent'):
                     mark_converted(email)
                 else:
-                    sync_new_account(email, sanitized_first_name, sanitized_last_name, role=final_role)
+                    sync_new_account(email, sanitized_first_name, sanitized_last_name, role=effective_role)
             except Exception as brevo_err:
                 logger.warning(f"[REGISTRATION] Brevo sync failed: {brevo_err}")
 
