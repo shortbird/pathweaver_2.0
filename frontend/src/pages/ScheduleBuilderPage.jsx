@@ -76,6 +76,10 @@ const ageOn = (dob, onDate) => {
 // Unknown age (no DOB on file) never hides classes.
 const fitsAge = (c, age) => age == null
   || ((c.min_age == null || age >= c.min_age) && (c.max_age == null || age <= c.max_age))
+// Only called for classes the age filter hid, so at least one bound is set.
+const ageBandText = (c) => (c.min_age != null && c.max_age != null
+  ? `ages ${c.min_age}–${c.max_age}`
+  : c.min_age != null ? `ages ${c.min_age}+` : `up to age ${c.max_age}`)
 
 // ── Block-based tuition ───────────────────────────────────────────────────────
 // The org can define weekly-block pricing tiers (sis_settings.block_pricing,
@@ -325,6 +329,26 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
+  // Ask the school to allow this student into a class its age band excludes.
+  // Deliberately low-key (exceptions should stay rare): a quiet footnote in the
+  // slot popup, only where the age filter actually hid something.
+  const requestException = async (c, message) => {
+    setBusy(c.id)
+    try {
+      const { data } = await api.post('/api/sis/parent/age-exception-requests', {
+        organization_id: orgId, student_user_id: studentId, class_id: c.id, message,
+      })
+      toast.success(data.already
+        ? `You already have a request in for ${c.name} — the school will follow up.`
+        : `Request sent — ${org?.organization_name || 'the school'} will review it and follow up.`)
+      reload()
+      return true
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not send the request')
+      return false
+    } finally { setBusy(null) }
+  }
+
   if (loading) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" /></div>
   }
@@ -511,6 +535,9 @@ const ScheduleBuilderPage = () => {
         <SlotClassesModal
           slot={slotModal}
           classes={openClasses.filter((c) => meetsAt(c, slotModal) && fitsAge(c, studentAge))}
+          ageHidden={studentAge == null ? [] : openClasses.filter((c) => meetsAt(c, slotModal) && !fitsAge(c, studentAge))}
+          requestedIds={new Set(schedule?.age_exception_requests || [])}
+          onRequestException={requestException}
           enrolledHere={enrolled.filter((c) => meetsAt(c, slotModal))}
           age={studentAge}
           enrolled={enrolled}
@@ -553,7 +580,7 @@ const ScheduleBuilderPage = () => {
 
 // Classes offered in the clicked time slot. Rows add directly; "Details" swaps
 // to the full read-only class modal.
-const SlotClassesModal = ({ slot, classes, enrolledHere = [], age, enrolled, busy, locked, onClose, onDetails, onAdd, onDrop }) => (
+const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onRequestException, enrolledHere = [], age, enrolled, busy, locked, onClose, onDetails, onAdd, onDrop }) => (
   <ModalOverlay onClose={onClose}>
     <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
@@ -623,9 +650,68 @@ const SlotClassesModal = ({ slot, classes, enrolledHere = [], age, enrolled, bus
             </div>
           )
         })}
+        {!locked && ageHidden.length > 0 && (
+          <AgeExceptionFooter ageHidden={ageHidden} requestedIds={requestedIds}
+            busy={busy} onRequest={onRequestException} />
+        )}
       </div>
     </div>
   </ModalOverlay>
 )
+
+// Classes at this slot the age filter hid. Deliberately understated — the
+// school grants exceptions sparingly, so this is a quiet footnote link, not a
+// button alongside the class list.
+const AgeExceptionFooter = ({ ageHidden, requestedIds, busy, onRequest }) => {
+  const [open, setOpen] = useState(false)
+  const [classId, setClassId] = useState('')
+  const [message, setMessage] = useState('')
+  const requested = ageHidden.filter((c) => requestedIds?.has(c.id))
+  const askable = ageHidden.filter((c) => !requestedIds?.has(c.id))
+  const chosen = askable.find((c) => c.id === classId) || askable[0]
+  return (
+    <div className="pt-3 mt-1 border-t border-gray-100 space-y-1.5">
+      {requested.map((c) => (
+        <p key={c.id} className="text-xs text-neutral-400">
+          Age exception requested for {c.name} — the school will follow up.
+        </p>
+      ))}
+      {askable.length > 0 && (!open ? (
+        <p className="text-xs text-neutral-400">
+          Some classes at this time are for other ages. Exceptions are rare, but you can{' '}
+          <button type="button" onClick={() => setOpen(true)} className="underline hover:text-neutral-600">
+            ask the school for an age exception
+          </button>.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-neutral-500">
+            The school reviews each request individually and will follow up with you.
+          </p>
+          <select className={`${field} w-full`} value={chosen?.id || ''}
+            onChange={(e) => setClassId(e.target.value)} aria-label="Class to request">
+            {askable.map((c) => (
+              <option key={c.id} value={c.id}>{c.name} ({ageBandText(c)})</option>
+            ))}
+          </select>
+          <textarea className={`${field} w-full`} rows={2} value={message}
+            placeholder="Why does this class fit your student? (optional)"
+            onChange={(e) => setMessage(e.target.value)} />
+          <div className="flex items-center gap-3">
+            <button type="button" disabled={!chosen || busy === chosen?.id}
+              onClick={async () => {
+                const ok = await onRequest(chosen, message)
+                if (ok) { setOpen(false); setMessage(''); setClassId('') }
+              }}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-optio-purple/40 text-optio-purple hover:bg-optio-purple/5 disabled:opacity-50">
+              {busy === chosen?.id ? 'Sending…' : 'Send request'}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="text-sm text-neutral-400 hover:underline">Cancel</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default ScheduleBuilderPage

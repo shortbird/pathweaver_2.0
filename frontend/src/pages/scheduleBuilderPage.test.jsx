@@ -281,4 +281,55 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText(/must schedule at least 5 blocks/)).toBeInTheDocument()
     expect(screen.getByText(/Add 4 more blocks/)).toBeInTheDocument()
   })
+
+  // ── Age-exception requests ───────────────────────────────────────────────────
+  // DOB 2018-03-10 + first day 2026-09-01 → the student is 8; Robotics is 9–12.
+  const ORG_AGE8 = { ...ORG, students: [{ ...ORG.students[0], date_of_birth: '2018-03-10' }] }
+  const ROBOTICS = { ...POTTERY, id: 'c3', name: 'Robotics', min_age: 9, max_age: 12 }
+
+  it('hides out-of-age classes but offers a quiet exception request', async () => {
+    api.get.mockImplementation(mockApi({
+      orgs: [ORG_AGE8],
+      schedule: { first_day_of_school: '2026-09-01' },
+      classes: [POTTERY, ROBOTICS],
+    }))
+    api.post.mockResolvedValue({ data: { success: true, request: { id: 'r1' } } })
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    await openTue9am()
+    expect(screen.getByText('Pottery')).toBeInTheDocument()
+    expect(screen.queryByText('Robotics')).not.toBeInTheDocument() // age 8 < min 9
+    fireEvent.click(screen.getByRole('button', { name: 'ask the school for an age exception' }))
+    expect(screen.getByRole('option', { name: 'Robotics (ages 9–12)' })).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText(/Why does this class fit/), {
+      target: { value: 'She loves robots' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/age-exception-requests', {
+      organization_id: 'org1', student_user_id: 's1', class_id: 'c3', message: 'She loves robots',
+    }))
+  })
+
+  it('shows a pending exception request instead of the ask link', async () => {
+    api.get.mockImplementation(mockApi({
+      orgs: [ORG_AGE8],
+      schedule: { first_day_of_school: '2026-09-01', age_exception_requests: ['c3'] },
+      classes: [ROBOTICS],
+    }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    await openTue9am()
+    expect(screen.getByText(/Age exception requested for Robotics/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ask the school/ })).not.toBeInTheDocument()
+  })
+
+  it('never offers exception requests when the age is unknown', async () => {
+    // No DOB on file: nothing is hidden by age, so there is nothing to request.
+    api.get.mockImplementation(mockApi({ classes: [POTTERY, ROBOTICS] }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    await openTue9am()
+    expect(screen.getByText('Robotics')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ask the school/ })).not.toBeInTheDocument()
+  })
 })

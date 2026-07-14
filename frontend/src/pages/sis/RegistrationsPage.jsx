@@ -14,12 +14,22 @@ const STATUS_STYLES = {
 }
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const money = (cents) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
+const fmtWhen = (ts) => {
+  try { return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) }
+  catch { return ts }
+}
+// The class age band snapshotted on the request (empty when the class had no limits).
+const ageBand = (r) => (r.class_min_age != null && r.class_max_age != null
+  ? `ages ${r.class_min_age}–${r.class_max_age}`
+  : r.class_min_age != null ? `ages ${r.class_min_age}+`
+    : r.class_max_age != null ? `up to age ${r.class_max_age}` : null)
 
 const RegistrationsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [registrations, setRegistrations] = useState([])
   const [members, setMembers] = useState([])
   const [classes, setClasses] = useState([])
+  const [exceptions, setExceptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [newStudent, setNewStudent] = useState('')
   const [selected, setSelected] = useState(null)
@@ -32,11 +42,13 @@ const RegistrationsPage = () => {
       api.get(withOrg('/api/sis/registrations', orgId)),
       api.get(withOrg('/api/sis/members', orgId)),
       api.get(withOrg('/api/sis/classes', orgId)),
+      api.get(withOrg('/api/sis/age-exception-requests', orgId)),
     ])
-      .then(([r, m, c]) => {
+      .then(([r, m, c, x]) => {
         setRegistrations(r.data?.registrations || [])
-        setMembers((m.data?.members || []).filter((x) => x.is_student))
+        setMembers((m.data?.members || []).filter((x2) => x2.is_student))
         setClasses(c.data?.classes || [])
+        setExceptions(x.data?.requests || [])
       })
       .catch(() => toast.error('Failed to load registrations'))
       .finally(() => setLoading(false))
@@ -102,6 +114,18 @@ const RegistrationsPage = () => {
     }
   }
 
+  const resolveException = async (r, action) => {
+    try {
+      await api.post(`/api/sis/age-exception-requests/${r.id}/resolve`, { action, organization_id: orgId })
+      toast.success(action === 'approve'
+        ? `Approved — ${r.student_name} is enrolled in ${r.class_name}`
+        : 'Request declined')
+      load()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not update the request')
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -116,6 +140,57 @@ const RegistrationsPage = () => {
         </select>
         <Button size="sm" onClick={createRegistration}>Start registration</Button>
       </div>
+
+      {exceptions.some((r) => r.status === 'pending') && (
+        <div className="bg-white rounded-xl border border-amber-300 p-4 mb-6">
+          <h2 className="font-semibold text-neutral-900">Age exception requests</h2>
+          <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+            Families asking to enroll a student in a class outside its age range. Approving enrolls the student right away.
+          </p>
+          <div className="space-y-2">
+            {exceptions.filter((r) => r.status === 'pending').map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-neutral-900">
+                    {r.student_name}{r.student_age != null ? ` (age ${r.student_age})` : ''}
+                    <span className="text-neutral-400 font-normal"> → </span>
+                    {r.class_name}{ageBand(r) ? <span className="text-neutral-400 font-normal"> ({ageBand(r)})</span> : null}
+                  </div>
+                  <div className="text-xs text-neutral-400">
+                    Requested by {r.guardian_name} · {fmtWhen(r.created_at)}
+                  </div>
+                  {r.message && <div className="text-xs text-neutral-600 mt-1 italic">“{r.message}”</div>}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button size="sm" onClick={() => resolveException(r, 'approve')}>Approve &amp; enroll</Button>
+                  <button onClick={() => resolveException(r, 'decline')}
+                    className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-300 text-red-600 hover:bg-red-50">
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {exceptions.some((r) => r.status !== 'pending') && (
+        <details className="mb-6">
+          <summary className="text-sm text-neutral-500 cursor-pointer select-none">
+            Resolved age exception requests ({exceptions.filter((r) => r.status !== 'pending').length})
+          </summary>
+          <div className="mt-2 space-y-1">
+            {exceptions.filter((r) => r.status !== 'pending').map((r) => (
+              <div key={r.id} className="text-xs text-neutral-500 flex flex-wrap gap-x-1.5">
+                <span className={r.status === 'approved' ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
+                  {r.status}
+                </span>
+                <span>{r.student_name} → {r.class_name}</span>
+                <span className="text-neutral-400">· requested {fmtWhen(r.created_at)}{r.resolved_at ? ` · resolved ${fmtWhen(r.resolved_at)}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
