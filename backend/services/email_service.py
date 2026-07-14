@@ -39,6 +39,29 @@ class EmailService(BaseService):
         # Load email copy loader for centralized copy management
         self.copy_loader = email_copy_loader
 
+    def _org_reply_to(self, to_email: str) -> Optional[str]:
+        """Reply-To for organization members, from the org's
+        feature_flags.email_reply_to (set for iCreate so replies go to the
+        school's inbox instead of Optio support). Platform users (no org) and
+        unknown addresses return None. Fail-open: any lookup problem just
+        means no Reply-To header.
+        """
+        try:
+            from database import get_supabase_admin_client
+            db = get_supabase_admin_client()
+            user = (db.table('users').select('organization_id')
+                    .ilike('email', to_email).limit(1).execute()).data
+            org_id = user[0].get('organization_id') if user else None
+            if not org_id:
+                return None
+            org = (db.table('organizations').select('feature_flags')
+                   .eq('id', org_id).single().execute()).data or {}
+            value = (org.get('feature_flags') or {}).get('email_reply_to')
+            return value.strip() if isinstance(value, str) and value.strip() else None
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Org reply-to lookup failed for {to_email}: {e}")
+            return None
+
     def send_email(
         self,
         to_email: str,
@@ -86,6 +109,11 @@ class EmailService(BaseService):
             msg['From'] = f"{sender_display_name} <{sender_email}>"
             msg['To'] = to_email
             msg['Subject'] = subject
+            # An explicit reply_to from the caller wins; otherwise recipients
+            # who belong to an org with a configured reply-to (e.g. iCreate)
+            # get their school's inbox so replies reach the school, not Optio.
+            if not reply_to:
+                reply_to = self._org_reply_to(to_email)
             if reply_to:
                 msg['Reply-To'] = reply_to
 
