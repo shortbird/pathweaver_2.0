@@ -469,10 +469,12 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     except Exception:  # noqa: BLE001
         pass
     settings = _sis_settings(org_id)
+    from services import sis_exception_service as exceptions
     return {
         'classes': classes,
         'waitlist': waitlist,
         'courses': courses,
+        'age_exception_requests': exceptions.pending_class_ids(org_id, student_user_id),
         'optio_courses_enabled': _optio_courses_enabled(org_id),
         'first_day_of_school': _first_day_of_school(org_id),
         'changes_locked': _changes_locked(org_id),
@@ -613,6 +615,43 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         dropped = True
 
     return {'ok': True, 'dropped': dropped}
+
+
+# ── Age-exception requests ────────────────────────────────────────────────────
+def request_age_exception(user_id: str, org_id: str, student_user_id: str,
+                          class_id: str, message: Optional[str] = None) -> Dict[str, Any]:
+    """A guardian asks the school to allow a student into a class outside its
+    posted age band (the builder hides those classes). Records a timestamped
+    request for staff review; approval enrolls the student."""
+    student = next((s for s in registerable_students(user_id)
+                    if s['student_id'] == student_user_id and s['org_id'] == org_id), None)
+    if not student:
+        return {'error': 'Not authorized for this student'}
+    if _changes_locked(org_id):
+        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    gate = _family_gate(org_id, student_user_id)
+    if gate:
+        return gate
+    klass = next((c for c in catalog.list_classes(org_id) if c['id'] == class_id), None)
+    if not klass or klass.get('registration_status') != 'open':
+        return {'error': 'This class is not open for registration'}
+
+    # Snapshot the student's age the same way the builder judges it: as of the
+    # first day of school when configured, else today.
+    from datetime import date as _date
+    from services.sis_eligibility import age_on
+    first_day = _first_day_of_school(org_id)
+    on = None
+    if first_day:
+        try:
+            on = _date.fromisoformat(str(first_day)[:10])
+        except ValueError:
+            on = None
+    from services import sis_exception_service as exceptions
+    return exceptions.create_request(
+        org_id, user_id, student_user_id, class_id, message=message,
+        student_age=age_on(student.get('date_of_birth'), on),
+        class_min_age=klass.get('min_age'), class_max_age=klass.get('max_age'))
 
 
 # ── Org resources (family-readable document library) ─────────────────────────

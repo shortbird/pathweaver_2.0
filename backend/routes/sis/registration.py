@@ -12,6 +12,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_registration_service as regs
+from services import sis_exception_service as exceptions
 
 logger = get_logger(__name__)
 
@@ -139,6 +140,37 @@ def complete_registration(user_id, reg_id):
     result = regs.complete(org_id, reg_id, completed_by=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
+# ── Age-exception requests (family asks to join a class outside its age band) ─
+@bp.route('/age-exception-requests', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_age_exception_requests(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    status = request.args.get('status')
+    if status and status not in exceptions.REQUEST_STATUSES:
+        return jsonify({'success': False, 'error': f'Invalid status: {status}'}), 400
+    return jsonify({'success': True, 'requests': exceptions.list_requests(org_id, status)})
+
+
+@bp.route('/age-exception-requests/<request_id>/resolve', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def resolve_age_exception_request(user_id, request_id):
+    """Approve (enrolls the student right away — approving IS the age override)
+    or decline a pending request."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    action = (request.json or {}).get('action')
+    if action not in ('approve', 'decline'):
+        return jsonify({'success': False, 'error': "action must be 'approve' or 'decline'"}), 400
+    result = exceptions.resolve(org_id, request_id, action, resolved_by=user_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Request not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, **result})
 
 

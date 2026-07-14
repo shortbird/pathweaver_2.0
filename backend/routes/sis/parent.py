@@ -274,6 +274,27 @@ def drop_student_class(user_id, student_id, class_id):
     return jsonify({'success': True, **result})
 
 
+# ── Age-exception requests ─────────────────────────────────────────────────────
+@bp.route('/age-exception-requests', methods=['POST'])
+@require_auth
+def request_age_exception(user_id):
+    """A guardian asks the school to allow a student into a class outside its
+    posted age band. Timestamped; staff review on the SIS Registration page."""
+    data = request.json or {}
+    org_id = _org(request)
+    student_user_id = data.get('student_user_id')
+    class_id = data.get('class_id')
+    if not org_id or not student_user_id or not class_id:
+        return jsonify({'success': False,
+                        'error': 'organization_id, student_user_id and class_id are required'}), 400
+    result = parent.request_age_exception(user_id, org_id, student_user_id, class_id,
+                                          message=data.get('message'))
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result}), 201
+
+
 # ── At-home learning: Optio courses (untimed) in the Schedule Builder ─────────
 @bp.route('/courses', methods=['GET'])
 @require_auth
