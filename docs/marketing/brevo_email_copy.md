@@ -29,6 +29,11 @@ Badge images (Brevo-hosted):
 
 Paste-ready HTML lives in `brevo_email_html/` (numbered to match Brevo template ids).
 
+Parent quotes: the "one parent told me" lines (added 2026-07-14 to Free Class 2/4/5 and General
+Interest 2) are Andrea F.'s feedback, lightly paraphrased; the same testimonial runs on /classes,
+/academy, /for-families, and the homepage. Keep email quotes anonymous ("one parent") since they
+carry a personal-relay framing, not attribution.
+
 ---
 
 ## Sequence: Free Class Nurture (trigger: added to "Free Class Leads"; exit: added to Customers)
@@ -61,6 +66,8 @@ Dr. Bowman
 Most of the students I talk to are already doing something that deserves a spot on their transcript.
 
 Training for a team? That's PE. Practicing a language every day? That's a world language class. The same goes for building games, editing videos, baking, or running a small business.
+
+One Optio parent told me she's been helping her son catch learning wherever it happens: a dinner-table conversation about rhyme scheme, a rap battle he won with friends that earned him XP toward grammar.
 
 An Optio class doesn't pile new work on top of your life. You create a class around what you're already doing, and Optio gives it structure and makes it count. Here's a closer look at [how the work adds up](/docs/high-school-classes/tasks-evidence-and-xp).
 
@@ -96,6 +103,8 @@ No lectures, no worksheets. Here's what an Optio class actually looks like:
 
 You create your class and fill it with real projects, done at your own pace. As you go, you capture evidence right from your phone, whether that's photos, videos, writing, or the work itself. All of it builds into a portfolio you can show people, and an Optio teacher reviews everything before the class counts. You can read more about [what teachers look for](/docs/high-school-classes/teacher-review-and-earning-credit).
 
+Here's how one parent described it a few weeks in: 'He LOVES the ability to work in any order, and he loves that it isn't graded. Some days he types his answers, and lots of days he takes a picture of his notes.'
+
 You can also invite supporters, like parents, grandparents, and mentors, who can see your progress and cheer you on.
 
 The point isn't to race through it. It's to spend your time on work you're proud of, and have it count.
@@ -111,7 +120,7 @@ Dr. Bowman
 ### Email 5 — day 10
 **Subject:** The details your parents will ask about
 
-If you need to get a parent on board, forward them this email. Here's the short version:
+If parents are still unsure about Optio, this email is for them. Here's the short version:
 
 - The first class is completely free, with no credit card on file and nothing to cancel.
 - After that, classes are $149 each, and one-on-one support from an Optio teacher is available as an add-on.
@@ -119,6 +128,8 @@ If you need to get a parent on board, forward them this email. Here's the short 
 - Everything runs in the Optio app (iOS and Android, plus the web), and parents can join as supporters to follow the work as it happens.
 
 There are more details in our Help Center, including [pricing](/docs/high-school-classes/pricing-and-your-free-class) and [how parents can follow along](/docs/high-school-classes/for-parents-following-along).
+
+And one parent recently told me: 'I really hope this is how he wants to do his economics class next summer, because I'm having a great time, and I know he's learning a lot more than he would be just clicking through an online course.'
 
 And parents, if you have questions, I'm happy to answer them directly. Just reply to this email and it comes straight to me.
 
@@ -202,6 +213,8 @@ Training with a team is PE. Practicing a language every day is a world language 
 An Optio class doesn't pile new work on top of your family's life. Your student creates a class around what they're already doing, and Optio gives it structure and makes it count. Here's a closer look at [how the work adds up](/docs/high-school-classes/tasks-evidence-and-xp).
 
 You can also [join as a supporter](/docs/high-school-classes/for-parents-following-along), along with grandparents or mentors, to see the work as it happens and cheer your student on.
+
+One Optio parent told me she's been helping her son catch learning wherever it happens: a dinner-table conversation about rhyme scheme, a rap battle he won with friends that earned him XP toward grammar.
 
 The first class is free, so it's easy to try:
 
