@@ -173,7 +173,16 @@ def _paperwork_resource_urls(admin, org_id):
 def _public_config(org, cfg, paperwork_urls=None):
     """The subset of config safe to expose to the (unauthenticated) registration page."""
     paperwork_urls = paperwork_urls or {}
+    sis_settings = (org.get('feature_flags') or {}).get('sis_settings') or {}
     return {
+        # Age bands currently on an enrollment waitlist, so the family step can
+        # tell parents a kid will be waitlisted the moment their DOB is entered.
+        'enrollment_age_gates': [
+            {'min_age': g.get('min_age'), 'max_age': g.get('max_age')}
+            for g in (sis_settings.get('enrollment_age_gates') or [])
+            if isinstance(g, dict) and g.get('mode') == 'waitlist'
+        ],
+        'first_day_of_school': sis_settings.get('first_day_of_school'),
         'organization': {
             'id': org.get('id'),
             'name': org.get('name'),
@@ -550,6 +559,7 @@ def my_registration(user_id):
             'kids': [{**k, 'avatar_url': avatar_by_id.get(k.get('user_id'))} for k in kids],
             'parent_avatar_url': avatar_by_id.get(user_id),
             'fee_cents': reg.get('fee_cents'),
+            'fee_deferred': bool(reg.get('fee_deferred')),
             'answers': reg.get('answers') or {},
             'emergency_contacts': reg.get('emergency_contacts') or [],
             'paperwork': reg.get('paperwork') or [],
@@ -904,6 +914,8 @@ def submit_family(reg_id):
             logger.warning(f'iCreate family re-edit: avatar carry-over lookup failed: {e}')
     if prior_kids:
         try:
+            from services import sis_enrollment_waitlist_service as enrollment_waitlist
+            enrollment_waitlist.remove_for_students(org_id, prior_kids)
             admin.table('emergency_contacts').delete().in_('student_user_id', prior_kids).execute()
             admin.table('parent_student_links').delete().in_('student_user_id', prior_kids).execute()
             hh_rows = (admin.table('households').select('id')
@@ -963,6 +975,7 @@ def submit_family(reg_id):
 
     # Group the family into a SIS household so address/phone land where staff
     # already look (Families page). Best-effort: registration succeeds without it.
+    household_id = None
     try:
         hh = admin.table('households').insert({
             'organization_id': org_id,
@@ -992,18 +1005,42 @@ def submit_family(reg_id):
     except Exception as e:  # noqa: BLE001
         logger.error(f'iCreate family: household creation failed: {e}')
 
+    # Enrollment age gates: kids whose age falls in a waitlisted band join the
+    # enrollment waitlist — they finish registering but can't select classes
+    # until the school releases them.
+    try:
+        from services import sis_enrollment_waitlist_service as enrollment_waitlist
+        gates = enrollment_waitlist.gates_for_org(org_id)
+        for ck in created_kids:
+            gate = enrollment_waitlist.matching_gate(org_id, ck.get('dob'), gates) if gates else None
+            ck['waitlisted'] = bool(gate)
+            if gate:
+                enrollment_waitlist.add_waiting(
+                    org_id, ck['user_id'], guardian_user_id=parent_id,
+                    household_id=household_id, gate=gate)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'iCreate family: enrollment-waitlist gating failed for {reg_id}: {e}')
+        for ck in created_kids:
+            ck.setdefault('waitlisted', False)
+
     # Fee is per-family, computed from the number of kids registering. Stored so
     # later steps are stable even if an admin edits the config mid-funnel.
     # Families who already paid on the school's legacy form owe nothing.
+    # When EVERY kid is waitlisted, the fee is deferred: the funnel completes
+    # without payment and the fee comes due at the first release.
     fee_cents = 0 if (directive and directive.get('fee_prepaid')) \
         else _compute_fee_cents(cfg, len(created_kids))
+    fee_deferred = bool(created_kids) and fee_cents > 0 \
+        and all(ck.get('waitlisted') for ck in created_kids)
     admin.table('icreate_registrations').update({
-        'kids': created_kids, 'fee_cents': fee_cents,
+        'kids': created_kids, 'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
         'status': 'details', 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
 
-    logger.info(f'iCreate family: registration {reg_id} has {len(created_kids)} kids, fee {fee_cents}c')
-    return jsonify({'success': True, 'status': 'details', 'kids': created_kids, 'fee_cents': fee_cents}), 200
+    logger.info(f'iCreate family: registration {reg_id} has {len(created_kids)} kids, '
+                f'fee {fee_cents}c{" (deferred)" if fee_deferred else ""}')
+    return jsonify({'success': True, 'status': 'details', 'kids': created_kids,
+                    'fee_cents': fee_cents, 'fee_deferred': fee_deferred}), 200
 
 
 @bp.route('/registrations/<reg_id>/details', methods=['POST'])
@@ -1162,6 +1199,22 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
         **(extra_fields or {}),
     }
     admin.table('icreate_registrations').update(payload).eq('id', reg['id']).execute()
+
+    # A release put this household on hold until the deferred fee was settled —
+    # settling it clears the hold (only OUR hold; a school-set hold stays).
+    # Skipped while the fee is still deferred (all-waitlisted family finishing
+    # the funnel unpaid — no hold exists yet).
+    if not reg.get('fee_deferred'):
+        try:
+            from services.sis_enrollment_waitlist_service import FEE_HOLD_REASON
+            admin.table('households').update({
+                'registration_hold': False, 'registration_hold_reason': None,
+            }).eq('organization_id', reg['organization_id']) \
+                .eq('primary_contact_user_id', reg['parent_user_id']) \
+                .eq('registration_hold_reason', FEE_HOLD_REASON).execute()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'iCreate fee: hold clear failed for {reg["id"]}: {e}')
+
     return {
         'success': True, 'status': 'completed',
         'scheduling_url': scheduling_url,
@@ -1320,6 +1373,9 @@ def confirm_payment(reg_id):
     result = _finish_fee_step(admin, reg, cfg, extra_fields={
         'fee_paid_at': datetime.utcnow().isoformat(),
         'stripe_payment_ref': str(session.get('payment_intent') or session_id),
+        # Paid = nothing deferred anymore, so a later waitlist release
+        # never reopens a settled registration.
+        'fee_deferred': False,
     })
     logger.info(f'iCreate: registration {reg_id} payment verified ({session.get("payment_intent")})')
     return jsonify({**result, 'paid': True}), 200
@@ -1344,7 +1400,9 @@ def record_fee(reg_id):
                         'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
     reg = _apply_prepaid_directive(admin, reg)
     fee_cents = int(reg.get('fee_cents') or 0)  # computed per-family at the family step
-    if cfg.get('stripe_secret_key') and fee_cents > 0:
+    # Fee-deferred families (every kid on the enrollment waitlist) finish without
+    # paying — the fee comes due when the school releases their first student.
+    if cfg.get('stripe_secret_key') and fee_cents > 0 and not reg.get('fee_deferred'):
         return jsonify({'error': 'Please pay the registration fee by card to finish.'}), 402
 
     result = _finish_fee_step(admin, reg, cfg, extra_fields={'fee_cents': fee_cents})

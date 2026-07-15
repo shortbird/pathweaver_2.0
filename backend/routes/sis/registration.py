@@ -13,6 +13,7 @@ from utils.logger import get_logger
 from services import sis_service
 from services import sis_registration_service as regs
 from services import sis_exception_service as exceptions
+from services import sis_enrollment_waitlist_service as enrollment_waitlist
 
 logger = get_logger(__name__)
 
@@ -164,13 +165,56 @@ def resolve_age_exception_request(user_id, request_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    action = (request.json or {}).get('action')
+    data = request.json or {}
+    action = data.get('action')
     if action not in ('approve', 'decline'):
         return jsonify({'success': False, 'error': "action must be 'approve' or 'decline'"}), 400
-    result = exceptions.resolve(org_id, request_id, action, resolved_by=user_id)
+    result = exceptions.resolve(org_id, request_id, action, resolved_by=user_id,
+                                drop_conflicting=bool(data.get('drop_conflicting')))
     if result.get('error'):
         code = 404 if result['error'] == 'Request not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code
+    if result.get('conflicts'):
+        # Enrolling would double-book the student; the client confirms and
+        # re-posts with drop_conflicting=true. The request stays pending.
+        return jsonify({'success': False, 'conflicts': result['conflicts']}), 409
+    return jsonify({'success': True, **result})
+
+
+# ── Enrollment age-group waitlist ────────────────────────────────────────────
+@bp.route('/enrollment-waitlist', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_enrollment_waitlist(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'entries': enrollment_waitlist.list_entries(org_id)})
+
+
+@bp.route('/enrollment-waitlist/<entry_id>/release', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def release_enrollment_waitlist_entry(user_id, entry_id):
+    """Release ONE student ("room for 9 of the 12"): unlocks class selection,
+    reopens a deferred registration fee, and emails the guardian."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = enrollment_waitlist.release(org_id, entry_id, released_by=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/enrollment-waitlist/release-band', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def release_enrollment_waitlist_band(user_id):
+    """Release every waiting student in an age band (count-confirmed client-side)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    result = enrollment_waitlist.release_band(
+        org_id, data.get('band_min_age'), data.get('band_max_age'), released_by=user_id)
     return jsonify({'success': True, **result})
 
 

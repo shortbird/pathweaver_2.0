@@ -110,6 +110,10 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
     supply_fee: initial?.supply_fee != null ? String(initial.supply_fee) : '',
     age_min: initial?.min_age != null ? String(initial.min_age) : '',
     age_max: initial?.max_age != null ? String(initial.max_age) : '',
+    // The DB defaults new classes to closed, which hides them from families —
+    // make it an explicit, visible choice at creation (default: open).
+    registration_open: initial ? initial.registration_status === 'open' : true,
+    requires_full_day: !!initial?.requires_full_day,
   })
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(initial?.image_url || null)
@@ -188,6 +192,9 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
       supply_fee: numOrUndef(formData.supply_fee),
       min_age: ageMin,
       max_age: ageMax,
+      requires_full_day: formData.requires_full_day,
+      // Edit mode leaves registration_status alone — the host modal's toggle owns it.
+      ...(isEdit ? {} : { registration_status: formData.registration_open ? 'open' : 'closed' }),
     }
 
     setSubmitting(true)
@@ -376,6 +383,33 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
                   onChange={handleChange} min={0} placeholder="Max" className={inputClass} />
               </div>
             </div>
+
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={formData.requires_full_day}
+                onChange={(e) => setFormData((prev) => ({ ...prev, requires_full_day: e.target.checked }))}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              <span>
+                <span className="block text-sm font-medium text-gray-700">Full-day program</span>
+                <span className="block text-xs text-gray-500">
+                  Students who add this class must fill every teaching block on its meeting days
+                  (e.g. microschool and Summit programs).
+                </span>
+              </span>
+            </label>
+
+            {!isEdit && (
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={formData.registration_open}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, registration_open: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                <span>
+                  <span className="block text-sm font-medium text-gray-700">Open for registration</span>
+                  <span className="block text-xs text-gray-500">
+                    Uncheck to keep this class hidden from families until you open it from the Classes list.
+                  </span>
+                </span>
+              </label>
+            )}
 
             {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
           </div>

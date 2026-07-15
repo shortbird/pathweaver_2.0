@@ -68,6 +68,7 @@ def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, 
         return []
     class_ids = [c['id'] for c in classes]
     enrollment_counts = repo.enrollment_counts_for_classes(class_ids)
+    waitlist_counts = repo.waitlist_counts_for_classes(class_ids)
     meetings = repo.meetings_for_classes(class_ids)
     meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
     for m in meetings:
@@ -81,6 +82,7 @@ def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, 
         out.append({
             **c,
             'enrolled_count': enrolled,
+            'waitlist_count': waitlist_counts.get(c['id'], 0),
             'spots_left': spots_left(cap, enrolled),
             'is_full': is_full(cap, enrolled),
             'meetings': meetings_by_class.get(c['id'], []),

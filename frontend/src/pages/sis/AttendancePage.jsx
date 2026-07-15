@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import SearchSelect from '../../components/ui/SearchSelect'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
@@ -17,12 +18,21 @@ import SisOrgPicker from './SisOrgPicker'
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 const today = () => new Date().toISOString().slice(0, 10)
 
+// "Mon/Wed 09:30–10:30" — all meeting days, times from the first meeting. Same
+// class names repeat across sections (three "Reading Tutoring"s), so every
+// class label carries its schedule.
 const meetingText = (meetings = []) => {
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   if (!meetings.length) return ''
+  const days = [...new Set(meetings.map((m) => m.day_of_week).filter((d) => d != null))]
+    .sort().map((d) => DAYS[d]).join('/')
   const m = meetings[0]
   const t = (v) => (v ? String(v).slice(0, 5) : '')
-  return `${DAYS[m.day_of_week] ?? ''} ${t(m.start_time)}${m.end_time ? `–${t(m.end_time)}` : ''}`.trim()
+  return `${days} ${t(m.start_time)}${m.end_time ? `–${t(m.end_time)}` : ''}`.trim()
+}
+const classLabel = (c) => {
+  const when = meetingText(c.meetings)
+  return when ? `${c.name} — ${when}` : c.name
 }
 
 const AttendancePage = () => {
@@ -132,10 +142,15 @@ const AttendancePage = () => {
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">
-        <select value={classId} onChange={(e) => setClassId(e.target.value)} className={`${field} flex-1 min-w-[200px]`}>
-          <option value="">{myClasses.length ? 'All classes…' : 'Select a class…'}</option>
-          {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <SearchSelect
+          className="flex-1 min-w-[200px]"
+          value={classId}
+          onChange={setClassId}
+          options={classes}
+          getId={(c) => c.id}
+          getLabel={classLabel}
+          placeholder="Search classes…"
+        />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} aria-label="Attendance date" />
       </div>
 
@@ -148,6 +163,7 @@ const AttendancePage = () => {
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-100">
             <div className="text-sm text-neutral-600">
               <span className="font-semibold text-neutral-900">{selectedClass?.name}</span>
+              {selectedClass && meetingText(selectedClass.meetings) ? <span className="text-neutral-400"> · {meetingText(selectedClass.meetings)}</span> : null}
               {' · '}{roster.length - absentCount} present · <span className={absentCount ? 'text-red-600 font-medium' : ''}>{absentCount} absent</span>
             </div>
             {alreadyTaken && !dirty && (

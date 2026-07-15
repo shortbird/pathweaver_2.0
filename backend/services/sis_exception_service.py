@@ -114,8 +114,52 @@ def list_requests(org_id: str, status: Optional[str] = None) -> List[Dict[str, A
     return rows
 
 
-def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str) -> Dict[str, Any]:
-    """Approve (enrolls the student right away) or decline a pending request."""
+def _same_time_conflicts(student_user_id: str, class_id: str) -> List[Dict[str, Any]]:
+    """The student's other active enrollments whose meetings collide with the
+    target class's meetings. Returns [{class_id, class_name}]."""
+    from services.sis_eligibility import meetings_overlap
+    admin = _admin()
+    target_meetings = (
+        admin.table('class_meetings').select('day_of_week, specific_date, start_time, end_time')
+        .eq('class_id', class_id).execute()
+    ).data or []
+    if not target_meetings:
+        return []
+    enrolled_ids = [
+        e['class_id'] for e in (
+            admin.table('class_enrollments').select('class_id')
+            .eq('student_id', student_user_id).eq('status', 'active').execute()
+        ).data or [] if e['class_id'] != class_id
+    ]
+    if not enrolled_ids:
+        return []
+    other_meetings = (
+        admin.table('class_meetings')
+        .select('class_id, day_of_week, specific_date, start_time, end_time')
+        .in_('class_id', enrolled_ids).execute()
+    ).data or []
+    conflict_ids = list({
+        m['class_id'] for m in other_meetings
+        if any(meetings_overlap(t, m) for t in target_meetings)
+    })
+    if not conflict_ids:
+        return []
+    names = {
+        c['id']: c.get('name') or 'Class' for c in (
+            admin.table('org_classes').select('id, name').in_('id', conflict_ids).execute()
+        ).data or []
+    }
+    return [{'class_id': cid, 'class_name': names.get(cid, 'Class')} for cid in conflict_ids]
+
+
+def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
+            drop_conflicting: bool = False) -> Dict[str, Any]:
+    """Approve (enrolls the student right away) or decline a pending request.
+
+    Approving a student who is already enrolled in a class meeting at the same
+    time would silently double-book them, so the first approve attempt returns
+    {'conflicts': [...]} and leaves the request pending; the caller re-approves
+    with drop_conflicting=True to drop those enrollments and proceed."""
     rows = (
         _admin().table(TABLE).select('*')
         .eq('id', request_id).eq('organization_id', org_id).limit(1).execute()
@@ -127,6 +171,17 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str) -> D
         return {'error': 'This request was already resolved'}
 
     if action == 'approve':
+        conflicts = _same_time_conflicts(req['student_user_id'], req['class_id'])
+        if conflicts and not drop_conflicting:
+            return {'conflicts': conflicts}
+        if conflicts:
+            _admin().table('class_enrollments').update({'status': 'dropped'}) \
+                .eq('student_id', req['student_user_id']) \
+                .in_('class_id', [c['class_id'] for c in conflicts]) \
+                .eq('status', 'active').execute()
+            from services.class_group_sync_service import sync_class_group
+            for c in conflicts:
+                sync_class_group(c['class_id'], actor_id=resolved_by)
         # Enroll immediately — same behavior as staff direct enrollment
         # (capacity-unrestricted; approving IS the override).
         _admin().table('class_enrollments').upsert({

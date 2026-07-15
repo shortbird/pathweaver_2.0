@@ -39,7 +39,7 @@ const { api } = vi.hoisted(() => {
       return { data: { classes: [
         { id: 'c1', name: 'Pottery', description: 'Clay', enrolled_count: 2, capacity: 10,
           supply_fee: 15, min_age: 8, max_age: 12, is_full: false, registration_status: 'closed',
-          meetings: [], primary_instructor_id: 's1', price_cents: 12000,
+          waitlist_count: 3, meetings: [], primary_instructor_id: 's1', price_cents: 12000,
           primary_instructor: { id: 's1', name: 'Jane Doe' } },
       ] } }
     }
@@ -241,6 +241,67 @@ describe('ClassesPage', () => {
     fireEvent.click(await screen.findByRole('switch', { name: /Toggle registration for Pottery/ }))
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
+    )
+  })
+
+  it('keeps the expanded row open when toggling registration (optimistic, no reload)', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(await screen.findByText('Pottery'))
+    expect(await screen.findByDisplayValue('Clay')).toBeInTheDocument()
+    const getCalls = api.get.mock.calls.length
+    fireEvent.click(screen.getByRole('switch', { name: /Toggle registration for Pottery/ }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    // the row is still expanded, the toggle flipped in place, nothing refetched
+    expect(screen.getByDisplayValue('Clay')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /Toggle registration for Pottery/ })).toHaveAttribute('aria-checked', 'true')
+    expect(api.get.mock.calls.length).toBe(getCalls)
+  })
+
+  it('warns when classes are closed to registration and can open them all', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    expect(screen.getByText(/1 class is closed to registration/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open all 1' }))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
+    )
+  })
+
+  it('shows the waitlist count column in the table view', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    expect(await screen.findByText('Waitlist')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  it('creates classes open for registration by default, with the checkbox opting out', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByText('Create class'))
+    fireEvent.change(screen.getByLabelText(/Class Name/), { target: { value: 'Drawing' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Class' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/classes', expect.objectContaining({
+        name: 'Drawing', registration_status: 'open',
+      })),
+    )
+  })
+
+  it('saves the full-day program flag from the expanded table row', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(await screen.findByText('Pottery'))
+    fireEvent.click(await screen.findByLabelText('Pottery requires a full day of classes'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({
+        requires_full_day: true,
+      })),
     )
   })
 })

@@ -50,11 +50,16 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// The class picker is a SearchSelect: focus the input, then mousedown an option.
+const pickClass = async (label) => {
+  fireEvent.focus(screen.getByPlaceholderText('Search classes…'))
+  fireEvent.mouseDown(await screen.findByRole('button', { name: label }))
+}
+
 describe('AttendancePage', () => {
   it('marks tapped students absent and saves the WHOLE roster (untouched = present)', async () => {
     render(<AttendancePage />)
-    const classSelect = await screen.findByRole('combobox')
-    fireEvent.change(classSelect, { target: { value: 'c1' } })
+    await pickClass('Pottery')
 
     // roster appears, everyone defaults to present
     expect(await screen.findByText('Bo')).toBeInTheDocument()
@@ -82,14 +87,25 @@ describe('AttendancePage', () => {
     // chip section renders only their class, and the roster loads without any clicks
     expect(await screen.findByText('My classes')).toBeInTheDocument()
     expect(await screen.findByText('Bo')).toBeInTheDocument()
-    expect(screen.queryAllByText('Robotics')).toHaveLength(1) // dropdown only, no chip
+    // the picker's options only render once it's opened, so no chip for Robotics
+    expect(screen.queryByText('Robotics')).not.toBeInTheDocument()
+  })
+
+  it('labels same-named sections with their meeting days and times in the picker', async () => {
+    state.classes = [
+      { id: 'c1', name: 'Reading Tutoring', meetings: [{ day_of_week: 2, start_time: '10:30:00', end_time: '11:30:00' }] },
+      { id: 'c2', name: 'Reading Tutoring', meetings: [{ day_of_week: 4, start_time: '09:30:00', end_time: '10:30:00' }] },
+    ]
+    render(<AttendancePage />)
+    fireEvent.focus(screen.getByPlaceholderText('Search classes…'))
+    expect(await screen.findByText('Reading Tutoring — Tue 10:30–11:30')).toBeInTheDocument()
+    expect(screen.getByText('Reading Tutoring — Thu 09:30–10:30')).toBeInTheDocument()
   })
 
   it('lets a saved absence be toggled back and re-saved as present', async () => {
     state.roster = [{ student_user_id: 's1', name: 'Bo', status: 'absent' }]
     render(<AttendancePage />)
-    const classSelect = await screen.findByRole('combobox')
-    fireEvent.change(classSelect, { target: { value: 'c1' } })
+    await pickClass('Pottery')
 
     // prior save is reflected
     expect(await screen.findByText('Attendance taken')).toBeInTheDocument()

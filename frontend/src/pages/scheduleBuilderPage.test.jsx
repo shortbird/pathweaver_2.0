@@ -332,4 +332,83 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText('Robotics')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /ask the school/ })).not.toBeInTheDocument()
   })
+
+  // ── Empty-slot messaging ─────────────────────────────────────────────────────
+  it('blames age only when the age filter hid something at the slot', async () => {
+    // Robotics (9–12) meets Tue 9am but the student is 8 → age did the hiding.
+    api.get.mockImplementation(mockApi({
+      orgs: [ORG_AGE8],
+      schedule: { first_day_of_school: '2026-09-01' },
+      classes: [ROBOTICS],
+    }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    await openTue9am()
+    expect(screen.getByText(/No open classes for age 8 meet at this time/)).toBeInTheDocument()
+  })
+
+  it('uses a neutral empty message when no class meets at the slot at all', async () => {
+    // The only class meets Wednesday — Tue 9am is empty for every age, so the
+    // message must not imply an age problem.
+    api.get.mockImplementation(mockApi({
+      orgs: [ORG_AGE8],
+      schedule: { first_day_of_school: '2026-09-01' },
+      classes: [{ ...POTTERY, meetings: [{ day_of_week: 3, start_time: '09:00', end_time: '10:30' }] }],
+    }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    await openTue9am()
+    expect(screen.getByText(/No classes are open for registration at this time/)).toBeInTheDocument()
+    expect(screen.queryByText(/No open classes for age/)).not.toBeInTheDocument()
+  })
+
+  // ── Enrollment age-group waitlist ────────────────────────────────────────────
+  it('renders read-only with a position banner when the student is enrollment-waitlisted', async () => {
+    api.get.mockImplementation(mockApi({
+      orgs: [ORG_AGE8],
+      schedule: {
+        enrollment_waitlist: { position: 4, band_label: 'ages 5–9' },
+        time_blocks: [{ start: '09:00', end: '10:00' }],
+      },
+      classes: [POTTERY],
+    }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    expect(screen.getByText(/#4 on the enrollment waitlist for ages 5–9/)).toBeInTheDocument()
+    // slots are inert: clicking the day column never opens the class picker
+    clickTue9am()
+    expect(screen.queryByText(/Classes at Tue/)).not.toBeInTheDocument()
+  })
+
+  it('shows the fee-due hold with a link back to the registration page', async () => {
+    api.get.mockImplementation(mockApi({
+      orgs: [ORG_AGE8],
+      schedule: {
+        registration_hold: true,
+        registration_hold_reason: 'Registration fee due — finish it from your registration page.',
+      },
+      classes: [POTTERY],
+    }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    expect(screen.getByText(/Registration fee due/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Finish your registration fee' }))
+      .toHaveAttribute('href', '/register/icreate/resume')
+  })
+
+  // ── Missing birthdate ────────────────────────────────────────────────────────
+  it('warns when the student has no birthdate on file (age filtering is off)', async () => {
+    api.get.mockImplementation(mockApi({ classes: [POTTERY] }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    expect(screen.getByText(/We don't have Kid's birthdate/)).toBeInTheDocument()
+    expect(screen.getByText(/Ask Micro School to add it/)).toBeInTheDocument()
+  })
+
+  it('shows no birthdate warning when the DOB is on file', async () => {
+    api.get.mockImplementation(mockApi({ orgs: [ORG_AGE8], classes: [POTTERY] }))
+    render(<ScheduleBuilderPage />)
+    await screen.findByTestId('schedule-day-2')
+    expect(screen.queryByText(/birthdate/)).not.toBeInTheDocument()
+  })
 })

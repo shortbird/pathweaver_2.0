@@ -20,8 +20,7 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | Key | Purpose | Config Attribute | Provider |
 |-----|---------|-----------------|----------|
 | `PEXELS_API_KEY` | Image search for quests | `Config.PEXELS_API_KEY` | [Pexels API](https://www.pexels.com/api/) |
-| `BREVO_API_KEY` | Brevo marketing sync (leads/conversions; standard key, NOT the MCP token) | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
-| `SMTP_PASS` | SendGrid email delivery | `Config.SMTP_PASS` | [SendGrid API Keys](https://app.sendgrid.com/settings/api_keys) |
+| `BREVO_API_KEY` | Brevo: transactional email delivery + marketing sync (standard key, NOT the MCP token) | `Config.BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
 | `STRIPE_SECRET_KEY` | Payment processing | `Config.STRIPE_SECRET_KEY` | [Stripe Dashboard](https://dashboard.stripe.com/apikeys) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook verification | `Config.STRIPE_WEBHOOK_SECRET` | [Stripe Webhooks](https://dashboard.stripe.com/webhooks) |
 | `CRON_SECRET` | Cron job authentication | `Config.CRON_SECRET` | Self-generated (`secrets.token_hex(16)`) |
@@ -41,11 +40,11 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 
 ### Email Configuration
 
+Delivery goes through the Brevo transactional API (`BREVO_API_KEY` above);
+the `SMTP_*` keys were removed when SendGrid was dropped (2026-07-15).
+
 | Key | Default | Config Attribute |
 |-----|---------|-----------------|
-| `SMTP_HOST` | `smtp.sendgrid.net` | `Config.SMTP_HOST` |
-| `SMTP_PORT` | `587` | `Config.SMTP_PORT` |
-| `SMTP_USER` | `apikey` | `Config.SMTP_USER` |
 | `SENDER_EMAIL` | `support@optioeducation.com` | `Config.SENDER_EMAIL` |
 | `SENDER_NAME` | `Optio Support` | `Config.SENDER_NAME` |
 | `ADMIN_EMAIL` | `tanner@optioeducation.com` | `Config.ADMIN_EMAIL` |

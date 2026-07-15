@@ -32,7 +32,7 @@ def _db(user_rows, feature_flags):
 @pytest.mark.unit
 class TestOrgReplyTo:
     def _lookup(self, user_rows, feature_flags):
-        service = EmailService.__new__(EmailService)  # skip SMTP config init
+        service = EmailService.__new__(EmailService)  # skip config/Jinja init
         with patch('database.get_supabase_admin_client',
                    return_value=_db(user_rows, feature_flags)):
             return service._org_reply_to('someone@example.com')

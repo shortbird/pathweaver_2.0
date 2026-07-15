@@ -227,6 +227,10 @@ const ScheduleBuilderPage = () => {
 
   const enrolled = schedule?.classes || []
   const waitlist = schedule?.waitlist || []
+  // Enrollment age-gate: the student themself is waitlisted (not per-class) —
+  // the week renders read-only until the school releases them.
+  const enrollmentWaitlist = schedule?.enrollment_waitlist || null
+  const interactionLocked = locked || !!enrollmentWaitlist
   const enrolledIds = new Set(enrolled.map((c) => c.id))
   const waitlistIds = new Set(waitlist.map((w) => w.class_id))
 
@@ -448,10 +452,33 @@ const ScheduleBuilderPage = () => {
           block{g.open === 1 ? '' : 's'} on {g.daysText}.
         </div>
       ))}
+      {/* No DOB = age filtering silently off, so the catalog shows every age's
+          classes. Parents can't edit a student's DOB here — the school can. */}
+      {!previewCode && student && !student.date_of_birth && (
+        <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          We don't have {student.name?.split(' ')[0] || 'this student'}'s birthdate, so classes
+          aren't filtered to their age. Ask {org?.organization_name || 'the school'} to add it.
+        </div>
+      )}
+      {enrollmentWaitlist && (
+        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-700">
+          <span className="font-medium text-neutral-900">
+            {student?.name?.split(' ')[0] || 'This student'} is
+            {enrollmentWaitlist.position ? ` #${enrollmentWaitlist.position}` : ''} on the enrollment
+            waitlist{enrollmentWaitlist.band_label ? ` for ${enrollmentWaitlist.band_label}` : ''}.
+          </span>{' '}
+          You'll get an email from {org?.organization_name || 'the school'} as soon as they can
+          choose classes — nothing to do until then.
+        </div>
+      )}
       {schedule?.registration_hold && (
         <div className="mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
-          Your family's registration is on hold — please contact {org?.organization_name || 'your school'} to
-          resolve it before signing up for classes.
+          Your family's registration is on hold — {schedule?.registration_hold_reason
+            ? schedule.registration_hold_reason
+            : `please contact ${org?.organization_name || 'your school'} to resolve it before signing up for classes.`}
+          {schedule?.registration_hold_reason?.toLowerCase().includes('registration fee') && (
+            <> <a href="/register/icreate/resume" className="font-semibold underline">Finish your registration fee</a>.</>
+          )}
         </div>
       )}
       {(() => {
@@ -502,7 +529,7 @@ const ScheduleBuilderPage = () => {
           classes={enrolled}
           timeBlocks={schedule?.time_blocks || []}
           selectedSlot={slotModal}
-          onSlotClick={locked ? null : (day, min, end) => setSlotModal({ day, min, end })}
+          onSlotClick={interactionLocked ? null : (day, min, end) => setSlotModal({ day, min, end })}
           onClassClick={(c, slot) => setDetail({ item: c, enrolled: true, slot })}
         />
 
@@ -542,7 +569,7 @@ const ScheduleBuilderPage = () => {
           age={studentAge}
           enrolled={enrolled}
           busy={busy}
-          locked={locked}
+          locked={interactionLocked}
           onClose={() => setSlotModal(null)}
           onDetails={(c, isEnrolled = false) => {
             setSlotModal(null)
@@ -557,7 +584,7 @@ const ScheduleBuilderPage = () => {
         <ClassDetailsModal
           item={detail.item}
           type="class"
-          locked={locked}
+          locked={interactionLocked}
           busy={busy === detail.item.id}
           conflict={!detail.enrolled ? conflictsWith(detail.item, enrolled) : null}
           onClose={() => setDetail(null)}
@@ -619,7 +646,11 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
         )}
         {classes.length === 0 && enrolledHere.length === 0 && (
           <p className="text-sm text-neutral-400 py-4 text-center">
-            No open classes{age != null ? ` for age ${age}` : ''} meet at this time — try another slot.
+            {/* Only blame age when the age filter actually hid something —
+                otherwise "for age 17" misreads a thin catalog as an age problem. */}
+            {ageHidden.length > 0
+              ? `No open classes for age ${age} meet at this time — try another slot.`
+              : 'No classes are open for registration at this time — try another slot.'}
           </p>
         )}
         {classes.map((c) => {

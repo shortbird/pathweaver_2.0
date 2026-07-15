@@ -97,11 +97,11 @@ KEY_REGISTRY = {
         'render_services': ['dev_backend', 'prod_backend'],
         'rotation_warning': 'Must match the webhook endpoint configured in Stripe.',
     },
-    'SMTP_PASS': {
+    'BREVO_API_KEY': {
         'category': 'provider',
         'required': False,
-        'description': 'SendGrid SMTP API key',
-        'provider_url': 'https://app.sendgrid.com/settings/api_keys',
+        'description': 'Brevo API key (transactional email + marketing sync)',
+        'provider_url': 'https://app.brevo.com/settings/keys/api',
         'render_services': ['dev_backend', 'prod_backend'],
         'rotation_warning': None,
     },

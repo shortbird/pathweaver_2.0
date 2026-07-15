@@ -313,15 +313,23 @@ def _family_gate(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
     """The error blocking this family from class signup, or None if clear.
 
     A registration hold (unresolved fee/question from the school) blocks all
-    self-service adds. Access to registration itself is controlled by who has
-    the registration link — there are no date-staggered tiers. Families with no
-    household are not gated — staff-created edge cases shouldn't lock parents out.
+    self-service adds, and a student on the enrollment age-group waitlist can't
+    pick classes until the school releases them. Access to registration itself
+    is controlled by who has the registration link — there are no
+    date-staggered tiers. Families with no household are not gated —
+    staff-created edge cases shouldn't lock parents out.
     """
     household = _student_household(org_id, student_user_id)
     if household and household.get('registration_hold'):
         return {'error': "Your family's registration is on hold — please contact the school "
                          'to resolve it before signing up for classes.',
                 'registration_hold': True}
+    from services import sis_enrollment_waitlist_service as enrollment_waitlist
+    entry = enrollment_waitlist.waiting_entry(org_id, student_user_id)
+    if entry:
+        return {'error': 'This student is on the enrollment waitlist — the school will let '
+                         'you know when they can choose classes.',
+                'enrollment_waitlisted': True}
     return None
 
 
@@ -470,6 +478,10 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         pass
     settings = _sis_settings(org_id)
     from services import sis_exception_service as exceptions
+    from services import sis_enrollment_waitlist_service as enrollment_waitlist
+    # Age-gated at registration: the student is queued for enrollment itself —
+    # the builder renders read-only with their place in line.
+    ew_entry = enrollment_waitlist.waiting_entry(org_id, student_user_id)
     return {
         'classes': classes,
         'waitlist': waitlist,
@@ -479,6 +491,11 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'first_day_of_school': _first_day_of_school(org_id),
         'changes_locked': _changes_locked(org_id),
         'registration_hold': bool((household or {}).get('registration_hold')),
+        'registration_hold_reason': (household or {}).get('registration_hold_reason'),
+        'enrollment_waitlist': {
+            'position': ew_entry.get('position'),
+            'band_label': enrollment_waitlist.band_label(ew_entry),
+        } if ew_entry else None,
         'time_blocks': settings.get('time_blocks') or [],
         'block_pricing': settings.get('block_pricing') or None,
         'tuition_plan': tuition_plan,

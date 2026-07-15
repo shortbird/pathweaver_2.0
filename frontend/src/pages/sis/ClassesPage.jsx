@@ -126,6 +126,8 @@ const ClassesPage = () => {
     supply_fee: payload.supply_fee ?? null,
     min_age: payload.min_age ?? null,
     max_age: payload.max_age ?? null,
+    ...(payload.registration_status ? { registration_status: payload.registration_status } : {}),
+    ...(payload.requires_full_day !== undefined ? { requires_full_day: payload.requires_full_day } : {}),
     organization_id: orgId,
   })
 
@@ -182,12 +184,32 @@ const ClassesPage = () => {
     } catch { toast.error('Could not archive class') }
   }
 
+  // Optimistic: flip the row in place so the expanded row / open modal stays
+  // put — a full load() would blank the page and collapse where you were.
   const toggleRegistration = async (cls) => {
     const next = cls.registration_status === 'open' ? 'closed' : 'open'
+    setClasses((cs) => cs.map((c) => (c.id === cls.id ? { ...c, registration_status: next } : c)))
     try {
       await api.patch(`/api/sis/classes/${cls.id}`, { registration_status: next, organization_id: orgId })
-      load()
-    } catch { toast.error('Could not update registration') }
+    } catch {
+      setClasses((cs) => cs.map((c) => (c.id === cls.id ? { ...c, registration_status: cls.registration_status } : c)))
+      toast.error('Could not update registration')
+    }
+  }
+
+  // Every non-archived class that isn't open is invisible to families in the
+  // Schedule Builder — new classes default to closed, which is easy to miss.
+  const closedClasses = classes.filter((c) => c.registration_status !== 'open')
+  const openAll = async () => {
+    if (!window.confirm(`Open registration for all ${closedClasses.length} closed class${closedClasses.length === 1 ? '' : 'es'}? Families will see them in the Schedule Builder immediately.`)) return
+    try {
+      await Promise.all(closedClasses.map((c) =>
+        api.patch(`/api/sis/classes/${c.id}`, { registration_status: 'open', organization_id: orgId })))
+      toast.success('Registration opened for all classes')
+    } catch {
+      toast.error('Could not open some classes — check the list')
+    }
+    load()
   }
 
   // ── Unified, filtered catalog ────────────────────────────────────────────────
@@ -265,6 +287,20 @@ const ClassesPage = () => {
 
       {showSync && orgId && (
         <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={load} />
+      )}
+
+      {!loading && closedClasses.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          <span>
+            {closedClasses.length} class{closedClasses.length === 1 ? ' is' : 'es are'} closed to
+            registration — families can't see {closedClasses.length === 1 ? 'it' : 'them'} in the
+            Schedule Builder. Use each row's Registration toggle, or open all at once.
+          </span>
+          <button onClick={openAll}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-semibold border border-amber-400 text-amber-800 hover:bg-amber-100 transition-colors">
+            Open all {closedClasses.length}
+          </button>
+        </div>
       )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}

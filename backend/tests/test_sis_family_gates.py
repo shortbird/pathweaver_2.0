@@ -14,25 +14,40 @@ import pytest
 from services import sis_parent_service as parent
 
 
-def _household(row):
-    return patch('services.sis_parent_service._student_household', return_value=row)
+def _household(row, waitlist_entry=None):
+    return (
+        patch('services.sis_parent_service._student_household', return_value=row),
+        patch('services.sis_enrollment_waitlist_service.waiting_entry',
+              return_value=waitlist_entry),
+    )
 
 
 @pytest.mark.unit
 class TestFamilyGate:
     def test_hold_blocks(self):
-        with _household({'registration_hold': True}):
+        hh, wl = _household({'registration_hold': True})
+        with hh, wl:
             gate = parent._family_gate('org1', 'stu1')
         assert gate['registration_hold'] is True
         assert 'hold' in gate['error']
 
     def test_clear_when_no_hold(self):
-        with _household({'registration_hold': False}):
+        hh, wl = _household({'registration_hold': False})
+        with hh, wl:
             assert parent._family_gate('org1', 'stu1') is None
 
     def test_no_household_is_not_gated(self):
-        with _household(None):
+        hh, wl = _household(None)
+        with hh, wl:
             assert parent._family_gate('org1', 'stu1') is None
+
+    def test_enrollment_waitlisted_student_is_gated(self):
+        hh, wl = _household({'registration_hold': False},
+                            waitlist_entry={'id': 'w1', 'status': 'waiting'})
+        with hh, wl:
+            gate = parent._family_gate('org1', 'stu1')
+        assert gate['enrollment_waitlisted'] is True
+        assert 'enrollment waitlist' in gate['error']
 
 
 _MINE = [{'student_id': 'stu1', 'org_id': 'org1', 'household_id': 'h1', 'name': 'Stu One'}]

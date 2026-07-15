@@ -128,8 +128,10 @@ class TestResolve:
         requests = _chain([_PENDING], [{**_PENDING, 'status': 'approved'}])
         enrollments = _chain([])
         waitlist = _chain([])
+        meetings = _chain([])  # no meetings on the target class → no conflicts
         client = _client({exceptions.TABLE: requests,
                           'class_enrollments': enrollments,
+                          'class_meetings': meetings,
                           'sis_waitlist_entries': waitlist})
         with patch('services.sis_exception_service._admin', return_value=client), \
              patch('services.class_group_sync_service.sync_class_group') as sync:
@@ -142,6 +144,44 @@ class TestResolve:
         waitlist.delete.assert_called_once()
         sync.assert_called_once_with('class1', actor_id='staff1')
         assert requests.update.call_args[0][0]['status'] == 'approved'
+
+    # ── Same-time conflicts ──────────────────────────────────────────────────
+    # The target class meets Mon 9:30–10:30; the student is already enrolled in
+    # 'other1' meeting the same hour.
+    def _conflict_tables(self):
+        return {
+            exceptions.TABLE: _chain([_PENDING], [{**_PENDING, 'status': 'approved'}]),
+            'class_meetings': _chain(
+                [{'day_of_week': 1, 'specific_date': None,
+                  'start_time': '09:30', 'end_time': '10:30'}],           # target's meetings
+                [{'class_id': 'other1', 'day_of_week': 1, 'specific_date': None,
+                  'start_time': '09:30', 'end_time': '10:30'}]),          # enrolled classes' meetings
+            'class_enrollments': _chain([{'class_id': 'other1'}], [], []),  # select, drop, upsert
+            'org_classes': _chain([{'id': 'other1', 'name': 'Middle School Microschool'}]),
+            'sis_waitlist_entries': _chain([]),
+        }
+
+    def test_approve_reports_same_time_conflicts_and_stays_pending(self):
+        tables = self._conflict_tables()
+        with patch('services.sis_exception_service._admin', return_value=_client(tables)):
+            result = exceptions.resolve('org1', 'r1', 'approve', resolved_by='staff1')
+        assert result == {'conflicts': [
+            {'class_id': 'other1', 'class_name': 'Middle School Microschool'}]}
+        tables['class_enrollments'].upsert.assert_not_called()
+        tables[exceptions.TABLE].update.assert_not_called()  # still pending
+
+    def test_approve_with_drop_conflicting_drops_then_enrolls(self):
+        tables = self._conflict_tables()
+        with patch('services.sis_exception_service._admin', return_value=_client(tables)), \
+             patch('services.class_group_sync_service.sync_class_group') as sync:
+            result = exceptions.resolve('org1', 'r1', 'approve',
+                                        resolved_by='staff1', drop_conflicting=True)
+        assert result['request']['status'] == 'approved'
+        enrollments = tables['class_enrollments']
+        enrollments.update.assert_called_once_with({'status': 'dropped'})
+        enrollments.upsert.assert_called_once()
+        # both the dropped class's group and the new class's group re-sync
+        assert {c.args[0] for c in sync.call_args_list} == {'other1', 'class1'}
 
     def test_decline_records_without_enrolling(self):
         requests = _chain([_PENDING], [{**_PENDING, 'status': 'declined'}])

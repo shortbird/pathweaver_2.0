@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 SIS_CLASS_FIELDS = (
     'capacity', 'primary_instructor_id', 'price_cents',
     'billing_type', 'billing_cadence', 'min_age', 'max_age', 'location',
-    'waitlist_enabled', 'registration_status',
+    'waitlist_enabled', 'registration_status', 'requires_full_day',
     # iCreate catalog extras (display-only): a class image + an optional supply fee.
     'image_url', 'supply_fee',
 )
@@ -104,6 +104,22 @@ class SisClassRepository(BaseRepository):
             .select('class_id')
             .in_('class_id', class_ids)
             .eq('status', 'active')
+            .execute()
+        )
+        counts: Dict[str, int] = {}
+        for row in (resp.data or []):
+            counts[row['class_id']] = counts.get(row['class_id'], 0) + 1
+        return counts
+
+    def waitlist_counts_for_classes(self, class_ids: List[str]) -> Dict[str, int]:
+        """waiting/offered waitlist entries per class_id in one query."""
+        if not class_ids:
+            return {}
+        resp = (
+            self.client.table('sis_waitlist_entries')
+            .select('class_id')
+            .in_('class_id', class_ids)
+            .in_('status', ['waiting', 'offered'])
             .execute()
         )
         counts: Dict[str, int] = {}

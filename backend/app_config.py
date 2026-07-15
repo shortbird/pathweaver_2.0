@@ -174,15 +174,12 @@ class Config:
     # Pexels Image API
     PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
 
-    # Brevo marketing email sync (services/brevo_service.py). Standard API
-    # key, NOT the MCP token. Unset = sync silently skips (local dev is fine).
+    # Brevo API key: marketing sync (services/brevo_service.py) AND all
+    # transactional email (services/email_service.py). Standard API key, NOT
+    # the MCP token. Unset = sync silently skips and email sends fail-log.
     BREVO_API_KEY = os.getenv('BREVO_API_KEY')
 
-    # Email / SMTP Configuration
-    SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.sendgrid.net')
-    SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-    SMTP_USER = os.getenv('SMTP_USER', 'apikey')
-    SMTP_PASS = os.getenv('SMTP_PASS', '')
+    # Email sender identity (delivery goes through the Brevo API)
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
     SENDER_NAME = os.getenv('SENDER_NAME', 'Optio Support')
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')

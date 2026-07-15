@@ -1,12 +1,11 @@
 """
 Email service for sending custom transactional emails using Jinja2 templates
 """
+import base64
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
 from typing import Optional, List, Dict, Any
+
+import requests
 from services.base_service import BaseService
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
 from markupsafe import Markup
@@ -17,13 +16,15 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email'
+BREVO_TIMEOUT = 15
+
+
 class EmailService(BaseService):
     def __init__(self):
-        # SMTP Configuration from Config
-        self.smtp_host = Config.SMTP_HOST
-        self.smtp_port = Config.SMTP_PORT
-        self.smtp_user = Config.SMTP_USER
-        self.smtp_pass = Config.SMTP_PASS
+        # Transactional sending goes through the Brevo API (same key as the
+        # marketing sync in brevo_service.py)
+        self.api_key = Config.BREVO_API_KEY
         self.sender_email = Config.SENDER_EMAIL
         self.sender_name = Config.SENDER_NAME
 
@@ -76,7 +77,7 @@ class EmailService(BaseService):
         reply_to: Optional[str] = None
     ) -> bool:
         """
-        Send an email using configured SMTP settings
+        Send an email via the Brevo transactional API
 
         Args:
             to_email: Recipient email address
@@ -88,142 +89,106 @@ class EmailService(BaseService):
             sender_email_override: From address (must be on the authenticated
                 sending domain, e.g. records@optioeducation.com)
             attachments: List of {'filename': str, 'content': bytes,
-                'mimetype': str} dicts (optional)
+                'mimetype': str} dicts (optional; Brevo infers the type from
+                the filename extension)
 
         Returns:
             True if email sent successfully, False otherwise
         """
         try:
-            # Create message. With attachments, the standard structure is a
-            # 'mixed' outer part holding an 'alternative' body part plus the
-            # attachment parts; without them, 'alternative' alone suffices.
             sender_display_name = sender_name_override if sender_name_override else self.sender_name
             sender_email = sender_email_override if sender_email_override else self.sender_email
-            if attachments:
-                msg = MIMEMultipart('mixed')
-                body = MIMEMultipart('alternative')
-                msg.attach(body)
-            else:
-                msg = MIMEMultipart('alternative')
-                body = msg
-            msg['From'] = f"{sender_display_name} <{sender_email}>"
-            msg['To'] = to_email
-            msg['Subject'] = subject
+            cc = cc or []
+            bcc = bcc or []
+
             # An explicit reply_to from the caller wins; otherwise recipients
             # who belong to an org with a configured reply-to (e.g. iCreate)
             # get their school's inbox so replies reach the school, not Optio.
             if not reply_to:
                 reply_to = self._org_reply_to(to_email)
-            if reply_to:
-                msg['Reply-To'] = reply_to
 
-            if cc:
-                msg['Cc'] = ', '.join(cc)
-
-            # Note: BCC header is intentionally NOT set in the message itself
-            # BCC recipients are only added to the SMTP envelope (to_addrs)
-            # This prevents BCC recipients from being visible in the email headers
-
-            # Add plain text part if provided
+            payload = {
+                'sender': {'name': sender_display_name, 'email': sender_email},
+                'to': [{'email': to_email}],
+                'subject': subject,
+                'htmlContent': html_body,
+            }
             if text_body:
-                text_part = MIMEText(text_body, 'plain')
-                body.attach(text_part)
+                payload['textContent'] = text_body
+            if cc:
+                payload['cc'] = [{'email': addr} for addr in cc]
+            if bcc:
+                payload['bcc'] = [{'email': addr} for addr in bcc]
+            if reply_to:
+                payload['replyTo'] = {'email': reply_to}
+            if attachments:
+                payload['attachment'] = [
+                    {
+                        'name': attachment['filename'],
+                        'content': base64.b64encode(attachment['content']).decode('ascii'),
+                    }
+                    for attachment in attachments
+                ]
 
-            # Add HTML part
-            html_part = MIMEText(html_body, 'html')
-            body.attach(html_part)
+            logger.info(f"Sending email: to={to_email}, cc={cc}, bcc={bcc}")
+            if not self._send_via_brevo(payload):
+                logger.error(f"Failed to send email to {to_email}")
+                return False
+            logger.info(f"Email sent successfully to {to_email}")
 
-            # Add file attachments (e.g. transcript PDFs)
-            for attachment in (attachments or []):
-                part = MIMEApplication(
-                    attachment['content'],
-                    _subtype=attachment.get('mimetype', 'application/pdf').split('/')[-1]
-                )
-                part.add_header(
-                    'Content-Disposition', 'attachment',
-                    filename=attachment['filename']
-                )
-                msg.attach(part)
-
-            # Automatically copy support email for monitoring all outgoing emails
-            # Note: We'll send a separate copy instead of BCC due to SendGrid SMTP limitations
+            # Automatically copy support email for monitoring all outgoing emails.
+            # Sent as a separate message (not BCC) so it can carry the [COPY]
+            # subject prefix and context banner.
             # Use tanner@optioeducation.com directly to avoid email alias loops (support@ and admin@ redirect to tanner@)
             support_email = Config.SUPPORT_EMAIL
             support_copy_email = Config.SUPPORT_COPY_EMAIL
-            should_copy_support = False
-
-            bcc = bcc or []
-            cc = cc or []
-
-            # Check if support email should be copied (not already in CC and not the primary recipient)
             if support_email not in cc and to_email.lower() != support_copy_email.lower():
-                should_copy_support = True
-                logger.info(f"Will send copy to {support_copy_email} for monitoring email to {to_email}")
-
-            # SendGrid SMTP API configuration - disable click tracking only
-            # Note: BCC is handled via standard SMTP envelope (recipients list)
-            # SendGrid SMTP does not support BCC via X-SMTPAPI header
-            msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
-
-            # Prepare recipient list
-            recipients = [to_email]
-            if cc:
-                recipients.extend(cc)
-            if bcc:
-                recipients.extend(bcc)
-
-            # Log full recipient list for debugging
-            logger.info(f"SMTP envelope recipients: to={to_email}, cc={cc}, bcc={bcc}, total_recipients={recipients}")
-
-            # Send email
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_pass)
-                server.send_message(msg, to_addrs=recipients)
-
-            logger.info(f"Email sent successfully to {to_email} (with {len(recipients)} total recipients)")
-
-            # Send separate copy to support email for monitoring (SendGrid SMTP doesn't reliably deliver BCC)
-            if should_copy_support:
                 try:
-                    # Create a copy of the message with support email as recipient
-                    support_msg = MIMEMultipart('alternative')
-                    support_msg['From'] = f"{sender_display_name} <{sender_email}>"
-                    support_msg['To'] = support_copy_email
-                    support_msg['Subject'] = f"[COPY] {subject}"  # Mark as copy for clarity
-
-                    # Add context header
-                    context_text = f"[This is a copy of an email sent to: {to_email}]\n\n"
-
-                    # Add plain text with context
-                    if text_body:
-                        support_text = context_text + text_body
-                        support_msg.attach(MIMEText(support_text, 'plain'))
-
-                    # Add HTML with context banner
                     html_context = f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; border-left: 4px solid #6D469B;"><strong>Copy:</strong> This email was sent to {to_email}</div>'
-                    support_html = html_context + html_body
-                    support_msg.attach(MIMEText(support_html, 'html'))
-
-                    # Disable click tracking for support copy
-                    support_msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
-
-                    # Send support copy
-                    with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                        server.starttls()
-                        server.login(self.smtp_user, self.smtp_pass)
-                        server.send_message(support_msg, to_addrs=[support_copy_email])
-
-                    logger.info(f"Support copy sent successfully to {support_copy_email} | Subject: [COPY] {subject}")
+                    support_payload = {
+                        'sender': {'name': sender_display_name, 'email': sender_email},
+                        'to': [{'email': support_copy_email}],
+                        'subject': f"[COPY] {subject}",
+                        'htmlContent': html_context + html_body,
+                    }
+                    if text_body:
+                        support_payload['textContent'] = f"[This is a copy of an email sent to: {to_email}]\n\n{text_body}"
+                    if self._send_via_brevo(support_payload):
+                        logger.info(f"Support copy sent successfully to {support_copy_email} | Subject: [COPY] {subject}")
                 except Exception as e:
                     # Don't fail the main email if support copy fails
-                    logger.error(f"Failed to send support copy to {support_email}: {str(e)}")
+                    logger.error(f"Failed to send support copy to {support_copy_email}: {str(e)}")
 
             return True
 
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
             return False
+
+    def _send_via_brevo(self, payload: Dict[str, Any]) -> bool:
+        """POST one message to the Brevo transactional endpoint. Returns
+        True on acceptance; failures are logged, never raised."""
+        if not self.api_key:
+            logger.error("BREVO_API_KEY not set; cannot send email")
+            return False
+        try:
+            response = requests.post(
+                BREVO_SEND_URL,
+                headers={
+                    'api-key': self.api_key,
+                    'accept': 'application/json',
+                    'content-type': 'application/json',
+                },
+                json=payload,
+                timeout=BREVO_TIMEOUT,
+            )
+        except requests.RequestException as e:
+            logger.error(f"Brevo send request failed: {e}")
+            return False
+        if response.status_code >= 400:
+            logger.error(f"Brevo send failed ({response.status_code}): {response.text[:300]}")
+            return False
+        return True
 
     def _process_copy_strings(self, data: Any, context: Dict[str, Any]) -> Any:
         """

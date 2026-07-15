@@ -64,6 +64,7 @@ const toDraft = (c) => {
     supply_fee: c.supply_fee != null ? String(c.supply_fee) : '',
     min_age: c.min_age != null ? String(c.min_age) : '',
     max_age: c.max_age != null ? String(c.max_age) : '',
+    requires_full_day: !!c.requires_full_day,
   }
 }
 
@@ -82,6 +83,7 @@ const draftToPayload = (d) => ({
   supply_fee: numOrUndef(d.supply_fee),
   min_age: numOrUndef(d.min_age),
   max_age: numOrUndef(d.max_age),
+  requires_full_day: d.requires_full_day,
 })
 
 const Field = ({ label, children, className = '' }) => (
@@ -125,6 +127,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
             <th className="px-4 py-2.5">Time</th>
             <th className="px-4 py-2.5">Ages</th>
             <th className="px-4 py-2.5">Enrolled</th>
+            <th className="px-4 py-2.5">Waitlist</th>
             <th className="px-4 py-2.5 w-8" />
           </tr>
         </thead>
@@ -152,13 +155,18 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                     {c.enrolled_count ?? 0}{c.capacity != null ? `/${c.capacity}` : ''}
                     {c.is_full && <span className="ml-1.5 text-[10px] font-semibold text-red-500">FULL</span>}
                   </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {c.waitlist_count > 0
+                      ? <span className="text-amber-700 font-medium">{c.waitlist_count}</span>
+                      : <span className="text-neutral-300">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <ChevronDownIcon className={`w-4 h-4 text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`} />
                   </td>
                 </tr>
                 {open && (
                   <tr className="border-b border-gray-100 bg-optio-purple/[0.02]">
-                    <td colSpan={7} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td colSpan={8} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
                         <Field label="Name" className="col-span-2">
                           <input className={cell} value={d.name} onChange={(e) => edit(c, { name: e.target.value })} />
@@ -265,6 +273,15 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                             <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
                           </button>
                           <span className="ml-2 text-xs text-neutral-500 align-middle">{isOpen ? 'Open' : 'Closed'}</span>
+                        </Field>
+                        <Field label="Full-day program">
+                          <label className="inline-flex items-center gap-2 cursor-pointer py-1.5">
+                            <input type="checkbox" checked={d.requires_full_day}
+                              aria-label={`${c.name} requires a full day of classes`}
+                              onChange={(e) => edit(c, { requires_full_day: e.target.checked })}
+                              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                            <span className="text-xs text-neutral-500">Students must fill its meeting days</span>
+                          </label>
                         </Field>
                         <Field label="Description" className="col-span-2 md:col-span-4">
                           <textarea rows={2} className={`${cell} resize-y`} value={d.description}

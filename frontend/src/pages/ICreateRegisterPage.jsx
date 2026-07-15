@@ -35,15 +35,32 @@ const POST_FEE_STEPS = new Set(['done'])
 
 const CONTACT_RELATIONSHIPS = ['Grandparent', 'Guardian', 'Parent', 'Family friend', 'Neighbor', 'Other']
 
-const ageFromDob = (dob) => {
+const ageFromDob = (dob, onDate = null) => {
   if (!dob) return null
   const d = new Date(dob)
   if (Number.isNaN(d.getTime())) return null
-  const t = new Date()
+  const t = onDate ? new Date(`${String(onDate).slice(0, 10)}T00:00:00`) : new Date()
+  if (Number.isNaN(t.getTime())) return null
   let a = t.getFullYear() - d.getFullYear()
   if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a -= 1
   return a
 }
+
+// The enrollment-waitlist band this child falls in, or null. Ages are judged as
+// of the first day of school (matching the backend gate), so the notice a
+// parent sees is exactly what will happen when they submit.
+const enrollmentGateFor = (config, dobIso) => {
+  const gates = config?.enrollment_age_gates || []
+  if (!gates.length || !dobIso) return null
+  const age = ageFromDob(dobIso, config?.first_day_of_school)
+  if (age == null) return null
+  return gates.find((g) =>
+    (g.min_age == null || age >= g.min_age) && (g.max_age == null || age <= g.max_age)) || null
+}
+
+const gateBandText = (g) => (g.min_age != null && g.max_age != null
+  ? `ages ${g.min_age}–${g.max_age}`
+  : g.min_age != null ? `ages ${g.min_age} and up` : `ages ${g.max_age} and under`)
 
 const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
 // Config URLs saved without a scheme would resolve relative to the Optio origin.
@@ -289,6 +306,8 @@ const ICreateRegisterPage = () => {
   // funnel state (issued only after email verification / sign-in)
   const [reg, setReg] = useState(null) // { registration_id, access_token }
   const [feeCents, setFeeCents] = useState(0)
+  // Every kid gated to the enrollment waitlist -> the fee is deferred to first release.
+  const [feeDeferred, setFeeDeferred] = useState(false)
   const [signatures, setSignatures] = useState({})
   const [agreed, setAgreed] = useState({})
   const [scheduling, setScheduling] = useState({ url: '', emailed: false })
@@ -312,6 +331,7 @@ const ICreateRegisterPage = () => {
           setConfig(r.data)
           setReg({ registration_id: regData.registration_id, access_token: regData.access_token })
           setFeeCents(regData.fee_cents || 0)
+          setFeeDeferred(!!regData.fee_deferred)
           // Prefill everything already submitted so completed steps are editable.
           if (regData.household) {
             const h = regData.household
@@ -576,6 +596,7 @@ const ICreateRegisterPage = () => {
         })),
       })
       setFeeCents(data.fee_cents || 0)
+      setFeeDeferred(!!data.fee_deferred)
       await uploadFamilyPhotos(data.kids)
       setStep('details')
     } catch (e) {
@@ -928,6 +949,17 @@ const ICreateRegisterPage = () => {
                               That date doesn't exist — double-check the month and day.
                             </p>
                           )}
+                          {(() => {
+                            const gate = enrollmentGateFor(config, k.date_of_birth)
+                            if (!gate) return null
+                            return (
+                              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                                Students {gateBandText(gate)} are currently joining a waitlist. You can
+                                finish registering {k.first_name.trim() || 'this child'} — {org.name || 'the school'} will
+                                email you as soon as they can choose classes.
+                              </p>
+                            )
+                          })()}
                         </div>
                         <div className="sm:col-span-2">
                           <label className="block text-xs font-medium text-neutral-500 mb-1">
@@ -1100,15 +1132,23 @@ const ICreateRegisterPage = () => {
           <div className="space-y-6">
             <Section title="Registration fee">
               <div className="text-center">
-                {feeCents > 0
+                {feeDeferred ? (
+                  <>
+                    <p className="text-3xl font-bold text-optio-purple my-3">{money(feeCents)}</p>
+                    <p className="text-sm text-neutral-500">
+                      Nothing to pay today. Because your student{kids.length === 1 ? ' is' : 's are'} joining
+                      the waitlist, your registration fee is due when a spot opens — we'll email you.
+                    </p>
+                  </>
+                ) : feeCents > 0
                   ? <p className="text-3xl font-bold text-optio-purple my-3">{money(feeCents)}</p>
                   : <p className="text-sm text-neutral-500 my-3">
                       No payment is due — complete your registration below.
                     </p>}
                 {/* Payment affordances only render when something is actually
-                    owed: a $0 family (prepaid credit) must never be handed a
-                    payment link. */}
-                {feeCents > 0 && (config.stripe_enabled ? (
+                    owed NOW: a $0 family (prepaid credit) or a fee-deferred
+                    waitlist family must never be handed a payment link. */}
+                {!feeDeferred && feeCents > 0 && (config.stripe_enabled ? (
                   <p className="text-xs text-neutral-400">
                     You'll be taken to a secure Stripe checkout. Your registration completes automatically once the payment is verified.
                   </p>
@@ -1125,7 +1165,7 @@ const ICreateRegisterPage = () => {
                 ))}
               </div>
             </Section>
-            {config.stripe_enabled && feeCents > 0 ? (
+            {!feeDeferred && config.stripe_enabled && feeCents > 0 ? (
               <>
                 <PrimaryButton onClick={startCheckout} disabled={submitting}>
                   {submitting ? 'One moment…' : `Pay ${money(feeCents)} securely`}
@@ -1138,7 +1178,7 @@ const ICreateRegisterPage = () => {
             ) : (
               <PrimaryButton onClick={() => finishFee()} disabled={submitting}>
                 {submitting ? 'Finishing…'
-                  : paymentUrl && feeCents > 0 ? "I've paid — finish registration"
+                  : !feeDeferred && paymentUrl && feeCents > 0 ? "I've paid — finish registration"
                   : 'Finish registration'}
               </PrimaryButton>
             )}

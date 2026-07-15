@@ -31,14 +31,27 @@ const AgeExceptionRequestsCard = ({ orgId }) => {
 
   useEffect(() => { load() }, [load])
 
-  const resolve = async (r, action) => {
+  const resolve = async (r, action, dropConflicting = false) => {
     try {
-      await api.post(`/api/sis/age-exception-requests/${r.id}/resolve`, { action, organization_id: orgId })
+      await api.post(`/api/sis/age-exception-requests/${r.id}/resolve`,
+        { action, organization_id: orgId, drop_conflicting: dropConflicting })
       toast.success(action === 'approve'
         ? `Approved — ${r.student_name} is enrolled in ${r.class_name}`
         : 'Request declined')
       load()
     } catch (e) {
+      // 409: enrolling would double-book the student — confirm dropping the
+      // conflicting class(es), then re-approve.
+      const conflicts = e?.response?.status === 409 ? e.response.data?.conflicts : null
+      if (conflicts?.length) {
+        const names = conflicts.map((c) => c.class_name).join(', ')
+        if (window.confirm(
+          `${r.student_name} is already enrolled in ${names} at the same time. ` +
+          `Drop ${names} and enroll in ${r.class_name}?`)) {
+          await resolve(r, action, true)
+        }
+        return
+      }
       toast.error(e?.response?.data?.error || 'Could not update the request')
     }
   }
