@@ -599,6 +599,8 @@ function CohortsTab() {
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editName, setEditName] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -644,6 +646,22 @@ function CohortsTab() {
     try { await treehouseAPI.updateCohort(c.id, { ui_mode: c.ui_mode === 'simple' ? null : 'simple' }); load() }
     catch { toast.error('Could not update') }
   }
+  const saveRename = async (c) => {
+    const name = editName.trim()
+    setEditingId(null)
+    if (!name || name === c.name) return
+    try { await treehouseAPI.updateCohort(c.id, { name }); load(); toast.success('Cohort renamed') }
+    catch { toast.error('Could not rename') }
+  }
+  const duplicateCohort = async (c) => {
+    try { await treehouseAPI.duplicateCohort(c.id); load(); toast.success('Cohort duplicated') }
+    catch { toast.error('Could not duplicate') }
+  }
+  const deleteCohort = async (c) => {
+    if (!window.confirm(`Delete the "${c.name}" cohort? Students and their work are kept — this only removes the cohort grouping.`)) return
+    try { await treehouseAPI.deleteCohort(c.id); load(); toast.success('Cohort deleted') }
+    catch { toast.error('Could not delete') }
+  }
 
   if (loading) return <p className="text-neutral-400">Loading…</p>
   return (
@@ -659,12 +677,34 @@ function CohortsTab() {
         const enrolledIds = new Set(c.student_ids || [])
         return (
           <div key={c.id} className="rounded-xl bg-white border border-neutral-100 p-4">
-            <div className="flex items-center justify-between">
-              <p className="font-bold text-neutral-900">{c.name}</p>
-              <label className="flex items-center gap-2 text-sm text-neutral-600">
-                <input type="checkbox" checked={c.ui_mode === 'simple'} onChange={() => toggleSimple(c)} className="w-4 h-4 accent-purple-600" />
-                Simple (young-learner) UI
-              </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {editingId === c.id ? (
+                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                  <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') saveRename(c); if (e.key === 'Escape') setEditingId(null) }}
+                    className="flex-1 rounded-lg border border-neutral-200 px-3 py-1.5 text-sm font-bold" />
+                  <button onClick={() => saveRename(c)} className="text-sm font-semibold text-white bg-optio-purple px-3 py-1.5 rounded-lg">Save</button>
+                  <button onClick={() => setEditingId(null)} className="text-sm text-neutral-500">Cancel</button>
+                </div>
+              ) : (
+                <p className="font-bold text-neutral-900">{c.name}</p>
+              )}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-neutral-600">
+                  <input type="checkbox" checked={c.ui_mode === 'simple'} onChange={() => toggleSimple(c)} className="w-4 h-4 accent-purple-600" />
+                  Simple (young-learner) UI
+                </label>
+                {editingId !== c.id && (
+                  <>
+                    <button onClick={() => { setEditingId(c.id); setEditName(c.name || '') }}
+                      className="text-sm text-neutral-500 hover:text-optio-purple">Rename</button>
+                    <button onClick={() => duplicateCohort(c)}
+                      className="text-sm text-neutral-500 hover:text-optio-purple">Duplicate</button>
+                    <button onClick={() => deleteCohort(c)}
+                      className="text-sm text-neutral-500 hover:text-red-600">Delete</button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Facilitators */}

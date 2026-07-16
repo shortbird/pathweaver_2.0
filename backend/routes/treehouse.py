@@ -171,7 +171,7 @@ def treehouse_me(user_id):
         class_ids = [e['class_id'] for e in enr]
         if class_ids:
             modes = (admin.table('org_classes').select('ui_mode')
-                     .in_('id', class_ids).execute().data or [])
+                     .in_('id', class_ids).eq('status', 'active').execute().data or [])
             simplified = any((m.get('ui_mode') == 'simple') for m in modes)
     return jsonify({
         'success': True,
@@ -804,6 +804,52 @@ def _verify_cohort_in_org(repo, class_id, org_id):
     return bool(c) and c.get('organization_id') == org_id
 
 
+@bp.route('/cohorts/<class_id>', methods=['DELETE'])
+@require_auth
+@validate_uuid_param('class_id')
+def delete_cohort(user_id, class_id):
+    """Archive a cohort (soft delete — enrollments/history kept, cohort hidden everywhere)."""
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    repo = ClassRepository()
+    if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
+        return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    repo.archive_class(class_id)
+    return jsonify({'success': True}), 200
+
+
+@bp.route('/cohorts/<class_id>/duplicate', methods=['POST'])
+@require_auth
+@validate_uuid_param('class_id')
+def duplicate_cohort(user_id, class_id):
+    """
+    Duplicate a cohort: same description/ui_mode, and copies of the facilitator
+    assignments and active student roster. Body: optional {name} (defaults to
+    '<name> (copy)').
+    """
+    ctx = _context(user_id)
+    if not _is_admin(ctx):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    repo = ClassRepository()
+    source = repo.get_class_with_details(class_id)
+    if not source or source.get('organization_id') != ctx['org_id']:
+        return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    name = ((request.get_json(silent=True) or {}).get('name') or '').strip() or f"{source.get('name')} (copy)"
+    cohort = repo.create_class({
+        'organization_id': ctx['org_id'], 'name': name,
+        'description': source.get('description'),
+        'ui_mode': source.get('ui_mode'), 'created_by': user_id, 'status': 'active',
+    })
+    for a in repo.get_class_advisors(class_id):
+        if a.get('advisor_id'):
+            repo.add_advisor(cohort['id'], a['advisor_id'], user_id)
+    student_ids = [s['student_id'] for s in repo.get_class_students(class_id) if s.get('student_id')]
+    if student_ids:
+        repo.enroll_students_bulk(cohort['id'], student_ids, user_id)
+    return jsonify({'success': True, 'cohort': cohort}), 201
+
+
 @bp.route('/cohorts/<class_id>/advisors', methods=['POST'])
 @require_auth
 @validate_uuid_param('class_id')
@@ -1007,7 +1053,8 @@ def kiosk_roster():
     cohorts = []
     try:
         classes = (admin.table('org_classes').select('id, name, ui_mode')
-                   .eq('organization_id', device['organization_id']).execute()).data or []
+                   .eq('organization_id', device['organization_id'])
+                   .eq('status', 'active').execute()).data or []
         class_ids = [c['id'] for c in classes]
         enrollments = []
         if class_ids:
