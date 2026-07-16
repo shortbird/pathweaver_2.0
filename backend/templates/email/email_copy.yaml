@@ -475,7 +475,7 @@ emails:
         - "Automatic portfolios that grow as your students complete work"
         - "Observer access so grandparents and mentors can follow along"
         - "Bounties that turn real-world family tasks into learning XP"
-        - "An official diploma pathway through our WASC-accredited partners"
+        - "An official diploma pathway backed by our WASC accreditation"
     closing_paragraphs:
       - "I'd love to hear more about your family. How many kids are you homeschooling? What does your typical week look like? What are you hoping to solve?"
       - "Just hit reply and tell me about your situation. I read and respond to every message personally."
@@ -485,24 +485,17 @@ emails:
     signature: "tanner"
 
   sales_inquiry_confirmation:
-    subject: "Thanks for Contacting Optio Sales"
-    title: "Thanks for Reaching Out!"
+    subject: "Thanks for Contacting Optio!"
+    title: "Let's Talk About Your Program"
     salutation: "Hi {{ name }},"
     paragraphs:
-      - "Thank you for your interest in bringing Optio to your organization. We're excited to explore how we can support your learning community."
-      - "Someone from our team will review your inquiry and get back to you within 1-2 business days to discuss your needs."
+      - "Thanks for reaching out about bringing Optio to your organization. This is Tanner Bowman, Optio's founder."
+      - "I'd love to hear about your program! Feel free to reply to this email and tell me a bit about what you do (what kind of program you're running, how many students, what you're hoping to solve), or grab a time on my calendar and we'll talk it through."
+      - "Students on Optio turn self-directed projects into real classes and transcripts, backed by our WASC accreditation, and schools and programs get the tools to run it, including rosters, attendance, messaging, and credit review."
     cta:
-      text: "Learn More About Optio"
-      url: "https://www.optioeducation.com"
-    highlight_box:
-      title: "What We Offer Organizations"
-      content: "Optio provides comprehensive learning solutions for schools, microschools, and learning communities:"
-      bullet_points:
-        - "Student management and progress tracking"
-        - "Custom branding and LTI integration"
-        - "Official credit issuance through accredited partners"
-        - "Dedicated support and analytics"
-    closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
+      text: "Book a Time to Chat"
+      url: "https://calendar.app.google/6MKiifggEj1NAyKM6"
+    closing_paragraph: "Either way, replies to this email come straight to me."
     signature: "tanner"
 
   claim_free_class_confirmation:

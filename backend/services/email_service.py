@@ -220,7 +220,8 @@ class EmailService(BaseService):
         template_name: str,
         context: Dict[str, Any],
         cc: Optional[List[str]] = None,
-        bcc: Optional[List[str]] = None
+        bcc: Optional[List[str]] = None,
+        reply_to: Optional[str] = None
     ) -> bool:
         """
         Send an email using the template system (database overrides + YAML fallback)
@@ -232,6 +233,9 @@ class EmailService(BaseService):
             context: Dictionary of variables to pass to the template
             cc: List of CC recipients (optional)
             bcc: List of BCC recipients (optional)
+            reply_to: Reply-To address (optional). Required for copy that
+                invites a direct reply, since the default sender is the
+                unwatched support@ inbox.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -265,7 +269,8 @@ class EmailService(BaseService):
                 text_body,
                 cc,
                 bcc,
-                sender_name_override=sender_name
+                sender_name_override=sender_name,
+                reply_to=reply_to
             )
 
         except TemplateNotFound as e:
@@ -814,7 +819,10 @@ class EmailService(BaseService):
                 'name': user_name,
                 'organization': organization or '',
                 'message': message or ''
-            }
+            },
+            # The copy is written as a direct reply from Tanner, so replies
+            # must reach him, not the unwatched support@ sender address.
+            reply_to=Config.ADMIN_EMAIL
         )
 
     def send_family_inquiry_confirmation(
