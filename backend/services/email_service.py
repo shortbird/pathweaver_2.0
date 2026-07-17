@@ -399,6 +399,11 @@ class EmailService(BaseService):
                         rendered_para = para_template.render(**variables)
                         rendered_closing.append(f'<p class="text">{rendered_para}</p>')
                     render_context['closing_html'] = ''.join(rendered_closing)
+                elif 'closing_paragraph' in template_data:
+                    # Many YAML templates use the singular key; without this
+                    # branch their closing line is silently dropped.
+                    para_template = self.jinja_env.from_string(template_data['closing_paragraph'])
+                    render_context['closing_html'] = f'<p class="text">{para_template.render(**variables)}</p>'
 
             # Process CTA button with autoescape
             if 'cta' in template_data:
@@ -893,10 +898,19 @@ class EmailService(BaseService):
     </p>
     <p style="font-size: 15px; line-height: 1.6;">
       <strong>Next step: create your free Optio account now</strong> so it's ready to go when camp starts.
-      We'll automatically link it to your POE so you can document your week and we can review your work for credit.
+      We'll automatically link it to your POE so you can
+      <a href="https://www.optioeducation.com/docs/high-school-classes/tasks-evidence-and-xp?utm_source=transactional&utm_medium=email&utm_campaign=poe_confirmation" style="color: #6D469B;">document your week</a>
+      and we can
+      <a href="https://www.optioeducation.com/docs/high-school-classes/teacher-review-and-earning-credit?utm_source=transactional&utm_medium=email&utm_campaign=poe_confirmation" style="color: #6D469B;">review your work for credit</a>.
     </p>
     <p style="margin: 18px 0;">
       <a href="{register_url}" style="display: inline-block; background: linear-gradient(90deg, #6D469B 0%, #EF597B 100%); color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-weight: bold; font-size: 15px;">Create your Optio account</a>
+    </p>
+    <p style="font-size: 15px; line-height: 1.6;">
+      You'll capture photos, videos, and notes right from your phone, so grab the Optio app before camp:
+    </p>
+    <p style="margin: 12px 0 18px;">
+      <a href="https://apps.apple.com/us/app/optio-education/id6773061928" style="text-decoration: none; display: inline-block; margin: 0 10px 8px 0;"><img src="https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png" alt="Download on the App Store" height="44" style="height: 44px; border: 0;"></a><a href="https://play.google.com/store/apps/details?id=com.optioeducation.optio" style="text-decoration: none; display: inline-block;"><img src="https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png" alt="Get it on Google Play" height="44" style="height: 44px; border: 0;"></a>
     </p>
     <div style="background: #f5f3ff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin: 18px 0;">
       <p style="margin: 0 0 6px; font-size: 15px; font-weight: bold; color: #6D469B;">Watch the info session</p>
@@ -923,6 +937,10 @@ class EmailService(BaseService):
             "starts. We'll automatically link it to your POE so you can document your week "
             f"and we can review your work for credit.\n\n"
             f"Create your account: {register_url}\n\n"
+            "You'll capture photos, videos, and notes right from your phone, so grab the "
+            "Optio app before camp:\n"
+            "iOS: https://apps.apple.com/us/app/optio-education/id6773061928\n"
+            "Android: https://play.google.com/store/apps/details?id=com.optioeducation.optio\n\n"
             "Watch the info session: we held a short online session walking through how the "
             "credit works and answering questions, and we recorded it so you can watch any time: "
             "https://docs.google.com/videos/d/1uT8opeYJWfi6Nz9bOmrYiwNQ9VYptX9R1hk3uNy3CG0/edit?usp=drive_link\n\n"

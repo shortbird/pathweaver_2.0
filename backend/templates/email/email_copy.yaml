@@ -434,11 +434,14 @@ emails:
       title: "What to Expect"
       content: "When we connect, we'll explore:"
       bullet_points:
-        - "How students earn credit for real-world learning experiences"
+        - "How students <a href='https://www.optioeducation.com/docs/high-school-classes/how-high-school-classes-work?utm_source=transactional&utm_medium=email&utm_campaign=demo_confirmation' style='color: #6D469B;'>earn credit for real-world learning experiences</a>"
         - "The quest-based learning system and skill pillars"
-        - "Portfolio building and progress tracking"
+        - "<a href='https://www.optioeducation.com/docs/quests-and-projects/building-your-portfolio?utm_source=transactional&utm_medium=email&utm_campaign=demo_confirmation' style='color: #6D469B;'>Portfolio building</a> and progress tracking"
         - "How Optio fits your specific needs"
-    closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
+    closing_paragraphs:
+      - "The best way to get a feel for Optio is the app your student would actually use:"
+      - "<a href='https://apps.apple.com/us/app/optio-education/id6773061928' style='text-decoration: none; display: inline-block; margin: 0 10px 8px 0;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png' alt='Download on the App Store' height='44' style='height: 44px; border: 0;'></a><a href='https://play.google.com/store/apps/details?id=com.optioeducation.optio' style='text-decoration: none; display: inline-block;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png' alt='Get it on Google Play' height='44' style='height: 44px; border: 0;'></a>"
+      - "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
     signature: "tanner"
 
   academy_inquiry_confirmation:
@@ -447,7 +450,7 @@ emails:
     salutation: "Hi {{ name }},"
     paragraphs:
       - "Thank you for your interest in Optio Academy. We're excited to learn more about your student and talk through whether Optio is the right fit."
-      - "Optio Academy is a fully online private school with daily contact between students and a dedicated teacher. The rest of the day is theirs to dive deep into projects that earn real high school credit toward a diploma."
+      - "<a href='https://www.optioeducation.com/docs/high-school-classes/transcripts-and-accreditation?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>Optio Academy</a> is a fully online private school with daily contact between students and a dedicated teacher. The rest of the day is theirs to dive deep into <a href='https://www.optioeducation.com/docs/high-school-classes/how-high-school-classes-work?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>projects that earn real high school credit</a> toward a diploma."
     highlight_box:
       title: "What to Expect Next"
       bullet_points:
@@ -456,6 +459,8 @@ emails:
         - "We'll talk through enrollment, the school year, and how to get started"
     closing_paragraphs:
       - "In the meantime, feel free to reply with any questions about the program or the schedule. I read every message personally."
+      - "Students do their daily work in the Optio app, so feel free to download it and look around before we talk:"
+      - "<a href='https://apps.apple.com/us/app/optio-education/id6773061928' style='text-decoration: none; display: inline-block; margin: 0 10px 8px 0;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png' alt='Download on the App Store' height='44' style='height: 44px; border: 0;'></a><a href='https://play.google.com/store/apps/details?id=com.optioeducation.optio' style='text-decoration: none; display: inline-block;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png' alt='Get it on Google Play' height='44' style='height: 44px; border: 0;'></a>"
     cta:
       text: "Read More About Optio Academy"
       url: "https://www.optioeducation.com/academy"
@@ -467,11 +472,11 @@ emails:
     salutation: "Hi {{ name }},"
     paragraphs:
       - "Thank you for reaching out! We're excited to learn more about your family and how Optio can support your homeschool journey."
-      - "Optio is built for families like yours. Our platform brings all of your learning into one place, automatically builds portfolios as your kids learn, and gives you a clear path to official credentials when you're ready."
+      - "Optio is built for families like yours. Our platform brings all of your learning into one place, automatically builds <a href='https://www.optioeducation.com/docs/quests-and-projects/building-your-portfolio?utm_source=transactional&utm_medium=email&utm_campaign=family_confirmation' style='color: #6D469B;'>portfolios</a> as your kids learn, and gives you a clear path to <a href='https://www.optioeducation.com/docs/high-school-classes/transcripts-and-accreditation?utm_source=transactional&utm_medium=email&utm_campaign=family_confirmation' style='color: #6D469B;'>official credentials</a> when you're ready."
     highlight_box:
       title: "What Optio Families Get"
       bullet_points:
-        - "A parent dashboard to see all your kids' learning in one place"
+        - "A <a href='https://www.optioeducation.com/docs/for-parents/monitoring-your-childs-learning?utm_source=transactional&utm_medium=email&utm_campaign=family_confirmation' style='color: #6D469B;'>parent dashboard</a> to see all your kids' learning in one place"
         - "Automatic portfolios that grow as your students complete work"
         - "Observer access so grandparents and mentors can follow along"
         - "Bounties that turn real-world family tasks into learning XP"
@@ -479,6 +484,8 @@ emails:
     closing_paragraphs:
       - "I'd love to hear more about your family. How many kids are you homeschooling? What does your typical week look like? What are you hoping to solve?"
       - "Just hit reply and tell me about your situation. I read and respond to every message personally."
+      - "And the easiest way to see if Optio fits your family is to download the app and have your student try something real:"
+      - "<a href='https://apps.apple.com/us/app/optio-education/id6773061928' style='text-decoration: none; display: inline-block; margin: 0 10px 8px 0;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png' alt='Download on the App Store' height='44' style='height: 44px; border: 0;'></a><a href='https://play.google.com/store/apps/details?id=com.optioeducation.optio' style='text-decoration: none; display: inline-block;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png' alt='Get it on Google Play' height='44' style='height: 44px; border: 0;'></a>"
     cta:
       text: "See How Optio Works"
       url: "https://www.optioeducation.com/how-it-works"
@@ -491,11 +498,13 @@ emails:
     paragraphs:
       - "Thanks for reaching out about bringing Optio to your organization. This is Tanner Bowman, Optio's founder."
       - "I'd love to hear about your program! Feel free to reply to this email and tell me a bit about what you do (what kind of program you're running, how many students, what you're hoping to solve), or grab a time on my calendar and we'll talk it through."
-      - "Students on Optio turn self-directed projects into real classes and transcripts, backed by our WASC accreditation, and schools and programs get the tools to run it, including rosters, attendance, messaging, and credit review."
+      - "Students on Optio <a href='https://www.optioeducation.com/docs/for-schools/what-students-actually-do?utm_source=transactional&utm_medium=email&utm_campaign=sales_confirmation' style='color: #6D469B;'>turn self-directed projects into real classes and transcripts</a>, backed by our <a href='https://www.optioeducation.com/docs/for-schools/credits-diplomas-and-transcripts?utm_source=transactional&utm_medium=email&utm_campaign=sales_confirmation' style='color: #6D469B;'>WASC accreditation</a>, and schools and programs get <a href='https://www.optioeducation.com/docs/for-schools/guide-for-microschools?utm_source=transactional&utm_medium=email&utm_campaign=sales_confirmation' style='color: #6D469B;'>the tools to run it</a>, including rosters, attendance, messaging, and credit review."
     cta:
       text: "Book a Time to Chat"
       url: "https://calendar.app.google/6MKiifggEj1NAyKM6"
-    closing_paragraph: "Either way, replies to this email come straight to me."
+    closing_paragraphs:
+      - "If you'd like to see the student experience firsthand, the Optio app is on <a href='https://apps.apple.com/us/app/optio-education/id6773061928' style='color: #6D469B;'>iOS</a> and <a href='https://play.google.com/store/apps/details?id=com.optioeducation.optio' style='color: #6D469B;'>Android</a>."
+      - "Either way, replies to this email come straight to me."
     signature: "tanner"
 
   claim_free_class_confirmation:
@@ -504,7 +513,7 @@ emails:
     salutation: "Hi there,"
     paragraphs:
       - "Thanks for grabbing your first free class on Optio. There's no credit card and no commitment — just a real high school class built around something you actually care about."
-      - "I'll personally reply within 1 business day with the next steps: how to pick your class, how the schedule works, and how the credit gets back to your local high school."
+      - "I'll personally reply within 1 business day with the next steps: <a href='https://www.optioeducation.com/docs/high-school-classes/creating-your-class?utm_source=transactional&utm_medium=email&utm_campaign=free_class_confirmation' style='color: #6D469B;'>how to pick your class</a>, how the schedule works, and <a href='https://www.optioeducation.com/docs/high-school-classes/transcripts-and-accreditation?utm_source=transactional&utm_medium=email&utm_campaign=free_class_confirmation' style='color: #6D469B;'>how the credit gets back to your local high school</a>."
     highlight_box:
       title: "What to Expect Next"
       bullet_points:
@@ -512,6 +521,8 @@ emails:
         - "We'll figure out which class fits the credit you need"
         - "You'll get everything you need to start — at your pace"
     closing_paragraphs:
+      - "You can get a head start by downloading the Optio app and creating your free account:"
+      - "<a href='https://apps.apple.com/us/app/optio-education/id6773061928' style='text-decoration: none; display: inline-block; margin: 0 10px 8px 0;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png' alt='Download on the App Store' height='44' style='height: 44px; border: 0;'></a><a href='https://play.google.com/store/apps/details?id=com.optioeducation.optio' style='text-decoration: none; display: inline-block;'><img src='https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png' alt='Get it on Google Play' height='44' style='height: 44px; border: 0;'></a>"
       - "If you have questions before then, just hit reply. I read every message myself."
     cta:
       text: "See How Optio Classes Work"

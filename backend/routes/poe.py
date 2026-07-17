@@ -198,6 +198,16 @@ def enroll_in_poe():
             logger.error(f"[POE] signup insert failed for {mask_email(email)}: {signup_err}")
             return jsonify({'error': 'Could not save your signup. Please try again.'}), 500
 
+        # If this email already has an Optio account, activate the POE class in
+        # it right away. Registration-time auto-link only covers the
+        # signup-then-register ordering; without this, an account created before
+        # the form was submitted never gets linked. Fire-and-forget.
+        try:
+            from routes.admin.poe import auto_link_poe_on_signup
+            auto_link_poe_on_signup(email, cohort, signup_row)
+        except Exception as link_err:
+            logger.warning(f"[POE] auto-link on signup skipped for {mask_email(email)}: {link_err}")
+
         # Marketing sync: parent email only, never the student's (all POE
         # signups are minors). Fire-and-forget.
         if parent_email:

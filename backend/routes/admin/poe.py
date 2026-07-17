@@ -318,6 +318,36 @@ def auto_link_poe_on_register(user_id: str, email: str) -> dict | None:
         return None
 
 
+def auto_link_poe_on_signup(email: str, cohort: dict, signup: dict) -> dict | None:
+    """Best-effort: if a POE signup's email already belongs to an Optio account,
+    provision that student's POE class immediately (quest + daily tasks +
+    participant row).
+
+    Counterpart to auto_link_poe_on_register, which only covers signup-then-
+    register ordering; this covers register-then-signup (or a re-submitted form
+    with the student's real email). The cohort and signup row are already known
+    at the call site, so there is no multiple-signup ambiguity. Called
+    fire-and-forget from the public /api/public/poe/enroll route, so it NEVER
+    raises. Always uses an admin client (POE tables are RLS-protected).
+    """
+    try:
+        email = (email or '').strip().lower()
+        if not email or not cohort:
+            return None
+
+        admin_supabase = get_supabase_admin_client()
+        user = _find_user_by_email(admin_supabase, email)
+        if not user:
+            return None
+
+        result = _provision_poe(admin_supabase, user['id'], cohort, signup)
+        logger.info(f"[POE] auto-linked existing account {mask_email(email)} -> cohort {cohort.get('slug')} on signup")
+        return result
+    except Exception as e:
+        logger.error(f"[POE] auto_link_poe_on_signup failed for {mask_email(email)}: {e}", exc_info=True)
+        return None
+
+
 @bp.route('/signups', methods=['GET'])
 @require_admin
 def list_poe_signups(user_id: str):
