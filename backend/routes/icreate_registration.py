@@ -1026,12 +1026,13 @@ def submit_family(reg_id):
     # Fee is per-family, computed from the number of kids registering. Stored so
     # later steps are stable even if an admin edits the config mid-funnel.
     # Families who already paid on the school's legacy form owe nothing.
-    # When EVERY kid is waitlisted, the fee is deferred: the funnel completes
-    # without payment and the fee comes due at the first release.
+    # The fee is paid UP FRONT even for waitlisted kids — it holds their place in
+    # line and is fully refunded if they aren't accepted (see the reject flow).
+    # So we no longer defer to first release; every new registration pays now.
+    # (Legacy fee_deferred=True registrations still reopen on release.)
     fee_cents = 0 if (directive and directive.get('fee_prepaid')) \
         else _compute_fee_cents(cfg, len(created_kids))
-    fee_deferred = bool(created_kids) and fee_cents > 0 \
-        and all(ck.get('waitlisted') for ck in created_kids)
+    fee_deferred = False
     admin.table('icreate_registrations').update({
         'kids': created_kids, 'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
         'status': 'details', 'updated_at': datetime.utcnow().isoformat(),
@@ -1277,9 +1278,12 @@ def create_checkout(reg_id):
         logger.error(f'iCreate checkout: session creation failed for {reg_id}: {e}')
         return jsonify({'error': 'Could not start the payment. Please try again or contact the school.'}), 502
 
-    admin.table('icreate_registrations').update({
-        'stripe_session_id': session.id, 'updated_at': datetime.utcnow().isoformat(),
-    }).eq('id', reg_id).execute()
+    updates = {'stripe_session_id': session.id, 'updated_at': datetime.utcnow().isoformat()}
+    # The family acknowledged the hold-your-place / fully-refundable terms for a
+    # fee that includes waitlisted kids (frontend gates the pay button on it).
+    if body.get('waitlist_ack') and not reg.get('waitlist_refund_ack_at'):
+        updates['waitlist_refund_ack_at'] = datetime.utcnow().isoformat()
+    admin.table('icreate_registrations').update(updates).eq('id', reg_id).execute()
 
     return jsonify({'success': True, 'checkout_url': session.url}), 200
 

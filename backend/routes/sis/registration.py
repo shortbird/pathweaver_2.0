@@ -205,6 +205,20 @@ def release_enrollment_waitlist_entry(user_id, entry_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/enrollment-waitlist/<entry_id>/reject', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def reject_enrollment_waitlist_entry(user_id, entry_id):
+    """Not accepted: mark ONE waiting student rejected and refund their
+    proportional share of the family's paid registration fee."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = enrollment_waitlist.reject(org_id, entry_id, rejected_by=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/enrollment-waitlist/release-band', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def release_enrollment_waitlist_band(user_id):

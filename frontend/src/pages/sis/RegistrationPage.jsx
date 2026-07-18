@@ -205,7 +205,8 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
   useEffect(() => { reload() }, [reload])
 
   const waiting = entries.filter((e) => e.status === 'waiting')
-  const released = entries.filter((e) => e.status !== 'waiting')
+  const released = entries.filter((e) => e.status === 'released')
+  const rejected = entries.filter((e) => e.status === 'rejected')
   if (!entries.length) return null
 
   const bands = [...new Map(waiting.map((e) => [e.band_label, e])).values()]
@@ -218,6 +219,22 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
       reload()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not release the student')
+    } finally { setBusy(null) }
+  }
+
+  const rejectOne = async (e) => {
+    if (!window.confirm(`Mark ${e.student_name} as NOT accepted? Their share of the family's registration fee will be refunded and their family emailed. This can't be undone.`)) return
+    setBusy(e.id)
+    try {
+      const { data } = await api.post(`/api/sis/enrollment-waitlist/${e.id}/reject`, { organization_id: orgId })
+      if (data.refund_error) {
+        toast.error(`${e.student_name} marked not accepted, but the refund failed — refund the family manually.`)
+      } else {
+        toast.success(`${e.student_name} marked not accepted${data.refund_cents > 0 ? ` — $${(data.refund_cents / 100).toFixed(2)} refunded` : ''}${data.emailed ? ', family emailed' : ''}.`)
+      }
+      reload()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not update the student')
     } finally { setBusy(null) }
   }
 
@@ -241,7 +258,9 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
       <h2 className="font-semibold text-neutral-900">Enrollment waitlist</h2>
       <p className="text-xs text-neutral-500 mt-0.5 mb-3">
         Students whose age group is waitlisted. Releasing a student lets them choose classes
-        and emails their family{' — '}release only as many as you have room for.
+        and emails their family{' — '}release only as many as you have room for. "Not accepted"
+        refunds the family's registration fee for that child. Children with an accepted older
+        sibling are marked <span className="font-semibold text-optio-purple">sibling priority</span>.
       </p>
       {waiting.length === 0 && <p className="text-sm text-neutral-400">No one is waiting.</p>}
       {bands.map((band) => {
@@ -264,13 +283,25 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
                 <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2">
                   <div className="min-w-0 text-sm">
                     <span className="font-medium text-neutral-900">#{e.position} {e.student_name}</span>
+                    {e.priority && (
+                      <span title="An older sibling has been accepted — this child has sibling priority"
+                        className="ml-1.5 inline-block rounded-full bg-optio-purple/10 px-2 py-0.5 text-[11px] font-semibold text-optio-purple align-middle">
+                        sibling priority
+                      </span>
+                    )}
                     {e.age_snapshot != null && <span className="text-neutral-400"> · age {e.age_snapshot}</span>}
                     {e.guardian_name && <span className="text-neutral-400"> · {e.guardian_name}</span>}
                   </div>
-                  <button onClick={() => releaseOne(e)} disabled={busy === e.id}
-                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
-                    {busy === e.id ? 'Releasing…' : 'Release'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => rejectOne(e)} disabled={busy === e.id}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 text-neutral-600 hover:bg-gray-50 disabled:opacity-50">
+                      Not accepted
+                    </button>
+                    <button onClick={() => releaseOne(e)} disabled={busy === e.id}
+                      className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+                      {busy === e.id ? 'Releasing…' : 'Release'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -287,6 +318,22 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
               <div key={e.id} className="text-xs text-neutral-500">
                 <span className="text-green-600 font-semibold">released</span> {e.student_name}
                 <span className="text-neutral-400"> · {e.band_label}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      {rejected.length > 0 && (
+        <details className="mt-3">
+          <summary className="text-sm text-neutral-500 cursor-pointer select-none">
+            Not accepted ({rejected.length})
+          </summary>
+          <div className="mt-2 space-y-1">
+            {rejected.map((e) => (
+              <div key={e.id} className="text-xs text-neutral-500">
+                <span className="text-neutral-500 font-semibold">not accepted</span> {e.student_name}
+                <span className="text-neutral-400"> · {e.band_label}</span>
+                {e.refund_cents > 0 && <span className="text-neutral-400"> · ${(e.refund_cents / 100).toFixed(2)} refunded</span>}
               </div>
             ))}
           </div>

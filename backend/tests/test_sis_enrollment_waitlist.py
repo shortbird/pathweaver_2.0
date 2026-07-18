@@ -76,6 +76,9 @@ _WAITING = {'id': 'w1', 'organization_id': 'org1', 'student_user_id': 'stu1',
             'created_at': '2026-07-15T10:00:00Z'}
 
 
+_NO_PRIORITY_FLAGS = [{'feature_flags': {'sis_settings': {}}}]  # no cutoff -> plain FIFO
+
+
 @pytest.mark.unit
 class TestWaitingEntry:
     def test_position_is_queue_order_within_band(self):
@@ -84,8 +87,9 @@ class TestWaitingEntry:
             [{'id': 'w0', 'created_at': '2026-07-14'},        # band queue
              {'id': 'w1', 'created_at': '2026-07-15'}],
         )
+        orgs = _chain(_NO_PRIORITY_FLAGS)  # _order_waiting reads the priority cutoff
         with patch('services.sis_enrollment_waitlist_service._admin',
-                   return_value=_client({ewl.TABLE: table})):
+                   return_value=_client({ewl.TABLE: table, 'organizations': orgs})):
             entry = ewl.waiting_entry('org1', 'stu1')
         assert entry['position'] == 2
 
@@ -156,3 +160,123 @@ class TestRelease:
             result = ewl.release_band('org1', 5, 9, released_by='staff1')
         assert result == {'released': 2}
         assert rel.call_count == 2
+
+
+_CUTOFF = ewl._parse_ts('2026-07-18T00:00:00+00:00')
+
+
+@pytest.mark.unit
+class TestPriorityOrdering:
+    """Frozen prefix (rows before the cutoff never move) + sibling priority
+    (post-cutoff rows with an accepted sibling jump ahead of post-cutoff rows
+    without one)."""
+
+    def test_no_cutoff_is_plain_fifo(self):
+        rows = [{'id': 'b', 'created_at': '2026-07-16', 'household_id': 'h2'},
+                {'id': 'a', 'created_at': '2026-07-15', 'household_id': 'h1'}]
+        with patch.object(ewl, '_priority_since', return_value=None):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['a', 'b']
+
+    def test_frozen_prefix_then_sibling_priority(self):
+        rows = [
+            {'id': 'pre1', 'created_at': '2026-07-10T00:00:00+00:00', 'household_id': 'hp1'},
+            {'id': 'pre2', 'created_at': '2026-07-11T00:00:00+00:00', 'household_id': 'hp2'},
+            # newReg registered BEFORE newSib but has no accepted sibling.
+            {'id': 'newReg', 'created_at': '2026-07-19T00:00:00+00:00', 'household_id': 'hn1'},
+            {'id': 'newSib', 'created_at': '2026-07-20T00:00:00+00:00', 'household_id': 'hn2'},
+        ]
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_households', return_value={'hn2'}):
+            ordered = ewl._order_waiting('org1', rows)
+        # frozen prefix keeps its order; then the sibling-priority kid jumps the
+        # earlier-but-non-priority newcomer.
+        assert [r['id'] for r in ordered] == ['pre1', 'pre2', 'newSib', 'newReg']
+
+    def test_pre_cutoff_sibling_is_frozen_not_promoted(self):
+        rows = [
+            {'id': 'pre_plain', 'created_at': '2026-07-10T00:00:00+00:00', 'household_id': 'hp1'},
+            {'id': 'pre_sib', 'created_at': '2026-07-12T00:00:00+00:00', 'household_id': 'hsib'},
+            {'id': 'new_plain', 'created_at': '2026-07-19T00:00:00+00:00', 'household_id': 'hn1'},
+        ]
+        # hsib has an accepted sibling, but it's pre-cutoff so it stays put.
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_households', return_value={'hsib'}):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['pre_plain', 'pre_sib', 'new_plain']
+
+
+@pytest.mark.unit
+class TestPriorityHouseholds:
+    def test_household_with_unblocked_sibling_gets_priority(self):
+        members = _chain([
+            {'household_id': 'h1', 'user_id': 'stuA'},   # waiting kid (blocked)
+            {'household_id': 'h1', 'user_id': 'stuB'},   # older sibling, no row
+            {'household_id': 'h2', 'user_id': 'stuC'},   # waiting kid, no sibling
+        ])
+        # stuA and stuC are blocked (waiting/rejected); stuB is not.
+        blocked = _chain([{'student_user_id': 'stuA'}, {'student_user_id': 'stuC'}])
+        with patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client({'household_members': members, ewl.TABLE: blocked})):
+            result = ewl._priority_households('org1', {'h1', 'h2'})
+        assert result == {'h1'}
+
+
+@pytest.mark.unit
+class TestReject:
+    _REG = {'id': 'reg1', 'fee_cents': 12500, 'refunded_cents': 0,
+            'kids': [{}, {}, {}], 'stripe_payment_ref': 'pi_1'}
+
+    def _tables(self, reg):
+        return {
+            ewl.TABLE: _chain([_WAITING], []),          # select entry, update rejected
+            'icreate_registrations': _chain([reg], []),  # select reg, update refunded_cents
+            'organizations': _chain(
+                [{'feature_flags': {'icreate_registration': {'stripe_secret_key': 'sk'}}}],
+                [{'name': 'iCreate'}]),                  # stripe secret, then email org name
+            'users': _chain([{'email': 'mom@example.com', 'first_name': 'Mo'}],
+                            [{'first_name': 'Kid', 'last_name': 'One'}]),
+        }
+
+    def test_reject_refunds_proportional_share_via_stripe(self):
+        tables = self._tables(dict(self._REG))
+        fake_stripe = MagicMock()
+        fake_stripe.Refund.create.return_value = MagicMock(id='re_1')
+        with patch.dict('sys.modules', {'stripe': fake_stripe}), \
+             patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client(tables)), \
+             patch('services.email_service.email_service.send_email', return_value=True):
+            result = ewl.reject('org1', 'w1', rejected_by='staff1')
+        # 12500 / 3 kids = 4167 (rounded)
+        assert result['rejected'] is True
+        assert result['refund_cents'] == 4167
+        assert result.get('refund_error') is None
+        fake_stripe.Refund.create.assert_called_once_with(
+            payment_intent='pi_1', amount=4167, api_key='sk')
+        # entry flipped to rejected, refund recorded on the entry
+        upd = tables[ewl.TABLE].update.call_args[0][0]
+        assert upd['status'] == 'rejected' and upd['refund_cents'] == 4167
+        assert upd['stripe_refund_id'] == 're_1'
+        # cumulative refund tracked on the registration
+        assert tables['icreate_registrations'].update.call_args[0][0]['refunded_cents'] == 4167
+
+    def test_reject_never_over_refunds(self):
+        # Two of three kids already refunded (8334); a third can only get 12500-8334.
+        reg = {**self._REG, 'refunded_cents': 8334}
+        tables = self._tables(reg)
+        fake_stripe = MagicMock()
+        fake_stripe.Refund.create.return_value = MagicMock(id='re_2')
+        with patch.dict('sys.modules', {'stripe': fake_stripe}), \
+             patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client(tables)), \
+             patch('services.email_service.email_service.send_email', return_value=True):
+            result = ewl.reject('org1', 'w1', rejected_by='staff1')
+        assert result['refund_cents'] == 12500 - 8334  # capped at remaining
+        assert tables['icreate_registrations'].update.call_args[0][0]['refunded_cents'] == 12500
+
+    def test_reject_refused_when_not_waiting(self):
+        table = _chain([{**_WAITING, 'status': 'released'}])
+        with patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client({ewl.TABLE: table})):
+            result = ewl.reject('org1', 'w1', rejected_by='staff1')
+        assert result == {'error': 'This student is no longer waiting'}

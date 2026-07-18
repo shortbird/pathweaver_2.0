@@ -133,4 +133,32 @@ describe('EnrollmentWaitlistCard', () => {
     render(<RegistrationPage />)
     expect(await screen.findByText('Released (1)')).toBeInTheDocument()
   })
+
+  it('badges a student who has sibling priority', async () => {
+    state.entries = [WAITING({ priority: true })]
+    render(<RegistrationPage />)
+    expect(await screen.findByText('sibling priority')).toBeInTheDocument()
+  })
+
+  it('rejects a student (refund) after a confirm', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    api.post.mockResolvedValueOnce({ data: { rejected: true, refund_cents: 4167, emailed: true } })
+    state.entries = [WAITING()]
+    render(<RegistrationPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Not accepted' }))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('NOT accepted'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/enrollment-waitlist/w1/reject',
+        { organization_id: 'org-1' }),
+    )
+  })
+
+  it('does not reject when the confirm is dismissed', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    state.entries = [WAITING()]
+    render(<RegistrationPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Not accepted' }))
+    expect(api.post).not.toHaveBeenCalledWith('/api/sis/enrollment-waitlist/w1/reject',
+      { organization_id: 'org-1' })
+  })
 })

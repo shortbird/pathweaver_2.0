@@ -306,8 +306,13 @@ const ICreateRegisterPage = () => {
   // funnel state (issued only after email verification / sign-in)
   const [reg, setReg] = useState(null) // { registration_id, access_token }
   const [feeCents, setFeeCents] = useState(0)
-  // Every kid gated to the enrollment waitlist -> the fee is deferred to first release.
+  // Legacy: fully-waitlisted families whose fee was deferred to first release.
+  // New registrations pay up front (fee holds the place, refunded if not
+  // accepted), so this is false for them.
   const [feeDeferred, setFeeDeferred] = useState(false)
+  // Consent to the hold-your-place / fully-refundable terms, required before
+  // paying when the family includes a waitlisted child.
+  const [waitlistAck, setWaitlistAck] = useState(false)
   const [signatures, setSignatures] = useState({})
   const [agreed, setAgreed] = useState({})
   const [scheduling, setScheduling] = useState({ url: '', emailed: false })
@@ -709,6 +714,7 @@ const ICreateRegisterPage = () => {
       const { data } = await api.post(`/api/icreate/registrations/${reg.registration_id}/checkout`, {
         access_token: reg.access_token,
         return_url: window.location.origin + window.location.pathname,
+        waitlist_ack: waitlistAck,
       })
       window.location.href = data.checkout_url
     } catch (e) {
@@ -1128,7 +1134,13 @@ const ICreateRegisterPage = () => {
           </div>
         )}
 
-        {step === 'fee' && (
+        {step === 'fee' && (() => {
+          const anyWaitlisted = kids.some((k) => enrollmentGateFor(config, k.date_of_birth))
+          // A fee that includes a waitlisted child needs explicit consent to the
+          // hold-your-place / fully-refundable terms before we let them pay.
+          const needsAck = !feeDeferred && feeCents > 0 && anyWaitlisted
+          const ackBlocks = needsAck && !waitlistAck
+          return (
           <div className="space-y-6">
             <Section title="Registration fee">
               <div className="text-center">
@@ -1165,9 +1177,31 @@ const ICreateRegisterPage = () => {
                 ))}
               </div>
             </Section>
+            {needsAck && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold mb-1">
+                  {kids.filter((k) => enrollmentGateFor(config, k.date_of_birth)).length === 1
+                    ? 'One of your children is in a waitlisted age group.'
+                    : 'Some of your children are in a waitlisted age group.'}
+                </p>
+                <p className="mb-3">
+                  Paying now <strong>holds their place in line</strong> — it does not
+                  guarantee a spot. If they aren't accepted, that portion of your
+                  registration fee is <strong>fully refunded</strong> to your card. Your
+                  other children are enrolled as usual.
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input type="checkbox" checked={waitlistAck}
+                    onChange={(e) => setWaitlistAck(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-amber-400 text-optio-purple focus:ring-optio-purple" />
+                  <span>I understand this fee holds my child's place and is fully
+                    refunded if they aren't accepted.</span>
+                </label>
+              </div>
+            )}
             {!feeDeferred && config.stripe_enabled && feeCents > 0 ? (
               <>
-                <PrimaryButton onClick={startCheckout} disabled={submitting}>
+                <PrimaryButton onClick={startCheckout} disabled={submitting || ackBlocks}>
                   {submitting ? 'One moment…' : `Pay ${money(feeCents)} securely`}
                 </PrimaryButton>
                 <button onClick={() => confirmPayment()} disabled={submitting}
@@ -1176,14 +1210,15 @@ const ICreateRegisterPage = () => {
                 </button>
               </>
             ) : (
-              <PrimaryButton onClick={() => finishFee()} disabled={submitting}>
+              <PrimaryButton onClick={() => finishFee()} disabled={submitting || ackBlocks}>
                 {submitting ? 'Finishing…'
                   : !feeDeferred && paymentUrl && feeCents > 0 ? "I've paid — finish registration"
                   : 'Finish registration'}
               </PrimaryButton>
             )}
           </div>
-        )}
+          )
+        })()}
 
         {step === 'done' && (
           <div className="space-y-6 text-center">
