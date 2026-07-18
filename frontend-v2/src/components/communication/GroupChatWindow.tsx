@@ -168,6 +168,7 @@ function AdminSettings({
 export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
+  const isSuperadmin = user?.role === 'superadmin';
   const { messages, loading, setMessages } = useGroupMessages(group.id);
   const { group: groupDetail, loading: detailLoading } = useGroupDetail(group.id);
   const [input, setInput] = useState('');
@@ -208,7 +209,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     onMessage: (m) => setMessages((prev) => appendRealtimeMessage(prev, m)),
     onReactions: (p) => setMessages((prev) => patchMessageReactions(prev, p.message_id, p.reactions)),
     onEdited: (p) => setMessages((prev) => patchMessageEdited(prev, p)),
-    onDeleted: (p) => setMessages((prev) => patchMessageDeleted(prev, p.message_id)),
+    onDeleted: (p) => setMessages((prev) => patchMessageDeleted(prev, p.message_id, isSuperadmin)),
     onPinned: (p) => setPinnedId(p.pinned_message_id),
     onSettings: (p) => setAnnouncementOnly(!!p.announcement_only),
   });
@@ -305,7 +306,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
     if (!confirmed) return;
     try {
       await deleteGroupMessage(group.id, msg.id);
-      setMessages((prev) => patchMessageDeleted(prev, msg.id));
+      setMessages((prev) => patchMessageDeleted(prev, msg.id, isSuperadmin));
       if (pinnedId === msg.id) setPinnedId(null);
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Failed to delete the message');
@@ -624,7 +625,7 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                     opacity: msg.isOptimistic ? 0.7 : 1,
                   }}
                 >
-                  {msg.is_deleted ? (
+                  {msg.is_deleted && !msg.deleted_visible_to_admin ? (
                     <UIText
                       size="sm"
                       style={{
@@ -637,6 +638,19 @@ export function GroupChatWindow({ group, onBack, onDeleted }: Props) {
                     </UIText>
                   ) : (
                     <>
+                      {msg.is_deleted && msg.deleted_visible_to_admin ? (
+                        <UIText
+                          size="xs"
+                          style={{
+                            color: isMine ? 'rgba(255,255,255,0.85)' : '#DC2626',
+                            fontWeight: '700',
+                            letterSpacing: 0.5,
+                            marginBottom: 2,
+                          }}
+                        >
+                          DELETED
+                        </UIText>
+                      ) : null}
                       <ReplyQuote replyTo={msg.reply_to} isMine={isMine} />
                       <MessageAttachments attachments={msg.attachments} isMine={isMine} />
                       {msg.message_content ? (

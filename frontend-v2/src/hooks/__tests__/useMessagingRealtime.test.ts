@@ -162,5 +162,24 @@ describe('patch helpers', () => {
     expect(next[0].is_deleted).toBe(true);
     expect(next[0].message_content).toBe('');
     expect(next[0].attachments).toEqual([]);
+    expect(next[0].deleted_visible_to_admin).toBeUndefined();
+  });
+
+  it('patchMessageDeleted keeps content for superadmins (revealDeleted)', () => {
+    const next = patchMessageDeleted(
+      [makeMessage({
+        message_content: 'original',
+        attachments: [{ url: 'https://x/a.jpg', type: 'image', name: 'a', size: 1 }],
+      })],
+      'msg-1',
+      true,
+    );
+
+    expect(next[0].is_deleted).toBe(true);
+    expect(next[0].deleted_visible_to_admin).toBe(true);
+    expect(next[0].message_content).toBe('original');
+    expect(next[0].attachments).toEqual([
+      { url: 'https://x/a.jpg', type: 'image', name: 'a', size: 1 },
+    ]);
   });
 });

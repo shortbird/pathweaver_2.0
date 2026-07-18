@@ -112,8 +112,18 @@ export function patchMessageEdited(
     : m));
 }
 
-export function patchMessageDeleted(prev: Message[], messageId: string): Message[] {
-  return prev.map((m) => (m.id === messageId
-    ? { ...m, is_deleted: true, message_content: '', attachments: [] }
-    : m));
+export function patchMessageDeleted(
+  prev: Message[],
+  messageId: string,
+  revealDeleted = false,
+): Message[] {
+  return prev.map((m) => {
+    if (m.id !== messageId) return m;
+    // Superadmins keep the original content (with a "Deleted" indicator) for
+    // moderation; everyone else gets the blanked tombstone.
+    if (revealDeleted) {
+      return { ...m, is_deleted: true, deleted_visible_to_admin: true };
+    }
+    return { ...m, is_deleted: true, message_content: '', attachments: [] };
+  });
 }

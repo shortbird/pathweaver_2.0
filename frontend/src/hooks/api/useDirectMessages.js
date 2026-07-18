@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
+import { useAuth } from '../../contexts/AuthContext'
 
 // Get all conversations for a user
 export const useConversations = (userId, options = {}) => {
@@ -164,9 +165,11 @@ export const useEditMessage = () => {
   })
 }
 
-// Delete own DM (renders as a tombstone)
+// Delete own DM (renders as a tombstone; superadmins keep the content)
 export const useDeleteMessage = () => {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const revealDeleted = user?.role === 'superadmin'
 
   return useMutation({
     mutationFn: async ({ messageId }) => {
@@ -180,7 +183,9 @@ export const useDeleteMessage = () => {
           ...old,
           messages: old.messages.map((m) =>
             m.id === messageId
-              ? { ...m, is_deleted: true, message_content: '', attachments: [], reactions: [] }
+              ? (revealDeleted
+                  ? { ...m, is_deleted: true, deleted_visible_to_admin: true, reactions: [] }
+                  : { ...m, is_deleted: true, message_content: '', attachments: [], reactions: [] })
               : m
           )
         }

@@ -161,4 +161,21 @@ describe('reply flow', () => {
     expect(screen.getByText('Message deleted')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '👍 2' })).not.toBeInTheDocument()
   })
+
+  it('superadmin sees deleted content with a "Deleted" indicator', () => {
+    const deleted = {
+      ...baseMessage,
+      is_deleted: true,
+      deleted_visible_to_admin: true,
+      message_content: 'Original secret text',
+      reactions: [],
+    }
+    render(
+      <MessageThread messages={[deleted]} otherUser={{ id: 'other' }} isLoading={false} />
+    )
+    // Content stays visible with a "Deleted" badge instead of the tombstone.
+    expect(screen.getByText('Original secret text')).toBeInTheDocument()
+    expect(screen.getByText('Deleted')).toBeInTheDocument()
+    expect(screen.queryByText('Message deleted')).not.toBeInTheDocument()
+  })
 })

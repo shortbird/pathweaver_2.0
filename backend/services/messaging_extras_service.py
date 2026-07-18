@@ -291,9 +291,27 @@ def set_announcement_only(user_id: str, group_id: str, enabled: bool) -> Dict[st
     return {'ok': True, 'announcement_only': bool(enabled)}
 
 
+# ── Viewer role (superadmin moderation visibility) ─────────────────────────────
+def _viewer_is_superadmin(user_id: str) -> bool:
+    """Superadmins retain visibility into deleted messages for moderation/audit;
+    everyone else sees only a 'Message deleted' tombstone."""
+    if not user_id:
+        return False
+    try:
+        rows = (_admin().table('users').select('role')
+                .eq('id', user_id).limit(1).execute()).data
+        return bool(rows) and rows[0].get('role') == 'superadmin'
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Superadmin check failed for {user_id}: {e}')
+        return False
+
+
 # ── Reply previews ─────────────────────────────────────────────────────────────
-def reply_previews(message_type: str, messages: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """id -> {id, sender_id, sender_name, content} for every reply target in `messages`."""
+def reply_previews(message_type: str, messages: List[Dict[str, Any]],
+                   reveal_deleted: bool = False) -> Dict[str, Dict[str, Any]]:
+    """id -> {id, sender_id, sender_name, content, is_deleted} for every reply
+    target in `messages`. Deleted targets read as 'Message deleted' unless
+    `reveal_deleted` (superadmin), which keeps the original content."""
     target_ids = list({m['reply_to_message_id'] for m in messages if m.get('reply_to_message_id')})
     if not target_ids:
         return {}
@@ -310,26 +328,47 @@ def reply_previews(message_type: str, messages: List[Dict[str, Any]]) -> Dict[st
         u = users.get(uid) or {}
         return (u.get('display_name') or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip() or 'Someone')
 
+    def content_of(r):
+        if r.get('is_deleted') and not reveal_deleted:
+            return 'Message deleted'
+        return (r.get('message_content') or '')[:140]
+
     return {r['id']: {
         'id': r['id'],
         'sender_id': r['sender_id'],
         'sender_name': name_of(r['sender_id']),
-        'content': ('Message deleted' if r.get('is_deleted') else (r.get('message_content') or '')[:140]),
+        'content': content_of(r),
+        'is_deleted': bool(r.get('is_deleted')),
     } for r in rows}
 
 
 def enrich_messages(message_type: str, messages: List[Dict[str, Any]],
                     viewer_id: str) -> List[Dict[str, Any]]:
-    """Attach reactions + reply previews, and blank deleted message content."""
+    """Attach reactions + reply previews, and blank deleted message content.
+
+    Superadmin viewers keep the original content of deleted messages (flagged
+    with `deleted_visible_to_admin`) so they can moderate; all other viewers get
+    the content/attachments stripped down to a tombstone.
+    """
     ids = [m['id'] for m in messages]
     reactions = reactions_for_messages(message_type, ids, viewer_id)
-    replies = reply_previews(message_type, messages)
+    # Only pay for the role lookup when a deleted message (or a reply target that
+    # might be deleted) is actually in this batch.
+    needs_role = any(m.get('is_deleted') for m in messages) or \
+        any(m.get('reply_to_message_id') for m in messages)
+    reveal_deleted = _viewer_is_superadmin(viewer_id) if needs_role else False
+    replies = reply_previews(message_type, messages, reveal_deleted=reveal_deleted)
     out = []
     for m in messages:
         row = {**m}
         if row.get('is_deleted'):
-            row['message_content'] = ''
-            row['attachments'] = []
+            if reveal_deleted:
+                # Keep original content/attachments; the client renders a
+                # "Deleted" indicator alongside them.
+                row['deleted_visible_to_admin'] = True
+            else:
+                row['message_content'] = ''
+                row['attachments'] = []
         row['reactions'] = reactions.get(m['id'], [])
         if m.get('reply_to_message_id'):
             row['reply_to'] = replies.get(m['reply_to_message_id'])

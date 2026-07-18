@@ -79,6 +79,10 @@ export interface Message {
   attachments?: MessageAttachment[];
   edited_at?: string | null;
   is_deleted?: boolean;
+  /** Set by the backend only for superadmin viewers: the message is deleted but
+   *  its original content/attachments are retained for moderation, and the
+   *  client shows a "Deleted" indicator instead of the tombstone. */
+  deleted_visible_to_admin?: boolean;
   isOptimistic?: boolean;
 }
 

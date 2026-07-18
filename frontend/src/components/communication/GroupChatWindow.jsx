@@ -334,7 +334,7 @@ const GroupChatWindow = ({ group, onBack }) => {
                             : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'
                         } ${msg.isOptimistic ? 'opacity-70' : ''}`}
                       >
-                        {isDeleted ? (
+                        {isDeleted && !msg.deleted_visible_to_admin ? (
                           <p className={`italic text-sm ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
                             Message deleted
                           </p>
@@ -347,6 +347,11 @@ const GroupChatWindow = ({ group, onBack }) => {
                           />
                         ) : (
                           <>
+                            {isDeleted && msg.deleted_visible_to_admin && (
+                              <span className={`inline-block text-[10px] font-semibold uppercase tracking-wide mb-1 px-1.5 py-0.5 rounded ${isOwn ? 'bg-white/20 text-white/90' : 'bg-red-100 text-red-600'}`}>
+                                Deleted
+                              </span>
+                            )}
                             <ReplyQuote replyTo={msg.reply_to} light={isOwn} />
                             {msg.message_content && (
                               <p className="whitespace-pre-wrap break-words">{msg.message_content}</p>

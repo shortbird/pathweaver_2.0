@@ -131,7 +131,7 @@ const MessageThread = ({
                     : 'bg-white text-gray-800 rounded-r-2xl rounded-tl-2xl shadow-sm'
                 } px-3.5 py-2.5 text-sm ${message.isOptimistic ? 'opacity-70' : ''}`}
               >
-                {isDeleted ? (
+                {isDeleted && !message.deleted_visible_to_admin ? (
                   <p className={`italic text-sm ${isSender ? 'text-white/70' : 'text-gray-400'}`}>
                     Message deleted
                   </p>
@@ -144,6 +144,11 @@ const MessageThread = ({
                   />
                 ) : (
                   <>
+                    {isDeleted && message.deleted_visible_to_admin && (
+                      <span className={`inline-block text-[10px] font-semibold uppercase tracking-wide mb-1 px-1.5 py-0.5 rounded ${isSender ? 'bg-white/20 text-white/90' : 'bg-red-100 text-red-600'}`}>
+                        Deleted
+                      </span>
+                    )}
                     <ReplyQuote replyTo={message.reply_to} light={isSender} />
                     {message.message_content && (
                       <p className="whitespace-pre-wrap break-words">

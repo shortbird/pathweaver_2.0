@@ -19,6 +19,7 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../services/supabaseClient'
+import { useAuth } from '../../contexts/AuthContext'
 
 // Broadcast reaction payloads are shared across users, so they can't carry a
 // per-user `reacted` flag reliably. Preserve the local user's own `reacted`
@@ -37,6 +38,9 @@ const mergeReactions = (existing = [], incoming = []) =>
  */
 export const useMessagingRealtime = ({ kind, id, enabled = true }) => {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  // Superadmins keep deleted content (with a "Deleted" indicator) for moderation.
+  const revealDeleted = user?.role === 'superadmin'
 
   useEffect(() => {
     if (!enabled || !kind || !id) return undefined
@@ -93,7 +97,9 @@ export const useMessagingRealtime = ({ kind, id, enabled = true }) => {
         updateMessages((messages) =>
           messages.map((m) =>
             m.id === payload.message_id
-              ? { ...m, is_deleted: true, message_content: '', attachments: [], reactions: [] }
+              ? (revealDeleted
+                  ? { ...m, is_deleted: true, deleted_visible_to_admin: true, reactions: [] }
+                  : { ...m, is_deleted: true, message_content: '', attachments: [], reactions: [] })
               : m
           )
         )
@@ -133,7 +139,7 @@ export const useMessagingRealtime = ({ kind, id, enabled = true }) => {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [kind, id, enabled, queryClient])
+  }, [kind, id, enabled, queryClient, revealDeleted])
 }
 
 export default useMessagingRealtime

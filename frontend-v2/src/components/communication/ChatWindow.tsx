@@ -74,6 +74,7 @@ function formatTime(ts: string) {
 export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
+  const isSuperadmin = user?.role === 'superadmin';
   const { messages, loading, setMessages } = useConversationMessages(conversationId);
   // Held in a ref so the mark-read effect doesn't re-run when the parent passes
   // a fresh onRead identity each render.
@@ -111,7 +112,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
     onMessage: (m) => setMessages((prev) => appendRealtimeMessage(prev, m)),
     onReactions: (p) => setMessages((prev) => patchMessageReactions(prev, p.message_id, p.reactions)),
     onEdited: (p) => setMessages((prev) => patchMessageEdited(prev, p)),
-    onDeleted: (p) => setMessages((prev) => patchMessageDeleted(prev, p.message_id)),
+    onDeleted: (p) => setMessages((prev) => patchMessageDeleted(prev, p.message_id, isSuperadmin)),
   });
 
   // Scroll to bottom on new messages
@@ -191,7 +192,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
     if (!confirmed) return;
     try {
       await deleteDirectMessage(msg.id);
-      setMessages((prev) => patchMessageDeleted(prev, msg.id));
+      setMessages((prev) => patchMessageDeleted(prev, msg.id, isSuperadmin));
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Failed to delete the message');
     }
@@ -360,7 +361,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                     opacity: msg.isOptimistic ? 0.7 : 1,
                   }}
                 >
-                  {msg.is_deleted ? (
+                  {msg.is_deleted && !msg.deleted_visible_to_admin ? (
                     <UIText
                       size="sm"
                       style={{
@@ -373,6 +374,19 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                     </UIText>
                   ) : (
                     <>
+                      {msg.is_deleted && msg.deleted_visible_to_admin ? (
+                        <UIText
+                          size="xs"
+                          style={{
+                            color: isMine ? 'rgba(255,255,255,0.85)' : '#DC2626',
+                            fontWeight: '700',
+                            letterSpacing: 0.5,
+                            marginBottom: 2,
+                          }}
+                        >
+                          DELETED
+                        </UIText>
+                      ) : null}
                       <ReplyQuote replyTo={msg.reply_to} isMine={isMine} />
                       <MessageAttachments attachments={msg.attachments} isMine={isMine} />
                       {msg.message_content ? (
