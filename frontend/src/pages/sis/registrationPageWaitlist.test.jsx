@@ -137,7 +137,8 @@ describe('EnrollmentWaitlistCard', () => {
   it('badges a student who has sibling priority', async () => {
     state.entries = [WAITING({ priority: true })]
     render(<RegistrationPage />)
-    expect(await screen.findByText('sibling priority')).toBeInTheDocument()
+    // The badge (identified by its tooltip) sits on the student's row.
+    expect(await screen.findByTitle(/this child has sibling priority/)).toBeInTheDocument()
   })
 
   it('rejects a student (refund) after a confirm', async () => {
