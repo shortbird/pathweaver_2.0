@@ -52,9 +52,12 @@ still lands **behind everyone already waiting**; sibling priority only different
 them from *other new* registrants. This is the direct result of "freeze the live
 waitlist" — you can't both freeze existing spots and let newcomers jump them.
 
-**Cutoff:** `sis_settings.enrollment_waitlist_priority_since`, stamped to
-deploy-time by the migration for every org that gates an age band. Unset → plain
-FIFO (feature off).
+**Cutoff:** `sis_settings.enrollment_waitlist_priority_since`. An **explicit**
+stamp freezes an existing queue at that instant (the migration sets it for any
+org that already had a gate/queue when this shipped). When it's **unset but the
+org gates an age band**, there's no legacy queue to protect, so priority is on
+for the whole queue (cutoff = epoch) — this is the normal case, e.g. iCreate
+turning the waitlist on for the first time. **No gate → no waitlist → plain FIFO.**
 
 **"Accepted sibling":** a household student member who is **not blocked**, where
 blocked = has a waitlist row in `waiting` or `rejected`. So a non-gated older kid

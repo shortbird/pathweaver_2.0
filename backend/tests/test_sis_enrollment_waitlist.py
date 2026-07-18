@@ -178,6 +178,29 @@ class TestPriorityOrdering:
             ordered = ewl._order_waiting('org1', rows)
         assert [r['id'] for r in ordered] == ['a', 'b']
 
+    def test_priority_on_by_default_when_org_gates_a_band(self):
+        # No explicit freeze stamp + a waitlist gate -> priority on for the whole
+        # queue (epoch cutoff), since there's no legacy queue to protect.
+        orgs = _chain([{'feature_flags': {'sis_settings': {
+            'enrollment_age_gates': [{'min_age': 5, 'max_age': 9, 'mode': 'waitlist'}]}}}])
+        with patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client({'organizations': orgs})):
+            assert ewl._priority_since('org1') == ewl._EPOCH
+
+    def test_priority_off_when_org_has_no_gate(self):
+        orgs = _chain([{'feature_flags': {'sis_settings': {}}}])
+        with patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client({'organizations': orgs})):
+            assert ewl._priority_since('org1') is None
+
+    def test_explicit_stamp_overrides_default(self):
+        orgs = _chain([{'feature_flags': {'sis_settings': {
+            'enrollment_age_gates': [{'min_age': 5, 'max_age': 9, 'mode': 'waitlist'}],
+            'enrollment_waitlist_priority_since': '2026-07-18T00:00:00+00:00'}}}])
+        with patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client({'organizations': orgs})):
+            assert ewl._priority_since('org1') == _CUTOFF
+
     def test_frozen_prefix_then_sibling_priority(self):
         rows = [
             {'id': 'pre1', 'created_at': '2026-07-10T00:00:00+00:00', 'household_id': 'hp1'},

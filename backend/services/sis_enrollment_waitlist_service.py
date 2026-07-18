@@ -138,10 +138,25 @@ def _parse_ts(value: Any) -> Optional[datetime]:
         return None
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
 def _priority_since(org_id: str) -> Optional[datetime]:
-    """The instant sibling priority turned on for this org, or None (feature
-    off → plain FIFO)."""
-    return _parse_ts(_sis_settings(org_id).get('enrollment_waitlist_priority_since'))
+    """The freeze point for sibling priority, or None when the feature is off.
+
+    An explicit sis_settings.enrollment_waitlist_priority_since FREEZES the queue
+    at that instant: rows before it keep their spot, priority sorts only rows
+    after it (set by the migration for orgs that already had a queue when this
+    shipped). When no explicit stamp exists but the org gates an age band, there
+    is no legacy queue to protect, so priority is simply on for the whole queue
+    (cutoff = epoch). No gates → no waitlist → None (plain FIFO)."""
+    settings = _sis_settings(org_id)
+    explicit = _parse_ts(settings.get('enrollment_waitlist_priority_since'))
+    if explicit:
+        return explicit
+    has_gate = any(isinstance(g, dict) and g.get('mode') == 'waitlist'
+                   for g in (settings.get('enrollment_age_gates') or []))
+    return _EPOCH if has_gate else None
 
 
 def _priority_households(org_id: str, household_ids: set) -> set:
