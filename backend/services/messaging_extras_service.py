@@ -162,6 +162,63 @@ def reactions_for_messages(message_type: str, message_ids: List[str],
     return {mid: list(per.values()) for mid, per in agg.items()}
 
 
+# ── Conversation preview (kept in sync on edit/delete) ─────────────────────────
+def _preview_text(row: Optional[Dict[str, Any]]) -> str:
+    """Conversation-list preview for a message row, mirroring the send path
+    (which uses `(content or 'Sent an attachment')[:100]`)."""
+    if not row:
+        return ''
+    content = (row.get('message_content') or '').strip()
+    if content:
+        return content[:100]
+    if row.get('attachments'):
+        return 'Sent an attachment'
+    return ''
+
+
+def _recompute_conversation_preview(message_type: str, msg: Dict[str, Any]) -> None:
+    """Recompute a conversation's cached last_message_preview / last_message_at
+    from its most recent non-deleted message.
+
+    Deleting (or editing) the latest message otherwise leaves a stale preview in
+    the conversation list — e.g. the list keeps showing the text of a message the
+    user just deleted. Groups only refresh the preview via an AFTER INSERT trigger,
+    and DMs set it inline on send, so neither path covers edit/delete. This
+    reconciles both from the source of truth after the fact.
+    """
+    admin = _admin()
+    if message_type == 'dm':
+        conv_id = msg.get('conversation_id')
+        if not conv_id:
+            return
+        msg_table, conv_table = 'direct_messages', 'message_conversations'
+        scope_col = 'conversation_id'
+    else:
+        conv_id = msg.get('group_id')
+        if not conv_id:
+            return
+        msg_table, conv_table = 'group_messages', 'group_conversations'
+        scope_col = 'group_id'
+
+    try:
+        latest = (admin.table(msg_table)
+                  .select('message_content, attachments, created_at')
+                  .eq(scope_col, conv_id).eq('is_deleted', False)
+                  .order('created_at', desc=True).limit(1).execute()).data
+        if latest:
+            update = {
+                'last_message_preview': _preview_text(latest[0]),
+                'last_message_at': latest[0]['created_at'],
+            }
+        else:
+            # Every message removed — clear the preview but keep last_message_at
+            # so the (now empty) conversation keeps its position in the list.
+            update = {'last_message_preview': ''}
+        admin.table(conv_table).update(update).eq('id', conv_id).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Failed to recompute {message_type} preview for {conv_id}: {e}')
+
+
 # ── Edit / delete ──────────────────────────────────────────────────────────────
 def edit_message(user_id: str, message_type: str, message_id: str, content: str) -> Dict[str, Any]:
     content = (content or '').strip()
@@ -176,6 +233,8 @@ def edit_message(user_id: str, message_type: str, message_id: str, content: str)
     _admin().table(table).update({
         'message_content': content, 'edited_at': _now(),
     }).eq('id', message_id).execute()
+    # Keep the conversation-list preview in sync if the edited message is the latest.
+    _recompute_conversation_preview(message_type, msg)
     event = {'message_id': message_id, 'content': content, 'edited_at': _now()}
     if message_type == 'dm':
         broadcast_dm(msg['conversation_id'], 'edited', event)
@@ -194,6 +253,9 @@ def delete_message(user_id: str, message_type: str, message_id: str) -> Dict[str
     if not (is_sender or is_moderator):
         return {'error': 'You can only delete your own messages'}
     _admin().table(table).update({'is_deleted': True}).eq('id', message_id).execute()
+    # Refresh the conversation-list preview so a deleted last message doesn't
+    # keep showing its content in the conversation list.
+    _recompute_conversation_preview(message_type, msg)
     # Unpin if this was the pinned message.
     if message_type == 'group':
         _admin().table('group_conversations').update({'pinned_message_id': None}) \
