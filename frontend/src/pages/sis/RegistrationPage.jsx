@@ -49,7 +49,7 @@ const RegistrationPage = () => {
         <div className="grid gap-6">
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
           <AgeExceptionRequestsCard key={`aex-${orgId}`} orgId={orgId} />
-          <EnrollmentWaitlistCard key={`ewl-${orgId}`} orgId={orgId} />
+          <EnrollmentWaitlistCard key={`ewl-${orgId}`} orgId={orgId} org={orgData.organization} />
           <SchoolYearCard key={`year-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <AgeGatesCard key={`gates-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <ICreateRegistrationSettings key={`icr-${orgId}`} orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
@@ -189,17 +189,22 @@ const AgeGatesCard = ({ orgId, org, onUpdate }) => {
   )
 }
 
-// Students waiting on the enrollment age-group waitlist, grouped by band, in
-// queue order. Releasing one student unlocks class selection for exactly that
-// student (and reopens the family's deferred registration fee, if any).
-const EnrollmentWaitlistCard = ({ orgId }) => {
+// The enrollment age-group waitlist workspace. Always visible so staff have a
+// home for it: every active waitlist age group shows (even with nobody waiting),
+// students queue in priority order, and staff release or decline them here.
+// Releasing unlocks class selection and emails the family; "Not accepted"
+// refunds that child's registration fee.
+const EnrollmentWaitlistCard = ({ orgId, org }) => {
   const [entries, setEntries] = useState([])
-  const [busy, setBusy] = useState(null) // entry id (or band label) mid-release
+  const [busy, setBusy] = useState(null) // entry id (or band label) mid-action
+  const [loading, setLoading] = useState(true)
 
   const reload = useCallback(() => {
+    setLoading(true)
     api.get(withOrg('/api/sis/enrollment-waitlist', orgId))
       .then((r) => setEntries(r.data?.entries || []))
       .catch(() => setEntries([]))
+      .finally(() => setLoading(false))
   }, [orgId])
 
   useEffect(() => { reload() }, [reload])
@@ -207,9 +212,32 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
   const waiting = entries.filter((e) => e.status === 'waiting')
   const released = entries.filter((e) => e.status === 'released')
   const rejected = entries.filter((e) => e.status === 'rejected')
-  if (!entries.length) return null
 
-  const bands = [...new Map(waiting.map((e) => [e.band_label, e])).values()]
+  // Match the backend's band_label so gate bands and entry bands line up.
+  const gateLabel = (g) => (
+    g.min_age != null && g.max_age != null ? `ages ${g.min_age}–${g.max_age}`
+      : g.min_age != null ? `ages ${g.min_age}+`
+        : g.max_age != null ? `up to age ${g.max_age}` : 'all ages')
+
+  const gateBands = ((org?.feature_flags?.sis_settings?.enrollment_age_gates) || [])
+    .filter((g) => g && g.mode === 'waitlist')
+
+  // Seed with the configured waitlist age groups (so an active-but-empty group
+  // still shows), then fold in waiting students — including any band that still
+  // has students after its gate was reopened/removed.
+  const bandMap = new Map()
+  for (const g of gateBands) {
+    const label = gateLabel(g)
+    bandMap.set(label, { band_label: label, band_min_age: g.min_age ?? null, band_max_age: g.max_age ?? null, members: [], active: true })
+  }
+  for (const e of waiting) {
+    if (!bandMap.has(e.band_label)) {
+      bandMap.set(e.band_label, { band_label: e.band_label, band_min_age: e.band_min_age ?? null, band_max_age: e.band_max_age ?? null, members: [], active: false })
+    }
+    bandMap.get(e.band_label).members.push(e)
+  }
+  const bands = [...bandMap.values()].sort((a, b) => (a.band_min_age ?? 999) - (b.band_min_age ?? 999))
+  for (const b of bands) b.members.sort((x, y) => (x.position ?? 0) - (y.position ?? 0))
 
   const releaseOne = async (e) => {
     setBusy(e.id)
@@ -239,8 +267,8 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
   }
 
   const releaseBand = async (band) => {
-    const members = waiting.filter((e) => e.band_label === band.band_label)
-    if (!window.confirm(`Release all ${members.length} waiting student${members.length === 1 ? '' : 's'} (${band.band_label})? Each family will be emailed.`)) return
+    const n = band.members.length
+    if (!window.confirm(`Release all ${n} waiting student${n === 1 ? '' : 's'} (${band.band_label})? Each family will be emailed.`)) return
     setBusy(band.band_label)
     try {
       await api.post('/api/sis/enrollment-waitlist/release-band', {
@@ -253,63 +281,92 @@ const EnrollmentWaitlistCard = ({ orgId }) => {
     } catch { toast.error('Could not release the group') } finally { setBusy(null) }
   }
 
+  const Chip = ({ tone, children }) => (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{children}</span>
+  )
+
   return (
-    <div className="bg-white rounded-xl border border-amber-300 p-4">
-      <h2 className="font-semibold text-neutral-900">Enrollment waitlist</h2>
-      <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-        Students whose age group is waitlisted. Releasing a student lets them choose classes
-        and emails their family{' — '}release only as many as you have room for. "Not accepted"
-        refunds the family's registration fee for that child. Children with an accepted older
-        sibling are marked <span className="font-semibold text-optio-purple">sibling priority</span>.
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-lg font-semibold text-neutral-900">Enrollment waitlist</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip tone="bg-amber-100 text-amber-800">{waiting.length} waiting</Chip>
+          {released.length > 0 && <Chip tone="bg-green-100 text-green-700">{released.length} released</Chip>}
+          {rejected.length > 0 && <Chip tone="bg-gray-100 text-gray-600">{rejected.length} not accepted</Chip>}
+        </div>
+      </div>
+      <p className="text-sm text-neutral-500 mt-1 mb-4">
+        Students whose age group you've waitlisted queue here until you release them. Releasing lets
+        a student choose classes and emails their family — release only as many as you have room for.
+        "Not accepted" refunds that child's registration fee. Children with an accepted older sibling
+        are tagged <span className="font-semibold text-optio-purple">sibling priority</span> and move
+        up the line. Add or reopen waitlisted age groups in the section below.
       </p>
-      {waiting.length === 0 && <p className="text-sm text-neutral-400">No one is waiting.</p>}
-      {bands.map((band) => {
-        const members = waiting.filter((e) => e.band_label === band.band_label)
-        return (
-          <div key={band.band_label} className="mb-3 last:mb-0">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
-                {band.band_label} · {members.length} waiting
-              </span>
-              {members.length > 1 && (
-                <button onClick={() => releaseBand(band)} disabled={busy === band.band_label}
-                  className="text-xs text-optio-purple font-medium hover:underline disabled:opacity-50">
-                  Release all {members.length}
-                </button>
+
+      {loading ? (
+        <p className="text-sm text-neutral-400">Loading…</p>
+      ) : bands.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center">
+          <p className="text-sm font-medium text-neutral-600">No age groups are waitlisted.</p>
+          <p className="text-sm text-neutral-400 mt-1">
+            Add a waitlisted age group in the section below and students in that age will queue here
+            as families register.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {bands.map((band) => (
+            <div key={band.band_label} className="rounded-lg border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
+                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  {band.band_label} · {band.members.length} waiting
+                  {!band.active && <span className="ml-2 normal-case font-normal text-[11px] text-neutral-400">(group reopened)</span>}
+                </span>
+                {band.members.length > 1 && (
+                  <button onClick={() => releaseBand(band)} disabled={busy === band.band_label}
+                    className="text-xs text-optio-purple font-medium hover:underline disabled:opacity-50">
+                    Release all {band.members.length}
+                  </button>
+                )}
+              </div>
+              {band.members.length === 0 ? (
+                <p className="text-sm text-neutral-400 px-3 py-3">No students waiting in this group yet.</p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {band.members.map((e) => (
+                    <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <div className="min-w-0 text-sm">
+                        <span className="font-medium text-neutral-900">#{e.position} {e.student_name}</span>
+                        {e.priority && (
+                          <span title="An older sibling has been accepted — this child has sibling priority"
+                            className="ml-1.5 inline-block rounded-full bg-optio-purple/10 px-2 py-0.5 text-[11px] font-semibold text-optio-purple align-middle">
+                            sibling priority
+                          </span>
+                        )}
+                        {e.age_snapshot != null && <span className="text-neutral-400"> · age {e.age_snapshot}</span>}
+                        {e.guardian_name && <span className="text-neutral-400"> · {e.guardian_name}</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => rejectOne(e)} disabled={busy === e.id}
+                          className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 text-neutral-600 hover:bg-gray-50 disabled:opacity-50">
+                          Not accepted
+                        </button>
+                        <button onClick={() => releaseOne(e)} disabled={busy === e.id}
+                          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+                          {busy === e.id ? 'Releasing…' : 'Release'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            <div className="space-y-1.5">
-              {members.map((e) => (
-                <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2">
-                  <div className="min-w-0 text-sm">
-                    <span className="font-medium text-neutral-900">#{e.position} {e.student_name}</span>
-                    {e.priority && (
-                      <span title="An older sibling has been accepted — this child has sibling priority"
-                        className="ml-1.5 inline-block rounded-full bg-optio-purple/10 px-2 py-0.5 text-[11px] font-semibold text-optio-purple align-middle">
-                        sibling priority
-                      </span>
-                    )}
-                    {e.age_snapshot != null && <span className="text-neutral-400"> · age {e.age_snapshot}</span>}
-                    {e.guardian_name && <span className="text-neutral-400"> · {e.guardian_name}</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => rejectOne(e)} disabled={busy === e.id}
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 text-neutral-600 hover:bg-gray-50 disabled:opacity-50">
-                      Not accepted
-                    </button>
-                    <button onClick={() => releaseOne(e)} disabled={busy === e.id}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
-                      {busy === e.id ? 'Releasing…' : 'Release'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
+          ))}
+        </div>
+      )}
+
       {released.length > 0 && (
-        <details className="mt-3">
+        <details className="mt-4">
           <summary className="text-sm text-neutral-500 cursor-pointer select-none">
             Released ({released.length})
           </summary>

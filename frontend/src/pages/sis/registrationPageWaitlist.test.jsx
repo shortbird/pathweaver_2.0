@@ -94,10 +94,18 @@ describe('AgeGatesCard', () => {
 })
 
 describe('EnrollmentWaitlistCard', () => {
-  it('renders nothing when no one has ever been waitlisted', async () => {
+  it('always shows the container, with an empty state when nothing is gated', async () => {
     render(<RegistrationPage />)
-    await screen.findByText('Enrollment age groups')
-    expect(screen.queryByText('Enrollment waitlist')).not.toBeInTheDocument()
+    expect(await screen.findByText('Enrollment waitlist')).toBeInTheDocument()
+    expect(screen.getByText(/No age groups are waitlisted/)).toBeInTheDocument()
+  })
+
+  it('shows an active waitlist age group even with nobody waiting', async () => {
+    state.gates = [{ min_age: 5, max_age: 9, mode: 'waitlist' }]
+    render(<RegistrationPage />)
+    // The empty per-band note only renders for a configured gate band with no
+    // students, proving the group shows from the gate (not from any entry).
+    expect(await screen.findByText(/No students waiting in this group yet/)).toBeInTheDocument()
   })
 
   it('lists waiting students in queue order and releases one', async () => {
