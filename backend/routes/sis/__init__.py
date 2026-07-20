@@ -646,6 +646,8 @@ def register_sis_routes(app):
     app.register_blueprint(registration_bp)
     from routes.sis.waitlist import bp as waitlist_bp
     app.register_blueprint(waitlist_bp)
+    from routes.sis.clp import bp as clp_bp
+    app.register_blueprint(clp_bp)
     from routes.sis.billing import bp as billing_bp
     app.register_blueprint(billing_bp)
     from routes.sis.attendance import bp as attendance_bp

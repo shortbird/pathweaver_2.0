@@ -320,6 +320,33 @@ def enroll_student(user_id, class_id):
     return jsonify({'success': True}), 201
 
 
+@bp.route('/classes/<class_id>/enrollments/<student_id>', methods=['DELETE'])
+@require_role(*STAFF_ROLES)
+def unenroll_student(user_id, class_id, student_id):
+    """Staff drop a student from a class (marks the enrollment withdrawn and
+    re-syncs the class group). Used by the CLP meeting view to make live changes.
+    Idempotent: dropping a student who isn't enrolled succeeds as a no-op."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    repo = SisClassRepository(client=supabase)
+    if not _load_class(repo, org_id, class_id):
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+
+    existing = (
+        supabase.table('class_enrollments').select('id, status')
+        .eq('class_id', class_id).eq('student_id', student_id).limit(1).execute()
+    ).data
+    if not existing or existing[0].get('status') != 'active':
+        return jsonify({'success': True, 'not_enrolled': True})
+
+    supabase.table('class_enrollments').update({'status': 'withdrawn'}).eq('id', existing[0]['id']).execute()
+    from services.class_group_sync_service import sync_class_group
+    sync_class_group(class_id, actor_id=user_id)
+    return jsonify({'success': True})
+
+
 # ── Optio-course settings ────────────────────────────────────────────────────
 # Per-org details for the Optio courses an org offers (the "iCreate versions" of
 # at-home-learning courses). Teacher is per-course (org_course_settings); tuition

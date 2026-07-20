@@ -18,6 +18,7 @@ const SisDashboard = lazy(() => import('../pages/sis/SisDashboard'))
 const RosterPage = lazy(() => import('../pages/sis/RosterPage'))
 const StaffPage = lazy(() => import('../pages/sis/StaffPage'))
 const ClassesPage = lazy(() => import('../pages/sis/ClassesPage'))
+const ClpPage = lazy(() => import('../pages/sis/ClpPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
 const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
 const HouseholdsPage = lazy(() => import('../pages/sis/HouseholdsPage'))
@@ -57,6 +58,7 @@ const SisRoutes = () => (
       <Route path="roster" element={<Navigate to="/users" replace />} />
       <Route path="staff" element={<StaffPage />} />
       <Route path="classes" element={<ClassesPage />} />
+      <Route path="clp" element={<ClpPage />} />
       <Route path="billing" element={<BillingPage />} />
       <Route path="attendance" element={<AttendancePage />} />
       <Route path="households" element={<HouseholdsPage />} />
