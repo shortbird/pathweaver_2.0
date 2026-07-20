@@ -167,7 +167,7 @@ Add UTMs when linking from emails. Articles are edited via the superadmin Docs a
 - Brevo campaign stats (opens are unreliable post-Apple-MPP; judge by clicks and replies).
 - Weekly review: leads in, catch-up/auto emails sent, replies, accounts created, classes claimed. `contact_submissions.status` should move `new → contacted → converted/closed` — update as part of the weekly pass so the table stays a truthful CRM.
 
-## 10. General Interest Nurture (built 2026-07-13, awaiting automation activation)
+## 10. General Interest Nurture (built 2026-07-13, automation ACTIVE)
 
 Funnel for the homepage "Get More Info" CTA (contact types `demo`/`general`; confirmation email
 subject "Thanks for Your Interest in Optio!"). Separate from the free-class and POE funnels.
@@ -183,7 +183,8 @@ transferring credits / leaving traditional HS; community portfolio program), one
 - [x] Backend remap in `brevo_service.py`: `demo`/`general` → #12 (was B2B #6 / Families #5); `mark_converted` also unlinks #12. **Needs deploy to prod before new leads route to #12.**
 
 **Dashboard-only (Tanner):**
-- [ ] Automation "General Interest Nurture": trigger = contact added to list #12, exclude existing list members; send templates 24 (delay 1h) / 25 (day 3) / 26 (day 6) / 27 (day 10); exit rule = contact added to Customers (#8). Same pattern as Free Class Nurture.
+- [x] Automation "General Interest Nurture" is live (verified via event logs 2026-07-20: leads from 7/13–7/17 receiving the sequence). The automation sends its own copies of templates 24–27 (ids 30/29/31/32 in event logs), so the source templates staying "inactive" is expected. Actual cadence: e1 ~1h after list add, then every 2 days (not the 1h/d3/d6/d10 in the original plan).
+- [x] One-funnel-per-lead (2026-07-20): `sync_lead` now skips the Brevo add when the contact is already on another lead list (first list wins), after a double-enrollment: a 7/15 lead submitted the free-class and demo forms minutes apart, landed on #4 and #12, and got both sequences with near-identical copy. Cleanup: removed her from #12 and restored LEAD_TYPE=claim_free_class; she must also be removed from the General Interest Nurture automation in the dashboard (list removal alone does not stop an in-progress sequence; the only exit rule is added-to-Customers).
 - [ ] Decide on the 5 pre-automation demo leads sitting in B2B #6 (they will NOT be picked up by the automation, and two asked specific questions months ago). Recommended: short personal replies (Amber's lead is from 2026-07-13, so a normal reply is still timely), or a catch-up campaign to a "Catch-up General Interest" list mirroring the free-class approach. Move the parent-type leads out of #6 either way; sailfuture.org stays B2B.
 
 **UTMs**: `utm_source=brevo&utm_medium=email&utm_campaign=general_interest_nurture&utm_content=e1…e4`.

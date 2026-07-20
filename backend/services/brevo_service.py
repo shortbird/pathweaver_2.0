@@ -56,6 +56,15 @@ LEAD_TYPE_LISTS = {
     'academy': LIST_B2B,
 }
 
+# A lead belongs to exactly one of these at a time. Someone who submits two
+# forms (e.g. free-class then demo, minutes apart) must not enter two nurture
+# sequences with near-identical copy, so the first list wins and later
+# submissions are recorded in contact_submissions only.
+EXCLUSIVE_LEAD_LISTS = [
+    LIST_FREE_CLASS_LEADS, LIST_FAMILIES, LIST_B2B,
+    LIST_CATCHUP_FREE_CLASS, LIST_GENERAL_INTEREST,
+]
+
 
 def _enabled():
     if not Config.BREVO_API_KEY:
@@ -92,14 +101,40 @@ def _upsert_contact(email, list_ids, attributes):
     return True
 
 
+def _existing_lead_lists(email):
+    """Lead-list memberships of an existing contact ([] for new contacts,
+    and on lookup errors so the sync still proceeds)."""
+    try:
+        resp = requests.get(
+            f'{BREVO_BASE}/contacts/{quote(email, safe="")}',
+            headers=_headers(),
+            timeout=REQUEST_TIMEOUT,
+        )
+        if resp.status_code != 200:
+            return []
+        return [l for l in resp.json().get('listIds', []) if l in EXCLUSIVE_LEAD_LISTS]
+    except Exception as e:
+        logger.warning(f'Brevo contact lookup error: {e}')
+        return []
+
+
 def sync_lead(email, contact_type, name=None):
     """Create/update a Brevo contact for a new lead and add it to the list
-    matching its type (which starts the nurture automation for free-class
-    leads)."""
+    matching its type (which starts that list's nurture automation). If the
+    contact is already on another lead list, the first list wins and this
+    sync is skipped entirely, so one lead never runs two sequences."""
     if not _enabled():
         return
     list_id = LEAD_TYPE_LISTS.get(contact_type)
     if not list_id:
+        return
+
+    existing_lists = _existing_lead_lists(email)
+    if existing_lists and list_id not in existing_lists:
+        logger.info(
+            f'Brevo lead already on list(s) {existing_lists}; '
+            f'skipping add to {list_id} (one funnel per lead)'
+        )
         return
 
     attributes = {
