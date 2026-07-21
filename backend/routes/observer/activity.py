@@ -606,7 +606,9 @@ def register_routes(bp):
                 from routes.parent.dashboard_overview import verify_parent_access
                 from middleware.error_handler import AuthorizationError
                 try:
-                    verify_parent_access(supabase, user_id, owner_id)
+                    # IDOR-H5: toggling confidentiality is a WRITE; view-only
+                    # observers must not change a child's item visibility.
+                    verify_parent_access(supabase, user_id, owner_id, allow_observer=False)
                     authorized = True
                 except AuthorizationError:
                     authorized = False

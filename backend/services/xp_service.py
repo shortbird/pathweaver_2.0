@@ -108,42 +108,25 @@ class XPService(BaseService):
         self.validate_one_of('pillar', db_pillar, ['art', 'stem', 'wellness', 'communication', 'civics'])
         
         try:
-            # NOTE: For atomic increment, run the migration:
-            #   psql $DATABASE_URL -f backend/migrations/20260215_create_atomic_xp_increment.sql
-            # Then switch to RPC call: self.supabase.rpc('increment_user_xp', {...})
-
-            # Current approach: read-modify-write with upsert for new records
-            current_xp = self.supabase.table('user_skill_xp')\
-                .select('id, xp_amount')\
-                .eq('user_id', user_id)\
-                .eq('pillar', db_pillar)\
-                .execute()
-
-            if current_xp.data:
-                existing_record = current_xp.data[0]
-                existing_xp = existing_record.get('xp_amount', 0)
-                new_total = existing_xp + xp_amount
-                record_id = existing_record.get('id')
-
-                logger.info(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
-
-                result = self.supabase.table('user_skill_xp')\
-                    .update({
-                        'xp_amount': new_total,
-                        'updated_at': datetime.utcnow().isoformat()
-                    })\
-                    .eq('id', record_id)\
-                    .execute()
+            # PERF-H1 fix: use the ATOMIC DB-side increment instead of a
+            # read-modify-write. The old pattern (read current -> add -> write)
+            # silently LOST XP under concurrent completions (mobile double-taps,
+            # batch approvals): two requests could both read N and both write
+            # N+delta. increment_user_xp performs `xp_amount = xp_amount + delta`
+            # in a single statement (verified live: SECURITY DEFINER, pinned
+            # search_path=public).
+            if xp_amount and int(xp_amount) > 0:
+                result = self.supabase.rpc('increment_user_xp', {
+                    'p_user_id': user_id,
+                    'p_pillar': db_pillar,
+                    'p_amount': int(xp_amount),
+                }).execute()
+                award_ok = bool(result.data)
+                logger.info(f"Atomic XP increment for {db_pillar} (+{xp_amount})")
             else:
-                logger.info(f"Creating new XP record for {db_pillar} with {xp_amount} XP")
-                result = self.supabase.table('user_skill_xp')\
-                    .upsert({
-                        'user_id': user_id,
-                        'pillar': db_pillar,
-                        'xp_amount': xp_amount,
-                        'updated_at': datetime.utcnow().isoformat()
-                    }, on_conflict='user_id,pillar')\
-                    .execute()
+                # The RPC rejects non-positive amounts; awarding 0 XP is a no-op.
+                logger.info(f"Skipping non-positive XP award ({xp_amount}) for {db_pillar}")
+                award_ok = True
 
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
@@ -160,10 +143,10 @@ class XPService(BaseService):
                 # Non-fatal: most students have no wallet
                 logger.debug(f"Spendable XP update skipped for user {user_id[:8]}: {spendable_err}")
 
-            logger.info(f"XP award success: {bool(result.data)}")
+            logger.info(f"XP award success: {award_ok}")
             logger.info("===============================")
 
-            return bool(result.data)
+            return award_ok
             
         except Exception as e:
             logger.error(f"Error awarding XP: {str(e)}")

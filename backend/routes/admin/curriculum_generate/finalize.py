@@ -35,6 +35,7 @@ import time
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
+from utils.auth.org_scope import caller_can_access_course
 from services.course_generation_service import CourseGenerationService
 from services.course_generation_job_service import CourseGenerationJobService
 from services.base_ai_service import AIGenerationError
@@ -72,6 +73,10 @@ def finalize_course(user_id, course_id):
     }
     """
     try:
+        # IDOR-H8 fix: only publish a course in the caller's org.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
         organization_id = get_organization_id(user_id)
         service = CourseGenerationService(user_id, organization_id)
 
@@ -103,6 +108,11 @@ def delete_draft(user_id, course_id):
     }
     """
     try:
+        # IDOR-C3/H8 fix: only delete a draft in the caller's org. Previously
+        # this cascade-deleted another org's course + students' user_quest_tasks.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
         organization_id = get_organization_id(user_id)
         service = CourseGenerationService(user_id, organization_id)
 

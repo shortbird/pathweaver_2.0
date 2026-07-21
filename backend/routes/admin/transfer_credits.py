@@ -14,6 +14,7 @@ Endpoints:
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_school_admin
+from utils.auth.org_scope import caller_can_access_user
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from werkzeug.utils import secure_filename
@@ -79,6 +80,10 @@ def get_transfer_credits(admin_user_id, user_id):
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
+        # IDOR-C2 fix: the target student must be in the caller's org (superadmin exempt).
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
+
         # Verify the target user exists
         user_result = supabase.table('users').select('id, first_name, last_name, email').eq('id', user_id).execute()
         if not user_result.data:
@@ -139,6 +144,8 @@ def save_transfer_credits(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         data = request.json or {}
 
         # Validate required fields (handle None values from frontend)
@@ -278,6 +285,8 @@ def upload_transcript(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
 
         # Check if file was provided
         if 'file' not in request.files:
@@ -387,6 +396,8 @@ def delete_single_transfer_credit(admin_user_id, user_id, transfer_credit_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
 
         # Get the specific transfer credit record (id is unique, no need for user_id filter)
         existing = supabase.table('transfer_credits').select('*').eq('id', transfer_credit_id).execute()
@@ -415,6 +426,8 @@ def delete_all_transfer_credits(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
 
         # Get all transfer credits for this user
         existing = supabase.table('transfer_credits').select('*').eq('user_id', user_id).execute()

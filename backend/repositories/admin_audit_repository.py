@@ -104,7 +104,8 @@ class AdminAuditRepository(BaseRepository):
         limit: int = 100,
         offset: int = 0,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        organization_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all actions performed by a specific admin.
@@ -115,6 +116,7 @@ class AdminAuditRepository(BaseRepository):
             offset: Number of logs to skip
             start_date: Filter logs after this date
             end_date: Filter logs before this date
+            organization_id: When set, restrict to this org (tenant scoping)
 
         Returns:
             List of audit log records
@@ -122,6 +124,8 @@ class AdminAuditRepository(BaseRepository):
         try:
             query = self.query().select('*').eq('admin_id', admin_id)
 
+            if organization_id:
+                query = query.eq('organization_id', organization_id)
             if start_date:
                 query = query.gte('created_at', start_date.isoformat())
             if end_date:
@@ -141,7 +145,8 @@ class AdminAuditRepository(BaseRepository):
         resource_type: str,
         resource_id: str,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
+        organization_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all actions performed on a specific resource.
@@ -151,15 +156,21 @@ class AdminAuditRepository(BaseRepository):
             resource_id: UUID of the resource
             limit: Maximum number of logs to return
             offset: Number of logs to skip
+            organization_id: When set, restrict to this org (tenant scoping)
 
         Returns:
             List of audit log records
         """
         try:
-            response = self.query()\
+            query = self.query()\
                 .select('*, users!admin_id(first_name, last_name, email)')\
                 .eq('resource_type', resource_type)\
-                .eq('resource_id', resource_id)\
+                .eq('resource_id', resource_id)
+
+            if organization_id:
+                query = query.eq('organization_id', organization_id)
+
+            response = query\
                 .order('created_at', desc=True)\
                 .limit(limit)\
                 .offset(offset)\

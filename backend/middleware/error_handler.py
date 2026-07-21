@@ -157,11 +157,20 @@ class ErrorHandler:
         log_error(error, self.get_request_info())
         response = format_error_response(error)
         resp = jsonify(response)
-        # Ensure CORS headers are set for error responses
+        # AUTH-H3 fix: only echo the Origin for credentialed CORS when it is on
+        # the allowlist. Previously ANY origin was reflected with
+        # Access-Control-Allow-Credentials: true, letting a malicious origin read
+        # credentialed error bodies (auth state, IDOR/validation signals).
         origin = request.headers.get('Origin')
-        if origin:
+        try:
+            from app_config import Config
+            allowed = origin and origin in Config.ALLOWED_ORIGINS
+        except Exception:
+            allowed = False
+        if allowed:
             resp.headers['Access-Control-Allow-Origin'] = origin
             resp.headers['Access-Control-Allow-Credentials'] = 'true'
+            resp.headers['Vary'] = 'Origin'
         return resp, error.status_code
     
     def handle_http_error(self, error):

@@ -496,9 +496,17 @@ def message_student(user_id, student_id):
 
 
 # ── Emergency contacts ───────────────────────────────────────────────────────
+# SECURITY (IDOR-H10 fix): every endpoint here resolves the caller's org and
+# verifies the target student/contact belongs to it before reading or deleting
+# a minor's emergency-contact PII (names, phones, pickup authorization).
 @bp.route('/students/<student_id>/emergency-contacts', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_emergency_contacts(user_id, student_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not sis_service.student_in_org(student_id, org_id):
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
     return jsonify({'success': True, 'contacts': sis_service.list_emergency_contacts(student_id)})
 
 
@@ -508,6 +516,8 @@ def add_emergency_contact(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    if not sis_service.student_in_org(student_id, org_id):
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
     data = request.json or {}
     if not (data.get('name') or '').strip():
         return jsonify({'success': False, 'error': 'Contact name is required'}), 400
@@ -518,7 +528,11 @@ def add_emergency_contact(user_id, student_id):
 @bp.route('/emergency-contacts/<contact_id>', methods=['DELETE'])
 @require_role(*STAFF_ROLES)
 def delete_emergency_contact(user_id, contact_id):
-    sis_service.delete_emergency_contact(contact_id)
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not sis_service.delete_emergency_contact(contact_id, org_id):
+        return jsonify({'success': False, 'error': 'Contact not found'}), 404
     return jsonify({'success': True})
 
 
@@ -593,7 +607,7 @@ def remove_household_contact(user_id, household_id):
     if err:
         return err
     ids = (request.json or {}).get('ids') or []
-    sis_service.remove_household_emergency_contacts(ids)
+    sis_service.remove_household_emergency_contacts(org_id, household_id, ids)
     return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
 
 

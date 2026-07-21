@@ -28,7 +28,8 @@ from routes.personalization_validators import (
     validate_finalize_tasks_request,
     validate_accept_task_request,
     validate_skip_task_request,
-    validate_manual_tasks_batch
+    validate_manual_tasks_batch,
+    clamp_xp_value
 )
 from utils.personalization_helpers import (
     get_effective_user_id,
@@ -420,6 +421,17 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
         created_tasks = []
 
         for idx, task in enumerate(tasks):
+            # QP-1 fix: xp_value is student-controlled and these tasks are
+            # auto-approved (approval_status='approved'), so an uncapped value
+            # would let a student self-award arbitrary XP and corrupt
+            # leaderboards + badge thresholds. Coerce to int and clamp to the
+            # allowed range BEFORE it flows into distribution/credit below.
+            try:
+                _raw_xp = int(task.get('xp_value', 100))
+            except (TypeError, ValueError):
+                _raw_xp = 100
+            task['xp_value'] = clamp_xp_value(_raw_xp)
+
             # Normalize pillar name
             try:
                 pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
@@ -741,6 +753,14 @@ def accept_task_immediate(user_id: str, quest_id: str):
 
         session_id = data['session_id']
         task = data['task']
+
+        # QP-1 fix: clamp the student-controlled xp_value before this
+        # auto-approved task is created AND copied into the shared task library.
+        try:
+            _raw_xp = int(task.get('xp_value', 100))
+        except (TypeError, ValueError):
+            _raw_xp = 100
+        task['xp_value'] = clamp_xp_value(_raw_xp)
 
         # Get or create enrollment
         user_quest_id = get_or_create_enrollment(user_id, quest_id)

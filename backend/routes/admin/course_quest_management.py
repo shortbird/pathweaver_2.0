@@ -347,7 +347,10 @@ def update_course_tasks(user_id, quest_id):
             user_org = user_result.data.get('organization_id')
             quest_org = quest.data.get('organization_id')
 
-            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+            # IDOR-H8 fix: a non-superadmin may only mutate a quest whose org
+            # matches theirs. `and quest_org` previously short-circuited to
+            # allow ANY advisor to rewrite GLOBAL (NULL-org) course content.
+            if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
         if not data.get('tasks') or not isinstance(data['tasks'], list):
@@ -517,7 +520,8 @@ def delete_course_task(user_id, quest_id, task_id):
             user_org = user_result.data.get('organization_id')
             quest_org = quest.data.get('organization_id')
 
-            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+            # IDOR-H8 fix: deny non-superadmins deleting GLOBAL (NULL-org) content.
+            if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
         result = supabase.table('course_quest_tasks')\
@@ -646,7 +650,8 @@ def update_template_tasks(user_id, quest_id):
             user_org = user_result.data.get('organization_id')
             quest_org = quest.data.get('organization_id')
 
-            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+            # IDOR-H8 fix: deny non-superadmins mutating GLOBAL (NULL-org) content.
+            if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
         if not data.get('tasks'):
@@ -738,7 +743,8 @@ def delete_template_task(user_id, quest_id, task_id):
             user_org = user_result.data.get('organization_id')
             quest_org = quest.data.get('organization_id')
 
-            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+            # IDOR-H8 fix: deny non-superadmins deleting GLOBAL (NULL-org) content.
+            if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
         # Delete from unified table

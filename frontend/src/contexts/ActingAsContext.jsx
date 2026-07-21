@@ -77,21 +77,16 @@ export const ActingAsProvider = ({ children }) => {
         throw new Error(response.data.error || 'Failed to get parent tokens from backend');
       }
     } catch (error) {
-      console.warn('[ActingAsContext] Backend stop-acting-as failed, trying sessionStorage fallback:', error.message);
-
-      // FALLBACK: Try sessionStorage (works in same-origin environments like localhost)
-      const parentAccess = sessionStorage.getItem('parent_access_token');
-      const parentRefresh = sessionStorage.getItem('parent_refresh_token');
-
-      if (parentAccess && parentRefresh) {
-        await tokenStore.setTokens(parentAccess, parentRefresh);
-        logger.debug('[ActingAsContext] Restored parent tokens from sessionStorage fallback');
-      } else {
-        console.error('[ActingAsContext] No parent tokens available - user will need to log in again');
-      }
+      // FE-H1 fix: no sessionStorage token fallback anymore (parent tokens are
+      // never persisted). If the backend round-trip fails, clear the acting-as
+      // token so requests fall back to the parent's httpOnly-cookie session;
+      // if that too is unavailable (cross-origin header-auth), the parent
+      // re-authenticates. This is the secure default.
+      console.warn('[ActingAsContext] Backend stop-acting-as failed; parent must re-authenticate if the cookie session is unavailable:', error.message);
     }
 
-    // Clean up all acting-as state from sessionStorage
+    // Clean up all acting-as state from sessionStorage (incl. removing any
+    // legacy parent_* token values written by older builds).
     sessionStorage.removeItem('acting_as_dependent');
     sessionStorage.removeItem('acting_as_token');
     sessionStorage.removeItem('acting_as_parent_name');
@@ -131,15 +126,13 @@ export const ActingAsProvider = ({ children }) => {
   const setActingAs = async (dependent, redirectTo = '/dashboard') => {
     if (dependent) {
       try {
-        // CRITICAL: Save parent's tokens before switching to dependent
-        const parentAccess = tokenStore.getAccessToken();
+        // FE-H1 fix: DO NOT persist the parent's access/refresh tokens in
+        // sessionStorage. The long-lived parent refresh token there was
+        // stealable by any XSS -> indefinite parent-account access in a
+        // COPPA-sensitive flow. The parent session is restored on stop via a
+        // backend round-trip (/api/dependents/stop-acting-as), matching the
+        // masqueradeService pattern (backend mints tokens; only UI state cached).
         const parentRefresh = tokenStore.getRefreshToken();
-
-        if (parentAccess && parentRefresh) {
-          sessionStorage.setItem('parent_access_token', parentAccess);
-          sessionStorage.setItem('parent_refresh_token', parentRefresh);
-          logger.debug('[ActingAsContext] Saved parent tokens before switching');
-        }
 
         // Save parent's name for display in navbar
         if (user) {

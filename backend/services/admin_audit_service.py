@@ -101,7 +101,8 @@ class AdminAuditService(BaseService):
         limit: int = 100,
         offset: int = 0,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        organization_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all actions performed by a specific admin.
@@ -112,6 +113,7 @@ class AdminAuditService(BaseService):
             offset: Number of logs to skip
             start_date: Filter logs after this date
             end_date: Filter logs before this date
+            organization_id: When set, restrict to this org (tenant scoping)
 
         Returns:
             List of audit log records
@@ -122,7 +124,8 @@ class AdminAuditService(BaseService):
                 limit=limit,
                 offset=offset,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
+                organization_id=organization_id
             )
         except Exception as e:
             logger.error(f"Failed to fetch admin activity: {e}")
@@ -133,7 +136,8 @@ class AdminAuditService(BaseService):
         resource_type: str,
         resource_id: str,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
+        organization_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all actions performed on a specific resource.
@@ -143,6 +147,7 @@ class AdminAuditService(BaseService):
             resource_id: UUID of the resource
             limit: Maximum number of logs to return
             offset: Number of logs to skip
+            organization_id: When set, restrict to this org (tenant scoping)
 
         Returns:
             List of audit log records
@@ -152,7 +157,8 @@ class AdminAuditService(BaseService):
                 resource_type=resource_type,
                 resource_id=resource_id,
                 limit=limit,
-                offset=offset
+                offset=offset,
+                organization_id=organization_id
             )
         except Exception as e:
             logger.error(f"Failed to fetch resource history: {e}")

@@ -26,6 +26,7 @@ Features:
     - Optional response caching
 """
 
+import os
 import re
 import json
 import time
@@ -123,9 +124,15 @@ class BaseAIService(BaseService):
 
     # Default configuration
     DEFAULT_MODEL = 'gemini-2.5-flash-lite'
-    DEFAULT_MAX_RETRIES = 3
+    # PERF-H3 fix: keep (retries × per-request timeout + backoff) UNDER the
+    # gunicorn worker timeout (120s), or a slow provider triggers a worker
+    # SIGKILL and cascading 502s. Worst case here: 2 × 45s + ≤8s backoff = 98s
+    # < 120s. Tunable via env if the worker timeout changes. In-request AI calls
+    # should stay bounded; long generations run in background jobs instead.
+    DEFAULT_MAX_RETRIES = int(os.getenv('AI_MAX_RETRIES', '2'))
     DEFAULT_RETRY_DELAY = 1.0  # seconds
     MAX_RETRY_DELAY = 8.0  # seconds
+    AI_REQUEST_TIMEOUT = int(os.getenv('AI_REQUEST_TIMEOUT', '45'))  # per-attempt, seconds
 
     def __init__(self, model_override: str = None):
         """
@@ -258,11 +265,12 @@ class BaseAIService(BaseService):
                 continue
 
             try:
-                # 120s timeout to prevent indefinite hangs
+                # PERF-H3: bounded per-attempt timeout so retries × timeout +
+                # backoff stays under the gunicorn worker timeout.
                 response = model.generate_content(
                     prompt,
                     generation_config=gen_config if gen_config else None,
-                    request_options=RequestOptions(timeout=120),
+                    request_options=RequestOptions(timeout=self.AI_REQUEST_TIMEOUT),
                 )
                 if idx > 0:
                     logger.info(

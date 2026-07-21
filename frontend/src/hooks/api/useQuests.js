@@ -140,7 +140,7 @@ export const useAbandonQuest = () => {
   return useMutation({
     mutationKey: [mutationKeys.abandonQuest],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/quests/${questId}/abandon`)
+      const response = await api.post(`/api/quests/${questId}/abandon`, {})  // send a JSON body (CSRF/Content-Type)
       return response.data
     },
     onSuccess: (data, questId) => {

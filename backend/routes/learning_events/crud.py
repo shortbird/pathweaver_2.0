@@ -178,7 +178,7 @@ def create_quick_learning_event(user_id):
             from routes.parent.dashboard_overview import verify_parent_access
             # admin client justified: cross-user write (moment owned by child) gated by verify_parent_access(parent -> child)
             supabase = get_supabase_admin_client()
-            verify_parent_access(supabase, user_id, student_id)  # raises AuthorizationError if not linked
+            verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H5: write; raises if not a guardian
             event_data = {
                 'user_id': student_id,
                 'captured_by_user_id': user_id,

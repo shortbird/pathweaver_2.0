@@ -345,8 +345,27 @@ def add_emergency_contact(student_id: str, org_id: Optional[str],
     return resp.data[0] if resp.data else None
 
 
-def delete_emergency_contact(contact_id: str) -> None:
+def delete_emergency_contact(contact_id: str, org_id: str) -> bool:
+    """Delete a single emergency contact, but only when it belongs to the
+    caller's org (IDOR-H10). Ownership is the contact's own organization_id when
+    set, else the org of the student it belongs to (older rows may have NULL
+    organization_id). Returns True if deleted, False if not found / forbidden."""
+    row = (
+        _admin().table('emergency_contacts')
+        .select('id, student_user_id, organization_id')
+        .eq('id', contact_id).limit(1).execute()
+    ).data
+    if not row:
+        return False
+    c = row[0]
+    contact_org = c.get('organization_id')
+    if contact_org:
+        if contact_org != org_id:
+            return False
+    elif not student_in_org(c.get('student_user_id'), org_id):
+        return False
     _admin().table('emergency_contacts').delete().eq('id', contact_id).execute()
+    return True
 
 
 # ── Family-level emergency contacts (per-student rows shared across a household) ─
@@ -470,9 +489,23 @@ def add_household_emergency_contact(org_id: str, household_id: str, fields: Dict
     return {'added': added}
 
 
-def remove_household_emergency_contacts(ids: List[str]) -> None:
-    if ids:
-        _admin().table('emergency_contacts').delete().in_('id', ids).execute()
+def remove_household_emergency_contacts(org_id: str, household_id: str, ids: List[str]) -> int:
+    """Delete the given emergency-contact rows, but only those belonging to a
+    student in this household + org (IDOR-H10). Any ids outside the household are
+    ignored rather than trusted from the request body. Returns the count deleted."""
+    if not ids:
+        return 0
+    sids = set(household_student_ids(org_id, household_id))
+    if not sids:
+        return 0
+    rows = (
+        _admin().table('emergency_contacts').select('id, student_user_id')
+        .in_('id', ids).execute()
+    ).data or []
+    allowed = [r['id'] for r in rows if r.get('student_user_id') in sids]
+    if allowed:
+        _admin().table('emergency_contacts').delete().in_('id', allowed).execute()
+    return len(allowed)
 
 
 def copy_family_contacts_to_student(org_id: str, student_id: str) -> Dict[str, Any]:

@@ -18,6 +18,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_school_admin
+from utils.auth.org_scope import caller_can_access_user, user_org, caller_can_access_org
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from services.portfolio_service import PortfolioService
@@ -61,6 +62,10 @@ def get_transcript_data(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+
+        # IDOR-C1 fix: the target student must be in the caller's org (superadmin exempt).
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
 
         # Student info
         user_result = supabase.table('users').select(
@@ -274,6 +279,8 @@ def get_planned_credits(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         result = supabase.table('planned_credits').select('*').eq(
             'user_id', user_id
         ).order('created_at', desc=False).execute()
@@ -291,6 +298,8 @@ def add_planned_credit(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         data = request.json or {}
 
         school_subject = data.get('school_subject', '').strip()
@@ -336,6 +345,8 @@ def update_planned_credit(admin_user_id, user_id, credit_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         data = request.json or {}
 
         update_data = {}
@@ -376,6 +387,8 @@ def delete_planned_credit(admin_user_id, user_id, credit_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         supabase.table('planned_credits').delete().eq(
             'id', credit_id
         ).eq('user_id', user_id).execute()
@@ -405,12 +418,16 @@ def update_course_names(admin_user_id, transfer_credit_id):
         course_names = data.get('course_names', {})
 
         # Verify record exists
-        existing = supabase.table('transfer_credits').select('id, subject_xp').eq(
+        existing = supabase.table('transfer_credits').select('id, subject_xp, user_id').eq(
             'id', transfer_credit_id
         ).execute()
 
         if not existing.data:
             return error_response('Transfer credit not found', status_code=404)
+
+        # IDOR-C1 fix: the record's student must be in the caller's org.
+        if not caller_can_access_user(supabase, admin_user_id, existing.data[0].get('user_id')):
+            return error_response('Access denied', status_code=403)
 
         subject_xp = existing.data[0].get('subject_xp', {})
 
@@ -452,6 +469,8 @@ def check_transcript_exists(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         result = supabase.table('transcript_overrides').select('id').eq(
             'user_id', user_id
         ).execute()
@@ -467,6 +486,8 @@ def get_overrides(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         result = supabase.table('transcript_overrides').select('overrides').eq(
             'user_id', user_id
         ).execute()
@@ -484,6 +505,8 @@ def save_overrides(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         overrides = request.json or {}
 
         existing = supabase.table('transcript_overrides').select('id').eq(
@@ -522,6 +545,8 @@ def get_transfer_history(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
         result = supabase.table('transcript_transfer_log').select(
             'id, school_name, recipient_name, recipient_email, status, created_at'
         ).eq('user_id', user_id).order('created_at', desc=True).limit(20).execute()
@@ -571,6 +596,12 @@ def send_transcript_to_school(admin_user_id, user_id):
 
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+
+        # IDOR-C1 fix: only send an official transcript for a student in the
+        # caller's org. Previously any org_admin could email any minor's
+        # transcript + DOB to an attacker-supplied address.
+        if not caller_can_access_user(supabase, admin_user_id, user_id):
+            return error_response('Access denied', status_code=403)
 
         user_result = supabase.table('users').select(
             'id, first_name, last_name, date_of_birth, organization_id, email, '

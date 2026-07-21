@@ -330,6 +330,7 @@ def forgot_password():
 
 
 @bp.route('/reset-password', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=600)  # AUTH-H6: throttle reset-token consumption (10 / 10 min per IP)
 def reset_password():
     """
     Reset password using custom token from email link.
@@ -422,6 +423,18 @@ def reset_password():
                 logger.error(f"[RESET_PASSWORD] Warning: Failed to sync email in public.users: {sync_error}")
 
             # Token already marked as used atomically at the start (prevents race condition)
+
+            # AUTH-H5 fix: stamp last_logout_at so every access/refresh token
+            # issued BEFORE this reset is invalidated (the require_auth / refresh
+            # path rejects tokens whose iat precedes last_logout_at). Without
+            # this, a stolen refresh token survived a password reset for up to
+            # 30 days.
+            try:
+                admin_client.table('users').update({
+                    'last_logout_at': now_utc.isoformat()
+                }).eq('id', user_id).execute()
+            except Exception as invalidate_error:
+                logger.error(f"[RESET_PASSWORD] Failed to stamp last_logout_at: {invalidate_error}")
 
             # Clear any account lockouts for this user
             reset_login_attempts(auth_email)

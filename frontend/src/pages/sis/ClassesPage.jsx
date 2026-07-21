@@ -27,6 +27,25 @@ const endTime = (start, minutes) => {
   return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`
 }
 
+// "HH:MM[:SS]" -> "9:30am"
+const fmt12 = (t) => {
+  const [h, m] = hhmm(t).split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
+}
+
+// Day-of-week filter chips (school week). Th spelled out to avoid T/T ambiguity.
+const DAY_FILTERS = [
+  { dow: 1, label: 'Mon' }, { dow: 2, label: 'Tue' }, { dow: 3, label: 'Wed' },
+  { dow: 4, label: 'Thu' }, { dow: 5, label: 'Fri' },
+]
+
+const blockLabel = (b) => `${fmt12(b.start)}–${fmt12(b.end)}${b.label ? ` (${b.label})` : ''}`
+
+const DOW_LABEL = { 0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat' }
+
 // College/dual-credit course codes like "HIST 1301" — excluded from the catalog.
 const COURSE_CODE_RE = /^[A-Za-z]{2,8}\s\d{3,4}\b/
 // Optio courses a partner can enroll families into: published, public, project-based
@@ -54,6 +73,7 @@ const ClassesPage = () => {
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
   const [classes, setClasses] = useState([])
+  const [conflicts, setConflicts] = useState([]) // enrolled students double-booked across classes
   const [courses, setCourses] = useState([])
   const [staff, setStaff] = useState([])
   const [courseSettings, setCourseSettings] = useState({}) // course_id -> {teacher}
@@ -64,6 +84,10 @@ const ClassesPage = () => {
   const [settingsCourse, setSettingsCourse] = useState(null) // course open in the detail modal (settings/enroll/enrollments tabs)
   const [filter, setFilter] = useState('classes')  // all | classes | courses; default: org's own classes
   const [search, setSearch] = useState('')
+  // Attribute filters (esp. for CLP scheduling: "what's offered in this block?")
+  const [dayFilter, setDayFilter] = useState(null)      // 0-6 or null
+  const [blockFilter, setBlockFilter] = useState('')    // index into pickableBlocks, or ''
+  const [teacherFilter, setTeacherFilter] = useState('')// staff id or ''
   const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
   const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
   // cards | table — table is the spreadsheet view of the org's classes.
@@ -84,8 +108,9 @@ const ClassesPage = () => {
       api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} })),
       api.get(`/api/admin/organizations/${orgId}`).catch(() => ({ data: {} })),
+      api.get(withOrg('/api/sis/schedule-conflicts', orgId)).catch(() => ({ data: {} })),
     ])
-      .then(([cls, crs, stf, ct, org]) => {
+      .then(([cls, crs, stf, ct, org, conf]) => {
         setClasses(cls.data?.classes || [])
         const all = crs.data?.courses || []
         setCourses(all.filter((c) => isSelectableCourse(c, orgId)))
@@ -95,6 +120,7 @@ const ClassesPage = () => {
         setCourseSettings(map)
         setCourseTuition(ct.data?.optio_course_tuition_cents ?? null)
         setTimeBlocks(org.data?.organization?.feature_flags?.sis_settings?.time_blocks || [])
+        setConflicts(conf.data?.conflicts || [])
       })
       .catch(() => toast.error('Failed to load catalog'))
       .finally(() => setLoading(false))
@@ -197,6 +223,16 @@ const ClassesPage = () => {
     }
   }
 
+  // Keep the table/card + modal header counts live after a roster add/remove,
+  // without a full load() (which would flash the page). Recompute is_full too.
+  const bumpEnrolled = (classId, delta) =>
+    setClasses((cs) => cs.map((c) => {
+      if (c.id !== classId) return c
+      const enrolled_count = Math.max(0, (c.enrolled_count || 0) + delta)
+      const is_full = c.capacity != null && enrolled_count >= c.capacity
+      return { ...c, enrolled_count, is_full }
+    }))
+
   // Every non-archived class that isn't open is invisible to families in the
   // Schedule Builder — new classes default to closed, which is easy to miss.
   const closedClasses = classes.filter((c) => c.registration_status !== 'open')
@@ -212,21 +248,48 @@ const ClassesPage = () => {
     load()
   }
 
+  // ── Attribute filtering (day / block / teacher) ──────────────────────────────
+  // Class periods only — labeled blocks like "Lunch" hold no classes.
+  const pickableBlocks = useMemo(() => timeBlocks.filter((b) => !b.label), [timeBlocks])
+  const structuralActive = dayFilter != null || blockFilter !== '' || teacherFilter !== ''
+
+  // A class passes when its teacher matches (if set) AND it has a meeting on the
+  // chosen day that overlaps the chosen block — each active constraint applied to
+  // the SAME meeting, so "Mon + 9:30 block" means "meets Monday during 9:30".
+  const classMatches = useCallback((c) => {
+    if (teacherFilter && (c.primary_instructor_id || '') !== teacherFilter) return false
+    if (dayFilter == null && blockFilter === '') return true
+    const b = blockFilter === '' ? null : pickableBlocks[Number(blockFilter)]
+    return (c.meetings || []).some((m) => {
+      if (dayFilter != null && m.day_of_week !== dayFilter) return false
+      if (b) {
+        const s = hhmm(m.start_time), e = hhmm(m.end_time)
+        if (!(s && e && s < b.end && e > b.start)) return false
+      }
+      return true
+    })
+  }, [teacherFilter, dayFilter, blockFilter, pickableBlocks])
+
+  const clearFilters = () => { setDayFilter(null); setBlockFilter(''); setTeacherFilter('') }
+
   // ── Unified, filtered catalog ────────────────────────────────────────────────
   const items = useMemo(() => {
-    const cls = classes.map((c) => ({ kind: 'class', _name: c.name, ...c }))
-    const crs = courses.map((c) => ({ kind: 'course', _name: c.title, ...c }))
+    const cls = classes.filter(classMatches).map((c) => ({ kind: 'class', _name: c.name, ...c }))
+    // Day/block/teacher filters are meeting-based; courses have no meetings, so
+    // drop them whenever a structural filter is active.
+    const crs = structuralActive ? [] : courses.map((c) => ({ kind: 'course', _name: c.title, ...c }))
     let list = filter === 'classes' ? cls : filter === 'courses' ? crs : [...cls, ...crs]
     const q = search.trim().toLowerCase()
     if (q) list = list.filter((i) => (i._name || '').toLowerCase().includes(q))
     return list
-  }, [classes, courses, filter, search])
+  }, [classes, courses, filter, search, classMatches, structuralActive])
 
   // Table view is the org's classes only (Optio courses aren't org-editable).
   const tableClasses = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return q ? classes.filter((c) => (c.name || '').toLowerCase().includes(q)) : classes
-  }, [classes, search])
+    return classes.filter((c) =>
+      classMatches(c) && (!q || (c.name || '').toLowerCase().includes(q)))
+  }, [classes, search, classMatches])
 
   const FILTERS = [
     { key: 'all', label: `All (${classes.length + courses.length})` },
@@ -285,8 +348,78 @@ const ClassesPage = () => {
         )}
       </div>
 
+      {/* Attribute filters — day / block / teacher. Built for CLP scheduling:
+          narrow to a block to see everything offered in that slot. */}
+      {!loading && classes.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mr-1">Filter</span>
+          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
+            {DAY_FILTERS.map((day) => {
+              const active = dayFilter === day.dow
+              return (
+                <button key={day.dow} onClick={() => setDayFilter(active ? null : day.dow)}
+                  aria-pressed={active}
+                  className={`text-sm px-2.5 py-1.5 rounded-md font-medium transition-colors ${active ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>
+                  {day.label}
+                </button>
+              )
+            })}
+          </div>
+          {pickableBlocks.length > 0 && (
+            <select value={blockFilter} onChange={(e) => setBlockFilter(e.target.value)}
+              aria-label="Filter by time block"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-optio-purple">
+              <option value="">All blocks</option>
+              {pickableBlocks.map((b, i) => <option key={i} value={i}>{blockLabel(b)}</option>)}
+            </select>
+          )}
+          {staff.length > 0 && (
+            <select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)}
+              aria-label="Filter by teacher"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-optio-purple">
+              <option value="">All teachers</option>
+              {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          {structuralActive && (
+            <>
+              <button onClick={clearFilters}
+                className="text-sm text-neutral-500 hover:text-optio-purple transition-colors">Clear</button>
+              <span className="text-xs text-neutral-400">
+                {tableClasses.length} class{tableClasses.length === 1 ? '' : 'es'} match
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {showSync && orgId && (
         <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={load} />
+      )}
+
+      {!loading && conflicts.length > 0 && (
+        <div className="mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+          <p className="font-semibold mb-1.5">
+            Schedule conflicts — {new Set(conflicts.map((c) => c.student_id)).size} student
+            {new Set(conflicts.map((c) => c.student_id)).size === 1 ? '' : 's'} double-booked
+          </p>
+          <ul className="space-y-1 max-h-56 overflow-y-auto">
+            {conflicts.map((c, i) => (
+              <li key={i} className="flex flex-wrap gap-x-1.5">
+                <span className="font-medium">{c.student_name}:</span>
+                <span>{c.class_a} overlaps {c.class_b}</span>
+                {c.day_of_week != null && c.start_time && (
+                  <span className="text-red-500">
+                    ({DOW_LABEL[c.day_of_week]} {fmt12(c.start_time)}{c.end_time ? `–${fmt12(c.end_time)}` : ''})
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-red-600">
+            Open a class and use its Roster tab to drop the student from one of the two.
+          </p>
+        </div>
       )}
 
       {!loading && closedClasses.length > 0 && (
@@ -353,6 +486,7 @@ const ClassesPage = () => {
           onClose={() => setEditing(null)}
           onSubmit={handleUpdate}
           onToggleRegistration={toggleRegistration}
+          onRosterChange={bumpEnrolled}
           onArchive={() => archiveClass(classes.find((c) => c.id === editing.id) || editing)}
         />
       )}
@@ -561,7 +695,7 @@ const CLASS_TABS = [
 // editable (the embedded CreateClassModal form), plus registration + archive.
 // "Preview" renders the exact read-only modal parents and students see in the
 // Schedule Builder.
-const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmit, onToggleRegistration, onArchive }) => {
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmit, onToggleRegistration, onRosterChange, onArchive }) => {
   const [tab, setTab] = useState('details')
   const [previewing, setPreviewing] = useState(false)
   const isOpen = cls.registration_status === 'open'
@@ -627,7 +761,10 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmi
             </div>
           )}
 
-          {tab === 'roster' && <ClassRoster classId={cls.id} orgId={orgId} />}
+          {tab === 'roster' && (
+            <ClassRoster classId={cls.id} orgId={orgId} capacity={cls.capacity}
+              onCountChange={(delta) => onRosterChange?.(cls.id, delta)} />
+          )}
           {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} />}
         </div>
       </div>
@@ -635,28 +772,110 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmi
   )
 }
 
-// Enrolled students for the class (sorted by last name).
-const ClassRoster = ({ classId, orgId }) => {
+// Enrolled students for the class (sorted by last name), with live add/remove.
+// Staff enroll bypasses registration status and capacity — an admin override
+// meant for CLP meetings. `onCountChange(delta)` keeps the table/card + header
+// counts in sync without a full page reload.
+const ClassRoster = ({ classId, orgId, capacity, onCountChange }) => {
   const [roster, setRoster] = useState(null)
-  useEffect(() => {
+  const [students, setStudents] = useState([]) // org active students for the add picker
+  const [pick, setPick] = useState('')          // selected student id in picker
+  const [busy, setBusy] = useState(false)        // add in flight
+  const [removingId, setRemovingId] = useState(null)
+
+  const loadRoster = useCallback(() => {
     api.get(withOrg(`/api/sis/classes/${classId}/enrollments`, orgId))
       .then((r) => setRoster(r.data?.roster || []))
       .catch(() => { toast.error('Failed to load the roster'); setRoster([]) })
   }, [classId, orgId])
 
+  useEffect(() => { loadRoster() }, [loadRoster])
+  useEffect(() => {
+    api.get(withOrg('/api/sis/clp/directory', orgId))
+      .then((r) => setStudents(r.data?.students || []))
+      .catch(() => {})
+  }, [orgId])
+
+  const enrolledIds = new Set((roster || []).map((s) => s.student_id))
+  const addable = students.filter((s) => !enrolledIds.has(s.student_id))
+
+  const add = async (studentId) => {
+    if (!studentId || busy) return
+    setBusy(true)
+    try {
+      const r = await api.post(`/api/sis/classes/${classId}/enrollments`, {
+        student_user_id: studentId, organization_id: orgId,
+      })
+      if (r.data?.already_enrolled) {
+        toast('Already enrolled')
+      } else {
+        onCountChange?.(1)
+        toast.success('Student added')
+      }
+      setPick('')
+      loadRoster()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not add student')
+    } finally { setBusy(false) }
+  }
+
+  const remove = async (s) => {
+    if (!window.confirm(`Remove ${s.name} from this class?`)) return
+    setRemovingId(s.student_id)
+    try {
+      const r = await api.delete(`/api/sis/classes/${classId}/enrollments/${s.student_id}?organization_id=${orgId}`)
+      setRoster((rs) => (rs || []).filter((x) => x.student_id !== s.student_id))
+      if (!r.data?.not_enrolled) onCountChange?.(-1)
+      toast.success('Student removed')
+    } catch {
+      toast.error('Could not remove student')
+    } finally { setRemovingId(null) }
+  }
+
   if (roster === null) return <p className="text-sm text-neutral-400">Loading…</p>
-  if (!roster.length) return <p className="text-sm text-neutral-400">No students enrolled yet.</p>
+
+  const count = roster.length
+  const over = capacity != null && count > capacity
   return (
     <div>
-      <p className="text-xs text-neutral-400 mb-2">{roster.length} enrolled</p>
-      <ul className="divide-y divide-gray-100">
-        {roster.map((s) => (
-          <li key={s.student_id} className="py-2 flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-neutral-800">{s.name}</span>
-            <span className="text-xs text-neutral-400 truncate">{s.email || s.username || ''}</span>
-          </li>
-        ))}
-      </ul>
+      {/* Add student */}
+      <div className="mb-3">
+        <label className="block text-[11px] font-medium text-neutral-400 uppercase tracking-wide mb-1">Add a student</label>
+        <SearchSelect
+          value={pick}
+          onChange={(id) => { setPick(id); add(id) }}
+          options={addable}
+          getId={(s) => s.student_id}
+          getLabel={(s) => s.name}
+          placeholder={busy ? 'Adding…' : 'Search students…'}
+        />
+      </div>
+
+      <p className="text-xs text-neutral-400 mb-2">
+        {count} enrolled{capacity != null ? ` / ${capacity}` : ''}
+        {over && <span className="ml-1.5 font-semibold text-amber-600">over capacity</span>}
+      </p>
+
+      {count === 0 ? (
+        <p className="text-sm text-neutral-400">No students enrolled yet.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {roster.map((s) => (
+            <li key={s.student_id} className="py-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-neutral-800">{s.name}</span>
+                <span className="ml-2 text-xs text-neutral-400 truncate">{s.email || s.username || ''}</span>
+              </div>
+              <button
+                onClick={() => remove(s)}
+                disabled={removingId === s.student_id}
+                className="shrink-0 text-xs font-medium text-red-500 hover:text-red-700 hover:underline disabled:opacity-50">
+                {removingId === s.student_id ? 'Removing…' : 'Remove'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

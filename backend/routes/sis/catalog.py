@@ -140,11 +140,46 @@ def archive_class(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    repo = SisClassRepository(client=get_supabase_admin_client())
+    supabase = get_supabase_admin_client()
+    repo = SisClassRepository(client=supabase)
     existing = repo.find_by_id(class_id)
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    return jsonify({'success': True, 'class': repo.archive(class_id)})
+
+    archived = repo.archive(class_id)
+
+    # Archiving retires the class, so it can't keep students enrolled: drop its
+    # active enrollments and close registration (a stale schedule change was
+    # leaving students stranded in discontinued classes, showing as phantom
+    # double-bookings). Re-sync the chat group to drop those students too.
+    dropped = (
+        supabase.table('class_enrollments')
+        .update({'status': 'withdrawn'})
+        .eq('class_id', class_id).eq('status', 'active').execute()
+    ).data or []
+    supabase.table('org_classes').update(
+        {'registration_status': 'closed'}).eq('id', class_id).execute()
+    try:
+        from services.class_group_sync_service import sync_class_group
+        sync_class_group(class_id, actor_id=user_id)
+    except Exception:  # noqa: BLE001 — messaging must never block archiving
+        pass
+
+    return jsonify({'success': True, 'class': archived,
+                    'enrollments_dropped': len(dropped)})
+
+
+@bp.route('/schedule-conflicts', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def schedule_conflicts(user_id):
+    """Students double-booked into two overlapping classes. Re-validates rosters
+    whenever a schedule changes (a late meeting edit can strand students who were
+    conflict-free when they enrolled). Advisory only — never blocks."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_registration_service as regs
+    return jsonify({'success': True, 'conflicts': regs.list_schedule_conflicts(org_id)})
 
 
 # ── Class meetings (schedule) ────────────────────────────────────────────────

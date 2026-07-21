@@ -122,12 +122,22 @@ class BaseRepository:
                 self._client = get_supabase_admin_client()
         return self._client
 
-    def find_by_id(self, id_value: str) -> Optional[Dict[str, Any]]:
+    def find_by_id(
+        self,
+        id_value: str,
+        owner_id: Optional[str] = None,
+        owner_column: str = 'user_id',
+    ) -> Optional[Dict[str, Any]]:
         """
         Find a single record by ID.
 
         Args:
             id_value: Value of the primary key
+            owner_id: When provided, also require ``owner_column == owner_id`` so
+                a record owned by another user is never returned. This is the
+                opt-in ownership predicate for REPO-1 (defense-in-depth for repos
+                built on the RLS-bypassing admin client).
+            owner_column: Column holding the owner's user id (default 'user_id').
 
         Returns:
             Dictionary containing the record, or None if not found
@@ -136,12 +146,14 @@ class BaseRepository:
             DatabaseError: If query fails
         """
         try:
-            response = (
+            query = (
                 self.client.table(self.table_name)
                 .select('*')
                 .eq(self.id_column, id_value)
-                .execute()
             )
+            if owner_id is not None:
+                query = query.eq(owner_column, owner_id)
+            response = query.execute()
 
             if not response.data:
                 return None
@@ -235,28 +247,40 @@ class BaseRepository:
             logger.error(f"Error creating {self.table_name}: {e}")
             raise DatabaseError(f"Failed to create {self.table_name}") from e
 
-    def update(self, id_value: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update(
+        self,
+        id_value: str,
+        data: Dict[str, Any],
+        owner_id: Optional[str] = None,
+        owner_column: str = 'user_id',
+    ) -> Dict[str, Any]:
         """
         Update an existing record.
 
         Args:
             id_value: Value of the primary key
             data: Dictionary of column->value pairs to update
+            owner_id: When provided, also require ``owner_column == owner_id`` so
+                a caller can never mutate another user's row by id (REPO-1
+                opt-in ownership predicate). A mismatch yields NotFoundError.
+            owner_column: Column holding the owner's user id (default 'user_id').
 
         Returns:
             Updated record
 
         Raises:
-            NotFoundError: If record doesn't exist
+            NotFoundError: If record doesn't exist (or isn't owned by owner_id)
             DatabaseError: If update fails
         """
         try:
-            response = (
+            query = (
                 self.client.table(self.table_name)
                 .update(data)
                 .eq(self.id_column, id_value)
-                .execute()
             )
+            if owner_id is not None:
+                query = query.eq(owner_column, owner_id)
+            response = query.execute()
 
             if not response.data:
                 raise NotFoundError(f"{self.table_name} with {self.id_column}={id_value} not found")
@@ -268,27 +292,38 @@ class BaseRepository:
             logger.error(f"Error updating {self.table_name} {id_value}: {e}")
             raise DatabaseError(f"Failed to update {self.table_name}") from e
 
-    def delete(self, id_value: str) -> bool:
+    def delete(
+        self,
+        id_value: str,
+        owner_id: Optional[str] = None,
+        owner_column: str = 'user_id',
+    ) -> bool:
         """
         Delete a record by ID.
 
         Args:
             id_value: Value of the primary key
+            owner_id: When provided, also require ``owner_column == owner_id`` so
+                a caller can never delete another user's row by id (REPO-1
+                opt-in ownership predicate). A mismatch yields NotFoundError.
+            owner_column: Column holding the owner's user id (default 'user_id').
 
         Returns:
             True if deleted successfully
 
         Raises:
-            NotFoundError: If record doesn't exist
+            NotFoundError: If record doesn't exist (or isn't owned by owner_id)
             DatabaseError: If delete fails
         """
         try:
-            response = (
+            query = (
                 self.client.table(self.table_name)
                 .delete()
                 .eq(self.id_column, id_value)
-                .execute()
             )
+            if owner_id is not None:
+                query = query.eq(owner_column, owner_id)
+            response = query.execute()
 
             if not response.data:
                 raise NotFoundError(f"{self.table_name} with {self.id_column}={id_value} not found")

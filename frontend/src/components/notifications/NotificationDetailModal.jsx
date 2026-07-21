@@ -2,6 +2,7 @@ import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { formatDistanceToNow } from 'date-fns'
+import { safeHref } from '../../utils/safeHref'
 
 /**
  * NotificationDetailModal
@@ -123,7 +124,7 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
             {notification.link && (
               <div className="mt-6 pt-4 border-t border-gray-100">
                 <a
-                  href={notification.link}
+                  href={safeHref(notification.link)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
                 >
                   View Details

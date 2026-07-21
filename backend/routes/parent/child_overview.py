@@ -770,7 +770,7 @@ def upload_child_avatar(user_id, child_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child (dependent or linked student)
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         if 'avatar' not in request.files:
             raise ValidationError('No avatar file provided')

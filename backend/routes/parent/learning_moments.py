@@ -52,7 +52,7 @@ def create_child_learning_moment(user_id, child_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         data = request.get_json() or {}
         description = data.get('description', '').strip()
@@ -190,7 +190,7 @@ def upload_moment_media(user_id, child_id):
     try:
         # admin client justified: parent captures learning moments + manages topics for child; cross-user writes (learning_events, evidence blocks, interest_tracks) gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         file = request.files.get('file')
         from services.media_upload_service import MediaUploadService
@@ -229,7 +229,7 @@ def init_moment_signed_upload(user_id, child_id):
     try:
         # admin client justified: parent captures learning moments for child; cross-user writes gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         data = request.get_json() or {}
         filename = data.get('filename')
@@ -268,7 +268,7 @@ def finalize_moment_signed_upload(user_id, child_id):
     try:
         # admin client justified: parent captures learning moments for child; cross-user writes gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         data = request.get_json() or {}
         storage_path = data.get('storage_path')
@@ -331,7 +331,7 @@ def get_child_learning_moments(user_id, child_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id)  # read path: observers may view
 
         limit = request.args.get('limit', 20, type=int)
         offset = request.args.get('offset', 0, type=int)
@@ -415,7 +415,7 @@ def get_child_topics(user_id, child_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id)  # read path: observers may view
 
         # Use the service with child's user_id
         result = InterestTracksService.get_unified_topics(user_id=child_id)
@@ -469,7 +469,7 @@ def create_child_topic(user_id, child_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         data = request.get_json()
 
@@ -553,7 +553,7 @@ def get_child_topic_suggestions(user_id, child_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id)  # read path: observers may view
 
         ai_service = LearningAIService()
         result = ai_service.detect_emerging_tracks(user_id=child_id)
@@ -598,7 +598,7 @@ def get_child_topic_detail(user_id, child_id, track_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id)  # read path: observers may view
 
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
@@ -653,7 +653,7 @@ def assign_child_moment_to_topic(user_id, child_id, moment_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         data = request.get_json()
 
@@ -727,7 +727,7 @@ def update_child_learning_moment(user_id, child_id, moment_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         # Fetch the moment and verify parent captured it
         moment_response = supabase.table('learning_events') \
@@ -862,7 +862,7 @@ def delete_child_learning_moment(user_id, child_id, moment_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         # Fetch the moment and verify parent captured it
         moment_response = supabase.table('learning_events') \
@@ -960,7 +960,7 @@ def save_child_moment_evidence(user_id, child_id, moment_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         # Fetch the moment and verify parent captured it
         moment_response = supabase.table('learning_events') \
@@ -1071,7 +1071,7 @@ def upload_child_moment_file(user_id, child_id, moment_id):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this child
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         # Fetch the moment and verify parent captured it
         moment_response = supabase.table('learning_events') \
@@ -1131,7 +1131,7 @@ def init_moment_block_signed_upload(user_id, child_id, moment_id):
     try:
         # admin client justified: parent captures learning moments for child; cross-user writes gated by parent->child relationship verification + captured_by_user_id ownership
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         moment_response = supabase.table('learning_events')\
             .select('id, captured_by_user_id')\
@@ -1182,7 +1182,7 @@ def finalize_moment_block_signed_upload(user_id, child_id, moment_id):
     try:
         # admin client justified: parent captures learning moments for child; cross-user writes gated by parent->child relationship verification + captured_by_user_id ownership
         supabase = get_supabase_admin_client()
-        verify_parent_access(supabase, user_id, child_id)
+        verify_parent_access(supabase, user_id, child_id, allow_observer=False)  # IDOR-H5: write path, guardians only
 
         moment_response = supabase.table('learning_events')\
             .select('id, captured_by_user_id')\

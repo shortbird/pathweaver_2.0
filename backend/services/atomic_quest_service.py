@@ -298,26 +298,22 @@ class AtomicQuestService(BaseService):
             XP amount awarded
         """
         try:
-            # Use upsert with conflict resolution to handle concurrent updates
-            result = self.supabase.table('user_skill_xp')\
-                .upsert({
-                    'user_id': user_id,
-                    'pillar': pillar,
-                    'xp_amount': xp_amount
-                }, on_conflict='user_id,pillar')\
-                .execute()
-
-            if result.data:
-                logger.info(f"Awarded {xp_amount} XP in {pillar} to user {user_id}")
-                return xp_amount
-            else:
-                # If upsert failed, try to increment existing record
-                return self.increment_user_xp(user_id, pillar, xp_amount)
+            # PERF-H4 fix: use the ATOMIC DB-side increment RPC. The previous
+            # upsert here SET xp_amount to the delta (overwrite), silently
+            # corrupting totals — a dormant trap in this otherwise-dead service.
+            if not xp_amount or int(xp_amount) <= 0:
+                return 0
+            self.supabase.rpc('increment_user_xp', {
+                'p_user_id': user_id,
+                'p_pillar': pillar,
+                'p_amount': int(xp_amount),
+            }).execute()
+            logger.info(f"Awarded {xp_amount} XP in {pillar} to user {user_id}")
+            return xp_amount
 
         except Exception as e:
             logger.error(f"Error awarding task XP: {e}")
-            # Fallback to increment method
-            return self.increment_user_xp(user_id, pillar, xp_amount)
+            return 0
 
     def increment_user_xp(self, user_id: str, pillar: str, xp_amount: int) -> int:
         """
@@ -332,30 +328,15 @@ class AtomicQuestService(BaseService):
             XP amount awarded
         """
         try:
-            # Try to increment existing record
-            current_xp = self.supabase.table('user_skill_xp')\
-                .select('xp_amount')\
-                .eq('user_id', user_id)\
-                .eq('pillar', pillar)\
-                .execute()
-
-            if current_xp.data:
-                new_total = current_xp.data[0]['xp_amount'] + xp_amount
-                self.supabase.table('user_skill_xp')\
-                    .update({'xp_amount': new_total})\
-                    .eq('user_id', user_id)\
-                    .eq('pillar', pillar)\
-                    .execute()
-            else:
-                # Create new record
-                self.supabase.table('user_skill_xp')\
-                    .insert({
-                        'user_id': user_id,
-                        'pillar': pillar,
-                        'xp_amount': xp_amount
-                    })\
-                    .execute()
-
+            # PERF-H4 fix: atomic DB-side increment (was a lost-update-prone
+            # read-modify-write).
+            if not xp_amount or int(xp_amount) <= 0:
+                return 0
+            self.supabase.rpc('increment_user_xp', {
+                'p_user_id': user_id,
+                'p_pillar': pillar,
+                'p_amount': int(xp_amount),
+            }).execute()
             return xp_amount
 
         except Exception as e:

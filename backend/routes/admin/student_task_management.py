@@ -22,6 +22,8 @@ from repositories import (
     AnalyticsRepository
 )
 from utils.auth.decorators import require_admin, require_role
+from utils.roles import get_effective_role
+from utils.auth.org_scope import caller_can_access_user
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_utils import normalize_pillar_name
 from utils.school_subjects import validate_school_subjects
@@ -48,6 +50,31 @@ def is_advisor_for_student(advisor_id, student_id):
         .execute()
 
     return len(result.data) > 0
+
+
+def _can_manage_student_tasks(supabase, actor_id, target_user_id):
+    """Whether `actor_id` may view/edit `target_user_id`'s quest tasks (IDOR-H1).
+
+    Uses the EFFECTIVE role (real org advisors have role='org_managed', so a raw
+    `role == 'advisor'` check silently skipped the assignment guard and allowed
+    cross-org access):
+      superadmin -> any student
+      org_admin  -> a student in the same org
+      advisor    -> a student with an active advisor_student_assignments row
+    """
+    actor = supabase.table('users')\
+        .select('role, org_role, org_roles, organization_id')\
+        .eq('id', actor_id).single().execute()
+    if not actor.data:
+        return False
+    role = get_effective_role(actor.data)
+    if role == 'superadmin':
+        return True
+    if role == 'org_admin':
+        return caller_can_access_user(supabase, actor_id, target_user_id)
+    if role == 'advisor':
+        return is_advisor_for_student(actor_id, target_user_id)
+    return False
 
 # Using repository pattern for database access
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks', methods=['POST'])
@@ -380,7 +407,7 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
         }), 500
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks', methods=['GET'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def get_student_quest_tasks(user_id, target_user_id, quest_id):
     """
     Get all tasks for a specific student's quest.
@@ -397,7 +424,7 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
         user_role = user.data['role']
-        if user_role == 'advisor' and not is_advisor_for_student(user_id, target_user_id):
+        if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,
                 'error': 'You do not have permission to view this student\'s tasks'
@@ -463,7 +490,7 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
         }), 500
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/<task_id>', methods=['PUT'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def update_student_task(user_id, target_user_id, quest_id, task_id):
     """
     Update a task for a specific student's quest.
@@ -480,7 +507,7 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
         user_role = user.data['role']
-        if user_role == 'advisor' and not is_advisor_for_student(user_id, target_user_id):
+        if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,
                 'error': 'You do not have permission to edit this student\'s tasks'
@@ -586,7 +613,7 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
         }), 500
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def delete_student_task(user_id, target_user_id, quest_id, task_id):
     """
     Delete a task from a specific student's quest.
@@ -604,7 +631,7 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
         user_role = user.data['role']
-        if user_role == 'advisor' and not is_advisor_for_student(user_id, target_user_id):
+        if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,
                 'error': 'You do not have permission to delete this student\'s tasks'
@@ -656,7 +683,7 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
         }), 500
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/reorder', methods=['POST'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def reorder_student_tasks(user_id, target_user_id, quest_id):
     """
     Reorder tasks for a specific student's quest.
@@ -673,7 +700,7 @@ def reorder_student_tasks(user_id, target_user_id, quest_id):
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
         user_role = user.data['role']
-        if user_role == 'advisor' and not is_advisor_for_student(user_id, target_user_id):
+        if not _can_manage_student_tasks(supabase, user_id, target_user_id):
             return jsonify({
                 'success': False,
                 'error': 'You do not have permission to reorder this student\'s tasks'

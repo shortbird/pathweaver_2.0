@@ -54,7 +54,7 @@ export const evidenceDocumentService = {
   // Complete task with evidence document
   async completeTask(taskId) {
     try {
-      const response = await evidenceApi.post(`/documents/${taskId}/complete`);
+      const response = await evidenceApi.post(`/documents/${taskId}/complete`, {});  // send a JSON body (CSRF/Content-Type)
       return response.data;
     } catch (error) {
       logger.error('Error completing task:', error);

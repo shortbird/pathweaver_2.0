@@ -17,6 +17,23 @@ logger = get_logger(__name__)
 class AnalyticsService(BaseService):
     """Provides simplified analytics focused on activity tracking."""
 
+    @property
+    def supabase(self):
+        """PERF-M1 fix: BaseService no longer exposes ``self.supabase`` (DB
+        access moved to repositories in Dec 2025), so every method here raised
+        AttributeError -> the analytics endpoints returned 500.
+
+        This is a LAZY property (not set in __init__) because AnalyticsService is
+        instantiated at module import time (routes/analytics.py), while
+        get_supabase_admin_client() reads Flask's request-scoped ``g`` — eagerly
+        fetching it at import raised "Working outside of application context".
+        Resolving it on access means it only runs inside a request handler
+        (route is @require_admin-gated; analytics aggregates cross-user data).
+        """
+        from database import get_supabase_admin_client
+        # admin client justified: platform analytics aggregates cross-user activity; route is admin-gated
+        return get_supabase_admin_client()
+
     def get_event_counts_by_category(
         self,
         start_date: datetime,

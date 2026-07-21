@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 bp = Blueprint('parent_dashboard_overview', __name__, url_prefix='/api/parent')
 
 
-def verify_parent_access(supabase, parent_user_id, student_user_id):
+def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observer=True):
     """
     Helper function to verify user has access to view student data.
     IMPORTANT: Accepts supabase client to avoid connection exhaustion.
@@ -28,8 +28,14 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
     2. User has an approved link in parent_student_links to this student
     3. User manages this student as a dependent (managed_by_parent_id)
     4. User has an observer link in observer_student_links to this student
+       -- ONLY when allow_observer=True
 
-    This allows parents, observers, and admins to access linked students.
+    Observers are documented as VIEW-ONLY ("can comment on student work"), so
+    callers that expose a minor's PRIVATE data (DMs/group/AI-tutor messages) or
+    that WRITE to the child's data MUST pass allow_observer=False to exclude
+    observers (IDOR-H4/H5). Guardian (parent/dependent) + superadmin access is
+    unaffected.
+
     Optimized to minimize database queries.
     """
     try:
@@ -79,15 +85,16 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
             if is_dependent and managed_by == parent_user_id:
                 return True
 
-        # Check for observer link to this student
-        observer_link = supabase.table('observer_student_links') \
-            .select('id') \
-            .eq('observer_id', parent_user_id) \
-            .eq('student_id', student_user_id) \
-            .execute()
+        # Check for observer link to this student (view-only paths only).
+        if allow_observer:
+            observer_link = supabase.table('observer_student_links') \
+                .select('id') \
+                .eq('observer_id', parent_user_id) \
+                .eq('student_id', student_user_id) \
+                .execute()
 
-        if observer_link.data and len(observer_link.data) > 0:
-            return True
+            if observer_link.data and len(observer_link.data) > 0:
+                return True
 
         # If user has parent role but no relationship to this student, deny access
         # (They can only access their own children, not all children)

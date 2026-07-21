@@ -229,6 +229,17 @@ def require_idempotency(ttl_seconds: int = 86400):
                     'message': 'Idempotency-Key must be alphanumeric (max 128 chars)'
                 }), 400
 
+            # AUTH-H4 fix: namespace the client-chosen key by the authenticated
+            # user so two users sharing a key can't collide — previously user B
+            # could replay user A's key and receive A's cached response body
+            # (completion/XP data). Fall back to 'anon' for unauthenticated use.
+            try:
+                from utils.session_manager import session_manager
+                _uid = session_manager.get_effective_user_id() or getattr(request, 'user_id', None)
+            except Exception:
+                _uid = getattr(request, 'user_id', None)
+            idempotency_key = f"{_uid or 'anon'}:{idempotency_key}"
+
             # Check cache for existing response
             cached_response = idempotency_cache.get(idempotency_key)
 

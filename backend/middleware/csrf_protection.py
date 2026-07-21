@@ -14,7 +14,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 try:
-    from flask_wtf.csrf import CSRFProtect, generate_csrf, validate_csrf
+    from flask_wtf.csrf import CSRFProtect, generate_csrf, validate_csrf, CSRFError
     csrf = CSRFProtect()
 except ImportError as e:
     # ✅ SECURITY FIX: CSRF protection is now REQUIRED
@@ -101,6 +101,50 @@ def init_csrf(app):
         view_func = app.view_functions.get(endpoint)
         if view_func is not None:
             csrf.exempt(view_func)
+
+    # AUTH-H1 fix: actually ENFORCE CSRF. Previously WTF_CSRF_CHECK_DEFAULT was
+    # False and no csrf.protect() ran anywhere, so CSRF was checked on ZERO
+    # routes. We enforce here via a before_request, scoped to the only requests
+    # that are CSRF-vulnerable: COOKIE-authenticated mutating requests.
+    #
+    # Deliberately skipped (not vulnerable / would break clients):
+    #   - Non-mutating methods (GET/HEAD/OPTIONS).
+    #   - Bearer/token-authenticated requests (mobile app + web SSO fallback):
+    #     an attacker cannot set the Authorization header cross-site.
+    #   - Requests with no auth cookie: no ambient authority to abuse
+    #     (login/register/refresh/public/webhook/LTI/kiosk/iCreate funnel are
+    #     all pre-session and carry no access_token cookie).
+    _CSRF_EXEMPT_PREFIXES = (
+        '/csrf-token', '/api/auth/csrf-token',
+    )
+
+    @app.before_request
+    def _enforce_csrf_for_cookie_auth():
+        from flask import request, jsonify
+        if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+            return None
+        # Token-authenticated requests are immune to CSRF.
+        if request.headers.get('Authorization', '').startswith('Bearer '):
+            return None
+        # Only cookie-authenticated sessions are at risk.
+        if not (request.cookies.get('access_token') or request.cookies.get('refresh_token')):
+            return None
+        path = request.path or ''
+        if any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
+            return None
+        # Honor per-view exemptions registered above.
+        view = app.view_functions.get(request.endpoint)
+        if view is not None and getattr(view, '_csrf_exempt', False):
+            return None
+        try:
+            csrf.protect()
+        except CSRFError:
+            return jsonify({
+                'error': 'CSRF token missing or invalid',
+                'message': 'Refresh the page and try again.',
+                'csrf_required': True,
+            }), 400
+        return None
 
     # Verify CSRF is properly initialized
     if not csrf:

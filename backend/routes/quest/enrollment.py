@@ -44,7 +44,9 @@ def enroll_in_quest(user_id: str, quest_id: str):
             from routes.parent.dashboard_overview import verify_parent_access
             from middleware.error_handler import AuthorizationError
             try:
-                verify_parent_access(get_supabase_admin_client(), user_id, acting_as_dependent_id)
+                # IDOR-H5: acting as the child to start a quest is a WRITE;
+                # view-only observers must not enroll on a child's behalf.
+                verify_parent_access(get_supabase_admin_client(), user_id, acting_as_dependent_id, allow_observer=False)
             except AuthorizationError:
                 return error_response(
                     code='NOT_AUTHORIZED',

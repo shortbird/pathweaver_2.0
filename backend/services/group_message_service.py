@@ -132,20 +132,61 @@ class GroupMessageService(BaseService):
 
             target_org_id = target_user.data.get('organization_id')
 
-            # Organization isolation check
-            # If group has org_id, target must be in same org
-            if group_org_id is not None and target_org_id != group_org_id:
+            # Organization isolation check.
+            if group_org_id is not None:
+                # Org group: target must be a member of the same org.
+                if target_org_id != group_org_id:
+                    logger.warning(
+                        f"Organization isolation: Cannot add user {target_user_id} "
+                        f"(org: {target_org_id}) to group in org {group_org_id}"
+                    )
+                    return False
+                return True
+
+            # IDOR-H3 fix: platform (null-org) group has no org boundary. Only
+            # allow adding a user the adder has an explicit relationship with
+            # (self / dependent / approved parent link / active advisor
+            # assignment), so a platform advisor can't add an arbitrary minor.
+            if not self._has_explicit_relationship(supabase, user_id, target_user_id):
                 logger.warning(
-                    f"Organization isolation: Cannot add user {target_user_id} "
-                    f"(org: {target_org_id}) to group in org {group_org_id}"
+                    f"Platform group: no explicit relationship allowing {user_id} "
+                    f"to add {target_user_id}"
                 )
                 return False
-
             return True
 
         except Exception as e:
             logger.error(f"Error checking add member permission: {str(e)}")
             return False
+
+    def _has_explicit_relationship(self, supabase, actor_id: str, target_id: str) -> bool:
+        """Whether `actor_id` has a direct relationship with `target_id`:
+        self, a dependent (users.managed_by_parent_id, either direction), an
+        approved parent_student_links row (either direction), or an active
+        advisor_student_assignments row (either direction). Uses .eq() filters
+        (no string interpolation) so a body-supplied target id can't inject."""
+        if not actor_id or not target_id:
+            return False
+        if actor_id == target_id:
+            return True
+        checks = [
+            ('users', [('id', target_id), ('managed_by_parent_id', actor_id)]),
+            ('users', [('id', actor_id), ('managed_by_parent_id', target_id)]),
+            ('parent_student_links', [('parent_user_id', actor_id), ('student_user_id', target_id), ('status', 'approved')]),
+            ('parent_student_links', [('parent_user_id', target_id), ('student_user_id', actor_id), ('status', 'approved')]),
+            ('advisor_student_assignments', [('advisor_id', actor_id), ('student_id', target_id), ('is_active', True)]),
+            ('advisor_student_assignments', [('advisor_id', target_id), ('student_id', actor_id), ('is_active', True)]),
+        ]
+        for table, filters in checks:
+            try:
+                q = supabase.table(table).select('id')
+                for col, val in filters:
+                    q = q.eq(col, val)
+                if q.limit(1).execute().data:
+                    return True
+            except Exception:
+                continue
+        return False
 
     # ==================== Group Management ====================
 
@@ -789,6 +830,14 @@ class GroupMessageService(BaseService):
 
             org_id = group.data.get('organization_id')
 
+            # IDOR-H3 fix: a platform (null-org) group has no org boundary, so
+            # there is no safe "auto-eligible" member list — returning every
+            # platform user leaked all-platform PII (names/roles). Members of a
+            # platform group must be added via an explicit relationship
+            # (see can_add_member), so no directory is offered here.
+            if org_id is None:
+                return []
+
             # Get current members
             current_members = supabase.table('group_members').select('user_id').eq(
                 'group_id', group_id
@@ -799,10 +848,7 @@ class GroupMessageService(BaseService):
             # Get available users from same org
             query = supabase.table('users').select(
                 'id, display_name, first_name, last_name, avatar_url, role'
-            )
-
-            if org_id is not None:
-                query = query.eq('organization_id', org_id)
+            ).eq('organization_id', org_id)
 
             users = query.execute()
 

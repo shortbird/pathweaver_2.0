@@ -19,7 +19,7 @@ Endpoints:
     POST /oauth/clients - Create OAuth client (admin only)
 """
 
-from flask import Blueprint, request, jsonify, redirect, render_template_string, session
+from flask import Blueprint, request, jsonify, redirect, render_template_string
 from datetime import datetime, timedelta
 import secrets
 import hashlib
@@ -43,12 +43,25 @@ REFRESH_TOKEN_TTL = 2592000  # 30 days
 
 
 @bp.route('/authorize', methods=['GET'])
-def authorize():
+@require_auth
+def authorize(user_id: str):
     """
     OAuth 2.0 authorization endpoint.
 
     User is redirected here by external application requesting access.
-    Displays consent screen and redirects back with authorization code.
+    The caller MUST be an authenticated Optio user (httpOnly cookie / bearer);
+    the authorization code is bound to that authenticated user, never to an
+    unauthenticated / null subject.
+
+    SECURITY (AUTH-C1 fix): previously this endpoint had no @require_auth and
+    read the granting user from an unused Flask ``session`` (always ``None``),
+    so any party with a valid client_id + registered redirect_uri could mint a
+    full-privilege app token for a null subject. It now requires authentication
+    and issues the code for the authenticated caller only.
+
+    NOTE (follow-up): an explicit consent screen and scoped (non-session) OAuth
+    tokens with enforced scope are still to be implemented. Until then this is
+    an implicit-consent authorization-code flow for the authenticated user.
 
     Query params (required):
         - response_type: Must be 'code'
@@ -58,11 +71,19 @@ def authorize():
         - state: CSRF protection token from client
 
     Returns:
-        302: Redirect to login if not authenticated
+        401: Not authenticated (from @require_auth)
         302: Redirect to redirect_uri with authorization code
         400: Invalid request parameters
     """
     try:
+        # Defensive: @require_auth guarantees a non-null user_id, but never
+        # issue an authorization code for a null/empty subject.
+        if not user_id:
+            return jsonify({
+                'error': 'access_denied',
+                'error_description': 'Authentication required'
+            }), 401
+
         # Validate OAuth parameters
         response_type = request.args.get('response_type')
         client_id = request.args.get('client_id')
@@ -101,12 +122,8 @@ def authorize():
                 'error_description': 'redirect_uri does not match registered URIs'
             }), 400
 
-        # Check if user is authenticated (would need session/cookie check)
-        # For now, assuming user is authenticated via existing session
-        # In production, this would redirect to login page if not authenticated
-
-        # For MVP, auto-approve if user is authenticated
-        # In production, show consent screen here
+        # The caller is authenticated (via @require_auth); bind the code to them.
+        # Consent is implicit for now (follow-up: explicit consent screen).
 
         # Generate authorization code
         auth_code = secrets.token_urlsafe(32)
@@ -119,7 +136,7 @@ def authorize():
             'redirect_uri': redirect_uri,
             'scope': scope,
             'expires_at': (datetime.utcnow() + timedelta(seconds=AUTHORIZATION_CODE_TTL)).isoformat(),
-            'user_id': session.get('user_id'),  # From session (would come from @require_auth)
+            'user_id': user_id,  # Authenticated caller (from @require_auth)
             'created_at': datetime.utcnow().isoformat()
         }).execute()
 
@@ -254,6 +271,15 @@ def _handle_authorization_code_grant(request, client):
     # Generate access token and refresh token
     user_id = auth_code_data['user_id']
     scope = auth_code_data['scope']
+
+    # Never mint a token for a null subject (e.g. a stale pre-AUTH-C1-fix code
+    # stored with user_id=None). generate_access_token(None) yields an
+    # undefined-behavior token.
+    if not user_id:
+        return jsonify({
+            'error': 'invalid_grant',
+            'error_description': 'Authorization code is not bound to a user'
+        }), 400
 
     access_token = session_manager.generate_access_token(user_id)
     refresh_token = secrets.token_urlsafe(32)

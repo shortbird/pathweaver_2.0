@@ -67,7 +67,7 @@ const AccountSettings = ({
 
   const cancelAccountDeletion = async () => {
     try {
-      await api.post('/api/users/cancel-deletion');
+      await api.post('/api/users/cancel-deletion', {});  // send a JSON body (CSRF/Content-Type)
       toast.success('Account deletion cancelled!');
       // Refresh user data
       if (onUserUpdate) {

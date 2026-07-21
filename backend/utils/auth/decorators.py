@@ -785,9 +785,14 @@ def require_parental_consent(f):
 
         except Exception as e:
             logger.error(f"Error checking parental consent: {str(e)}")
-            # On error, allow access to prevent blocking legitimate users
-            # (security risk is low since this is additional protection, not primary auth)
-            return f(*args, **kwargs)
+            # AUTH-M4 fix: FAIL CLOSED. This is a COPPA gate protecting minors;
+            # allowing access on error let an under-13 account bypass consent
+            # whenever the lookup failed. Deny with a retryable error instead.
+            return jsonify({
+                'error': 'Unable to verify parental consent at this time. Please try again.',
+                'consent_required': True,
+                'consent_status': 'verification_error'
+            }), 503
 
     return decorated_function
 

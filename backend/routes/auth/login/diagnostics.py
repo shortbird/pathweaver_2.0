@@ -185,8 +185,19 @@ def register_routes(bp):
                 'host': request.host,
             }
 
-            # All headers (for debugging)
-            all_headers = dict(request.headers)
+            # SECURITY (AUTH-H2 fix): never reflect raw request headers. The
+            # Cookie and Authorization headers carry the httpOnly access/refresh
+            # tokens; echoing dict(request.headers) into the JSON body let any
+            # XSS fetch() the tokens, defeating the entire httpOnly model. Only
+            # a curated allowlist of non-sensitive header *presence*/values is
+            # exposed below.
+            safe_headers = {
+                'origin': request.headers.get('Origin', 'Not present'),
+                'referer_present': 'Referer' in request.headers,
+                'has_authorization': has_auth_header,
+                'has_cookie_header': 'Cookie' in request.headers,
+                'content_type': request.headers.get('Content-Type', 'Not present'),
+            }
 
             # Detailed diagnostic results
             diagnostics = {
@@ -205,9 +216,9 @@ def register_routes(bp):
                 'headers': {
                     'has_authorization': has_auth_header,
                     'token_info': token_info if has_auth_header else None,
-                    'origin': request.headers.get('Origin', 'Not present'),
-                    'referer': request.headers.get('Referer', 'Not present'),
-                    'all_headers': all_headers,
+                    'origin': safe_headers['origin'],
+                    'referer_present': safe_headers['referer_present'],
+                    'safe_headers': safe_headers,
                     'explanation': 'Authorization header is Safari/iOS fallback when cookies blocked'
                 },
                 'browser': browser_details,

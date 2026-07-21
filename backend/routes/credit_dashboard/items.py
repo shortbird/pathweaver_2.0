@@ -17,6 +17,7 @@ from flask import request
 # is reserved for background tasks per its docstring.)
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
+from utils.auth.org_scope import caller_can_access_user
 from utils.api_response_v1 import success_response, error_response
 from utils.roles import get_effective_role
 
@@ -448,6 +449,11 @@ def get_student_context(user_id: str, student_id: str):
 
         if not student.data:
             return error_response(code='NOT_FOUND', message='Student not found', status=404)
+
+        # IDOR-H11 fix: org_admins may only view their own org's students
+        # (mirror get_dashboard_item_detail). Superadmin exempt.
+        if not caller_can_access_user(admin_supabase, user_id, student_id):
+            return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
 
         # Inject resolved display_name
         student.data['display_name'] = resolve_user_name(student.data)

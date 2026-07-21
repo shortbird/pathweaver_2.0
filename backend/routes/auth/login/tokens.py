@@ -34,6 +34,7 @@ logger = get_logger(__name__)
 def register_routes(bp):
     """Register routes on the blueprint."""
     @bp.route('/refresh', methods=['POST'])
+    @rate_limit(max_requests=30, window_seconds=300)  # AUTH-H6: throttle refresh (30 / 5 min per IP)
     def refresh_token():
         # Try to get refresh token from request body (primary method for cross-origin)
         data = request.json if request.json else {}

@@ -8,6 +8,8 @@ For admins and superadmins to track changes and ensure compliance.
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from utils.auth.decorators import require_admin, require_org_admin
+from utils.auth.org_scope import caller_can_access_user
+from database import get_supabase_admin_client
 from services.admin_audit_service import AdminAuditService
 from utils.logger import get_logger
 
@@ -121,13 +123,16 @@ def get_admin_activity(current_user_id, current_org_id, is_superadmin, admin_id)
             except ValueError:
                 return jsonify({'error': 'Invalid end_date format'}), 400
 
+        # IDOR-H7 fix: non-superadmins are restricted to their own org's logs.
+        org_scope = None if is_superadmin else current_org_id
         service = AdminAuditService()
         logs = service.get_admin_activity(
             admin_id=admin_id,
             limit=limit,
             offset=offset,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            organization_id=org_scope
         )
 
         return jsonify({
@@ -159,12 +164,16 @@ def get_resource_history(current_user_id, current_org_id, is_superadmin, resourc
         limit = min(int(request.args.get('limit', 100)), 200)
         offset = int(request.args.get('offset', 0))
 
+        # IDOR-H7 fix: non-superadmins only see their own org's audit trail for
+        # a resource (prevents cross-tenant resource-history disclosure).
+        org_scope = None if is_superadmin else current_org_id
         service = AdminAuditService()
         logs = service.get_resource_history(
             resource_type=resource_type,
             resource_id=resource_id,
             limit=limit,
-            offset=offset
+            offset=offset,
+            organization_id=org_scope
         )
 
         return jsonify({
@@ -295,6 +304,12 @@ def get_admin_statistics(current_user_id, current_org_id, is_superadmin, admin_i
         500: Server error
     """
     try:
+        # IDOR-H7 fix: org_admins may only view stats for an admin in their org.
+        if not is_superadmin and not caller_can_access_user(
+            get_supabase_admin_client(), current_user_id, admin_id
+        ):
+            return jsonify({'error': 'Access denied'}), 403
+
         start_date = None
         end_date = None
         if request.args.get('start_date'):

@@ -24,6 +24,7 @@ Endpoints:
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
+from utils.auth.org_scope import caller_can_access_course
 from services.course_refine_service import CourseRefineService
 from services.base_ai_service import AIGenerationError
 
@@ -122,6 +123,12 @@ def start_refine_session(user_id, course_id):
                 'error': 'Refinement request is required'
             }), 400
 
+        # IDOR-C4 fix: a non-superadmin may only refine/apply to a course in
+        # their own org. Previously course_id + session_id were passed straight
+        # to the service (admin client), so any org_admin/advisor could run AI
+        # bulk edits on another org's course and hijack unbound sessions.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
         result = service.start_session(course_id, user_request)
 
@@ -215,6 +222,12 @@ def process_answers(user_id, course_id):
                 'error': 'Answers are required'
             }), 400
 
+        # IDOR-C4 fix: a non-superadmin may only refine/apply to a course in
+        # their own org. Previously course_id + session_id were passed straight
+        # to the service (admin client), so any org_admin/advisor could run AI
+        # bulk edits on another org's course and hijack unbound sessions.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
         result = service.process_answers(session_id, answers)
 
@@ -281,6 +294,12 @@ def apply_changes(user_id, course_id):
                 'error': 'At least one change ID is required'
             }), 400
 
+        # IDOR-C4 fix: a non-superadmin may only refine/apply to a course in
+        # their own org. Previously course_id + session_id were passed straight
+        # to the service (admin client), so any org_admin/advisor could run AI
+        # bulk edits on another org's course and hijack unbound sessions.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
         result = service.apply_changes(session_id, change_ids)
 
@@ -346,6 +365,12 @@ def generate_prompt_update(user_id, course_id):
                 'error': 'Session ID is required'
             }), 400
 
+        # IDOR-C4 fix: a non-superadmin may only refine/apply to a course in
+        # their own org. Previously course_id + session_id were passed straight
+        # to the service (admin client), so any org_admin/advisor could run AI
+        # bulk edits on another org's course and hijack unbound sessions.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
         result = service.generate_prompt_update(session_id)
 
@@ -398,6 +423,12 @@ def get_session(user_id, course_id, session_id):
     }
     """
     try:
+        # IDOR-C4 fix: a non-superadmin may only refine/apply to a course in
+        # their own org. Previously course_id + session_id were passed straight
+        # to the service (admin client), so any org_admin/advisor could run AI
+        # bulk edits on another org's course and hijack unbound sessions.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
         session = service.get_session(session_id)
 
@@ -439,6 +470,12 @@ def cancel_session(user_id, course_id, session_id):
     }
     """
     try:
+        # IDOR-C4 fix: a non-superadmin may only refine/apply to a course in
+        # their own org. Previously course_id + session_id were passed straight
+        # to the service (admin client), so any org_admin/advisor could run AI
+        # bulk edits on another org's course and hijack unbound sessions.
+        if not caller_can_access_course(get_supabase_admin_client(), user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
         service = CourseRefineService(user_id)
 
         # Verify session exists and belongs to this course

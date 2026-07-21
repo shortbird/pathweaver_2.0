@@ -35,6 +35,7 @@ import time
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
+from utils.auth.org_scope import caller_can_access_course
 from services.course_generation_service import CourseGenerationService
 from services.course_generation_job_service import CourseGenerationJobService
 from services.base_ai_service import AIGenerationError
@@ -85,6 +86,10 @@ def add_project(user_id, course_id):
         organization_id = get_organization_id(user_id)
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+
+        # IDOR-H8 fix: only operate on a course in the caller's org.
+        if not caller_can_access_course(supabase, user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         # Get course categories for topics
         course = supabase.table('courses').select('*').eq('id', course_id).execute()
@@ -170,6 +175,10 @@ def update_project(user_id, course_id, quest_id):
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
 
+        # IDOR-H8 fix: only operate on a course in the caller's org.
+        if not caller_can_access_course(supabase, user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
         update_data = {}
         if 'title' in data:
             update_data['title'] = data['title']
@@ -206,6 +215,12 @@ def delete_project(user_id, course_id, quest_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
+
+        # IDOR-C3/H8 fix: only delete a project belonging to a course in the
+        # caller's org. Previously this cascade-deleted lessons + students'
+        # user_quest_tasks for ANY course with no org scoping.
+        if not caller_can_access_course(supabase, user_id, course_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         # Get lessons
         lessons = supabase.table('curriculum_lessons').select('id').eq('quest_id', quest_id).execute()

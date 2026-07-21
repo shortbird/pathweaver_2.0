@@ -16,6 +16,7 @@ Endpoints:
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.org_scope import caller_can_access_user
 from utils.roles import get_effective_role
 from utils.pillar_utils import normalize_pillar_name, PILLAR_KEYS
 from services.xp_service import XPService
@@ -133,6 +134,10 @@ def audit_user_xp(auth_user_id: str, user_id: str):
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
+    # IDOR-H9 fix: org_admins may only audit their own org's students.
+    if not caller_can_access_user(supabase, auth_user_id, user_id):
+        return jsonify({'success': False, 'error': 'Not authorized for this user'}), 403
+
     # Get user info
     target_user = supabase.table('users')\
         .select('id, email, display_name, total_xp')\
@@ -192,6 +197,10 @@ def reconcile_user_xp(auth_user_id: str, user_id: str):
 
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
+
+    # IDOR-H9 fix: org_admins may only reconcile their own org's students.
+    if not caller_can_access_user(supabase, auth_user_id, user_id):
+        return jsonify({'success': False, 'error': 'Not authorized for this user'}), 403
 
     # Calculate expected XP
     expected_xp = calculate_expected_xp(supabase, user_id)

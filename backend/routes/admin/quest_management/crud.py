@@ -526,19 +526,34 @@ def delete_quest(user_id, quest_id):
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        # Get user role
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else 'advisor'
+        # Get user role and organization (mirror update_quest's authorization)
+        user = supabase.table('users').select('role, organization_id, org_role').eq('id', user_id).execute()
+        user_data = user.data[0] if user.data else {}
+        user_role = user_data.get('role', 'advisor')
+        user_org_id = user_data.get('organization_id')
+        user_org_role = user_data.get('org_role')
 
-        # Check ownership for advisors
-        if user_role == 'advisor':
-            # Advisors can only delete their own quests
-            if quest.data.get('created_by') != user_id:
-                return jsonify({'success': False, 'error': 'Not authorized to delete this quest'}), 403
+        is_superadmin = user_role == 'superadmin'
+        is_org_admin = user_role == 'org_managed' and user_org_role == 'org_admin'
+        is_advisor = user_role == 'advisor' or (user_role == 'org_managed' and user_org_role == 'advisor')
+        quest_org_id = quest.data.get('organization_id')
 
-            # Advisors cannot delete published quests
-            if quest.data.get('is_active'):
-                return jsonify({'success': False, 'error': 'Cannot delete published quests'}), 403
+        # IDOR-C3 fix: this previously gated only on the raw `role` column, so a
+        # real org advisor (role='org_managed') skipped the check entirely and
+        # could cascade-delete ANY org's quest and students' learning records.
+        # Authorize against the EFFECTIVE role + org, matching update_quest.
+        can_delete = False
+        if is_superadmin:
+            can_delete = True
+        elif is_org_admin and quest_org_id and quest_org_id == user_org_id:
+            can_delete = True
+        elif is_advisor:
+            # Advisors can only delete their own, unpublished quests
+            if quest.data.get('created_by') == user_id and not quest.data.get('is_active'):
+                can_delete = True
+
+        if not can_delete:
+            return jsonify({'success': False, 'error': 'Not authorized to delete this quest'}), 403
 
         # Step 0: Reverse denormalized aggregate XP before deleting completions
         # (completions carry no xp_awarded; XP is derived from xp_value).

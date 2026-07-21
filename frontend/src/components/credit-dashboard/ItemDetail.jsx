@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
+import { safeHref } from '../../utils/safeHref'
 import StatusTimeline from './StatusTimeline'
 import CreditFeedbackThread from '../credit/CreditFeedbackThread'
 import { toast } from 'react-hot-toast'
@@ -42,7 +43,7 @@ const renderBlockBody = (block) => {
         <div className="space-y-2">
           {getBlockItems(block.content, 'image').map((item, j) => (
             <div key={j}>
-              <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+              <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
                 <img
                   src={item.url}
                   alt={item.alt || 'Evidence'}
@@ -63,7 +64,7 @@ const renderBlockBody = (block) => {
           {getBlockItems(block.content, 'link').map((item, j) => (
             <a
               key={j}
-              href={item.url}
+              href={safeHref(item.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-optio-purple hover:underline flex items-center gap-1"
@@ -80,7 +81,7 @@ const renderBlockBody = (block) => {
       return (
         <div className="space-y-2">
           {getBlockItems(block.content, 'video').map((item, j) => (
-            <a key={j} href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
+            <a key={j} href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
               Video: {item.title || item.url}
             </a>
           ))}
@@ -95,7 +96,7 @@ const renderBlockBody = (block) => {
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
-              <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
+              <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
                 {item.title || item.filename || 'Download file'}
               </a>
             </div>

@@ -153,3 +153,46 @@ class TestEvaluate:
         assert out['is_full'] is True
         assert len(out['warnings']) == 4
         assert len(out['conflicts']) == 1
+
+
+class TestRosterConflicts:
+    # Mon 1-3 vs Mon 1-3 overlap; a Wed class never collides with them.
+    MEETINGS = {
+        'hist_mon': [{'day_of_week': 1, 'start_time': '13:00', 'end_time': '15:00'}],
+        'sci_mon':  [{'day_of_week': 1, 'start_time': '13:00', 'end_time': '15:00'}],
+        'sci_wed':  [{'day_of_week': 3, 'start_time': '13:00', 'end_time': '15:00'}],
+        'no_mtg':   [],
+    }
+
+    def test_two_classes_same_slot_conflict(self):
+        out = elig.find_roster_conflicts({'s1': ['hist_mon', 'sci_mon']}, self.MEETINGS)
+        assert out == [{'student_id': 's1', 'class_a': 'hist_mon', 'class_b': 'sci_mon'}]
+
+    def test_pair_ordering_is_stable(self):
+        # Same input in a different list order yields the same a<b pair.
+        out = elig.find_roster_conflicts({'s1': ['sci_mon', 'hist_mon']}, self.MEETINGS)
+        assert out == [{'student_id': 's1', 'class_a': 'hist_mon', 'class_b': 'sci_mon'}]
+
+    def test_different_days_no_conflict(self):
+        out = elig.find_roster_conflicts({'s1': ['hist_mon', 'sci_wed']}, self.MEETINGS)
+        assert out == []
+
+    def test_class_without_meetings_never_conflicts(self):
+        out = elig.find_roster_conflicts({'s1': ['hist_mon', 'no_mtg']}, self.MEETINGS)
+        assert out == []
+
+    def test_duplicate_class_ids_deduped(self):
+        out = elig.find_roster_conflicts({'s1': ['hist_mon', 'hist_mon']}, self.MEETINGS)
+        assert out == []
+
+    def test_three_classes_one_overlapping_pair(self):
+        out = elig.find_roster_conflicts({'s1': ['hist_mon', 'sci_mon', 'sci_wed']}, self.MEETINGS)
+        assert out == [{'student_id': 's1', 'class_a': 'hist_mon', 'class_b': 'sci_mon'}]
+
+    def test_per_student_isolation(self):
+        out = elig.find_roster_conflicts(
+            {'s1': ['hist_mon', 'sci_mon'], 's2': ['hist_mon', 'sci_wed']}, self.MEETINGS)
+        assert out == [{'student_id': 's1', 'class_a': 'hist_mon', 'class_b': 'sci_mon'}]
+
+    def test_no_enrollments(self):
+        assert elig.find_roster_conflicts({}, self.MEETINGS) == []

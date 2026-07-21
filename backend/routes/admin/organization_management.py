@@ -548,18 +548,35 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
         if not user_ids:
             return jsonify({'error': 'user_ids is required'}), 400
 
+        # Validate the requested org_role instead of trusting the raw body
+        # (mass-assignment). Fall back to 'student' for anything unrecognized.
+        from utils.roles import VALID_ORG_ROLES
+        if default_org_role not in VALID_ORG_ROLES:
+            default_org_role = 'student'
+
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
+        skipped = 0
         # Update users to join organization with org_managed pattern
         for user_id in user_ids:
-            # Get user's current role to preserve it as org_role
-            user_data = client.table('users').select('role').eq('id', user_id).single().execute()
+            # Get user's current role + org to preserve role and enforce scoping
+            user_data = client.table('users').select('role, organization_id').eq('id', user_id).single().execute()
             current_role = user_data.data.get('role', 'student') if user_data.data else 'student'
+            current_user_org = user_data.data.get('organization_id') if user_data.data else None
 
             # Don't change superadmin users
             if current_role == 'superadmin':
                 logger.warning(f"Skipping superadmin user {user_id} - cannot add to organization")
+                skipped += 1
+                continue
+
+            # IDOR-H6 fix: never absorb a user who already belongs to a DIFFERENT
+            # org (that would pull another tenant's users + their minors' data
+            # into this org). Only a superadmin may move a user across orgs.
+            if current_user_org and current_user_org != org_id and not is_superadmin:
+                logger.warning(f"Skipping user {user_id} - belongs to a different organization")
+                skipped += 1
                 continue
 
             # If already org_managed, just update org_id (they keep their org_role)
@@ -581,11 +598,13 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
                     .eq('id', user_id)\
                     .execute()
 
-        logger.info(f"Added {len(user_ids)} users to organization {org_id}")
+        users_added = len(user_ids) - skipped
+        logger.info(f"Added {users_added} users to organization {org_id} ({skipped} skipped)")
 
         return jsonify({
-            'message': f'Added {len(user_ids)} users to organization',
-            'users_added': len(user_ids)
+            'message': f'Added {users_added} users to organization',
+            'users_added': users_added,
+            'skipped': skipped
         }), 200
     except Exception as e:
         logger.error(f"Error adding users to org {org_id}: {e}")
@@ -615,6 +634,25 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
+        # IDOR-C5 fix: resolve the target and enforce that it actually belongs to
+        # the org named in the URL BEFORE mutating. Previously the update was
+        # scoped by user id only, so an org_admin could evict users from other
+        # orgs and demote a superadmin (whose org_role is NULL -> 'student').
+        target = client.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
+        if not target.data:
+            return jsonify({'error': 'User not found'}), 404
+        target_role = target.data.get('role')
+        target_org = target.data.get('organization_id')
+
+        # Never remove/demote a superadmin through the org membership endpoint.
+        if target_role == 'superadmin':
+            return jsonify({'error': 'Cannot remove a superadmin from an organization'}), 403
+
+        # This endpoint is org-scoped (/<org_id>/users/remove): the target must
+        # be a member of that org, for every caller (superadmin included).
+        if target_org != org_id:
+            return jsonify({'error': 'User is not a member of this organization'}), 404
+
         if delete_user and is_superadmin:
             # Superadmin can fully delete user
             try:
@@ -626,11 +664,14 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
                 logger.error(f"Failed to delete auth user {user_id}: {auth_error}")
                 return jsonify({'error': 'Failed to delete user from auth system'}), 500
         else:
-            # Get user's current org_role to use as their platform role
-            user_data = client.table('users').select('org_role').eq('id', user_id).single().execute()
-            platform_role = user_data.data.get('org_role', 'student') if user_data.data else 'student'
+            # Use their org_role as the resulting platform role, sanitized to a
+            # valid platform role (org_admin is not a platform role -> student).
+            platform_role = target.data.get('org_role') or 'student'
+            if platform_role not in ('student', 'parent', 'advisor', 'observer'):
+                platform_role = 'student'
 
-            # Convert to platform user: NULL org, direct role, clear org_role
+            # Convert to platform user: NULL org, direct role, clear org_role.
+            # Org filter on the update is defense-in-depth against races.
             client.table('users')\
                 .update({
                     'organization_id': None,
@@ -639,6 +680,7 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
                     'is_org_admin': False
                 })\
                 .eq('id', user_id)\
+                .eq('organization_id', org_id)\
                 .execute()
 
             logger.info(f"Removed user {user_id} from organization {org_id} (now platform user with role={platform_role})")

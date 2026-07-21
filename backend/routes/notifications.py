@@ -7,6 +7,8 @@ Handles user notification retrieval, marking as read, and real-time updates.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.org_scope import caller_can_access_user
+from utils.roles import get_effective_role
 from middleware.error_handler import ValidationError
 from services.notification_service import NotificationService
 from utils.logger import get_logger
@@ -14,6 +16,23 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 bp = Blueprint('notifications', __name__, url_prefix='/api/notifications')
+
+
+def _is_safe_internal_link(link) -> bool:
+    """Whether a notification `link` is a safe internal app path.
+
+    IDOR-H2 hardening: the link is rendered as a clickable target on the
+    recipient's device, so only same-origin app paths are allowed. Reject
+    external URLs, protocol-relative URLs, and dangerous schemes
+    (javascript:, data:, etc.). Empty/None is allowed (no link).
+    """
+    if not link:
+        return True
+    if not isinstance(link, str):
+        return False
+    link = link.strip()
+    # Must be a rooted path, but not protocol-relative ("//evil.com").
+    return link.startswith('/') and not link.startswith('//')
 
 
 @bp.route('', methods=['GET'])
@@ -220,9 +239,12 @@ def send_notification(user_id: str):
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
-        # Check permissions
+        # Check permissions (use EFFECTIVE role — real org advisors/admins have
+        # role='org_managed' with the true role in org_role, so a raw `role`
+        # check both fails-open for the platform-advisor path and locks out org
+        # staff. NOTIF-2.)
         user = supabase.table('users')\
-            .select('role, organization_id')\
+            .select('role, org_role, org_roles, organization_id')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -230,8 +252,8 @@ def send_notification(user_id: str):
         if not user.data:
             return jsonify({'error': 'User not found'}), 404
 
-        user_role = user.data.get('role')
-        if user_role not in ['advisor', 'org_admin', 'superadmin']:
+        effective_role = get_effective_role(user.data)
+        if effective_role not in ['advisor', 'org_admin', 'superadmin']:
             return jsonify({'error': 'Only advisors and administrators can send notifications'}), 403
 
         # Get request data
@@ -249,6 +271,35 @@ def send_notification(user_id: str):
         # Validate required fields
         if not all([target_user_id, notification_type, title, message]):
             return jsonify({'error': 'target_user_id, notification_type, title, and message are required'}), 400
+
+        # IDOR-H2 fix: the sender must have a relationship to the target, else
+        # any advisor could push arbitrary (and arbitrarily-linked) notifications
+        # to minors in OTHER orgs.
+        #   superadmin -> any target
+        #   org_admin  -> target must be in the same org
+        #   advisor    -> an active advisor_student_assignments row for the target
+        if effective_role == 'superadmin':
+            authorized = True
+        elif effective_role == 'org_admin':
+            authorized = caller_can_access_user(supabase, user_id, target_user_id)
+        elif effective_role == 'advisor':
+            assignment = supabase.table('advisor_student_assignments')\
+                .select('id')\
+                .eq('advisor_id', user_id)\
+                .eq('student_id', target_user_id)\
+                .eq('is_active', True)\
+                .limit(1)\
+                .execute()
+            authorized = bool(assignment.data)
+        else:
+            authorized = False
+
+        if not authorized:
+            return jsonify({'error': 'Not authorized to notify this user'}), 403
+
+        # IDOR-H2 fix: only allow internal app paths as the click target.
+        if not _is_safe_internal_link(link):
+            return jsonify({'error': 'Invalid link; only internal app paths are allowed'}), 400
 
         # Create notification
         notification = service.create_notification(
@@ -350,9 +401,11 @@ def broadcast_notification(user_id: str):
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
-        # Check permissions
+        # Check permissions (effective role — NOTIF-2). Broadcast is already
+        # bound to the sender's own organization_id below, so it cannot cross
+        # tenants; this just resolves org staff (role='org_managed') correctly.
         user = supabase.table('users')\
-            .select('role, organization_id')\
+            .select('role, org_role, org_roles, organization_id')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -360,10 +413,10 @@ def broadcast_notification(user_id: str):
         if not user.data:
             return jsonify({'error': 'User not found'}), 404
 
-        user_role = user.data.get('role')
+        effective_role = get_effective_role(user.data)
         organization_id = user.data.get('organization_id')
 
-        if user_role not in ['advisor', 'org_admin', 'superadmin']:
+        if effective_role not in ['advisor', 'org_admin', 'superadmin']:
             return jsonify({'error': 'Only advisors and administrators can broadcast notifications'}), 403
 
         if not organization_id:

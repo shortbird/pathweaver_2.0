@@ -203,6 +203,85 @@ def evaluate_eligibility(org_id: str, class_id: str, student_user_id: str) -> Di
     )
 
 
+def _first_overlap_slot(a_meetings, b_meetings) -> Optional[Dict[str, Any]]:
+    """The first day/time where two classes' meetings collide (for display)."""
+    for am in a_meetings:
+        for bm in b_meetings:
+            if elig.meetings_overlap(am, bm):
+                return {
+                    'day_of_week': am.get('day_of_week'),
+                    'start_time': str(am.get('start_time') or '')[:5],
+                    'end_time': str(am.get('end_time') or '')[:5],
+                }
+    return None
+
+
+def list_schedule_conflicts(org_id: str) -> List[Dict[str, Any]]:
+    """Every active student in the org enrolled in two classes whose meetings
+    overlap. A soft, advisory signal — surfaced after any schedule change so a
+    late meeting edit that strands already-enrolled students is caught (nothing
+    re-validates a roster when a class's times move). Archived classes are
+    ignored (they no longer run). One row per (student, class-pair)."""
+    admin = _admin()
+    classes = (
+        admin.table('org_classes').select('id, name, status')
+        .eq('organization_id', org_id).execute()
+    ).data or []
+    class_name = {c['id']: c.get('name') for c in classes if c.get('status') != 'archived'}
+    if not class_name:
+        return []
+    class_ids = list(class_name.keys())
+
+    enr = (
+        admin.table('class_enrollments').select('student_id, class_id')
+        .in_('class_id', class_ids).eq('status', 'active').execute()
+    ).data or []
+    enrollments_by_student: Dict[str, List[str]] = {}
+    for r in enr:
+        enrollments_by_student.setdefault(r['student_id'], []).append(r['class_id'])
+    if not enrollments_by_student:
+        return []
+
+    meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
+    for m in _classes_repo().meetings_for_classes(class_ids):
+        meetings_by_class.setdefault(m['class_id'], []).append(m)
+
+    pairs = elig.find_roster_conflicts(enrollments_by_student, meetings_by_class)
+    if not pairs:
+        return []
+
+    student_ids = list(enrollments_by_student.keys())
+    users = {
+        u['id']: u for u in (
+            admin.table('users')
+            .select('id, first_name, last_name, display_name')
+            .in_('id', student_ids).execute()
+        ).data or []
+    }
+
+    def _name(uid: str) -> str:
+        u = users.get(uid) or {}
+        return (u.get('display_name')
+                or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                or 'Unknown')
+
+    out = []
+    for p in pairs:
+        slot = _first_overlap_slot(meetings_by_class.get(p['class_a'], []),
+                                   meetings_by_class.get(p['class_b'], [])) or {}
+        out.append({
+            'student_id': p['student_id'],
+            'student_name': _name(p['student_id']),
+            'class_a': class_name.get(p['class_a'], 'Unknown'),
+            'class_b': class_name.get(p['class_b'], 'Unknown'),
+            'day_of_week': slot.get('day_of_week'),
+            'start_time': slot.get('start_time'),
+            'end_time': slot.get('end_time'),
+        })
+    out.sort(key=lambda r: (r['student_name'].lower(), r['class_a'] or ''))
+    return out
+
+
 def add_item(org_id: str, reg_id: str, class_id: str) -> Dict[str, Any]:
     """Add a class to a registration. Returns the item + soft-eligibility eval."""
     reg = get_registration(org_id, reg_id)

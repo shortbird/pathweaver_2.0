@@ -26,6 +26,7 @@ from services.evidence_service import EvidenceService
 from services.xp_service import XPService
 from datetime import datetime
 import mimetypes
+import re
 from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional, List
 import json
@@ -1276,6 +1277,86 @@ def _collect_file_urls_from_content(content):
     return urls
 
 
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE,
+)
+
+# Top-level storage folders whose SECOND path segment is the owning user_id.
+# Mirrors STORAGE_PATH_TEMPLATES in services/media_upload_service.py:
+#   evidence-tasks/{user_id}/...   evidence-blocks/{user_id}/...
+#   learning-events/{user_id}/...  task-evidence/{user_id}/...
+#   learning_moments/{child_id}/... (child_id is the student's user_id)
+_OWNER_IN_SECOND_SEGMENT = {
+    'evidence-tasks', 'evidence-blocks', 'learning-events',
+    'task-evidence', 'learning_moments',
+}
+_STORAGE_BUCKETS = ('quest-evidence', 'user-uploads', 'curriculum')
+
+
+def _owner_id_from_storage_url(file_url):
+    """Best-effort: extract the owning user_id embedded in an evidence storage
+    path. Returns None when the path doesn't match a known evidence template —
+    callers MUST treat None as 'cannot verify ownership' and deny."""
+    if not file_url or not isinstance(file_url, str) or 'supabase.co' not in file_url:
+        return None
+    for bucket in _STORAGE_BUCKETS:
+        marker = f'/{bucket}/'
+        if marker in file_url:
+            path = file_url.split(marker, 1)[1].split('?', 1)[0]
+            parts = [p for p in path.split('/') if p]
+            if not parts:
+                return None
+            if parts[0] in _OWNER_IN_SECOND_SEGMENT and len(parts) >= 2:
+                candidate = parts[1]          # known folder -> owner is 2nd segment
+            else:
+                candidate = parts[0]          # fallback template: {user_id}/{uuid}.ext
+            return candidate if _UUID_RE.match(candidate) else None
+    return None
+
+
+def _is_superadmin(admin_supabase, user_id):
+    try:
+        row = admin_supabase.table('users').select('role').eq('id', user_id).limit(1).execute()
+        return bool(row.data and row.data[0].get('role') == 'superadmin')
+    except Exception:
+        return False
+
+
+def _caller_can_delete_owner(admin_supabase, owner_id, user_id, is_superadmin=False):
+    """Whether `user_id` may delete a storage file owned by `owner_id`.
+
+    Allowed when: superadmin; the file is the caller's own; or the file belongs
+    to a student the caller is a guardian of (a dependent via
+    users.managed_by_parent_id, or an approved parent_student_links row).
+    Observers are intentionally NOT granted deletion (view-only). `owner_id`
+    of None (unrecognized path) is denied for non-superadmins.
+    """
+    if is_superadmin:
+        return True
+    if not owner_id:
+        return False
+    if owner_id == user_id:
+        return True
+    try:
+        dep = (admin_supabase.table('users').select('id')
+               .eq('id', owner_id).eq('managed_by_parent_id', user_id)
+               .limit(1).execute())
+        if dep.data:
+            return True
+    except Exception:
+        pass
+    try:
+        link = (admin_supabase.table('parent_student_links').select('id')
+                .eq('parent_user_id', user_id).eq('student_user_id', owner_id)
+                .eq('status', 'approved').limit(1).execute())
+        if link.data:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 @bp.route('/blocks/<block_id>/file', methods=['DELETE'])
 @require_auth
 def delete_block_file(user_id: str, block_id: str):
@@ -1352,6 +1433,12 @@ def delete_storage_urls(user_id: str):
     parent/advisor moment media).
 
     Request body: { "urls": ["https://...supabase.co/...", ...] }
+
+    SECURITY (EVID-1 fix): each URL is only deleted when the caller owns the
+    underlying file (its storage path embeds the caller's user_id), the file
+    belongs to a student the caller is a guardian of, or the caller is a
+    superadmin. Previously any authenticated user could delete ANY user's
+    evidence files by passing arbitrary public URLs.
     """
     try:
         # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
@@ -1363,16 +1450,39 @@ def delete_storage_urls(user_id: str):
         if not urls or not isinstance(urls, list):
             return jsonify({'success': True, 'deleted': 0, 'message': 'No URLs provided'})
 
+        is_superadmin = _is_superadmin(admin_supabase, user_id)
+        owner_allowed: Dict[Optional[str], bool] = {}  # per-owner decision cache
+
         deleted = 0
+        denied = 0
         for url in urls[:50]:  # Cap at 50 to prevent abuse
+            if not isinstance(url, str):
+                continue
+            # Enforce ownership on Supabase storage URLs (the only ones actually
+            # removed). External/blob URLs are no-ops in _delete_storage_file.
+            if 'supabase.co' in url:
+                owner_id = _owner_id_from_storage_url(url)
+                if owner_id not in owner_allowed:
+                    owner_allowed[owner_id] = _caller_can_delete_owner(
+                        admin_supabase, owner_id, user_id, is_superadmin)
+                if not owner_allowed[owner_id]:
+                    denied += 1
+                    logger.warning(
+                        f"delete_storage_urls: user {user_id[:8]} denied deletion "
+                        f"of file not owned by them"
+                    )
+                    continue
             if _delete_storage_file(admin_supabase, url):
                 deleted += 1
 
-        return jsonify({
+        result = {
             'success': True,
             'deleted': deleted,
             'message': f'Deleted {deleted} file(s) from storage'
-        })
+        }
+        if denied:
+            result['denied'] = denied
+        return jsonify(result)
 
     except Exception as e:
         logger.error(f"Error in delete_storage_urls: {str(e)}")

@@ -45,7 +45,10 @@ jobs:
           pip install -r requirements.txt
           pip install pip-audit
       - name: pip-audit (fail on high/critical CVEs)
-        working-directory: backend
+        # DEP-H1 fix: audit the ROOT requirements.txt — that is the file Render
+        # actually deploys (render.yaml rootDir: "" + pip install -r
+        # requirements.txt). Previously this ran in backend/ and audited
+        # backend/requirements.txt, so the enforcing gate was blind to prod.
         # Supply-chain gate (enforcing). Documented ignores re-reviewed per bump:
         # - PYSEC-2024-271 (flask-cors): log-injection only at LOG_LEVEL=debug;
         #   prod runs at WARNING. No upstream fix.
