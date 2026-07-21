@@ -204,6 +204,79 @@ class TestExistingOrgStudentByNameDob:
                                 link_rows=[{'parent_user_id': 'parent1'}])['id'] == 'orig'
 
 
+# A fake that RESPECTS eq/in_ filters, so tests can tell an org-scoped query from
+# the parent's-own-linked-students query (the shared _FakeAdmin ignores filters).
+class _FilterQuery:
+    def __init__(self, db, table):
+        self.db, self.table, self.f, self.inf = db, table, {}, None
+
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, col, val):
+        self.f[col] = val
+        return self
+
+    def in_(self, col, vals):
+        self.inf = (col, list(vals))
+        return self
+
+    def limit(self, *a, **k):
+        return self
+
+    def execute(self):
+        rows = self.db.data.get(self.table, [])
+        out = []
+        for r in rows:
+            if all(str(r.get(c)) == str(v) for c, v in self.f.items()) and \
+                    (self.inf is None or r.get(self.inf[0]) in self.inf[1]):
+                out.append(r)
+        return _Resp(out)
+
+
+class _FilterAdmin:
+    def __init__(self, data):
+        self.data = data
+
+    def table(self, name):
+        return _FilterQuery(self, name)
+
+
+@pytest.mark.unit
+class TestNameDobMatchesParentsOwnLinkedKid:
+    # Tyler's case: a platform account (organization_id None) the parent already
+    # has for their kid, re-entered on the managed path (no email). It must attach
+    # via the parent's own links, not create a duplicate.
+    JAMES = {'id': 'james', 'role': 'student', 'org_role': None, 'organization_id': None,
+             'is_dependent': False, 'first_name': 'James', 'last_name': 'Tiberius',
+             'date_of_birth': '2011-01-20'}
+
+    def _match(self, users, links):
+        return icr._existing_org_student_by_name_dob(
+            _FilterAdmin({'users': users, 'parent_student_links': links}),
+            'org1', 'tyler', 'James', 'Tiberius', '2011-01-20')
+
+    def test_parents_own_linked_platform_kid_matches(self):
+        got = self._match([self.JAMES],
+                          [{'parent_user_id': 'tyler', 'student_user_id': 'james'}])
+        assert got and got['id'] == 'james'
+
+    def test_unlinked_platform_kid_is_not_claimable(self):
+        # Not linked to this parent and not in the org -> never auto-attached.
+        assert self._match([self.JAMES], []) is None
+
+    def test_platform_kid_linked_to_other_parent_refused(self):
+        assert self._match([self.JAMES],
+                           [{'parent_user_id': 'someone-else', 'student_user_id': 'james'}]) is None
+
+    def test_brand_new_kid_has_no_match(self):
+        # A genuinely new child (Max) -> created fresh, no false attach.
+        admin = _FilterAdmin({'users': [self.JAMES],
+                              'parent_student_links': [{'parent_user_id': 'tyler', 'student_user_id': 'james'}]})
+        assert icr._existing_org_student_by_name_dob(
+            admin, 'org1', 'tyler', 'Max', 'Tiberius', '2015-05-05') is None
+
+
 # ── _existing_household_for_parent (no duplicate households on re-registration) ─
 
 @pytest.mark.unit

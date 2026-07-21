@@ -375,28 +375,42 @@ def _match_existing_dependent(dependents, first, last, dob):
 
 
 def _existing_org_student_by_name_dob(admin, org_id, parent_id, first, last, dob):
-    """Find a pre-existing org student matching this kid by name + DOB, attachable
-    to the family. This is the guard against the re-registration duplicate: a kid
-    whose school-imported (or otherwise pre-existing) Optio account the parent
-    re-enters as a brand-new child because the funnel only matched on email.
+    """Find a pre-existing student account matching this kid by name + DOB,
+    attachable to the family. Guards against the re-registration duplicate: a kid
+    whose pre-existing Optio account the parent re-enters as a brand-new child
+    because the funnel matched only on email.
 
-    Deliberately conservative — a self-service parent must never claim an
-    arbitrary account:
-      - same org, an actual student account, not a dependent (those are handled
-        by _match_existing_dependent against the parent's own),
-      - EXACT DOB match required (so a different same-name student is never
-        attached; twins never collide because their names differ),
+    The candidate pool is kept SAFE — a self-service parent must never claim an
+    arbitrary account — so it is limited to:
+      - this org's OWN students at that DOB (school-imported roster), and
+      - the parent's OWN already-linked students (covers a platform account the
+        parent already has for their kid, e.g. an existing Optio family).
+    There is no platform-wide name search. Each candidate must additionally be:
+      - an actual student account, not a dependent (the parent's own dependents
+        are handled by _match_existing_dependent),
+      - not in a DIFFERENT org,
+      - an EXACT DOB + name match (so twins never collide — their names differ),
       - not already parent-linked to a DIFFERENT parent.
     Returns the user row to attach, or None.
     """
     if not dob:
         return None
-    rows = (admin.table('users')
-            .select('id, role, org_role, organization_id, is_dependent, '
-                    'first_name, last_name, display_name, date_of_birth')
+    fields = ('id, role, org_role, organization_id, is_dependent, '
+              'first_name, last_name, display_name, date_of_birth')
+    pool = (admin.table('users').select(fields)
             .eq('organization_id', org_id)
             .eq('date_of_birth', str(dob)).execute()).data or []
-    for u in rows:
+    own_links = (admin.table('parent_student_links').select('student_user_id')
+                 .eq('parent_user_id', parent_id).execute()).data or []
+    own_ids = [l.get('student_user_id') for l in own_links if l.get('student_user_id')]
+    if own_ids:
+        pool = pool + ((admin.table('users').select(fields)
+                        .in_('id', own_ids).execute()).data or [])
+    seen = set()
+    for u in pool:
+        if u['id'] in seen:
+            continue
+        seen.add(u['id'])
         if u.get('is_dependent'):
             continue
         if str(u.get('date_of_birth') or '')[:10] != str(dob):
@@ -405,6 +419,8 @@ def _existing_org_student_by_name_dob(admin, org_id, parent_id, first, last, dob
             continue
         if (u.get('last_name') or '').strip().lower() != last.lower():
             continue
+        if u.get('organization_id') and u['organization_id'] != org_id:
+            continue  # never pull a kid out of another school
         effective = u.get('org_role') if u.get('organization_id') else u.get('role')
         if effective != 'student':
             continue
