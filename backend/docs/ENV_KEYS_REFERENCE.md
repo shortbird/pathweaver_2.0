@@ -35,7 +35,7 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `SPARK_WEBHOOK_SECRET` | Spark LMS webhook HMAC secret (M5) | `Config.SPARK_WEBHOOK_SECRET` | Provided by Spark integration |
 | `EVIDENCE_UPLOAD_FOLDER` | Storage path for evidence document uploads (M5) | `Config.EVIDENCE_UPLOAD_FOLDER` | Default `uploads/evidence` |
 | `ENABLE_VIRUS_SCAN` | Toggle ClamAV virus scanning on uploads (M5) | `Config.ENABLE_VIRUS_SCAN` | Default `false`; set `true` only when ClamAV is on the host |
-| `SENTRY_DSN` | Backend error tracking (Sentry project `optio-llc/optio-backend`) | `Config.SENTRY_DSN` | Sentry > Project Settings > Client Keys; unset = Sentry disabled (local dev) |
+| `SENTRY_DSN` | Backend error tracking (Sentry project `shortbird/optio-backend`) | `Config.SENTRY_DSN` | Sentry > Project Settings > Client Keys; unset = Sentry disabled (local dev) |
 | `SENTRY_ENVIRONMENT` | Sentry environment tag (`production` / `development`) | `Config.SENTRY_ENVIRONMENT` | Set per Render service; falls back to `FLASK_ENV` |
 
 ### Email Configuration

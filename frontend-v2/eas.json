@@ -20,7 +20,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://optio-dev-backend.onrender.com",
-        "EXPO_PUBLIC_SENTRY_DSN": "https://0d3fe6921fd977abf5ac7219d6c6c94e@o4511491445817344.ingest.us.sentry.io/4511491457155072"
+        "EXPO_PUBLIC_SENTRY_DSN": "https://93a6f5323a2291f9b52198ed838830c7@o4511728872456192.ingest.us.sentry.io/4511770696482816"
       }
     },
     "production": {
@@ -31,7 +31,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.optioeducation.com",
-        "EXPO_PUBLIC_SENTRY_DSN": "https://0d3fe6921fd977abf5ac7219d6c6c94e@o4511491445817344.ingest.us.sentry.io/4511491457155072"
+        "EXPO_PUBLIC_SENTRY_DSN": "https://93a6f5323a2291f9b52198ed838830c7@o4511728872456192.ingest.us.sentry.io/4511770696482816"
       }
     },
     "production-apk": {

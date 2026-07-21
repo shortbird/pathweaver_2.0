@@ -13,8 +13,8 @@ name: EAS Update (OTA preview)
 #
 # Required repo secrets:
 #   EXPO_TOKEN          - Expo robot access token (Expo dashboard > Access tokens)
-#   SENTRY_ORG          - optio-llc
-#   SENTRY_PROJECT      - node   (or the numeric project id)
+#   SENTRY_ORG          - shortbird
+#   SENTRY_PROJECT      - optio-mobile   (or the numeric project id)
 #   SENTRY_AUTH_TOKEN   - Sentry auth token with project:releases scope
 
 on:

@@ -228,7 +228,7 @@ class Config:
     CANVAS_LTI_PRIVATE_KEY_PEM = os.getenv('CANVAS_LTI_PRIVATE_KEY_PEM')
     CANVAS_LTI_PUBLIC_KID = os.getenv('CANVAS_LTI_PUBLIC_KID')
 
-    # Sentry error tracking (backend project: optio-llc/optio-backend).
+    # Sentry error tracking (backend project: shortbird/optio-backend).
     # Unset → Sentry is a no-op (local dev). SENTRY_ENVIRONMENT distinguishes
     # the prod and dev Render services in the same Sentry project.
     SENTRY_DSN = os.getenv('SENTRY_DSN')
