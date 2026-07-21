@@ -51,6 +51,7 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
   const [regLinkLoading, setRegLinkLoading] = useState(true)
   const [regLinkBusy, setRegLinkBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [embedCopied, setEmbedCopied] = useState(false)
 
   const findParentLink = (invitations = []) => invitations.find((inv) =>
     inv.role === 'parent' &&
@@ -265,6 +266,51 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
           )}
         </p>
       </div>
+
+      {/* Embeddable live schedule — read-only weekly grid for the school's own
+          website (display-only; no registration links). Backed by the same
+          public schedule-preview endpoint as the funnel preview. */}
+      {regLink && (
+        <div className="mb-5">
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Embed your live schedule</label>
+          <div className="flex items-stretch gap-2">
+            <input
+              readOnly
+              value={`<iframe src="${getLearningOrigin()}/schedule-embed/${regLink.invitation_code}" style="width:100%;min-height:900px;border:0;" title="Class schedule"></iframe>`}
+              onFocus={(e) => e.target.select()}
+              onClick={(e) => e.target.select()}
+              className="flex-1 min-w-0 rounded-lg border border-gray-300 bg-neutral-50 px-3 py-2.5 text-xs font-mono text-neutral-700 focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            />
+            <button
+              onClick={async () => {
+                await navigator.clipboard.writeText(
+                  `<iframe src="${getLearningOrigin()}/schedule-embed/${regLink.invitation_code}" style="width:100%;min-height:900px;border:0;" title="Class schedule"></iframe>`)
+                setEmbedCopied(true)
+                toast.success('Embed code copied!')
+                setTimeout(() => setEmbedCopied(false), 2000)
+              }}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                embedCopied
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90'
+              }`}
+            >
+              {embedCopied ? <CheckIcon className="w-4 h-4" /> : <ClipboardIcon className="w-4 h-4" />}
+              {embedCopied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <p className="text-xs text-neutral-400 mt-1">
+            Paste this into your website to show the live weekly class schedule (view-only — it
+            updates automatically as classes change).
+            {' '}
+            <a href={`${getLearningOrigin()}/schedule-embed/${regLink.invitation_code}`}
+              target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">
+              Preview it
+            </a>.
+            {' '}Resetting the registration link above also changes this embed URL.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
         <div>

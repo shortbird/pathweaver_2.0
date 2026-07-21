@@ -1,7 +1,44 @@
 # iCreate feedback — 2026-07-21 (UFA private school + CLP + Schedule Builder)
 
 Raw feedback from the iCreate meeting, organized into buildable features and
-mapped to the current codebase. Nothing here is implemented yet.
+mapped to the current codebase.
+
+## Implementation status (built 2026-07-21, one pass)
+
+Everything below is implemented EXCEPT the Elementary At-Home form fields
+(blocked on the source document — the CHOICE is recorded, the form's answers
+land in `sis_learning_day_selections.answers` when the document arrives).
+
+- **DB**: [supabase/migrations/20260721_sis_clp_ufa_schedule_approvals.sql](../../supabase/migrations/20260721_sis_clp_ufa_schedule_approvals.sql)
+  — `sis_clp_records`, `sis_learning_day_selections`, `sis_schedule_submissions`.
+  **NOT yet applied**: both stored Supabase PATs are expired
+  (`supabase-optio` MCP + Management API return Unauthorized). Regenerate a PAT
+  at https://supabase.com/dashboard/account/tokens, re-add the MCP server, and
+  apply — until then the new backend paths fail open (builder/CLP still load,
+  new features no-op).
+- **Backend**: `sis_learning_day_service`, `sis_schedule_submission_service`
+  (submit → lock + staff in-app/email notify; approve/send-back → guardian
+  notify), CLP record functions in `sis_clp_service`; routes in
+  `routes/sis/parent.py` (PUT learning-day, POST schedule-submission),
+  `routes/sis/clp.py` (PATCH record), `routes/sis/registration.py`
+  (GET/review schedule-submissions). Submission lock enforced in
+  add/drop class + course + learning-day. `schedule_approval_enabled`
+  (sis_settings) defaults ON.
+- **Schedule Builder**: UFA requirements checklist (blocks/days/learning-day
+  rules incl. the no-M/W → elementary-at-home rule), flat-tuition breakdown
+  ($4,750 + itemized supplies), 4th-day a-la-carte charge (cheapest-extra-day
+  minimization; only classes meeting exclusively on extra days are charged),
+  per-day supply totals under the calendar, amber empty-block-between-classes
+  flags + banner, Submit-for-approval card with submitted/approved/sent-back
+  states.
+- **CLP page**: Mark CLP finished (+ directory check + reopen), autosaving
+  staff meeting notes (hidden in presentation mode), learning-day pill.
+- **Staff queue**: `ScheduleApprovalsCard` on the SIS Registration page
+  (approve / send back with note).
+- **Embed**: public `/schedule-embed/:code` weekly grid (display-only) +
+  iframe snippet with copy button in Registration settings.
+- **Tests**: backend 56 SIS tests green; frontend 52 tests green across
+  builder/CLP/approvals/embed suites (full-suite runs pending at write time).
 
 ## What already exists (grounding)
 

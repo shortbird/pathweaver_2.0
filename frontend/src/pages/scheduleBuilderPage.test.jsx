@@ -10,7 +10,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 const { api } = vi.hoisted(() => ({
-  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../services/api', () => ({ default: api }))
 
@@ -267,7 +267,7 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText(/5 open blocks on Monday and Wednesday/)).toBeInTheDocument()
   })
 
-  it('UFA academy students pay the flat plan price and must reach the block minimum', async () => {
+  it('UFA students pay the flat plan price with a requirements checklist', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
         classes: [oneBlock('c1', 2)],
@@ -277,9 +277,158 @@ describe('ScheduleBuilderPage', () => {
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText('Estimated total')).toBeInTheDocument()
     expect(screen.getByText('$4750.00')).toBeInTheDocument()
-    expect(screen.getByText(/UFA academy tuition/)).toBeInTheDocument()
-    expect(screen.getByText(/must schedule at least 5 blocks/)).toBeInTheDocument()
-    expect(screen.getByText(/Add 4 more blocks/)).toBeInTheDocument()
+    expect(screen.getByText(/UFA private school tuition/)).toBeInTheDocument()
+    expect(screen.getByText('UFA Private School requirements')).toBeInTheDocument()
+    // 1 of 5 blocks scheduled → the checklist says how many more to add.
+    expect(screen.getByText(/add 4 more blocks/)).toBeInTheDocument()
+    // 1 campus day (Tue) + no learning day yet = 1 of 3 instructional days.
+    expect(screen.getByText(/1 of 3/)).toBeInTheDocument()
+    expect(screen.getByText('Not met yet')).toBeInTheDocument()
+  })
+
+  it('UFA families without Mon/Wed classes must pick the elementary at-home day', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [oneBlock('c1', 2)], // Tuesday only — no program (Mon/Wed) day
+        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+      },
+    }))
+    api.put.mockResolvedValue({ data: { success: true } })
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('UFA Private School requirements')).toBeInTheDocument()
+    expect(screen.getByText(/must choose the Elementary At-Home Academic Learning Day/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Quest Learning Day')).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Elementary At-Home Academic Learning Day'))
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/parent/students/s1/learning-day',
+      { organization_id: 'org1', choice: 'elementary_at_home' },
+    ))
+  })
+
+  it('UFA families with Mon/Wed classes may choose the Quest Learning Day', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [oneBlock('c1', 1), oneBlock('c2', 3)], // Mon + Wed program days
+        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('UFA Private School requirements')).toBeInTheDocument()
+    expect(screen.getByLabelText('Quest Learning Day')).not.toBeDisabled()
+  })
+
+  it('a saved learning day completes the 3 instructional days', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [oneBlock('c1', 1), oneBlock('c2', 3)],
+        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+        learning_day: { choice: 'quest_learning_day' },
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('UFA Private School requirements')).toBeInTheDocument()
+    expect(screen.getByText(/3 of 3/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Quest Learning Day')).toBeChecked()
+  })
+
+  it('a 4th day shows the classes billed personally at a-la-carte prices', async () => {
+    // Mon/Tue/Wed + a cheap Thursday class: Thursday is the extra (cheapest) day.
+    const thursday = { ...oneBlock('c4', 4), price_cents: 10000, name: 'Chess Club' }
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [oneBlock('c1', 1), oneBlock('c2', 2), oneBlock('c3', 3), thursday],
+        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('UFA Private School requirements')).toBeInTheDocument()
+    const banner = screen.getByText(/billed to you personally/)
+    expect(banner).toHaveTextContent(/meeting only on Thursday/)
+    expect(banner).toHaveTextContent('Chess Club')
+    expect(banner).toHaveTextContent('$100.00')
+    // Total = $4750 flat + $100 extra-day class.
+    expect(screen.getByText('$4850.00')).toBeInTheDocument()
+  })
+
+  // ── Daily supply totals + empty-block gap warnings ──────────────────────────
+  it('shows a daily supply-fee total under each day column', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [{ ...oneBlock('c1', 2), supply_fee: 38.5 }],
+        time_blocks: BLOCKS,
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText('Supplies:')).toBeInTheDocument()
+    expect(screen.getByText('$38.50')).toBeInTheDocument()
+  })
+
+  it('flags an empty block between two classes on the same day', async () => {
+    // Tue block 1 (9:30) and block 3 (11:30) with block 2 empty in between.
+    const early = oneBlock('c1', 2)
+    const late = { ...oneBlock('c2', 2), meetings: [{ day_of_week: 2, start_time: '11:30', end_time: '12:30' }] }
+    api.get.mockImplementation(mockApi({
+      schedule: { classes: [early, late], time_blocks: BLOCKS },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/open block between classes on Tuesday/)).toBeInTheDocument()
+    expect(screen.getByText('Open between classes')).toBeInTheDocument()
+  })
+
+  // ── Submit for approval ─────────────────────────────────────────────────────
+  it('submits the schedule for school approval after confirming', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: { classes: [POTTERY], approval_enabled: true },
+    }))
+    api.post.mockResolvedValue({ data: { success: true } })
+    window.confirm = vi.fn(() => true)
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/approve and set up billing/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for Micro School approval' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/parent/students/s1/schedule-submission', { organization_id: 'org1' },
+    ))
+  })
+
+  it('a submitted schedule is read-only with a review banner', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [POTTERY], approval_enabled: true,
+        submission: { status: 'submitted', submitted_at: '2026-07-21T10:00:00Z' },
+      },
+      classes: [{ ...POTTERY, id: 'c2', name: 'Woodshop' }],
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/Submitted to Micro School for approval/)).toBeInTheDocument()
+    // clicking an open slot does nothing while under review
+    clickTue9am()
+    expect(screen.queryByText(/Classes at/)).not.toBeInTheDocument()
+  })
+
+  it('a sent-back schedule shows the note and offers resubmit', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [POTTERY], approval_enabled: true,
+        submission: { status: 'sent_back', review_note: 'Pick a Thursday class' },
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/sent this schedule back/)).toBeInTheDocument()
+    expect(screen.getByText(/Pick a Thursday class/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resubmit for Micro School approval' })).toBeInTheDocument()
+  })
+
+  it('an approved schedule is locked with an approval banner', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [POTTERY], approval_enabled: true,
+        submission: { status: 'approved', reviewed_at: '2026-07-22T10:00:00Z' },
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/Approved by Micro School/)).toBeInTheDocument()
+    clickTue9am()
+    expect(screen.queryByText(/Classes at/)).not.toBeInTheDocument()
   })
 
   // ── Age-exception requests ───────────────────────────────────────────────────

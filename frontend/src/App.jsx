@@ -105,6 +105,7 @@ const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage')
 const StudentClassForm = lazy(() => import('./pages/classes/StudentClassForm'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
+const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
 const FamilyResourcesPage = lazy(() => import('./pages/FamilyResourcesPage'))
 const FamilyDirectoryPage = lazy(() => import('./pages/FamilyDirectoryPage'))
@@ -644,6 +645,9 @@ function App() {
             {/* Staff walkthrough of the parent Schedule Builder (nothing saved),
                 reached from the registration funnel preview's final step. */}
             <Route path="schedule-builder/preview/:previewCode" element={<ScheduleBuilderPage />} />
+            {/* Embeddable read-only weekly class schedule for the school's own
+                website (iframe snippet in SIS Registration settings). */}
+            <Route path="schedule-embed/:previewCode" element={<ScheduleEmbedPage />} />
             <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
 
             {/* Mobile demo - superadmin only, full-screen iframe */}

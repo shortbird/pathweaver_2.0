@@ -92,6 +92,18 @@ const Pill = ({ children, className = '' }) => (
   <span className={`inline-flex items-center text-[11px] font-semibold rounded-full px-2 py-0.5 ${className}`}>{children}</span>
 )
 
+const CheckIcon = ({ className = '', label }) => (
+  <svg className={className} viewBox="0 0 20 20" fill="currentColor"
+    role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+  </svg>
+)
+
+const LEARNING_DAY_LABELS = {
+  quest_learning_day: 'Quest Learning Day',
+  elementary_at_home: 'Elementary At-Home Academic Learning Day',
+}
+
 // Seats "3 / 12 · 9 left" or "8 / 8 · Full" or "Unlimited".
 const SeatsPill = ({ cls }) => {
   if (cls.capacity == null) return <Pill className="bg-neutral-100 text-neutral-600">Unlimited</Pill>
@@ -121,6 +133,11 @@ const ClpPage = () => {
   const [allAges, setAllAges] = useState(false)
   const [timeFocus, setTimeFocus] = useState(null) // { label, day, classId, meetings }
   const [busyId, setBusyId] = useState(null)
+
+  // Staff meeting notes: draft + autosave (debounced; also saved on blur).
+  const [notesDraft, setNotesDraft] = useState('')
+  const [notesStatus, setNotesStatus] = useState('saved') // saved | dirty | saving
+  const notesTimer = useRef(null)
 
   // ── Data loading ───────────────────────────────────────────────────────────
   const loadDirectory = useCallback(() => {
@@ -161,6 +178,44 @@ const ClpPage = () => {
       setSelectedId(null); setStudent(null); setTimeFocus(null)
     }
   }, [orgId])
+
+  // Sync the notes draft to the loaded student (and after saves reload it).
+  useEffect(() => {
+    setNotesDraft(student?.clp_record?.notes || '')
+    setNotesStatus('saved')
+  }, [selectedId, student?.clp_record?.notes])
+
+  const saveNotes = useCallback(async (text) => {
+    if (!selectedId || !orgId) return
+    setNotesStatus('saving')
+    try {
+      await api.patch(withOrg(`/api/sis/clp/students/${selectedId}/record`, orgId), { notes: text })
+      setNotesStatus('saved')
+    } catch {
+      setNotesStatus('dirty')
+      toast.error('Could not save the notes')
+    }
+  }, [selectedId, orgId])
+
+  const onNotesChange = (value) => {
+    setNotesDraft(value)
+    setNotesStatus('dirty')
+    if (notesTimer.current) clearTimeout(notesTimer.current)
+    notesTimer.current = setTimeout(() => saveNotes(value), 800)
+  }
+
+  // Mark the CLP finished (or reopen it) — reflected as a check in the directory.
+  const toggleFinished = async () => {
+    const next = !student?.clp_record?.finished
+    try {
+      await api.patch(withOrg(`/api/sis/clp/students/${selectedId}/record`, orgId), { finished: next })
+      toast.success(next ? 'CLP marked finished' : 'CLP reopened')
+      loadStudent(selectedId)
+      loadDirectory()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not update the CLP')
+    }
+  }
 
   // ── Enrollment actions ─────────────────────────────────────────────────────
   const runAction = async (key, fn, successMsg) => {
@@ -384,6 +439,14 @@ const ClpPage = () => {
                 ))}
               </div>
             )}
+            {student.learning_day?.choice && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                <span className="text-xs text-neutral-400">Learning day:</span>
+                <Pill className="bg-violet-100 text-violet-700">
+                  {LEARNING_DAY_LABELS[student.learning_day.choice] || student.learning_day.choice}
+                </Pill>
+              </div>
+            )}
             {student.siblings?.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap mt-2">
                 <span className="text-xs text-neutral-400">Siblings:</span>
@@ -401,7 +464,46 @@ const ClpPage = () => {
               </div>
             )}
           </div>
+          {/* CLP finished: visible in presentation too — marking it at the end
+              of the meeting, screen still turned to the family, is the flow. */}
+          <div className="shrink-0 flex flex-col items-end gap-1.5">
+            {student.clp_record?.finished ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                  <CheckIcon className="w-4 h-4" /> CLP finished
+                </span>
+                <button type="button" onClick={toggleFinished}
+                  className="text-xs text-neutral-400 underline hover:text-neutral-600">
+                  Reopen
+                </button>
+              </>
+            ) : (
+              <Button size="sm" onClick={toggleFinished}>Mark CLP finished</Button>
+            )}
+          </div>
         </div>
+
+        {/* Staff meeting notes — never rendered in presentation (parent-safe). */}
+        {!presentation && (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-neutral-900 text-sm">
+                Meeting notes <span className="text-xs font-normal text-neutral-400">· staff only</span>
+              </h3>
+              <span className={`text-xs ${notesStatus === 'dirty' ? 'text-amber-600' : 'text-neutral-400'}`}>
+                {notesStatus === 'saving' ? 'Saving…' : notesStatus === 'dirty' ? 'Unsaved' : 'Saved'}
+              </span>
+            </div>
+            <textarea
+              rows={3}
+              value={notesDraft}
+              onChange={(e) => onNotesChange(e.target.value)}
+              onBlur={() => { if (notesStatus === 'dirty') saveNotes(notesDraft) }}
+              placeholder="Notes from the CLP meeting…"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            />
+          </div>
+        )}
 
         {/* Weekly schedule */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
@@ -498,6 +600,7 @@ const ClpPage = () => {
                 {stu.name}
                 {stu.age != null && <span className="text-xs text-neutral-400 ml-1.5">· {stu.age}</span>}
                 {stu.grade_level && <span className="text-xs text-neutral-400 ml-1.5">Grade {stu.grade_level}</span>}
+                {stu.clp_finished && <CheckIcon className="w-3.5 h-3.5 text-green-500 inline ml-1.5 align-text-bottom" label="CLP finished" />}
               </button>
             ))}
           </div>

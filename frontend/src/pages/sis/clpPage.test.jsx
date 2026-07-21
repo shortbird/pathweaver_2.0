@@ -18,6 +18,8 @@ const STUDENT_PAYLOAD = {
   success: true,
   student: { student_id: 's1', name: 'Alice Ant', age: 10 },
   family: { household_id: 'h1', name: 'Ant Family', payment_intent: ['Self-Pay', 'Utah Fits All'] },
+  clp_record: { finished: false, finished_at: null, notes: 'First draft', updated_at: null },
+  learning_day: { choice: 'elementary_at_home' },
   siblings: [{ student_id: 's2', name: 'Bob Ant', age: 13 }],
   schedule: [
     { class_id: 'c1', name: 'Art', is_enrolled: true, on_waitlist: false, supply_fee: 35, meetings: [
@@ -50,8 +52,8 @@ const { api } = vi.hoisted(() => {
     if (url.includes('/api/sis/clp/directory')) {
       return { data: { families: [
         { household_id: 'h1', name: 'Ant Family', student_count: 2, students: [
-          { student_id: 's1', name: 'Alice Ant', grade_level: '3', age: 10 },
-          { student_id: 's2', name: 'Bob Ant', grade_level: '5', age: 13 },
+          { student_id: 's1', name: 'Alice Ant', grade_level: '3', age: 10, clp_finished: true },
+          { student_id: 's2', name: 'Bob Ant', grade_level: '5', age: 13, clp_finished: false },
         ] },
       ], students: [] } }
     }
@@ -154,5 +156,68 @@ describe('ClpPage', () => {
     expect(await screen.findByText('Exit presentation')).toBeInTheDocument()
     // The directory search is gone in presentation mode.
     expect(screen.queryByPlaceholderText('Search students or families…')).not.toBeInTheDocument()
+  })
+
+  // ── CLP finished flag + meeting notes + learning day (2026-07-21) ──────────
+  it('shows the directory check only for students whose CLP is finished', async () => {
+    render(<ClpPage />)
+    const alice = (await screen.findByText('Alice Ant')).closest('button')
+    const bob = screen.getByText('Bob Ant').closest('button')
+    expect(alice.querySelector('[aria-label="CLP finished"]')).toBeTruthy()
+    expect(bob.querySelector('[aria-label="CLP finished"]')).toBeFalsy()
+  })
+
+  it('marks the CLP finished from the student header', async () => {
+    render(<ClpPage />)
+    fireEvent.click(await screen.findByText('Alice Ant'))
+    await screen.findByText('Weekly schedule')
+    fireEvent.click(screen.getByRole('button', { name: 'Mark CLP finished' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sis/clp/students/s1/record'), { finished: true },
+    ))
+  })
+
+  it('a finished CLP shows the badge with a reopen link', async () => {
+    STUDENT_PAYLOAD.clp_record = { ...STUDENT_PAYLOAD.clp_record, finished: true }
+    try {
+      render(<ClpPage />)
+      fireEvent.click(await screen.findByText('Alice Ant'))
+      expect(await screen.findByText('CLP finished')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Reopen' }))
+      await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/sis/clp/students/s1/record'), { finished: false },
+      ))
+    } finally {
+      STUDENT_PAYLOAD.clp_record = { ...STUDENT_PAYLOAD.clp_record, finished: false }
+    }
+  })
+
+  it('saves meeting notes on blur', async () => {
+    render(<ClpPage />)
+    fireEvent.click(await screen.findByText('Alice Ant'))
+    const box = await screen.findByPlaceholderText(/Notes from the CLP meeting/)
+    expect(box).toHaveValue('First draft')
+    fireEvent.change(box, { target: { value: 'Wants art electives' } })
+    fireEvent.blur(box)
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sis/clp/students/s1/record'), { notes: 'Wants art electives' },
+    ))
+  })
+
+  it('hides meeting notes in presentation mode', async () => {
+    render(<ClpPage />)
+    fireEvent.click(await screen.findByText('Alice Ant'))
+    await screen.findByPlaceholderText(/Notes from the CLP meeting/)
+    fireEvent.click(screen.getByText('Presentation mode'))
+    await screen.findByText('Exit presentation')
+    expect(screen.queryByPlaceholderText(/Notes from the CLP meeting/)).not.toBeInTheDocument()
+  })
+
+  it('shows the learning-day choice on the student header', async () => {
+    render(<ClpPage />)
+    fireEvent.click(await screen.findByText('Alice Ant'))
+    await screen.findByText('Weekly schedule')
+    expect(screen.getByText('Learning day:')).toBeInTheDocument()
+    expect(screen.getByText('Elementary At-Home Academic Learning Day')).toBeInTheDocument()
   })
 })
