@@ -204,6 +204,25 @@ class TestExistingOrgStudentByNameDob:
                                 link_rows=[{'parent_user_id': 'parent1'}])['id'] == 'orig'
 
 
+# ── _existing_household_for_parent (no duplicate households on re-registration) ─
+
+@pytest.mark.unit
+class TestExistingHouseholdForParent:
+    def test_reuses_household_the_parent_guards(self):
+        admin = _FakeAdmin({'household_members': [{'household_id': 'h1'}],
+                            'households': [{'id': 'h1', 'organization_id': 'org1'}]})
+        assert icr._existing_household_for_parent(admin, 'org1', 'parent1') == 'h1'
+
+    def test_none_when_parent_has_no_household(self):
+        admin = _FakeAdmin({'household_members': [], 'households': []})
+        assert icr._existing_household_for_parent(admin, 'org1', 'parent1') is None
+
+    def test_falls_back_to_primary_contact_household(self):
+        # No guardian membership row, but the parent is a household's primary contact.
+        admin = _FakeAdmin({'household_members': [], 'households': [{'id': 'h2'}]})
+        assert icr._existing_household_for_parent(admin, 'org1', 'parent1') == 'h2'
+
+
 # ── /login platform-role guardrails ──────────────────────────────────────────
 
 @pytest.fixture

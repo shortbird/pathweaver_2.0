@@ -518,6 +518,31 @@ def _parent_row(admin, parent_id):
     return r.data or {}
 
 
+def _existing_household_for_parent(admin, org_id, parent_id):
+    """The parent's existing SIS household in this org, if any: one they already
+    guard (school import, staff-created, or a prior registration) or are the
+    primary contact of. The family step reuses it instead of inserting a second
+    '<Last> Family', so a returning parent — e.g. a teacher registering a kid who
+    already has an account — never spawns a duplicate household."""
+    try:
+        gm = (admin.table('household_members').select('household_id')
+              .eq('user_id', parent_id).eq('relationship', 'guardian').execute()).data or []
+        hh_ids = [m['household_id'] for m in gm]
+        if hh_ids:
+            rows = (admin.table('households').select('id, organization_id')
+                    .in_('id', hh_ids).execute()).data or []
+            for h in rows:
+                if h.get('organization_id') == org_id:
+                    return h['id']
+        rows = (admin.table('households').select('id')
+                .eq('organization_id', org_id)
+                .eq('primary_contact_user_id', parent_id).limit(1).execute()).data or []
+        return rows[0]['id'] if rows else None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'iCreate: existing-household lookup failed for parent {parent_id[:8]}: {e}')
+        return None
+
+
 def _family_directive(admin, org_id, email):
     """Pre-staged settings for this parent email (sis_family_directives): fee
     already paid on the school's legacy form, registration hold, priority tier.
@@ -1067,13 +1092,11 @@ def submit_family(reg_id):
             enrollment_waitlist.remove_for_students(org_id, prior_kids)
             admin.table('emergency_contacts').delete().in_('student_user_id', prior_kids).execute()
             admin.table('parent_student_links').delete().in_('student_user_id', prior_kids).execute()
-            hh_rows = (admin.table('households').select('id')
-                       .eq('organization_id', org_id)
-                       .eq('primary_contact_user_id', reg['parent_user_id']).execute()).data or []
-            hh_ids = [h['id'] for h in hh_rows]
-            if hh_ids:
-                admin.table('household_members').delete().in_('household_id', hh_ids).execute()
-                admin.table('households').delete().in_('id', hh_ids).execute()
+            # Drop only the prior kids' household memberships (so kids removed on a
+            # back-edit fall off); the household row itself is preserved and reused
+            # below, so a pre-existing / school-imported family is never churned or
+            # duplicated. The parent's own guardian membership is untouched.
+            admin.table('household_members').delete().in_('user_id', prior_kids).execute()
             if prior_created_ids:
                 admin.table('users').delete().in_('id', prior_created_ids).execute()
             for kid_id in prior_created_ids:
@@ -1181,7 +1204,7 @@ def submit_family(reg_id):
     # already look (Families page). Best-effort: registration succeeds without it.
     household_id = None
     try:
-        hh = admin.table('households').insert({
+        hh_fields = {
             'organization_id': org_id,
             'name': f'{last} Family',
             'primary_contact_user_id': parent_id,
@@ -1193,14 +1216,25 @@ def submit_family(reg_id):
             'phone': phone or None,
             'registration_hold': bool(directive and directive.get('registration_hold')),
             'registration_hold_reason': (directive or {}).get('hold_reason'),
-        }).execute()
-        household_id = hh.data[0]['id']
+        }
+        # Reuse the parent's existing household instead of inserting a duplicate
+        # '<Last> Family' next to a school-imported / prior one.
+        household_id = _existing_household_for_parent(admin, org_id, parent_id)
+        if household_id:
+            # Keep any staff-set family name; fill the rest from this submission.
+            admin.table('households').update(
+                {k: v for k, v in hh_fields.items() if k not in ('name', 'organization_id')}
+            ).eq('id', household_id).execute()
+        else:
+            household_id = admin.table('households').insert(hh_fields).execute().data[0]['id']
         members = [{'household_id': household_id, 'user_id': parent_id,
                     'relationship': 'guardian', 'is_primary_guardian': True}]
         members += [{'household_id': household_id, 'user_id': ck['user_id'],
                      'relationship': 'student', 'is_primary_guardian': False}
                     for ck in created_kids]
-        admin.table('household_members').insert(members).execute()
+        # Upsert so reusing a household never collides on an existing membership.
+        admin.table('household_members').upsert(
+            members, on_conflict='household_id,user_id').execute()
         if directive:
             admin.table('sis_family_directives').update({
                 'matched_household_id': household_id,
