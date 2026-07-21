@@ -14,6 +14,7 @@ endpoints. Admin (service_role) client, same justification as sis_service.py: th
 SIS tables are RLS-locked to backend-only and this is a cross-table read.
 """
 
+from datetime import date
 from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
@@ -34,6 +35,25 @@ def _admin():
 def _full_name(u: Dict[str, Any]) -> str:
     name = f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
     return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
+
+
+def _age(dob: Any) -> Optional[int]:
+    """Whole years from an ISO date (or date) — None when unknown/unparseable."""
+    if not dob:
+        return None
+    if not isinstance(dob, date):
+        try:
+            dob = date.fromisoformat(str(dob)[:10])
+        except ValueError:
+            return None
+    today = date.today()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+def _last_first(s: Dict[str, Any]) -> str:
+    """Sort key that always leads with the last name, so solo students interleave
+    correctly with '<Last> Family' households."""
+    return f"{s.get('last_name') or ''} {s.get('first_name') or ''}".strip() or (s.get('name') or '')
 
 
 def _norm_meeting(m: Dict[str, Any]) -> Dict[str, Any]:
@@ -62,6 +82,8 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
         'name': r['name'],
         'first_name': r.get('first_name'),
         'last_name': r.get('last_name'),
+        'date_of_birth': r.get('date_of_birth'),
+        'age': _age(r.get('date_of_birth')),
         'household_id': r.get('household_id'),
         'household_name': r.get('household_name'),
         'grade_level': r.get('grade_level'),
@@ -78,6 +100,10 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
             families[key] = {
                 'household_id': s['household_id'],
                 'name': s['household_name'] or s['name'],
+                # Households are named "<Last> Family"; solo students would sort
+                # by FIRST name under their own full name, so they get a
+                # last-name-first key to interleave consistently.
+                '_sort': (s['household_name'] or _last_first(s)),
                 'students': [],
             }
             order.append(key)
@@ -87,7 +113,7 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
     for f in family_list:
         f['students'].sort(key=lambda s: (s.get('name') or '').lower())
         f['student_count'] = len(f['students'])
-    family_list.sort(key=lambda f: (f['name'] or '').lower())
+    family_list.sort(key=lambda f: (f.pop('_sort') or '').lower())
 
     return {'families': family_list, 'students': students}
 
@@ -109,16 +135,18 @@ def _student_profile(student_id: str) -> Optional[Dict[str, Any]]:
         'last_name': u.get('last_name'),
         'preferred_name': u.get('preferred_name'),
         'date_of_birth': u.get('date_of_birth'),
+        'age': _age(u.get('date_of_birth')),
     }
 
 
 def _family_and_siblings(org_id: str, student_id: str):
-    """(family, siblings) for a student. Siblings are the other students in the
-    same household — used only to jump between the family's own kids, so they are
-    parent-safe to show in presentation mode."""
+    """(family, siblings, guardian_ids) for a student. Siblings are the other
+    students in the same household — used only to jump between the family's own
+    kids, so they are parent-safe to show in presentation mode. Guardian ids feed
+    the registration lookup (payment intent)."""
     hh = sis_service._household_by_user(org_id).get(student_id)
     if not hh:
-        return None, []
+        return None, [], []
     family = {'household_id': hh['household_id'], 'name': hh['household_name']}
     members = (
         _admin().table('household_members')
@@ -127,16 +155,42 @@ def _family_and_siblings(org_id: str, student_id: str):
     ).data or []
     sib_ids = [m['user_id'] for m in members
                if m.get('relationship') == 'student' and m['user_id'] != student_id]
+    guardian_ids = [m['user_id'] for m in members if m.get('relationship') != 'student']
     siblings: List[Dict[str, Any]] = []
     if sib_ids:
         rows = (
             _admin().table('users')
-            .select('id, first_name, last_name, display_name, username, email')
+            .select('id, first_name, last_name, display_name, username, email, date_of_birth')
             .in_('id', sib_ids).execute()
         ).data or []
-        siblings = [{'student_id': r['id'], 'name': _full_name(r)} for r in rows]
+        siblings = [{'student_id': r['id'], 'name': _full_name(r),
+                     'age': _age(r.get('date_of_birth'))} for r in rows]
         siblings.sort(key=lambda s: s['name'].lower())
-    return family, siblings
+    return family, siblings, guardian_ids
+
+
+def _family_payment_intent(org_id: str, guardian_ids: List[str]) -> Optional[List[str]]:
+    """The 'Form of Payment' the family chose during iCreate registration (the
+    `payment_intent` registration question). Latest registration of any household
+    guardian wins. None when the family never answered (pre-funnel imports)."""
+    if not guardian_ids:
+        return None
+    try:
+        rows = (
+            _admin().table('icreate_registrations')
+            .select('parent_user_id, answers, created_at')
+            .eq('organization_id', org_id)
+            .in_('parent_user_id', guardian_ids)
+            .order('created_at', desc=True).execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001 — payment info is best-effort context
+        logger.warning(f'CLP: payment-intent lookup failed for org {org_id}: {e}')
+        return None
+    for r in rows:
+        val = (r.get('answers') or {}).get('payment_intent')
+        if val:
+            return [str(v) for v in val] if isinstance(val, list) else [str(val)]
+    return None
 
 
 def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
@@ -150,7 +204,9 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     if not student:
         return None
 
-    family, siblings = _family_and_siblings(org_id, student_id)
+    family, siblings, guardian_ids = _family_and_siblings(org_id, student_id)
+    if family is not None:
+        family['payment_intent'] = _family_payment_intent(org_id, guardian_ids)
 
     enrolled_rows = (
         _admin().table('class_enrollments').select('class_id')
@@ -183,6 +239,7 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
             'registration_status': c.get('registration_status'),
             'waitlist_enabled': c.get('waitlist_enabled'),
             'price_cents': c.get('price_cents'),
+            'supply_fee': c.get('supply_fee'),
             'min_age': c.get('min_age'),
             'max_age': c.get('max_age'),
             'primary_instructor': c.get('primary_instructor'),

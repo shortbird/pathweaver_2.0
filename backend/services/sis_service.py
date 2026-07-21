@@ -269,6 +269,59 @@ def household_student_ids(org_id: str, household_id: str) -> List[str]:
     return [m['user_id'] for m in members if m.get('relationship') == 'student']
 
 
+def attach_student_to_org(org_id: str, student_id: str,
+                          guardian_ids: Optional[List[str]] = None) -> bool:
+    """Normalize an existing account into a full org student, so a student who
+    'already had an Optio account' ends up indistinguishable from one created by
+    the org's own flows: org fields set (org_managed/student — dependents keep
+    role='student'), plus parent_student_links to the given guardians.
+
+    Refuses (returns False) rather than converting anything that isn't a plain
+    student account, or moving an account between orgs. Safe to call repeatedly.
+    """
+    rows = (
+        _admin().table('users')
+        .select('id, role, org_role, organization_id, is_dependent')
+        .eq('id', student_id).limit(1).execute()
+    ).data
+    if not rows:
+        return False
+    u = rows[0]
+    if u.get('role') == 'superadmin':
+        return False
+    if u.get('organization_id') and u['organization_id'] != org_id:
+        return False
+    effective = u.get('org_role') if u.get('organization_id') else u.get('role')
+    if effective not in (None, 'student'):
+        return False
+
+    if u.get('is_dependent'):
+        updates: Dict[str, Any] = {'organization_id': org_id}
+    else:
+        updates = {'organization_id': org_id, 'role': 'org_managed',
+                   'org_role': 'student', 'org_roles': ['student']}
+    _admin().table('users').update(updates).eq('id', student_id).execute()
+
+    for gid in (guardian_ids or []):
+        if u.get('is_dependent'):
+            continue  # dependents are linked via managed_by_parent_id, not links
+        try:
+            existing = (
+                _admin().table('parent_student_links').select('id')
+                .eq('parent_user_id', gid).eq('student_user_id', student_id)
+                .execute()
+            ).data
+            if not existing:
+                _admin().table('parent_student_links').insert({
+                    'parent_user_id': gid, 'student_user_id': student_id,
+                    'status': 'approved', 'admin_verified': True,
+                    'admin_notes': 'Auto-linked when added to SIS household',
+                }).execute()
+        except Exception as e:  # noqa: BLE001 — linking is best-effort
+            logger.warning(f'attach_student_to_org: link {gid[:8]}->{student_id[:8]} failed: {e}')
+    return True
+
+
 def _contact_key(c: Dict[str, Any]):
     return ((c.get('name') or '').strip().lower(), (c.get('phone') or '').strip())
 

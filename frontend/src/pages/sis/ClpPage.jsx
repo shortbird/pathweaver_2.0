@@ -78,6 +78,16 @@ const meetingSummary = (meetings) => {
 
 const priceLabel = (cents) => (cents ? `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}` : null)
 
+const dollars = (n) => `$${Number(n).toFixed(Number(n) % 1 ? 2 : 0)}`
+
+// Does this class admit a student of `age`? Unknown ages and unbounded classes pass.
+const fitsAge = (cls, age) => {
+  if (age == null) return true
+  if (cls.min_age != null && age < cls.min_age) return false
+  if (cls.max_age != null && age > cls.max_age) return false
+  return true
+}
+
 const Pill = ({ children, className = '' }) => (
   <span className={`inline-flex items-center text-[11px] font-semibold rounded-full px-2 py-0.5 ${className}`}>{children}</span>
 )
@@ -108,6 +118,7 @@ const ClpPage = () => {
   const [classSearch, setClassSearch] = useState('')
   const [fitsOnly, setFitsOnly] = useState(false)
   const [hideFull, setHideFull] = useState(false)
+  const [allAges, setAllAges] = useState(false)
   const [timeFocus, setTimeFocus] = useState(null) // { label, day, classId, meetings }
   const [busyId, setBusyId] = useState(null)
 
@@ -137,6 +148,7 @@ const ClpPage = () => {
     setStudent(null)
     setTimeFocus(null)
     setClassSearch('')
+    setAllAges(false)
     loadStudent(sid)
   }
 
@@ -208,17 +220,20 @@ const ClpPage = () => {
     return Array.from(days).sort((a, b) => a - b)
   }, [schedule])
 
+  const studentAge = student?.student?.age ?? null
+
   const availableClasses = useMemo(() => {
     const all = student?.classes || []
     const q = classSearch.trim().toLowerCase()
     return all
       .filter((c) => !c.is_enrolled) // enrolled classes live in the schedule grid
+      .filter((c) => (allAges ? true : fitsAge(c, studentAge))) // age-appropriate by default
       .filter((c) => (q ? (c.name || '').toLowerCase().includes(q) : true))
       .filter((c) => (hideFull ? !c.is_full : true))
       .filter((c) => (fitsOnly ? !conflictsWithSchedule(c, schedule) : true))
       .filter((c) => (timeFocus ? c.meetings.some((m) => timeFocus.meetings.some((fm) => meetingsOverlap(m, fm))) : true))
       .map((c) => ({ ...c, conflicts: conflictsWithSchedule(c, schedule) }))
-  }, [student, classSearch, hideFull, fitsOnly, timeFocus, schedule])
+  }, [student, classSearch, hideFull, fitsOnly, allAges, studentAge, timeFocus, schedule])
 
   // ── Render helpers (plain functions → stable DOM, no remount) ───────────────
   const renderClassActions = (cls) => {
@@ -254,6 +269,7 @@ const ClpPage = () => {
           <SeatsPill cls={cls} />
           {cls.waitlist_count > 0 && <Pill className="bg-amber-100 text-amber-700">{cls.waitlist_count} waiting</Pill>}
           {priceLabel(cls.price_cents) && <span className="text-xs text-neutral-500">{priceLabel(cls.price_cents)}</span>}
+          {Number(cls.supply_fee) > 0 && <span className="text-xs text-neutral-500">{dollars(cls.supply_fee)} supplies</span>}
         </div>
       </div>
       <div className="flex-shrink-0">{renderClassActions(cls)}</div>
@@ -270,6 +286,17 @@ const ClpPage = () => {
     }
     for (const d of Object.keys(byDay)) byDay[d].sort((a, b) => (toMinutes(a.m.start_time) || 0) - (toMinutes(b.m.start_time) || 0))
     const unscheduled = schedule.filter((c) => !c.meetings.some((m) => m.day_of_week != null))
+
+    // Per-day supply-fee totals — each class counted once per day it meets.
+    const supplyByDay = {}
+    for (const d of Object.keys(byDay)) {
+      const seen = new Set()
+      supplyByDay[d] = byDay[d].reduce((sum, { cls }) => {
+        if (seen.has(cls.class_id) || !Number(cls.supply_fee)) return sum
+        seen.add(cls.class_id)
+        return sum + Number(cls.supply_fee)
+      }, 0)
+    }
 
     return (
       <div>
@@ -299,6 +326,11 @@ const ClpPage = () => {
                 })}
                 {!(byDay[d] || []).length && <div className="text-xs text-neutral-300 text-center py-4">—</div>}
               </div>
+              {supplyByDay[d] > 0 && (
+                <div className="mt-2 text-[11px] text-neutral-500 text-center border-t border-gray-100 pt-1.5">
+                  Supplies: <span className="font-semibold text-neutral-700">{dollars(supplyByDay[d])}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -337,10 +369,21 @@ const ClpPage = () => {
         {/* Student header */}
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
-            <h2 className={`font-bold text-neutral-900 ${presentation ? 'text-3xl' : 'text-2xl'}`}>{s.name}</h2>
+            <h2 className={`font-bold text-neutral-900 ${presentation ? 'text-3xl' : 'text-2xl'}`}>
+              {s.name}
+              {s.age != null && <span className="font-normal text-neutral-400"> · {s.age}</span>}
+            </h2>
             <div className="text-neutral-500 mt-0.5 text-sm">
               {student.family?.name && <span>{student.family.name}</span>}
             </div>
+            {student.family?.payment_intent?.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                <span className="text-xs text-neutral-400">Form of payment:</span>
+                {student.family.payment_intent.map((p) => (
+                  <Pill key={p} className="bg-sky-100 text-sky-700">{p}</Pill>
+                ))}
+              </div>
+            )}
             {student.siblings?.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap mt-2">
                 <span className="text-xs text-neutral-400">Siblings:</span>
@@ -352,6 +395,7 @@ const ClpPage = () => {
                     className="text-xs font-medium rounded-full px-2.5 py-1 bg-[#F3EFF4] text-optio-purple hover:bg-optio-purple/20"
                   >
                     {sib.name}
+                    {sib.age != null && <span className="text-optio-purple/60"> · {sib.age}</span>}
                   </button>
                 ))}
               </div>
@@ -371,7 +415,12 @@ const ClpPage = () => {
         {/* Available classes */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-            <h3 className="font-semibold text-neutral-900">Available classes</h3>
+            <h3 className="font-semibold text-neutral-900">
+              Available classes
+              {studentAge != null && !allAges && (
+                <span className="ml-2 text-xs font-normal text-neutral-400">for age {studentAge}</span>
+              )}
+            </h3>
             <div className="flex items-center gap-3 flex-wrap">
               <input
                 value={classSearch}
@@ -389,6 +438,13 @@ const ClpPage = () => {
                   className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
                 Hide full
               </label>
+              {studentAge != null && (
+                <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+                  <input type="checkbox" checked={allAges} onChange={(e) => setAllAges(e.target.checked)}
+                    className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                  All ages
+                </label>
+              )}
             </div>
           </div>
 
@@ -440,6 +496,7 @@ const ClpPage = () => {
                 }`}
               >
                 {stu.name}
+                {stu.age != null && <span className="text-xs text-neutral-400 ml-1.5">· {stu.age}</span>}
                 {stu.grade_level && <span className="text-xs text-neutral-400 ml-1.5">Grade {stu.grade_level}</span>}
               </button>
             ))}

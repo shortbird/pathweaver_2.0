@@ -318,11 +318,19 @@ def add_household_member(user_id, household_id):
     existing = repo.find_by_id(household_id)
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Household not found'}), 404
+    relationship = data.get('relationship', 'student')
     member = repo.add_member(
         household_id, member_user_id,
-        relationship=data.get('relationship', 'student'),
+        relationship=relationship,
         is_primary_guardian=bool(data.get('is_primary_guardian')),
     )
+    # Adding a student to a family must fully attach their account to the org
+    # (an existing platform Optio account would otherwise stay half-connected:
+    # in the household but invisible to the roster, with no parent links).
+    if relationship == 'student':
+        guardians = [m['user_id'] for m in repo.members_for_households([household_id])
+                     if m.get('relationship') != 'student']
+        sis_service.attach_student_to_org(org_id, member_user_id, guardian_ids=guardians)
     return jsonify({'success': True, 'member': member}), 201
 
 

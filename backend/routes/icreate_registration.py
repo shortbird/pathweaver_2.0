@@ -43,6 +43,11 @@ role as primary and gain 'parent' in org_roles.
 Account model (see memory: project_icreate_program):
 - Kids under 13 (or 13+ opted "no email") -> COPPA dependents on the parent.
 - Kids 13+ with their own email -> org_managed/student + parent_student_links.
+- A kid's email matching an EXISTING Optio student account (platform, or already
+  in this org e.g. school-imported) -> that account is ATTACHED to the family
+  instead of blocked/duplicated: org fields normalized, parent link + household
+  membership created, history kept. Accounts in another org, non-student
+  accounts, and accounts linked to a different parent still refuse (409).
 - Fee is RECORD-ONLY (Optio never processes payments).
 """
 
@@ -319,6 +324,74 @@ def _create_org_student(admin, org_id, email, first, last, dob):
     except Exception as e:  # noqa: BLE001
         logger.warning(f'iCreate: student verification email failed for {email}: {e}')
     return uid
+
+
+def _existing_account_for_kid(admin, org_id, parent_id, email):
+    """Look up an existing account behind a kid's email and decide whether this
+    funnel may ATTACH it to the family instead of creating a new one.
+
+    Attachable: a student account (platform `student`, or this org's
+    org_managed/student — e.g. school-imported before the funnel existed) that is
+    not a dependent and not parent-linked to a DIFFERENT parent. A parent must
+    never be able to claim an arbitrary account: anything in another org, any
+    non-student account, and any account already claimed by another parent
+    refuses.
+
+    Returns (user_row, None) when attachable, (None, None) when the email is
+    unused, and (None, reason) when an account exists but cannot be attached.
+    """
+    rows = (admin.table('users')
+            .select('id, role, org_role, organization_id, is_dependent, '
+                    'first_name, last_name, display_name, date_of_birth')
+            .eq('email', email).limit(1).execute()).data or []
+    if not rows:
+        return None, None
+    u = rows[0]
+    if u.get('role') == 'superadmin' or u.get('is_dependent'):
+        return None, 'not_attachable'
+    if u.get('organization_id') and u['organization_id'] != org_id:
+        return None, 'other_org'
+    effective = u.get('org_role') if u.get('organization_id') else u.get('role')
+    if effective != 'student':
+        return None, 'not_student'
+    links = (admin.table('parent_student_links').select('parent_user_id')
+             .eq('student_user_id', u['id']).execute()).data or []
+    if any(l['parent_user_id'] != parent_id for l in links):
+        return None, 'other_parent'
+    return u, None
+
+
+def _match_existing_dependent(dependents, first, last, dob):
+    """Find this parent's OWN pre-existing dependent matching a submitted kid.
+    Name match (case-insensitive) plus DOB when the dependent has one on file.
+    Safe on name alone because the pool is limited to the parent's dependents."""
+    for d in dependents:
+        if ((d.get('first_name') or '').strip().lower() == first.lower()
+                and (d.get('last_name') or '').strip().lower() == last.lower()):
+            ddob = str(d.get('date_of_birth') or '')[:10]
+            if not ddob or ddob == str(dob):
+                return d
+    return None
+
+
+def _attach_existing_student(admin, org_id, kid, kid_first, kid_last, dob):
+    """Normalize a pre-existing student account into this org so it ends up
+    exactly like a funnel-created one: org_managed/student in the org, parent's
+    spelling of the name, and the DOB the parent provided. Never touches auth."""
+    updates = {
+        'organization_id': org_id,
+        'role': 'org_managed',
+        'org_role': 'student',
+        'org_roles': ['student'],
+        'first_name': kid_first,
+        'last_name': kid_last,
+    }
+    if dob:
+        updates['date_of_birth'] = str(dob)
+    if not kid.get('display_name'):
+        updates['display_name'] = f'{kid_first} {kid_last}'.strip()
+    admin.table('users').update(updates).eq('id', kid['id']).execute()
+    return kid['id']
 
 
 def _create_dependent(admin, parent_id, org_id, first, last, dob):
@@ -724,6 +797,14 @@ def login():
         return jsonify({'error': 'This account cannot be used here.'}), 403
     if user.get('organization_id') and user['organization_id'] != org_id:
         return jsonify({'error': 'This account belongs to another school. Please contact iCreate.'}), 409
+    # Platform NON-parent accounts must not be silently repurposed as iCreate
+    # parents (that used to convert e.g. a student's own account into a parent).
+    if not user.get('organization_id') and user.get('role') == 'student':
+        return jsonify({'error': "This looks like a student's Optio account. Register with a parent "
+                                 "email — you can connect your child's account on the family step."}), 409
+    if not user.get('organization_id') and user.get('role') in ('advisor', 'observer'):
+        return jsonify({'error': 'This account can\'t be used to register a family. '
+                                 'Please use a parent email or contact iCreate.'}), 409
     if (user.get('organization_id') == org_id and current_org_role
             and current_org_role not in ('parent',) + STAFF_ORG_ROLES):
         return jsonify({'error': 'This is not a parent account. Please register with a parent email.'}), 409
@@ -843,7 +924,12 @@ def submit_family(reg_id):
 
     admin = _admin()
     org_id = reg['organization_id']
-    prior_kids = [k.get('user_id') for k in (reg.get('kids') or []) if k.get('user_id')]
+    prior_entries = [k for k in (reg.get('kids') or []) if k.get('user_id')]
+    prior_kids = [k['user_id'] for k in prior_entries]
+    # Only accounts THIS funnel created may be deleted on back-edit; attached
+    # pre-existing accounts are detached, never destroyed.
+    prior_created_ids = [k['user_id'] for k in prior_entries if k.get('type') != 'existing']
+    prior_existing = [k for k in prior_entries if k.get('type') == 'existing']
     cfg = _org_config(admin, org_id)
     parent_id = reg['parent_user_id']
     parent = _parent_row(admin, parent_id)
@@ -879,18 +965,29 @@ def submit_family(reg_id):
             return jsonify({'error': f'Please select a gender for {kf}'}), 400
         age = _calc_age(kdob)
         wants_own_account = age >= 13 and not as_dependent
-        if wants_own_account:
-            if not _valid_email(kemail):
-                return jsonify({'error': f'{kf} is 13+, so they need a valid email (or mark them as managed by you)'}), 400
-            # On back-edit, the same teen's prior account holds this email — that's
-            # not a conflict (the prior account is replaced below).
-            taken = (admin.table('users').select('id').eq('email', kemail).execute()).data or []
-            if any(t['id'] not in prior_kids for t in taken):
-                return jsonify({'error': f'{kf} already has an Optio account with this email. '
-                                         'The school can connect their existing account to your '
-                                         'family instead — contact iCreate rather than re-creating them.'}), 409
+
+        # A provided email may belong to an existing Optio account. If it's an
+        # attachable student account, connect it to this family instead of
+        # blocking (or silently duplicating the kid as a dependent).
+        existing_user = None
+        if kemail and _valid_email(kemail):
+            candidate, why = _existing_account_for_kid(admin, org_id, parent_id, kemail)
+            # On back-edit, the same teen's prior funnel-created account holds
+            # this email — that's not a conflict (it is replaced below).
+            if candidate and candidate['id'] in prior_created_ids:
+                candidate = None
+            if candidate:
+                existing_user = candidate
+            elif why and wants_own_account:
+                if why == 'other_org':
+                    return jsonify({'error': f"{kf}'s Optio account belongs to another school. "
+                                             'Please contact iCreate.'}), 409
+                return jsonify({'error': f'{kf} already has an Optio account with this email that '
+                                         "we can't connect automatically. Please contact iCreate."}), 409
+        if wants_own_account and not existing_user and not _valid_email(kemail):
+            return jsonify({'error': f'{kf} is 13+, so they need a valid email (or mark them as managed by you)'}), 400
         kids.append({'first': kf, 'last': kl, 'dob': kdob, 'email': kemail,
-                     'own_account': wants_own_account,
+                     'own_account': wants_own_account, 'existing_user': existing_user,
                      'preferred_name': sanitize_input(k.get('preferred_name', '')) or None,
                      'gender': gender, 'allergies': allergies, 'medications': medications})
 
@@ -925,37 +1022,92 @@ def submit_family(reg_id):
             if hh_ids:
                 admin.table('household_members').delete().in_('household_id', hh_ids).execute()
                 admin.table('households').delete().in_('id', hh_ids).execute()
-            admin.table('users').delete().in_('id', prior_kids).execute()
-            for kid_id in prior_kids:
+            if prior_created_ids:
+                admin.table('users').delete().in_('id', prior_created_ids).execute()
+            for kid_id in prior_created_ids:
                 try:
                     admin.auth.admin.delete_user(kid_id)
                 except Exception as e:  # noqa: BLE001
                     logger.warning(f'iCreate family re-edit: auth cleanup failed for {kid_id[:8]}: {e}')
+            # Attached pre-existing accounts are never deleted. Accounts that were
+            # platform students before this funnel attached them revert to that
+            # state; if the kid is still in the new payload they re-attach below.
+            for entry in prior_existing:
+                if entry.get('was_platform'):
+                    admin.table('users').update({
+                        'organization_id': None, 'role': 'student',
+                        'org_role': None, 'org_roles': None,
+                    }).eq('id', entry['user_id']).execute()
         except Exception as e:  # noqa: BLE001
             logger.error(f'iCreate family re-edit: teardown failed for {reg_id}: {e}')
             return jsonify({'error': 'Could not update your family. Please contact iCreate.'}), 500
+
+    # A parent who already had an Optio account may already have these kids as
+    # COPPA dependents. Reuse those accounts instead of creating duplicates.
+    # Fetched AFTER teardown so a back-edit's just-deleted funnel dependents
+    # can't match. Scoped to this parent's own dependents — no takeover risk.
+    existing_dependents = (
+        admin.table('users')
+        .select('id, first_name, last_name, date_of_birth, display_name, organization_id')
+        .eq('managed_by_parent_id', parent_id).eq('is_dependent', True).execute()
+    ).data or []
+    existing_dependents = [d for d in existing_dependents if d['id'] not in prior_created_ids]
 
     created_kids = []
     student_ids = []
     for k in kids:
         try:
-            if k['own_account']:
+            was_platform = False
+            if k.get('existing_user'):
+                # Connect the kid's existing Optio account instead of creating a
+                # duplicate — after this it looks exactly like a funnel-created
+                # student (org fields, parent link, household member below).
+                was_platform = not k['existing_user'].get('organization_id')
+                # On re-edit the lookup ran before teardown (account still looked
+                # org-attached from the first pass) — the prior snapshot knows
+                # whether they originally came from the platform.
+                prior = next((p for p in prior_existing
+                              if p['user_id'] == k['existing_user']['id']), None)
+                if prior is not None:
+                    was_platform = bool(prior.get('was_platform'))
+                kid_id = _attach_existing_student(admin, org_id, k['existing_user'],
+                                                 k['first'], k['last'], k['dob'])
+                student_ids.append(kid_id)
+                ktype = 'existing'
+            elif k['own_account']:
                 kid_id = _create_org_student(admin, org_id, k['email'], k['first'], k['last'], k['dob'])
                 student_ids.append(kid_id)
                 ktype = 'student'
             else:
-                kid_id = _create_dependent(admin, parent_id, org_id, k['first'], k['last'], k['dob'])
-                ktype = 'dependent'
+                dep = _match_existing_dependent(existing_dependents, k['first'], k['last'], k['dob'])
+                if dep:
+                    # The parent's pre-existing dependent — attach to the org
+                    # (dependents keep role='student'); history stays intact.
+                    existing_dependents.remove(dep)  # twins: never match twice
+                    was_platform = not dep.get('organization_id')
+                    prior = next((p for p in prior_existing if p['user_id'] == dep['id']), None)
+                    if prior is not None:
+                        was_platform = bool(prior.get('was_platform'))
+                    updates = {'organization_id': org_id, 'date_of_birth': str(k['dob'])}
+                    if not dep.get('display_name'):
+                        updates['display_name'] = f"{k['first']} {k['last']}".strip()
+                    admin.table('users').update(updates).eq('id', dep['id']).execute()
+                    kid_id = dep['id']
+                    ktype = 'existing'
+                else:
+                    kid_id = _create_dependent(admin, parent_id, org_id, k['first'], k['last'], k['dob'])
+                    ktype = 'dependent'
             extras = {f: k[f] for f in ('preferred_name', 'gender', 'allergies', 'medications') if k.get(f)}
             carried = prior_avatars.get((k['first'], k['last'], str(k['dob'])))
-            if carried:
+            if carried and ktype != 'existing':
                 extras['avatar_url'] = carried
             if extras:
                 admin.table('users').update(extras).eq('id', kid_id).execute()
             created_kids.append({
                 'user_id': kid_id, 'name': f"{k['first']} {k['last']}".strip(),
                 'first_name': k['first'], 'last_name': k['last'],
-                'dob': str(k['dob']), 'type': ktype, 'email': k['email'] if k['own_account'] else None,
+                'dob': str(k['dob']), 'type': ktype, 'was_platform': was_platform,
+                'email': k['email'] if (k['own_account'] or ktype == 'existing') else None,
                 'preferred_name': k.get('preferred_name'), 'gender': k.get('gender'),
                 'allergies': k.get('allergies'), 'medications': k.get('medications'),
             })

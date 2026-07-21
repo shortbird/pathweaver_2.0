@@ -992,7 +992,8 @@ const ICreateRegisterPage = () => {
                           <input type="email" className={field} placeholder="name@example.com"
                             value={k.email} onChange={(e) => setKid(i, { email: e.target.value })} />
                           <p className="mt-1 text-xs text-neutral-400">
-                            With an email, {k.first_name.trim() || 'your child'} gets their own login. Leave it blank to
+                            With an email, {k.first_name.trim() || 'your child'} gets their own login. If they already
+                            have an Optio account, enter its email and we'll connect it. Leave it blank to
                             manage their account under yours.
                           </p>
                         </div>
