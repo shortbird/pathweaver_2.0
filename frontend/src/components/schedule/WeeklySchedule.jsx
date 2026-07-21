@@ -18,6 +18,11 @@ import React from 'react'
 //                standard periods. Empty (day, block) slots render as gray
 //                "open" boxes prompting families to pick a class for that time;
 //                labeled blocks (e.g. Lunch) render as a shaded band instead.
+//   flaggedSlots optional [{day, min, end}] — open slots to render as amber
+//                warnings (e.g. an empty block BETWEEN two classes — on-campus
+//                students must be in a class every block)
+//   dayFooters   optional {day: node} — a footer row under each day column
+//                (e.g. the day's supply-fee total, matching the CLP grid)
 
 const DAYS = [1, 2, 3, 4, 5]
 const DAY_LABELS = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' }
@@ -51,7 +56,7 @@ const fmt = (t) => {
   return `${h12}${mm ? `:${String(mm).padStart(2, '0')}` : ''}${ampm}`
 }
 
-const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotClick = null, onClassClick = null, selectedSlot = null, timeBlocks = [] }) => {
+const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotClick = null, onClassClick = null, selectedSlot = null, timeBlocks = [], flaggedSlots = [], dayFooters = null }) => {
   // Time range: default school hours, expanded to fit every meeting shown.
   // With time blocks configured, the grid hugs the school day instead.
   const blocks = (timeBlocks || []).filter((b) => toMin(b.start) != null && toMin(b.end) != null)
@@ -155,17 +160,25 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
                 </div>
               )
             })}
-            {/* open slots: a gray box per empty (day, period) — pick a class here */}
+            {/* open slots: a gray box per empty (day, period) — pick a class here.
+                Flagged slots (an empty block between two classes) go amber. */}
             {pickable.filter((b) => slotIsOpen(d, b)).map((b, i) => {
               const s = toMin(b.start); const e = toMin(b.end)
+              const flagged = (flaggedSlots || []).some((f) => f.day === d && f.min === s)
               return (
                 <div key={`open-${i}`}
-                  className={`absolute inset-x-0.5 rounded-md bg-neutral-100 border border-dashed border-neutral-300 flex items-center justify-center ${onSlotClick ? 'hover:bg-neutral-200/70 transition-colors' : ''}`}
+                  className={`absolute inset-x-0.5 rounded-md border border-dashed flex items-center justify-center ${
+                    flagged
+                      ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-300'
+                      : 'bg-neutral-100 border-neutral-300'
+                  } ${onSlotClick ? (flagged ? 'hover:bg-amber-100 transition-colors' : 'hover:bg-neutral-200/70 transition-colors') : ''}`}
                   style={{ top: (s - startMin) * pxPerMin + 1, height: (e - s) * pxPerMin - 2 }}
-                  title={onSlotClick ? 'Open — click to see classes at this time' : 'Open'}>
+                  title={flagged
+                    ? 'Open block between classes — on-campus students must be in a class every block'
+                    : onSlotClick ? 'Open — click to see classes at this time' : 'Open'}>
                   {!compact && (
-                    <span className="text-[10px] font-medium text-neutral-400">
-                      {onSlotClick ? '+ Pick a class' : 'Open'}
+                    <span className={`text-[10px] font-medium ${flagged ? 'text-amber-600' : 'text-neutral-400'}`}>
+                      {flagged ? 'Open between classes' : onSlotClick ? '+ Pick a class' : 'Open'}
                     </span>
                   )}
                 </div>
@@ -202,6 +215,16 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
           </div>
         ))}
       </div>
+      {dayFooters && (
+        <div className="grid" style={{ gridTemplateColumns: '3rem repeat(5, 1fr)' }}>
+          <div />
+          {DAYS.map((d) => (
+            <div key={d} className="border-l border-gray-100 px-1 pt-1.5">
+              {dayFooters[d] || null}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -14,7 +14,7 @@ endpoints. Admin (service_role) client, same justification as sis_service.py: th
 SIS tables are RLS-locked to backend-only and this is a cross-table read.
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
@@ -26,6 +26,10 @@ logger = get_logger(__name__)
 
 # Enrollment standings we never surface in a CLP meeting (the family isn't active).
 _HIDDEN_ENROLLMENT_STATUSES = ('withdrawn', 'graduated')
+
+# Per-student CLP meeting state: finished flag + staff meeting notes.
+CLP_RECORD_TABLE = 'sis_clp_records'
+MAX_NOTES_LEN = 10000
 
 
 def _admin():
@@ -74,9 +78,15 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
     Built from the roster so it carries household + enrollment standing in one
     pass. Withdrawn/graduated students are omitted (a CLP meeting is for active
     families). Students without a household form single-child "families" so
-    everyone is reachable.
+    everyone is reachable. Each student carries clp_finished so staff can see
+    which families are done at a glance.
     """
     roster = sis_service.get_roster(org_id)
+    try:
+        finished = finished_student_ids(org_id)
+    except Exception as e:  # noqa: BLE001 — the flag is decoration, never a blocker
+        logger.warning(f'CLP: finished lookup failed for org {org_id}: {e}')
+        finished = set()
     students = [{
         'student_id': r['student_id'],
         'name': r['name'],
@@ -88,6 +98,7 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
         'household_name': r.get('household_name'),
         'grade_level': r.get('grade_level'),
         'enrollment_status': r.get('enrollment_status'),
+        'clp_finished': r['student_id'] in finished,
     } for r in roster
         if r.get('is_student')
         and (r.get('enrollment_status') or 'unassigned') not in _HIDDEN_ENROLLMENT_STATUSES]
@@ -253,10 +264,86 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     out_classes.sort(key=lambda c: (c['name'] or '').lower())
     schedule = [c for c in out_classes if c['is_enrolled']]
 
+    # CLP meeting state + UFA learning-day choice — best-effort decoration so a
+    # missing table (pre-migration) never breaks the meeting screen.
+    try:
+        clp_record = get_clp_record(org_id, student_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'CLP: record lookup failed for {student_id[:8]}: {e}')
+        clp_record = {'finished': False, 'notes': None}
+    learning_day = None
+    try:
+        from services import sis_learning_day_service
+        learning_day = sis_learning_day_service.get_selection(org_id, student_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'CLP: learning-day lookup failed for {student_id[:8]}: {e}')
+
     return {
         'student': student,
         'family': family,
         'siblings': siblings,
         'classes': out_classes,
         'schedule': schedule,
+        'clp_record': clp_record,
+        'learning_day': learning_day,
     }
+
+
+# ── CLP meeting record: finished flag + staff meeting notes ───────────────────
+def _normalize_record(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        'finished': bool(row.get('finished_at')),
+        'finished_at': row.get('finished_at'),
+        'notes': row.get('notes'),
+        'updated_at': row.get('updated_at'),
+    }
+
+
+def get_clp_record(org_id: str, student_user_id: str) -> Dict[str, Any]:
+    """The student's CLP meeting record ({finished, finished_at, notes,
+    updated_at}); a default unfinished record when none is saved."""
+    rows = (
+        _admin().table(CLP_RECORD_TABLE)
+        .select('finished_at, notes, updated_at')
+        .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+        .limit(1).execute()
+    ).data or []
+    if not rows:
+        return {'finished': False, 'finished_at': None, 'notes': None, 'updated_at': None}
+    return _normalize_record(rows[0])
+
+
+def update_clp_record(org_id: str, student_user_id: str, staff_user_id: str, *,
+                      finished: Optional[bool] = None,
+                      notes: Optional[str] = None) -> Dict[str, Any]:
+    """Partial update: mark the CLP finished/unfinished and/or save meeting
+    notes. Only the provided fields change (one row per student, upserted)."""
+    if not sis_service.student_in_org(student_user_id, org_id):
+        return {'error': 'Student not found'}
+    now = datetime.now(timezone.utc).isoformat()
+    payload: Dict[str, Any] = {
+        'organization_id': org_id,
+        'student_user_id': student_user_id,
+        'updated_at': now,
+    }
+    if finished is not None:
+        payload['finished_at'] = now if finished else None
+        payload['finished_by'] = staff_user_id if finished else None
+    if notes is not None:
+        payload['notes'] = notes.strip()[:MAX_NOTES_LEN] or None
+        payload['notes_updated_by'] = staff_user_id
+    row = (
+        _admin().table(CLP_RECORD_TABLE)
+        .upsert(payload, on_conflict='organization_id,student_user_id').execute()
+    ).data[0]
+    return {'record': _normalize_record(row)}
+
+
+def finished_student_ids(org_id: str) -> set:
+    """Student ids whose CLP is marked finished (directory badge lookup)."""
+    rows = (
+        _admin().table(CLP_RECORD_TABLE)
+        .select('student_user_id, finished_at')
+        .eq('organization_id', org_id).execute()
+    ).data or []
+    return {r['student_user_id'] for r in rows if r.get('finished_at')}

@@ -118,6 +118,10 @@ const meetsAt = (c, f) => (c.meetings || []).some((m) => {
   return s != null && e != null && s < slotEnd(f) && f.min < e
 })
 
+// All k-element combinations of arr (k and arr are tiny: ≤5 weekdays).
+const kCombos = (arr, k) => (k === 0 ? [[]]
+  : arr.flatMap((v, i) => kCombos(arr.slice(i + 1), k - 1).map((c) => [v, ...c])))
+
 // The fake student a staff preview builds a week for. avatar_url is truthy so
 // the missing-photo prompt stays hidden; no DOB so age never hides classes.
 const PREVIEW_STUDENT = { student_id: 'preview-student', name: 'Casey Sample', avatar_url: 'preview' }
@@ -230,30 +234,73 @@ const ScheduleBuilderPage = () => {
   // Enrollment age-gate: the student themself is waitlisted (not per-class) —
   // the week renders read-only until the school releases them.
   const enrollmentWaitlist = schedule?.enrollment_waitlist || null
-  const interactionLocked = locked || !!enrollmentWaitlist
   const enrolledIds = new Set(enrolled.map((c) => c.id))
   const waitlistIds = new Set(waitlist.map((w) => w.class_id))
 
   // Running tuition across the schedule (waitlist excluded — those seats aren't
   // confirmed): lesser of the per-class sum and the covering block tier, or the
-  // student's flat plan (UFA academy). Supplies roll into the financed total.
+  // student's flat plan (UFA private school). Supplies roll into the financed total.
   const perClassCents = enrolled.map((c) => c.price_cents).reduce((sum, v) => sum + (v || 0), 0)
   const totalBlocks = enrolled.reduce((n, c) => n + classBlocks(c, schedule?.time_blocks), 0)
   const supplyCents = Math.round(enrolled.reduce((s, c) => s + (Number(c.supply_fee) || 0), 0) * 100)
   const blockPricing = schedule?.block_pricing
   const tier = totalBlocks > 0 ? tierFor(blockPricing?.tiers, totalBlocks) : null
   const ufa = schedule?.tuition_plan === 'ufa_academy' ? (blockPricing?.ufa || null) : null
+
+  // ── UFA private school requirements (3 instructional days, 5 in-person
+  // blocks, learning-day choice, 4th-day charge) ─────────────────────────────
+  const campusDays = useMemo(
+    () => [...new Set(enrolled.flatMap((c) => (c.meetings || []).map((m) => m.day_of_week)))]
+      .filter((d) => d != null).sort((a, b) => a - b),
+    [enrolled],
+  )
+  const learningChoice = schedule?.learning_day?.choice || null
+  const programDays = ufa?.program_days || [1, 3]   // Mon/Wed microschool program days
+  const includedDays = ufa?.included_days || 3      // instructional days UFA covers
+  const hasProgramDay = campusDays.some((d) => programDays.includes(d))
+  // The learning day (a recorded choice, not a class) counts toward the 3
+  // instructional days but NOT toward the in-person block minimum.
+  const totalDays = campusDays.length + (learningChoice ? 1 : 0)
+  const learningDayNeeded = !!ufa && enrolled.length > 0 && campusDays.length < includedDays
+  const mustChooseElementary = !hasProgramDay
+  // A 4th day isn't covered by the flat tuition: bill its classes a-la-carte.
+  // Pick the extra day(s) minimizing the cost of classes meeting ONLY on them
+  // (classes spanning covered + extra days get the benefit of the doubt).
+  const extraDayCount = ufa ? Math.max(0, totalDays - includedDays) : 0
+  const extraCharge = useMemo(() => {
+    if (!extraDayCount || !campusDays.length) return null
+    let best = null
+    for (const combo of kCombos(campusDays, Math.min(extraDayCount, campusDays.length))) {
+      const set = new Set(combo)
+      const charged = enrolled.filter((c) => {
+        const days = [...new Set((c.meetings || []).map((m) => m.day_of_week))].filter((d) => d != null)
+        return days.length > 0 && days.every((d) => set.has(d))
+      })
+      const cents = charged.reduce((s, c) => s + (c.price_cents || 0), 0)
+      if (!best || cents < best.priceCents) {
+        best = { days: combo, priceCents: cents, classNames: charged.map((c) => c.name) }
+      }
+    }
+    return best
+  }, [enrolled, extraDayCount, campusDays])
+  const extraPriceCents = extraCharge?.priceCents || 0
+
   const tuitionYearCents = ufa?.year_cents
     ? ufa.year_cents
     : tier && tier.year_cents <= perClassCents ? tier.year_cents : perClassCents
-  const tuitionNote = ufa?.year_cents ? 'UFA academy tuition'
+  const tuitionNote = ufa?.year_cents ? 'UFA private school tuition'
     : tier && tier.year_cents <= perClassCents ? `${totalBlocks}-block plan` : null
-  const totalYearCents = tuitionYearCents + supplyCents
+  const totalYearCents = tuitionYearCents + supplyCents + extraPriceCents
   const installments = blockPricing?.installments || 0
   const feePct = blockPricing?.convenience_fee_pct || 0
   const perPaymentCents = installments > 1 ? Math.round((totalYearCents * (1 + feePct / 100)) / installments) : null
   const ufaShortfall = ufa?.min_blocks && totalBlocks < ufa.min_blocks ? ufa.min_blocks - totalBlocks : 0
   const tuitionCount = enrolled.length
+
+  // Approval submission: submitted/approved schedules are read-only for parents.
+  const submission = schedule?.submission || null
+  const submissionLocked = submission?.status === 'submitted' || submission?.status === 'approved'
+  const interactionLocked = locked || !!enrollmentWaitlist || submissionLocked
 
   // Program classes (requires_full_day, e.g. the microschool programs meeting
   // blocks 1 & 5) anchor their meeting days: the student must fill every
@@ -273,6 +320,53 @@ const ScheduleBuilderPage = () => {
     }
     return { name: p.name, open, daysText: days.map((d) => DAY_FULL[d]).join(' and ') }
   }).filter((g) => g.open > 0)
+
+  // Daily supply-fee totals under the calendar — each class counted once per
+  // day it meets, matching the CLP schedule grid.
+  const supplyFooters = useMemo(() => {
+    const byDay = {}
+    for (const c of enrolled) {
+      const fee = Number(c.supply_fee) || 0
+      if (!fee) continue
+      for (const d of new Set((c.meetings || []).map((m) => m.day_of_week))) {
+        if (d != null) byDay[d] = (byDay[d] || 0) + fee
+      }
+    }
+    if (!Object.keys(byDay).length) return null
+    const out = {}
+    for (const [d, amt] of Object.entries(byDay)) {
+      out[d] = (
+        <div className="text-[11px] text-neutral-500 text-center border-t border-gray-100 pt-1.5">
+          Supplies: <span className="font-semibold text-neutral-700">{money(Math.round(amt * 100))}</span>
+        </div>
+      )
+    }
+    return out
+  }, [enrolled])
+
+  // An empty teaching block BETWEEN two classes on the same day isn't allowed —
+  // students on campus must be in a class every block. Flag the slot + banner.
+  const gapSlots = useMemo(() => {
+    const out = []
+    for (let d = 1; d <= 5; d++) {
+      const covered = teachingBlocks.map((b) => {
+        const bs = toMin(b.start); const be = toMin(b.end)
+        return enrolled.some((c) => (c.meetings || []).some((m) =>
+          m.day_of_week === d && toMin(m.start_time) < be && bs < toMin(m.end_time)))
+      })
+      const first = covered.indexOf(true)
+      const last = covered.lastIndexOf(true)
+      if (first === -1) continue
+      for (let i = first + 1; i < last; i++) {
+        if (!covered[i]) {
+          out.push({ day: d, min: toMin(teachingBlocks[i].start), end: toMin(teachingBlocks[i].end) })
+        }
+      }
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enrolled, schedule?.time_blocks])
+  const gapDaysText = [...new Set(gapSlots.map((g) => g.day))].map((d) => DAY_FULL[d]).join(' and ')
 
   const openClasses = useMemo(
     () => catalog.filter((c) => !enrolledIds.has(c.id) && !waitlistIds.has(c.id)),
@@ -353,6 +447,42 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
+  // UFA learning-day choice (Quest Learning Day / Elementary At-Home). A
+  // recorded choice, not an enrollment; preview mode keeps it in memory.
+  const selectLearningDay = async (choice) => {
+    if (previewCode) {
+      setSchedule((s) => ({ ...s, learning_day: choice ? { choice } : null }))
+      return
+    }
+    setBusy('learning-day')
+    try {
+      await api.put(`/api/sis/parent/students/${studentId}/learning-day`, {
+        organization_id: orgId, choice,
+      })
+      toast.success(choice ? 'Learning day saved' : 'Learning day cleared')
+      reload()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not save the learning day')
+    } finally { setBusy(null) }
+  }
+
+  // Send the finished schedule to the school to approve and bill. Locks
+  // self-service changes until staff approve or send it back.
+  const submitForApproval = async () => {
+    const orgName = org?.organization_name || 'the school'
+    if (!window.confirm(`Submit this schedule to ${orgName} for approval? You won't be able to make changes while it's under review.`)) return
+    setBusy('submit')
+    try {
+      await api.post(`/api/sis/parent/students/${studentId}/schedule-submission`, {
+        organization_id: orgId,
+      })
+      toast.success(`Schedule submitted to ${orgName} for approval`)
+      reload()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not submit the schedule')
+    } finally { setBusy(null) }
+  }
+
   if (loading) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" /></div>
   }
@@ -430,7 +560,16 @@ const ScheduleBuilderPage = () => {
                 {tuitionNote ? ` · ${tuitionNote}` : ''}
               </span>
             </div>
-            {(supplyCents > 0 || perPaymentCents != null) && (
+            {/* UFA families see the full picture: flat tuition + itemized supply
+                fees (+ any extra-day classes billed personally). */}
+            {ufa ? (
+              <p className="text-xs text-neutral-400 mt-0.5">
+                {money(tuitionYearCents)} UFA tuition
+                {supplyCents > 0 ? ` + ${money(supplyCents)} supply fees` : ''}
+                {extraPriceCents > 0 ? ` + ${money(extraPriceCents)} extra-day classes (billed to you)` : ''}
+                {perPaymentCents != null ? ` The payment plan includes a ${feePct}% convenience fee.` : ''}
+              </p>
+            ) : (supplyCents > 0 || perPaymentCents != null) && (
               <p className="text-xs text-neutral-400 mt-0.5">
                 {supplyCents > 0 ? `Includes ${money(supplyCents)} in supply fees.` : ''}
                 {perPaymentCents != null ? `${supplyCents > 0 ? ' ' : ''}The payment plan includes a ${feePct}% convenience fee.` : ''}
@@ -440,11 +579,23 @@ const ScheduleBuilderPage = () => {
         )}
       </div>
 
-      {ufaShortfall > 0 && (
-        <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          UFA academy students must schedule at least {ufa.min_blocks} blocks (one full instructional
-          day) — this schedule has {totalBlocks}. Add {ufaShortfall} more block{ufaShortfall === 1 ? '' : 's'} of classes.
-        </div>
+      {ufa && (
+        <UfaRequirementsPanel
+          ufa={ufa}
+          totalBlocks={totalBlocks}
+          ufaShortfall={ufaShortfall}
+          campusDays={campusDays}
+          totalDays={totalDays}
+          includedDays={includedDays}
+          learningChoice={learningChoice}
+          learningDayNeeded={learningDayNeeded}
+          mustChooseElementary={mustChooseElementary}
+          extraCharge={extraCharge}
+          orgName={org?.organization_name || 'the school'}
+          locked={interactionLocked}
+          busy={busy === 'learning-day'}
+          onSelect={selectLearningDay}
+        />
       )}
       {fullDayGaps.map((g) => (
         <div key={g.name} className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
@@ -452,6 +603,12 @@ const ScheduleBuilderPage = () => {
           block{g.open === 1 ? '' : 's'} on {g.daysText}.
         </div>
       ))}
+      {gapSlots.length > 0 && (
+        <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          There's an open block between classes on {gapDaysText} — students on campus must be
+          in a class every block. Click the highlighted slot to pick a class.
+        </div>
+      )}
       {/* No DOB = age filtering silently off, so the catalog shows every age's
           classes. Parents can't edit a student's DOB here — the school can. */}
       {!previewCode && student && !student.date_of_birth && (
@@ -529,6 +686,8 @@ const ScheduleBuilderPage = () => {
           classes={enrolled}
           timeBlocks={schedule?.time_blocks || []}
           selectedSlot={slotModal}
+          flaggedSlots={gapSlots}
+          dayFooters={supplyFooters}
           onSlotClick={interactionLocked ? null : (day, min, end) => setSlotModal({ day, min, end })}
           onClassClick={(c, slot) => setDetail({ item: c, enrolled: true, slot })}
         />

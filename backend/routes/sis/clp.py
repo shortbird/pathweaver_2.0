@@ -59,3 +59,25 @@ def clp_student(user_id, student_id):
     if not data:
         return jsonify({'success': False, 'error': 'Student not found'}), 404
     return jsonify({'success': True, **data})
+
+
+@bp.route('/clp/students/<student_id>/record', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def update_clp_record(user_id, student_id):
+    """Partial update of the student's CLP meeting record: mark the CLP
+    finished/unfinished and/or save staff meeting notes."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    kwargs = {}
+    if 'finished' in data:
+        kwargs['finished'] = bool(data['finished'])
+    if 'notes' in data:
+        kwargs['notes'] = data['notes'] if data['notes'] is not None else ''
+    if not kwargs:
+        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+    result = clp.update_clp_record(org_id, student_id, user_id, **kwargs)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})

@@ -274,6 +274,38 @@ def drop_student_class(user_id, student_id, class_id):
     return jsonify({'success': True, **result})
 
 
+# ── UFA learning day + schedule submission ────────────────────────────────────
+@bp.route('/students/<student_id>/learning-day', methods=['PUT'])
+@require_auth
+def set_learning_day(user_id, student_id):
+    """Save (or clear with choice=null) the student's learning-day choice —
+    the UFA private school third instructional day (not an enrollable class)."""
+    data = request.json or {}
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.set_learning_day(user_id, org_id, student_id, data.get('choice'))
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/students/<student_id>/schedule-submission', methods=['POST'])
+@require_auth
+def submit_schedule(user_id, student_id):
+    """Submit the schedule for the school to approve and bill. Locks
+    self-service changes until staff approve or send it back."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.submit_schedule(user_id, org_id, student_id)
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result}), 201
+
+
 # ── Age-exception requests ─────────────────────────────────────────────────────
 @bp.route('/age-exception-requests', methods=['POST'])
 @require_auth

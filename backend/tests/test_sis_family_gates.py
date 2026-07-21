@@ -61,6 +61,7 @@ class TestGateEnforcement:
     def test_add_class_returns_the_gate(self):
         with patch('services.sis_parent_service.registerable_students', return_value=_MINE), \
              patch('services.sis_parent_service._changes_locked', return_value=False), \
+             patch('services.sis_parent_service._submission_gate', return_value=None), \
              patch('services.sis_parent_service._family_gate', return_value=_GATE) as gate:
             result = parent.add_class('g1', 'org1', 'stu1', 'class1')
         assert result == _GATE
@@ -76,6 +77,7 @@ class TestGateEnforcement:
     def test_add_course_checks_the_gate(self):
         with patch('services.sis_parent_service.registerable_students', return_value=_MINE), \
              patch('services.sis_parent_service._changes_locked', return_value=False), \
+             patch('services.sis_parent_service._submission_gate', return_value=None), \
              patch('services.sis_parent_service._family_gate', return_value=None) as gate, \
              patch('services.sis_parent_service._optio_courses_enabled', return_value=False):
             parent.add_course('g1', 'org1', 'stu1', 'course1')
@@ -84,6 +86,7 @@ class TestGateEnforcement:
     def test_ungated_add_class_proceeds_to_catalog(self):
         with patch('services.sis_parent_service.registerable_students', return_value=_MINE), \
              patch('services.sis_parent_service._changes_locked', return_value=False), \
+             patch('services.sis_parent_service._submission_gate', return_value=None), \
              patch('services.sis_parent_service._family_gate', return_value=None), \
              patch('services.sis_parent_service.catalog.list_classes', return_value=[]):
             result = parent.add_class('g1', 'org1', 'stu1', 'class1')

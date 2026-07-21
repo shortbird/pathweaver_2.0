@@ -309,6 +309,29 @@ def _student_household(org_id: str, student_user_id: str) -> Optional[Dict[str, 
     return rows[0] if rows else None
 
 
+def _submission_gate(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
+    """Blocks self-service changes while the schedule sits with the school
+    (submitted for approval) or after it was approved. sent_back unlocks.
+    Fails open pre-migration (missing table must not break the builder)."""
+    try:
+        from services import sis_schedule_submission_service as submissions
+        cur = submissions.current(org_id, student_user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'submission gate lookup failed for {student_user_id[:8]}: {e}')
+        return None
+    if not cur:
+        return None
+    if cur.get('status') == 'submitted':
+        return {'error': 'This schedule has been submitted for approval — changes are '
+                         'locked while the school reviews it.',
+                'submission_locked': True}
+    if cur.get('status') == 'approved':
+        return {'error': 'This schedule has been approved by the school — contact them '
+                         'to make changes.',
+                'submission_locked': True}
+    return None
+
+
 def _family_gate(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
     """The error blocking this family from class signup, or None if clear.
 
@@ -396,6 +419,9 @@ def add_course(user_id: str, org_id: str, student_user_id: str, course_id: str) 
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    sub_gate = _submission_gate(org_id, student_user_id)
+    if sub_gate:
+        return sub_gate
     gate = _family_gate(org_id, student_user_id)
     if gate:
         return gate
@@ -415,6 +441,9 @@ def drop_course(user_id: str, org_id: str, student_user_id: str, course_id: str)
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    sub_gate = _submission_gate(org_id, student_user_id)
+    if sub_gate:
+        return sub_gate
     from services.course_enrollment_service import CourseEnrollmentService
     result = CourseEnrollmentService(_admin()).unenroll_user(student_user_id, course_id)
     if not result.get('success'):
@@ -482,6 +511,20 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     # Age-gated at registration: the student is queued for enrollment itself —
     # the builder renders read-only with their place in line.
     ew_entry = enrollment_waitlist.waiting_entry(org_id, student_user_id)
+    # UFA learning day + approval submission — best-effort (missing tables
+    # pre-migration must not break the builder).
+    learning_day_sel = None
+    try:
+        from services import sis_learning_day_service as learning_day
+        learning_day_sel = learning_day.get_selection(org_id, student_user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'learning-day lookup failed for {student_user_id[:8]}: {e}')
+    submission = None
+    try:
+        from services import sis_schedule_submission_service as submissions
+        submission = submissions.current(org_id, student_user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'submission lookup failed for {student_user_id[:8]}: {e}')
     return {
         'classes': classes,
         'waitlist': waitlist,
@@ -499,6 +542,11 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'time_blocks': settings.get('time_blocks') or [],
         'block_pricing': settings.get('block_pricing') or None,
         'tuition_plan': tuition_plan,
+        'learning_day': learning_day_sel,
+        'submission': submission,
+        # Org toggle for the "Submit for approval" flow; ON by default for
+        # SIS-scheduling orgs (sis_settings.schedule_approval_enabled: false to hide).
+        'approval_enabled': bool(settings.get('schedule_approval_enabled', True)),
     }
 
 
@@ -549,6 +597,9 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    sub_gate = _submission_gate(org_id, student_user_id)
+    if sub_gate:
+        return sub_gate
     gate = _family_gate(org_id, student_user_id)
     if gate:
         return gate
@@ -609,6 +660,9 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    sub_gate = _submission_gate(org_id, student_user_id)
+    if sub_gate:
+        return sub_gate
 
     dropped = False
     enr = (
@@ -632,6 +686,42 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         dropped = True
 
     return {'ok': True, 'dropped': dropped}
+
+
+# ── UFA learning day + schedule submission (guardian-scoped) ──────────────────
+def set_learning_day(user_id: str, org_id: str, student_user_id: str,
+                     choice: Optional[str]) -> Dict[str, Any]:
+    """Save (or clear) the student's learning-day choice — the UFA private
+    school third instructional day. Same locks as class changes."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    if _changes_locked(org_id):
+        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    sub_gate = _submission_gate(org_id, student_user_id)
+    if sub_gate:
+        return sub_gate
+    from services import sis_learning_day_service as learning_day
+    return learning_day.set_selection(org_id, student_user_id, choice, user_id)
+
+
+def submit_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
+    """Submit the student's schedule for the school to approve and bill.
+    Locks self-service changes until staff approve or send it back."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    if _changes_locked(org_id):
+        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
+    gate = _family_gate(org_id, student_user_id)
+    if gate:
+        return gate
+    enrolled = (
+        _admin().table('class_enrollments').select('id')
+        .eq('student_id', student_user_id).eq('status', 'active').execute()
+    ).data or []
+    if not enrolled:
+        return {'error': 'Add at least one class before submitting'}
+    from services import sis_schedule_submission_service as submissions
+    return submissions.submit(org_id, student_user_id, user_id)
 
 
 # ── Age-exception requests ────────────────────────────────────────────────────

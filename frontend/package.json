@@ -113,6 +113,6 @@
     "node": ">=22.12.0"
   },
   "overrides": {
-    "linkify-it": "^5.0.1"
+    "linkify-it": "^5.0.2"
   }
 }

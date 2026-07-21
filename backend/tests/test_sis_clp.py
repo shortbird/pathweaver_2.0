@@ -49,11 +49,16 @@ _ROSTER = [
 ]
 
 
+def _directory(roster, finished=frozenset()):
+    with patch('services.sis_clp_service.sis_service.get_roster', return_value=roster), \
+         patch('services.sis_clp_service.finished_student_ids', return_value=set(finished)):
+        return clp.clp_directory('org1')
+
+
 @pytest.mark.unit
 class TestDirectory:
     def test_groups_students_by_family_and_hides_inactive(self):
-        with patch('services.sis_clp_service.sis_service.get_roster', return_value=_ROSTER):
-            out = clp.clp_directory('org1')
+        out = _directory(_ROSTER)
         # Parent + withdrawn student excluded from the flat student list.
         ids = {s['student_id'] for s in out['students']}
         assert ids == {'s1', 's2', 's3'}
@@ -65,10 +70,15 @@ class TestDirectory:
         assert fam['Cara Solo']['household_id'] is None
 
     def test_families_sorted_alphabetically(self):
-        with patch('services.sis_clp_service.sis_service.get_roster', return_value=_ROSTER):
-            out = clp.clp_directory('org1')
+        out = _directory(_ROSTER)
         names = [f['name'] for f in out['families']]
         assert names == sorted(names, key=str.lower)
+
+    def test_students_carry_the_clp_finished_flag(self):
+        out = _directory(_ROSTER, finished={'s1'})
+        by_id = {s['student_id']: s for s in out['students']}
+        assert by_id['s1']['clp_finished'] is True
+        assert by_id['s2']['clp_finished'] is False
 
     def test_solo_students_sort_by_last_name(self):
         """A household-less student must interleave by LAST name among the
@@ -86,14 +96,12 @@ class TestDirectory:
              'last_name': 'Ant', 'household_id': 'h1', 'household_name': 'Ant Family',
              'enrollment_status': 'enrolled'},
         ]
-        with patch('services.sis_clp_service.sis_service.get_roster', return_value=roster):
-            out = clp.clp_directory('org1')
+        out = _directory(roster)
         assert [f['name'] for f in out['families']] == \
             ['Ant Family', 'Aaron Middleton', 'Zebra Family']
 
     def test_students_carry_age(self):
-        with patch('services.sis_clp_service.sis_service.get_roster', return_value=_ROSTER):
-            out = clp.clp_directory('org1')
+        out = _directory(_ROSTER)
         by_id = {s['student_id']: s for s in out['students']}
         assert isinstance(by_id['s1']['age'], int) and by_id['s1']['age'] >= 12
         assert by_id['s2']['age'] is None  # no DOB on file
@@ -116,7 +124,7 @@ _CATALOG = [
 
 @pytest.mark.unit
 class TestClpStudent:
-    def _run(self, enrolled, waitlist, payment=None):
+    def _run(self, enrolled, waitlist, payment=None, record=None, learning_day=None):
         tables = {
             'class_enrollments': _chain(enrolled),
             'sis_waitlist_entries': _chain(waitlist),
@@ -129,6 +137,9 @@ class TestClpStudent:
                                  [{'student_id': 's2', 'name': 'Bob Ant', 'age': 13}],
                                  ['g1'])), \
              patch('services.sis_clp_service._family_payment_intent', return_value=payment), \
+             patch('services.sis_clp_service.get_clp_record',
+                   return_value=record or {'finished': False, 'notes': None}), \
+             patch('services.sis_learning_day_service.get_selection', return_value=learning_day), \
              patch('services.sis_clp_service.catalog.list_classes', return_value=_CATALOG), \
              patch('services.sis_clp_service._admin', return_value=_client(tables)):
             return clp.get_clp_student('org1', 's1')
@@ -168,6 +179,16 @@ class TestClpStudent:
         out = self._run(enrolled=[], waitlist=[])
         assert out['family']['payment_intent'] is None
 
+    def test_clp_record_and_learning_day_surface(self):
+        out = self._run(
+            enrolled=[], waitlist=[],
+            record={'finished': True, 'finished_at': '2026-07-21', 'notes': 'Great meeting'},
+            learning_day={'choice': 'elementary_at_home'},
+        )
+        assert out['clp_record']['finished'] is True
+        assert out['clp_record']['notes'] == 'Great meeting'
+        assert out['learning_day']['choice'] == 'elementary_at_home'
+
 
 @pytest.mark.unit
 class TestHelpers:
@@ -194,3 +215,65 @@ class TestHelpers:
     def test_out_of_org_student_returns_none(self):
         with patch('services.sis_clp_service.sis_service.student_in_org', return_value=False):
             assert clp.get_clp_student('org1', 'stranger') is None
+
+
+@pytest.mark.unit
+class TestClpRecord:
+    def test_default_record_when_none_saved(self):
+        tables = {'sis_clp_records': _chain([])}
+        with patch('services.sis_clp_service._admin', return_value=_client(tables)):
+            rec = clp.get_clp_record('org1', 's1')
+        assert rec['finished'] is False and rec['notes'] is None
+
+    def test_finished_derives_from_finished_at(self):
+        row = {'finished_at': '2026-07-21T10:00:00Z', 'notes': 'All set',
+               'updated_at': '2026-07-21T10:00:00Z'}
+        tables = {'sis_clp_records': _chain([row])}
+        with patch('services.sis_clp_service._admin', return_value=_client(tables)):
+            rec = clp.get_clp_record('org1', 's1')
+        assert rec['finished'] is True and rec['notes'] == 'All set'
+
+    def test_mark_finished_upserts_timestamp_and_staff(self):
+        saved = {'finished_at': '2026-07-21T10:00:00Z', 'notes': None}
+        chain = _chain([saved])
+        tables = {'sis_clp_records': chain}
+        with patch('services.sis_clp_service.sis_service.student_in_org', return_value=True), \
+             patch('services.sis_clp_service._admin', return_value=_client(tables)):
+            out = clp.update_clp_record('org1', 's1', 'staff1', finished=True)
+        assert out['record']['finished'] is True
+        payload = chain.upsert.call_args.args[0]
+        assert payload['finished_by'] == 'staff1'
+        assert payload['finished_at'] is not None
+        assert chain.upsert.call_args.kwargs['on_conflict'] == 'organization_id,student_user_id'
+
+    def test_unmark_finished_clears_the_timestamp(self):
+        chain = _chain([{'finished_at': None, 'notes': None}])
+        tables = {'sis_clp_records': chain}
+        with patch('services.sis_clp_service.sis_service.student_in_org', return_value=True), \
+             patch('services.sis_clp_service._admin', return_value=_client(tables)):
+            out = clp.update_clp_record('org1', 's1', 'staff1', finished=False)
+        assert out['record']['finished'] is False
+        payload = chain.upsert.call_args.args[0]
+        assert payload['finished_at'] is None and payload['finished_by'] is None
+
+    def test_notes_save_without_touching_finished(self):
+        chain = _chain([{'finished_at': None, 'notes': 'Wants art electives'}])
+        tables = {'sis_clp_records': chain}
+        with patch('services.sis_clp_service.sis_service.student_in_org', return_value=True), \
+             patch('services.sis_clp_service._admin', return_value=_client(tables)):
+            out = clp.update_clp_record('org1', 's1', 'staff1', notes='Wants art electives')
+        assert out['record']['notes'] == 'Wants art electives'
+        payload = chain.upsert.call_args.args[0]
+        assert 'finished_at' not in payload
+        assert payload['notes_updated_by'] == 'staff1'
+
+    def test_out_of_org_student_is_rejected(self):
+        with patch('services.sis_clp_service.sis_service.student_in_org', return_value=False):
+            assert 'error' in clp.update_clp_record('org1', 'stranger', 'staff1', finished=True)
+
+    def test_finished_student_ids_filters_on_timestamp(self):
+        rows = [{'student_user_id': 's1', 'finished_at': '2026-07-21'},
+                {'student_user_id': 's2', 'finished_at': None}]
+        tables = {'sis_clp_records': _chain(rows)}
+        with patch('services.sis_clp_service._admin', return_value=_client(tables)):
+            assert clp.finished_student_ids('org1') == {'s1'}
