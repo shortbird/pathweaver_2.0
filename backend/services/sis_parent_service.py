@@ -520,10 +520,14 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     except Exception as e:  # noqa: BLE001
         logger.warning(f'learning-day lookup failed for {student_user_id[:8]}: {e}')
     submission = None
+    submission_lookup_ok = True
     try:
         from services import sis_schedule_submission_service as submissions
         submission = submissions.current(org_id, student_user_id)
     except Exception as e:  # noqa: BLE001
+        # Table missing (pre-migration) or transient failure: hide the
+        # Submit-for-approval button rather than render one that can only 500.
+        submission_lookup_ok = False
         logger.warning(f'submission lookup failed for {student_user_id[:8]}: {e}')
     return {
         'classes': classes,
@@ -545,8 +549,9 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'learning_day': learning_day_sel,
         'submission': submission,
         # Org toggle for the "Submit for approval" flow; ON by default for
-        # SIS-scheduling orgs (sis_settings.schedule_approval_enabled: false to hide).
-        'approval_enabled': bool(settings.get('schedule_approval_enabled', True)),
+        # SIS-scheduling orgs (sis_settings.schedule_approval_enabled: false to
+        # hide) — and forced off while the submissions table is unavailable.
+        'approval_enabled': bool(settings.get('schedule_approval_enabled', True)) and submission_lookup_ok,
     }
 
 

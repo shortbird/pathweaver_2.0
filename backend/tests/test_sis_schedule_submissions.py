@@ -188,3 +188,43 @@ class TestParentEnforcement:
              patch('services.sis_parent_service._family_gate', return_value=hold):
             out = parent.submit_schedule('g1', 'org1', 'stu1')
         assert out == hold
+
+
+@pytest.mark.unit
+class TestSchedulePayloadDegradation:
+    """Pre-migration safety: with the submissions table missing, the builder
+    must still load AND hide the Submit-for-approval button (approval_enabled
+    False) instead of surfacing a button that can only error."""
+
+    def _payload(self, current_side_effect):
+        tables = {
+            'class_enrollments': _chain([]),
+            'sis_waitlist_entries': _chain([]),
+            'users': _chain([{'sis_tuition_plan': None}]),
+        }
+        with patch('services.sis_parent_service._can_register', return_value=True), \
+             patch('services.sis_parent_service.catalog.list_classes', return_value=[]), \
+             patch('services.sis_parent_service._student_course_enrollments', return_value=[]), \
+             patch('services.sis_parent_service._student_household', return_value=None), \
+             patch('services.sis_parent_service._sis_settings', return_value={}), \
+             patch('services.sis_exception_service.pending_class_ids', return_value=[]), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry', return_value=None), \
+             patch('services.sis_parent_service._optio_courses_enabled', return_value=True), \
+             patch('services.sis_parent_service._first_day_of_school', return_value=None), \
+             patch('services.sis_parent_service._changes_locked', return_value=False), \
+             patch('services.sis_learning_day_service.get_selection', return_value=None), \
+             patch('services.sis_schedule_submission_service.current',
+                   side_effect=current_side_effect), \
+             patch('services.sis_parent_service._admin', return_value=_client(tables)):
+            return parent.student_schedule('g1', 'org1', 'stu1')
+
+    def test_approval_enabled_by_default_when_lookup_works(self):
+        out = self._payload(lambda *a: None)
+        assert out['approval_enabled'] is True
+        assert out['submission'] is None
+
+    def test_missing_table_disables_approval_and_still_loads(self):
+        out = self._payload(RuntimeError('relation does not exist'))
+        assert out['approval_enabled'] is False
+        assert out['submission'] is None
+        assert 'classes' in out  # the builder payload itself survived

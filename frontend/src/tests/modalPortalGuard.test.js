@@ -57,7 +57,10 @@ function findOffenders() {
       const c = readFileSync(p, 'utf8')
       return BACKDROP.test(c) && !PORTAL.test(c)
     })
-    .map((p) => p.slice(p.indexOf('src/')).replace(/\\/g, '/'))
+    // Normalize Windows backslashes BEFORE locating 'src/' — slicing first
+    // made indexOf miss on Windows and mapped every offender to a garbage
+    // one-char path, failing both assertions on any Windows checkout.
+    .map((p) => { const n = p.replace(/\\/g, '/'); return n.slice(n.indexOf('src/')) })
     .sort()
 }
 
