@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import CreditIterationHistory from './CreditIterationHistory';
@@ -49,14 +49,23 @@ export default function DiplomaCreditTracker() {
   const [expandedId, setExpandedId] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Set-state-after-unmount guard: the fetch can resolve after the component
+  // (or the test environment) is gone, and the late setLoading/setError then
+  // throws — seen as vitest "Unhandled Rejection: window is not defined"
+  // failing CI runs where every test passed (2026-07-21).
+  const mountedRef = useRef(true);
+
   useEffect(() => {
+    mountedRef.current = true;
     fetchCreditRequests();
+    return () => { mountedRef.current = false; };
   }, []);
 
   const fetchCreditRequests = async () => {
     try {
       setLoading(true);
       const response = await api.get('/api/tasks/my-credit-requests');
+      if (!mountedRef.current) return;
       const requests = response.data.data?.credit_requests || [];
       setCreditRequests(requests);
 
@@ -78,9 +87,9 @@ export default function DiplomaCreditTracker() {
         // Otherwise filter stays null — shows "all caught up" summary
       }
     } catch (err) {
-      setError('Failed to load credit requests');
+      if (mountedRef.current) setError('Failed to load credit requests');
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 
