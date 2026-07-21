@@ -290,14 +290,19 @@ git push origin main
 
 A single workflow `.github/workflows/release.yml` runs on push to `main`:
 - jobs `backend`, `web` (v1 + coverage gate), `mobile` (v2) run in parallel
+- job `deploy` (`needs: [backend, web]`) triggers the **prod Render deploys**
+  (backend + web) via the Render API, pinned to the pushed SHA — it fires as
+  soon as those two test jobs pass, without waiting for mobile/OTA
 - job `ota` (`needs: [backend, web, mobile]`) publishes the **production OTA**
   only if all three test jobs pass
 
-Render prod (web + backend) is "Deploy after CI checks pass", so it watches
-those job checks on the commit and **deploys only when they're green**. GitHub
-can't block a direct push before it lands (checks run on the pushed commit), so
-"only deploy if tests pass" is enforced at the **Render / OTA-gate layer**, not
-by GitHub. Bad code can land on `main` but won't *deploy* or *OTA*.
+Render **auto-deploy is OFF for both prod services** (as of 2026-07-20) — the
+old "Deploy after CI checks pass" setting waited for every check on the commit
+(including the OTA publish) and sometimes never fired at all. CI is now the
+only prod deploy trigger (`RENDER_API_KEY` repo secret). GitHub can't block a
+direct push before it lands (checks run on the pushed commit), so "only deploy
+if tests pass" is enforced at the **CI-deploy / OTA-gate layer**, not by
+GitHub. Bad code can land on `main` but won't *deploy* or *OTA*.
 
 So the prod ship is just: `git push origin main` → watch `Release (main)` →
 Render deploys + production OTA publishes when tests pass.
@@ -485,7 +490,7 @@ npm run test:coverage              # Must be 60%+ coverage
 - `Mobile (v2) Tests` (`Jest Integration Tests` check) — 95%+ pass rate.
 - `Backend Tests` (`test` check).
 - A GitHub ruleset on `main` makes all three required before merge.
-- Prod Render services use "Deploy after CI checks pass", so only green merge commits deploy. Dev services remain on "On commit" for fast iteration on `develop`.
+- Prod Render deploys are triggered by the `deploy` job in `release.yml` (auto-deploy off), so only commits with green backend + web tests deploy. Dev services remain on "On commit" for fast iteration on `develop`.
 
 **Full testing guide:** [frontend/TESTING.md](frontend/TESTING.md)
 

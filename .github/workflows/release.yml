@@ -1,10 +1,14 @@
 name: Release (main)
 
-# Direct-to-main flow: push to main -> run all tests -> if they pass, publish the
-# production OTA. Render prod (web + backend) is set to "Deploy after CI checks
-# pass", so it watches these job checks on the commit and deploys only when they
-# are green. (GitHub can't gate a *direct push* before it lands — checks run on
-# the pushed commit — so the deploy/OTA gate is what enforces "only if tests pass".)
+# Direct-to-main flow: push to main -> run all tests -> deploy + publish.
+# (GitHub can't gate a *direct push* before it lands — checks run on the pushed
+# commit — so the deploy/OTA gate is what enforces "only if tests pass".)
+#
+# Prod web + backend deploys are triggered EXPLICITLY by the `deploy` job the
+# moment the backend + web tests pass — they don't wait for the mobile tests or
+# the OTA publish. Render auto-deploy is OFF for both prod services: the old
+# "Deploy after CI checks pass" setting waited for every check on the commit
+# (including the OTA job) and sometimes never fired at all.
 #
 # develop keeps its own dev deploy (Render, on commit) + preview OTA
 # (eas-update.yml); this workflow is main-only.
@@ -140,6 +144,38 @@ jobs:
       - name: Run tests
         working-directory: frontend-v2
         run: npm run test:run
+
+  # Prod web + backend — deploys fire as soon as THEIR tests pass, without
+  # waiting for the mobile tests or the OTA publish. Pinned to this exact commit
+  # so a racing push can't deploy something the tests didn't cover.
+  deploy:
+    name: Deploy prod (web + backend)
+    needs: [backend, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Render deploys
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "::error::RENDER_API_KEY secret is not set — prod deploys cannot be triggered."
+            exit 1
+          fi
+          # backend, then web
+          for svc in srv-d2to00vfte5s73ae9310 srv-d2to04vfte5s73ae97ag; do
+            resp=$(curl -sS -X POST "https://api.render.com/v1/services/$svc/deploys" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"commitId\": \"$GITHUB_SHA\"}")
+            id=$(echo "$resp" | jq -r '.id // empty')
+            if [ -z "$id" ]; then
+              echo "::error::Render deploy trigger failed for $svc: $resp"
+              exit 1
+            fi
+            echo "$svc -> deploy $id"
+          done
 
   # Production OTA — only after all three test jobs pass.
   ota:
