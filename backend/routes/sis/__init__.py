@@ -312,25 +312,46 @@ def add_household_member(user_id, household_id):
         return err
     data = request.json or {}
     member_user_id = data.get('user_id')
+    email = (data.get('email') or '').strip().lower()
+    relationship = data.get('relationship', 'student')
+    admin = get_supabase_admin_client()
+
+    # Connect a student by their Optio account email — covers accounts that
+    # aren't in the org yet (platform accounts don't appear in the org picker).
+    if not member_user_id and email:
+        if relationship != 'student':
+            return jsonify({'success': False,
+                            'error': 'Only students can be connected by email'}), 400
+        rows = (admin.table('users').select('id')
+                .eq('email', email).limit(1).execute()).data or []
+        if not rows:
+            return jsonify({'success': False,
+                            'error': 'No Optio account uses that email'}), 404
+        member_user_id = rows[0]['id']
     if not member_user_id:
         return jsonify({'success': False, 'error': 'user_id is required'}), 400
-    repo = HouseholdRepository(client=get_supabase_admin_client())
+
+    repo = HouseholdRepository(client=admin)
     existing = repo.find_by_id(household_id)
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Household not found'}), 404
-    relationship = data.get('relationship', 'student')
+
+    # Students attach to the org FIRST (org fields + parent links) so a refused
+    # attach never leaves a half-connected member: in the household but invisible
+    # to the roster. attach refuses cross-org moves and non-student accounts.
+    if relationship == 'student':
+        guardians = [m['user_id'] for m in repo.members_for_households([household_id])
+                     if m.get('relationship') != 'student']
+        if not sis_service.attach_student_to_org(org_id, member_user_id, guardian_ids=guardians):
+            return jsonify({'success': False,
+                            'error': "This account can't be connected — it may belong to "
+                                     'another school or not be a student account.'}), 409
+
     member = repo.add_member(
         household_id, member_user_id,
         relationship=relationship,
         is_primary_guardian=bool(data.get('is_primary_guardian')),
     )
-    # Adding a student to a family must fully attach their account to the org
-    # (an existing platform Optio account would otherwise stay half-connected:
-    # in the household but invisible to the roster, with no parent links).
-    if relationship == 'student':
-        guardians = [m['user_id'] for m in repo.members_for_households([household_id])
-                     if m.get('relationship') != 'student']
-        sis_service.attach_student_to_org(org_id, member_user_id, guardian_ids=guardians)
     return jsonify({'success': True, 'member': member}), 201
 
 

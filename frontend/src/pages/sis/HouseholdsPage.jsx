@@ -1,12 +1,94 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
+import SearchSelect from '../../components/ui/SearchSelect'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import FamilyDetailModal from './FamilyDetailModal'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+
+/**
+ * Students in the org who aren't in any family yet (school imports, accounts
+ * connected before households existed). Each row lets staff drop the student
+ * into a family in place; the add endpoint also normalizes their account (org
+ * fields + parent links). "Connect by email" reaches accounts that are not in
+ * the org yet, e.g. a kid's pre-existing Optio account a parent asked about.
+ */
+const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
+  const [picks, setPicks] = useState({}) // student_id -> household_id
+  const [email, setEmail] = useState('')
+  const [emailPick, setEmailPick] = useState('')
+  const [busy, setBusy] = useState(null)
+
+  const add = async (key, householdId, body) => {
+    if (!householdId) { toast.error('Pick a family first'); return }
+    setBusy(key)
+    try {
+      await api.post(`/api/sis/households/${householdId}/members`,
+        { ...body, relationship: 'student', organization_id: orgId })
+      toast.success('Added to the family')
+      setEmail(''); setEmailPick('')
+      onSaved?.()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not add to the family')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (!students.length && !households.length) return null
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+      <h2 className="font-semibold text-neutral-900">
+        Students without a family
+        {students.length > 0 && <span className="ml-2 text-sm font-normal text-neutral-500">{students.length}</span>}
+      </h2>
+      <p className="text-sm text-neutral-500 mt-0.5 mb-3">
+        These students aren't grouped into a family yet, so they won't appear with their siblings
+        on the Families or Learning Plan pages. Pick their family to connect them.
+      </p>
+      <div className="space-y-2">
+        {students.map((s) => (
+          <div key={s.id} className="flex items-center gap-2 flex-wrap bg-white rounded-lg border border-gray-200 px-3 py-2">
+            <span className="text-sm font-medium text-neutral-800 min-w-0 truncate">{s.name}</span>
+            {s.email && <span className="text-xs text-neutral-400 truncate">{s.email}</span>}
+            <div className="ml-auto flex items-center gap-2">
+              <SearchSelect
+                value={picks[s.id] || ''}
+                onChange={(id) => setPicks((p) => ({ ...p, [s.id]: id }))}
+                options={households}
+                getId={(h) => h.id}
+                getLabel={(h) => h.name}
+                placeholder="Search families…"
+                className="w-56"
+              />
+              <Button size="sm" disabled={busy === s.id}
+                onClick={() => add(s.id, picks[s.id], { user_id: s.id })}>
+                {busy === s.id ? '…' : 'Add'}
+              </Button>
+            </div>
+          </div>
+        ))}
+        {!students.length && (
+          <p className="text-sm text-neutral-400">Every student is in a family.</p>
+        )}
+      </div>
+      <div className="mt-3 pt-3 border-t border-amber-200 flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-neutral-600">Connect a student's existing Optio account:</span>
+        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
+          placeholder="student@example.com" className={`${field} w-56`} />
+        <SearchSelect value={emailPick} onChange={setEmailPick} options={households}
+          getId={(h) => h.id} getLabel={(h) => h.name} placeholder="Search families…" className="w-56" />
+        <Button size="sm" variant="outline" disabled={busy === 'email' || !email.trim()}
+          onClick={() => add('email', emailPick, { email: email.trim() })}>
+          {busy === 'email' ? '…' : 'Connect'}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 const HouseholdsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
@@ -58,6 +140,14 @@ const HouseholdsPage = () => {
     return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '')
   }
 
+  // Students in the org who aren't a member of any household.
+  const unassignedStudents = useMemo(() => {
+    const assigned = new Set(
+      households.flatMap((h) => (h.members || []).map((m) => m.user_id)),
+    )
+    return members.filter((m) => m.is_student && !assigned.has(m.id))
+  }, [households, members])
+
   // Search matches the family name AND every member's name, so a kid whose
   // last name differs from the household name is still findable.
   const q = search.trim().toLowerCase()
@@ -100,6 +190,15 @@ const HouseholdsPage = () => {
       )}
       {!loading && households.length > 0 && !visibleHouseholds.length && (
         <p className="text-neutral-500">No family or member matches "{search}".</p>
+      )}
+
+      {!loading && unassignedStudents.length > 0 && (
+        <UnassignedStudentsPanel
+          students={unassignedStudents}
+          households={households}
+          orgId={orgId}
+          onSaved={load}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

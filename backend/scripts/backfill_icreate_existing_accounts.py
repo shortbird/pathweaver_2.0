@@ -144,6 +144,36 @@ def fix_attach_and_link(db, org_id, apply):
     print(f"attach: {n_attach} account(s), link: {n_link} parent link(s)")
 
 
+def fix_dependent_households(db, org_id, apply):
+    """Deterministic household placement: an org dependent whose MANAGING parent
+    is in a household joins that household (e.g. Nebojsa Vrajich, added outside
+    the funnel's household rebuild). No guessing — managed_by_parent_id is the
+    parent, the parent's membership names the family."""
+    deps = (db.table('users')
+            .select('id, first_name, last_name, managed_by_parent_id')
+            .eq('organization_id', org_id).eq('is_dependent', True).execute()).data or []
+    hhs, members = _households(db, org_id)
+    hh_names = {h['id']: h['name'] for h in hhs}
+    in_hh = {m['user_id'] for m in members}
+    parent_hh = {m['user_id']: m['household_id'] for m in members
+                 if m.get('relationship') != 'student'}
+    n = 0
+    for d in deps:
+        if d['id'] in in_hh:
+            continue
+        hh_id = parent_hh.get(d.get('managed_by_parent_id'))
+        if not hh_id:
+            continue
+        n += 1
+        print(f"  HOUSEHOLD {_name(d)} ({d['id'][:8]}) -> {hh_names.get(hh_id)} (via managing parent)")
+        if apply:
+            db.table('household_members').upsert({
+                'household_id': hh_id, 'user_id': d['id'],
+                'relationship': 'student', 'is_primary_guardian': False,
+            }, on_conflict='household_id,user_id').execute()
+    print(f"dependent households: {n} placement(s)")
+
+
 def report_gaps(db, org_id):
     """Step 3: what a human still needs to decide on."""
     org_students = (db.table('users')
@@ -267,6 +297,7 @@ def main():
         merge_pair(db, args.org, args.merge[0], args.merge[1], args.apply)
         return
 
+    fix_dependent_households(db, args.org, args.apply)
     fix_attach_and_link(db, args.org, args.apply)
     report_gaps(db, args.org)
 

@@ -148,17 +148,22 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
 
 const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ user_id: '', relationship: 'student' })
+  const [form, setForm] = useState({ user_id: '', email: '', relationship: 'student' })
   const list = household.members || []
   const primaryId = household.primary_contact_user_id
 
   const add = async () => {
-    if (!form.user_id) { toast.error('Pick a person'); return }
+    if (!form.user_id && !form.email.trim()) { toast.error('Pick a person or enter their account email'); return }
     try {
+      // user_id from the org picker; email reaches a student's existing Optio
+      // account that isn't in the org yet (the backend attaches it fully).
+      const body = form.user_id
+        ? { user_id: form.user_id, relationship: form.relationship }
+        : { email: form.email.trim(), relationship: form.relationship }
       await api.post(`/api/sis/households/${household.id}/members`, {
-        ...form, organization_id: orgId, is_primary_guardian: form.relationship === 'guardian',
+        ...body, organization_id: orgId, is_primary_guardian: form.relationship === 'guardian',
       })
-      setForm({ user_id: '', relationship: 'student' }); setAdding(false); onSaved?.()
+      setForm({ user_id: '', email: '', relationship: 'student' }); setAdding(false); onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not add member') }
   }
   const remove = async (m) => {
@@ -218,8 +223,12 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
       </div>
       {adding && (
         <div className="mt-2 space-y-2">
-          <SearchSelect value={form.user_id} onChange={(id) => setForm({ ...form, user_id: id })}
+          <SearchSelect value={form.user_id} onChange={(id) => setForm({ ...form, user_id: id, email: '' })}
             options={members} getId={(m) => m.id} getLabel={(m) => `${m.name}${m.is_student ? ' (student)' : ''}`} placeholder="Search people…" />
+          {!form.user_id && form.relationship === 'student' && (
+            <input type="email" value={form.email} placeholder="…or a student's Optio account email"
+              onChange={(e) => setForm({ ...form, email: e.target.value })} className={`${field} w-full`} />
+          )}
           <div className="flex gap-2">
             <select value={form.relationship} onChange={(e) => setForm({ ...form, relationship: e.target.value })} className={`${field} flex-1`}>
               <option value="student">student</option>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 // All SIS pages may render react-router <Link>s — wrap every render in a router.
@@ -38,7 +38,10 @@ const { api } = vi.hoisted(() => {
       ] } }
     }
     if (url.includes('/api/sis/members')) {
-      return { data: { members: [{ id: 's1', name: 'Alice Student', is_student: true }] } }
+      return { data: { members: [
+        { id: 's1', name: 'Alice Student', is_student: true },
+        { id: 's9', name: 'Zed Unassigned', email: 'zed@x.com', is_student: true },
+      ] } }
     }
     if (url.includes('/api/sis/households')) {
       return { data: { households: [
@@ -141,6 +144,40 @@ describe('HouseholdsPage', () => {
     fireEvent.click(screen.getByText('Create family'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/households', expect.objectContaining({ name: 'The Garcia Family' })),
+    )
+  })
+
+  it('surfaces household-less students and adds one to a family', async () => {
+    render(<HouseholdsPage />)
+    // Zed is a student in the org but in no household; Alice is in Fam.
+    const heading = await screen.findByText('Students without a family')
+    const panel = heading.closest('.bg-amber-50')
+    expect(within(panel).getByText('Zed Unassigned')).toBeInTheDocument()
+    expect(within(panel).queryByText('Alice Student')).not.toBeInTheDocument()
+
+    // Pick the family in Zed's row, then Add.
+    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
+    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.click(within(panel).getByText('Add'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/households/h1/members',
+        expect.objectContaining({ user_id: 's9', relationship: 'student' })),
+    )
+  })
+
+  it('connects a student by account email', async () => {
+    render(<HouseholdsPage />)
+    const heading = await screen.findByText('Students without a family')
+    const panel = heading.closest('.bg-amber-50')
+    fireEvent.change(within(panel).getByPlaceholderText('student@example.com'), {
+      target: { value: 'kid@family.com' },
+    })
+    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[1], { target: { value: 'Fam' } })
+    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.click(within(panel).getByText('Connect'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/households/h1/members',
+        expect.objectContaining({ email: 'kid@family.com', relationship: 'student' })),
     )
   })
 })
