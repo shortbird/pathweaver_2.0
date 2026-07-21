@@ -17,18 +17,25 @@ What it does (per org, default iCreate):
   3. report   — org students with NO household (needs a human to pick/create the
                 family) and duplicate candidates: a platform account with the
                 same first+last name as an org student/dependent. Report-only.
-  4. merge    — explicit, one pair at a time: --merge KEEP_ID REMOVE_ID repoints
-                every SIS row from the duplicate onto the kept account, attaches
-                the kept account to the org + household + parent, copies profile
-                fields the kept account is missing, then deletes the duplicate
-                (users row + auth user). KEEP should be the kid's real/original
-                account, REMOVE the funnel-made duplicate.
+  4. merge    — explicit, one pair at a time: --merge KEEP_ID REMOVE_ID prints a
+                full data census of BOTH accounts, repoints every SIS row AND
+                every learning-data row (quests, tasks, completions, learning
+                events, evidence, diplomas, transfer credits) from the duplicate
+                onto the kept account, sums XP rollups instead of dropping them,
+                attaches the kept account to the org + household + parent, copies
+                profile fields the kept account is missing, then deletes the
+                duplicate (users row + auth user) and VERIFIES the kept account
+                retained all of its rows. KEEP should be the kid's real/original
+                account, REMOVE the funnel-made duplicate — but no learning data
+                is lost even if the pair is given the other way around.
 
 Dry-run by default; pass --apply to write.
 
 Run from backend/ with the venv:
     ../venv/bin/python scripts/backfill_icreate_existing_accounts.py
     ../venv/bin/python scripts/backfill_icreate_existing_accounts.py --apply
+    ../venv/bin/python scripts/backfill_icreate_existing_accounts.py --find tiberius
+    ../venv/bin/python scripts/backfill_icreate_existing_accounts.py --merge KEEP REMOVE            # dry-run
     ../venv/bin/python scripts/backfill_icreate_existing_accounts.py --merge KEEP REMOVE --apply
 """
 import argparse
@@ -56,6 +63,28 @@ STUDENT_ROW_TABLES = [
     ('school_enrollments', 'student_user_id'),
     ('parent_student_links', 'student_user_id'),
     ('household_members', 'user_id'),
+    ('advisor_student_assignments', 'student_id'),
+    ('observer_student_links', 'student_id'),
+]
+
+# Learning-data tables (the kid's actual work). The funnel duplicate normally
+# has none of this, but when it does — or when the "duplicate" turns out to be
+# the kid's older account — the merge repoints it so no history is ever lost.
+LEARNING_ROW_TABLES = [
+    ('user_quests', 'user_id'),
+    ('user_quest_tasks', 'user_id'),
+    ('quest_task_completions', 'user_id'),
+    ('learning_events', 'user_id'),
+    ('user_task_evidence_documents', 'user_id'),
+    ('diplomas', 'user_id'),
+    ('transfer_credits', 'user_id'),
+]
+
+# Per-(user, key) XP rollups: rows can't be blindly repointed when the kept
+# account already has the same key — the amounts are summed instead.
+XP_SUM_TABLES = [
+    ('user_skill_xp', 'pillar'),
+    ('user_subject_xp', 'school_subject'),
 ]
 
 # users profile fields copied onto the kept account when it lacks them.
@@ -84,7 +113,8 @@ def _users_by_id(db, ids):
         rows = (db.table('users')
                 .select('id, first_name, last_name, display_name, email, role, org_role, '
                         'org_roles, organization_id, is_dependent, managed_by_parent_id, '
-                        'date_of_birth, gender, allergies, medications, preferred_name, avatar_url')
+                        'date_of_birth, gender, allergies, medications, preferred_name, '
+                        'avatar_url, total_xp, created_at')
                 .in_('id', chunk).execute()).data or []
         out.update({r['id']: r for r in rows})
     return out
@@ -207,6 +237,29 @@ def report_gaps(db, org_id):
                   f"  -> --merge {p['id']} {s['id']}")
 
 
+def _census(db, uid):
+    """Row counts for every table a student can own data in, plus XP totals."""
+    counts = {}
+    for table, col in STUDENT_ROW_TABLES + LEARNING_ROW_TABLES:
+        rows = (db.table(table).select('id').eq(col, uid).execute()).data or []
+        if rows:
+            counts[table] = len(rows)
+    for table, key in XP_SUM_TABLES:
+        rows = (db.table(table).select('xp_amount').eq('user_id', uid).execute()).data or []
+        if rows:
+            counts[table] = f"{len(rows)} rows, {sum(r.get('xp_amount') or 0 for r in rows)} XP"
+    return counts
+
+
+def _print_census(label, u, counts):
+    print(f"  {label}: {_name(u)} <{u.get('email')}> dob={u.get('date_of_birth')} "
+          f"total_xp={u.get('total_xp')} created={str(u.get('created_at'))[:10]}")
+    for table, n in sorted(counts.items()):
+        print(f"      {table}: {n}")
+    if not counts:
+        print("      (no rows in any student table)")
+
+
 def merge_pair(db, org_id, keep_id, remove_id, apply):
     """Step 4: fold the duplicate (REMOVE) into the kid's real account (KEEP)."""
     users = _users_by_id(db, [keep_id, remove_id])
@@ -216,6 +269,9 @@ def merge_pair(db, org_id, keep_id, remove_id, apply):
     if keep.get('organization_id') not in (None, org_id):
         sys.exit('merge: KEEP account belongs to another org — refusing')
     print(f"MERGE {_name(remove)} ({remove_id[:8]}, dup) -> {_name(keep)} ({keep_id[:8]})")
+    keep_census = _census(db, keep_id)
+    _print_census('KEEP  ', keep, keep_census)
+    _print_census('REMOVE', remove, _census(db, remove_id))
 
     # profile fields the kept account is missing
     fill = {f: remove.get(f) for f in PROFILE_FILL_FIELDS if remove.get(f) and not keep.get(f)}
@@ -224,7 +280,7 @@ def merge_pair(db, org_id, keep_id, remove_id, apply):
                'org_role': 'student', 'org_roles': ['student']})
     print(f"  users[KEEP] <- {dict(**attach, **fill)}")
 
-    for table, col in STUDENT_ROW_TABLES:
+    for table, col in STUDENT_ROW_TABLES + LEARNING_ROW_TABLES:
         rows = (db.table(table).select('id').eq(col, remove_id).execute()).data or []
         if not rows:
             continue
@@ -238,6 +294,36 @@ def merge_pair(db, org_id, keep_id, remove_id, apply):
                 except Exception as e:  # noqa: BLE001
                     print(f"    row {r['id']}: update failed ({e}); deleting duplicate row")
                     db.table(table).delete().eq('id', r['id']).execute()
+
+    # XP rollups: repoint, but SUM into the kept account's row when the same
+    # pillar/subject exists on both — XP must never be silently dropped.
+    moved_xp = 0
+    for table, key in XP_SUM_TABLES:
+        dup_rows = (db.table(table).select('*').eq('user_id', remove_id).execute()).data or []
+        if not dup_rows:
+            continue
+        keep_rows = {r[key]: r for r in
+                     ((db.table(table).select('*').eq('user_id', keep_id).execute()).data or [])}
+        for r in dup_rows:
+            amount = int(r.get('xp_amount') or 0)
+            moved_xp += amount
+            existing = keep_rows.get(r[key])
+            if existing:
+                print(f"  {table}[{r[key]}]: +{amount} XP onto kept row "
+                      f"({existing.get('xp_amount')} -> {int(existing.get('xp_amount') or 0) + amount})")
+                if apply:
+                    db.table(table).update(
+                        {'xp_amount': int(existing.get('xp_amount') or 0) + amount}
+                    ).eq('id', existing['id']).execute()
+                    db.table(table).delete().eq('id', r['id']).execute()
+            else:
+                print(f"  {table}[{r[key]}]: repoint {amount} XP -> {keep_id[:8]}")
+                if apply:
+                    db.table(table).update({'user_id': keep_id}).eq('id', r['id']).execute()
+    if moved_xp:
+        new_total = int(keep.get('total_xp') or 0) + int(remove.get('total_xp') or 0)
+        print(f"  users[KEEP].total_xp: {keep.get('total_xp')} + {remove.get('total_xp')} -> {new_total}")
+        fill['total_xp'] = new_total
 
     # registrations that list the duplicate in their kids snapshot
     regs = (db.table('icreate_registrations').select('id, kids')
@@ -277,7 +363,24 @@ def merge_pair(db, org_id, keep_id, remove_id, apply):
             db.auth.admin.delete_user(remove_id)
         except Exception as e:  # noqa: BLE001
             print(f"  WARN: auth delete failed for {remove_id[:8]}: {e}")
-        print("  merged.")
+        print("  merged.\n\nPOST-MERGE VERIFICATION")
+        keep_after = _users_by_id(db, [keep_id]).get(keep_id)
+        after = _census(db, keep_id)
+        _print_census('KEEP  ', keep_after, after)
+        # Every table the kept account had rows in before must still have at
+        # least that many (repointing only adds), and the duplicate must be gone.
+        problems = [f"{t}: {keep_census[t]} -> {after.get(t, 0)}"
+                    for t in keep_census
+                    if not isinstance(keep_census[t], str) and (after.get(t) or 0) < keep_census[t]]
+        leftovers = _census(db, remove_id)
+        if (db.table('users').select('id').eq('id', remove_id).execute()).data:
+            problems.append('users[REMOVE] still exists')
+        if leftovers:
+            problems.append(f'rows still on REMOVE: {leftovers}')
+        if problems:
+            print('  !! VERIFICATION FAILED: ' + '; '.join(problems))
+            sys.exit(1)
+        print('  verification passed: kept account retained all rows; duplicate fully gone.')
     else:
         print("  (dry-run: users[KEEP] update + users[REMOVE] delete pending)")
 
@@ -288,10 +391,29 @@ def main():
     ap.add_argument('--apply', action='store_true', help='write changes (default: dry-run)')
     ap.add_argument('--merge', nargs=2, metavar=('KEEP_ID', 'REMOVE_ID'),
                     help='merge one duplicate pair instead of the attach/link sweep')
+    ap.add_argument('--find', metavar='TEXT',
+                    help='print users matching a name/email substring (with data census), then exit')
     args = ap.parse_args()
 
     db = create_client(SUPABASE_URL, SERVICE_KEY)
     print(f"org={args.org}  mode={'APPLY' if args.apply else 'dry-run'}\n")
+
+    if args.find:
+        q = args.find
+        rows = (db.table('users')
+                .select('id, first_name, last_name, display_name, email, role, org_role, '
+                        'organization_id, is_dependent, managed_by_parent_id, date_of_birth, '
+                        'total_xp, created_at')
+                .or_(f"first_name.ilike.%{q}%,last_name.ilike.%{q}%,"
+                     f"display_name.ilike.%{q}%,email.ilike.%{q}%")
+                .execute()).data or []
+        for u in rows:
+            print(f"{u['id']}  role={u.get('role')}/{u.get('org_role')} "
+                  f"dep={u.get('is_dependent')} org={str(u.get('organization_id'))[:8]} "
+                  f"parent={str(u.get('managed_by_parent_id'))[:8]}")
+            _print_census('      ', u, _census(db, u['id']))
+        print(f"\n{len(rows)} match(es)")
+        return
 
     if args.merge:
         merge_pair(db, args.org, args.merge[0], args.merge[1], args.apply)
