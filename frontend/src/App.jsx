@@ -35,6 +35,7 @@ import OrgLoginPage from './pages/auth/OrgLoginPage'
 import RegisterPage from './pages/RegisterPage'
 import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
+import RequireParentRegistration from './components/RequireParentRegistration'
 import ShowcaseRoute from './components/ShowcaseRoute'
 import { getAppSurface, subscribeSurface } from './utils/appSurface'
 import SisRoutes from './sis/SisRoutes'
@@ -487,10 +488,14 @@ function App() {
                 <Route path="courses/new" element={<CourseBuilder />} />
                 {/* Student-curated classes (admin surfaces live under /admin/classes/* inside AdminPage) */}
                 <Route path="my-classes" element={<MyClasses />} />
-                {/* Parent/guardian self-service: register your own children for SIS classes */}
-                <Route path="schedule-builder" element={<ScheduleBuilderPage />} />
-                {/* old bookmarks: Class Registration became the Schedule Builder */}
-                <Route path="class-registration" element={<Navigate to="/schedule-builder" replace />} />
+                {/* Parent/guardian self-service: register your own children for SIS
+                    classes. Gated behind completing the iCreate registration + fee —
+                    including parent+teacher staff, whose teacher surfaces stay open. */}
+                <Route element={<RequireParentRegistration />}>
+                  <Route path="schedule-builder" element={<ScheduleBuilderPage />} />
+                  {/* old bookmarks: Class Registration became the Schedule Builder */}
+                  <Route path="class-registration" element={<Navigate to="/schedule-builder" replace />} />
+                </Route>
                 {/* Parent/guardian self-service: report a child's planned absences */}
                 <Route path="absences" element={<AbsenceReportingPage />} />
                 {/* School document library + opt-in family directory (SIS orgs) */}
