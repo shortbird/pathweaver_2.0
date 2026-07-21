@@ -40,7 +40,8 @@ def _repo():
     return repo
 
 
-def _post(client, auth_headers, body, role='org_admin', users_rows=None, attach_ok=True):
+def _post(client, auth_headers, body, role='org_admin', users_rows=None, attach_ok=True,
+          duplicates=None):
     repo = _repo()
     admin = _admin_for(role, users_rows)
     # routes.sis binds get_supabase_admin_client at import time — patch BOTH the
@@ -49,6 +50,8 @@ def _post(client, auth_headers, body, role='org_admin', users_rows=None, attach_
          patch('routes.sis.get_supabase_admin_client', return_value=admin), \
          patch('routes.sis.HouseholdRepository', return_value=repo), \
          patch('services.sis_service.resolve_org_id', return_value='org-1'), \
+         patch('services.sis_service.find_household_duplicates',
+               return_value=duplicates or []), \
          patch('services.sis_service.attach_student_to_org',
                return_value=attach_ok) as attach:
         resp = client.post('/api/sis/households/h1/members',
@@ -100,4 +103,32 @@ class TestAddHouseholdMemberAttach:
                                    {'user_id': 'g2', 'relationship': 'guardian'})
         assert resp.status_code == 201
         attach.assert_not_called()
+        repo.add_member.assert_called_once()
+
+    def test_duplicate_student_warns_before_adding(self, client, auth_headers, mock_verify_token):
+        resp, repo, attach = _post(
+            client, auth_headers, {'user_id': 'k1', 'relationship': 'student'},
+            duplicates=[{'user_id': 'k2', 'name': 'Zachary Barlow', 'email': None}])
+        assert resp.status_code == 409
+        body = resp.get_json()
+        assert body['needs_confirmation'] is True
+        assert body['duplicates'][0]['name'] == 'Zachary Barlow'
+        attach.assert_not_called()
+        repo.add_member.assert_not_called()
+
+    def test_confirm_duplicate_bypasses_the_guard(self, client, auth_headers, mock_verify_token):
+        resp, repo, attach = _post(
+            client, auth_headers,
+            {'user_id': 'k1', 'relationship': 'student', 'confirm_duplicate': True},
+            duplicates=[{'user_id': 'k2', 'name': 'Zachary Barlow', 'email': None}])
+        assert resp.status_code == 201
+        attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'])
+        repo.add_member.assert_called_once()
+
+    def test_guardian_add_skips_duplicate_guard(self, client, auth_headers, mock_verify_token):
+        # The guard is student-only; a guardian is never a "duplicate student".
+        resp, repo, attach = _post(
+            client, auth_headers, {'user_id': 'g2', 'relationship': 'guardian'},
+            duplicates=[{'user_id': 'k2', 'name': 'Should Not Matter', 'email': None}])
+        assert resp.status_code == 201
         repo.add_member.assert_called_once()

@@ -125,6 +125,105 @@ def _full_name(u: Dict[str, Any]) -> str:
     return name or (u.get('username') or u.get('email') or 'Unnamed')
 
 
+# ── Duplicate-student detection ──────────────────────────────────────────────
+# The iCreate funnel can only auto-match a re-registered kid to their existing
+# Optio account by email (or the parent's own prior dependents). A parent who
+# registers an under-13 kid as a fresh dependent — while that kid already has an
+# account — slips past both checks and a duplicate is created. Staff then attach
+# the original account to the same family and end up with the kid twice. These
+# helpers flag those look-alikes so the add-member flow can warn and the Families
+# view can badge them, WITHOUT tripping on twins/siblings who share a birthday.
+
+def _norm_name(v: Any) -> str:
+    return (v or '').strip().lower()
+
+
+def _parse_iso_date(v: Any):
+    from datetime import date
+    if not v:
+        return None
+    try:
+        return date.fromisoformat(str(v)[:10])
+    except (ValueError, TypeError):
+        return None
+
+
+def _dob_gap_days(a: Any, b: Any) -> Optional[int]:
+    """Absolute day gap between two DOBs, or None when either is unknown."""
+    da, db = _parse_iso_date(a), _parse_iso_date(b)
+    if da is None or db is None:
+        return None
+    return abs((da - db).days)
+
+
+def likely_same_student(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    """Do two student records look like the same child entered twice?
+
+    Compares names + DOB. Tuned for the re-registration pattern (a kid entered a
+    second time, often as a dependent with the name spelled differently or the
+    DOB off by a day) while deliberately NOT flagging twins/siblings, who share a
+    birthday but have distinct first names:
+
+      - Same last name is required (a duplicate of a kid keeps the surname).
+      - Identical first name -> duplicate regardless of DOB. No family names two
+        living children the exact same first + last name, so this safely catches
+        a re-registration where the DOB was mistyped (off by a day, or a year).
+      - Nickname/typo first name (one a prefix of the other, e.g. Zach/Zachary)
+        -> duplicate ONLY when the DOB matches exactly, so same-birthday siblings
+        with unrelated names (twins) never match.
+    """
+    la, lb = _norm_name(a.get('last_name')), _norm_name(b.get('last_name'))
+    if la and lb and la != lb:
+        return False
+    fa, fb = _norm_name(a.get('first_name')), _norm_name(b.get('first_name'))
+    if not fa or not fb:
+        return False
+    if fa == fb:
+        return True
+    if min(len(fa), len(fb)) >= 3 and (fa.startswith(fb) or fb.startswith(fa)):
+        return _dob_gap_days(a.get('date_of_birth'), b.get('date_of_birth')) == 0
+    return False
+
+
+def _mark_duplicate_members(members: List[Dict[str, Any]]) -> None:
+    """Flag student members of one household that look like duplicates of each
+    other (in place). Each flagged member gets possible_duplicate=True and a
+    duplicate_with list of the matching members' {user_id, name}."""
+    students = [m for m in members if m.get('relationship') == 'student']
+    for i, a in enumerate(students):
+        for b in students[i + 1:]:
+            if likely_same_student(a, b):
+                for x, y in ((a, b), (b, a)):
+                    x['possible_duplicate'] = True
+                    x.setdefault('duplicate_with', []).append(
+                        {'user_id': y['user_id'], 'name': y['name']})
+
+
+def find_household_duplicates(org_id: str, household_id: str,
+                              candidate_user_id: str) -> List[Dict[str, Any]]:
+    """Existing student members of a household that look like the same child as
+    candidate_user_id (see likely_same_student). Empty when nothing matches."""
+    from repositories.household_repository import HouseholdRepository
+    admin = _admin()
+    crow = (admin.table('users')
+            .select('id, first_name, last_name, date_of_birth')
+            .eq('id', candidate_user_id).limit(1).execute()).data or []
+    if not crow:
+        return []
+    candidate = crow[0]
+    members = HouseholdRepository(client=admin).members_for_households([household_id])
+    student_ids = [m['user_id'] for m in members
+                   if m.get('relationship') == 'student'
+                   and m['user_id'] != candidate_user_id]
+    if not student_ids:
+        return []
+    rows = (admin.table('users')
+            .select('id, first_name, last_name, display_name, date_of_birth, email, username')
+            .in_('id', student_ids).execute()).data or []
+    return [{'user_id': r['id'], 'name': _full_name(r), 'email': r.get('email')}
+            for r in rows if likely_same_student(candidate, r)]
+
+
 def get_roster(org_id: str) -> List[Dict[str, Any]]:
     """Every account in the org (students, parents, teachers, admins, observers)
     with a role label; students also carry their enrollment fields."""
@@ -897,7 +996,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     if user_ids:
         rows = (
             _admin().table('users')
-            .select('id, first_name, last_name, display_name, email, username')
+            .select('id, first_name, last_name, display_name, email, username, date_of_birth')
             .in_('id', user_ids)
             .execute()
         ).data or []
@@ -918,8 +1017,16 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
             enr = enrollments.get(m['user_id']) or {}
             entry['status'] = enr.get('status') or 'unassigned'
             entry['grade_level'] = enr.get('grade_level')
+            # Carried only for duplicate detection; stripped before returning.
+            entry['first_name'] = u.get('first_name') if u else None
+            entry['last_name'] = u.get('last_name') if u else None
+            entry['date_of_birth'] = u.get('date_of_birth') if u else None
         by_household.setdefault(m['household_id'], []).append(entry)
     for h in households:
         h['members'] = by_household.get(h['id'], [])
         h['primary_contact_user_id'] = h.get('primary_contact_user_id')
+        _mark_duplicate_members(h['members'])
+        for m in h['members']:
+            for k in ('first_name', 'last_name', 'date_of_birth'):
+                m.pop(k, None)
     return households

@@ -336,6 +336,22 @@ def add_household_member(user_id, household_id):
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Household not found'}), 404
 
+    # Guard against re-adding a kid who's already in this family under a second
+    # account (the re-registration duplicate pattern): warn before adding so
+    # staff don't silently end up with the same child twice. confirm_duplicate
+    # lets them proceed when the match is a false positive.
+    if relationship == 'student' and not data.get('confirm_duplicate'):
+        dups = sis_service.find_household_duplicates(org_id, household_id, member_user_id)
+        if dups:
+            names = ', '.join(d['name'] for d in dups)
+            return jsonify({
+                'success': False,
+                'needs_confirmation': True,
+                'duplicates': dups,
+                'error': f'This family already includes {names}, which looks like the '
+                         'same student. They may have been registered twice. Add anyway?',
+            }), 409
+
     # Students attach to the org FIRST (org fields + parent links) so a refused
     # attach never leaves a half-connected member: in the household but invisible
     # to the roster. attach refuses cross-org moves and non-student accounts.

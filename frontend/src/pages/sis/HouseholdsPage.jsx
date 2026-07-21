@@ -22,20 +22,26 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
   const [emailPick, setEmailPick] = useState('')
   const [busy, setBusy] = useState(null)
 
-  const add = async (key, householdId, body) => {
+  const add = async (key, householdId, body, confirmDuplicate = false) => {
     if (!householdId) { toast.error('Pick a family first'); return }
     setBusy(key)
     try {
       await api.post(`/api/sis/households/${householdId}/members`,
-        { ...body, relationship: 'student', organization_id: orgId })
+        { ...body, relationship: 'student', organization_id: orgId,
+          ...(confirmDuplicate ? { confirm_duplicate: true } : {}) })
       toast.success('Added to the family')
       setEmail(''); setEmailPick('')
       onSaved?.()
     } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not add to the family')
-    } finally {
-      setBusy(null)
+      const d = e?.response?.data
+      // The student already looks present in this family — confirm before doubling up.
+      if (d?.needs_confirmation && !confirmDuplicate) {
+        setBusy(null)
+        return window.confirm(d.error) ? add(key, householdId, body, true) : undefined
+      }
+      toast.error(d?.error || 'Could not add to the family')
     }
+    setBusy(null)
   }
 
   if (!students.length && !households.length) return null

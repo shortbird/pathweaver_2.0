@@ -152,7 +152,7 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
   const list = household.members || []
   const primaryId = household.primary_contact_user_id
 
-  const add = async () => {
+  const add = async (confirmDuplicate = false) => {
     if (!form.user_id && !form.email.trim()) { toast.error('Pick a person or enter their account email'); return }
     try {
       // user_id from the org picker; email reaches a student's existing Optio
@@ -162,9 +162,18 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
         : { email: form.email.trim(), relationship: form.relationship }
       await api.post(`/api/sis/households/${household.id}/members`, {
         ...body, organization_id: orgId, is_primary_guardian: form.relationship === 'guardian',
+        ...(confirmDuplicate ? { confirm_duplicate: true } : {}),
       })
       setForm({ user_id: '', email: '', relationship: 'student' }); setAdding(false); onSaved?.()
-    } catch (e) { toast.error(e?.response?.data?.error || 'Could not add member') }
+    } catch (e) {
+      const d = e?.response?.data
+      // The student looks like one already in this family — confirm before doubling them up.
+      if (d?.needs_confirmation && !confirmDuplicate) {
+        if (window.confirm(d.error)) return add(true)
+        return
+      }
+      toast.error(d?.error || 'Could not add member')
+    }
   }
   const remove = async (m) => {
     if (!window.confirm(`Remove ${m.name} from this family?`)) return
@@ -203,6 +212,14 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
                     <span className="text-sm font-medium text-neutral-800 truncate">{m.name}</span>
                     <RolePill role={m.relationship} />
                     {isPrimary && <PrimaryTag />}
+                    {m.possible_duplicate && (
+                      <span
+                        className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 flex-shrink-0"
+                        title={`Looks like the same student as ${(m.duplicate_with || []).map((d) => d.name).join(', ') || 'another member'} — they may have been added twice. Remove the extra account if so.`}
+                      >
+                        Possible duplicate
+                      </span>
+                    )}
                   </div>
                   {sub && <div className="text-xs text-neutral-400 truncate">{sub}</div>}
                 </div>
@@ -235,7 +252,7 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
               <option value="guardian">guardian</option>
               <option value="other">other</option>
             </select>
-            <Button size="sm" onClick={add}>Add</Button>
+            <Button size="sm" onClick={() => add()}>Add</Button>
             <button onClick={() => setAdding(false)} className="text-sm text-neutral-500 hover:underline">Cancel</button>
           </div>
         </div>

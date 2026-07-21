@@ -180,6 +180,57 @@ describe('HouseholdsPage', () => {
         expect.objectContaining({ email: 'kid@family.com', relationship: 'student' })),
     )
   })
+
+  it('warns on a likely duplicate and re-submits with confirmation when accepted', async () => {
+    // First add is rejected with a duplicate warning; after the admin confirms,
+    // the same add re-runs with confirm_duplicate so the student is still added.
+    api.post
+      .mockRejectedValueOnce({
+        response: { status: 409, data: {
+          needs_confirmation: true,
+          error: 'This family already includes Zachary Barlow, which looks like the same student. Add anyway?',
+          duplicates: [{ user_id: 's1', name: 'Zachary Barlow' }],
+        } },
+      })
+      .mockResolvedValueOnce({ data: { member: { user_id: 's9' } } })
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<HouseholdsPage />)
+    const heading = await screen.findByText('Students without a family')
+    const panel = heading.closest('.bg-amber-50')
+    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
+    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.click(within(panel).getByText('Add'))
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(api.post).toHaveBeenLastCalledWith('/api/sis/households/h1/members',
+        expect.objectContaining({ user_id: 's9', relationship: 'student', confirm_duplicate: true })),
+    )
+    expect(api.post).toHaveBeenCalledTimes(2)
+    confirmSpy.mockRestore()
+  })
+
+  it('does not add the duplicate when the admin declines the warning', async () => {
+    api.post.mockRejectedValueOnce({
+      response: { status: 409, data: {
+        needs_confirmation: true,
+        error: 'This family already includes Zachary Barlow, which looks like the same student. Add anyway?',
+      } },
+    })
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    render(<HouseholdsPage />)
+    const heading = await screen.findByText('Students without a family')
+    const panel = heading.closest('.bg-amber-50')
+    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
+    fireEvent.mouseDown(await within(panel).findByText('Fam'))
+    fireEvent.click(within(panel).getByText('Add'))
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalled())
+    expect(api.post).toHaveBeenCalledTimes(1) // never retried
+    confirmSpy.mockRestore()
+  })
 })
 
 describe('FamilyMessagingPage', () => {
