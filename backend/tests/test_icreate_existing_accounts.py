@@ -159,6 +159,51 @@ class TestMatchExistingDependent:
         assert icr._match_existing_dependent(self.DEPS, 'New', 'Kid', '2015-04-01') is None
 
 
+# ── _existing_org_student_by_name_dob (re-registration guard) ────────────────
+
+def _name_dob_lookup(user_rows, link_rows=(), first='Zach', last='Barlow', dob='2009-10-06'):
+    admin = _FakeAdmin({'users': list(user_rows), 'parent_student_links': list(link_rows)})
+    return icr._existing_org_student_by_name_dob(admin, 'org1', 'parent1', first, last, dob)
+
+
+@pytest.mark.unit
+class TestExistingOrgStudentByNameDob:
+    ORIGINAL = {'id': 'orig', 'role': 'org_managed', 'org_role': 'student',
+                'organization_id': 'org1', 'is_dependent': False,
+                'first_name': 'Zach', 'last_name': 'Barlow', 'date_of_birth': '2009-10-06'}
+
+    def test_matches_org_student_by_name_and_dob(self):
+        # The Barlow pattern: parent re-enters a kid who already has an org account.
+        assert _name_dob_lookup([self.ORIGINAL])['id'] == 'orig'
+
+    def test_case_insensitive_name(self):
+        assert _name_dob_lookup([self.ORIGINAL], first='zach', last='barlow')['id'] == 'orig'
+
+    def test_dob_mismatch_no_match(self):
+        assert _name_dob_lookup([self.ORIGINAL], dob='2010-01-01') is None
+
+    def test_no_dob_provided_no_match(self):
+        # Without a DOB the match is too weak to auto-attach, so it must refuse.
+        assert _name_dob_lookup([self.ORIGINAL], dob=None) is None
+
+    def test_dependent_is_skipped(self):
+        # Dependents are handled by _match_existing_dependent against the parent's own.
+        dep = {**self.ORIGINAL, 'is_dependent': True}
+        assert _name_dob_lookup([dep]) is None
+
+    def test_non_student_skipped(self):
+        parent = {**self.ORIGINAL, 'org_role': 'parent'}
+        assert _name_dob_lookup([parent]) is None
+
+    def test_linked_to_other_parent_refuses(self):
+        assert _name_dob_lookup([self.ORIGINAL],
+                                link_rows=[{'parent_user_id': 'someone-else'}]) is None
+
+    def test_linked_to_same_parent_ok(self):
+        assert _name_dob_lookup([self.ORIGINAL],
+                                link_rows=[{'parent_user_id': 'parent1'}])['id'] == 'orig'
+
+
 # ── /login platform-role guardrails ──────────────────────────────────────────
 
 @pytest.fixture

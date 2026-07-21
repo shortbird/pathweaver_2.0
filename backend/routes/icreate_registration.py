@@ -374,6 +374,48 @@ def _match_existing_dependent(dependents, first, last, dob):
     return None
 
 
+def _existing_org_student_by_name_dob(admin, org_id, parent_id, first, last, dob):
+    """Find a pre-existing org student matching this kid by name + DOB, attachable
+    to the family. This is the guard against the re-registration duplicate: a kid
+    whose school-imported (or otherwise pre-existing) Optio account the parent
+    re-enters as a brand-new child because the funnel only matched on email.
+
+    Deliberately conservative — a self-service parent must never claim an
+    arbitrary account:
+      - same org, an actual student account, not a dependent (those are handled
+        by _match_existing_dependent against the parent's own),
+      - EXACT DOB match required (so a different same-name student is never
+        attached; twins never collide because their names differ),
+      - not already parent-linked to a DIFFERENT parent.
+    Returns the user row to attach, or None.
+    """
+    if not dob:
+        return None
+    rows = (admin.table('users')
+            .select('id, role, org_role, organization_id, is_dependent, '
+                    'first_name, last_name, display_name, date_of_birth')
+            .eq('organization_id', org_id)
+            .eq('date_of_birth', str(dob)).execute()).data or []
+    for u in rows:
+        if u.get('is_dependent'):
+            continue
+        if str(u.get('date_of_birth') or '')[:10] != str(dob):
+            continue
+        if (u.get('first_name') or '').strip().lower() != first.lower():
+            continue
+        if (u.get('last_name') or '').strip().lower() != last.lower():
+            continue
+        effective = u.get('org_role') if u.get('organization_id') else u.get('role')
+        if effective != 'student':
+            continue
+        links = (admin.table('parent_student_links').select('parent_user_id')
+                 .eq('student_user_id', u['id']).execute()).data or []
+        if any(l['parent_user_id'] != parent_id for l in links):
+            continue
+        return u
+    return None
+
+
 def _attach_existing_student(admin, org_id, kid, kid_first, kid_last, dob):
     """Normalize a pre-existing student account into this org so it ends up
     exactly like a funnel-created one: org_managed/student in the org, parent's
@@ -984,6 +1026,16 @@ def submit_family(reg_id):
                                              'Please contact iCreate.'}), 409
                 return jsonify({'error': f'{kf} already has an Optio account with this email that '
                                          "we can't connect automatically. Please contact iCreate."}), 409
+        # Re-registration guard: even with no matching email, this kid may
+        # already have a pre-existing org account (e.g. a school-imported roster
+        # account). Match by name + DOB and attach it instead of creating a
+        # duplicate. Scoped to the managed/dependent path — 13+ own-account teens
+        # are matched by their email above — and requires an exact DOB match so a
+        # different same-name student is never claimed.
+        if not existing_user and not wants_own_account:
+            nd = _existing_org_student_by_name_dob(admin, org_id, parent_id, kf, kl, kdob)
+            if nd and nd['id'] not in prior_created_ids:
+                existing_user = nd
         if wants_own_account and not existing_user and not _valid_email(kemail):
             return jsonify({'error': f'{kf} is 13+, so they need a valid email (or mark them as managed by you)'}), 400
         kids.append({'first': kf, 'last': kl, 'dob': kdob, 'email': kemail,

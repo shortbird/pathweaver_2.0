@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
@@ -44,6 +44,21 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
     setBusy(null)
   }
 
+  // Graduated / no-longer-enrolled students clutter this list. Marking them
+  // graduated drops them off it without needing a family.
+  const markGraduated = async (s) => {
+    if (!window.confirm(`Mark ${s.name} as graduated and remove them from this list?`)) return
+    setBusy(s.id)
+    try {
+      await api.patch(`/api/sis/enrollments/${s.id}`, { status: 'graduated', organization_id: orgId })
+      toast.success(`${s.name} marked graduated`)
+      onSaved?.()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not update')
+    }
+    setBusy(null)
+  }
+
   if (!students.length && !households.length) return null
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
@@ -56,10 +71,18 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
         on the Families or Learning Plan pages. Pick their family to connect them.
       </p>
       <div className="space-y-2">
-        {students.map((s) => (
+        {students.map((s) => {
+          const dup = s.possible_duplicate_of?.[0]
+          return (
           <div key={s.id} className="flex items-center gap-2 flex-wrap bg-white rounded-lg border border-gray-200 px-3 py-2">
             <span className="text-sm font-medium text-neutral-800 min-w-0 truncate">{s.name}</span>
             {s.email && <span className="text-xs text-neutral-400 truncate">{s.email}</span>}
+            {dup && (
+              <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-amber-100 text-amber-700"
+                title={`Looks like ${dup.name}, already in ${dup.household_name}. They may be the same student registered twice — merge instead of adding a second copy.`}>
+                Possible duplicate of {dup.name} · {dup.household_name}
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <SearchSelect
                 value={picks[s.id] || ''}
@@ -74,9 +97,14 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
                 onClick={() => add(s.id, picks[s.id], { user_id: s.id })}>
                 {busy === s.id ? '…' : 'Add'}
               </Button>
+              <button onClick={() => markGraduated(s)} disabled={busy === s.id}
+                title="Remove from this list — marks the student graduated"
+                className="text-xs text-neutral-400 hover:text-red-500 hover:underline flex-shrink-0">
+                Graduated
+              </button>
             </div>
           </div>
-        ))}
+        )})}
         {!students.length && (
           <p className="text-sm text-neutral-400">Every student is in a family.</p>
         )}
@@ -100,6 +128,7 @@ const HouseholdsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [households, setHouseholds] = useState([])
   const [members, setMembers] = useState([])
+  const [unassigned, setUnassigned] = useState([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
   const [search, setSearch] = useState('')
@@ -111,10 +140,12 @@ const HouseholdsPage = () => {
     Promise.all([
       api.get(withOrg('/api/sis/households', orgId)),
       api.get(withOrg('/api/sis/members', orgId)),
+      api.get(withOrg('/api/sis/unassigned-students', orgId)),
     ])
-      .then(([h, m]) => {
+      .then(([h, m, u]) => {
         setHouseholds(h.data?.households || [])
         setMembers(m.data?.members || [])
+        setUnassigned(u.data?.students || [])
       })
       .catch(() => toast.error('Failed to load families'))
       .finally(() => setLoading(false))
@@ -145,14 +176,6 @@ const HouseholdsPage = () => {
     const names = list.map((m) => m.name)
     return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '')
   }
-
-  // Students in the org who aren't a member of any household.
-  const unassignedStudents = useMemo(() => {
-    const assigned = new Set(
-      households.flatMap((h) => (h.members || []).map((m) => m.user_id)),
-    )
-    return members.filter((m) => m.is_student && !assigned.has(m.id))
-  }, [households, members])
 
   // Search matches the family name AND every member's name, so a kid whose
   // last name differs from the household name is still findable.
@@ -198,9 +221,9 @@ const HouseholdsPage = () => {
         <p className="text-neutral-500">No family or member matches "{search}".</p>
       )}
 
-      {!loading && unassignedStudents.length > 0 && (
+      {!loading && unassigned.length > 0 && (
         <UnassignedStudentsPanel
-          students={unassignedStudents}
+          students={unassigned}
           households={households}
           orgId={orgId}
           onSaved={load}

@@ -1030,3 +1030,52 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
             for k in ('first_name', 'last_name', 'date_of_birth'):
                 m.pop(k, None)
     return households
+
+
+def unassigned_students(org_id: str) -> List[Dict[str, Any]]:
+    """Org students not in any household — the "Students without a family" list.
+
+    Excludes graduated/withdrawn students (they've left; they don't need a
+    family), and annotates each remaining student with possible_duplicate_of:
+    household members who look like the same child (see likely_same_student).
+    That surfaces the re-registration pattern where a kid's original account sits
+    unassigned while a duplicate of them is already in a family — so staff merge
+    instead of adding a second copy.
+    """
+    admin = _admin()
+    users = (
+        admin.table('users')
+        .select('id, first_name, last_name, display_name, email, username, '
+                'role, org_role, org_roles, date_of_birth')
+        .eq('organization_id', org_id).execute()
+    ).data or []
+    students = [u for u in users if is_student(u)]
+    hh_by_user = _household_by_user(org_id)
+    enrollments = _enrollments_by_student(org_id)
+
+    # Roster of students already in a family, kept with name+DOB for matching.
+    household_students = [
+        {'user': u, 'household_id': hh_by_user[u['id']]['household_id'],
+         'household_name': hh_by_user[u['id']]['household_name']}
+        for u in students
+        if hh_by_user.get(u['id'], {}).get('relationship') == 'student'
+    ]
+
+    out = []
+    for u in students:
+        if u['id'] in hh_by_user:  # already grouped into a family
+            continue
+        status = (enrollments.get(u['id']) or {}).get('status') or 'unassigned'
+        if status in ('graduated', 'withdrawn'):
+            continue
+        dups = [
+            {'household_id': hs['household_id'], 'household_name': hs['household_name'],
+             'name': _full_name(hs['user'])}
+            for hs in household_students if likely_same_student(u, hs['user'])
+        ]
+        out.append({
+            'id': u['id'], 'name': _full_name(u), 'email': u.get('email'),
+            'enrollment_status': status, 'possible_duplicate_of': dups,
+        })
+    out.sort(key=lambda r: r['name'].lower())
+    return out

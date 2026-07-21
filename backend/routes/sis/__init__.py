@@ -181,6 +181,18 @@ def list_households(user_id):
     return jsonify({'success': True, 'households': sis_service.households_with_members(org_id)})
 
 
+@bp.route('/unassigned-students', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def unassigned_students(user_id):
+    """Org students not in any family (excludes graduated/withdrawn), each flagged
+    with any family member they look like — so staff merge duplicates instead of
+    adding a second copy, and graduated students drop off the list."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'students': sis_service.unassigned_students(org_id)})
+
+
 @bp.route('/households', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def create_household(user_id):

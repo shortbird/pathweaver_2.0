@@ -17,7 +17,7 @@ vi.mock('react-hot-toast', () => ({
 
 // Hoisted so the mock factory (which runs at import time, before module-body
 // consts initialize) can reference it.
-const { api } = vi.hoisted(() => {
+const { api, apiData } = vi.hoisted(() => {
   const apiData = (url) => {
     if (url.includes('/api/sis/dashboard')) {
       return { data: { data: {
@@ -43,6 +43,12 @@ const { api } = vi.hoisted(() => {
         { id: 's9', name: 'Zed Unassigned', email: 'zed@x.com', is_student: true },
       ] } }
     }
+    if (url.includes('/api/sis/unassigned-students')) {
+      return { data: { students: [
+        { id: 's9', name: 'Zed Unassigned', email: 'zed@x.com',
+          enrollment_status: 'unassigned', possible_duplicate_of: [] },
+      ] } }
+    }
     if (url.includes('/api/sis/households')) {
       return { data: { households: [
         { id: 'h1', name: 'Fam', members: [{ user_id: 's1', name: 'Alice Student', relationship: 'student' }] },
@@ -52,6 +58,7 @@ const { api } = vi.hoisted(() => {
     return { data: {} }
   }
   return {
+    apiData,
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
       post: vi.fn(() => Promise.resolve({ data: { household: { id: 'h2' }, contact: { id: 'c1' } } })),
@@ -73,6 +80,11 @@ beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
   vi.clearAllMocks()
+  // Restore default implementations (a test may override api.get for one case).
+  api.get.mockImplementation((url) => Promise.resolve(apiData(url)))
+  api.post.mockImplementation(() => Promise.resolve({ data: { household: { id: 'h2' }, contact: { id: 'c1' } } }))
+  api.patch.mockImplementation(() => Promise.resolve({ data: {} }))
+  api.delete.mockImplementation(() => Promise.resolve({ data: {} }))
 })
 
 describe('SisDashboard', () => {
@@ -230,6 +242,33 @@ describe('HouseholdsPage', () => {
     await waitFor(() => expect(confirmSpy).toHaveBeenCalled())
     expect(api.post).toHaveBeenCalledTimes(1) // never retried
     confirmSpy.mockRestore()
+  })
+
+  it('marks a student graduated to remove them from the list', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<HouseholdsPage />)
+    const heading = await screen.findByText('Students without a family')
+    const panel = heading.closest('.bg-amber-50')
+    fireEvent.click(within(panel).getByText('Graduated'))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/enrollments/s9',
+        expect.objectContaining({ status: 'graduated', organization_id: 'org-1' })),
+    )
+    confirmSpy.mockRestore()
+  })
+
+  it('badges an unassigned student who looks like someone already in a family', async () => {
+    api.get.mockImplementation((url) =>
+      url.includes('/api/sis/unassigned-students')
+        ? Promise.resolve({ data: { students: [
+            { id: 's9', name: 'Zed Unassigned', email: 'zed@x.com', enrollment_status: 'unassigned',
+              possible_duplicate_of: [{ household_id: 'h1', household_name: 'Fam', name: 'Zed Twin' }] },
+          ] } })
+        : Promise.resolve(apiData(url)))
+    render(<HouseholdsPage />)
+    const heading = await screen.findByText('Students without a family')
+    const panel = heading.closest('.bg-amber-50')
+    expect(within(panel).getByText(/Possible duplicate of Zed Twin/)).toBeInTheDocument()
   })
 })
 
