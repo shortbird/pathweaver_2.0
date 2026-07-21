@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
+import { captureException } from './sentry'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
@@ -168,6 +169,36 @@ api.interceptors.response.use(
         }
       }))
       // Don't retry, just reject with the consent error
+      return Promise.reject(error)
+    }
+
+    // CSRF auto-recovery (July 2026): the backend rejects cookie-authenticated
+    // mutating requests whose CSRF token is missing or expired with a 400 +
+    // csrf_required flag. Our in-memory token is fetched once at app load and
+    // expires server-side after 1 hour, so a long-lived tab — or a request that
+    // races the initial fetch, e.g. auto-verifying a Stripe payment right after
+    // the redirect back — would otherwise fail with a user-visible CSRF error.
+    // Fetch a fresh token and retry the request once.
+    if (error.response?.status === 400 && error.response?.data?.csrf_required) {
+      if (!originalRequest._csrfRetry) {
+        originalRequest._csrfRetry = true
+        try {
+          const { data } = await api.get('/api/auth/csrf-token')
+          if (data?.csrf_token) {
+            csrfTokenStore.set(data.csrf_token)
+            // Request interceptor re-attaches the fresh X-CSRF-Token header.
+            return api(originalRequest)
+          }
+        } catch (csrfError) {
+          logger.warn('[API] CSRF token refresh failed', csrfError)
+        }
+      } else {
+        // A fresh token was rejected too — this is real breakage (or an
+        // attack), not expiry. Surface it to Sentry; users only see a toast.
+        captureException(
+          new Error(`CSRF rejection not recovered: ${originalRequest.method?.toUpperCase()} ${originalRequest.url}`)
+        )
+      }
       return Promise.reject(error)
     }
 

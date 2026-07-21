@@ -8,7 +8,6 @@ This prevents Cross-Site Request Forgery attacks (OWASP A01:2021).
 The application will fail to start if Flask-WTF is not installed.
 """
 
-from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,6 +22,76 @@ except ImportError as e:
         "Install it with: pip install Flask-WTF\n"
         "CSRF protection is mandatory for security (OWASP A01:2021)."
     ) from e
+
+# Endpoints exempt from CSRF enforcement, resolved by ENDPOINT NAME at request
+# time. Two hard-won lessons live here (2026-07-21 iCreate registration outage):
+#   1. init_csrf() runs BEFORE blueprints are registered in app.py, so anything
+#      that resolves app.view_functions at init time silently exempts nothing.
+#   2. Flask-WTF's csrf.exempt() records the view's dotted path in
+#      csrf._exempt_views — it does NOT set an attribute on the view, and
+#      csrf.protect() (which we call manually) never consults that registry.
+# These are public / pre-session endpoints or endpoints with their own auth
+# (signature, device token, or opaque per-registration token).
+CSRF_EXEMPT_ENDPOINTS = frozenset({
+    'auth.login',  # Login uses username/password auth
+    'auth.register',  # Registration is public
+    'auth.refresh',  # Token refresh uses refresh token
+    'health_check',  # Health check is public
+    # Webhook endpoints that use signature verification
+    'subscriptions.stripe_webhook',
+    # LTI 1.3 endpoints — Canvas authenticates via signed id_token (JWS).
+    # /lti/launch is a cross-origin POST from Canvas; /lti/login and
+    # /lti/token are also cross-origin and pre-session.
+    'lti.oidc_login_init',
+    'lti.lti_launch',
+    'lti.exchange_auth_code',
+    'lti.deep_link_submit',
+    # The Treehouse kiosk: pre-session, shared-device endpoints gated by a
+    # device token (not a user session), so no CSRF cookie exists yet.
+    'treehouse.kiosk_roster',
+    'treehouse.kiosk_login',
+    # iCreate parent registration funnel: designed as public/pre-session, but
+    # the browser often DOES carry auth cookies here (the wizard logs new
+    # parents into the platform mid-funnel, and existing parents arrive already
+    # signed in) — so these MUST be exempt or the funnel breaks, e.g. the
+    # payment-verification step right after the Stripe redirect. Every step is
+    # gated by an opaque per-registration access_token in the request body
+    # (constant-time compared), which a cross-site attacker cannot know, so
+    # CSRF exemption is safe.
+    'icreate_registration.start',
+    'icreate_registration.verify_code',
+    'icreate_registration.resend_code',
+    'icreate_registration.login',
+    'icreate_registration.submit_family',
+    'icreate_registration.submit_details',
+    'icreate_registration.submit_paperwork',
+    'icreate_registration.create_checkout',
+    'icreate_registration.preview_checkout',
+    'icreate_registration.confirm_payment',
+    'icreate_registration.record_fee',
+    'icreate_registration.upload_photo',
+    'icreate_registration.schedule_done',
+    'icreate_registration.appointment_done',
+})
+
+
+def _is_csrf_exempt(app, endpoint):
+    """Whether the resolved endpoint is exempt from CSRF enforcement, via the
+    endpoint-name allowlist above, an explicit marker attribute, or a
+    @csrf.exempt decorator (Flask-WTF's registry)."""
+    if endpoint in CSRF_EXEMPT_ENDPOINTS:
+        return True
+    view = app.view_functions.get(endpoint)
+    if view is None:
+        return False
+    if getattr(view, '_csrf_exempt', False) or getattr(view, 'csrf_exempt', False):
+        return True
+    dest = f'{view.__module__}.{view.__name__}'
+    if dest in getattr(csrf, '_exempt_views', ()):
+        return True
+    blueprint = app.blueprints.get(endpoint.rpartition('.')[0]) if endpoint else None
+    return blueprint is not None and blueprint in getattr(csrf, '_exempt_blueprints', ())
+
 
 def init_csrf(app):
     """
@@ -50,57 +119,20 @@ def init_csrf(app):
     app.config['WTF_CSRF_HEADERS'] = ['X-CSRF-Token', 'X-CSRFToken']
     app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
 
-    # Use secure cookies in production
-    app.config['WTF_CSRF_SSL_STRICT'] = Config.FLASK_ENV == 'production'
-    
+    # SSL_STRICT adds a Referer check on top of token validation. It is OFF
+    # because it can never pass in our topology: the app lives on
+    # www.optioeducation.com while the API lives on api.optioeducation.com, and
+    # browsers send at most `Referer: https://www.optioeducation.com/`
+    # (strict-origin-when-cross-origin) — Flask-WTF requires the referrer to
+    # match the API host, so every cookie-authenticated mutating request would
+    # be rejected. Token validation is the actual CSRF defense.
+    app.config['WTF_CSRF_SSL_STRICT'] = False
+
     # Initialize CSRF protection
     csrf.init_app(app)
 
     # Log successful initialization
     app.logger.info("✅ CSRF protection initialized successfully (mandatory)")
-
-    # Exempt certain endpoints from CSRF protection
-    # These are typically public endpoints or endpoints with their own auth
-    exempt_endpoints = [
-        'auth.login',  # Login uses username/password auth
-        'auth.register',  # Registration is public
-        'auth.refresh',  # Token refresh uses refresh token
-        'health_check',  # Health check is public
-        # Webhook endpoints (if any) that use signature verification
-        'subscriptions.stripe_webhook',  # Stripe webhook uses signature verification
-        # LTI 1.3 endpoints — Canvas authenticates via signed id_token (JWS).
-        # /lti/launch is a cross-origin POST from Canvas; /lti/login and
-        # /lti/token are also cross-origin and pre-session.
-        'lti.oidc_login_init',
-        'lti.lti_launch',
-        'lti.exchange_auth_code',
-        'lti.deep_link_submit',
-        # The Treehouse kiosk: pre-session, shared-device endpoints gated by a
-        # device token (not a user session), so no CSRF cookie exists yet.
-        'treehouse.kiosk_roster',
-        'treehouse.kiosk_login',
-        # iCreate parent registration funnel: public, pre-session endpoints. The
-        # register call creates the accounts; the follow-up steps are gated by an
-        # opaque per-registration access_token, so there is no CSRF cookie yet.
-        'icreate_registration.start',
-        'icreate_registration.verify_code',
-        'icreate_registration.resend_code',
-        'icreate_registration.login',
-        'icreate_registration.submit_family',
-        'icreate_registration.submit_details',
-        'icreate_registration.submit_paperwork',
-        'icreate_registration.create_checkout',
-        'icreate_registration.confirm_payment',
-        'icreate_registration.record_fee',
-        'icreate_registration.upload_photo',
-        'icreate_registration.schedule_done',
-        'icreate_registration.appointment_done',
-    ]
-
-    for endpoint in exempt_endpoints:
-        view_func = app.view_functions.get(endpoint)
-        if view_func is not None:
-            csrf.exempt(view_func)
 
     # AUTH-H1 fix: actually ENFORCE CSRF. Previously WTF_CSRF_CHECK_DEFAULT was
     # False and no csrf.protect() ran anywhere, so CSRF was checked on ZERO
@@ -132,13 +164,33 @@ def init_csrf(app):
         path = request.path or ''
         if any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
             return None
-        # Honor per-view exemptions registered above.
-        view = app.view_functions.get(request.endpoint)
-        if view is not None and getattr(view, '_csrf_exempt', False):
+        if _is_csrf_exempt(app, request.endpoint):
             return None
         try:
             csrf.protect()
-        except CSRFError:
+        except CSRFError as e:
+            reason = getattr(e, 'description', None) or str(e)
+            # A CSRF rejection blocks a real user action (or is an actual
+            # attack) — either way we want to see it. The response below is a
+            # handled 400, which Sentry's Flask integration never captures, so
+            # report explicitly (no-op when Sentry is not initialized).
+            logger.warning(
+                f"CSRF rejection: {request.method} {path} "
+                f"endpoint={request.endpoint} reason={reason}"
+            )
+            try:
+                import sentry_sdk
+                with sentry_sdk.new_scope() as scope:
+                    scope.set_tag('csrf_endpoint', request.endpoint or 'unknown')
+                    scope.set_extra('path', path)
+                    scope.set_extra('method', request.method)
+                    scope.set_extra('reason', reason)
+                    sentry_sdk.capture_message(
+                        'CSRF rejection on cookie-authenticated request',
+                        level='warning',
+                    )
+            except Exception:
+                pass
             return jsonify({
                 'error': 'CSRF token missing or invalid',
                 'message': 'Refresh the page and try again.',
