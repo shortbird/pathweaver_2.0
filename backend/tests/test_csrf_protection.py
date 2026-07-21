@@ -130,6 +130,53 @@ def test_all_icreate_funnel_endpoints_are_exempt(app):
     assert not missing, f'iCreate funnel endpoints not CSRF-exempt: {sorted(missing)}'
 
 
+def test_every_exempt_name_matches_a_real_endpoint():
+    """Every name in CSRF_EXEMPT_ENDPOINTS must resolve to a registered
+    endpoint on the REAL app. This is the test that catches typos and renames:
+    the original list said auth.login / auth.register / auth.refresh, but the
+    blueprints are named auth_login / auth_registration — so login stayed
+    CSRF-enforced for any browser carrying session cookies (2026-07-21 outage,
+    reported as 'can't login due to a CSRF error').
+
+    Runs in a subprocess: importing app.py needs stub env vars set BEFORE
+    app_config is first imported, and conftest has usually imported it already.
+    """
+    import json
+    import subprocess
+    import sys
+
+    code = (
+        "import json\n"
+        "from app import app\n"
+        "from middleware.csrf_protection import CSRF_EXEMPT_ENDPOINTS, _is_csrf_exempt\n"
+        "registered = {r.endpoint for r in app.url_map.iter_rules()}\n"
+        "print(json.dumps({\n"
+        "  'dangling': sorted(CSRF_EXEMPT_ENDPOINTS - registered),\n"
+        "  'login_exempt': {e: _is_csrf_exempt(app, e) for e in (\n"
+        "      'auth_login.login', 'auth_login.refresh_token',\n"
+        "      'auth_login.logout', 'auth_registration.register')},\n"
+        "}))\n"
+    )
+    env = {
+        **os.environ,
+        'FLASK_ENV': 'testing',
+        'FLASK_SECRET_KEY': os.environ['FLASK_SECRET_KEY'],
+        'SUPABASE_URL': os.environ.get('SUPABASE_URL') or 'https://stub.supabase.co',
+        'SUPABASE_ANON_KEY': os.environ.get('SUPABASE_ANON_KEY') or 'stub-anon-key',
+        'SUPABASE_SERVICE_KEY': os.environ.get('SUPABASE_SERVICE_KEY') or 'stub-service-key',
+        'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY') or 'stub-gemini-key',
+    }
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    proc = subprocess.run([sys.executable, '-c', code], capture_output=True,
+                          text=True, cwd=backend_dir, env=env, timeout=120)
+    assert proc.returncode == 0, f'real-app import failed:\n{proc.stderr[-2000:]}'
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert not result['dangling'], (
+        f"CSRF-exempt names that match no registered endpoint: {result['dangling']}")
+    not_exempt = [e for e, ok in result['login_exempt'].items() if not ok]
+    assert not not_exempt, f'must be exempt for cookie-carrying browsers: {not_exempt}'
+
+
 def test_exemption_is_endpoint_name_based_not_view_resolution(app):
     """Guard against the init-order regression: exemption must not depend on
     view functions existing at init_csrf() time."""

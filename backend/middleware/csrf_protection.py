@@ -33,12 +33,20 @@ except ImportError as e:
 # These are public / pre-session endpoints or endpoints with their own auth
 # (signature, device token, or opaque per-registration token).
 CSRF_EXEMPT_ENDPOINTS = frozenset({
-    'auth.login',  # Login uses username/password auth
-    'auth.register',  # Registration is public
-    'auth.refresh',  # Token refresh uses refresh token
+    # Auth endpoints — names VERIFIED against app.url_map (2026-07-21: the old
+    # list said auth.login/auth.register/auth.refresh, but the auth blueprints
+    # are named auth_login/auth_registration, so login was CSRF-blocked for any
+    # browser still carrying session cookies). Kept exempt because each carries
+    # its own proof: login/org_login take credentials, register is public,
+    # refresh requires the refresh token itself, and logout only ends a session
+    # (a forced logout is a nuisance, not a compromise — never trap a user in a
+    # session because their CSRF token expired).
+    'auth_login.login',
+    'auth_login.org_login',
+    'auth_login.logout',
+    'auth_login.refresh_token',
+    'auth_registration.register',
     'health_check',  # Health check is public
-    # Webhook endpoints that use signature verification
-    'subscriptions.stripe_webhook',
     # LTI 1.3 endpoints — Canvas authenticates via signed id_token (JWS).
     # /lti/launch is a cross-origin POST from Canvas; /lti/login and
     # /lti/token are also cross-origin and pre-session.
