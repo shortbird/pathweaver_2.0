@@ -69,7 +69,7 @@ describe('useQuests', () => {
 
     expect(post).toHaveBeenCalledWith('/api/quests/q1/enroll', {})
     expect(post).toHaveBeenCalledWith('/api/tasks/t1/complete', { text: 'x' })
-    expect(post).toHaveBeenCalledWith('/api/quests/q1/abandon')
+    expect(post).toHaveBeenCalledWith('/api/quests/q1/abandon', {})
     expect(del).toHaveBeenCalled()
     expect(post).toHaveBeenCalledWith('/api/quests/q1/end', {})
   })

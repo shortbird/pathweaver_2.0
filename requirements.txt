@@ -14,7 +14,7 @@ WTForms==3.2.1
 
 # Database and Authentication
 supabase==2.18.1
-python-dotenv==1.1.1
+python-dotenv==1.2.2
 PyJWT==2.13.0
 redis==5.2.1
 
@@ -49,12 +49,12 @@ posthog>=3.5.0
 # Utilities
 python-dateutil==2.9.0.post0
 requests==2.33.0
-bleach==6.2.0
+bleach==6.4.0
 python-magic==0.4.27
 psutil==6.1.0
 PyYAML==6.0.1  # Email copy configuration
 beautifulsoup4==4.12.3  # HTML parsing for Khan Academy scraper
-lxml==5.1.0  # Fast XML/HTML parser for BeautifulSoup
+lxml==6.1.0  # Fast XML/HTML parser for BeautifulSoup
 Pillow>=10.0.0  # Image processing for curriculum images
 pillow-heif>=0.18.0  # HEIF/HEIC support for Pillow (iPhone photos)
 
@@ -82,7 +82,7 @@ h2==4.3.0
 hpack==4.1.0
 httpcore==1.0.9
 hyperframe==6.1.0
-idna==3.10
+idna==3.15
 jiter==0.10.0
 packaging==25.0
 postgrest==1.1.1
@@ -109,14 +109,14 @@ google-auth-httplib2==0.2.0
 googleapis-common-protos==1.70.0
 grpcio==1.74.0
 grpcio-status==1.71.2
-httplib2==0.22.0
+httplib2==0.32.0
 proto-plus==1.26.1
-protobuf==5.29.5
-pyasn1==0.6.1
+protobuf==5.29.6
+pyasn1==0.6.4
 pyasn1-modules==0.4.2
 pyparsing==3.2.3
 rsa==4.9.1
 uritemplate==4.2.0
-urllib3==2.6.2
+urllib3==2.7.0
 cachetools==5.5.2
 charset_normalizer==3.4.3

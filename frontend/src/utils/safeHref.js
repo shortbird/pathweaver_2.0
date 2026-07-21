@@ -15,8 +15,12 @@ export function safeHref(url, fallback = '#') {
   const raw = String(url).trim();
   if (!raw) return fallback;
 
-  // Internal app paths are safe (but not protocol-relative "//evil.com").
-  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  // Protocol-relative URLs ("//evil.com") resolve to an external origin —
+  // reject them outright rather than let the URL parser normalize them to http.
+  if (raw.startsWith('//')) return fallback;
+
+  // Internal app paths are safe.
+  if (raw.startsWith('/')) return raw;
 
   // Fragment / query-only links are safe.
   if (raw.startsWith('#') || raw.startsWith('?')) return raw;
