@@ -96,6 +96,33 @@ def parse_csv_file(file_content, expected_headers):
         return None, f"Failed to parse CSV: {str(e)}"
 
 
+def build_org_user_record(user_id, email, first_name, last_name, role, org_id, dob=None):
+    """Build the public.users row for one imported org member.
+
+    Org members use the org_managed pattern: platform role is 'org_managed'
+    and the actual role lives in org_role (same as the invite-accept and
+    create-username paths). Under-13s get the parental-consent flag.
+    """
+    user_data = {
+        'id': user_id,
+        'email': email,
+        'first_name': first_name,
+        'last_name': last_name,
+        'role': 'org_managed',
+        'org_role': role,
+        'organization_id': org_id
+    }
+
+    if dob:
+        user_data['date_of_birth'] = dob
+        dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
+        age = (date.today() - dob_date).days / 365.25
+        if age < 13:
+            user_data['requires_parental_consent'] = True
+
+    return user_data
+
+
 def validate_row(row, row_number, existing_emails):
     """Validate a single row of import data"""
     errors = []
@@ -131,6 +158,272 @@ def validate_row(row, row_number, existing_emails):
         errors.append(dob_result)
 
     return errors
+
+
+def _username_name_part(value):
+    """Lowercase a name and strip everything but letters/digits for username building"""
+    return re.sub(r'[^a-z0-9]', '', (value or '').lower())
+
+
+def generate_username(first_name, last_name, taken):
+    """
+    Generate a unique, kid-friendly username from a student's name.
+
+    Tries first name + last initial ("mayaj"), then first + full last name,
+    then numeric suffixes ("mayajones2"). `taken` is a set of lowercase
+    usernames already in use (existing org members plus earlier rows in the
+    same batch).
+    """
+    first = _username_name_part(first_name)
+    last = _username_name_part(last_name)
+
+    candidates = []
+    if first:
+        if last:
+            candidates.append(f"{first}{last[:1]}")
+            candidates.append(f"{first}{last}")
+        else:
+            candidates.append(first)
+
+    base = candidates[-1] if candidates else 'student'
+
+    for candidate in candidates:
+        if len(candidate) >= 3 and candidate not in taken:
+            return candidate
+
+    suffix = 2
+    while f"{base}{suffix}" in taken:
+        suffix += 1
+    return f"{base}{suffix}"
+
+
+def build_username_user_record(user_id, username, first_name, last_name, role, org_id):
+    """Build the public.users row for one no-email (username) org member.
+
+    Mirrors the single create-username endpoint: org_managed pattern, no
+    email, display name from the real name.
+    """
+    return {
+        'id': user_id,
+        'username': username,
+        'first_name': first_name,
+        'last_name': last_name,
+        'display_name': f"{first_name} {last_name}".strip(),
+        'email': None,
+        'organization_id': org_id,
+        'role': 'org_managed',
+        'org_role': role,
+        'total_xp': 0,
+        'level': 1,
+        'streak_days': 0
+    }
+
+
+@bp.route('/<org_id>/users/bulk-create-username', methods=['POST'])
+@require_org_admin
+@rate_limit(max_requests=5, window_seconds=300)
+def bulk_create_username_users(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Bulk-create no-email org member accounts (username + generated password).
+
+    The common school onboarding path: "here are 40 kids, none have email".
+    Usernames are auto-generated from names unless provided; passwords use the
+    kid-friendly PIN+word format. Returns the credentials for every created
+    account so the admin can print login cards — passwords are not retrievable
+    later.
+
+    Request body:
+    {
+        "students": [
+            {"first_name": "Maya", "last_name": "Jones", "username": "optional"},
+            ...
+        ],
+        "org_role": "student"   // optional; student/parent/advisor/observer
+    }
+
+    Returns:
+    {
+        "success": true,
+        "created": 38, "failed": 2,
+        "organization_slug": "sunrise-academy",
+        "results": [
+            {"row": 1, "name": "Maya Jones", "status": "created",
+             "username": "mayaj", "password": "1234apple", "user_id": "..."},
+            {"row": 2, "name": "...", "status": "failed", "error": "..."}
+        ]
+    }
+    """
+    from routes.admin.organization_management import USERNAME_PATTERN, generate_simple_password
+
+    if not is_superadmin and current_org_id != org_id:
+        return jsonify({'error': 'Access denied'}), 403
+
+    data = request.get_json(silent=True) or {}
+    students = data.get('students')
+    org_role = (data.get('org_role') or 'student').strip().lower()
+
+    if not isinstance(students, list) or not students:
+        return jsonify({'error': 'students must be a non-empty list'}), 400
+    if len(students) > 100:
+        return jsonify({'error': 'Maximum 100 accounts per batch. Please split your list.'}), 400
+    if org_role not in ['student', 'parent', 'advisor', 'observer']:
+        return jsonify({'error': 'org_role must be one of: student, parent, advisor, observer'}), 400
+
+    # admin client justified: admin-only route (@require_org_admin) — creates org member accounts, needs RLS bypass
+    supabase = get_supabase_admin_client()
+
+    org_result = supabase.table('organizations').select('id, slug, name').eq('id', org_id).single().execute()
+    if not org_result.data:
+        return jsonify({'error': 'Organization not found'}), 404
+    org_slug = org_result.data.get('slug')
+
+    # Existing usernames in this org (case-insensitive)
+    try:
+        existing = supabase.table('users')\
+            .select('username')\
+            .eq('organization_id', org_id)\
+            .not_.is_('username', 'null')\
+            .execute()
+        taken = {u['username'].lower() for u in (existing.data or []) if u.get('username')}
+    except Exception as e:
+        logger.error(f"Failed to fetch existing usernames for org {org_id}: {e}")
+        return jsonify({'error': 'Failed to check existing usernames'}), 500
+
+    # First pass: validate every row before creating anything
+    validation_errors = []
+    prepared = []
+    for i, entry in enumerate(students):
+        row_num = i + 1
+        first_name = sanitize_input((entry.get('first_name') or '').strip())
+        last_name = sanitize_input((entry.get('last_name') or '').strip())
+        requested_username = (entry.get('username') or '').strip().lower()
+
+        row_errors = []
+        if not first_name:
+            row_errors.append('First name is required')
+        if not last_name:
+            row_errors.append('Last name is required')
+        if requested_username:
+            if not USERNAME_PATTERN.match(requested_username):
+                row_errors.append('Invalid username format')
+            elif requested_username in taken:
+                row_errors.append(f'Username "{requested_username}" is already taken')
+
+        if row_errors:
+            validation_errors.append({'row': row_num, 'name': f'{first_name} {last_name}'.strip() or '(empty)', 'errors': row_errors})
+            continue
+
+        username = requested_username or generate_username(first_name, last_name, taken)
+        taken.add(username)
+        prepared.append({'row': row_num, 'first_name': first_name, 'last_name': last_name, 'username': username})
+
+    if validation_errors:
+        return jsonify({
+            'success': False,
+            'error': 'Validation failed',
+            'validation_errors': validation_errors,
+            'total_rows': len(students),
+            'failed_rows': len(validation_errors)
+        }), 400
+
+    # Second pass: create auth accounts, then batch-insert profiles + skills
+    results = []
+    created_count = 0
+    failed_count = 0
+    users_to_insert = []
+    skills_to_insert = []
+
+    for entry in prepared:
+        password = generate_simple_password()
+        placeholder_email = f"orgstudent_{secrets.token_hex(16)}@optio-internal-placeholder.local"
+        display_name = f"{entry['first_name']} {entry['last_name']}"
+
+        try:
+            auth_response = supabase.auth.admin.create_user({
+                'email': placeholder_email,
+                'password': password,
+                'email_confirm': True,
+                'user_metadata': {
+                    'username': entry['username'],
+                    'organization_id': org_id,
+                    'first_name': entry['first_name'],
+                    'last_name': entry['last_name'],
+                    'created_via': 'org_bulk_username_registration'
+                },
+                'app_metadata': {
+                    'provider': 'org_username',
+                    'providers': ['org_username']
+                }
+            })
+
+            if not auth_response.user:
+                results.append({'row': entry['row'], 'name': display_name, 'status': 'failed',
+                                'error': 'Failed to create auth account'})
+                failed_count += 1
+                continue
+
+            user_id = auth_response.user.id
+            users_to_insert.append(build_username_user_record(
+                user_id, entry['username'], entry['first_name'], entry['last_name'], org_role, org_id
+            ))
+            for pillar in ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
+                           'Language & Communication', 'Society & Culture']:
+                skills_to_insert.append({'user_id': user_id, 'pillar': pillar, 'xp_amount': 0})
+
+            results.append({
+                'row': entry['row'],
+                'name': display_name,
+                'status': 'created',
+                'username': entry['username'],
+                'password': password,
+                'user_id': user_id
+            })
+            created_count += 1
+
+        except Exception as e:
+            logger.error(f"Failed to create username account for {display_name}: {e}")
+            results.append({'row': entry['row'], 'name': display_name, 'status': 'failed',
+                            'error': str(e)[:100]})
+            failed_count += 1
+
+    if users_to_insert:
+        try:
+            supabase.table('users').insert(users_to_insert).execute()
+            logger.info(f"Bulk username creation: inserted {len(users_to_insert)} profiles for org {org_id}")
+        except Exception as batch_error:
+            logger.error(f"Batch profile insert failed, falling back to individual: {batch_error}")
+            for user_data in users_to_insert:
+                try:
+                    supabase.table('users').insert(user_data).execute()
+                except Exception as ind_error:
+                    logger.error(f"Individual insert failed for {user_data.get('username')}: {ind_error}")
+
+    if skills_to_insert:
+        try:
+            supabase.table('user_skill_xp').upsert(skills_to_insert, on_conflict='user_id,pillar').execute()
+        except Exception as skill_error:
+            logger.warning(f"Batch skill insert failed: {skill_error}")
+
+    try:
+        supabase.table('admin_audit_logs').insert({
+            'user_id': current_user_id,
+            'action': 'bulk_username_creation',
+            'entity_type': 'organization',
+            'entity_id': org_id,
+            'details': {'total_rows': len(students), 'created': created_count, 'failed': failed_count}
+        }).execute()
+    except Exception as log_error:
+        logger.warning(f"Failed to create audit log for bulk username creation: {log_error}")
+
+    return jsonify({
+        'success': True,
+        'total': len(students),
+        'created': created_count,
+        'failed': failed_count,
+        'organization_slug': org_slug,
+        'login_url': f'/login/{org_slug}' if org_slug else '/login',
+        'results': results
+    }), 200
 
 
 @bp.route('/<org_id>/users/bulk-import', methods=['POST'])
@@ -289,24 +582,9 @@ def bulk_import_users(current_user_id, current_org_id, is_superadmin, org_id):
             user_id = auth_response.user.id
 
             # Prepare user profile for batch insert
-            user_data = {
-                'id': user_id,
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'role': role,
-                'organization_id': org_id
-            }
-
-            # Add optional date of birth
-            if dob:
-                user_data['date_of_birth'] = dob
-                dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
-                age = (date.today() - dob_date).days / 365.25
-                if age < 13:
-                    user_data['requires_parental_consent'] = True
-
-            users_to_insert.append(user_data)
+            users_to_insert.append(build_org_user_record(
+                user_id, email, first_name, last_name, role, org_id, dob=dob
+            ))
 
             # Prepare skill records for batch insert
             skill_categories = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',

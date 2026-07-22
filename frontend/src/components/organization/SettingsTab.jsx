@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { getProgramForSlug } from '../../programs/registry'
+import SchoolLoginLinkCard from './SchoolLoginLinkCard'
 
 function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -313,6 +314,9 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
           </div>
         </dl>
       </div>
+
+      {/* School Login Link + QR */}
+      <SchoolLoginLinkCard slug={orgData.organization.slug} />
 
       {/* Organization Logo + AI Features Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

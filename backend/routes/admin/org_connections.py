@@ -702,7 +702,7 @@ def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin
 
         # Verify parent exists and has parent role (supports multiple roles)
         parent = supabase.table('users')\
-            .select('id, role, org_role, org_roles')\
+            .select('id, role, org_role, org_roles, last_name')\
             .eq('id', parent_user_id)\
             .single()\
             .execute()
@@ -733,6 +733,22 @@ def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin
         }).execute()
 
         logger.info(f"Org admin {current_user_id} created link between parent {parent_user_id} and student {student_user_id}")
+
+        # Family surfaces (Schedule Builder, SIS parent context) resolve a
+        # parent's children from household membership, not parent_student_links,
+        # so also ensure the pair shares a household in this org. Best-effort:
+        # the LMS link above is the source of truth for the parent dashboard.
+        try:
+            from routes.admin.organization_management import _ensure_shared_household
+            _ensure_shared_household(
+                supabase, org_id, parent_user_id,
+                parent.data.get('last_name'), student_user_id
+            )
+        except Exception as household_err:
+            logger.warning(
+                f"Parent link created but household sync failed for parent "
+                f"{parent_user_id} / student {student_user_id}: {household_err}"
+            )
 
         return jsonify({
             'success': True,

@@ -593,6 +593,78 @@ class DashboardService:
         return {cq['quest_id'] for cq in (response.data or [])}
 
     # =========================================================================
+    # ORG CLASS ASSIGNMENTS
+    # =========================================================================
+
+    def get_assigned_class_quests(self, user_id: str) -> List[Dict[str, Any]]:
+        """
+        Quests assigned to the student through their org classes that they have
+        not started yet. Enrolled quests already appear in active_quests, and
+        completed ones in the completed lists, so this returns only the
+        published (publish_at NULL or passed) assignments with no user_quests
+        row — the "assigned to you, start it" set.
+
+        Returns:
+            List of {class_id, class_name, due_date, quest: {...}} dicts
+        """
+        enrollments = self.client.table('class_enrollments')\
+            .select('class_id')\
+            .eq('student_id', user_id)\
+            .eq('status', 'active')\
+            .execute()
+        class_ids = [e['class_id'] for e in (enrollments.data or [])]
+        if not class_ids:
+            return []
+
+        classes = self.client.table('org_classes')\
+            .select('id, name, status')\
+            .in_('id', class_ids)\
+            .eq('status', 'active')\
+            .execute()
+        class_names = {c['id']: c['name'] for c in (classes.data or [])}
+        if not class_names:
+            return []
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        rows = self.client.table('class_quests')\
+            .select('class_id, quest_id, due_date, sequence_order, '
+                    'quests(id, title, description, quest_type, is_active, header_image_url, image_url)')\
+            .in_('class_id', list(class_names.keys()))\
+            .or_(f'publish_at.is.null,publish_at.lte.{now_iso}')\
+            .order('sequence_order')\
+            .execute()
+
+        assignments = [r for r in (rows.data or [])
+                       if (r.get('quests') or {}).get('is_active')]
+        if not assignments:
+            return []
+
+        # Exclude quests the student already has any enrollment for
+        # (active, completed, or archived — those surface elsewhere).
+        quest_ids = list({r['quest_id'] for r in assignments})
+        existing = self.client.table('user_quests')\
+            .select('quest_id')\
+            .eq('user_id', user_id)\
+            .in_('quest_id', quest_ids)\
+            .execute()
+        started_ids = {e['quest_id'] for e in (existing.data or [])}
+
+        result = []
+        seen = set()
+        for r in assignments:
+            quest_id = r['quest_id']
+            if quest_id in started_ids or quest_id in seen:
+                continue
+            seen.add(quest_id)
+            result.append({
+                'class_id': r['class_id'],
+                'class_name': class_names.get(r['class_id']),
+                'due_date': r.get('due_date'),
+                'quest': r.get('quests')
+            })
+        return result
+
+    # =========================================================================
     # DASHBOARD SUMMARY
     # =========================================================================
 
@@ -625,6 +697,13 @@ class DashboardService:
         # Get active standalone quests
         active_quests = self.get_active_quests(user_id, exclude_quest_ids=all_course_quest_ids)
 
+        # Quests assigned via org classes that the student hasn't started yet
+        try:
+            assigned_class_quests = self.get_assigned_class_quests(user_id)
+        except Exception as e:
+            logger.warning(f"Failed to load assigned class quests for {user_id}: {e}")
+            assigned_class_quests = []
+
         # Get completion stats
         completed_quests_count = self.get_completed_quests_count(user_id)
         completed_tasks_count = self.get_completed_tasks_count(user_id)
@@ -650,6 +729,7 @@ class DashboardService:
             'xp_by_category': skill_breakdown,
             'skill_xp_data': skill_data,
             'active_quests': active_quests,
+            'assigned_class_quests': assigned_class_quests,
             'enrolled_courses': enrolled_courses,
             'recent_completed_quests': recent_completed_quests,
             'archived_quests': archived_quests

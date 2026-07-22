@@ -979,18 +979,21 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
 @require_org_admin
 def create_username_student(current_user_id, current_org_id, is_superadmin, org_id):
     """
-    Create a student account using username + auto-generated password (no email required).
+    Create a no-email org member account using username + auto-generated password.
 
-    This allows org admins to create accounts for students who don't have
-    email addresses (e.g., young students in K-12 settings).
+    Primarily used by org admins to create accounts for students who don't have
+    email addresses (e.g., young students in K-12 settings), but org_role also
+    accepts 'parent', 'advisor', and 'observer' for no-email accounts of those
+    types. 'org_admin' is intentionally excluded: admin accounts should always
+    have a real email (invite flow) for credential recovery and audit trail.
 
     Password is auto-generated in kid-friendly format: PIN + word (e.g., "1234apple")
 
     Request body:
         username: str - Unique username within the organization (3-30 chars)
-        first_name: str - Student's first name
-        last_name: str - Student's last name
-        org_role: str - Optional, defaults to 'student'
+        first_name: str - Member's first name
+        last_name: str - Member's last name
+        org_role: str - Optional ('student', 'parent', 'advisor', 'observer'), defaults to 'student'
 
     Returns:
         201: User created with auto-generated credentials

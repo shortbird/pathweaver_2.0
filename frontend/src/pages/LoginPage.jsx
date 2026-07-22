@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import logger from '../utils/logger'
 import GoogleButton from '../components/auth/GoogleButton'
 import { observerAPI } from '../services/api'
+import { getPostLoginPath } from '../utils/postLoginPath'
 
 const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
@@ -113,16 +114,10 @@ const LoginPage = () => {
   // Show account selection screen if already authenticated and not switching
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
     const displayName = user.first_name || user.display_name || user.email || 'User'
-    const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
     // Marketing accounts (can_view_showcase=true and not actively a student/parent/etc.)
     // get bounced straight to the showcase page on login.
     const showcaseOnly = user.can_view_showcase === true && effectiveRole === 'student' && !user.has_dependents && !user.has_linked_students
-    const defaultPath = effectiveRole === 'org_admin' ? '/organization'
-      : effectiveRole === 'superadmin' ? '/parent/dashboard'
-      : showcaseOnly ? '/showcase'
-      : effectiveRole === 'parent' ? '/parent/dashboard'
-      : effectiveRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
-      : '/dashboard'
+    const defaultPath = showcaseOnly ? '/showcase' : getPostLoginPath(user)
     const redirectPath = fromPath || defaultPath
 
     return (

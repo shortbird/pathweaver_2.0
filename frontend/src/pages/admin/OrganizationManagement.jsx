@@ -11,6 +11,7 @@ import QuestsTab from '../../components/organization/QuestsTab'
 import OrgCoursesTab from '../../components/organization/OrgCoursesTab'
 import OrgClassesTab from '../../components/organization/OrgClassesTab'
 import AnnouncementsTab from '../../components/organization/AnnouncementsTab'
+import GettingStartedChecklist from '../../components/organization/GettingStartedChecklist'
 import CreditReviewDashboardPage from '../CreditReviewDashboardPage'
 import BountyBoardPage from '../BountyBoardPage'
 
@@ -227,6 +228,8 @@ export default function OrganizationManagement() {
         )}
       </div>
 
+      <GettingStartedChecklist orgId={orgId} onNavigate={handleTabChange} />
+
       <div className="mb-6 border-b">
         <nav className="flex gap-4">
           {TABS.map(tab => (
@@ -264,6 +267,7 @@ export default function OrganizationManagement() {
         <PeopleTab
           orgId={orgId}
           orgSlug={orgData.organization?.slug}
+          orgName={orgData.organization?.name}
           users={orgData.users}
           onUpdate={fetchOrganizationData}
         />

@@ -140,6 +140,7 @@ def register_all(app):
         curriculum_upload,
         curriculum_generate,
         org_connections,
+        org_setup,
         course_enrollments,
         course_refine,
         transfer_credits,
@@ -172,6 +173,7 @@ def register_all(app):
     app.register_blueprint(bulk_import.bp)
     app.register_blueprint(user_invitations.bp)
     app.register_blueprint(org_connections.bp)
+    app.register_blueprint(org_setup.bp)
     app.register_blueprint(observer_audit.bp)
     app.register_blueprint(ferpa_compliance.bp)
     app.register_blueprint(transfer_credits.bp)

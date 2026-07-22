@@ -12,6 +12,7 @@ import logger from '../utils/logger'
 import { identifyUser, resetUser, captureEvent } from '../services/posthog'
 import { setSentryUser } from '../services/sentry'
 import { isSimplifiedPartnerOrg } from '../config/partnerOrgs'
+import { getPostLoginPath } from '../utils/postLoginPath'
 
 const AuthContext = createContext()
 
@@ -177,14 +178,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Redirect based on user role (effective role handles org_managed users)
-      const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-      const loginRole = getEffectiveRole(loginUser)
-      const redirectPath = loginRole === 'org_admin'
-          ? (isSimplifiedPartnerOrg(loginUser.organization_id) ? '/onfire' : '/organization')
-        : loginRole === 'superadmin' || loginRole === 'parent' ? '/parent/dashboard'
-        : loginRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
-        : '/dashboard'
-      navigate(redirectPath)
+      navigate(getPostLoginPath(loginUser))
 
       return { success: true }
     } catch (error) {
@@ -260,14 +254,7 @@ export const AuthProvider = ({ children }) => {
 
       toast.success(verifiedUser.first_name ? `Welcome to Optio, ${verifiedUser.first_name}!` : 'Welcome to Optio!')
 
-      const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-      const verifiedRole = getEffectiveRole(verifiedUser)
-      const redirectPath = verifiedRole === 'org_admin'
-          ? (isSimplifiedPartnerOrg(verifiedUser.organization_id) ? '/onfire' : '/organization')
-        : verifiedRole === 'superadmin' || verifiedRole === 'parent' ? '/parent/dashboard'
-        : verifiedRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
-        : '/dashboard'
-      navigate(redirectPath)
+      navigate(getPostLoginPath(verifiedUser))
 
       return { success: true }
     } catch (error) {
@@ -322,14 +309,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Redirect based on user role (effective role handles org_managed users)
-      const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-      const loginRole = getEffectiveRole(loginUser)
-      const redirectPath = loginRole === 'org_admin'
-          ? (isSimplifiedPartnerOrg(loginUser.organization_id) ? '/onfire' : '/organization')
-        : loginRole === 'superadmin' || loginRole === 'parent' ? '/parent/dashboard'
-        : loginRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
-        : '/dashboard'
-      navigate(redirectPath)
+      navigate(getPostLoginPath(loginUser))
 
       return { success: true, organization }
     } catch (error) {
@@ -425,14 +405,7 @@ export const AuthProvider = ({ children }) => {
         toast.success('Account created successfully!')
 
         // Redirect based on user role (effective role handles org_managed users)
-        const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-        const effectiveRole = getEffectiveRole(user)
-        const redirectPath = effectiveRole === 'org_admin'
-            ? (isSimplifiedPartnerOrg(user.organization_id) ? '/onfire' : '/organization')
-          : effectiveRole === 'superadmin' || effectiveRole === 'parent' ? '/parent/dashboard'
-          : effectiveRole === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
-          : '/dashboard'
-        navigate(redirectPath)
+        navigate(getPostLoginPath(user))
       } else {
         // Email verification required - redirect to verification page
         navigate('/email-verification', { state: { email: userData.email } })

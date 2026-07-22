@@ -32,8 +32,10 @@ export default function AddStudentsModal({
   const fetchOrgStudents = async () => {
     try {
       setLoading(true)
-      // Get all students from the organization
-      const response = await api.get(`/api/admin/organizations/${orgId}/users?role=student`)
+      // Get all students from the organization. Uses the classes-module
+      // endpoint (advisor-accessible) rather than the org_admin-only members
+      // endpoint, so teachers can build rosters for their classes.
+      const response = await api.get(`/api/organizations/${orgId}/students`)
       if (response.data.success || response.data.users) {
         // Filter out already enrolled students
         const existingSet = new Set(existingStudentIds)

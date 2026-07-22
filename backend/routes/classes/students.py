@@ -27,6 +27,63 @@ def get_user_info(user_id: str):
     return effective_role, user_data.get('organization_id')
 
 
+@bp.route('/organizations/<org_id>/students', methods=['GET'])
+@require_role('org_admin', 'advisor', 'superadmin')
+def list_org_students(user_id, org_id):
+    """
+    List an organization's students (minimal fields) for roster pickers.
+
+    Unlike the org admin members endpoint, this is accessible to advisors so
+    teachers can build class rosters without org_admin privileges.
+
+    Returns:
+    {
+        "success": true,
+        "users": [
+            { "id": "...", "first_name": "...", "last_name": "...",
+              "display_name": "...", "email": "..." }
+        ]
+    }
+    """
+    try:
+        effective_role, user_org_id = get_user_info(user_id)
+
+        if effective_role != 'superadmin' and user_org_id != org_id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        # admin client justified: org-scoped student listing under @require_role;
+        # advisors need to see their org's students to build class rosters
+        supabase = get_supabase_admin_client()
+        result = supabase.table('users')\
+            .select('id, first_name, last_name, display_name, email, role, org_role, org_roles')\
+            .eq('organization_id', org_id)\
+            .execute()
+
+        students = [
+            {
+                'id': u['id'],
+                'first_name': u.get('first_name'),
+                'last_name': u.get('last_name'),
+                'display_name': u.get('display_name'),
+                'email': u.get('email')
+            }
+            for u in (result.data or [])
+            if get_effective_role(u) == 'student'
+        ]
+
+        return jsonify({
+            'success': True,
+            'users': students
+        })
+
+    except Exception as e:
+        logger.error(f"Error listing org students: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to list students'
+        }), 500
+
+
 @bp.route('/organizations/<org_id>/classes/<class_id>/students', methods=['GET'])
 @require_role('org_admin', 'advisor', 'superadmin')
 def get_class_students(user_id, org_id, class_id):
