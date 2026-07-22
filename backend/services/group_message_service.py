@@ -143,17 +143,24 @@ class GroupMessageService(BaseService):
                     return False
                 return True
 
-            # IDOR-H3 fix: platform (null-org) group has no org boundary. Only
-            # allow adding a user the adder has an explicit relationship with
+            # IDOR-H3 fix: platform (null-org) group has no org boundary. Allow
+            # adding a user the adder has an explicit relationship with
             # (self / dependent / approved parent link / active advisor
-            # assignment), so a platform advisor can't add an arbitrary minor.
-            if not self._has_explicit_relationship(supabase, user_id, target_user_id):
-                logger.warning(
-                    f"Platform group: no explicit relationship allowing {user_id} "
-                    f"to add {target_user_id}"
-                )
-                return False
-            return True
+            # assignment), so a platform advisor can't add an arbitrary minor —
+            # OR someone who already shares a group with the adder (they were
+            # vetted into a common group by someone with a direct link, so
+            # co-membership is not new exposure). Without the second clause an
+            # organizer couldn't add a co-advisor or another advisor's student,
+            # which gutted platform groups entirely.
+            if self._has_explicit_relationship(supabase, user_id, target_user_id):
+                return True
+            if self._shares_group_with(supabase, user_id, target_user_id):
+                return True
+            logger.warning(
+                f"Platform group: no relationship or shared group allowing "
+                f"{user_id} to add {target_user_id}"
+            )
+            return False
 
         except Exception as e:
             logger.error(f"Error checking add member permission: {str(e)}")
@@ -187,6 +194,63 @@ class GroupMessageService(BaseService):
             except Exception:
                 continue
         return False
+
+    def _shares_group_with(self, supabase, actor_id: str, target_id: str) -> bool:
+        """Whether the two users are already members of any common group."""
+        try:
+            my_groups = [g['group_id'] for g in (
+                supabase.table('group_members').select('group_id')
+                .eq('user_id', actor_id).execute().data or [])]
+            if not my_groups:
+                return False
+            hit = (supabase.table('group_members').select('id')
+                   .eq('user_id', target_id).in_('group_id', my_groups)
+                   .limit(1).execute().data)
+            return bool(hit)
+        except Exception:
+            return False
+
+    def _addable_platform_user_ids(self, supabase, actor_id: str) -> set:
+        """User ids the actor may add to a platform (null-org) group — exactly
+        the set can_add_member admits: explicit relationships (dependents /
+        guardians, approved parent links, active advisor assignments) plus
+        co-members of the actor's existing groups. Never the whole platform."""
+        related = set()
+        try:
+            for r in (supabase.table('users').select('id')
+                      .eq('managed_by_parent_id', actor_id).execute().data or []):
+                related.add(r['id'])
+            me = (supabase.table('users').select('managed_by_parent_id')
+                  .eq('id', actor_id).limit(1).execute().data)
+            if me and me[0].get('managed_by_parent_id'):
+                related.add(me[0]['managed_by_parent_id'])
+            for r in (supabase.table('parent_student_links').select('student_user_id')
+                      .eq('parent_user_id', actor_id).eq('status', 'approved')
+                      .execute().data or []):
+                related.add(r['student_user_id'])
+            for r in (supabase.table('parent_student_links').select('parent_user_id')
+                      .eq('student_user_id', actor_id).eq('status', 'approved')
+                      .execute().data or []):
+                related.add(r['parent_user_id'])
+            for r in (supabase.table('advisor_student_assignments').select('student_id')
+                      .eq('advisor_id', actor_id).eq('is_active', True)
+                      .execute().data or []):
+                related.add(r['student_id'])
+            for r in (supabase.table('advisor_student_assignments').select('advisor_id')
+                      .eq('student_id', actor_id).eq('is_active', True)
+                      .execute().data or []):
+                related.add(r['advisor_id'])
+            my_groups = [g['group_id'] for g in (
+                supabase.table('group_members').select('group_id')
+                .eq('user_id', actor_id).execute().data or [])]
+            if my_groups:
+                for r in (supabase.table('group_members').select('user_id')
+                          .in_('group_id', my_groups).execute().data or []):
+                    related.add(r['user_id'])
+        except Exception as e:
+            logger.error(f"Error collecting addable users for {actor_id}: {e}")
+        related.discard(actor_id)
+        return related
 
     # ==================== Group Management ====================
 
@@ -830,20 +894,31 @@ class GroupMessageService(BaseService):
 
             org_id = group.data.get('organization_id')
 
-            # IDOR-H3 fix: a platform (null-org) group has no org boundary, so
-            # there is no safe "auto-eligible" member list — returning every
-            # platform user leaked all-platform PII (names/roles). Members of a
-            # platform group must be added via an explicit relationship
-            # (see can_add_member), so no directory is offered here.
-            if org_id is None:
-                return []
-
             # Get current members
             current_members = supabase.table('group_members').select('user_id').eq(
                 'group_id', group_id
             ).execute()
 
             current_member_ids = [m['user_id'] for m in (current_members.data or [])]
+
+            # IDOR-H3 fix: a platform (null-org) group has no org boundary, so
+            # returning every platform user leaked all-platform PII. Offer the
+            # actor's OWN addable circle instead (explicit relationships +
+            # co-members of their existing groups — the same set can_add_member
+            # admits). Previously this returned [] outright, which left the
+            # member picker empty and gutted platform-group management.
+            if org_id is None:
+                addable = self._addable_platform_user_ids(supabase, user_id)
+                addable -= set(current_member_ids)
+                if not addable:
+                    return []
+                ids = list(addable)[:200]
+                rows = []
+                for i in range(0, len(ids), 100):
+                    rows.extend(supabase.table('users').select(
+                        'id, display_name, first_name, last_name, avatar_url, role'
+                    ).in_('id', ids[i:i + 100]).execute().data or [])
+                return rows
 
             # Get available users from same org
             query = supabase.table('users').select(

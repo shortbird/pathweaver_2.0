@@ -1326,9 +1326,14 @@ def _is_superadmin(admin_supabase, user_id):
 def _caller_can_delete_owner(admin_supabase, owner_id, user_id, is_superadmin=False):
     """Whether `user_id` may delete a storage file owned by `owner_id`.
 
-    Allowed when: superadmin; the file is the caller's own; or the file belongs
+    Allowed when: superadmin; the file is the caller's own; the file belongs
     to a student the caller is a guardian of (a dependent via
-    users.managed_by_parent_id, or an approved parent_student_links row).
+    users.managed_by_parent_id, or an approved parent_student_links row); or
+    there is an ACTIVE advisor_student_assignments row between the two in
+    either direction — this route serves advisor moment media, so an advisor
+    must be able to remove media they added for their student, and a student
+    must be able to remove a file an advisor uploaded into their work (the
+    storage path embeds the UPLOADER's id, not the student's).
     Observers are intentionally NOT granted deletion (view-only). `owner_id`
     of None (unrecognized path) is denied for non-superadmins.
     """
@@ -1354,6 +1359,15 @@ def _caller_can_delete_owner(admin_supabase, owner_id, user_id, is_superadmin=Fa
             return True
     except Exception:
         pass
+    for advisor_id, student_id in ((user_id, owner_id), (owner_id, user_id)):
+        try:
+            asgn = (admin_supabase.table('advisor_student_assignments').select('id')
+                    .eq('advisor_id', advisor_id).eq('student_id', student_id)
+                    .eq('is_active', True).limit(1).execute())
+            if asgn.data:
+                return True
+        except Exception:
+            pass
     return False
 
 
@@ -1475,10 +1489,15 @@ def delete_storage_urls(user_id: str):
             if _delete_storage_file(admin_supabase, url):
                 deleted += 1
 
+        # Honest outcome: "success: true, denied: N" previously made a fully
+        # denied request look like it worked — the caller's UI removed the item
+        # while the file quietly persisted.
+        all_denied = denied > 0 and deleted == 0
         result = {
-            'success': True,
+            'success': not all_denied,
             'deleted': deleted,
-            'message': f'Deleted {deleted} file(s) from storage'
+            'message': ('No files deleted: not permitted' if all_denied
+                        else f'Deleted {deleted} file(s) from storage')
         }
         if denied:
             result['denied'] = denied

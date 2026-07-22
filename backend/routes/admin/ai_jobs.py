@@ -281,10 +281,19 @@ def trigger_advisor_summary_job():
         # Valid cron request
         logger.info("Advisor summary triggered via cron")
     else:
-        # Fall back to requiring superadmin auth
-        from utils.auth.decorators import get_current_user, get_effective_role
-        user = get_current_user()
-        if not user or get_effective_role(user) != 'superadmin':
+        # Fall back to requiring superadmin auth. (This branch used to import a
+        # get_current_user that never existed in utils.auth.decorators, so any
+        # request without a matching X-Cron-Secret got a 500 ImportError — the
+        # Render cron's daily "Exited with status 1" — instead of a clean 401.)
+        from utils.session_manager import session_manager
+        from database import get_supabase_admin_client
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            row = (get_supabase_admin_client().table('users').select('role')
+                   .eq('id', uid).limit(1).execute()).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
             return jsonify({'error': 'Unauthorized'}), 401
 
     # Sentry Cron monitoring (only for the real scheduled run, not manual tests):

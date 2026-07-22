@@ -13,7 +13,27 @@ const LoginPage = () => {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const invitationCode = searchParams.get('invitation')
-  const fromPath = location.state?.from
+  // OAuth round-trip (July 2026): /api/oauth/authorize bounces unauthenticated
+  // browsers here with ?redirect=<authorize URL>. Only trust relative paths or
+  // our own API origin — anything else would be an open redirect.
+  const redirectParam = searchParams.get('redirect')
+  const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const safeRedirect = redirectParam && (
+    (redirectParam.startsWith('/') && !redirectParam.startsWith('//')) ||
+    (apiBase && redirectParam.startsWith(apiBase + '/'))
+  ) ? redirectParam : null
+  const fromPath = location.state?.from || safeRedirect
+  // Absolute return paths (the OAuth case) need a full navigation — the router
+  // can only handle same-app paths.
+  const goToReturnPath = (dest, opts) => {
+    if (/^https?:\/\//.test(dest)) {
+      window.location.assign(dest)
+    } else if (opts) {
+      navigate(dest, opts)
+    } else {
+      navigate(dest)
+    }
+  }
   const [loading, setLoading] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -67,7 +87,7 @@ const LoginPage = () => {
         }
         // No pending invitation - if we have a return path, auto-redirect there
         if (fromPath) {
-          navigate(fromPath, { replace: true })
+          goToReturnPath(fromPath, { replace: true })
           return
         }
         // Otherwise account selection screen will handle navigation
@@ -121,7 +141,7 @@ const LoginPage = () => {
 
           <div className="space-y-3">
             <button
-              onClick={() => navigate(redirectPath)}
+              onClick={() => goToReturnPath(redirectPath)}
               className="w-full py-3 px-4 text-sm font-medium rounded-lg text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple transition-all"
             >
               Continue as {displayName}

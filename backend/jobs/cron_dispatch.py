@@ -17,6 +17,7 @@ Each job is isolated (a failure in one never blocks the other). Required env var
 
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -38,15 +39,24 @@ def _post(url, secret):
     )
 
 
-def _run(name, url, secret, failures):
-    try:
-        r = _post(url, secret)
-        print(f"[{name}] status={r.status_code} body={r.text[:300]}")
-        if r.status_code != 200:
-            failures.append(name)
-    except requests.RequestException as e:
-        print(f"[{name}] ERROR: {e}")
-        failures.append(name)
+def _run(name, url, secret, failures, retries=1):
+    """POST the job; retry once (30 s later) on 5xx/connection errors so a run
+    that lands mid-deploy (Render cutover) doesn't page anyone. 4xx means the
+    request itself is wrong (bad secret, auth) — retrying can't help, fail now."""
+    for attempt in range(retries + 1):
+        try:
+            r = _post(url, secret)
+            print(f"[{name}] status={r.status_code} body={r.text[:300]}")
+            if r.status_code == 200:
+                return
+            if r.status_code < 500:
+                break
+        except requests.RequestException as e:
+            print(f"[{name}] ERROR: {e}")
+        if attempt < retries:
+            print(f"[{name}] transient failure — retrying in 30s")
+            time.sleep(30)
+    failures.append(name)
 
 
 def main():

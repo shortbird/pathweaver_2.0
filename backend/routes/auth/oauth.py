@@ -43,8 +43,7 @@ REFRESH_TOKEN_TTL = 2592000  # 30 days
 
 
 @bp.route('/authorize', methods=['GET'])
-@require_auth
-def authorize(user_id: str):
+def authorize():
     """
     OAuth 2.0 authorization endpoint.
 
@@ -53,11 +52,18 @@ def authorize(user_id: str):
     the authorization code is bound to that authenticated user, never to an
     unauthenticated / null subject.
 
-    SECURITY (AUTH-C1 fix): previously this endpoint had no @require_auth and
+    SECURITY (AUTH-C1 fix): previously this endpoint had no auth requirement and
     read the granting user from an unused Flask ``session`` (always ``None``),
     so any party with a valid client_id + registered redirect_uri could mint a
     full-privilege app token for a null subject. It now requires authentication
     and issues the code for the authenticated caller only.
+
+    Unauthenticated browsers are REDIRECTED to the login page with a return
+    path, not 401'd: this endpoint is a top-level browser navigation from the
+    external app, so a JSON 401 was a dead end — and Safari/iOS sessions that
+    authenticate via Authorization headers attach nothing on a navigation, so
+    even signed-in users landed there. After login the frontend sends the
+    browser back here and the cookie session (same-site) completes the flow.
 
     NOTE (follow-up): an explicit consent screen and scoped (non-session) OAuth
     tokens with enforced scope are still to be implemented. Until then this is
@@ -71,11 +77,23 @@ def authorize(user_id: str):
         - state: CSRF protection token from client
 
     Returns:
-        401: Not authenticated (from @require_auth)
-        302: Redirect to redirect_uri with authorization code
+        302: To login (unauthenticated) or to redirect_uri with authorization code
         400: Invalid request parameters
     """
     try:
+        from urllib.parse import quote
+        from app_config import Config
+
+        user_id = session_manager.get_effective_user_id()
+        if not user_id:
+            return_to = request.url
+            # Behind the proxy request.url may say http; the browser needs https.
+            if Config.FLASK_ENV == 'production' and return_to.startswith('http://'):
+                return_to = 'https://' + return_to[len('http://'):]
+            return redirect(
+                f"{Config.FRONTEND_URL}/login?redirect={quote(return_to, safe='')}",
+                code=302,
+            )
         # Defensive: @require_auth guarantees a non-null user_id, but never
         # issue an authorization code for a null/empty subject.
         if not user_id:

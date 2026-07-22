@@ -236,8 +236,17 @@ class ErrorHandler:
             # Telemetry must never break a request.
             logger.debug("PostHog capture failed", exc_info=True)
         
-        # In production, hide internal error details
-        if self.app.config.get('ENV') == 'production':
+        # In production, hide internal error details. MUST key off
+        # Config.FLASK_ENV: Flask 3 removed the ENV config key, so the old
+        # `self.app.config.get('ENV')` was always None and prod 500 responses
+        # leaked exception messages and full tracebacks (seen live 2026-07-21).
+        # Unknown env fails CLOSED (details hidden).
+        try:
+            from app_config import Config
+            is_production = Config.FLASK_ENV == 'production'
+        except Exception:
+            is_production = True
+        if is_production:
             response = {
                 'error': {
                     'message': 'An internal error occurred. Please try again later.',
