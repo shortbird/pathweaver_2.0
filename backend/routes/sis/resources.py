@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_resources', __name__, url_prefix='/api/sis')
 
 STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
+ADMIN_ROLES = ('org_admin', 'superadmin')
 
 _ORG_DOCS_BUCKET = 'org-documents'
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
@@ -70,6 +71,8 @@ def _claim_paperwork_key(supabase, org_id, paperwork_key, resource_id=None):
 @bp.route('/resources', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_resources(user_id):
+    """Resource library. Admins see everything (and manage it); advisors see the
+    staff knowledge base (audience staff/all) plus their own ack status."""
     org_id, err = _org_or_error(user_id)
     if err:
         return err
@@ -77,12 +80,75 @@ def list_resources(user_id):
     rows = (supabase.table('org_resources').select('*')
             .eq('organization_id', org_id)
             .order('sort_order').order('title').execute()).data or []
-    return jsonify({'success': True, 'resources': rows,
-                    'paperwork': _org_paperwork(supabase, org_id)})
+    is_admin = sis_service.caller_is_admin(user_id)
+    if not is_admin:
+        rows = [r for r in rows if (r.get('audience') or 'families') in ('staff', 'all')]
+    # Caller's own acknowledgments (stale when the resource was re-versioned since).
+    acks = {}
+    if rows:
+        ack_rows = (supabase.table('sis_resource_acks')
+                    .select('resource_id, version_date, acknowledged_at')
+                    .eq('user_id', user_id)
+                    .in_('resource_id', [r['id'] for r in rows]).execute()).data or []
+        acks = {a['resource_id']: a for a in ack_rows}
+    for r in rows:
+        mine = acks.get(r['id'])
+        current = bool(mine) and ((r.get('version_date') or '') <= (mine.get('version_date') or ''))
+        r['my_ack'] = {'acknowledged_at': mine.get('acknowledged_at'), 'current': current} if mine else None
+    payload = {'success': True, 'resources': rows}
+    if is_admin:
+        payload['paperwork'] = _org_paperwork(supabase, org_id)
+    return jsonify(payload)
+
+
+@bp.route('/resources/<resource_id>/ack', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def acknowledge_resource(user_id, resource_id):
+    """Staff member confirms they have read/watched a required resource."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    resource = _owned_resource(supabase, org_id, resource_id)
+    if not resource or (resource.get('audience') or 'families') == 'families':
+        return jsonify({'success': False, 'error': 'Resource not found'}), 404
+    row = (supabase.table('sis_resource_acks').upsert({
+        'resource_id': resource_id, 'user_id': user_id,
+        'version_date': resource.get('version_date'),
+        'acknowledged_at': datetime.utcnow().isoformat(),
+    }, on_conflict='resource_id,user_id').execute()).data
+    return jsonify({'success': True, 'ack': row[0] if row else None})
+
+
+@bp.route('/resources/<resource_id>/acks', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def resource_acks(user_id, resource_id):
+    """Completion report: which staff members have acknowledged this resource
+    (and whether their ack predates the current version)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    resource = _owned_resource(supabase, org_id, resource_id)
+    if not resource:
+        return jsonify({'success': False, 'error': 'Resource not found'}), 404
+    acks = {a['user_id']: a for a in (
+        supabase.table('sis_resource_acks')
+        .select('user_id, version_date, acknowledged_at')
+        .eq('resource_id', resource_id).execute()
+    ).data or []}
+    out = []
+    for s in sis_service.list_org_staff(org_id):
+        a = acks.get(s['id'])
+        current = bool(a) and ((resource.get('version_date') or '') <= (a.get('version_date') or ''))
+        out.append({'user_id': s['id'], 'name': s['name'], 'roles': s['roles'],
+                    'acknowledged_at': a.get('acknowledged_at') if a else None,
+                    'current': current})
+    return jsonify({'success': True, 'staff': out})
 
 
 @bp.route('/resources', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def create_resource(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -100,6 +166,10 @@ def create_resource(user_id):
         if not any(p['key'] == paperwork_key for p in _org_paperwork(supabase, org_id)):
             return jsonify({'success': False, 'error': 'Unknown registration form document'}), 400
         _claim_paperwork_key(supabase, org_id, paperwork_key)
+    audience = data.get('audience') or 'families'
+    if audience not in ('families', 'staff', 'all'):
+        return jsonify({'success': False, 'error': 'Invalid audience'}), 400
+    requires_ack = bool(data.get('requires_ack'))
     row = (supabase.table('org_resources').insert({
         'organization_id': org_id,
         'title': title,
@@ -108,13 +178,28 @@ def create_resource(user_id):
         'category': (data.get('category') or '').strip() or None,
         'sort_order': int(data.get('sort_order') or 0),
         'paperwork_key': paperwork_key,
+        'audience': audience,
+        'requires_ack': requires_ack,
+        'version_date': datetime.utcnow().isoformat() if requires_ack else None,
         'created_by': user_id,
     }).execute()).data
-    return jsonify({'success': True, 'resource': row[0] if row else None}), 201
+    resource = row[0] if row else None
+    if requires_ack and audience in ('staff', 'all') and resource:
+        _notify_staff_required_read(org_id, title)
+    return jsonify({'success': True, 'resource': resource}), 201
+
+
+def _notify_staff_required_read(org_id, title):
+    from services import sis_notifications
+    for s in sis_service.list_org_staff(org_id):
+        sis_notifications.notify(
+            s['id'], 'Required reading',
+            f'Please review and acknowledge: {title}',
+            link='/resources', organization_id=org_id)
 
 
 @bp.route('/resources/<resource_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_resource(user_id, resource_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -129,6 +214,15 @@ def update_resource(user_id, resource_id):
             fields[k] = (data.get(k) or '').strip() or None
     if 'sort_order' in data:
         fields['sort_order'] = int(data.get('sort_order') or 0)
+    if 'audience' in data:
+        if data['audience'] not in ('families', 'staff', 'all'):
+            return jsonify({'success': False, 'error': 'Invalid audience'}), 400
+        fields['audience'] = data['audience']
+    if 'requires_ack' in data:
+        fields['requires_ack'] = bool(data.get('requires_ack'))
+    # "Everyone must re-read this" — bump the version so prior acks go stale.
+    if data.get('reack'):
+        fields['version_date'] = datetime.utcnow().isoformat()
     if 'paperwork_key' in data:
         key = (data.get('paperwork_key') or '').strip() or None
         if key:
@@ -140,11 +234,15 @@ def update_resource(user_id, resource_id):
         return jsonify({'success': False, 'error': 'Title is required'}), 400
     fields['updated_at'] = datetime.utcnow().isoformat()
     row = (supabase.table('org_resources').update(fields).eq('id', resource_id).execute()).data
-    return jsonify({'success': True, 'resource': row[0] if row else None})
+    updated = row[0] if row else None
+    if data.get('reack') and updated and updated.get('requires_ack') \
+            and (updated.get('audience') or 'families') in ('staff', 'all'):
+        _notify_staff_required_read(org_id, updated.get('title') or 'A policy update')
+    return jsonify({'success': True, 'resource': updated})
 
 
 @bp.route('/resources/<resource_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def delete_resource(user_id, resource_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -157,7 +255,7 @@ def delete_resource(user_id, resource_id):
 
 
 @bp.route('/resources/upload', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def upload_resource_file(user_id):
     """Upload a document to the org-documents bucket; returns its public URL
     (mirrors the paperwork-doc upload in catalog.py)."""

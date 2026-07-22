@@ -28,6 +28,15 @@ const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
 const ResourcesPage = lazy(() => import('../pages/sis/ResourcesPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 
+// Teacher portal pages (advisors; admins can open them too)
+const MyClassesPage = lazy(() => import('../pages/sis/MyClassesPage'))
+const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
+const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
+const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
+const OnboardingPage = lazy(() => import('../pages/sis/OnboardingPage'))
+const MyTimePage = lazy(() => import('../pages/sis/MyTimePage'))
+const TimesheetsPage = lazy(() => import('../pages/sis/TimesheetsPage'))
+
 // Carved-out admin surfaces — re-registered at their ORIGINAL paths so the moved
 // components' internal links keep working on the SIS host. Same lazy chunks as the
 // learning app (Vite dedupes); the files are not physically moved (low-risk MVP).
@@ -67,6 +76,15 @@ const SisRoutes = () => (
       <Route path="calendar" element={<CalendarPage />} />
       <Route path="resources" element={<ResourcesPage />} />
       <Route path="settings" element={<SettingsPage />} />
+
+      {/* Teacher portal */}
+      <Route path="my-classes" element={<MyClassesPage />} />
+      <Route path="my-classes/:classId" element={<TeacherClassPage />} />
+      <Route path="directory" element={<DirectoryPage />} />
+      <Route path="forms" element={<StaffFormsPage />} />
+      <Route path="onboarding" element={<OnboardingPage />} />
+      <Route path="time" element={<MyTimePage />} />
+      <Route path="timesheets" element={<TimesheetsPage />} />
 
       {/* Carved-out admin surfaces (original paths preserved) */}
       <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />

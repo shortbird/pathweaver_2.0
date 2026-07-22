@@ -4,6 +4,22 @@
 groups + their own phasing). This maps each request onto what the platform already has,
 so we build the thin missing layer instead of a parallel system.
 
+> **STATUS (2026-07-22, built the same day — local, uncommitted):** Phases A, B, and C
+> below are implemented. New migration `20260722_sis_teacher_portal.sql` (applied to prod,
+> additive + RLS-locked): `sis_staff_profiles`, `sis_staff_assignments`, `sis_resource_acks`,
+> `sis_form_submissions`, `sis_onboarding_templates`, `sis_onboarding_assignments`,
+> `sis_time_entries`, plus `org_resources.audience/requires_ack/version_date`.
+> Backend: `routes/sis/staff_portal.py` (teacher, scoped), `routes/sis/staff_admin.py`
+> (admin), `services/sis_staff_service.py`, `sis_forms_service.py`, `sis_onboarding_service.py`;
+> advisors are now locked out of org-management routes (ADMIN_ROLES tier) and scoped to
+> their own classes via `sis_service.class_scope`. Frontend: teacher portal pages
+> (TeacherDashboard, MyClasses, TeacherClass roster+attendance+print, Directory, Forms,
+> Onboarding, MyTime) + admin pages (Timesheets, StaffProfileModal employment editor,
+> onboarding admin, resource acks/report); SIS sidebar/routes are role-aware.
+> Known follow-up: teacher→parent messaging stays on the learning-app class groups
+> (roster-synced, already built); a SIS-embedded teacher messaging view is future work.
+> Deferred: QR/kiosk clock-in, substitute marketplace, QuickBooks payroll integration.
+
 ## Where teachers stand today
 
 - A teacher is a `users` row with `role='org_managed'`, `org_role='advisor'`. The SIS

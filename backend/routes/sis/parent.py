@@ -383,6 +383,22 @@ def org_resources(user_id):
     return jsonify({'success': True, 'resources': resources})
 
 
+# ── School calendar (family-visible events) ───────────────────────────────────
+@bp.route('/events', methods=['GET'])
+@require_auth
+def org_events(user_id):
+    """The school's event calendar for a guardian, windowed with ?from=&to=."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    events = parent.org_events(user_id, org_id,
+                               from_iso=request.args.get('from'),
+                               to_iso=request.args.get('to'))
+    if events is None:
+        return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
+    return jsonify({'success': True, 'events': events})
+
+
 # ── Family directory (opt-in) ─────────────────────────────────────────────────
 @bp.route('/directory', methods=['GET'])
 @require_auth

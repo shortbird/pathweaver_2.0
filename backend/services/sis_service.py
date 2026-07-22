@@ -67,7 +67,7 @@ def _org_users(org_id: str) -> List[Dict[str, Any]]:
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, '
                 'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth, '
-                'preferred_name, gender, allergies, medications, sis_tuition_plan')
+                'preferred_name, gender, allergies, medications, sis_tuition_plan, avatar_url')
         .eq('organization_id', org_id)
         .execute()
     )
@@ -251,6 +251,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'medications': s.get('medications'),
             'email': s.get('email'),
             'username': s.get('username'),
+            'avatar_url': s.get('avatar_url'),
             'total_xp': s.get('total_xp'),
             'last_active': s.get('last_active'),
             'sis_tuition_plan': s.get('sis_tuition_plan'),
@@ -1198,7 +1199,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     if user_ids:
         rows = (
             _admin().table('users')
-            .select('id, first_name, last_name, display_name, email, username, date_of_birth')
+            .select('id, first_name, last_name, display_name, email, username, date_of_birth, avatar_url')
             .in_('id', user_ids)
             .execute()
         ).data or []
@@ -1212,6 +1213,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
             'user_id': m['user_id'],
             'name': _full_name(u) if u else 'Unknown',
             'email': u.get('email') if u else None,
+            'avatar_url': u.get('avatar_url') if u else None,
             'relationship': m.get('relationship'),
             'is_primary_guardian': m.get('is_primary_guardian'),
         }

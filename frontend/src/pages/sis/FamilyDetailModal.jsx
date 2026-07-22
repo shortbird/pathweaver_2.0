@@ -8,10 +8,14 @@ import { RolePill, PrimaryTag } from '../../components/ui/RolePill'
 import StudentDetailModal from './StudentDetailModal'
 
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
-const Avatar = ({ name }) => (
-  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
-    {initials(name)}
-  </div>
+const Avatar = ({ name, src }) => (
+  src ? (
+    <img src={src} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+  ) : (
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+      {initials(name)}
+    </div>
+  )
 )
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
@@ -206,7 +210,7 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
               className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-neutral-50 cursor-pointer"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <Avatar name={m.name} />
+                <Avatar name={m.name} src={m.avatar_url} />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-sm font-medium text-neutral-800 truncate">{m.name}</span>

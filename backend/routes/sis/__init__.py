@@ -27,7 +27,13 @@ logger = get_logger(__name__)
 
 bp = Blueprint('sis', __name__, url_prefix='/api/sis')
 
+# All staff (admins see everything; advisors get the scoped teacher portal).
+# Imported by events.py for the read-only calendar endpoints.
 STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
+# The admin tier: every endpoint in THIS file is org-management (households,
+# registration data, staff accounts, full roster) — teacher-scoped equivalents
+# live in routes/sis/staff_portal.py.
+ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):
@@ -48,7 +54,7 @@ def _org_or_error(user_id):
 
 
 @bp.route('/dashboard', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def dashboard(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -57,7 +63,7 @@ def dashboard(user_id):
 
 
 @bp.route('/roster', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def roster(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -66,7 +72,7 @@ def roster(user_id):
 
 
 @bp.route('/members', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def org_members(user_id):
     """Everyone in the org (for household assignment pickers)."""
     org_id, err = _org_or_error(user_id)
@@ -76,7 +82,7 @@ def org_members(user_id):
 
 
 @bp.route('/staff', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def org_staff(user_id):
     """Org staff (org_admin / advisor) for the SIS Staff page."""
     org_id, err = _org_or_error(user_id)
@@ -86,7 +92,7 @@ def org_staff(user_id):
 
 
 @bp.route('/staff', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def create_teacher(user_id):
     """Add a teacher (advisor) to the org: creates the account + sends the
     set-password email. Accepts first_name, last_name, email, bio."""
@@ -100,7 +106,7 @@ def create_teacher(user_id):
 
 
 @bp.route('/staff/<staff_id>/link', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def link_staff(user_id, staff_id):
     """Connect a placeholder staff row to the teacher's real email. Claims the
     account in place (new email + set-password invite) or, when the email
@@ -116,7 +122,7 @@ def link_staff(user_id, staff_id):
 
 
 @bp.route('/staff/<staff_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_staff(user_id, staff_id):
     """Edit a staff member's profile (name, email, bio)."""
     org_id, err = _org_or_error(user_id)
@@ -129,7 +135,7 @@ def update_staff(user_id, staff_id):
 
 
 @bp.route('/staff/<staff_id>/photo', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def upload_staff_photo(user_id, staff_id):
     """Upload (or replace) a staff member's photo. Stores avatar_url on the user."""
     import uuid as _uuid
@@ -189,7 +195,7 @@ def upload_staff_photo(user_id, staff_id):
 
 # ── Households ───────────────────────────────────────────────────────────────
 @bp.route('/households', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_households(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -198,7 +204,7 @@ def list_households(user_id):
 
 
 @bp.route('/unassigned-students', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def unassigned_students(user_id):
     """Org students not in any family (excludes graduated/withdrawn), each flagged
     with any family member they look like — so staff merge duplicates instead of
@@ -210,7 +216,7 @@ def unassigned_students(user_id):
 
 
 @bp.route('/households', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def create_household(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -230,7 +236,7 @@ def create_household(user_id):
 
 
 @bp.route('/households/<household_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_household(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -258,7 +264,7 @@ def update_household(user_id, household_id):
 
 
 @bp.route('/households/<household_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def delete_household(user_id, household_id):
     """Delete a family. Removes the household + its member links; the students,
     guardians, and their own records keep their accounts."""
@@ -276,7 +282,7 @@ def delete_household(user_id, household_id):
 
 
 @bp.route('/households/<household_id>/image', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def upload_household_image(user_id, household_id):
     """Upload (or replace) a family photo. Stores image_url on the household."""
     import uuid as _uuid
@@ -333,7 +339,7 @@ def upload_household_image(user_id, household_id):
 
 
 @bp.route('/households/<household_id>/members', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_household_member(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -400,7 +406,7 @@ def add_household_member(user_id, household_id):
 
 
 @bp.route('/households/<household_id>/members/<member_user_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def remove_household_member(user_id, household_id, member_user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -415,7 +421,7 @@ def remove_household_member(user_id, household_id, member_user_id):
 
 # ── Enrollment lifecycle ─────────────────────────────────────────────────────
 @bp.route('/enrollments/<student_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_enrollment(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -430,7 +436,7 @@ def update_enrollment(user_id, student_id):
 
 # ── Student account admin (edit profile, message guardians) ──────────────────
 @bp.route('/students/<student_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_student(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -443,7 +449,7 @@ def update_student(user_id, student_id):
 
 
 @bp.route('/users/<target_id>', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def get_org_user(user_id, target_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -455,7 +461,7 @@ def get_org_user(user_id, target_id):
 
 
 @bp.route('/users/<target_id>/role', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_user_role(user_id, target_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -470,7 +476,7 @@ def update_user_role(user_id, target_id):
 
 
 @bp.route('/students/<student_id>', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def get_student(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -482,7 +488,7 @@ def get_student(user_id, student_id):
 
 
 @bp.route('/students/<student_id>/classes', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def student_classes(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -493,7 +499,7 @@ def student_classes(user_id, student_id):
 
 
 @bp.route('/students/<student_id>/message', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def message_student(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -516,7 +522,7 @@ def message_student(user_id, student_id):
 # verifies the target student/contact belongs to it before reading or deleting
 # a minor's emergency-contact PII (names, phones, pickup authorization).
 @bp.route('/students/<student_id>/emergency-contacts', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_emergency_contacts(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -527,7 +533,7 @@ def list_emergency_contacts(user_id, student_id):
 
 
 @bp.route('/students/<student_id>/emergency-contacts', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_emergency_contact(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -542,7 +548,7 @@ def add_emergency_contact(user_id, student_id):
 
 
 @bp.route('/emergency-contacts/<contact_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def delete_emergency_contact(user_id, contact_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -553,7 +559,7 @@ def delete_emergency_contact(user_id, contact_id):
 
 
 @bp.route('/students/<student_id>/emergency-contacts/copy-from-family', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def copy_family_contacts(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -564,7 +570,7 @@ def copy_family_contacts(user_id, student_id):
 
 
 @bp.route('/households/<household_id>/message', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def message_household(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -583,7 +589,7 @@ def message_household(user_id, household_id):
 
 # ── Family (household) emergency contacts — shared across the family's students ─
 @bp.route('/households/<household_id>/emergency-contacts', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_household_contacts(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -592,7 +598,7 @@ def list_household_contacts(user_id, household_id):
 
 
 @bp.route('/households/<household_id>/registration', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def get_household_registration(user_id, household_id):
     """Latest iCreate registration submitted by this household's guardians
     (answers, signatures, kids, fee). registration is null when none exists."""
@@ -603,7 +609,7 @@ def get_household_registration(user_id, household_id):
 
 
 @bp.route('/households/<household_id>/emergency-contacts', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_household_contact(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -617,7 +623,7 @@ def add_household_contact(user_id, household_id):
 
 
 @bp.route('/households/<household_id>/emergency-contacts/delete', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def remove_household_contact(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -631,7 +637,7 @@ def remove_household_contact(user_id, household_id):
 # Loaded from a school's legacy registration list (fee already paid, hold, tier);
 # the iCreate funnel applies them when the family registers and creates a household.
 @bp.route('/family-directives', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_family_directives(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -642,7 +648,7 @@ def list_family_directives(user_id):
 
 
 @bp.route('/family-directives', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def upsert_family_directives(user_id):
     """Bulk upsert directives by email: {directives: [{email, registration_tier,
     registration_hold, hold_reason, fee_prepaid, notes}]}."""
@@ -684,7 +690,7 @@ def upsert_family_directives(user_id):
 
 
 @bp.route('/family-directives/<directive_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def delete_family_directive(user_id, directive_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -700,7 +706,7 @@ def delete_family_directive(user_id, directive_id):
 
 # ── Reports ──────────────────────────────────────────────────────────────────
 @bp.route('/reports/roster.csv', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def roster_csv(user_id):
     org_id, err = _org_or_error(user_id)
     if err:

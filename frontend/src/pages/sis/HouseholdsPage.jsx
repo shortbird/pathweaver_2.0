@@ -9,6 +9,48 @@ import FamilyDetailModal from './FamilyDetailModal'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
+const collageInitials = (name) =>
+  (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
+
+/**
+ * Card-hero fallback when a family hasn't uploaded a photo: the members' own
+ * pictures as an overlapping row, sized down as the family grows. Guardians
+ * first (they're likelier to have photos), at most six circles, then a +N
+ * bubble for the rest.
+ */
+const MemberCollage = ({ members = [] }) => {
+  const ordered = [...members].sort((a, b) =>
+    (a.relationship === 'guardian' ? 0 : 1) - (b.relationship === 'guardian' ? 0 : 1))
+  const shown = ordered.slice(0, 6)
+  const extra = ordered.length - shown.length
+  const size = shown.length <= 2 ? 'w-16 h-16 text-lg'
+    : shown.length <= 4 ? 'w-14 h-14 text-base'
+      : 'w-12 h-12 text-sm'
+  const overlap = shown.length <= 2 ? '' : shown.length <= 4 ? '-ml-3 first:ml-0' : '-ml-4 first:ml-0'
+  return (
+    <div className="w-full h-full flex items-center justify-center px-3">
+      <div className={`flex items-center ${shown.length <= 2 ? 'gap-2' : ''}`}>
+        {shown.map((m) => (
+          m.avatar_url ? (
+            <img key={m.user_id} src={m.avatar_url} alt="" title={m.name}
+              className={`${size} ${overlap} rounded-full object-cover border-2 border-white shadow-sm`} />
+          ) : (
+            <div key={m.user_id} title={m.name}
+              className={`${size} ${overlap} rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center font-semibold border-2 border-white shadow-sm`}>
+              {collageInitials(m.name)}
+            </div>
+          )
+        ))}
+        {extra > 0 && (
+          <div className={`${size} ${overlap} rounded-full bg-white/90 text-optio-purple flex items-center justify-center font-semibold border-2 border-white shadow-sm`}>
+            +{extra}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Students in the org who aren't in any family yet (school imports, accounts
  * connected before households existed). Each row lets staff drop the student
@@ -242,6 +284,8 @@ const HouseholdsPage = () => {
               <div className="relative h-28 bg-gradient-to-br from-optio-purple/10 to-optio-pink/10">
                 {h.image_url ? (
                   <img src={h.image_url} alt="" className="w-full h-full object-cover" />
+                ) : count > 0 ? (
+                  <MemberCollage members={h.members} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-optio-purple/30">
                     <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">

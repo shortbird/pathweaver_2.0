@@ -22,7 +22,8 @@ logger = get_logger(__name__)
 
 bp = Blueprint('sis_clp', __name__, url_prefix='/api/sis')
 
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
+# Admin tier: this whole module is org management, not teacher-facing.
+STAFF_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):

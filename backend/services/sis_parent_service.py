@@ -768,15 +768,35 @@ def request_age_exception(user_id: str, org_id: str, student_user_id: str,
 
 # ── Org resources (family-readable document library) ─────────────────────────
 def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
-    """The org's resource library (guidebooks, contracts, links) for a family."""
+    """The org's resource library (guidebooks, contracts, links) for a family.
+    Staff-only knowledge-base entries (audience='staff') never reach families."""
     if not _has_org_access(user_id, org_id):
         return None
     return (
         _admin().table('org_resources')
         .select('id, title, description, url, category, sort_order')
         .eq('organization_id', org_id)
+        .in_('audience', ['families', 'all'])
         .order('sort_order').order('title').execute()
     ).data or []
+
+
+def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
+               to_iso: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+    """The school's event calendar (field trips, showcases, closures) for a
+    family. Same overlap-window semantics as the staff calendar."""
+    if not _has_org_access(user_id, org_id):
+        return None
+    q = (
+        _admin().table('sis_events')
+        .select('id, title, description, location, start_at, end_at, all_day, category')
+        .eq('organization_id', org_id)
+    )
+    if from_iso:
+        q = q.or_(f'start_at.gte.{from_iso},end_at.gte.{from_iso}')
+    if to_iso:
+        q = q.lt('start_at', to_iso)
+    return q.order('start_at').execute().data or []
 
 
 # ── Family directory (opt-in) ─────────────────────────────────────────────────

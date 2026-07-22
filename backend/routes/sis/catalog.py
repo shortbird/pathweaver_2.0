@@ -21,6 +21,9 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_catalog', __name__, url_prefix='/api/sis')
 
 STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
+# Class management is admin-only; teachers get scoped reads (list/detail/
+# meetings/roster) — advisor visibility is filtered via sis_service.class_scope.
+ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):
@@ -57,7 +60,20 @@ def list_classes(user_id):
     if err:
         return err
     include_archived = _truthy(request.args.get('include_archived'))
-    return jsonify({'success': True, 'classes': catalog.list_classes(org_id, include_archived)})
+    classes = catalog.list_classes(org_id, include_archived)
+    scope = sis_service.class_scope(user_id, org_id)
+    if scope is not None:
+        allowed = set(scope)
+        classes = [c for c in classes if c.get('id') in allowed]
+    return jsonify({'success': True, 'classes': classes})
+
+
+def _scope_denied(user_id, org_id, class_id):
+    """404 response when an advisor asks about a class they don't teach."""
+    scope = sis_service.class_scope(user_id, org_id)
+    if scope is not None and class_id not in scope:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    return None
 
 
 def _validate_class_fields(data):
@@ -83,7 +99,7 @@ def _validate_class_fields(data):
 
 
 @bp.route('/classes', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def create_class(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -109,6 +125,9 @@ def get_class(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    denied = _scope_denied(user_id, org_id, class_id)
+    if denied:
+        return denied
     detail = catalog.get_class_detail(org_id, class_id)
     if not detail:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -116,7 +135,7 @@ def get_class(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_class(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -131,11 +150,19 @@ def update_class(user_id, class_id):
     existing = repo.find_by_id(class_id)
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    return jsonify({'success': True, 'class': repo.update_sis_fields(class_id, data)})
+    updated = repo.update_sis_fields(class_id, data)
+    new_instructor = data.get('primary_instructor_id')
+    if new_instructor and new_instructor != existing.get('primary_instructor_id'):
+        from services import sis_notifications
+        sis_notifications.notify(
+            new_instructor, 'New class assignment',
+            f'You are now the teacher for {existing.get("name") or "a class"}.',
+            link='/my-classes', organization_id=org_id)
+    return jsonify({'success': True, 'class': updated})
 
 
 @bp.route('/classes/<class_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def archive_class(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -196,6 +223,9 @@ def list_meetings(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    denied = _scope_denied(user_id, org_id, class_id)
+    if denied:
+        return denied
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -203,7 +233,7 @@ def list_meetings(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>/meetings', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_meeting(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -225,7 +255,7 @@ def add_meeting(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>/meetings/<meeting_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def delete_meeting(user_id, class_id, meeting_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -244,6 +274,9 @@ def list_prerequisites(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    denied = _scope_denied(user_id, org_id, class_id)
+    if denied:
+        return denied
     repo = SisClassRepository(client=get_supabase_admin_client())
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -251,7 +284,7 @@ def list_prerequisites(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>/prerequisites', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_prerequisite(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -267,7 +300,7 @@ def add_prerequisite(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>/prerequisites/<prerequisite_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def delete_prerequisite(user_id, class_id, prerequisite_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -286,12 +319,15 @@ def class_roster(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    denied = _scope_denied(user_id, org_id, class_id)
+    if denied:
+        return denied
     supabase = get_supabase_admin_client()
     repo = SisClassRepository(client=supabase)
     if not _load_class(repo, org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     enrollments = (
-        supabase.table('class_enrollments').select('student_id, created_at')
+        supabase.table('class_enrollments').select('student_id, enrolled_at')
         .eq('class_id', class_id).eq('status', 'active').execute()
     ).data or []
     ids = [e['student_id'] for e in enrollments]
@@ -310,14 +346,14 @@ def class_roster(user_id, class_id):
         roster.append({'student_id': e['student_id'], 'name': name,
                        'last_name': u.get('last_name'),
                        'email': u.get('email'), 'username': u.get('username'),
-                       'enrolled_at': e.get('created_at')})
+                       'enrolled_at': e.get('enrolled_at')})
     roster.sort(key=lambda r: (r.get('last_name') or r['name']).lower())
     return jsonify({'success': True, 'roster': roster})
 
 
 # ── Direct enrollment (staff enroll a student into a class) ───────────────────
 @bp.route('/classes/<class_id>/enrollments', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def enroll_student(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -356,7 +392,7 @@ def enroll_student(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>/enrollments/<student_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def unenroll_student(user_id, class_id, student_id):
     """Staff drop a student from a class (marks the enrollment withdrawn and
     re-syncs the class group). Used by the CLP meeting view to make live changes.
@@ -387,7 +423,7 @@ def unenroll_student(user_id, class_id, student_id):
 # at-home-learning courses). Teacher is per-course (org_course_settings); tuition
 # is ONE org-wide price for all Optio courses (sis_settings, edited in Settings).
 @bp.route('/course-settings', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_course_settings(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -396,7 +432,7 @@ def list_course_settings(user_id):
 
 
 @bp.route('/courses/<course_id>/settings', methods=['PUT'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_course_settings(user_id, course_id):
     """Set this org's teacher for an Optio course (teacher_id: null clears it)."""
     org_id, err = _org_or_error(user_id)
@@ -433,7 +469,7 @@ def _ensure_bucket(supabase, bucket_name):
 
 
 @bp.route('/classes/<class_id>/image', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def upload_class_image(user_id, class_id):
     """Upload (or replace) a class's catalog image. Stores image_url on org_classes."""
     org_id, err = _org_or_error(user_id)
@@ -501,7 +537,7 @@ _ORG_DOCS_BUCKET = 'org-documents'
 
 
 @bp.route('/registration/paperwork-doc', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def upload_paperwork_doc(user_id):
     """Upload a paperwork document; returns its public URL for doc_url."""
     org_id, err = _org_or_error(user_id)

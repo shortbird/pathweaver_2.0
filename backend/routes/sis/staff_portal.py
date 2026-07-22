@@ -43,13 +43,30 @@ def _org_or_error(user_id):
     return org_id, None
 
 
+def _read_target(user_id, org_id):
+    """Whose portal data a read endpoint returns. Admins may preview another
+    staff member's portal via ?teacher_id= ("View portal" on the Staff page);
+    everyone else always gets their own. Write endpoints never use this —
+    clocking in, submitting forms, and checking off items stay caller-bound."""
+    target = request.args.get('teacher_id') or \
+        (request.get_json(silent=True) or {}).get('teacher_id')
+    if not target or target == user_id or not sis_service.caller_is_admin(user_id):
+        return user_id
+    row = (get_supabase_admin_client().table('users').select('id, organization_id')
+           .eq('id', target).limit(1).execute()).data
+    if row and row[0].get('organization_id') == org_id:
+        return target
+    return user_id
+
+
 @bp.route('/dashboard', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def dashboard(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'data': staff.teacher_dashboard(user_id, org_id)})
+    target = _read_target(user_id, org_id)
+    return jsonify({'success': True, 'data': staff.teacher_dashboard(target, org_id)})
 
 
 @bp.route('/classes', methods=['GET'])
@@ -58,7 +75,8 @@ def my_classes(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'classes': staff.teacher_classes(user_id, org_id)})
+    target = _read_target(user_id, org_id)
+    return jsonify({'success': True, 'classes': staff.teacher_classes(target, org_id)})
 
 
 @bp.route('/classes/<class_id>/roster', methods=['GET'])
@@ -88,7 +106,8 @@ def schedule(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, **staff.teacher_schedule(user_id, org_id)})
+    target = _read_target(user_id, org_id)
+    return jsonify({'success': True, **staff.teacher_schedule(target, org_id)})
 
 
 @bp.route('/directory', methods=['GET'])
@@ -106,7 +125,7 @@ def my_profile(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    profile = staff.get_staff_profile(org_id, user_id)
+    profile = staff.get_staff_profile(org_id, _read_target(user_id, org_id))
     # Employment rate details are admin-facing; the teacher sees the rest.
     profile.pop('hourly_rate_cents', None)
     return jsonify({'success': True, 'profile': profile})
@@ -135,7 +154,7 @@ def my_forms(user_id):
     if err:
         return err
     return jsonify({'success': True,
-                    'submissions': forms.list_mine(org_id, user_id),
+                    'submissions': forms.list_mine(org_id, _read_target(user_id, org_id)),
                     'form_types': forms.FORM_TYPES})
 
 
@@ -160,7 +179,8 @@ def my_onboarding(user_id):
     if err:
         return err
     return jsonify({'success': True,
-                    'assignments': onboarding.list_assignments(org_id, user_id=user_id)})
+                    'assignments': onboarding.list_assignments(
+                        org_id, user_id=_read_target(user_id, org_id))})
 
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])
@@ -281,4 +301,5 @@ def my_time_entries(user_id):
     end = request.args.get('end')
     if not start or not end:
         return jsonify({'success': False, 'error': 'start and end are required (YYYY-MM-DD)'}), 400
-    return jsonify({'success': True, **staff.my_time_entries(org_id, user_id, start, end)})
+    return jsonify({'success': True,
+                    **staff.my_time_entries(org_id, _read_target(user_id, org_id), start, end)})

@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_attendance', __name__, url_prefix='/api/sis')
 
 STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
+ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):
@@ -45,6 +46,9 @@ def get_attendance(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    scope = sis_service.class_scope(user_id, org_id)
+    if scope is not None and class_id not in scope:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
     on_date = request.args.get('date')
     if not on_date:
         return jsonify({'success': False, 'error': 'date query param is required (YYYY-MM-DD)'}), 400
@@ -59,6 +63,9 @@ def record_attendance(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    scope = sis_service.class_scope(user_id, org_id)
+    if scope is not None and class_id not in scope:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
     data = request.json or {}
     on_date = data.get('date')
     entries = data.get('entries')
@@ -73,7 +80,7 @@ def record_attendance(user_id, class_id):
 
 
 @bp.route('/students/<student_id>/attendance', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def student_attendance(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:

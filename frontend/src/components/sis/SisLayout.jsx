@@ -1,9 +1,30 @@
 import React from 'react'
-import { Outlet, Navigate } from 'react-router-dom'
+import { Outlet, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { goToLearningSurface } from '../../utils/appSurface'
 import SisSidebar from './SisSidebar'
 import SisFeedbackFab from './SisFeedbackFab'
+import { isSisAdmin } from '../../pages/sis/sisRole'
+import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
+
+const PreviewBanner = () => {
+  const navigate = useNavigate()
+  const preview = getPreviewTeacher()
+  if (!preview) return null
+  return (
+    <div className="sticky top-0 z-30 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 flex items-center gap-3 text-sm">
+      <span className="font-medium">
+        Previewing the teacher portal as {preview.name} (read-only)
+      </span>
+      <button
+        onClick={() => { clearPreviewTeacher(); navigate('/staff'); window.location.reload() }}
+        className="ml-auto rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1 font-semibold"
+      >
+        Exit preview
+      </button>
+    </div>
+  )
+}
 
 const Spinner = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -39,6 +60,7 @@ const SisLayout = () => {
     <div className="min-h-screen bg-neutral-50">
       <SisSidebar />
       <main id="main-content" className="ml-60 min-h-screen">
+        {isSisAdmin(user) && <PreviewBanner />}
         <div className="max-w-6xl mx-auto px-6 py-8">
           <Outlet />
         </div>

@@ -104,7 +104,8 @@ def _admin_client_for_role(role):
 @contextmanager
 def staff(role='advisor', org='org-1'):
     with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role(role)), \
-         patch('services.sis_service.resolve_org_id', return_value=org):
+         patch('services.sis_service.resolve_org_id', return_value=org), \
+         patch('services.sis_service.class_scope', return_value=None):
         yield
 
 

@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import { useAuth } from '../../contexts/AuthContext'
+import { isSisAdmin } from './sisRole'
+import { getPreviewTeacher } from './teacherPreview'
+import TeacherDashboard from './TeacherDashboard'
 
 const StatCard = ({ label, value, accent }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -20,12 +24,17 @@ const STATUS_LABELS = {
 }
 
 const SisDashboard = () => {
+  const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
+  const admin = isSisAdmin(user)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // Read once per mount — exiting preview reloads the page.
+  const [preview] = useState(() => (isSisAdmin(user) ? getPreviewTeacher() : null))
 
   useEffect(() => {
+    if (!admin || preview) return
     if (!orgId) { setLoading(false); return }
     setLoading(true)
     api.get(withOrg('/api/sis/dashboard', orgId))
@@ -35,6 +44,16 @@ const SisDashboard = () => {
   }, [orgId])
 
   const counts = data?.enrollment_status || {}
+
+  if (!admin || preview) {
+    return (
+      <TeacherDashboard
+        orgId={orgId}
+        userName={preview ? preview.name : (user?.first_name || user?.display_name)}
+        preview={preview}
+      />
+    )
+  }
 
   return (
     <div>

@@ -13,7 +13,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.validation import sanitize_input
 from database import get_supabase_admin_client
-from routes.sis import _org_or_error, STAFF_ROLES
+from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
 
 logger = get_logger(__name__)
 
@@ -75,7 +75,7 @@ def list_events(user_id):
 
 
 @bp.route('/events', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def create_event(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -101,7 +101,7 @@ def _owned_event(event_id, org_id):
 
 
 @bp.route('/events/<event_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_event(user_id, event_id):
     from datetime import datetime
     org_id, err = _org_or_error(user_id)
@@ -125,7 +125,7 @@ def update_event(user_id, event_id):
 
 
 @bp.route('/events/<event_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def delete_event(user_id, event_id):
     org_id, err = _org_or_error(user_id)
     if err:

@@ -4,6 +4,8 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import { useAuth } from '../../contexts/AuthContext'
+import { isSisAdmin } from './sisRole'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -13,12 +15,15 @@ const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:
  * them on the learning app's Resources page any time after registration.
  */
 const ResourcesPage = () => {
+  const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const admin = isSisAdmin(user)
   const [resources, setResources] = useState([])
   const [paperwork, setPaperwork] = useState([]) // registration-form documents (linkable)
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(null) // resource being edited
+  const [ackReport, setAckReport] = useState(null) // resource whose ack report is open
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -41,6 +46,14 @@ const ResourcesPage = () => {
       toast.success('Resource removed')
       load()
     } catch { toast.error('Could not remove resource') }
+  }
+
+  const acknowledge = async (r) => {
+    try {
+      await api.post(`/api/sis/resources/${r.id}/ack`, { organization_id: orgId })
+      toast.success('Acknowledged')
+      load()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not record the acknowledgment') }
   }
 
   const grouped = resources.reduce((acc, r) => {
@@ -74,7 +87,7 @@ const ResourcesPage = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Resources</h1>
         <div className="flex items-center gap-3">
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-          {!adding && <Button size="sm" onClick={() => setAdding(true)}>Add resource</Button>}
+          {admin && !adding && <Button size="sm" onClick={() => setAdding(true)}>Add resource</Button>}
         </div>
       </div>
 
@@ -116,6 +129,10 @@ const ResourcesPage = () => {
         <p className="text-neutral-500">No resources yet. Add the family guidebook, student contract, and anything else families should keep handy.</p>
       )}
 
+      {ackReport && (
+        <AckReportModal orgId={orgId} resource={ackReport} onClose={() => setAckReport(null)} />
+      )}
+
       {Object.entries(grouped).map(([category, items]) => (
         <div key={category} className="mb-6">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">{category}</h2>
@@ -133,12 +150,39 @@ const ResourcesPage = () => {
                         Registration form
                       </span>
                     )}
+                    {admin && r.audience && r.audience !== 'families' && (
+                      <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-blue-100 text-blue-700 capitalize">
+                        {r.audience === 'all' ? 'Families + staff' : 'Staff'}
+                      </span>
+                    )}
+                    {r.requires_ack && (
+                      <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
+                        Acknowledgment required
+                      </span>
+                    )}
+                    {r.requires_ack && r.my_ack?.current && (
+                      <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">
+                        Acknowledged
+                      </span>
+                    )}
                   </span>
                   {r.description && <div className="text-xs text-neutral-500 truncate">{r.description}</div>}
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <button onClick={() => { setAdding(false); setEditing(r) }} className="text-sm text-neutral-500 hover:text-optio-purple">Edit</button>
-                  <button onClick={() => remove(r)} className="text-sm text-red-500 hover:underline">Remove</button>
+                  {r.requires_ack && !r.my_ack?.current && (
+                    <button onClick={() => acknowledge(r)} className="text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg px-3 py-1.5">
+                      I&apos;ve read this
+                    </button>
+                  )}
+                  {admin && r.requires_ack && (
+                    <button onClick={() => setAckReport(r)} className="text-sm text-neutral-500 hover:text-optio-purple">Report</button>
+                  )}
+                  {admin && (
+                    <>
+                      <button onClick={() => { setAdding(false); setEditing(r) }} className="text-sm text-neutral-500 hover:text-optio-purple">Edit</button>
+                      <button onClick={() => remove(r)} className="text-sm text-red-500 hover:underline">Remove</button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -149,11 +193,52 @@ const ResourcesPage = () => {
   )
 }
 
+const AckReportModal = ({ orgId, resource, onClose }) => {
+  const [rows, setRows] = useState(null)
+
+  useEffect(() => {
+    api.get(withOrg(`/api/sis/resources/${resource.id}/acks`, orgId))
+      .then((r) => setRows(r.data?.staff || []))
+      .catch(() => { toast.error('Failed to load the report'); onClose() })
+  }, [orgId, resource.id, onClose])
+
+  return (
+    <div className="mb-6 bg-white rounded-xl border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-semibold text-neutral-900">Acknowledgments — {resource.title}</h2>
+        <button onClick={onClose} className="text-sm text-neutral-500 hover:underline">Close</button>
+      </div>
+      {!rows && <p className="text-sm text-neutral-500">Loading…</p>}
+      {rows && (
+        <ul className="divide-y divide-gray-100">
+          {rows.map((s) => (
+            <li key={s.user_id} className="py-2 flex items-center gap-2 text-sm">
+              <span className="text-neutral-800">{s.name}</span>
+              {s.current ? (
+                <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                  Acknowledged {s.acknowledged_at ? new Date(s.acknowledged_at).toLocaleDateString() : ''}
+                </span>
+              ) : s.acknowledged_at ? (
+                <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Outdated — needs re-read</span>
+              ) : (
+                <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">Not acknowledged</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => {
   const [f, setF] = useState({
     title: resource?.title || '', description: resource?.description || '',
     url: resource?.url || '', category: resource?.category || '',
     paperwork_key: resource?.paperwork_key || '',
+    audience: resource?.audience || 'families',
+    requires_ack: Boolean(resource?.requires_ack),
+    reack: false,
   })
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -209,6 +294,27 @@ const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => 
           {uploading ? 'Uploading…' : 'Upload file'}
           <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden" disabled={uploading} onChange={(e) => upload(e.target.files?.[0])} />
         </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="text-xs text-neutral-500 block">Who sees this
+          <select value={f.audience} onChange={(e) => set('audience', e.target.value)} className={field}>
+            <option value="families">Families</option>
+            <option value="staff">Staff only</option>
+            <option value="all">Families + staff</option>
+          </select>
+        </label>
+        {f.audience !== 'families' && (
+          <label className="flex items-center gap-2 text-sm text-neutral-700 pt-4">
+            <input type="checkbox" checked={f.requires_ack} onChange={(e) => set('requires_ack', e.target.checked)} />
+            Staff must confirm they&apos;ve read it
+          </label>
+        )}
+        {resource && f.requires_ack && (
+          <label className="flex items-center gap-2 text-sm text-neutral-700 pt-4">
+            <input type="checkbox" checked={f.reack} onChange={(e) => set('reack', e.target.checked)} />
+            Policy updated — require everyone to re-read
+          </label>
+        )}
       </div>
       {paperwork.length > 0 && (
         <label className="text-xs text-neutral-500 block">

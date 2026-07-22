@@ -243,10 +243,25 @@ def _today_items(user_id: str, org_id: str) -> List[Dict[str, Any]]:
     return items
 
 
+def _school_start(org_id: str, today: date):
+    """(started, first_day_iso): whether school is in session yet, per the org's
+    first_day_of_school registration setting. No date configured = in session."""
+    from services.sis_parent_service import _first_day_of_school
+    first = _first_day_of_school(org_id)
+    if not first:
+        return True, None
+    try:
+        fd = date.fromisoformat(str(first)[:10])
+    except ValueError:
+        return True, None
+    return today >= fd, fd.isoformat()
+
+
 def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     """Everything the teacher home screen needs in one call."""
     profile = get_staff_profile(org_id, user_id)
     open_entry = current_open_entry(org_id, user_id)
+    started, first_day = _school_start(org_id, _org_now(org_id).date())
 
     onboarding = my_onboarding_summary(org_id, user_id)
 
@@ -278,7 +293,10 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     ).data or []
 
     return {
-        'today': _today_items(user_id, org_id),
+        # Before the first day of school the daily schedule stays empty — weekly
+        # meeting patterns exist in the catalog but classes haven't started yet.
+        'today': _today_items(user_id, org_id) if started else [],
+        'school_starts': None if started else first_day,
         'classes': teacher_classes(user_id, org_id),
         'profile': {k: profile.get(k) for k in
                     ('position', 'uses_time_clock', 'pay_type', 'is_active')},
@@ -323,7 +341,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
     is logged to student_access_logs (it exposes health information)."""
     admin = _admin()
     enrollments = (
-        admin.table('class_enrollments').select('student_id, created_at')
+        admin.table('class_enrollments').select('student_id, enrolled_at')
         .eq('class_id', class_id).eq('status', 'active').execute()
     ).data or []
     ids = [e['student_id'] for e in enrollments]
@@ -395,7 +413,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
             'medications': medications or None,
             'has_alert': bool(allergies or medications),
             'attendance': att.get(e['student_id']),
-            'enrolled_at': e.get('created_at'),
+            'enrolled_at': e.get('enrolled_at'),
         })
     students.sort(key=lambda s: (s.get('last_name') or s['name']).lower())
 

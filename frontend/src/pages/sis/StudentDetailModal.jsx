@@ -76,7 +76,14 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
     <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 pb-3 border-b border-gray-100 gap-3">
-          <div className="min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {student.avatar_url ? (
+              <img src={student.avatar_url} alt="" className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                {(student.name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')}
+              </div>
+            )}
             <h2 className="text-lg font-bold text-neutral-900 truncate">{student.name}</h2>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">

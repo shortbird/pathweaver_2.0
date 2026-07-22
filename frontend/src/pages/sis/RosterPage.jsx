@@ -190,8 +190,19 @@ const RosterPage = () => {
                   className="hover:bg-neutral-50 cursor-pointer"
                 >
                   <td className="px-4 py-3">
-                    <div className="font-medium text-neutral-900">{s.name}</div>
-                    <div className="text-xs text-neutral-400">{s.email || s.username}</div>
+                    <div className="flex items-center gap-3">
+                      {s.avatar_url ? (
+                        <img src={s.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                          {(s.name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-medium text-neutral-900">{s.name}</div>
+                        <div className="text-xs text-neutral-400 truncate">{s.email || s.username}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 flex-wrap">

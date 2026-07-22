@@ -73,10 +73,11 @@ describe('StaffPage', () => {
     )
   })
 
-  it('edits a teacher bio via the modal', async () => {
+  it('edits a teacher bio via the card detail modal', async () => {
     render(<StaffPage />)
-    await screen.findByText('Jane Doe')
-    fireEvent.click(screen.getAllByText('Edit')[0])
+    // Cards are clickable (unified detail-modal pattern); actions live inside.
+    fireEvent.click(await screen.findByText('Jane Doe'))
+    fireEvent.click(await screen.findByText('Edit profile'))
     fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Updated bio' } })
     fireEvent.click(screen.getByText('Save changes'))
     await waitFor(() =>
@@ -91,15 +92,22 @@ describe('StaffPage', () => {
     expect(await screen.findByText('Liz')).toBeInTheDocument()
     expect(screen.getByText('No login yet')).toBeInTheDocument()
     expect(screen.queryByText('liz@icreate-staff.placeholder.optioeducation.com')).not.toBeInTheDocument()
-    // Linked staff don't get the link affordance.
-    expect(screen.getAllByText('Link their account')).toHaveLength(1)
+  })
+
+  it('opens the detail modal from a card with the staff actions', async () => {
+    render(<StaffPage />)
+    fireEvent.click(await screen.findByText('Liz'))
+    expect(await screen.findByText('Link their account')).toBeInTheDocument()
+    expect(screen.getByText('View portal')).toBeInTheDocument()
+    expect(screen.getByText('Employment')).toBeInTheDocument()
+    expect(screen.getByText('Edit profile')).toBeInTheDocument()
   })
 
   it('links a placeholder account via the modal', async () => {
     api.post.mockResolvedValueOnce({ data: { linked: 'invited', email_sent: true } })
     render(<StaffPage />)
-    await screen.findByText('Liz')
-    fireEvent.click(screen.getByText('Link their account'))
+    fireEvent.click(await screen.findByText('Liz'))
+    fireEvent.click(await screen.findByText('Link their account'))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'liz@gmail.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
     await waitFor(() =>
@@ -112,8 +120,8 @@ describe('StaffPage', () => {
   it('surfaces a link refusal in the modal', async () => {
     api.post.mockRejectedValueOnce({ response: { data: { error: 'This email belongs to a student account' } } })
     render(<StaffPage />)
-    await screen.findByText('Liz')
-    fireEvent.click(screen.getByText('Link their account'))
+    fireEvent.click(await screen.findByText('Liz'))
+    fireEvent.click(await screen.findByText('Link their account'))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'kid@gmail.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('This email belongs to a student account')
