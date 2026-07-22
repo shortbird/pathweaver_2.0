@@ -129,10 +129,13 @@ def health_check():
     """
     from health import ping_database
     ok, err = ping_database()
+    # Deployed commit (Render sets RENDER_GIT_COMMIT) so the post-deploy smoke
+    # check in release.yml can wait for ITS commit to be live before probing.
+    commit = os.environ.get('RENDER_GIT_COMMIT')
     if ok:
-        return jsonify({'status': 'healthy', 'db': 'ok'}), 200
+        return jsonify({'status': 'healthy', 'db': 'ok', 'commit': commit}), 200
     logger.error(f"[HEALTH] DB ping failed: {err}")
-    return jsonify({'status': 'unhealthy', 'db': 'unreachable'}), 503
+    return jsonify({'status': 'unhealthy', 'db': 'unreachable', 'commit': commit}), 503
 
 @app.route('/.well-known/jwks.json', methods=['GET'])
 def well_known_jwks():

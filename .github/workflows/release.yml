@@ -183,6 +183,76 @@ jobs:
             echo "$svc -> deploy $id"
           done
 
+  # Post-deploy smoke check — probes the LIVE prod API after Render finishes
+  # deploying this commit. CI-green tells you the code passed tests; this tells
+  # you the code that actually went live serves the critical auth paths. Added
+  # after 2026-07-21, when a CSRF-enforcement regression shipped green and
+  # blocked login + iCreate registration for hours with zero alerts.
+  # A failure here does NOT roll anything back — it is the alarm bell.
+  smoke:
+    name: Post-deploy smoke check (prod)
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Wait for this commit to be live
+        run: |
+          set -euo pipefail
+          echo "Waiting for api.optioeducation.com to serve $GITHUB_SHA ..."
+          for i in $(seq 1 60); do
+            live=$(curl -sS --max-time 10 https://api.optioeducation.com/api/health | jq -r '.commit // empty' || true)
+            if [ "$live" = "$GITHUB_SHA" ]; then
+              echo "Live after ~$((i*20))s"; exit 0
+            fi
+            echo "  attempt $i: live commit = ${live:-unknown}"; sleep 20
+          done
+          echo "::error::Deploy never went live: prod still serves ${live:-unknown} after 20 min."
+          exit 1
+      - name: Probe critical auth paths
+        run: |
+          set -euo pipefail
+          fail=0
+          probe() { # name, expected-fragment-ABSENT, curl args...
+            local name="$1"; shift
+            local body status
+            body=$(curl -sS --max-time 15 -w '\n%{http_code}' "$@")
+            status=$(echo "$body" | tail -1); body=$(echo "$body" | sed '$d')
+            echo "[$name] HTTP $status: $(echo "$body" | head -c 200)"
+            if echo "$body" | grep -q 'csrf_required'; then
+              echo "::error::[$name] returned a CSRF rejection — cookie-carrying users are blocked."
+              fail=1
+            fi
+            if [ "$status" -ge 500 ]; then
+              echo "::error::[$name] returned HTTP $status"
+              fail=1
+            fi
+          }
+          # Login must never CSRF-reject, even with stale auth cookies present.
+          # Unique probe email per run so failed-attempt lockouts never accrue.
+          probe "login+cookie" -X POST "https://api.optioeducation.com/api/auth/login" \
+            -H "Content-Type: application/json" -H "Origin: https://www.optioeducation.com" \
+            --cookie "access_token=smoke-stale" \
+            -d "{\"email\":\"smoke-$GITHUB_RUN_ID@example.com\",\"password\":\"wrong\"}"
+          # Refresh with a garbage cookie must fail as auth, not CSRF.
+          probe "refresh+cookie" -X POST "https://api.optioeducation.com/api/auth/refresh" \
+            -H "Content-Type: application/json" -H "Origin: https://www.optioeducation.com" \
+            --cookie "refresh_token=smoke-stale" -d '{}'
+          # CSRF token endpoint must serve tokens.
+          csrf=$(curl -sS --max-time 15 "https://api.optioeducation.com/api/auth/csrf-token" \
+            -H "Origin: https://www.optioeducation.com" | jq -r '.csrf_token // empty')
+          if [ -z "$csrf" ]; then
+            echo "::error::/api/auth/csrf-token returned no token"; fail=1
+          else
+            echo "[csrf-token] ok"
+          fi
+          # Web app must serve.
+          web_status=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' https://www.optioeducation.com/)
+          echo "[web] HTTP $web_status"
+          if [ "$web_status" -ge 400 ]; then
+            echo "::error::www.optioeducation.com returned HTTP $web_status"; fail=1
+          fi
+          exit $fail
+
   # Production OTA — only after all three test jobs pass.
   ota:
     name: Publish production OTA

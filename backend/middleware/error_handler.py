@@ -155,6 +155,15 @@ class ErrorHandler:
     def handle_app_error(self, error):
         """Handle application errors"""
         log_error(error, self.get_request_info())
+        # 5xx AppErrors (ExternalServiceError etc.) are server-side failures —
+        # group them by raise site in Sentry, same rationale as in
+        # handle_generic_error. 4xx stay out of Sentry (expected user errors).
+        if getattr(error, 'status_code', 500) >= 500:
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_exception(error)
+            except Exception:
+                logger.debug("Sentry capture failed", exc_info=True)
         response = format_error_response(error)
         resp = jsonify(response)
         # AUTH-H3 fix: only echo the Origin for credentialed CORS when it is on
@@ -200,6 +209,19 @@ class ErrorHandler:
 
         request_info = self.get_request_info()
         log_error(error, request_info)
+
+        # Report the ORIGINAL exception to Sentry with its stack trace. The
+        # logging integration only sees log_error's formatted-JSON message,
+        # which groups one issue per occurrence (timestamps in the message);
+        # capture_exception groups by stack, so regressions surface as ONE
+        # loud issue with a count instead of scattered noise. This handler
+        # swallows the exception (returns a 500 response), so Sentry's Flask
+        # integration never sees it as unhandled — this is the only capture.
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(error)
+        except Exception:
+            logger.debug("Sentry capture failed", exc_info=True)
 
         # D6: report unexpected server errors to PostHog. 4xx AppError paths
         # don't come through this handler, so this only fires on true 500s.

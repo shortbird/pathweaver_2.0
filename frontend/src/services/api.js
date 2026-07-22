@@ -302,9 +302,60 @@ api.interceptors.response.use(
       }
     }
 
+    reportApiFailure(error)
     return Promise.reject(error)
   }
 )
+
+// ─── Loud API-failure reporting (July 2026) ─────────────────────────────────
+// Callers catch rejected API promises and show a toast, so breakage was
+// invisible to Sentry (only unhandled JS exceptions were captured) — the
+// 2026-07-21 CSRF outage produced zero alerts. Report server-side failure
+// classes that indicate a REGRESSION, not user error:
+//   - any 5xx
+//   - 403 (authorization) — role-gated UI means legit users rarely see these;
+//     a burst = an over-tightened authz check (skips COPPA consent_required,
+//     which is an expected product state handled above)
+//   - 405 (method not allowed) — always a routing/deploy regression
+// Deliberately NOT reported: 400/404/409/422 (user/validation flows), 401
+// (session expiry is normal; the refresh interceptor handles it), 429 (rate
+// limits working as intended), and network errors (offline users are noise).
+// One report per method+endpoint+status per page load, 20 max, ids collapsed
+// so Sentry groups by endpoint shape.
+const reportedApiFailures = new Set()
+const REPORTABLE = (error) => {
+  const s = error.response?.status
+  if (!s) return false
+  if (s >= 500) return true
+  if (s === 403 && !error.response?.data?.consent_required) return true
+  return s === 405
+}
+
+function reportApiFailure(error) {
+  try {
+    if (!REPORTABLE(error)) return
+    const method = (error.config?.method || 'get').toUpperCase()
+    const status = error.response.status
+    const endpoint = (error.config?.url || 'unknown')
+      .split('?')[0]
+      .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
+      .replace(/\/\d+(\/|$)/g, '/:id$1')
+    const key = `${status}:${method}:${endpoint}`
+    if (reportedApiFailures.has(key) || reportedApiFailures.size >= 20) return
+    reportedApiFailures.add(key)
+    captureException(new Error(`API ${status}: ${method} ${endpoint}`), {
+      status,
+      endpoint,
+      method,
+      error_code: error.response?.data?.error_detail?.code || error.response?.data?.error?.code,
+      server_message: typeof error.response?.data?.error === 'string'
+        ? error.response.data.error : error.response?.data?.error?.message,
+      request_id: error.response?.data?.error_detail?.request_id,
+    })
+  } catch {
+    // Reporting must never break the caller's error handling.
+  }
+}
 
 // friendsAPI removed (March 2026 - Feature pruning)
 // Collaboration API removed in Phase 3 refactoring (January 2025)
