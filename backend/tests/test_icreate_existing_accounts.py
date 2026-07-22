@@ -322,8 +322,13 @@ def _login(client, user, regs=()):
 @pytest.mark.unit
 class TestLoginPlatformGuardrails:
     def test_platform_student_refused(self, client):
+        # 2026-07-22: refusal now requires EVIDENCE of a kid's account (minor
+        # DOB / dependent / parent-linked / learning activity) — the main Optio
+        # signup defaults adults to role='student' too, and blanket refusal
+        # locked real parents out (see test_icreate_adult_parent_login.py).
         resp, admin = _login(client, {'id': 'u1', 'role': 'student', 'org_role': None,
-                                      'org_roles': None, 'organization_id': None})
+                                      'org_roles': None, 'organization_id': None,
+                                      'date_of_birth': '2012-05-02'})
         assert resp.status_code == 409
         assert 'student' in resp.get_json()['error'].lower()
         assert not admin.updates and not admin.inserts

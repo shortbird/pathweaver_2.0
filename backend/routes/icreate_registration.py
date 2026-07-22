@@ -514,6 +514,36 @@ def _send_otp_email(email: str, first: str, org_name: str, code: str) -> bool:
         return False
 
 
+def _platform_student_is_registerable_adult(admin, user):
+    """Whether a platform account carrying the DEFAULT role='student' is safe
+    to treat as an adult registering their family (the main Optio signup gives
+    everyone role='student', so adults who self-registered there look like
+    students). True only when there is NO evidence it's a kid's account:
+      - not a dependent / not managed by a parent,
+      - not linked to any parent as the student,
+      - adult by DOB; or with DOB unknown, a pristine account (no XP, no
+        quests — a kid who actually uses Optio has learning activity).
+    Any lookup failure keeps the guardrail (returns False)."""
+    if user.get('is_dependent') or user.get('managed_by_parent_id'):
+        return False
+    try:
+        linked = (admin.table('parent_student_links').select('id')
+                  .eq('student_user_id', user['id']).limit(1).execute()).data
+        if linked:
+            return False
+        dob = _parse_dob(user.get('date_of_birth'))
+        if dob is not None:
+            return _calc_age(dob) >= 18
+        if int(user.get('total_xp') or 0) > 0:
+            return False
+        quests = (admin.table('user_quests').select('id')
+                  .eq('user_id', user['id']).limit(1).execute()).data
+        return not quests
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'iCreate login: adult check failed for {user.get("id", "?")[:8]}: {e}')
+        return False
+
+
 def _load_registration(reg_id):
     admin = _admin()
     r = admin.table('icreate_registrations').select('*').eq('id', reg_id).single().execute()
@@ -864,7 +894,8 @@ def login():
         return jsonify({'error': 'Email and password are required'}), 400
 
     row = (admin.table('users')
-           .select('id, role, org_role, org_roles, organization_id, first_name, last_name')
+           .select('id, role, org_role, org_roles, organization_id, first_name, last_name, '
+                   'is_dependent, managed_by_parent_id, date_of_birth, total_xp')
            .eq('email', email).limit(1).execute()).data
     if not row:
         return jsonify({'error': 'No Optio account with this email — create one instead.'}), 404
@@ -882,9 +913,15 @@ def login():
         return jsonify({'error': 'This account belongs to another school. Please contact iCreate.'}), 409
     # Platform NON-parent accounts must not be silently repurposed as iCreate
     # parents (that used to convert e.g. a student's own account into a parent).
+    # BUT: the main Optio signup defaults EVERYONE to role='student', so an
+    # adult who created their own account there (e.g. while the funnel was
+    # down, 2026-07-21) is a false positive — refuse only accounts that show
+    # actual evidence of being a kid's: dependent/managed, linked to a parent,
+    # a minor by DOB, or (DOB unknown) an account with real learning activity.
     if not user.get('organization_id') and user.get('role') == 'student':
-        return jsonify({'error': "This looks like a student's Optio account. Register with a parent "
-                                 "email — you can connect your child's account on the family step."}), 409
+        if not _platform_student_is_registerable_adult(admin, user):
+            return jsonify({'error': "This looks like a student's Optio account. Register with a parent "
+                                     "email — you can connect your child's account on the family step."}), 409
     if not user.get('organization_id') and user.get('role') in ('advisor', 'observer'):
         return jsonify({'error': 'This account can\'t be used to register a family. '
                                  'Please use a parent email or contact iCreate.'}), 409

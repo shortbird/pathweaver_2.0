@@ -91,12 +91,18 @@ def _student_name(student_user_id: str) -> str:
 
 
 def _notify_staff(org_id: str, student_user_id: str) -> None:
-    """Tell org staff a schedule is waiting: in-app + email, best-effort."""
+    """Tell org ADMINS a schedule is waiting: in-app + email, best-effort.
+
+    Admins only — schedule approval is an org_admin action (the Registration
+    review queue), so advisors have nothing to act on. The first live
+    submission (2026-07-22) emailed every teacher in the org too, because
+    list_org_staff returns advisors as well."""
     try:
         from services import sis_service
         from services.sis_notifications import notify
         name = _student_name(student_user_id)
-        staff = sis_service.list_org_staff(org_id) or []
+        staff = [s for s in (sis_service.list_org_staff(org_id) or [])
+                 if 'org_admin' in (s.get('roles') or [])]
         for s in staff:
             notify(s.get('id'), 'Schedule submitted for approval',
                    f"{name}'s class schedule was submitted for review.",
