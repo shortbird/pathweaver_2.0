@@ -25,6 +25,8 @@ from routes.admin.bulk_import import (
     parse_csv_file,
     validate_row,
     build_org_user_record,
+    generate_username,
+    build_username_user_record,
     VALID_IMPORT_ROLES
 )
 from datetime import date, timedelta
@@ -544,6 +546,67 @@ class TestBuildOrgUserRecord:
         )
         assert record['date_of_birth'] == dob
         assert 'requires_parental_consent' not in record
+
+
+class TestGenerateUsername:
+    """Tests for auto-generated usernames in bulk no-email creation"""
+
+    def test_first_name_plus_last_initial(self):
+        assert generate_username('Maya', 'Jones', set()) == 'mayaj'
+
+    def test_collision_falls_back_to_full_last_name(self):
+        assert generate_username('Maya', 'Jones', {'mayaj'}) == 'mayajones'
+
+    def test_double_collision_appends_number(self):
+        taken = {'mayaj', 'mayajones'}
+        assert generate_username('Maya', 'Jones', taken) == 'mayajones2'
+
+    def test_number_suffix_increments(self):
+        taken = {'mayaj', 'mayajones', 'mayajones2', 'mayajones3'}
+        assert generate_username('Maya', 'Jones', taken) == 'mayajones4'
+
+    def test_special_characters_stripped(self):
+        assert generate_username("Mary-Kate", "O'Brien", set()) == 'marykateo'
+
+    def test_lowercased(self):
+        result = generate_username('MAYA', 'JONES', set())
+        assert result == result.lower()
+
+    def test_empty_names_fall_back_to_student(self):
+        result = generate_username('', '', set())
+        assert result.startswith('student')
+
+    def test_generated_usernames_match_pattern(self):
+        """Generated usernames must pass the platform username validation"""
+        from routes.admin.organization_management import USERNAME_PATTERN
+        cases = [('Maya', 'Jones'), ("Mary-Kate", "O'Brien"), ('Li', 'Wu'), ('', '')]
+        taken = set()
+        for first, last in cases:
+            username = generate_username(first, last, taken)
+            assert USERNAME_PATTERN.match(username), f"'{username}' fails pattern"
+            taken.add(username)
+
+
+class TestBuildUsernameUserRecord:
+    """Tests for no-email account row construction"""
+
+    def test_org_managed_pattern(self):
+        record = build_username_user_record('u1', 'mayaj', 'Maya', 'Jones', 'student', 'org-1')
+        assert record['role'] == 'org_managed'
+        assert record['org_role'] == 'student'
+        assert record['organization_id'] == 'org-1'
+
+    def test_no_email_and_display_name(self):
+        record = build_username_user_record('u1', 'mayaj', 'Maya', 'Jones', 'student', 'org-1')
+        assert record['email'] is None
+        assert record['username'] == 'mayaj'
+        assert record['display_name'] == 'Maya Jones'
+
+    def test_fresh_progress_fields(self):
+        record = build_username_user_record('u1', 'mayaj', 'Maya', 'Jones', 'student', 'org-1')
+        assert record['total_xp'] == 0
+        assert record['level'] == 1
+        assert record['streak_days'] == 0
 
 
 class TestValidImportRoles:

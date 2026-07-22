@@ -9,11 +9,11 @@ const VALID_ROLES = [
   { value: 'org_admin', label: 'Organization Admin' }
 ];
 
-export default function InviteUserModal({ organizationId, onClose, onSuccess }) {
+export default function InviteUserModal({ organizationId, onClose, onSuccess, initialRole = 'student' }) {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    role: 'student',
+    role: VALID_ROLES.some(r => r.value === initialRole) ? initialRole : 'student',
     send_email: true
   });
   const [loading, setLoading] = useState(false);

@@ -97,6 +97,62 @@ function QuestCard({ quest }: { quest: any }) {
   );
 }
 
+// ── Assigned Quest Card (org class assignment, not started yet) ──
+
+function AssignedQuestCard({ assignment }: { assignment: any }) {
+  const q = assignment.quest;
+  const imageUrl = q?.header_image_url || q?.image_url;
+  const dueDate = assignment.due_date
+    ? new Date(assignment.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
+
+  return (
+    <Pressable
+      testID={`assigned-quest-card-${q?.id}`}
+      onPress={() => router.push(`/(app)/quests/${q?.id}`)}
+      className="md:h-full"
+    >
+      <Card variant="elevated" size="md" className="min-w-0 overflow-hidden md:h-full border-l-4 border-optio-purple">
+        {imageUrl ? (
+          <View className="h-28 -mx-4 -mt-4 mb-4 overflow-hidden rounded-t-xl">
+            <Image source={{ uri: imageUrl }} className="w-full h-full" resizeMode="cover" />
+            <View className="absolute bottom-0 left-0 right-0 p-3 bg-black/40">
+              <UIText size="sm" className="text-white font-poppins-semibold" numberOfLines={1}>
+                {q?.title || 'Quest'}
+              </UIText>
+            </View>
+          </View>
+        ) : (
+          <UIText size="sm" className="font-poppins-semibold mb-2" numberOfLines={1}>
+            {q?.title || 'Quest'}
+          </UIText>
+        )}
+
+        <HStack className="items-center justify-between mb-2">
+          <Badge action="info" className="bg-optio-purple">
+            <BadgeText className="text-white">Assigned</BadgeText>
+          </Badge>
+          {dueDate && (
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+              Due {dueDate}
+            </UIText>
+          )}
+        </HStack>
+
+        {assignment.class_name ? (
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
+            {assignment.class_name} — tap to start
+          </UIText>
+        ) : (
+          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+            Tap to start
+          </UIText>
+        )}
+      </Card>
+    </Pressable>
+  );
+}
+
 // ── Welcome Header ──
 
 function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: any; activeQuestCount: number }) {
@@ -269,6 +325,7 @@ export default function DashboardScreen() {
   // tidy section.
   type ListItem =
     | { kind: 'bounty'; id: string; claim: any }
+    | { kind: 'assigned'; id: string; assignment: any }
     | { kind: 'class'; id: string; quest: any }
     | { kind: 'course'; id: string; course: any }
     | { kind: 'quest'; id: string; quest: any };
@@ -281,6 +338,12 @@ export default function DashboardScreen() {
       c.status === 'revision_requested'
     )
     .map((c: any) => ({ kind: 'bounty', id: `bounty-${c.id}`, claim: c }));
+  // Quests a teacher assigned through an org class that the student hasn't
+  // started yet — surfaced right after bounties so schoolwork is never
+  // invisible on mobile. Tapping opens the quest detail with its enroll CTA.
+  const assignedItems: ListItem[] = (data?.assigned_class_quests || [])
+    .filter((a: any) => a?.quest?.id)
+    .map((a: any) => ({ kind: 'assigned', id: `assigned-${a.quest.id}`, assignment: a }));
   const classItems: ListItem[] = activeQuests
     .filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) === 'class')
     .map((uq: any) => ({ kind: 'class', id: `class-${uq.id}`, quest: uq }));
@@ -290,7 +353,7 @@ export default function DashboardScreen() {
   const questItems: ListItem[] = activeQuests
     .filter((uq: any) => (uq.quests?.quest_type || uq.quest_type) !== 'class')
     .map((uq: any) => ({ kind: 'quest', id: `quest-${uq.id}`, quest: uq }));
-  const workingOnItems: ListItem[] = [...bountyItems, ...classItems, ...courseItems, ...questItems];
+  const workingOnItems: ListItem[] = [...bountyItems, ...assignedItems, ...classItems, ...courseItems, ...questItems];
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
@@ -326,6 +389,7 @@ export default function DashboardScreen() {
                 {workingOnItems.map((item) => (
                   <View key={item.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]">
                     {item.kind === 'bounty' && <HomeBountyCard claim={item.claim} />}
+                    {item.kind === 'assigned' && <AssignedQuestCard assignment={item.assignment} />}
                     {item.kind === 'class' && <ClassCard quest={item.quest} />}
                     {item.kind === 'course' && <CourseCard course={item.course} />}
                     {item.kind === 'quest' && <QuestCard quest={item.quest} />}

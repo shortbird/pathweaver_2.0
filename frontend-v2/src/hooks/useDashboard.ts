@@ -37,6 +37,9 @@ export interface EngagementData {
 
 export interface DashboardData {
   active_quests: any[];
+  /** Quests assigned via org classes that the student hasn't started yet.
+   *  Shape: { class_id, class_name, due_date, quest: {...} } */
+  assigned_class_quests?: any[];
   enrolled_courses: any[];
   recent_completed_quests: any[];
   stats: {

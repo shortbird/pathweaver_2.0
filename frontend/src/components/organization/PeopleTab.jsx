@@ -1,5 +1,7 @@
-import React, { Suspense, lazy } from 'react'
+import React, { Suspense, lazy, useState } from 'react'
 import CreateUsernameStudentModal from './CreateUsernameStudentModal'
+import AddPeopleChooser from './AddPeopleChooser'
+import BulkUsernameCreateModal from './BulkUsernameCreateModal'
 import {
   Modal,
   EditUserModal,
@@ -10,19 +12,17 @@ import {
   AssignStudentsModal,
   AddParentConnectionModal
 } from './people'
-import {
-  ChevronDownIcon,
-  UserPlusIcon,
-  UsersIcon,
-  EnvelopeIcon
-} from '@heroicons/react/24/outline'
+import { UserPlusIcon } from '@heroicons/react/24/outline'
 import usePeopleTabState from '../../hooks/usePeopleTabState'
 
 const BulkUserImport = lazy(() => import('../admin/BulkUserImport'))
 const InviteUserModal = lazy(() => import('../admin/InviteUserModal'))
 
-export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
+export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) {
   const state = usePeopleTabState({ orgId, orgSlug, users, onUpdate })
+  const [showAddPeopleChooser, setShowAddPeopleChooser] = useState(false)
+  const [showBulkUsernameModal, setShowBulkUsernameModal] = useState(false)
+  const [inviteInitialRole, setInviteInitialRole] = useState('student')
 
   return (
     <div className="space-y-4">
@@ -61,66 +61,13 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
             </button>
           )}
 
-          <div className="relative">
-            <button
-              onClick={() => state.setShowActionsDropdown(!state.showActionsDropdown)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
-            >
-              <UserPlusIcon className="w-5 h-5" />
-              Add User
-              <ChevronDownIcon className="w-4 h-4" />
-            </button>
-
-            {state.showActionsDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => state.setShowActionsDropdown(false)}
-                />
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                  <button
-                    onClick={() => {
-                      state.setShowActionsDropdown(false)
-                      state.setShowInviteModal(true)
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-gray-50 flex items-start gap-3"
-                  >
-                    <EnvelopeIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
-                    <span>
-                      <span className="block text-sm font-medium">Invite by Email</span>
-                      <span className="block text-xs text-gray-500">Send a sign-up link. Best for parents, teachers, or students with an email address.</span>
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      state.setShowActionsDropdown(false)
-                      state.setShowCreateUsernameModal(true)
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-gray-50 flex items-start gap-3"
-                  >
-                    <UserPlusIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
-                    <span>
-                      <span className="block text-sm font-medium">Create Student (No Email)</span>
-                      <span className="block text-xs text-gray-500">Generate a username + password to hand out. Best for young students — including your own child.</span>
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      state.setShowActionsDropdown(false)
-                      state.setShowBulkImportModal(true)
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-gray-50 flex items-start gap-3"
-                  >
-                    <UsersIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
-                    <span>
-                      <span className="block text-sm font-medium">Bulk Import CSV</span>
-                      <span className="block text-xs text-gray-500">Add many students at once from a spreadsheet.</span>
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <button
+            onClick={() => setShowAddPeopleChooser(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
+          >
+            <UserPlusIcon className="w-5 h-5" />
+            Add People
+          </button>
         </div>
       </div>
 
@@ -216,6 +163,33 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
         />
       )}
 
+      {showAddPeopleChooser && (
+        <AddPeopleChooser
+          onClose={() => setShowAddPeopleChooser(false)}
+          onBulkUsername={() => setShowBulkUsernameModal(true)}
+          onCreateUsername={() => state.setShowCreateUsernameModal(true)}
+          onBulkImport={() => state.setShowBulkImportModal(true)}
+          onInvite={(role) => {
+            setInviteInitialRole(role)
+            state.setShowInviteModal(true)
+          }}
+          onParentConnection={(mode) => {
+            state.setConnectionMode(mode)
+            state.setShowAddConnectionModal(true)
+          }}
+        />
+      )}
+
+      {showBulkUsernameModal && (
+        <BulkUsernameCreateModal
+          orgId={orgId}
+          orgSlug={orgSlug}
+          orgName={orgName}
+          onClose={() => setShowBulkUsernameModal(false)}
+          onSuccess={() => onUpdate()}
+        />
+      )}
+
       {state.showCreateUsernameModal && (
         <CreateUsernameStudentModal
           orgId={orgId}
@@ -233,6 +207,7 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
         }>
           <InviteUserModal
             organizationId={orgId}
+            initialRole={inviteInitialRole}
             onClose={() => state.setShowInviteModal(false)}
             onSuccess={() => {
               state.fetchPendingInvitations()

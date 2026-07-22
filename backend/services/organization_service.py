@@ -50,7 +50,14 @@ class OrganizationService(BaseService):
             'slug': slug,
             'quest_visibility_policy': policy,
             'branding_config': {},
-            'is_active': True
+            'is_active': True,
+            # School-friendly defaults: teachers get due dates and scheduled
+            # publishing out of the box instead of meeting a disabled-feature
+            # error. Superadmin can still turn these off per org.
+            'feature_flags': {
+                'due_dates': True,
+                'scheduled_publish': True
+            }
         }
 
         org = self.org_repo.create_organization(data)

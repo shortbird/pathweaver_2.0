@@ -156,6 +156,64 @@ describe('DashboardScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/(app)/quests/q-1');
   });
 
+  // ── Assigned Class Quests (org class assignments not yet started) ──
+
+  it('renders assigned class quest cards with class name', () => {
+    (useDashboard as jest.Mock).mockReturnValue({
+      data: {
+        ...mockDashboardData,
+        assigned_class_quests: [
+          {
+            class_id: 'cls-1',
+            class_name: 'Homeroom A',
+            due_date: null,
+            quest: { id: 'q-9', title: 'Volcano Project', description: 'Science', header_image_url: null },
+          },
+        ],
+      },
+      loading: false, error: null, refetch: jest.fn(),
+    });
+    const r = tryRender(<DashboardScreen />);
+    if (!r) return;
+    expect(r.getByText('Volcano Project')).toBeTruthy();
+    expect(r.getByText('Assigned')).toBeTruthy();
+    expect(r.getByText(/Homeroom A/)).toBeTruthy();
+  });
+
+  it('assigned quest card navigates to quest detail on press', () => {
+    (useDashboard as jest.Mock).mockReturnValue({
+      data: {
+        ...mockDashboardData,
+        assigned_class_quests: [
+          { class_id: 'cls-1', class_name: 'Homeroom A', due_date: null, quest: { id: 'q-9', title: 'Volcano Project' } },
+        ],
+      },
+      loading: false, error: null, refetch: jest.fn(),
+    });
+    const r = tryRender(<DashboardScreen />);
+    if (!r) return;
+    fireEvent.press(r.getByTestId('assigned-quest-card-q-9'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/(app)/quests/q-9');
+  });
+
+  it('assigned quests keep the empty state hidden even with no active quests', () => {
+    (useDashboard as jest.Mock).mockReturnValue({
+      data: {
+        ...mockDashboardData,
+        active_quests: [],
+        enrolled_courses: [],
+        assigned_class_quests: [
+          { class_id: 'cls-1', class_name: 'Homeroom A', due_date: null, quest: { id: 'q-9', title: 'Volcano Project' } },
+        ],
+      },
+      loading: false, error: null, refetch: jest.fn(),
+    });
+    const r = tryRender(<DashboardScreen />);
+    if (!r) return;
+    expect(r.queryByTestId('empty-state-cta')).toBeNull();
+    expect(r.getByText('Volcano Project')).toBeTruthy();
+  });
+
   // ── Enrolled Courses (rendered as cards in the unified "What you're working on" list) ──
 
   it('renders the enrolled course card', () => {
