@@ -24,6 +24,7 @@ from routes.admin.bulk_import import (
     validate_date_of_birth,
     parse_csv_file,
     validate_row,
+    build_org_user_record,
     VALID_IMPORT_ROLES
 )
 from datetime import date, timedelta
@@ -488,6 +489,61 @@ class TestValidateRow:
         existing_emails = {'test@example.com'}
         errors = validate_row(row, 2, existing_emails)
         assert any('duplicate' in e.lower() for e in errors)
+
+
+class TestBuildOrgUserRecord:
+    """Tests for the imported-user row construction (org_managed pattern)"""
+
+    def test_uses_org_managed_role_pattern(self):
+        """Imported org members must get role='org_managed' with the actual
+        role in org_role — NOT the literal role in the role column"""
+        record = build_org_user_record(
+            'user-1', 'kid@school.edu', 'Alice', 'Johnson', 'student', 'org-1'
+        )
+        assert record['role'] == 'org_managed'
+        assert record['org_role'] == 'student'
+        assert record['organization_id'] == 'org-1'
+
+    def test_all_import_roles_map_to_org_role(self):
+        """Every valid import role lands in org_role, never in role"""
+        for role in VALID_IMPORT_ROLES:
+            record = build_org_user_record(
+                'user-1', f'{role}@school.edu', 'Test', 'User', role, 'org-1'
+            )
+            assert record['role'] == 'org_managed', f"role column wrong for '{role}'"
+            assert record['org_role'] == role
+
+    def test_identity_fields_preserved(self):
+        record = build_org_user_record(
+            'user-9', 'bob@school.edu', 'Bob', 'Smith', 'parent', 'org-2'
+        )
+        assert record['id'] == 'user-9'
+        assert record['email'] == 'bob@school.edu'
+        assert record['first_name'] == 'Bob'
+        assert record['last_name'] == 'Smith'
+
+    def test_no_dob_omits_consent_fields(self):
+        record = build_org_user_record(
+            'user-1', 'kid@school.edu', 'Alice', 'Johnson', 'student', 'org-1'
+        )
+        assert 'date_of_birth' not in record
+        assert 'requires_parental_consent' not in record
+
+    def test_under_13_requires_parental_consent(self):
+        dob = (date.today() - timedelta(days=int(365.25 * 10))).isoformat()
+        record = build_org_user_record(
+            'user-1', 'kid@school.edu', 'Alice', 'Johnson', 'student', 'org-1', dob=dob
+        )
+        assert record['date_of_birth'] == dob
+        assert record['requires_parental_consent'] is True
+
+    def test_over_13_no_parental_consent(self):
+        dob = (date.today() - timedelta(days=int(365.25 * 16))).isoformat()
+        record = build_org_user_record(
+            'user-1', 'teen@school.edu', 'Alice', 'Johnson', 'student', 'org-1', dob=dob
+        )
+        assert record['date_of_birth'] == dob
+        assert 'requires_parental_consent' not in record
 
 
 class TestValidImportRoles:

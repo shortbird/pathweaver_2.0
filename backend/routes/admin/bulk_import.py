@@ -96,6 +96,33 @@ def parse_csv_file(file_content, expected_headers):
         return None, f"Failed to parse CSV: {str(e)}"
 
 
+def build_org_user_record(user_id, email, first_name, last_name, role, org_id, dob=None):
+    """Build the public.users row for one imported org member.
+
+    Org members use the org_managed pattern: platform role is 'org_managed'
+    and the actual role lives in org_role (same as the invite-accept and
+    create-username paths). Under-13s get the parental-consent flag.
+    """
+    user_data = {
+        'id': user_id,
+        'email': email,
+        'first_name': first_name,
+        'last_name': last_name,
+        'role': 'org_managed',
+        'org_role': role,
+        'organization_id': org_id
+    }
+
+    if dob:
+        user_data['date_of_birth'] = dob
+        dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
+        age = (date.today() - dob_date).days / 365.25
+        if age < 13:
+            user_data['requires_parental_consent'] = True
+
+    return user_data
+
+
 def validate_row(row, row_number, existing_emails):
     """Validate a single row of import data"""
     errors = []
@@ -289,24 +316,9 @@ def bulk_import_users(current_user_id, current_org_id, is_superadmin, org_id):
             user_id = auth_response.user.id
 
             # Prepare user profile for batch insert
-            user_data = {
-                'id': user_id,
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'role': role,
-                'organization_id': org_id
-            }
-
-            # Add optional date of birth
-            if dob:
-                user_data['date_of_birth'] = dob
-                dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
-                age = (date.today() - dob_date).days / 365.25
-                if age < 13:
-                    user_data['requires_parental_consent'] = True
-
-            users_to_insert.append(user_data)
+            users_to_insert.append(build_org_user_record(
+                user_id, email, first_name, last_name, role, org_id, dob=dob
+            ))
 
             # Prepare skill records for batch insert
             skill_categories = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
