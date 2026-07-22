@@ -1532,7 +1532,18 @@ def create_checkout(reg_id):
         logger.error(f'iCreate checkout: session creation failed for {reg_id}: {e}')
         return jsonify({'error': 'Could not start the payment. Please try again or contact the school.'}), 502
 
-    updates = {'stripe_session_id': session.id, 'updated_at': datetime.utcnow().isoformat()}
+    # Keep a HISTORY of every session, not just the latest: a parent who clicks
+    # Pay twice (double-tab, impatient re-click) can pay the FIRST session while
+    # the second overwrites stripe_session_id — verification then checks the
+    # unpaid one forever and a real payment looks missing (Keely Pogue,
+    # 2026-07-22). confirm_payment walks this list.
+    history = list(reg.get('stripe_session_ids') or [])
+    history.append(session.id)
+    updates = {
+        'stripe_session_id': session.id,
+        'stripe_session_ids': history[-10:],
+        'updated_at': datetime.utcnow().isoformat(),
+    }
     # The family acknowledged the hold-your-place / fully-refundable terms for a
     # fee that includes waitlisted kids (frontend gates the pay button on it).
     if body.get('waitlist_ack') and not reg.get('waitlist_refund_ack_at'):
@@ -1588,12 +1599,72 @@ def preview_checkout():
     return jsonify({'success': True, 'checkout_url': session.url}), 200
 
 
+def _find_paid_session(reg, secret):
+    """Find a PAID Stripe Checkout Session belonging to this registration.
+
+    A parent can create several sessions (Pay clicked twice, two tabs) and pay
+    any ONE of them, while stripe_session_id only remembers the LAST click — so
+    verification must consider every candidate, not just the latest:
+      1. the current stripe_session_id + the stored stripe_session_ids history;
+      2. fallback: list the school's recent Checkout Sessions on Stripe and
+         match metadata.registration_id (rescues registrations from before the
+         history column existed).
+    Returns (paid_session_or_None, retrieve_errors_count).
+    """
+    import stripe
+
+    candidates = []
+    for sid in [reg.get('stripe_session_id')] + list(reversed(reg.get('stripe_session_ids') or [])):
+        if sid and sid not in candidates:
+            candidates.append(sid)
+
+    errors = 0
+    for sid in candidates:
+        try:
+            session = stripe.checkout.Session.retrieve(sid, api_key=secret)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'iCreate confirm-payment: retrieve failed for {sid[:20]}: {e}')
+            errors += 1
+            continue
+        if (session.get('metadata') or {}).get('registration_id') != reg['id']:
+            continue
+        if session.get('payment_status') == 'paid':
+            return session, errors
+
+    # Fallback sweep: any paid session for this registration among the school's
+    # recent sessions (created since this registration existed), capped pages.
+    try:
+        created_gte = int(datetime.fromisoformat(
+            str(reg.get('created_at')).replace('Z', '+00:00').replace(' ', 'T')).timestamp())
+    except (ValueError, TypeError):
+        created_gte = None
+    try:
+        params = {'limit': 100, 'api_key': secret}
+        if created_gte:
+            params['created'] = {'gte': created_gte}
+        listing = stripe.checkout.Session.list(**params)
+        for page in range(3):
+            for session in listing.get('data') or []:
+                if ((session.get('metadata') or {}).get('registration_id') == reg['id']
+                        and session.get('payment_status') == 'paid'):
+                    return session, errors
+            if not listing.get('has_more'):
+                break
+            last = (listing.get('data') or [])[-1]
+            params['starting_after'] = last['id']
+            listing = stripe.checkout.Session.list(**params)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'iCreate confirm-payment: session list fallback failed: {e}')
+        errors += 1
+    return None, errors
+
+
 @bp.route('/registrations/<reg_id>/confirm-payment', methods=['POST'])
 @rate_limit(max_requests=30, window_seconds=300)
 def confirm_payment(reg_id):
-    """Server-side payment verification (the passback): retrieve the Checkout
-    Session from Stripe with the school's key and check it is PAID for the right
-    amount and registration. Never trusts the browser. Completes the funnel."""
+    """Server-side payment verification (the passback): find a Checkout Session
+    for this registration that Stripe says is PAID for the right amount. Never
+    trusts the browser. Completes the funnel."""
     body = request.get_json(silent=True) or {}
     reg = _load_registration(reg_id)
     if not _authz(reg, body.get('access_token')):
@@ -1607,20 +1678,13 @@ def confirm_payment(reg_id):
                         'scheduling_url': _abs_url(cfg.get('scheduling_url')),
                         'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
     secret = cfg.get('stripe_secret_key')
-    session_id = reg.get('stripe_session_id')
-    if not secret or not session_id:
+    if not secret or not (reg.get('stripe_session_id') or reg.get('stripe_session_ids')):
         return jsonify({'error': 'No payment to verify for this registration'}), 400
 
-    try:
-        import stripe
-        session = stripe.checkout.Session.retrieve(session_id, api_key=secret)
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate confirm-payment: retrieve failed for {reg_id}: {e}')
-        return jsonify({'error': 'Could not verify the payment. Please try again.'}), 502
-
-    if (session.get('metadata') or {}).get('registration_id') != reg['id']:
-        return jsonify({'error': 'Payment does not match this registration'}), 400
-    if session.get('payment_status') != 'paid':
+    session, errors = _find_paid_session(reg, secret)
+    if session is None:
+        if errors:
+            return jsonify({'error': 'Could not verify the payment. Please try again.'}), 502
         return jsonify({'success': False, 'paid': False,
                         'error': "We haven't received your payment yet. Complete the payment and try again."}), 402
     if int(session.get('amount_total') or 0) != int(reg.get('fee_cents') or 0):
@@ -1630,7 +1694,7 @@ def confirm_payment(reg_id):
 
     result = _finish_fee_step(admin, reg, cfg, extra_fields={
         'fee_paid_at': datetime.utcnow().isoformat(),
-        'stripe_payment_ref': str(session.get('payment_intent') or session_id),
+        'stripe_payment_ref': str(session.get('payment_intent') or session.get('id')),
         # Paid = nothing deferred anymore, so a later waitlist release
         # never reopens a settled registration.
         'fee_deferred': False,
