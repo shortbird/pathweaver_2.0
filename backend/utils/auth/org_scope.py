@@ -98,10 +98,24 @@ def course_org(admin_client, course_id: str) -> Tuple[bool, Optional[str]]:
 def caller_can_access_course(admin_client, caller_id: str, course_id: str) -> bool:
     """Whether `caller_id` may act on a course (and its projects/lessons/tasks).
 
-    Superadmin: always. Org staff: only when the course's org matches theirs.
-    A global course (org_id NULL) is superadmin-only. Missing course -> denied.
+    Superadmin: always. The course's CREATOR: always — a platform advisor
+    (organization_id NULL) creating a course via Course Builder produces a
+    NULL-org draft, and without this escape hatch they were denied on the very
+    next request and the draft was orphaned. Org staff: only when the course's
+    org matches theirs. Other NULL-org courses stay superadmin-only. Missing
+    course -> denied.
     """
-    exists, org_id = course_org(admin_client, course_id)
-    if not exists:
+    if not course_id:
         return False
-    return caller_can_access_org(admin_client, caller_id, org_id)
+    try:
+        res = (admin_client.table('courses')
+               .select('organization_id, created_by')
+               .eq('id', course_id).limit(1).execute())
+        row = (res.data or [None])[0]
+    except Exception:
+        row = None
+    if row is None:
+        return False
+    if caller_id and row.get('created_by') == caller_id:
+        return True
+    return caller_can_access_org(admin_client, caller_id, row.get('organization_id'))

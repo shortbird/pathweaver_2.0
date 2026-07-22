@@ -178,7 +178,11 @@ def register_routes(bp):
 
 
     @bp.route('/login', methods=['POST'])
-    @rate_limit(max_requests=5, window_seconds=60)  # 5 login attempts per minute
+    # Per-IP limit only exists to blunt spray attacks; brute force on a single
+    # account is stopped by the per-email attempt lockout below. 5/min per IP
+    # locked out classrooms behind school NAT at first bell (30+ students
+    # logging in within a minute share one IP).
+    @rate_limit(max_requests=30, window_seconds=60)
     def login():
         # SECURITY: Add constant-time delay to prevent timing attacks
         # This makes response times statistically similar for all outcomes

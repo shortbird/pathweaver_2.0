@@ -430,7 +430,10 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 _raw_xp = int(task.get('xp_value', 100))
             except (TypeError, ValueError):
                 _raw_xp = 100
-            task['xp_value'] = clamp_xp_value(_raw_xp)
+            # min_xp=1 matches the UI's validated floor (ManualTaskCreator
+            # offers a 25 XP quick task; the default floor of 50 silently
+            # rewrote it). QP-1's security concern was only the upper cap.
+            task['xp_value'] = clamp_xp_value(_raw_xp, min_xp=1)
 
             # Normalize pillar name
             try:
@@ -760,7 +763,8 @@ def accept_task_immediate(user_id: str, quest_id: str):
             _raw_xp = int(task.get('xp_value', 100))
         except (TypeError, ValueError):
             _raw_xp = 100
-        task['xp_value'] = clamp_xp_value(_raw_xp)
+        # min_xp=1 matches the UI's validated floor — see the twin call above.
+        task['xp_value'] = clamp_xp_value(_raw_xp, min_xp=1)
 
         # Get or create enrollment
         user_quest_id = get_or_create_enrollment(user_id, quest_id)

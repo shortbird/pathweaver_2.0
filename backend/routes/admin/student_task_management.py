@@ -67,13 +67,19 @@ def _can_manage_student_tasks(supabase, actor_id, target_user_id):
         .eq('id', actor_id).single().execute()
     if not actor.data:
         return False
-    role = get_effective_role(actor.data)
-    if role == 'superadmin':
+    # Check EVERY role the actor holds, not just the primary: org users can
+    # carry several (org_roles=['parent','advisor'] resolves to an effective
+    # role of 'parent', which would 403 a legitimately assigned advisor).
+    roles = {get_effective_role(actor.data)}
+    org_roles = actor.data.get('org_roles')
+    if isinstance(org_roles, list):
+        roles.update(r for r in org_roles if r)
+    if 'superadmin' in roles:
         return True
-    if role == 'org_admin':
-        return caller_can_access_user(supabase, actor_id, target_user_id)
-    if role == 'advisor':
-        return is_advisor_for_student(actor_id, target_user_id)
+    if 'org_admin' in roles and caller_can_access_user(supabase, actor_id, target_user_id):
+        return True
+    if 'advisor' in roles and is_advisor_for_student(actor_id, target_user_id):
+        return True
     return False
 
 # Using repository pattern for database access

@@ -117,13 +117,23 @@ def should_throttle_password_reset(email: str) -> bool:
         last_attempt_at = datetime.fromisoformat(
             record['last_attempt_at'].replace('Z', '+00:00')
         )
-        if (now - last_attempt_at).total_seconds() > RESET_WINDOW_SECONDS:
-            admin_client.table('password_reset_attempts').update({
+        gap_seconds = (now - last_attempt_at).total_seconds()
+        if gap_seconds > RESET_WINDOW_SECONDS:
+            window_reset = {
                 'attempt_count': 1,
                 'locked_until': None,
                 'last_attempt_at': now.isoformat(),
                 'updated_at': now.isoformat(),
-            }).eq('email', email_lc).execute()
+            }
+            # lockout_count previously only ever incremented, so every trip in
+            # a user's LIFETIME escalated the next lockout toward 24 h. A full
+            # quiet day is strong evidence the earlier trips weren't an attack
+            # in progress — decay the escalation; attackers who burst more
+            # often than daily keep escalating.
+            if gap_seconds > 86400 and record.get('lockout_count'):
+                window_reset['lockout_count'] = 0
+            admin_client.table('password_reset_attempts').update(
+                window_reset).eq('email', email_lc).execute()
             return False
 
         new_count = record.get('attempt_count', 0) + 1

@@ -34,7 +34,13 @@ logger = get_logger(__name__)
 def register_routes(bp):
     """Register routes on the blueprint."""
     @bp.route('/refresh', methods=['POST'])
-    @rate_limit(max_requests=30, window_seconds=300)  # AUTH-H6: throttle refresh (30 / 5 min per IP)
+    # AUTH-H6 throttle, re-tuned 2026-07-21: the limit is keyed PER IP and
+    # access tokens expire every 15 min, so a school/computer-lab NAT (our
+    # primary org topology) fires one refresh per active student — 30/5min
+    # force-logged-out whole classrooms and looked like random session expiry.
+    # 300/5min still smothers abuse (refresh tokens aren't guessable; this is
+    # DoS protection) without capping ~legitimate concurrency.
+    @rate_limit(max_requests=300, window_seconds=300)
     def refresh_token():
         # Try to get refresh token from request body (primary method for cross-origin)
         data = request.json if request.json else {}
