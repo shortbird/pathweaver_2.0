@@ -21,6 +21,10 @@ const { api } = vi.hoisted(() => {
         { id: 's1', name: 'Jane Doe', first_name: 'Jane', last_name: 'Doe', email: 'jane@icreate.org',
           roles: ['advisor'], role_labels: ['Teacher'], bio: 'Ceramics teacher for 10 years',
           avatar_url: 'https://cdn.example/staff-photos/s1/x.jpg', last_active: null },
+        { id: 'ph1', name: 'Liz', first_name: 'Liz', last_name: '',
+          email: 'liz@icreate-staff.placeholder.optioeducation.com',
+          roles: ['advisor'], role_labels: ['Teacher'], bio: null,
+          avatar_url: null, last_active: null, is_placeholder: true },
       ] } }
     }
     return { data: {} }
@@ -72,7 +76,7 @@ describe('StaffPage', () => {
   it('edits a teacher bio via the modal', async () => {
     render(<StaffPage />)
     await screen.findByText('Jane Doe')
-    fireEvent.click(screen.getByText('Edit'))
+    fireEvent.click(screen.getAllByText('Edit')[0])
     fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Updated bio' } })
     fireEvent.click(screen.getByText('Save changes'))
     await waitFor(() =>
@@ -80,6 +84,39 @@ describe('StaffPage', () => {
         bio: 'Updated bio',
       })),
     )
+  })
+
+  it('flags placeholder staff and hides the synthetic email', async () => {
+    render(<StaffPage />)
+    expect(await screen.findByText('Liz')).toBeInTheDocument()
+    expect(screen.getByText('No login yet')).toBeInTheDocument()
+    expect(screen.queryByText('liz@icreate-staff.placeholder.optioeducation.com')).not.toBeInTheDocument()
+    // Linked staff don't get the link affordance.
+    expect(screen.getAllByText('Link their account')).toHaveLength(1)
+  })
+
+  it('links a placeholder account via the modal', async () => {
+    api.post.mockResolvedValueOnce({ data: { linked: 'invited', email_sent: true } })
+    render(<StaffPage />)
+    await screen.findByText('Liz')
+    fireEvent.click(screen.getByText('Link their account'))
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'liz@gmail.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/staff/ph1/link', {
+        email: 'liz@gmail.com', organization_id: 'org-1',
+      }),
+    )
+  })
+
+  it('surfaces a link refusal in the modal', async () => {
+    api.post.mockRejectedValueOnce({ response: { data: { error: 'This email belongs to a student account' } } })
+    render(<StaffPage />)
+    await screen.findByText('Liz')
+    fireEvent.click(screen.getByText('Link their account'))
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'kid@gmail.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('This email belongs to a student account')
   })
 
   it('surfaces a backend error in the modal', async () => {

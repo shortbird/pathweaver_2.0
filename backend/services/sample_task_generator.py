@@ -23,8 +23,7 @@ from prompts.components import (
     ENCOURAGED_WORDS,
     TONE_LEVELS,
 )
-from services.base_ai_service import get_gemini_model, BaseAIService
-from services.ai_gen import generate_with_timeout
+from services.base_ai_service import BaseAIService
 
 logger = get_logger(__name__)
 
@@ -51,21 +50,20 @@ def generate_sample_tasks(
     Raises:
         Exception: If API call fails or response is invalid
     """
-    # Get singleton Gemini model from BaseAIService
-    model = get_gemini_model()
-
     prompt = _build_prompt(quest_title, quest_description, count, transcript_subject)
+    service = BaseAIService()
 
     try:
         logger.info(f"Generating {count} sample tasks for quest: {quest_title}")
 
-        response = generate_with_timeout(model, prompt)
+        # Falls back to alternate Gemini models on transient 503 "high demand"
+        # errors so the student-facing suggestion request doesn't hard-fail.
+        response = service.generate_with_fallback(prompt)
 
         if not response or not response.text:
             raise Exception("Empty response from Gemini API")
 
         # Use unified JSON extraction from BaseAIService
-        service = BaseAIService()
         tasks = service.extract_json(response.text)
 
         if not tasks:

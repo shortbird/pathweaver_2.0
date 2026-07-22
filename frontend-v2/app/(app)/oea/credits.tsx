@@ -44,7 +44,7 @@ function formatDeadline(iso?: string | null): string | null {
 
 // Current-quarter upload checklist for a direct in-progress course. Items check
 // themselves off as the minimums are met; items whose minimum is 0 are hidden
-// (e.g. Hearthwood has no artifact minimum).
+// (an org can zero out any of the three).
 function QuarterChecklist({ compliance, deadline }: { compliance?: QuarterCompliance; deadline?: string | null }) {
   if (!compliance) return null;
   const items: { done: boolean; label: string }[] = [];

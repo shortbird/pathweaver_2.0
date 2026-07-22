@@ -548,6 +548,51 @@ def list_org_members(org_id: str) -> List[Dict[str, Any]]:
 STAFF_ORG_ROLES = ('org_admin', 'advisor')
 _STAFF_ROLE_LABEL = {'org_admin': 'Org Admin', 'advisor': 'Teacher'}
 
+# Staff rows imported from a schedule sheet before the real person had a login use
+# a synthetic address under this suffix (e.g. liz@icreate-staff.placeholder.optioeducation.com).
+PLACEHOLDER_EMAIL_SUFFIX = '.placeholder.optioeducation.com'
+
+
+def is_placeholder_staff_email(email: Optional[str]) -> bool:
+    return bool(email) and email.strip().lower().endswith(PLACEHOLDER_EMAIL_SUFFIX)
+
+
+def caller_is_admin(user_id: str) -> bool:
+    """True for superadmins and org_admins — the tier that sees the whole SIS.
+    Advisors (teachers) get the scoped teacher view instead."""
+    ctx = get_user_org_context(user_id)
+    if ctx.get('role') == 'superadmin':
+        return True
+    return 'org_admin' in _user_org_roles(ctx)
+
+
+def advisor_class_ids(user_id: str, org_id: str) -> List[str]:
+    """Class ids this advisor teaches: primary instructor or active class_advisors row."""
+    admin = _admin()
+    primary = (
+        admin.table('org_classes').select('id')
+        .eq('organization_id', org_id).eq('primary_instructor_id', user_id)
+        .execute()
+    ).data or []
+    extra = (
+        admin.table('class_advisors').select('class_id')
+        .eq('advisor_id', user_id).eq('is_active', True).execute()
+    ).data or []
+    return list(dict.fromkeys([r['id'] for r in primary] + [r['class_id'] for r in extra]))
+
+
+def class_scope(user_id: str, org_id: str) -> Optional[List[str]]:
+    """None = unrestricted (org_admin/superadmin); otherwise the advisor's class ids.
+    Route handlers use this to keep teachers inside their own classes."""
+    if caller_is_admin(user_id):
+        return None
+    return advisor_class_ids(user_id, org_id)
+
+
+def org_admin_ids(org_id: str) -> List[str]:
+    """User ids of this org's admins (notification recipients for staff events)."""
+    return [s['id'] for s in list_org_staff(org_id) if 'org_admin' in s['roles']]
+
 
 def _user_org_roles(u: Dict[str, Any]) -> List[str]:
     """All org roles held by a user (org_role + org_roles array), de-duped."""
@@ -589,6 +634,7 @@ def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
             'last_active': u.get('last_active'),
             'bio': u.get('bio'),
             'avatar_url': u.get('avatar_url'),
+            'is_placeholder': is_placeholder_staff_email(u.get('email')),
         })
     # Org admins first, then advisors; alphabetical within.
     out.sort(key=lambda r: ('org_admin' not in r['roles'], r['name'].lower()))
@@ -666,6 +712,129 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     # email_sent lets the UI warn instead of promising an email that never left.
     return {'teacher': {'id': auth.user.id, 'name': profile['display_name'], 'email': email},
             'email_sent': email_sent}
+
+
+# Columns that can point at a placeholder teacher; repointed when merging into a
+# real account. (Verified against prod: placeholders are referenced only by
+# org_classes.primary_instructor_id, but the other two are the same concept.)
+_INSTRUCTOR_REF_COLUMNS = (
+    ('org_classes', 'primary_instructor_id'),
+    ('class_advisors', 'advisor_id'),
+    ('org_course_settings', 'teacher_id'),
+)
+
+
+def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]:
+    """Connect a placeholder staff row to the teacher's real email.
+
+    Two outcomes:
+    - The email has no Optio account: the placeholder is claimed in place — its
+      login email becomes the real one and a set-password email goes out. The
+      user id doesn't change, so class assignments carry over untouched.
+    - The email already has an Optio account (e.g. a parent who also teaches):
+      instructor references are repointed onto that account, it gains the
+      advisor role (keeping any existing roles), and the placeholder is removed.
+
+    Only placeholder rows (synthetic *.placeholder.optioeducation.com emails)
+    can be linked, so a real staff account can never be hijacked this way.
+    Returns {'error': ...} on refusal.
+    """
+    email = (email or '').strip().lower()
+    if not email or '@' not in email:
+        return {'error': 'A valid email is required'}
+    if is_placeholder_staff_email(email):
+        return {'error': 'Enter the teacher\'s real email address'}
+    admin = _admin()
+
+    rows = (
+        admin.table('users')
+        .select('id, email, organization_id, org_role, org_roles, bio, avatar_url')
+        .eq('id', staff_id).limit(1).execute()
+    ).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Staff member not found'}
+    ph = rows[0]
+    if not is_placeholder_staff_email(ph.get('email')):
+        return {'error': 'This staff member already has a real email on their account'}
+    if not any(r in _user_org_roles(ph) for r in STAFF_ORG_ROLES):
+        return {'error': 'Staff member not found'}
+
+    existing = (
+        admin.table('users')
+        .select('id, role, org_role, org_roles, organization_id, is_dependent, bio, avatar_url')
+        .eq('email', email).limit(1).execute()
+    ).data
+
+    if not existing:
+        # Claim in place: swap the login email, keep the user id (and with it
+        # every class assignment), and send the standard set-password email.
+        try:
+            admin.auth.admin.update_user_by_id(staff_id, {'email': email})
+        except Exception as e:
+            logger.error(f'link_staff_account: auth email swap failed for {staff_id[:8]}: {e}')
+            return {'error': 'Could not update the login email (is it already in use?)'}
+        admin.table('users').update({'email': email}).eq('id', staff_id).execute()
+        email_sent = True
+        try:
+            admin.auth.resend({'type': 'signup', 'email': email})
+        except Exception as e:  # noqa: BLE001
+            email_sent = False
+            logger.warning(f'link_staff_account: set-password email failed for {email}: {e}')
+        return {'linked': 'invited', 'staff_id': staff_id, 'email_sent': email_sent}
+
+    # Merge into the existing account.
+    target = existing[0]
+    if target['id'] == staff_id:
+        return {'error': 'That is already this account\'s email'}
+    if target.get('role') == 'superadmin' or target.get('is_dependent'):
+        return {'error': 'This email cannot be used for a staff account'}
+    if target.get('organization_id') and target['organization_id'] != org_id:
+        return {'error': 'This email belongs to an account in another organization'}
+    t_roles = _user_org_roles(target) if target.get('organization_id') else (
+        [target['role']] if target.get('role') else [])
+    if 'student' in t_roles:
+        return {'error': 'This email belongs to a student account'}
+
+    # Advisor becomes the primary org role; any other roles (parent, org_admin)
+    # are kept so a parent-who-teaches stays a parent too.
+    merged_roles = list(dict.fromkeys(['advisor'] + [r for r in t_roles if r != 'advisor']))
+    updates: Dict[str, Any] = {
+        'organization_id': org_id, 'role': 'org_managed',
+        'org_role': 'advisor', 'org_roles': merged_roles,
+    }
+    for field in ('bio', 'avatar_url'):
+        if ph.get(field) and not target.get(field):
+            updates[field] = ph[field]
+    admin.table('users').update(updates).eq('id', target['id']).execute()
+
+    synced_classes: List[str] = []
+    for table, column in _INSTRUCTOR_REF_COLUMNS:
+        try:
+            resp = (admin.table(table).update({column: target['id']})
+                    .eq(column, staff_id).execute())
+            if table == 'org_classes':
+                synced_classes = [r['id'] for r in (resp.data or [])]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'link_staff_account: repoint {table}.{column} failed: {e}')
+            return {'error': 'Could not move class assignments to the existing account'}
+
+    # Refresh class messaging groups so the real account replaces the placeholder.
+    try:
+        from services.class_group_sync_service import sync_class_group
+        for class_id in synced_classes:
+            sync_class_group(class_id, actor_id=target['id'])
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'link_staff_account: class group sync failed: {e}')
+
+    placeholder_removed = True
+    try:
+        admin.table('users').delete().eq('id', staff_id).execute()
+        admin.auth.admin.delete_user(staff_id)
+    except Exception as e:  # noqa: BLE001
+        placeholder_removed = False
+        logger.warning(f'link_staff_account: placeholder cleanup failed for {staff_id[:8]}: {e}')
+    return {'linked': 'merged', 'staff_id': target['id'],
+            'placeholder_removed': placeholder_removed}
 
 
 _STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio')

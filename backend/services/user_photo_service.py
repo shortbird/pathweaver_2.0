@@ -27,6 +27,20 @@ def _ensure_bucket(admin):
             pass
 
 
+def upload_staged_photo(admin, reg_id, file, ext):
+    """Upload a funnel photo for a family member whose account doesn't exist
+    yet (kid accounts are only created when the family step submits). Stored
+    under the registration so the family submit can attach it; returns the
+    public URL. No user row is touched."""
+    _ensure_bucket(admin)
+    path = f'staged/{reg_id}/{uuid.uuid4().hex}.{ext}'
+    admin.storage.from_(BUCKET).upload(
+        path=path, file=file.read(),
+        file_options={'content-type': file.content_type or f'image/{ext}'},
+    )
+    return admin.storage.from_(BUCKET).get_public_url(path)
+
+
 def upload_user_photo(admin, user_id, file, ext):
     """Upload (or replace) a user's photo; returns the new public avatar_url."""
     _ensure_bucket(admin)

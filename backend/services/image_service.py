@@ -6,20 +6,14 @@ import requests
 from typing import Optional, Dict, List, Set
 from services.base_service import BaseService
 import re
-import google.generativeai as genai
 from services.api_usage_tracker import pexels_tracker
 from app_config import Config
-from services.ai_gen import generate_with_timeout
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 PEXELS_SEARCH_URL = 'https://api.pexels.com/v1/search'
-
-# Configure Gemini
-if Config.GEMINI_API_KEY:
-    genai.configure(api_key=Config.GEMINI_API_KEY)
 
 def generate_educational_search_prompt(quest_title: str, quest_description: Optional[str] = None) -> Optional[str]:
     """
@@ -36,7 +30,7 @@ def generate_educational_search_prompt(quest_title: str, quest_description: Opti
         return None
 
     try:
-        model = genai.GenerativeModel(Config.GEMINI_MODEL)
+        from services.base_ai_service import BaseAIService
 
         prompt = f"""You are helping find a stock photo for an educational quest. Think like a PHOTOGRAPHER - what physical objects and actions would be in the frame?
 
@@ -70,7 +64,10 @@ BAD EXAMPLES (too metaphorical/abstract):
 Return ONLY the search term with concrete objects/actions, nothing else.
 """
 
-        response = generate_with_timeout(model, prompt)
+        # This runs synchronously inside quest creation and has a non-AI
+        # fallback (noun extraction), so fail fast: short timeout, and fall
+        # back to alternate Gemini models when the primary is overloaded (503).
+        response = BaseAIService().generate_with_fallback(prompt, timeout=10)
         search_term = response.text.strip().strip('"').strip("'")
 
         # Validate it's not too long
@@ -96,7 +93,9 @@ Return ONLY the search term with concrete objects/actions, nothing else.
         return search_term
 
     except Exception as e:
-        logger.error(f"AI search term generation failed: {str(e)}")
+        # Warning, not error: search_quest_image degrades gracefully to
+        # noun-extraction search terms, so this is not user-visible breakage.
+        logger.warning(f"AI search term generation failed (using noun fallback): {str(e)}")
 
     return None
 

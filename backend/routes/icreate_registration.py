@@ -1116,10 +1116,17 @@ def submit_family(reg_id):
                 existing_user = nd
         if wants_own_account and not existing_user and not _valid_email(kemail):
             return jsonify({'error': f'{kf} is 13+, so they need a valid email (or mark them as managed by you)'}), 400
+        # A photo the browser staged before this kid's account existed (see the
+        # 'staged' branch of upload_photo). Only URLs from THIS registration's
+        # staged folder are trusted; anything else is dropped.
+        photo_url = (k.get('photo_url') or '').strip()
+        if photo_url and f'/user-photos/staged/{reg_id}/' not in photo_url:
+            photo_url = ''
         kids.append({'first': kf, 'last': kl, 'dob': kdob, 'email': kemail,
                      'own_account': wants_own_account, 'existing_user': existing_user,
                      'preferred_name': sanitize_input(k.get('preferred_name', '')) or None,
-                     'gender': gender, 'allergies': allergies, 'medications': medications})
+                     'gender': gender, 'allergies': allergies, 'medications': medications,
+                     'photo_url': photo_url or None})
 
     # Back-editing: this step ran before, so tear down what it created (kid
     # accounts, links, contacts, household) and rebuild from the new payload.
@@ -1229,6 +1236,9 @@ def submit_family(reg_id):
             carried = prior_avatars.get((k['first'], k['last'], str(k['dob'])))
             if carried and ktype != 'existing':
                 extras['avatar_url'] = carried
+            # A photo staged during THIS session beats a carried-over one.
+            if k.get('photo_url'):
+                extras['avatar_url'] = k['photo_url']
             if extras:
                 admin.table('users').update(extras).eq('id', kid_id).execute()
             created_kids.append({
@@ -1825,12 +1835,17 @@ def upload_photo(reg_id):
         return jsonify({'error': 'Not authorized'}), 403
 
     # 'parent' sentinel: the browser never learns the parent's user id.
+    # 'staged' sentinel: a kid who doesn't have an account yet (accounts are
+    # created at family submit) — the file is stored under the registration and
+    # attached when the family step submits (kids[].photo_url).
     target = (request.form.get('target_user_id') or '').strip()
+    staged = target == 'staged'
     if target in ('', 'parent'):
         target = reg['parent_user_id']
-    allowed = {reg['parent_user_id']} | {k.get('user_id') for k in (reg.get('kids') or [])}
-    if target not in allowed:
-        return jsonify({'error': 'This person is not part of your registration'}), 403
+    if not staged:
+        allowed = {reg['parent_user_id']} | {k.get('user_id') for k in (reg.get('kids') or [])}
+        if target not in allowed:
+            return jsonify({'error': 'This person is not part of your registration'}), 403
 
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
@@ -1841,15 +1856,27 @@ def upload_photo(reg_id):
     if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'):
         return jsonify({'error': 'Please upload a photo (JPG, PNG, WEBP, or HEIC)'}), 400
     file.seek(0, 2)
-    if file.tell() > 5 * 1024 * 1024:
+    size = file.tell()
+    if size == 0:
+        # iOS Safari can hand the page an empty file when the original photo
+        # lives in iCloud and couldn't be fetched (Optimize iPhone Storage).
+        return jsonify({'error': "That photo didn't come through — please try "
+                                 'selecting it again, or take a new photo with the camera.'}), 400
+    if size > 5 * 1024 * 1024:
         return jsonify({'error': 'Photos must be under 5MB'}), 400
     file.seek(0)
 
     admin = _admin()
-    from services.user_photo_service import upload_user_photo
+    from services.user_photo_service import upload_staged_photo, upload_user_photo
     try:
-        avatar_url = upload_user_photo(admin, target, file, ext)
+        if staged:
+            photo_url = upload_staged_photo(admin, reg_id, file, ext)
+        else:
+            avatar_url = upload_user_photo(admin, target, file, ext)
     except Exception as e:  # noqa: BLE001
-        logger.error(f'iCreate photo: upload failed for {target[:8]}: {e}')
+        who = 'staged' if staged else target[:8]
+        logger.error(f'iCreate photo: upload failed for {who}: {e}')
         return jsonify({'error': 'Could not upload the photo. Please try again.'}), 500
+    if staged:
+        return jsonify({'success': True, 'staged': True, 'photo_url': photo_url}), 200
     return jsonify({'success': True, 'user_id': target, 'avatar_url': avatar_url}), 200

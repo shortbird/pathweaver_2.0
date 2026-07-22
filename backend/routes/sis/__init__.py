@@ -99,6 +99,22 @@ def create_teacher(user_id):
     return jsonify({'success': True, **result}), 201
 
 
+@bp.route('/staff/<staff_id>/link', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def link_staff(user_id, staff_id):
+    """Connect a placeholder staff row to the teacher's real email. Claims the
+    account in place (new email + set-password invite) or, when the email
+    already has an Optio account, merges the placeholder into it."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = sis_service.link_staff_account(
+        org_id, staff_id, (request.get_json() or {}).get('email'))
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/staff/<staff_id>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
 def update_staff(user_id, staff_id):
@@ -735,3 +751,7 @@ def register_sis_routes(app):
     app.register_blueprint(schedule_ai_bp)
     from routes.sis.schedule_sync import bp as schedule_sync_bp
     app.register_blueprint(schedule_sync_bp)
+    from routes.sis.staff_portal import bp as staff_portal_bp
+    app.register_blueprint(staff_portal_bp)
+    from routes.sis.staff_admin import bp as staff_admin_bp
+    app.register_blueprint(staff_admin_bp)

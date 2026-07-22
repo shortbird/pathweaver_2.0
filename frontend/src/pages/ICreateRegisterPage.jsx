@@ -102,11 +102,19 @@ const isoToMdy = (iso) => {
   return (y && mo && d) ? `${mo}/${d}/${y}` : ''
 }
 
+// Stable identity for kid rows so async photo uploads land on the right kid
+// even if rows are added/removed while an upload is in flight.
+const kidKey = () => Math.random().toString(36).slice(2)
+
 const emptyKid = () => ({
+  _key: kidKey(),
+  user_id: '',                       // set on resume back-edit (account exists)
   first_name: '', last_name: '', preferred_name: '', gender: '',
   date_of_birth: '', dob_text: '',
   email: '', allergies: '', medications: '',
   photo_file: null, photo_preview: '', avatar_url: '',
+  staged_url: '',                    // uploaded-on-select photo, attached at family submit
+  photo_uploading: false, photo_error: '',
 })
 const emptyContact = () => ({ name: '', relationship: '', phone: '', email: '' })
 
@@ -131,27 +139,50 @@ const FAMILY_INPUT_NAMES = {
   city: 'city', state: 'state', postal_code: 'zip',
 }
 
+// What to try when a photo won't attach — written for the common iPhone case
+// (the original lives in iCloud and Safari silently fails to fetch it).
+const PHOTO_TIPS = "That photo didn't come through. On iPhones this usually means the "
+  + 'photo has to download from iCloud first. Try taking a new photo with the camera '
+  + 'instead of choosing from your library, connect to Wi-Fi and try again, or finish '
+  + 'this form on a computer — your progress is saved.'
+
 // Circular photo preview + picker. Photos are required for every family member.
-const PhotoPicker = ({ label, url, onSelect }) => (
-  <div className="flex items-center gap-3">
-    {url ? (
-      <img src={url} alt="" className="w-14 h-14 rounded-full object-cover border border-gray-200 shrink-0" />
-    ) : (
-      <div className="w-14 h-14 rounded-full bg-neutral-100 border border-dashed border-gray-300 flex items-center justify-center shrink-0">
-        <PhotoIcon className="w-6 h-6 text-neutral-300" />
+// Uploads happen the moment a photo is picked (see pickParentPhoto/pickKidPhoto),
+// so `busy` shows upload progress and `error` surfaces failures right here.
+const PhotoPicker = ({ label, url, busy, error, onSelect }) => (
+  <div>
+    <div className="flex items-center gap-3">
+      <div className="relative w-14 h-14 shrink-0">
+        {url ? (
+          <img src={url} alt="" className="w-14 h-14 rounded-full object-cover border border-gray-200" />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-neutral-100 border border-dashed border-gray-300 flex items-center justify-center">
+            <PhotoIcon className="w-6 h-6 text-neutral-300" />
+          </div>
+        )}
+        {busy && (
+          <div className="absolute inset-0 rounded-full bg-white/60 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
       </div>
+      <label className="text-sm font-medium text-optio-purple hover:underline cursor-pointer">
+        {busy ? 'Uploading…' : url ? 'Change photo' : label}
+        <input
+          type="file" accept="image/*" className="hidden" disabled={busy}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) onSelect(f)
+            e.target.value = ''
+          }}
+        />
+      </label>
+    </div>
+    {error && (
+      <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2" role="alert">
+        {error}
+      </p>
     )}
-    <label className="text-sm font-medium text-optio-purple hover:underline cursor-pointer">
-      {url ? 'Change photo' : label}
-      <input
-        type="file" accept="image/*" className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) onSelect(f)
-          e.target.value = ''
-        }}
-      />
-    </label>
   </div>
 )
 
@@ -297,7 +328,7 @@ const ICreateRegisterPage = () => {
   const [family, setFamily] = useState({ phone: '', address_line1: '', address_line2: '', city: '', state: '', postal_code: '' })
   const addressBoxRef = useRef(null)  // autofill reconciliation (mergeAutofilledFields)
   const [kids, setKids] = useState([emptyKid()])
-  const [parentPhoto, setParentPhoto] = useState({ file: null, preview: '', avatar_url: '' })
+  const [parentPhoto, setParentPhoto] = useState({ file: null, preview: '', avatar_url: '', uploading: false, error: '' })
 
   // details step
   const [contacts, setContacts] = useState([emptyContact()])
@@ -347,16 +378,18 @@ const ICreateRegisterPage = () => {
           }
           if ((regData.kids || []).length) {
             setKids(regData.kids.map((k) => ({
+              ...emptyKid(),
+              user_id: k.user_id || '',
               first_name: k.first_name || (k.name || '').split(' ')[0] || '',
               last_name: k.last_name || (k.name || '').split(' ').slice(1).join(' ') || '',
               preferred_name: k.preferred_name || '', gender: k.gender || '',
               date_of_birth: k.dob || '', dob_text: isoToMdy(k.dob),
               email: k.email || '',
               allergies: k.allergies || '', medications: k.medications || '',
-              photo_file: null, photo_preview: '', avatar_url: k.avatar_url || '',
+              avatar_url: k.avatar_url || '',
             })))
           }
-          setParentPhoto({ file: null, preview: '', avatar_url: regData.parent_avatar_url || '' })
+          setParentPhoto({ file: null, preview: '', avatar_url: regData.parent_avatar_url || '', uploading: false, error: '' })
           setScheduling({ url: absUrl(regData.scheduling_url), emailed: !!regData.scheduling_emailed })
           if ((regData.emergency_contacts || []).length) {
             setContacts(regData.emergency_contacts.map((c) => ({
@@ -371,6 +404,9 @@ const ICreateRegisterPage = () => {
           // Legacy statuses from when schedule/appointment were funnel steps
           // all land on the final next-steps page.
           setStep(['schedule', 'appointment', 'completed'].includes(regData.status) ? 'done' : regData.status)
+          // Local draft (typed but never submitted) beats the server prefill
+          // for steps the server hasn't received.
+          applyDraft(regData.registration_id, regData.status)
         })
         .catch(() => { if (alive) setFatal('Could not load your registration. Please log in and try again.') })
         .finally(() => { if (alive) setLoading(false) })
@@ -431,7 +467,112 @@ const ICreateRegisterPage = () => {
   }
 
   const setKid = (i, patch) => setKids((ks) => ks.map((k, j) => (j === i ? { ...k, ...patch } : k)))
+  const setKidByKey = (key, patch) => setKids((ks) => ks.map((k) => (k._key === key ? { ...k, ...patch } : k)))
   const setContact = (i, patch) => setContacts((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)))
+
+  // ── Draft persistence ───────────────────────────────────────────────────────
+  // Mobile Safari discards the tab when parents switch apps mid-form (e.g. to
+  // check a birthday or take a photo), wiping everything they typed. Unsaved
+  // form state is mirrored to localStorage per registration and restored on
+  // resume. Only sections the server hasn't received yet are restored, so a
+  // stale phone draft can never override a family submitted from a computer.
+
+  const DRAFT_VERSION = 1
+  const draftKey = (regId) => `icreate_draft_${regId}`
+
+  const applyDraft = (regId, status) => {
+    if (previewMode) return
+    let d = null
+    try { d = JSON.parse(localStorage.getItem(draftKey(regId)) || 'null') } catch { /* corrupt draft */ }
+    if (!d || d.v !== DRAFT_VERSION) return
+    if (status === 'family') {
+      if (d.family && Object.values(d.family).some((v) => String(v || '').trim())) setFamily(d.family)
+      const draftKids = (d.kids || []).filter((k) =>
+        (k.first_name || '').trim() || (k.last_name || '').trim() || k.date_of_birth || k.staged_url)
+      if (draftKids.length) setKids(draftKids.map((k) => ({ ...emptyKid(), ...k })))
+      if (d.parent_avatar_url) {
+        setParentPhoto((p) => (p.avatar_url ? p : { ...p, avatar_url: d.parent_avatar_url }))
+      }
+    }
+    if (status === 'family' || status === 'details') {
+      const draftContacts = (d.contacts || []).filter((c) => (c.name || '').trim() || (c.phone || '').trim())
+      if (draftContacts.length) setContacts(draftContacts)
+      if (d.answers && Object.keys(d.answers).length) setAnswers(d.answers)
+    }
+  }
+
+  useEffect(() => {
+    if (!reg || previewMode) return
+    if (step === 'done') {
+      try { localStorage.removeItem(draftKey(reg.registration_id)) } catch { /* best-effort */ }
+      return
+    }
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey(reg.registration_id), JSON.stringify({
+          v: DRAFT_VERSION,
+          family,
+          // File objects and blob previews can't survive a reload — persist the
+          // uploaded URLs instead (photos upload the moment they're picked).
+          kids: kids.map(({ photo_file, photo_preview, photo_uploading, photo_error, ...rest }) => rest),
+          parent_avatar_url: parentPhoto.avatar_url || '',
+          contacts, answers,
+        }))
+      } catch { /* storage full or blocked — drafts are best-effort */ }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [reg, previewMode, step, family, kids, parentPhoto.avatar_url, contacts, answers])
+
+  // ── Photo uploads (immediate) ───────────────────────────────────────────────
+  // Photos upload the moment they're picked, so a failure surfaces right away
+  // (with recovery tips) instead of silently dying at the end of the form, and
+  // an uploaded photo survives tab reloads. If the immediate upload fails the
+  // file stays in state and the post-submit fallback retries it.
+
+  const uploadPhoto = (targetUserId, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('access_token', reg.access_token)
+    form.append('target_user_id', targetUserId)
+    return api.post(`/api/icreate/registrations/${reg.registration_id}/photo`, form)
+  }
+
+  const pickParentPhoto = async (f) => {
+    if (!f.size) return setParentPhoto((p) => ({ ...p, error: PHOTO_TIPS }))
+    const preview = URL.createObjectURL(f)
+    const canUpload = !previewMode && !!reg
+    setParentPhoto({ file: f, preview, avatar_url: '', uploading: canUpload, error: '' })
+    if (!canUpload) return
+    try {
+      const { data } = await uploadPhoto('parent', f)
+      setParentPhoto({ file: null, preview, avatar_url: data.avatar_url, uploading: false, error: '' })
+    } catch (e) {
+      setParentPhoto((p) => ({ ...p, uploading: false, error: e.response?.data?.error || PHOTO_TIPS }))
+    }
+  }
+
+  const pickKidPhoto = async (kidRef, f) => {
+    const key = kidRef._key
+    if (!f.size) return setKidByKey(key, { photo_error: PHOTO_TIPS })
+    const preview = URL.createObjectURL(f)
+    const canUpload = !previewMode && !!reg
+    setKidByKey(key, {
+      photo_file: f, photo_preview: preview, avatar_url: '', staged_url: '',
+      photo_uploading: canUpload, photo_error: '',
+    })
+    if (!canUpload) return
+    try {
+      // Kids restored on back-edit already have accounts — upload straight to
+      // them. New kids have no account until the family submits, so the file
+      // is staged under the registration and attached at submit (photo_url).
+      const { data } = await uploadPhoto(kidRef.user_id || 'staged', f)
+      setKidByKey(key, kidRef.user_id
+        ? { photo_file: null, avatar_url: data.avatar_url, photo_uploading: false, photo_error: '' }
+        : { photo_file: null, staged_url: data.photo_url, photo_uploading: false, photo_error: '' })
+    } catch (e) {
+      setKidByKey(key, { photo_uploading: false, photo_error: e.response?.data?.error || PHOTO_TIPS })
+    }
+  }
 
   // ── Account step ────────────────────────────────────────────────────────────
 
@@ -516,6 +657,7 @@ const ICreateRegisterPage = () => {
         return
       }
       setStep(data.status || 'family')
+      applyDraft(data.registration_id, data.status || 'family')
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not sign in')
     } finally {
@@ -525,37 +667,37 @@ const ICreateRegisterPage = () => {
 
   // ── Family step ─────────────────────────────────────────────────────────────
 
-  // Photos upload AFTER the family submit (accounts must exist first). Kids in
-  // the response are matched back to the form by name + DOB. Best-effort: the
+  // Fallback for photos whose upload-on-select failed (they still hold a File):
+  // retried AFTER the family submit, when the kid accounts exist. Kids in the
+  // response are matched back to the form by name + DOB. Best-effort: the
   // registration stands even if an upload hiccups (the parent can re-upload by
   // back-editing this step).
   const uploadFamilyPhotos = async (createdKids) => {
-    const send = (targetUserId, file) => {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('access_token', reg.access_token)
-      form.append('target_user_id', targetUserId)
-      return api.post(`/api/icreate/registrations/${reg.registration_id}/photo`, form)
-    }
     let failed = 0
     if (parentPhoto.file) {
       try {
-        const { data } = await send('parent', parentPhoto.file)
-        setParentPhoto({ file: null, preview: '', avatar_url: data.avatar_url })
-      } catch { failed += 1 }
+        const { data } = await uploadPhoto('parent', parentPhoto.file)
+        setParentPhoto((p) => ({ ...p, file: null, avatar_url: data.avatar_url, error: '' }))
+      } catch {
+        failed += 1
+        setParentPhoto((p) => ({ ...p, error: PHOTO_TIPS }))
+      }
     }
     for (const k of kids) {
       if (!k.photo_file) continue
       const match = (createdKids || []).find((ck) => (
         ck.first_name === k.first_name.trim() && ck.last_name === k.last_name.trim() && ck.dob === k.date_of_birth
       ))
-      if (!match?.user_id) { failed += 1; continue }
+      if (!match?.user_id) { failed += 1; setKidByKey(k._key, { photo_error: PHOTO_TIPS }); continue }
       try {
-        const { data } = await send(match.user_id, k.photo_file)
-        setKids((ks) => ks.map((x) => (x === k ? { ...x, photo_file: null, photo_preview: '', avatar_url: data.avatar_url } : x)))
-      } catch { failed += 1 }
+        const { data } = await uploadPhoto(match.user_id, k.photo_file)
+        setKidByKey(k._key, { photo_file: null, photo_preview: '', avatar_url: data.avatar_url, photo_error: '' })
+      } catch {
+        failed += 1
+        setKidByKey(k._key, { photo_error: PHOTO_TIPS })
+      }
     }
-    if (failed) toast.error(`${failed} photo${failed === 1 ? '' : 's'} did not upload — you can retry from this step later.`)
+    if (failed) toast.error(`${failed} photo${failed === 1 ? '' : 's'} did not upload — see the tips by the photo, or retry from this step later.`)
   }
 
   const submitFamily = async () => {
@@ -579,7 +721,7 @@ const ICreateRegisterPage = () => {
       if (k.email.trim() && !EMAIL_RE.test(k.email)) {
         return toast.error(`The email for ${k.first_name || `child #${i + 1}`} doesn't look right`)
       }
-      if (!k.photo_file && !k.avatar_url) {
+      if (!k.photo_file && !k.avatar_url && !k.staged_url) {
         return toast.error(`Add a photo of ${k.first_name || `child #${i + 1}`} — photos are required for every family member`)
       }
     }
@@ -598,6 +740,8 @@ const ICreateRegisterPage = () => {
           // parent's account instead of getting their own login.
           as_dependent: !k.email.trim(),
           allergies: k.allergies.trim(), medications: k.medications.trim(),
+          // Photo uploaded on select, before this kid's account existed.
+          photo_url: k.staged_url || undefined,
         })),
       })
       setFeeCents(data.fee_cents || 0)
@@ -912,7 +1056,9 @@ const ICreateRegisterPage = () => {
                 <PhotoPicker
                   label="Add your photo"
                   url={parentPhoto.preview || parentPhoto.avatar_url}
-                  onSelect={(f) => setParentPhoto({ file: f, preview: URL.createObjectURL(f), avatar_url: '' })}
+                  busy={parentPhoto.uploading}
+                  error={parentPhoto.error}
+                  onSelect={pickParentPhoto}
                 />
                 <p className="text-xs text-neutral-400 mt-1.5">Photos are required for every family member so staff can recognize your family.</p>
               </div>
@@ -925,7 +1071,7 @@ const ICreateRegisterPage = () => {
                   const teen = age != null && age >= 13
                   const dobInvalid = k.dob_text.length === 10 && !k.date_of_birth
                   return (
-                    <div key={i} className="rounded-lg border border-gray-200 p-4">
+                    <div key={k._key || i} className="rounded-lg border border-gray-200 p-4">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-medium text-neutral-700">Child {i + 1}{age != null ? ` · age ${age}` : ''}</span>
                         {kids.length > 1 && <button onClick={() => setKids((ks) => ks.filter((_, j) => j !== i))} className="text-xs text-red-500 hover:underline">Remove</button>}
@@ -973,8 +1119,10 @@ const ICreateRegisterPage = () => {
                           </label>
                           <PhotoPicker
                             label={`Add ${k.first_name.trim() ? `${k.first_name.trim()}'s` : "this child's"} photo`}
-                            url={k.photo_preview || k.avatar_url}
-                            onSelect={(f) => setKid(i, { photo_file: f, photo_preview: URL.createObjectURL(f), avatar_url: '' })}
+                            url={k.photo_preview || k.staged_url || k.avatar_url}
+                            busy={k.photo_uploading}
+                            error={k.photo_error}
+                            onSelect={(f) => pickKidPhoto(k, f)}
                           />
                         </div>
                         <div className="sm:col-span-2">

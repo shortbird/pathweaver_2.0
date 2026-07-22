@@ -6,6 +6,7 @@ import SisOrgPicker from './SisOrgPicker'
 import Button from '../../components/ui/Button'
 import { RolePill } from '../../components/ui/RolePill'
 import TeacherModal from '../../components/sis/TeacherModal'
+import LinkStaffAccountModal from '../../components/sis/LinkStaffAccountModal'
 
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
@@ -21,6 +22,7 @@ const StaffPage = () => {
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [linking, setLinking] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -67,10 +69,25 @@ const StaffPage = () => {
             {/* Body */}
             <div className="p-4 flex flex-col flex-1 text-center">
               <h3 className="font-semibold text-neutral-900 truncate">{s.name}</h3>
-              {s.email && <p className="text-sm text-neutral-500 truncate">{s.email}</p>}
+              {s.email && !s.is_placeholder && (
+                <p className="text-sm text-neutral-500 truncate">{s.email}</p>
+              )}
               <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
                 {(s.roles || []).map((r) => <RolePill key={r} role={r} />)}
+                {s.is_placeholder && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    No login yet
+                  </span>
+                )}
               </div>
+              {s.is_placeholder && (
+                <button
+                  onClick={() => setLinking(s)}
+                  className="mt-2 text-sm text-optio-purple font-medium hover:underline"
+                >
+                  Link their account
+                </button>
+              )}
               {s.bio && <p className="mt-2 text-sm text-neutral-600 line-clamp-3">{s.bio}</p>}
               <div className="mt-auto pt-3 flex items-center justify-between">
                 {fmtDate(s.last_active)
@@ -95,6 +112,15 @@ const StaffPage = () => {
           initial={editing}
           onClose={closeModals}
           onSaved={() => { closeModals(); load() }}
+        />
+      )}
+
+      {linking && (
+        <LinkStaffAccountModal
+          orgId={orgId}
+          staff={linking}
+          onClose={() => setLinking(null)}
+          onLinked={() => { setLinking(null); load() }}
         />
       )}
     </div>
