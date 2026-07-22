@@ -51,11 +51,19 @@ const BountyCreatePage = () => {
     },
   })
 
+  // Parents and observers almost always mean "for my kids" — default them to
+  // family visibility so a missed radio button doesn't broadcast a chore to
+  // the whole platform. Teachers/org admins/superadmin keep the public default.
+  const posterRole = user?.role === 'org_managed'
+    ? (user?.org_roles?.[0] || user?.org_role)
+    : user?.role
+  const defaultVisibility = (posterRole === 'parent' || posterRole === 'observer') ? 'family' : 'public'
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     max_participants: 0,
-    visibility: 'public',
+    visibility: defaultVisibility,
     cohort_class_id: '', // optional: limit a bounty to one cohort/class
   })
   const [deliverables, setDeliverables] = useState([''])
@@ -82,6 +90,21 @@ const BountyCreatePage = () => {
         }
       } catch {
         // Not a parent or no dependents
+      }
+
+      // Fetch 13+ kids connected via approved parent-student links
+      try {
+        const res = await api.get('/api/parents/my-children')
+        for (const child of (res.data.children || [])) {
+          const kidId = child.student_id
+          if (kidId && !seenIds.has(kidId)) {
+            const name = `${child.student_first_name || ''} ${child.student_last_name || ''}`.trim() || 'Student'
+            allKids.push({ id: kidId, display_name: name })
+            seenIds.add(kidId)
+          }
+        }
+      } catch {
+        // Not a parent or no linked children
       }
 
       // Fetch linked students (13+ and advisor-linked) from observer links

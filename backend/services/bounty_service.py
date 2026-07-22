@@ -338,6 +338,32 @@ class BountyService(BaseService):
             raise NotFoundError(f"Bounty {bounty_id} not found")
         return bounty
 
+    def _get_connected_poster_ids(self, user_id: str, user_parent_id: Optional[str] = None) -> set:
+        """The set of adults connected to this student — the posters whose
+        family-visibility bounties the student may see. Mirrors
+        _get_posters_student_ids from the viewer's side:
+          - their managing parent (managed_by_parent_id, dependents)
+          - parents with an approved parent_student_links row (13+ kids)
+          - observers linked via observer_student_links
+        """
+        connected: set = set()
+        if user_parent_id:
+            connected.add(user_parent_id)
+        client = self.repository.client
+        try:
+            links = client.table('parent_student_links').select('parent_user_id')\
+                .eq('student_user_id', user_id).eq('status', 'approved').execute()
+            connected.update(l['parent_user_id'] for l in (links.data or []))
+        except Exception:
+            pass
+        try:
+            obs_links = client.table('observer_student_links')\
+                .select('observer_id').eq('student_id', user_id).execute()
+            connected.update(l['observer_id'] for l in (obs_links.data or []))
+        except Exception:
+            pass
+        return connected
+
     def list_bounties(self, user_id: str, pillar: Optional[str] = None, bounty_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """List active bounties visible to the user, with optional filters."""
         all_bounties = self.repository.list_active_bounties(pillar=pillar, bounty_type=bounty_type)
@@ -352,19 +378,13 @@ class BountyService(BaseService):
 
         user = user_result.data[0]
         user_org_id = user.get('organization_id')
-        user_parent_id = user.get('managed_by_parent_id')
         is_superadmin = user.get('role') == 'superadmin'
 
-        # Pre-fetch the set of observer user_ids linked to this user — used so
-        # a student can see family-visibility bounties posted by an observer
-        # they're connected to (mirrors the parent path).
-        observer_ids_for_user: set = set()
-        try:
-            obs_links = self.repository.client.table('observer_student_links')\
-                .select('observer_id').eq('student_id', user_id).execute()
-            observer_ids_for_user = {link['observer_id'] for link in (obs_links.data or [])}
-        except Exception:
-            observer_ids_for_user = set()
+        # Adults connected to this user (managing parent, approved parent
+        # links, observers) — their family-visibility bounties are visible.
+        connected_poster_ids = self._get_connected_poster_ids(
+            user_id, user.get('managed_by_parent_id')
+        )
 
         visible = []
         for b in all_bounties:
@@ -377,8 +397,9 @@ class BountyService(BaseService):
                 # Poster always sees their own family bounties
                 if b['poster_id'] == user_id:
                     visible.append(b)
-                # Posted by the user's parent OR an observer linked to the user
-                elif b['poster_id'] == user_parent_id or b['poster_id'] in observer_ids_for_user:
+                # Posted by any adult connected to this user (managing parent,
+                # approved parent link, or observer link)
+                elif b['poster_id'] in connected_poster_ids:
                     # If allowed_student_ids is set, only those specific kids can see it
                     allowed = b.get('allowed_student_ids')
                     if allowed and isinstance(allowed, list):
@@ -488,6 +509,41 @@ class BountyService(BaseService):
             claim['bounty'] = bounty
         return claims
 
+    def _student_can_access_bounty(self, student_id: str, bounty: Dict[str, Any]) -> bool:
+        """Whether a student may see/claim a bounty under its visibility rules.
+        Mirrors the list_bounties filter so a direct link can't bypass it."""
+        vis = bounty.get('visibility', 'public')
+        if vis == 'public' or bounty['poster_id'] == student_id:
+            return True
+
+        try:
+            user_result = self.repository.client.table('users').select(
+                'id, role, organization_id, managed_by_parent_id'
+            ).eq('id', student_id).execute()
+        except Exception:
+            return False
+        if not user_result.data:
+            return False
+        user = user_result.data[0]
+
+        if user.get('role') == 'superadmin':
+            return True
+
+        if vis == 'organization':
+            return bool(user.get('organization_id')
+                        and bounty.get('organization_id') == user.get('organization_id'))
+
+        if vis == 'family':
+            connected = self._get_connected_poster_ids(student_id, user.get('managed_by_parent_id'))
+            if bounty['poster_id'] not in connected:
+                return False
+            allowed = bounty.get('allowed_student_ids')
+            if allowed and isinstance(allowed, list):
+                return student_id in allowed
+            return True
+
+        return False
+
     def claim_bounty(self, bounty_id: str, student_id: str) -> Dict[str, Any]:
         """Student claims a bounty."""
         bounty = self.repository.get_bounty_by_id(bounty_id)
@@ -496,6 +552,12 @@ class BountyService(BaseService):
 
         if bounty['status'] != 'active':
             raise ValidationError("Bounty is not active")
+
+        # Enforce visibility: a student can only claim a bounty they can see
+        # on their board (family bounties from their own adults, org bounties
+        # from their own org). Prevents claiming via a shared direct link.
+        if not self._student_can_access_bounty(student_id, bounty):
+            raise NotFoundError(f"Bounty {bounty_id} not found")
 
         # Check capacity (0 = unlimited)
         max_p = bounty.get('max_participants', 0)

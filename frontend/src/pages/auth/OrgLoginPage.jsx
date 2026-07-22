@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import logger from '../../utils/logger'
+import { getPostLoginPath } from '../../utils/postLoginPath'
 
 /**
  * Organization-specific login page for username-based authentication.
@@ -53,10 +54,7 @@ const OrgLoginPage = () => {
   useEffect(() => {
     if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
       logger.debug('[OrgLoginPage] User already authenticated, redirecting')
-      const redirectPath = user.role === 'parent' ? '/parent/dashboard'
-        : user.role === 'observer' ? (localStorage.getItem('observerWelcomeSeen') ? '/observer/feed' : '/observer/welcome')
-        : '/dashboard'
-      navigate(redirectPath, { replace: true })
+      navigate(getPostLoginPath(user), { replace: true })
     }
   }, [isAuthenticated, user, authLoading, navigate, wantsToSwitch])
 

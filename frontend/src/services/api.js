@@ -293,8 +293,12 @@ api.interceptors.response.use(
         // (e.g. right after a student logs out to hand off the device) must keep
         // us on the kiosk picker, not bounce to /login.
         const isTreehouseKiosk = currentPath.startsWith('/treehouse-kiosk')
+        // Org login pages (/login/<slug>) are themselves login pages — a 401
+        // from the background session check must not bounce a school's
+        // students off their branded login onto the main /login.
+        const isOrgLoginPage = currentPath.startsWith('/login/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage) {
           window.location.href = '/login'
         }
 

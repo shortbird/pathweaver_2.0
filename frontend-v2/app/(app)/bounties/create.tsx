@@ -124,6 +124,17 @@ export default function CreateBountyPage() {
         }
       } catch { /* not a parent */ }
       try {
+        // 13+ kids connected via approved parent-student links
+        const res = await api.get('/api/parents/my-children');
+        for (const child of (res.data.children || [])) {
+          const kidId = child.student_id;
+          if (kidId && !seenIds.has(kidId)) {
+            allKids.push({ id: kidId, display_name: `${child.student_first_name || ''} ${child.student_last_name || ''}`.trim() || 'Student' });
+            seenIds.add(kidId);
+          }
+        }
+      } catch { /* not a parent */ }
+      try {
         const res = await api.get('/api/observers/my-students');
         for (const link of (res.data.students || [])) {
           const kidId = link.student_id || link.id;
