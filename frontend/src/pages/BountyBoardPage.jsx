@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useBounties, useMyClaims, useMyPostedBounties, useToggleDeliverable, useDeleteBounty, useDeleteEvidence, useTurnInBounty } from '../hooks/api/useBounties'
 import AddEvidenceModal from '../components/evidence/AddEvidenceModal'
 import EvidenceViewerModal from '../components/bounty/EvidenceViewerModal'
+import SubmissionReviewCard from '../components/bounty/SubmissionReviewCard'
 import api from '../services/api'
 
 const PILLARS = [
@@ -320,7 +321,7 @@ const BountyBoardPage = () => {
   // tab), which would otherwise leave this board on an unknown tab and blank.
   const [tab, setTab] = useState(() => {
     const urlTab = searchParams.get('tab')
-    if (['browse', 'active', 'my-bounties'].includes(urlTab)) return urlTab
+    if (['browse', 'active', 'my-bounties', 'review'].includes(urlTab)) return urlTab
     return effectiveRole === 'parent' ? 'my-bounties' : 'browse'
   })
 
@@ -332,7 +333,21 @@ const BountyBoardPage = () => {
     { enabled: tab === 'browse' }
   )
   const { data: myClaims = [], isLoading: loadingClaims } = useMyClaims()
-  const { data: myPosted = [], isLoading: loadingPosted } = useMyPostedBounties({ enabled: tab === 'my-bounties', staleTime: 0 })
+  // Loaded whenever the user can post (not just on the my-bounties tab) so the
+  // Review tab badge count is visible from any tab.
+  const { data: myPosted = [], isLoading: loadingPosted } = useMyPostedBounties({ enabled: canPost, staleTime: 0 })
+
+  // Flat queue of every submitted claim across all posted bounties, oldest first
+  const pendingSubmissions = useMemo(() => {
+    const items = []
+    for (const b of myPosted) {
+      for (const c of b.claims || []) {
+        if (c.status === 'submitted') items.push({ bounty: b, claim: c })
+      }
+    }
+    items.sort((a, z) => new Date(a.claim.submitted_at || 0) - new Date(z.claim.submitted_at || 0))
+    return items
+  }, [myPosted])
 
   const claimStatusMap = useMemo(() => {
     const map = {}
@@ -480,6 +495,21 @@ const BountyBoardPage = () => {
             My Bounties
           </button>
         )}
+        {canPost && (
+          <button
+            onClick={() => setTab('review')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all min-h-[44px] flex items-center justify-center gap-1.5 ${
+              tab === 'review' ? 'bg-white shadow-sm text-optio-purple' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Review
+            {pendingSubmissions.length > 0 && (
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                {pendingSubmissions.length}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Browse Tab */}
@@ -570,10 +600,30 @@ const BountyBoardPage = () => {
                 key={b.id}
                 bounty={b}
                 onEdit={(id) => navigate(`/bounties/${id}/edit`, { state: { from } })}
-                onReview={(id) => navigate(`/bounties/${id}`, { state: { from } })}
+                onReview={() => setTab('review')}
                 onDelete={handleDelete}
                 deleting={deleteMutation.isPending}
               />
+            ))}
+          </div>
+        )
+      )}
+
+      {/* Review Queue Tab - all submitted claims across posted bounties */}
+      {tab === 'review' && (
+        loadingPosted ? (
+          <div className="flex justify-center py-16">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
+          </div>
+        ) : pendingSubmissions.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-gray-500 text-lg">No submissions to review</p>
+            <p className="text-gray-400 text-sm mt-1">When students turn in your bounties, they will show up here.</p>
+          </div>
+        ) : (
+          <div className="space-y-4 max-w-3xl">
+            {pendingSubmissions.map(({ bounty, claim }) => (
+              <SubmissionReviewCard key={claim.id} bounty={bounty} claim={claim} />
             ))}
           </div>
         )

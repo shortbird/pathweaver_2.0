@@ -321,7 +321,14 @@ const BountyDetailPage = () => {
               const claimEvidence = claim.evidence?.deliverable_evidence || {}
               return (
                 <div key={claim.id} className="p-4 border border-gray-200 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-4">Student: {claim.student_id.slice(0, 8)}...</p>
+                  <p className="text-sm font-semibold text-gray-900 mb-4">
+                    {claim.student?.display_name || 'Student'}
+                    {claim.submitted_at && (
+                      <span className="ml-2 text-xs font-normal text-gray-400">
+                        Submitted {new Date(claim.submitted_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </p>
 
                   {/* Deliverables with evidence */}
                   <div className="space-y-4 mb-4">
