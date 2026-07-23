@@ -105,8 +105,12 @@ export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
         )}
       </div>
 
-      {/* Quest Groups - subcategories for batch assignment */}
-      <QuestGroupsManager orgId={orgId} refreshKey={refreshKey} />
+      {/* Quest Groups - subcategories for batch assignment. Treehouse-only:
+          built for the Treehouse Learning Center's pin sets and not offered
+          to other organizations. */}
+      {orgData?.organization?.slug === 'treehouse' && (
+        <QuestGroupsManager orgId={orgId} refreshKey={refreshKey} />
+      )}
 
       {/* Quest Visibility Manager */}
       <QuestVisibilityManager

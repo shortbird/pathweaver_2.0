@@ -299,7 +299,7 @@ export default function OrganizationManagement() {
       )}
 
       {activeTab === 'credit-review' && (
-        <CreditReviewDashboardPage />
+        <CreditReviewDashboardPage orgId={orgId} />
       )}
 
     </div>

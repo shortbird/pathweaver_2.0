@@ -22,6 +22,9 @@ bp = Blueprint('user_invitations', __name__, url_prefix='/api/admin/organization
 # Valid roles that can be assigned via invitation
 VALID_INVITATION_ROLES = ['student', 'parent', 'advisor', 'org_admin', 'observer']
 
+# Roles that get a standing (permanent, auto-provisioned) account-creation link
+STANDING_LINK_ROLES = ['student', 'parent', 'advisor']
+
 
 def get_role_with_article(role):
     """Return role with correct article (a/an)."""
@@ -664,6 +667,95 @@ def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org
     except Exception as e:
         logger.error(f"Failed to generate invitation link for org {org_id}: {e}")
         return jsonify({'error': 'Failed to generate invitation link'}), 500
+
+
+@bp.route('/<org_id>/invitations/links', methods=['GET'])
+@require_org_admin
+def get_standing_invitation_links(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Return the organization's standing account-creation links: one permanent
+    link per role (student, parent, advisor/teacher).
+
+    Links are auto-provisioned on first request, so org admins never have to
+    generate them manually. Legacy rows created with the old 7-day expiry (or
+    auto-marked 'expired' by validate_invitation_code) are healed back to
+    'pending' with a far-future expiry instead of minting a new code, so links
+    already shared with families keep working.
+    """
+    try:
+        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
+        supabase = get_supabase_admin_client()
+
+        org_result = supabase.table('organizations') \
+            .select('id') \
+            .eq('id', org_id) \
+            .single() \
+            .execute()
+        if not org_result.data:
+            return jsonify({'error': 'Organization not found'}), 404
+
+        # Existing link-invites for this org. Include 'expired' rows so legacy
+        # short-expiry links can be healed rather than replaced.
+        existing = supabase.table('org_invitations') \
+            .select('id, role, status, expires_at, invitation_code, email, created_at') \
+            .eq('organization_id', org_id) \
+            .in_('status', ['pending', 'expired']) \
+            .like('email', 'link-invite-%') \
+            .order('created_at', desc=True) \
+            .execute()
+
+        link_rows = [
+            inv for inv in (existing.data or [])
+            if (inv.get('email') or '').endswith('@pending.optio.local')
+        ]
+
+        from app_config import Config
+        frontend_url = Config.FRONTEND_URL
+        far_future = (datetime.utcnow() + timedelta(days=3650)).isoformat()
+
+        links = []
+        for role in STANDING_LINK_ROLES:
+            row = next((inv for inv in link_rows if inv['role'] == role), None)
+
+            if row:
+                expires_at = datetime.fromisoformat(row['expires_at'].replace('Z', '+00:00'))
+                lapsed = (
+                    row['status'] != 'pending'
+                    or expires_at < datetime.utcnow().replace(tzinfo=expires_at.tzinfo)
+                )
+                if lapsed:
+                    supabase.table('org_invitations') \
+                        .update({'status': 'pending', 'expires_at': far_future}) \
+                        .eq('id', row['id']) \
+                        .execute()
+                code = row['invitation_code']
+            else:
+                code = generate_invitation_code()
+                insert = supabase.table('org_invitations').insert({
+                    'organization_id': org_id,
+                    'email': f"link-invite-{code[:12]}@pending.optio.local",
+                    'invited_name': '',
+                    'role': role,
+                    'invitation_code': code,
+                    'invited_by': current_user_id,
+                    'status': 'pending',
+                    'expires_at': far_future
+                }).execute()
+                if not insert.data:
+                    logger.error(f"Failed to auto-provision {role} link for org {org_id}")
+                    continue
+
+            links.append({
+                'role': role,
+                'invitation_code': code,
+                'shareable_link': f"{frontend_url}/invitation/{code}"
+            })
+
+        return jsonify({'links': links}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to get standing invitation links for org {org_id}: {e}")
+        return jsonify({'error': 'Failed to fetch invitation links'}), 500
 
 
 @bp.route('/<org_id>/invitations/<invitation_id>', methods=['DELETE'])

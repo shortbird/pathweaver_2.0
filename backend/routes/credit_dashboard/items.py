@@ -64,6 +64,7 @@ def get_dashboard_items(user_id: str):
         subject_filter = request.args.get('subject')
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
+        org_id_filter = request.args.get('org_id')
         page = int(request.args.get('page', 1))
         per_page = min(int(request.args.get('per_page', 50)), 100)
 
@@ -71,7 +72,8 @@ def get_dashboard_items(user_id: str):
         student_ids = None
 
         if effective_role == 'org_admin':
-            # Org admins see only students in their organization
+            # Org admins see only students in their organization (org_id param
+            # is ignored -- they can never widen their scope)
             org_id = user_data.get('organization_id')
             if org_id:
                 org_students = admin_supabase.table('users') \
@@ -82,6 +84,16 @@ def get_dashboard_items(user_id: str):
             if not student_ids:
                 return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
             # No default status filter -- org_admin sees all actionable items from their org
+        elif effective_role == 'superadmin' and org_id_filter:
+            # Superadmin viewing a specific org's credit review (embedded in the
+            # org management page): scope to that org's students only
+            org_students = admin_supabase.table('users') \
+                .select('id') \
+                .eq('organization_id', org_id_filter) \
+                .execute()
+            student_ids = [s['id'] for s in (org_students.data or [])]
+            if not student_ids:
+                return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
         elif effective_role == 'advisor':
             # Advisors see only their assigned students
             assignments = admin_supabase.table('advisor_student_assignments') \
@@ -363,6 +375,7 @@ def get_dashboard_stats(user_id: str):
         effective_role = get_effective_role(user_data)
 
         student_ids = None
+        org_id_filter = request.args.get('org_id')
         if effective_role == 'org_admin':
             org_id = user_data.get('organization_id')
             if org_id:
@@ -371,6 +384,21 @@ def get_dashboard_stats(user_id: str):
                     .eq('organization_id', org_id) \
                     .execute()
                 student_ids = [s['id'] for s in (org_students.data or [])]
+            if not student_ids:
+                return success_response(data={
+                    'pending_org_approval': 0,
+                    'pending_review': 0,
+                    'finalized': 0,
+                    'merged_this_week': 0
+                })
+        elif effective_role == 'superadmin' and org_id_filter:
+            # Superadmin viewing a specific org's credit review: scope counts
+            # to that org's students only
+            org_students = admin_supabase.table('users') \
+                .select('id') \
+                .eq('organization_id', org_id_filter) \
+                .execute()
+            student_ids = [s['id'] for s in (org_students.data or [])]
             if not student_ids:
                 return success_response(data={
                     'pending_org_approval': 0,

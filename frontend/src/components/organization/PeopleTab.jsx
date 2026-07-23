@@ -5,8 +5,7 @@ import BulkUsernameCreateModal from './BulkUsernameCreateModal'
 import {
   Modal,
   EditUserModal,
-  InvitationLinksSection,
-  PendingInvitationsSection,
+  AddPeopleSection,
   MembersTable,
   RelationshipsSection,
   AssignStudentsModal,
@@ -71,35 +70,21 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
         </div>
       </div>
 
-      {/* Two Column Layout: Invitation Links and Pending Invitations */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <InvitationLinksSection
-          showInvitationLinks={state.showInvitationLinks}
-          setShowInvitationLinks={state.setShowInvitationLinks}
-          linksLoading={state.linksLoading}
-          VALID_ROLES={state.VALID_ROLES}
-          getLinkForRole={state.getLinkForRole}
-          generating={state.generating}
-          getRoleBadgeClass={state.getRoleBadgeClass}
-          formatExpiration={state.formatExpiration}
-          copiedLinkId={state.copiedLinkId}
-          handleCopyLink={state.handleCopyLink}
-          handleGenerateLink={state.handleGenerateLink}
-          refreshConfirmRole={state.refreshConfirmRole}
-          handleRefreshLinkRequest={state.handleRefreshLinkRequest}
-          handleCancelRefresh={state.handleCancelRefresh}
-          handleConfirmRefresh={state.handleConfirmRefresh}
-        />
-
-        <PendingInvitationsSection
-          showPendingInvitations={state.showPendingInvitations}
-          setShowPendingInvitations={state.setShowPendingInvitations}
-          pendingInvitations={state.pendingInvitations}
-          pendingLoading={state.pendingLoading}
-          getRoleBadgeClass={state.getRoleBadgeClass}
-          formatExpiration={state.formatExpiration}
-        />
-      </div>
+      {/* Standing account-creation links + pending email invitations. The
+          Add People button (chooser modal) covers the direct-add flows. */}
+      <AddPeopleSection
+        showAddPeople={state.showInvitationLinks}
+        setShowAddPeople={state.setShowInvitationLinks}
+        linksLoading={state.linksLoading}
+        VALID_ROLES={state.VALID_ROLES}
+        getLinkForRole={state.getLinkForRole}
+        getRoleBadgeClass={state.getRoleBadgeClass}
+        copiedLinkId={state.copiedLinkId}
+        handleCopyLink={state.handleCopyLink}
+        pendingInvitations={state.pendingInvitations}
+        pendingLoading={state.pendingLoading}
+        formatExpiration={state.formatExpiration}
+      />
 
       {/* Relationships Section */}
       <RelationshipsSection

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useCreateBounty, useBountyDetail } from '../hooks/api/useBounties'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -26,6 +26,11 @@ const OPTIO_USERS = ['tanner bowman']
 
 const BountyCreatePage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  // The bounty board passes its own URL as state.from -- it may be embedded in
+  // the org management page (/admin/organizations/:id?tab=bounties), so "back"
+  // should return there rather than always to /bounties.
+  const backTo = location.state?.from || '/bounties'
   const { bountyId } = useParams()
   const isEdit = !!bountyId
   const { user } = useAuth()
@@ -44,7 +49,7 @@ const BountyCreatePage = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.detail(id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.myPosted })
       toast.success('Bounty updated!')
-      navigate('/bounties')
+      navigate(backTo)
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to update bounty')
@@ -250,7 +255,7 @@ const BountyCreatePage = () => {
     } else {
       payload.deadline = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
       createMutation.mutate(payload, {
-        onSuccess: () => navigate('/bounties'),
+        onSuccess: () => navigate(backTo),
       })
     }
   }
@@ -269,7 +274,7 @@ const BountyCreatePage = () => {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
-        onClick={() => navigate('/bounties')}
+        onClick={() => navigate(backTo)}
         className="flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-6 min-h-[44px]"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

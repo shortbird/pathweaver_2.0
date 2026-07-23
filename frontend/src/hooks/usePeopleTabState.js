@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 
-// Roles available for invitation link generation (not org_admin or observer)
+// Roles with a standing account-creation link (not org_admin or observer)
 const VALID_ROLES = [
   { value: 'student', label: 'Student' },
   { value: 'parent', label: 'Parent' },
@@ -24,18 +24,15 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const usersPerPage = 25
 
-  // Quick actions dropdown
-  const [showActionsDropdown, setShowActionsDropdown] = useState(false)
+  // Add People modals
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showBulkImportModal, setShowBulkImportModal] = useState(false)
 
-  // Invitation links state
+  // Account-creation links state (one standing link per role)
   const [invitationLinks, setInvitationLinks] = useState([])
   const [linksLoading, setLinksLoading] = useState(true)
-  const [generating, setGenerating] = useState(null)
   const [copiedLinkId, setCopiedLinkId] = useState(null)
   const [showInvitationLinks, setShowInvitationLinks] = useState(true)
-  const [refreshConfirmRole, setRefreshConfirmRole] = useState(null) // Role pending refresh confirmation
 
   // Pending invitations state
   const [pendingInvitations, setPendingInvitations] = useState([])
@@ -73,15 +70,12 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
   const [inviteName, setInviteName] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
 
-  // Fetch invitation links
+  // Fetch the org's standing account-creation links (auto-provisioned server-side)
   const fetchInvitationLinks = useCallback(async () => {
     try {
       setLinksLoading(true)
-      const response = await api.get(`/api/admin/organizations/${orgId}/invitations?status=pending`)
-      const linkInvites = (response.data.invitations || []).filter(
-        inv => inv.email?.startsWith('link-invite-') && inv.email?.endsWith('@pending.optio.local')
-      )
-      setInvitationLinks(linkInvites)
+      const response = await api.get(`/api/admin/organizations/${orgId}/invitations/links`)
+      setInvitationLinks(response.data.links || [])
     } catch (err) {
       console.error('Failed to fetch invitation links:', err)
     } finally {
@@ -109,51 +103,6 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
     fetchInvitationLinks()
     fetchPendingInvitations()
   }, [fetchInvitationLinks, fetchPendingInvitations])
-
-  // Request to refresh a link (shows confirmation if link already exists)
-  const handleRefreshLinkRequest = (role) => {
-    const existingForRole = invitationLinks.find(l => l.role === role)
-    if (existingForRole) {
-      // Link exists - show confirmation
-      setRefreshConfirmRole(role)
-    } else {
-      // No existing link - generate directly
-      handleGenerateLink(role)
-    }
-  }
-
-  // Cancel refresh confirmation
-  const handleCancelRefresh = () => {
-    setRefreshConfirmRole(null)
-  }
-
-  // Confirm and execute the refresh
-  const handleConfirmRefresh = async () => {
-    if (!refreshConfirmRole) return
-    await handleGenerateLink(refreshConfirmRole)
-    setRefreshConfirmRole(null)
-  }
-
-  const handleGenerateLink = async (role) => {
-    setGenerating(role)
-    try {
-      const existingForRole = invitationLinks.find(l => l.role === role)
-      if (existingForRole) {
-        try {
-          await api.delete(`/api/admin/organizations/${orgId}/invitations/${existingForRole.id}`)
-        } catch (e) {
-          console.warn('Failed to cancel old link:', e)
-        }
-      }
-      await api.post(`/api/admin/organizations/${orgId}/invitations/link`, { role })
-      await fetchInvitationLinks()
-    } catch (err) {
-      console.error('Failed to generate link:', err)
-      toast.error(err.response?.data?.error || 'Failed to generate link')
-    } finally {
-      setGenerating(null)
-    }
-  }
 
   const handleCopyLink = async (code, id) => {
     const link = `${window.location.origin}/invitation/${code}`
@@ -564,25 +513,18 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
     setSelectedUsers,
     bulkActionLoading,
 
-    // Quick actions
-    showActionsDropdown,
-    setShowActionsDropdown,
+    // Add People modals
     showInviteModal,
     setShowInviteModal,
     showBulkImportModal,
     setShowBulkImportModal,
 
-    // Invitation links
+    // Account-creation links
     invitationLinks,
     linksLoading,
-    generating,
     copiedLinkId,
     showInvitationLinks,
     setShowInvitationLinks,
-    refreshConfirmRole,
-    handleRefreshLinkRequest,
-    handleCancelRefresh,
-    handleConfirmRefresh,
 
     // Pending invitations
     pendingInvitations,
@@ -640,7 +582,6 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
     paginatedUsers,
 
     // Handlers
-    handleGenerateLink,
     handleCopyLink,
     formatExpiration,
     getLinkForRole,

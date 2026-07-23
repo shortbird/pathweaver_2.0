@@ -14,7 +14,10 @@ import ClassReviewsSection from '../components/credit-dashboard/ClassReviewsSect
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 import useIsMobile from '../hooks/useIsMobile'
 
-const CreditReviewDashboardPage = () => {
+// orgId is set when this page is embedded in the org management screen
+// (/admin/organizations/:orgId > Credit Review tab). It scopes the queue to
+// that org's students -- without it a superadmin sees the platform-wide queue.
+const CreditReviewDashboardPage = ({ orgId = null }) => {
   const { effectiveRole } = useAuth()
   const isMobile = useIsMobile()
   // Holistic class credit is a superadmin function (platform class submissions
@@ -41,14 +44,15 @@ const CreditReviewDashboardPage = () => {
   // Set default filters based on role
   useEffect(() => {
     if (!effectiveRole || filtersInitialized) return
-    if (effectiveRole === 'org_admin') {
-      // Show all actionable items from org students (no status filter)
+    if (effectiveRole === 'org_admin' || orgId) {
+      // Org-scoped view: show all actionable items from org students (no
+      // status filter), so pending_org_approval requests always appear
       setFilters(f => ({ ...f, status: '' }))
     } else {
       setFilters(f => ({ ...f, status: 'pending_review' }))
     }
     setFiltersInitialized(true)
-  }, [effectiveRole, filtersInitialized])
+  }, [effectiveRole, filtersInitialized, orgId])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [showMergeModal, setShowMergeModal] = useState(false)
@@ -83,6 +87,7 @@ const CreditReviewDashboardPage = () => {
     try {
       setLoading(true)
       const params = { page, per_page: perPage }
+      if (orgId) params.org_id = orgId
       Object.entries(filters).forEach(([key, val]) => {
         if (val) params[key] = val
       })
@@ -95,17 +100,18 @@ const CreditReviewDashboardPage = () => {
     } finally {
       setLoading(false)
     }
-  }, [filters, page, filtersInitialized])
+  }, [filters, page, filtersInitialized, orgId])
 
   const fetchStats = useCallback(async () => {
     if (!filtersInitialized) return
     try {
-      const res = await api.get('/api/credit-dashboard/stats')
+      const params = orgId ? { org_id: orgId } : {}
+      const res = await api.get('/api/credit-dashboard/stats', { params })
       setStats(res.data?.data || res.data)
     } catch (err) {
       console.error('Failed to fetch stats:', err)
     }
-  }, [filtersInitialized])
+  }, [filtersInitialized, orgId])
 
   useEffect(() => {
     fetchItems()
@@ -187,7 +193,11 @@ const CreditReviewDashboardPage = () => {
       }
 
       try {
-        if (effectiveRole === 'org_admin') {
+        // Route by the item's stage, not the reviewer's role: org-approve
+        // handles pending_org_approval for both org_admins and superadmins
+        // (superadmins collapse both stages server-side), while approve is
+        // the superadmin final-review action for pending_review items.
+        if (item.diploma_status === 'pending_org_approval') {
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
         } else {
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/approve`, {})
@@ -223,7 +233,8 @@ const CreditReviewDashboardPage = () => {
         setStudentContext(null)
       }
       try {
-        if (effectiveRole === 'org_admin') {
+        // Same stage-based routing as approve above
+        if (item.diploma_status === 'pending_org_approval') {
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-grow-this`, {
             feedback: fb
           })

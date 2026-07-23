@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, memo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useBounties, useMyClaims, useMyPostedBounties, useToggleDeliverable, useDeleteBounty, useDeleteEvidence, useTurnInBounty } from '../hooks/api/useBounties'
 import AddEvidenceModal from '../components/evidence/AddEvidenceModal'
@@ -304,6 +304,11 @@ const PostedBountyCard = ({ bounty, onEdit, onReview, onDelete, deleting }) => {
 
 const BountyBoardPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  // Where "back" from create/detail/edit should land. The board is also
+  // embedded in the org management page (/admin/organizations/:id?tab=bounties),
+  // so pass the actual current URL along rather than assuming /bounties.
+  const from = location.pathname + location.search
   const [searchParams] = useSearchParams()
   const { user, effectiveRole } = useAuth()
   const [filterPillar, setFilterPillar] = useState(null)
@@ -437,7 +442,7 @@ const BountyBoardPage = () => {
         </h1>
         {canPost && (
           <button
-            onClick={() => navigate('/bounties/create')}
+            onClick={() => navigate('/bounties/create', { state: { from } })}
             className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px]"
           >
             Post Bounty
@@ -508,7 +513,7 @@ const BountyBoardPage = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {bounties.map(b => (
-                <BountyCard key={b.id} bounty={b} onClick={(id) => navigate(`/bounties/${id}`)} claimStatus={claimStatusMap[b.id]} />
+                <BountyCard key={b.id} bounty={b} onClick={(id) => navigate(`/bounties/${id}`, { state: { from } })} claimStatus={claimStatusMap[b.id]} />
               ))}
             </div>
           )}
@@ -552,7 +557,7 @@ const BountyBoardPage = () => {
           <div className="text-center py-16">
             <p className="text-gray-500 text-lg">No bounties posted yet</p>
             <button
-              onClick={() => navigate('/bounties/create')}
+              onClick={() => navigate('/bounties/create', { state: { from } })}
               className="mt-4 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-bold hover:shadow-lg transition-all min-h-[44px]"
             >
               Post Your First Bounty
@@ -564,8 +569,8 @@ const BountyBoardPage = () => {
               <PostedBountyCard
                 key={b.id}
                 bounty={b}
-                onEdit={(id) => navigate(`/bounties/${id}/edit`)}
-                onReview={(id) => navigate(`/bounties/${id}`)}
+                onEdit={(id) => navigate(`/bounties/${id}/edit`, { state: { from } })}
+                onReview={(id) => navigate(`/bounties/${id}`, { state: { from } })}
                 onDelete={handleDelete}
                 deleting={deleteMutation.isPending}
               />
