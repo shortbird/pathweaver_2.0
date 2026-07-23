@@ -38,7 +38,8 @@ from utils.personalization_helpers import (
     check_and_complete_personalization,
     normalize_diploma_subjects,
     get_or_create_enrollment,
-    get_next_order_index
+    get_next_order_index,
+    sanitize_success_criteria
 )
 
 logger = get_logger(__name__)
@@ -569,6 +570,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 'user_quest_id': user_quest_id,
                 'title': task['title'],
                 'description': task.get('description', ''),
+                'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
                 'pillar': pillar_key,
                 'diploma_subjects': diploma_subjects,
                 'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
@@ -710,6 +712,7 @@ def add_path_tasks(user_id: str, quest_id: str):
                 'user_quest_id': user_quest_id,
                 'title': title,
                 'description': task.get('description', ''),
+                'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
                 'pillar': pillar_key,
                 'diploma_subjects': diploma_subjects,
                 'subject_xp_distribution': subject_xp_distribution,
@@ -896,6 +899,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
             'user_quest_id': user_quest_id,
             'title': task['title'],
             'description': task.get('description', ''),
+            'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
             'pillar': pillar_key,
             'diploma_subjects': diploma_subjects,
             'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
@@ -922,6 +926,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
         library_task_data = {
             'title': task['title'],
             'description': task.get('description', ''),
+            'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
             'pillar': pillar_key,
             'xp_value': task.get('xp_value', 100),
             'diploma_subjects': diploma_subjects,
@@ -992,6 +997,7 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
         library_task_data = {
             'title': task['title'],
             'description': task.get('description', ''),
+            'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
             'pillar': pillar_key,
             'xp_value': task.get('xp_value', 100),
             'diploma_subjects': diploma_subjects,

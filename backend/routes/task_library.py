@@ -183,6 +183,7 @@ def select_library_task(user_id, quest_id):
             'user_quest_id': user_quest_id,
             'title': sample_task['title'],
             'description': sample_task['description'],
+            'success_criteria': sample_task.get('success_criteria'),
             'pillar': sample_task['pillar'],
             'xp_value': sample_task['xp_value'],
             'diploma_subjects': sample_task.get('diploma_subjects'),

@@ -137,6 +137,27 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
               </div>
             )}
 
+            {/* Success Criteria - the checkable "done" bar */}
+            {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
+              <div
+                className="border-2 rounded-xl p-6"
+                style={{
+                  backgroundColor: `${pillarData.color}10`,
+                  borderColor: pillarData.color
+                }}
+              >
+                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>How You'll Know It's Done</h4>
+                <ul className="space-y-2">
+                  {task.success_criteria.map((criterion, idx) => (
+                    <li key={idx} className="flex items-start text-base text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                      <span className="mr-3 font-bold" style={{ color: pillarData.color }}>✓</span>
+                      {criterion}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Evidence Prompt */}
             {task.evidence_prompt && (
               <div

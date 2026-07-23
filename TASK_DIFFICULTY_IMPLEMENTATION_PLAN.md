@@ -209,3 +209,51 @@ pending and at the +/-2 cap; API error leaves the original task intact.
 - Parent/advisor-enforced difficulty locks per student.
 - Analytics on dial usage (which quests get "harder" taps -> signal for authoring).
 - Raising XP scale beyond 200.
+
+---
+
+## Revision 2 (2026-07-23) - Success criteria: difficulty lives in the "done" bar
+
+Client feedback on the first implementation: tasks got broader, not harder. Root
+cause: the challenge level only changed prompt adjectives + XP, but a task is
+1-2 simple sentences - there is nowhere in that artifact for difficulty to live.
+A vague big task is easy because the student defines "done" themselves. Students
+asking for "harder" are asking for more structure.
+
+### What changed
+
+Every AI-generated task now carries `success_criteria`: 2-4 short, checkable
+statements defining exactly when the task is done ("You played 5 games", "The
+printed part fits with no gaps"). The challenge level changes the KIND of
+criteria, not the wording of the description:
+
+| Level | Criteria style | Rubric verbs |
+|-------|----------------|--------------|
+| Easier | Completion-based: did-it checks | try, practice, play, show, find |
+| Standard | Product-based: made-something checks | make, build, write, explain, apply |
+| Challenge | Constraint + quality + process: (a) measurable target or real-world constraint, (b) quality bar, (c) process documentation (failed attempts + what changed) | design, analyze, improve, teach, defend |
+
+Challenge prompts also steer toward each topic's real ladder (chess ratings,
+print tolerances, timed runs, real audiences). Self-direction is preserved:
+the student owns the topic and the target; the structure owns the bar.
+
+### Implementation
+
+- Migration `20260723_add_success_criteria_to_tasks.sql`: `success_criteria jsonb`
+  on `user_quest_tasks` + `quest_sample_tasks` (applied to prod DB).
+- Prompt: always-on SUCCESS CRITERIA contract + per-level criteria rules with a
+  worked chess example per level (`_build_personalization_prompt`).
+- `sanitize_success_criteria` in `utils/personalization_helpers.py` (shared by
+  service + routes; caps 5 items / 200 chars, [] on malformed).
+- Persisted through: accept-task, finalize-tasks, add-manual-tasks,
+  add-path-tasks, task library round-trip (skip + select_library_task).
+- Complexity dial rewrites the criteria ("harder" = add measurable constraint +
+  process-doc requirement; "easier" = strip to completion checks); edit-task
+  carries criteria through.
+- Read paths: quest detail, parent quest/evidence views, credit dashboard item
+  detail now select/return `success_criteria` (task completion already used
+  `select('*')`).
+- UI ("How you'll know it's done" checklist): v1 wizard review card,
+  TaskWorkspace detail panel, TaskEvidenceModal, TaskDetailModal, credit
+  dashboard ItemDetail; v2 wizard review card, quest detail expanded task,
+  parent quest task card.

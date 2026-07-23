@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.pillar_utils import normalize_pillar_name
+from utils.personalization_helpers import sanitize_success_criteria
 
 from utils.logger import get_logger
 
@@ -429,6 +430,11 @@ class PersonalizationService(BaseService):
 
             original_task = ai_tasks[task_index]
 
+            original_criteria = sanitize_success_criteria(original_task.get('success_criteria'))
+            criteria_text = ''
+            if original_criteria:
+                criteria_text = "Success Criteria:\n" + '\n'.join(f"- {c}" for c in original_criteria) + "\n"
+
             # Build refinement prompt
             prompt = f"""
             Refine this educational task based on student's input:
@@ -436,7 +442,7 @@ class PersonalizationService(BaseService):
             Original Task:
             Title: {original_task['title']}
             Description: {original_task['description']}
-
+            {criteria_text}
             Student's Edit:
             {student_edits}
 
@@ -445,8 +451,9 @@ class PersonalizationService(BaseService):
             2. Maintains educational quality
             3. Keeps similar XP value ({original_task['xp_value']})
             4. Stays in the same pillar ({original_task['pillar']})
+            5. Updates success_criteria to match the new task: 2-4 short checkable statements addressed to the student ("You..."), keeping the same level of demand as the originals
 
-            Return as JSON with fields: title, description, pillar, xp_value, evidence_prompt
+            Return as JSON with fields: title, description, success_criteria, pillar, xp_value, evidence_prompt
             """
 
             result = self.ai_service.generate_with_fallback(prompt)
@@ -456,6 +463,8 @@ class PersonalizationService(BaseService):
             refined_task = {
                 'title': refined_task.get('title', original_task['title']),
                 'description': refined_task.get('description', original_task['description']),
+                'success_criteria': (sanitize_success_criteria(refined_task.get('success_criteria'))
+                                     or original_criteria),
                 'pillar': self.ai_service._validate_pillar(refined_task.get('pillar', original_task['pillar'])),
                 # max_xp=200: a challenge-level task can legitimately sit at
                 # 150-200 XP; the default 150 cap would silently shrink it.
@@ -505,6 +514,7 @@ class PersonalizationService(BaseService):
             original_title = (task.get('title') or '').strip()
             original_description = task.get('description', '')
             original_pillar = task.get('pillar', 'stem')
+            original_criteria = sanitize_success_criteria(task.get('success_criteria'))
             try:
                 original_xp = int(task.get('xp_value', 100))
             except (TypeError, ValueError):
@@ -512,19 +522,28 @@ class PersonalizationService(BaseService):
 
             if direction == 'harder':
                 direction_text = (
-                    "Make this task meaningfully HARDER. Increase actual scope and depth - "
-                    "original creation over consumption, real-world constraints, self-directed "
-                    "research, a more substantial final product. Do NOT just add words or steps."
+                    "Make this task meaningfully HARDER by raising the bar, not the breadth. "
+                    "A hard task is a CONCRETE task with a demanding, checkable \"done\" bar - "
+                    "never a vaguer or broader one. Keep the description simple; put the "
+                    "difficulty into the success_criteria, which must include ALL THREE of: "
+                    "(a) a measurable target or real-world constraint (a number, rating, size, "
+                    "time limit, real audience, or \"it must actually work/fit/hold\"), "
+                    "(b) a quality bar the finished product must meet, and "
+                    "(c) process documentation (show attempts that did not work and what you changed). "
+                    "Use the topic's real ladder when it has one (chess ratings, print tolerances, "
+                    "word counts, timed runs)."
                 )
                 xp_instruction = (
-                    f"Increase xp_value by 25-50 above {original_xp} to reflect the bigger scope "
+                    f"Increase xp_value by 25-50 above {original_xp} to reflect the higher bar "
                     f"(multiple of 25, never above 200)."
                 )
             else:
                 direction_text = (
-                    "Make this task meaningfully EASIER. Reduce scope to one clear outcome "
+                    "Make this task meaningfully EASIER. Reduce it to ONE clear outcome "
                     "finishable in a single short session, with small concrete steps and more "
-                    "built-in guidance."
+                    "built-in guidance. The success_criteria become 2-3 simple completion "
+                    "checks (\"You played 3 full games\") - drop measurable targets, quality "
+                    "bars, and process-documentation requirements."
                 )
                 xp_instruction = (
                     f"Decrease xp_value by 25-50 below {original_xp} to reflect the smaller scope "
@@ -538,13 +557,17 @@ class PersonalizationService(BaseService):
                     f"appropriate for that age - adjust difficulty within what that age can do.\n"
                 )
 
+            criteria_text = ''
+            if original_criteria:
+                criteria_text = "Success Criteria:\n" + '\n'.join(f"- {c}" for c in original_criteria) + "\n"
+
             prompt = f"""
 Adjust the difficulty of this educational task:
 
 Original Task:
 Title: {original_title}
 Description: {original_description}
-Pillar: {original_pillar}
+{criteria_text}Pillar: {original_pillar}
 XP Value: {original_xp}
 
 {direction_text}
@@ -553,11 +576,12 @@ Rules:
 1. {xp_instruction}
 2. Keep the same pillar ({original_pillar}).
 3. Keep the same topic and the student's interests - change the difficulty, not the subject.
-4. Write for a 5th-6th grade reading level. The WORK changes difficulty; the WORDS stay simple.
+4. Write for a 5th-6th grade reading level. The BAR changes difficulty; the WORDS stay simple.
 5. Title: simple action verb, 5-8 words.
 6. Description: 1-2 short sentences.
+7. success_criteria: short checkable statements addressed to the student ("You..."), each answerable yes/no from their evidence.
 
-Return as JSON with fields: title, description, pillar, xp_value
+Return as JSON with fields: title, description, success_criteria, pillar, xp_value
 """
 
             result = self.ai_service.generate_with_fallback(prompt)
@@ -585,6 +609,8 @@ Return as JSON with fields: title, description, pillar, xp_value
             adjusted_task = {
                 'title': adjusted.get('title') or original_title,
                 'description': adjusted.get('description') or original_description,
+                'success_criteria': (sanitize_success_criteria(adjusted.get('success_criteria'))
+                                     or original_criteria),
                 'pillar': self.ai_service._validate_pillar(adjusted.get('pillar', original_pillar)),
                 'xp_value': new_xp,
                 # Re-spread the original subject split across the new XP total.
@@ -715,6 +741,7 @@ Return as JSON with fields: title, description, pillar, xp_value
                     'user_quest_id': user_quest_id,
                     'title': task['title'],
                     'description': description,
+                    'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
                     'pillar': db_pillar,
                     'diploma_subjects': diploma_subjects,
                     'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
@@ -768,6 +795,7 @@ Return as JSON with fields: title, description, pillar, xp_value
                 library_task_data = {
                     'title': task['title'],
                     'description': task.get('description', ''),
+                    'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
                     'pillar': pillar_key,
                     'xp_value': task.get('xp_value', 100),
                     'diploma_subjects': diploma_subjects,
@@ -994,32 +1022,59 @@ PRIORITY REQUIREMENT: The student specifically wants to earn diploma credits in 
             )
             difficulty_line = '1. Are small, age-appropriate activities sized for this learner (NOT high-school-level projects)'
 
-        # Challenge-level guidance. Scales the scope/rigor of the whole batch.
+        # Challenge-level guidance. The level changes the KIND of task, not the
+        # wording: difficulty lives in the success criteria (how demanding and
+        # checkable the "done" bar is), never in vaguer/broader descriptions -
+        # a vague big task is easy because the student defines "done" themselves.
         # When an age band is present, challenge is expressed relative to that
         # band (a "challenge" task for an 8-year-old is not a high-school task),
         # and the age band's reading-level rules stay in force.
-        challenge_guidance = ''
         if challenge_level == 'easier':
-            baseline = ('what a task at this age band would normally ask' if age_band
-                        else 'a typical high school unit project')
             challenge_guidance = (
-                f"\nCHALLENGE LEVEL: EASIER (IMPORTANT). This student wants more approachable tasks.\n"
-                f"- Reduce scope compared to {baseline}: one clear outcome per task, finishable in a single short session.\n"
-                f"- Break work into small, concrete steps with more built-in guidance.\n"
-                f"- Favor quick wins that build confidence; avoid multi-part deliverables.\n"
+                "\nCHALLENGE LEVEL: EASIER (IMPORTANT). This student wants more approachable tasks.\n"
+                "- Every task is ONE clear outcome, finishable in a single short session.\n"
+                "- Favor doing verbs: try, practice, play, show, find.\n"
+                "- success_criteria are COMPLETION-based: simple did-it checks. 2-3 per task.\n"
+                "- Favor quick wins that build confidence; avoid multi-part deliverables.\n"
+                "- Evidence should be light: a photo or a quick note is enough.\n"
+                "Example (chess): title \"Play Your First Chess Games\"; success_criteria: "
+                "[\"You played 3 full games of chess\", \"You can name how each piece moves\"].\n"
             )
         elif challenge_level == 'challenge':
-            baseline = (f'what a learner in the {age_band} age band would usually be asked; keep tasks '
-                        f'developmentally appropriate for that age, just more ambitious' if age_band
-                        else 'a typical high school unit project')
+            age_line = (f"- Keep tasks developmentally appropriate for the {age_band} age band - "
+                        f"more ambitious, not older.\n" if age_band else '')
             challenge_guidance = (
-                f"\nCHALLENGE LEVEL: CHALLENGE (IMPORTANT). This student finds typical tasks too easy.\n"
-                f"- Meaningfully increase scope and rigor compared to {baseline}.\n"
-                f"- Do NOT just add words or steps - increase actual depth: original creation over consumption, "
-                f"real-world constraints, self-directed research, multi-session projects with a substantial final product.\n"
-                f"- Expect the student to make real decisions and defend them, not follow a recipe.\n"
-                f"- The words describing the task must STAY simple (reading level rules below still apply); "
-                f"only the work itself gets harder.\n"
+                "\nCHALLENGE LEVEL: CHALLENGE (IMPORTANT). This student finds typical tasks too easy.\n"
+                "A hard task is NOT a vague or broad task - it is a CONCRETE task with a demanding, "
+                "checkable bar. The structure IS the difficulty. Do NOT just add words or steps.\n"
+                "- Favor rigor verbs: design, analyze, improve, teach, defend.\n"
+                "- EVERY task's success_criteria (3-4 items) must include ALL THREE of:\n"
+                "  (a) a measurable target or real-world constraint: a number, rating, size, time limit, "
+                "a real audience, or \"it must actually work/fit/hold\";\n"
+                "  (b) a quality bar the finished product must meet;\n"
+                "  (c) process documentation: show attempts that did not work and what you changed.\n"
+                "- Use the topic's real ladder when it has one (chess ratings, print tolerances, "
+                "word counts, timed runs, a real audience or judge).\n"
+                "- Expect the student to make real decisions and defend them, not follow a recipe.\n"
+                "- Multi-session projects with a substantial final product are ideal.\n"
+                f"{age_line}"
+                "- The words describing the task must STAY simple (reading level rules below still "
+                "apply); only the bar gets higher.\n"
+                "Example (chess): title \"Fix Your Most Common Chess Mistake\"; success_criteria: "
+                "[\"You reviewed 3 of your own games move by move\", "
+                "\"You named the mistake you make most often\", "
+                "\"You played 5 more games trying to fix that mistake\", "
+                "\"You wrote down whether your results improved and what you changed\"].\n"
+            )
+        else:
+            challenge_guidance = (
+                "\nCHALLENGE LEVEL: STANDARD.\n"
+                "- Favor making verbs: make, build, write, explain, apply.\n"
+                "- success_criteria are PRODUCT-based: they check that the student MADE something "
+                "concrete. 2-3 per task.\n"
+                "Example (chess): title \"Find Your Chess Mistakes\"; success_criteria: "
+                "[\"You played 5 games of chess\", "
+                "\"You wrote down one mistake from each game and what you would do differently\"].\n"
             )
 
         return f"""
@@ -1052,6 +1107,12 @@ Generate 6-10 tasks that:
 7. PRIORITIZE the student's selected subjects ({subjects_text}) - most tasks should earn credits in these areas
 8. Follow the selected approach: {approach_desc}
 
+SUCCESS CRITERIA (REQUIRED for every task):
+Every task must include "success_criteria": 2-4 short statements that define exactly when the task is done. A student (or a reviewer looking at their evidence) must be able to answer yes/no to each one.
+- Each criterion is specific and checkable: "You played 5 games", "The printed part fits with no gaps" - never vague: "Understand chess better", "Do your best".
+- Keep the description 1-2 sentences; the criteria carry the rigor. Do not repeat the description as a criterion.
+- Write criteria at the same simple reading level, addressed to the student ("You...").
+
 CRITICAL TASK WRITING GUIDELINES:
 - READING LEVEL: Write for a 5th-6th grade reading level. Use common, everyday words that any student can understand.
   BAD: "Analyze the socioeconomic factors influencing historical migration patterns"
@@ -1072,6 +1133,7 @@ Return as valid JSON array:
   {{
     "title": "Clear, concise task name (5-8 words)",
     "description": "1-2 brief sentences describing the task",
+    "success_criteria": ["Short checkable statement", "Another checkable statement"],
     "pillar": "stem|wellness|communication|civics|art (use exact lowercase name)",
     "diploma_subjects": {{"Subject Name": 50, "Another Subject": 50}},
     "xp_value": 100
@@ -1135,6 +1197,7 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
                 'title': task.get('title', 'Learning Task'),
                 'description': task.get('description', ''),
                 'bullet_points': task.get('bullet_points', []),
+                'success_criteria': sanitize_success_criteria(task.get('success_criteria')),
                 'pillar': validated_pillar,
                 'diploma_subjects': diploma_subjects,
                 'xp_value': max(level_cfg['min_xp'],

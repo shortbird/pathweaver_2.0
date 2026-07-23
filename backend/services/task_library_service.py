@@ -169,6 +169,7 @@ class TaskLibraryService(BaseService):
                 'quest_id': quest_id,
                 'title': task_data.get('title'),
                 'description': task_data.get('description'),
+                'success_criteria': task_data.get('success_criteria'),
                 'pillar': task_data.get('pillar'),
                 'xp_value': task_data.get('xp_value'),
                 'diploma_subjects': task_data.get('diploma_subjects'),

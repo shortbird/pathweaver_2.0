@@ -311,7 +311,7 @@ def get_student_quest_view(user_id, student_id, quest_id):
 
         # Get student's personalized tasks for this quest
         tasks_response = supabase.table('user_quest_tasks').select('''
-            id, title, description, pillar, xp_value, order_index, is_required
+            id, title, description, success_criteria, pillar, xp_value, order_index, is_required
         ''').eq('user_id', student_id).eq('quest_id', quest_id).order('order_index').execute()
 
         # Get task completions

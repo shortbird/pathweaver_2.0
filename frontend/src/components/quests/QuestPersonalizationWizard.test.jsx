@@ -166,6 +166,54 @@ describe('QuestPersonalizationWizard - challenge level', () => {
   })
 })
 
+describe('QuestPersonalizationWizard - success criteria', () => {
+  it('renders the criteria checklist on the review card', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openReviewStep([
+      {
+        ...AI_TASKS[0],
+        success_criteria: ['You played 5 games of chess', 'You wrote down one mistake from each game']
+      }
+    ])
+
+    expect(screen.getByText("How you'll know it's done")).toBeInTheDocument()
+    expect(screen.getByText('You played 5 games of chess')).toBeInTheDocument()
+    expect(screen.getByText('You wrote down one mistake from each game')).toBeInTheDocument()
+  })
+
+  it('hides the criteria section when a task has none', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openReviewStep(AI_TASKS)
+
+    expect(screen.queryByText("How you'll know it's done")).not.toBeInTheDocument()
+  })
+
+  it('swaps in the adjusted criteria when the dial rewrites a task', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openReviewStep([
+      { ...AI_TASKS[0], success_criteria: ['You tracked 3 openings'] }
+    ])
+    expect(screen.getByText('You tracked 3 openings')).toBeInTheDocument()
+
+    api.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        task: {
+          ...AI_TASKS[0],
+          xp_value: 150,
+          success_criteria: ['You analyzed 3 of your own games', 'You showed a failed attempt and what you changed']
+        }
+      }
+    })
+    fireEvent.click(screen.getByText('Harder'))
+
+    await waitFor(() => {
+      expect(screen.getByText('You analyzed 3 of your own games')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('You tracked 3 openings')).not.toBeInTheDocument()
+  })
+})
+
 describe('QuestPersonalizationWizard - complexity dial', () => {
   it('swaps in the adjusted task and updates the XP badge', async () => {
     render(<QuestPersonalizationWizard {...baseProps} />)

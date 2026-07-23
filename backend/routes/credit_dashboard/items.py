@@ -262,7 +262,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
         task_data = {}
         if completion_data.get('user_quest_task_id'):
             task_result = admin_supabase.table('user_quest_tasks') \
-                .select('id, title, description, pillar, xp_value, diploma_subjects, subject_xp_distribution') \
+                .select('id, title, description, success_criteria, pillar, xp_value, diploma_subjects, subject_xp_distribution') \
                 .eq('id', completion_data['user_quest_task_id']) \
                 .single() \
                 .execute()

@@ -173,6 +173,23 @@ def check_and_complete_personalization(user_id: str, quest_id: str, session_id: 
         # Don't fail the request if completion check fails
 
 
+def sanitize_success_criteria(raw: Any, max_items: int = 5, max_len: int = 200) -> list:
+    """Coerce a success_criteria value (AI- or client-supplied) to a clean
+    list of short non-empty strings. Returns [] for anything malformed so
+    callers can store NULL / hide the UI section instead of garbage."""
+    if not isinstance(raw, list):
+        return []
+    cleaned = []
+    for item in raw:
+        if isinstance(item, str):
+            text = item.strip()
+            if text:
+                cleaned.append(text[:max_len])
+        if len(cleaned) >= max_items:
+            break
+    return cleaned
+
+
 def normalize_diploma_subjects(diploma_subjects: Any, total_xp: int) -> Dict[str, int]:
     """
     Normalize diploma_subjects to dict format.

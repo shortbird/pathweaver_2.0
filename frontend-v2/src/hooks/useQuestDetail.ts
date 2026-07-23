@@ -11,6 +11,8 @@ export interface QuestTask {
   id: string;
   title: string;
   description: string;
+  /** 2-4 checkable statements defining "done" (AI-personalized tasks). */
+  success_criteria?: string[] | null;
   pillar: string;
   xp_value: number;
   xp_amount: number;

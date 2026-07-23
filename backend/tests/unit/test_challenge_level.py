@@ -4,8 +4,10 @@ Covers:
 - request validators (challenge_level on generate-tasks, the new adjust request)
 - cache key inclusion (a Challenge request must never be served a Standard batch)
 - level-aware XP distribution anchors (Easier 75 / Standard 100 / Challenge 150)
-- prompt composition (challenge guidance, per-level XP lines, age_band interplay,
-  and a regression guard that Standard-with-no-age-band matches today's prompt)
+- prompt composition (challenge guidance, per-level XP lines, age_band interplay)
+- success criteria: prompt contract, sanitization, validation passthrough, and
+  the per-task dial carrying/upgrading criteria (difficulty lives in the
+  criteria bar, not in broader wording)
 - diploma subject rescaling for adjusted tasks
 """
 
@@ -152,12 +154,12 @@ class TestPromptComposition:
             QUEST, 'real_world_project', ['chess'], [], **kwargs
         )
 
-    def test_standard_no_age_band_matches_legacy_prompt(self, service):
-        """Regression guard: default generation produces today's prompt lines."""
+    def test_standard_no_age_band_keeps_legacy_xp_lines(self, service):
+        """Regression guard: default generation keeps today's XP band."""
         prompt = self._prompt(service)
         assert 'At least 50% of tasks should be worth exactly 100 XP' in prompt
         assert 'range from 50-150 XP' in prompt
-        assert 'CHALLENGE LEVEL' not in prompt
+        assert 'CHALLENGE LEVEL: STANDARD' in prompt
         assert 'equivalent to high school unit projects' in prompt
 
     def test_challenge_level_changes_xp_band_and_adds_guidance(self, service):
@@ -181,6 +183,82 @@ class TestPromptComposition:
         assert '8-13 age band' in prompt
         # The age band's difficulty line still wins over the high-school default.
         assert 'NOT high-school-level projects' in prompt
+
+
+# ---------------------------------------------------------------------------
+# Success criteria
+# ---------------------------------------------------------------------------
+
+class TestSuccessCriteriaPrompt:
+    def _prompt(self, service, **kwargs):
+        return service._build_personalization_prompt(
+            QUEST, 'real_world_project', ['chess'], [], **kwargs
+        )
+
+    @pytest.mark.parametrize('level', [None, 'easier', 'standard', 'challenge'])
+    def test_every_level_requires_success_criteria(self, service, level):
+        prompt = self._prompt(service, challenge_level=level)
+        assert 'SUCCESS CRITERIA (REQUIRED for every task)' in prompt
+        assert '"success_criteria"' in prompt  # present in the JSON schema
+
+    def test_challenge_criteria_demand_constraint_quality_and_process(self, service):
+        """The core of the design: challenge difficulty = measurable target +
+        quality bar + process documentation, never vaguer wording."""
+        prompt = self._prompt(service, challenge_level='challenge')
+        assert 'measurable target or real-world constraint' in prompt
+        assert 'quality bar' in prompt
+        assert 'process documentation' in prompt
+        assert 'NOT a vague or broad task' in prompt
+
+    def test_easier_criteria_are_completion_based(self, service):
+        prompt = self._prompt(service, challenge_level='easier')
+        assert 'COMPLETION-based' in prompt
+
+    def test_standard_criteria_are_product_based(self, service):
+        prompt = self._prompt(service, challenge_level='standard')
+        assert 'PRODUCT-based' in prompt
+
+
+class TestSanitizeSuccessCriteria:
+    def test_clean_list_passes_through(self):
+        from utils.personalization_helpers import sanitize_success_criteria
+        assert sanitize_success_criteria(['You played 5 games', ' Trimmed ']) == \
+            ['You played 5 games', 'Trimmed']
+
+    @pytest.mark.parametrize('bad', [None, 'a string', {'a': 1}, 42])
+    def test_non_list_returns_empty(self, bad):
+        from utils.personalization_helpers import sanitize_success_criteria
+        assert sanitize_success_criteria(bad) == []
+
+    def test_non_string_items_dropped_and_capped_at_five(self):
+        from utils.personalization_helpers import sanitize_success_criteria
+        raw = [1, 'a', None, 'b', ['x'], 'c', 'd', 'e', 'f']
+        assert sanitize_success_criteria(raw) == ['a', 'b', 'c', 'd', 'e']
+
+    def test_long_items_truncated(self):
+        from utils.personalization_helpers import sanitize_success_criteria
+        out = sanitize_success_criteria(['x' * 500])
+        assert len(out[0]) == 200
+
+
+class TestValidateTasksCriteria:
+    def _validate(self, service, task):
+        mock_ai = MagicMock()
+        mock_ai._validate_pillar.side_effect = lambda p: p or 'stem'
+        mock_ai._validate_xp.side_effect = lambda xp, max_xp=150: min(max(int(xp), 25), max_xp)
+        with patch.object(PersonalizationService, 'ai_service', new=mock_ai):
+            return service._validate_tasks([task], ['chess'], [])[0]
+
+    def test_criteria_survive_validation(self, service):
+        out = self._validate(service, {
+            'title': 'T', 'pillar': 'stem', 'xp_value': 100,
+            'success_criteria': ['You played 5 games', 'You wrote down one mistake'],
+        })
+        assert out['success_criteria'] == ['You played 5 games', 'You wrote down one mistake']
+
+    def test_missing_criteria_default_to_empty_list(self, service):
+        out = self._validate(service, {'title': 'T', 'pillar': 'stem', 'xp_value': 100})
+        assert out['success_criteria'] == []
 
 
 # ---------------------------------------------------------------------------

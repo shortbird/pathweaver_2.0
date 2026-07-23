@@ -35,7 +35,7 @@ def get_task_details(user_id, student_id, task_id):
 
         # Get task details from user_quest_tasks
         task_response = supabase.table('user_quest_tasks').select('''
-            id, quest_id, user_quest_id, title, description, pillar, xp_value, order_index, is_required
+            id, quest_id, user_quest_id, title, description, success_criteria, pillar, xp_value, order_index, is_required
         ''').eq('user_id', student_id).eq('id', task_id).single().execute()
 
         if not task_response.data:
@@ -83,6 +83,7 @@ def get_task_details(user_id, student_id, task_id):
                 'id': task['id'],
                 'title': task['title'],
                 'description': task.get('description'),
+                'success_criteria': task.get('success_criteria'),
                 'pillar': get_pillar_name(task['pillar']),
                 'xp_value': task.get('xp_value', 0),
                 'order_index': task.get('order_index'),

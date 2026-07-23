@@ -94,7 +94,7 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             def _fetch_user_tasks():
                 return supabase.table('user_quest_tasks')\
-                    .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id, source_moment_id')\
+                    .select('id, title, description, success_criteria, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id, source_moment_id')\
                     .eq('user_quest_id', enrollment_to_use['id'])\
                     .eq('approval_status', 'approved')\
                     .order('order_index')\

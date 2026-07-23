@@ -894,6 +894,23 @@ const TaskWorkspace = ({
                   </div>
                 )}
 
+                {/* Success criteria - the checkable "done" bar for this task */}
+                {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
+                  <div className="mb-5 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
+                      How you'll know it's done
+                    </p>
+                    <ul className="space-y-1.5">
+                      {task.success_criteria.map((criterion, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                          <CheckCircleIcon className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
+                          <span>{criterion}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {/* Task metadata cards */}
                 <div className="flex flex-wrap items-center gap-3">
                   {/* Pillar badge */}

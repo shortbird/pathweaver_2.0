@@ -738,6 +738,21 @@ export function TaskCreationWizard({
                         <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 leading-5">{currentTask.description}</UIText>
                       )}
 
+                      {/* Success criteria - the checkable "done" bar (carries the difficulty) */}
+                      {Array.isArray(currentTask.success_criteria) && currentTask.success_criteria.length > 0 && (
+                        <VStack space="xs" className="mt-1 p-3 rounded-lg bg-surface-100 dark:bg-dark-surface-200">
+                          <UIText size="xs" className="font-poppins-semibold text-typo-400 dark:text-dark-typo-400 uppercase">
+                            How you'll know it's done
+                          </UIText>
+                          {currentTask.success_criteria.map((criterion: string, i: number) => (
+                            <HStack key={i} className="items-start gap-2">
+                              <Ionicons name="checkmark-circle-outline" size={15} color="#22c55e" style={{ marginTop: 1 }} />
+                              <UIText size="sm" className="text-typo-600 dark:text-dark-typo-600 flex-1 leading-5">{criterion}</UIText>
+                            </HStack>
+                          ))}
+                        </VStack>
+                      )}
+
                       {/* Complexity dial - rewrite this task easier or harder */}
                       {onAdjustTask && (
                         <HStack className="items-center gap-2 pt-1">

@@ -127,6 +127,23 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
               </div>
             )}
 
+            {/* Success criteria - what the evidence needs to show */}
+            {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
+              <div className="px-4 sm:px-8 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
+                  How you'll know it's done
+                </p>
+                <ul className="space-y-1.5">
+                  {task.success_criteria.map((criterion, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                      <span className="mt-0.5 font-bold" style={{ color: pillarData.color }}>✓</span>
+                      <span>{criterion}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Scrollable content area */}
             <div className="flex-1 overflow-y-auto bg-gray-50">
               {/* Add Content Block Section with Submit Button or Completion Indicator */}

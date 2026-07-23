@@ -352,6 +352,20 @@ function TaskItem({
               {task.description && (
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">{task.description}</UIText>
               )}
+              {/* Success criteria - the checkable "done" bar for this task */}
+              {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
+                <VStack space="xs" className="p-2.5 rounded-lg bg-surface-100 dark:bg-dark-surface-200">
+                  <UIText size="xs" className="font-poppins-semibold text-typo-400 dark:text-dark-typo-400 uppercase" style={{ fontSize: 10 }}>
+                    How you'll know it's done
+                  </UIText>
+                  {task.success_criteria.map((criterion: string, i: number) => (
+                    <HStack key={i} className="items-start gap-1.5">
+                      <Ionicons name="checkmark-circle-outline" size={13} color="#22c55e" style={{ marginTop: 1 }} />
+                      <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1">{criterion}</UIText>
+                    </HStack>
+                  ))}
+                </VStack>
+              )}
               {task.diploma_subjects?.length > 0 && (
                 <HStack className="items-center gap-1 flex-wrap">
                   <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Subjects:</UIText>

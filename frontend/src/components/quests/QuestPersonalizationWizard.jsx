@@ -875,6 +875,23 @@ export default function QuestPersonalizationWizard({
               <p className={embedded ? 'text-gray-700 text-sm leading-snug' : 'text-gray-700 text-base sm:text-lg leading-relaxed'} style={{ fontFamily: 'Poppins' }}>
                 {currentTask.description}
               </p>
+
+              {/* Success criteria - the checkable "done" bar (carries the difficulty) */}
+              {Array.isArray(currentTask.success_criteria) && currentTask.success_criteria.length > 0 && (
+                <div className={embedded ? 'mt-2' : 'mt-4'}>
+                  <p className={embedded ? 'text-xs font-semibold text-gray-500 mb-1' : 'text-sm font-semibold text-gray-500 mb-2'} style={{ fontFamily: 'Poppins' }}>
+                    How you'll know it's done
+                  </p>
+                  <ul className={embedded ? 'space-y-1' : 'space-y-1.5'}>
+                    {currentTask.success_criteria.map((criterion, i) => (
+                      <li key={i} className={`flex items-start gap-2 text-gray-700 ${embedded ? 'text-xs' : 'text-sm sm:text-base'}`} style={{ fontFamily: 'Poppins' }}>
+                        <CheckCircleIcon className={`text-green-500 flex-shrink-0 ${embedded ? 'w-3.5 h-3.5 mt-0.5' : 'w-4 h-4 mt-1'}`} />
+                        <span>{criterion}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {!hideDiplomaSubjects && (
