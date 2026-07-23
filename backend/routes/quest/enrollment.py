@@ -373,6 +373,9 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     if skip_ids:
                         logger.info(f"[UNIFIED_ENROLL] Skipping {len(skip_ids)} template tasks that already exist")
 
+                    from utils.template_tasks import get_valid_source_template_ids
+                    valid_template_ids = get_valid_source_template_ids(admin_client, all_tasks)
+
                     tasks_to_insert = []
                     for task in all_tasks:
                         if task.get('id') in skip_ids:
@@ -392,7 +395,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                             'approval_status': 'approved',
                             'diploma_subjects': task.get('diploma_subjects', ['Electives']),
                             'subject_xp_distribution': task.get('subject_xp_distribution'),
-                            'source_template_task_id': task.get('id'),  # Track template task
+                            'source_template_task_id': task.get('id') if task.get('id') in valid_template_ids else None,
                             'source_task_id': task.get('id')  # Legacy compatibility
                         })
 
