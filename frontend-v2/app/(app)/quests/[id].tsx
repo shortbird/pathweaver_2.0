@@ -17,6 +17,7 @@ import { useQuestEngagement } from '@/src/hooks/useDashboard';
 import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
+import { useAuthStore } from '@/src/stores/authStore';
 import { useCaptureContextStore } from '@/src/stores/captureContextStore';
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
 import { AudioClipPreview } from '@/src/components/capture/VoiceRecorder';
@@ -470,8 +471,9 @@ export default function QuestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     quest, loading, error,
-    refetch, enroll, completeTask, generateTasks, acceptTask, deleteTask,
+    refetch, enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
   } = useQuestDetail(id || null);
+  const preferredChallengeLevel = useAuthStore((s) => s.user?.preferred_challenge_level ?? null);
   const isEnrolled = !!quest?.user_enrollment;
   const { data: engagement } = useQuestEngagement(isEnrolled ? quest?.id || null : null);
   const c = useThemeColors();
@@ -765,6 +767,8 @@ export default function QuestDetailScreen() {
                   onClose={() => setAddTaskOpen(false)}
                   onGenerate={generateTasks}
                   onAcceptTask={acceptTask}
+                  onAdjustTask={adjustTask}
+                  defaultChallengeLevel={preferredChallengeLevel}
                   isClassQuest={quest.quest_type === 'class'}
                   classSubject={quest.quest_type === 'class' ? (quest.transcript_subject || null) : null}
                 />

@@ -9,6 +9,11 @@ logger = get_logger(__name__)
 
 VALID_APPROACHES = ['real_world_project', 'traditional_class', 'hybrid']
 
+# Challenge levels for AI task generation. UI labels: Easier / Standard / Challenge.
+VALID_CHALLENGE_LEVELS = ['easier', 'standard', 'challenge']
+
+VALID_ADJUST_DIRECTIONS = ['easier', 'harder']
+
 VALID_PILLARS = [
     'STEM & Logic',
     'Life & Wellness',
@@ -35,6 +40,32 @@ def validate_generate_tasks_request(data: Dict[str, Any]) -> tuple[bool, Optiona
     approach = data.get('approach', 'hybrid')
     if approach and approach not in VALID_APPROACHES:
         return False, f'Invalid approach. Must be one of: {", ".join(VALID_APPROACHES)}'
+
+    challenge_level = data.get('challenge_level')
+    if challenge_level and challenge_level not in VALID_CHALLENGE_LEVELS:
+        return False, f'Invalid challenge_level. Must be one of: {", ".join(VALID_CHALLENGE_LEVELS)}'
+
+    return True, None
+
+
+def validate_adjust_task_request(data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    """
+    Validate request body for adjust_task_difficulty endpoint.
+
+    Args:
+        data: Request JSON data
+
+    Returns:
+        (is_valid, error_message) tuple
+    """
+    task = data.get('task')
+    direction = data.get('direction')
+
+    if not isinstance(task, dict) or not (task.get('title') or '').strip():
+        return False, 'task (with a title) is required'
+
+    if direction not in VALID_ADJUST_DIRECTIONS:
+        return False, f'direction must be one of: {", ".join(VALID_ADJUST_DIRECTIONS)}'
 
     return True, None
 

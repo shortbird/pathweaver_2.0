@@ -1072,12 +1072,16 @@ Generate 4 approaches, each with 3-4 tasks.
         }
         return pillar_map.get(pillar_lower, 'stem')
 
-    def _validate_xp(self, xp_value) -> int:
-        """Validate and normalize XP value"""
+    def _validate_xp(self, xp_value, max_xp: int = 150) -> int:
+        """Validate and normalize XP value.
+
+        max_xp default of 150 preserves every existing caller; personalization
+        passes 200 for challenge-level tasks (matches the accept-time cap).
+        """
         try:
             xp = int(xp_value)
             # Clamp to reasonable range (halved scale)
-            return max(25, min(150, xp))
+            return max(25, min(max_xp, xp))
         except (ValueError, TypeError):
             return 50
 

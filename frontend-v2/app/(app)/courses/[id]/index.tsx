@@ -336,6 +336,7 @@ function ProjectSection({
   onTaskCompleted: () => void;
 }) {
   const c = useThemeColors();
+  const preferredChallengeLevel = useAuthStore((s) => s.user?.preferred_challenge_level ?? null);
   const progress = quest.progress;
   const totalXp = progress?.total_xp || 0;
   const [localEarnedXp, setLocalEarnedXp] = useState(progress?.earned_xp || 0);
@@ -395,14 +396,24 @@ function ProjectSection({
     return data.session_id;
   };
 
-  const handleGenerate = async (interests?: string, pillar?: string) => {
+  const handleGenerate = async (interests?: string, pillar?: string, subject?: string, challengeLevel?: string) => {
     const sessionId = await ensureSession();
     const { data } = await api.post(`/api/quests/${questId}/generate-tasks`, {
       session_id: sessionId, approach: 'hybrid',
       interests: interests ? [interests] : [],
       exclude_tasks: userTasks.map(t => t.title),
+      // Omitted -> backend falls back to the user's stored preference.
+      ...(challengeLevel ? { challenge_level: challengeLevel } : {}),
     });
     return data.tasks || data.generated_tasks || [];
+  };
+
+  // Complexity dial: rewrite a suggested task one step easier/harder.
+  const handleAdjustTask = async (task: any, direction: 'easier' | 'harder') => {
+    const { data } = await api.post(`/api/quests/${questId}/adjust-task-difficulty`, {
+      task, direction,
+    });
+    return data.task || null;
   };
 
   const handleAcceptTask = async (task: any) => {
@@ -731,6 +742,8 @@ function ProjectSection({
         onClose={() => setWizardOpen(false)}
         onGenerate={handleGenerate}
         onAcceptTask={handleAcceptTask}
+        onAdjustTask={handleAdjustTask}
+        defaultChallengeLevel={preferredChallengeLevel}
       />
 
       </VStack>

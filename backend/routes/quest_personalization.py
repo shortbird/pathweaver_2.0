@@ -29,7 +29,9 @@ from routes.personalization_validators import (
     validate_accept_task_request,
     validate_skip_task_request,
     validate_manual_tasks_batch,
-    clamp_xp_value
+    validate_adjust_task_request,
+    clamp_xp_value,
+    VALID_CHALLENGE_LEVELS
 )
 from utils.personalization_helpers import (
     get_effective_user_id,
@@ -175,16 +177,34 @@ def generate_tasks(user_id: str, quest_id: str):
             except Exception as e:
                 logger.warning(f"Treehouse age_band derivation failed: {e}")
 
+        # Challenge level: explicit body value wins; otherwise the user's stored
+        # preference; otherwise 'standard'. Fetched alongside the vision (bio)
+        # so no extra round trip.
+        challenge_level = data.get('challenge_level')
+
         # Fetch user's learning vision (bio field) for AI context
         vision_statement = ''
         try:
             # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
             supabase = get_supabase_admin_client()
-            user_result = supabase.table('users').select('bio').eq('id', user_id).single().execute()
-            if user_result.data and user_result.data.get('bio'):
-                vision_statement = user_result.data['bio']
+            user_result = supabase.table('users').select('bio, preferred_challenge_level').eq('id', user_id).single().execute()
+            if user_result.data:
+                if user_result.data.get('bio'):
+                    vision_statement = user_result.data['bio']
+                stored_level = user_result.data.get('preferred_challenge_level')
+                if not challenge_level and stored_level in VALID_CHALLENGE_LEVELS:
+                    challenge_level = stored_level
+                # Remember an explicit choice for next time (fire-and-forget).
+                if data.get('challenge_level') and data['challenge_level'] != stored_level:
+                    try:
+                        supabase.table('users')\
+                            .update({'preferred_challenge_level': data['challenge_level']})\
+                            .eq('id', user_id).execute()
+                    except Exception as e:
+                        logger.warning(f"Could not persist preferred_challenge_level: {e}")
         except Exception as e:
             logger.warning(f"Could not fetch user vision statement: {e}")
+        challenge_level = challenge_level or 'standard'
 
         # Class quests carry a transcript_subject — auto-inject it into the
         # cross_curricular list so generated tasks naturally pay XP toward
@@ -211,7 +231,8 @@ def generate_tasks(user_id: str, quest_id: str):
             exclude_tasks=exclude_tasks,
             additional_feedback=additional_feedback,
             vision_statement=vision_statement,
-            age_band=age_band
+            age_band=age_band,
+            challenge_level=challenge_level
         )
 
         if not result['success']:
@@ -267,12 +288,17 @@ def refine_tasks(user_id: str, quest_id: str):
             }), 400
 
         # This is essentially the same as generate_tasks, but allows re-generation
+        challenge_level = data.get('challenge_level')
+        if challenge_level not in VALID_CHALLENGE_LEVELS:
+            challenge_level = None
+
         result = personalization_service.generate_task_suggestions(
             session_id=session_id,
             quest_id=quest_id,
             approach=approach or 'real_world_project',
             interests=interests,
-            cross_curricular_subjects=cross_curricular_subjects
+            cross_curricular_subjects=cross_curricular_subjects,
+            challenge_level=challenge_level
         )
 
         if not result['success']:
@@ -333,6 +359,65 @@ def edit_task(user_id: str, quest_id: str):
         return jsonify({
             'success': False,
             'error': 'Failed to edit task'
+        }), 500
+
+
+@bp.route('/<quest_id>/adjust-task-difficulty', methods=['POST'])
+@require_auth
+def adjust_task_difficulty(user_id: str, quest_id: str):
+    """
+    Rewrite a suggested task one step easier or harder (the per-task
+    "complexity dial" during personalization review).
+
+    Stateless: the client sends the task object and swaps the adjusted result
+    into its local list. The task only becomes real via accept-task /
+    finalize-tasks, which clamp XP server-side.
+
+    Request body:
+    {
+        "task": { "title", "description", "pillar", "xp_value", "diploma_subjects"? },
+        "direction": "easier" | "harder",
+        "age_band": "5-7" | "8-13" (optional)
+    }
+    """
+    try:
+        # Check AI access before proceeding (same gate as generate-tasks)
+        ai_access_error = require_ai_access(user_id)
+        if ai_access_error:
+            return ai_access_error
+
+        data = request.get_json() or {}
+
+        is_valid, error = validate_adjust_task_request(data)
+        if not is_valid:
+            return jsonify({'success': False, 'error': error}), 400
+
+        result = personalization_service.adjust_task_complexity(
+            task=data['task'],
+            direction=data['direction'],
+            age_band=data.get('age_band')
+        )
+
+        if not result['success']:
+            return jsonify(result), 500
+
+        return jsonify({
+            'success': True,
+            'task': result['task'],
+            'message': 'Task adjusted'
+        })
+
+    except Exception as e:
+        logger.error(f"Error adjusting task difficulty: {str(e)}")
+        error_str = str(e).lower()
+        if '429' in error_str or 'too many requests' in error_str or 'quota' in error_str or 'rate limit' in error_str:
+            return jsonify({
+                'success': False,
+                'error': 'AI service rate limit reached. Please wait 30 seconds and try again.'
+            }), 429
+        return jsonify({
+            'success': False,
+            'error': 'Failed to adjust task. Please try again.'
         }), 500
 
 

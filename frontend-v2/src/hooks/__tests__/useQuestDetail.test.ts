@@ -110,6 +110,26 @@ describe('generateTasks', () => {
     expect(tasks![0].title).toBe('AI Task');
   });
 
+  it('passes challenge_level when provided and omits it otherwise', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
+    (api.post as jest.Mock)
+      .mockResolvedValueOnce({ data: { session_id: 'session-abc' } }) // start-personalization
+      .mockResolvedValueOnce({ data: { tasks: [] } }) // generate with level
+      .mockResolvedValueOnce({ data: { tasks: [] } }); // generate without level
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.generateTasks(undefined, undefined, undefined, 'challenge'); });
+    await act(async () => { await result.current.generateTasks(); });
+
+    const genCalls = (api.post as jest.Mock).mock.calls.filter(
+      (c: any[]) => c[0].includes('generate-tasks')
+    );
+    expect(genCalls[0][1]).toEqual(expect.objectContaining({ challenge_level: 'challenge' }));
+    expect(genCalls[1][1]).not.toHaveProperty('challenge_level');
+  });
+
   it('reuses session_id on subsequent calls', async () => {
     (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
     (api.post as jest.Mock)
@@ -154,6 +174,43 @@ describe('acceptTask', () => {
     // Task should be optimistically added to local state
     expect(result.current.quest?.quest_tasks).toHaveLength(2);
     expect(result.current.quest?.quest_tasks[1].title).toBe('New Task');
+  });
+});
+
+describe('adjustTask', () => {
+  it('posts task + direction to adjust-task-difficulty and returns the adjusted task', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
+    const adjusted = { title: 'Harder Task', pillar: 'stem', xp_value: 150 };
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, task: adjusted } });
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const original = { title: 'Original Task', pillar: 'stem', xp_value: 100 };
+    let returned: any;
+    await act(async () => {
+      returned = await result.current.adjustTask(original, 'harder');
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/adjust-task-difficulty', {
+      task: original,
+      direction: 'harder',
+    });
+    expect(returned).toEqual(adjusted);
+  });
+
+  it('returns null when the response has no task', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: false } });
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let returned: any;
+    await act(async () => {
+      returned = await result.current.adjustTask({ title: 'T' }, 'easier');
+    });
+    expect(returned).toBeNull();
   });
 });
 

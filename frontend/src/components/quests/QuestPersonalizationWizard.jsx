@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { XMarkIcon, CheckIcon, FlagIcon, CheckCircleIcon, MapIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckIcon, FlagIcon, CheckCircleIcon, MapIcon, ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import ManualTaskCreator from './ManualTaskCreator';
 import ApproachExampleCard from '../quest/ApproachExampleCard';
 import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Credit requirements per subject (XP needed for graduation)
 const CREDIT_REQUIREMENTS = {
@@ -34,6 +35,18 @@ const INTEREST_OPTIONS = [
   { id: 'writing', label: 'Creative Writing', icon: '✍️' },
   { id: 'social', label: 'Social Impact', icon: '🤝' }
 ];
+
+// Challenge levels for AI task generation. Values match the backend's
+// VALID_CHALLENGE_LEVELS; the student's last choice is remembered server-side
+// (users.preferred_challenge_level).
+const CHALLENGE_LEVELS = [
+  { id: 'easier', label: 'Easier', description: 'Smaller steps, quicker wins' },
+  { id: 'standard', label: 'Standard', description: 'A good stretch for most students' },
+  { id: 'challenge', label: 'Challenge', description: 'Bigger projects, more depth, more XP' }
+];
+
+// Max taps in one direction on the per-task complexity dial.
+const MAX_ADJUST_STEPS = 2;
 
 // Diploma subjects for credit tracking (11 subjects)
 const DIPLOMA_SUBJECTS = [
@@ -84,6 +97,7 @@ export default function QuestPersonalizationWizard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { canUseTaskGeneration } = useAIAccess();
+  const { user } = useAuth();
 
   // NEW: Creation method selection
   const [creationMethod, setCreationMethod] = useState(null); // 'ai' | 'manual' | 'path'
@@ -106,6 +120,17 @@ export default function QuestPersonalizationWizard({
   const [additionalFeedback, setAdditionalFeedback] = useState('');
   const [showFlagModal, setShowFlagModal] = useState(false);
   const [flagReason, setFlagReason] = useState('');
+
+  // Challenge level: pre-select the student's remembered preference.
+  const [challengeLevel, setChallengeLevel] = useState(
+    CHALLENGE_LEVELS.some(l => l.id === user?.preferred_challenge_level)
+      ? user.preferred_challenge_level
+      : 'standard'
+  );
+
+  // Per-task complexity dial: net steps per task index (-2..+2) and in-flight state.
+  const [taskAdjustments, setTaskAdjustments] = useState({});
+  const [adjustingTask, setAdjustingTask] = useState(false);
 
   // Credit progress state
   const [subjectXP, setSubjectXP] = useState({});
@@ -187,7 +212,8 @@ export default function QuestPersonalizationWizard({
         // persisted quest tasks server-side, so this covers any accepted this
         // session before a re-generate.
         exclude_tasks: acceptedTasks.map(t => t.title),
-        additional_feedback: additionalFeedback
+        additional_feedback: additionalFeedback,
+        challenge_level: challengeLevel
       });
 
       const tasks = response.data.tasks || [];
@@ -198,6 +224,7 @@ export default function QuestPersonalizationWizard({
       setGeneratedTasks(tasks);
       setCurrentTaskIndex(0);
       setAcceptedTasks([]);
+      setTaskAdjustments({});
       setStep(4); // Move to one-at-a-time review for AI path
     } catch (err) {
       logger.error('Failed to generate tasks:', err);
@@ -305,6 +332,45 @@ export default function QuestPersonalizationWizard({
       setError('Failed to flag task');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Per-task complexity dial: ask the AI to rewrite the current task one step
+  // easier or harder and swap the result in place. Capped at +/-2 net steps.
+  const handleAdjustTask = async (direction) => {
+    if (adjustingTask || loading) return;
+    const task = generatedTasks[currentTaskIndex];
+    const steps = taskAdjustments[currentTaskIndex] || 0;
+    if ((direction === 'harder' && steps >= MAX_ADJUST_STEPS) ||
+        (direction === 'easier' && steps <= -MAX_ADJUST_STEPS)) {
+      return;
+    }
+
+    setAdjustingTask(true);
+    setError(null);
+    try {
+      const response = await api.post(`/api/quests/${questId}/adjust-task-difficulty`, {
+        task,
+        direction
+      });
+
+      if (response.data.success && response.data.task) {
+        setGeneratedTasks(prev =>
+          prev.map((t, i) => (i === currentTaskIndex ? response.data.task : t))
+        );
+        setTaskAdjustments(prev => ({
+          ...prev,
+          [currentTaskIndex]: steps + (direction === 'harder' ? 1 : -1)
+        }));
+      }
+    } catch (err) {
+      logger.error('Failed to adjust task:', err);
+      const errorMessage = err.response?.data?.error || 'Failed to adjust task';
+      setError(errorMessage.includes('429') || errorMessage.includes('rate limit')
+        ? 'AI service is temporarily busy. Please wait 30 seconds and try again.'
+        : errorMessage);
+    } finally {
+      setAdjustingTask(false);
     }
   };
 
@@ -681,6 +747,37 @@ export default function QuestPersonalizationWizard({
           </div>
           )}
 
+          {/* Challenge Level */}
+          <div className={sz.section}>
+            <h3 className={sz.sectionTitle} style={{ fontFamily: 'Poppins' }}>Challenge Level</h3>
+            <p className={sz.sectionHint} style={{ fontFamily: 'Poppins' }}>
+              How ambitious should your tasks be? We'll remember your choice.
+            </p>
+            <div className={embedded ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-1 sm:grid-cols-3 gap-3'}>
+              {CHALLENGE_LEVELS.map(level => (
+                <button
+                  key={level.id}
+                  onClick={() => setChallengeLevel(level.id)}
+                  aria-pressed={challengeLevel === level.id}
+                  className={`border-2 text-left transition-all min-h-[44px] ${
+                    embedded ? 'p-2 rounded-lg' : 'p-4 rounded-xl hover:shadow-lg'
+                  } ${
+                    challengeLevel === level.id
+                      ? 'border-optio-purple bg-purple-50 shadow-lg'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className={embedded ? 'text-sm font-bold' : 'font-bold'} style={{ fontFamily: 'Poppins' }}>
+                    {level.label}
+                  </div>
+                  <div className={embedded ? 'text-xs text-gray-500 leading-tight' : 'text-sm text-gray-500'} style={{ fontFamily: 'Poppins' }}>
+                    {level.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Additional Feedback */}
           <div className={sz.section}>
             <h3 id="additional-feedback-label" className={sz.sectionTitle} style={{ fontFamily: 'Poppins' }}>
@@ -811,6 +908,36 @@ export default function QuestPersonalizationWizard({
               )}
             </div>
             )}
+
+            {/* Complexity Dial - rewrite this task easier or harder */}
+            <div className={`flex items-center gap-2 ${embedded ? 'mt-3 pl-9' : 'mt-4 pl-10 sm:pl-12'}`}>
+              <span className={embedded ? 'text-xs text-gray-500 font-medium' : 'text-sm text-gray-500 font-medium'} style={{ fontFamily: 'Poppins' }}>
+                {adjustingTask ? 'Adjusting task...' : 'Adjust difficulty:'}
+              </span>
+              <button
+                onClick={() => handleAdjustTask('easier')}
+                disabled={adjustingTask || loading || (taskAdjustments[currentTaskIndex] || 0) <= -MAX_ADJUST_STEPS}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border-2 border-gray-200 text-gray-700 hover:border-optio-purple hover:text-optio-purple transition-all disabled:opacity-40 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold min-h-[36px]"
+                style={{ fontFamily: 'Poppins' }}
+                title="Make this task easier"
+              >
+                <ArrowDownIcon className="w-3.5 h-3.5" />
+                Easier
+              </button>
+              <button
+                onClick={() => handleAdjustTask('harder')}
+                disabled={adjustingTask || loading || (taskAdjustments[currentTaskIndex] || 0) >= MAX_ADJUST_STEPS}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border-2 border-gray-200 text-gray-700 hover:border-optio-purple hover:text-optio-purple transition-all disabled:opacity-40 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold min-h-[36px]"
+                style={{ fontFamily: 'Poppins' }}
+                title="Make this task harder"
+              >
+                <ArrowUpIcon className="w-3.5 h-3.5" />
+                Harder
+              </button>
+              {adjustingTask && (
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-optio-purple rounded-full animate-spin" />
+              )}
+            </div>
           </div>
 
           {/* Action Buttons - 2 Column Layout */}
@@ -818,7 +945,7 @@ export default function QuestPersonalizationWizard({
             {/* Skip Button */}
             <button
               onClick={handleSkipTask}
-              disabled={loading}
+              disabled={loading || adjustingTask}
               className={`items-center justify-center border-2 border-red-300 bg-red-50 hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50 ${
                 embedded ? 'flex flex-row gap-2 p-2.5 rounded-lg min-h-[44px]' : 'flex flex-col p-6 rounded-xl'
               }`}
@@ -832,7 +959,7 @@ export default function QuestPersonalizationWizard({
             {/* Accept Button */}
             <button
               onClick={handleAcceptTask}
-              disabled={loading}
+              disabled={loading || adjustingTask}
               className={`items-center justify-center border-2 border-green-300 bg-green-50 hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50 ${
                 embedded ? 'flex flex-row gap-2 p-2.5 rounded-lg min-h-[44px]' : 'flex flex-col p-6 rounded-xl'
               }`}

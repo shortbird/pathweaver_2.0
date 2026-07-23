@@ -407,7 +407,7 @@ export default function ParentQuestViewPage() {
   };
 
   // Mirrors useQuestDetail.generateTasks so the AI step is identical for parents.
-  const generateTasksForChild = async (interests?: string, pillar?: string, subject?: string) => {
+  const generateTasksForChild = async (interests?: string, pillar?: string, subject?: string, challengeLevel?: string) => {
     const { data: sess } = await api.post(`/api/quests/${questId}/start-personalization`, {});
     const sessionId = sess.session_id;
     const interestList = interests ? interests.split(',').map((s) => s.trim()).filter(Boolean) : [];
@@ -417,8 +417,17 @@ export default function ParentQuestViewPage() {
       interests: interestList,
       cross_curricular_subjects: subject ? [subject] : [],
       exclude_tasks: tasks.map((t) => t.title),
+      ...(challengeLevel ? { challenge_level: challengeLevel } : {}),
     });
     return gen.tasks || gen.generated_tasks || [];
+  };
+
+  // Complexity dial: rewrite a suggested task one step easier/harder.
+  const adjustTaskForChild = async (task: any, direction: 'easier' | 'harder') => {
+    const { data } = await api.post(`/api/quests/${questId}/adjust-task-difficulty`, {
+      task, direction,
+    });
+    return data.task || null;
   };
 
   // Remove (un-enroll) the quest from the child. The enrollment-delete route
@@ -531,6 +540,7 @@ export default function ParentQuestViewPage() {
         onClose={() => setAddTaskOpen(false)}
         onGenerate={generateTasksForChild}
         onAcceptTask={handleAddTaskForChild}
+        onAdjustTask={adjustTaskForChild}
       />
     </SafeAreaView>
   );

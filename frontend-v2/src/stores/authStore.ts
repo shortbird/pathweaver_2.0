@@ -34,6 +34,9 @@ export interface User {
   // Partner program tag (e.g. 'opened-academy' for the OEA Diploma Plan). Null
   // for users not in a partner program.
   program_key: string | null;
+  // Remembered AI task generation challenge level ('easier'|'standard'|'challenge').
+  // Null means Standard.
+  preferred_challenge_level?: string | null;
 }
 
 interface AuthState {

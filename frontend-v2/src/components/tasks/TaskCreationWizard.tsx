@@ -31,13 +31,29 @@ const XP_OPTIONS = [
   { value: 200, label: '200 XP', desc: 'Major task' },
 ];
 
+// Challenge levels for AI generation. Values match the backend's
+// VALID_CHALLENGE_LEVELS; the student's last choice is remembered server-side.
+const CHALLENGE_LEVELS = [
+  { id: 'easier', label: 'Easier', desc: 'Smaller steps, quicker wins' },
+  { id: 'standard', label: 'Standard', desc: 'A good stretch' },
+  { id: 'challenge', label: 'Challenge', desc: 'Bigger projects, more XP' },
+];
+
+// Max taps in one direction on the per-task complexity dial.
+const MAX_ADJUST_STEPS = 2;
+
 interface TaskCreationWizardProps {
   questId: string;
   questTitle: string;
   open: boolean;
   onClose: () => void;
-  onGenerate: (interests?: string, pillar?: string, subject?: string) => Promise<any[]>;
+  onGenerate: (interests?: string, pillar?: string, subject?: string, challengeLevel?: string) => Promise<any[]>;
   onAcceptTask: (task: any) => Promise<void>;
+  /** Complexity dial: rewrite a suggested task one step easier/harder. When
+   *  omitted, the dial buttons are hidden on the review step. */
+  onAdjustTask?: (task: any, direction: 'easier' | 'harder') => Promise<any | null>;
+  /** Pre-selects the challenge level (the user's remembered preference). */
+  defaultChallengeLevel?: string | null;
   /** Optional suggested/template tasks to browse. When provided, a third "Browse Suggestions" option appears. */
   suggestedTasks?: any[];
   /** When true, the AI step shows an interest-chip multi-select (matching v1 web)
@@ -70,6 +86,8 @@ export function TaskCreationWizard({
   onClose,
   onGenerate,
   onAcceptTask,
+  onAdjustTask,
+  defaultChallengeLevel = null,
   suggestedTasks,
   isClassQuest = false,
   classSubject = null,
@@ -98,12 +116,18 @@ export function TaskCreationWizard({
   const [selectedInterestChips, setSelectedInterestChips] = useState<Set<string>>(new Set());
   const [extraIdeas, setExtraIdeas] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [challengeLevel, setChallengeLevel] = useState(
+    CHALLENGE_LEVELS.some((l) => l.id === defaultChallengeLevel) ? (defaultChallengeLevel as string) : 'standard'
+  );
 
   // AI review
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [acceptedCount, setAcceptedCount] = useState(0);
   const [reviewLoading, setReviewLoading] = useState(false);
+  // Complexity dial: net steps per suggestion index (-2..+2) and in-flight state.
+  const [adjustSteps, setAdjustSteps] = useState<Record<number, number>>({});
+  const [adjusting, setAdjusting] = useState(false);
 
   const reset = () => {
     setStep('choose');
@@ -122,6 +146,8 @@ export function TaskCreationWizard({
     setSuggestions([]);
     setReviewIndex(0);
     setAcceptedCount(0);
+    setAdjustSteps({});
+    setAdjusting(false);
   };
 
   const handleClose = () => {
@@ -183,7 +209,7 @@ export function TaskCreationWizard({
         interestsArg = combined || undefined;
         pillarArg = selectedPillar || undefined;
       }
-      const tasks = await onGenerate(interestsArg, pillarArg, undefined);
+      const tasks = await onGenerate(interestsArg, pillarArg, undefined, challengeLevel);
       if (!tasks || tasks.length === 0) {
         setError('No tasks generated. Try different interests.');
         return;
@@ -191,6 +217,7 @@ export function TaskCreationWizard({
       setSuggestions(tasks);
       setReviewIndex(0);
       setAcceptedCount(0);
+      setAdjustSteps({});
       setStep('ai-review');
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to generate tasks';
@@ -223,6 +250,34 @@ export function TaskCreationWizard({
       setReviewIndex((i) => i + 1);
     } else {
       handleClose();
+    }
+  };
+
+  // Complexity dial: rewrite the current suggestion one step easier/harder
+  // and swap it in place. Capped at +/-2 net steps per suggestion.
+  const handleAdjust = async (direction: 'easier' | 'harder') => {
+    if (!onAdjustTask || adjusting || reviewLoading) return;
+    const steps = adjustSteps[reviewIndex] || 0;
+    if ((direction === 'harder' && steps >= MAX_ADJUST_STEPS) ||
+        (direction === 'easier' && steps <= -MAX_ADJUST_STEPS)) return;
+
+    setAdjusting(true);
+    setError(null);
+    try {
+      const adjusted = await onAdjustTask(suggestions[reviewIndex], direction);
+      if (adjusted) {
+        setSuggestions((prev) => prev.map((t, i) => (i === reviewIndex ? adjusted : t)));
+        setAdjustSteps((prev) => ({
+          ...prev,
+          [reviewIndex]: steps + (direction === 'harder' ? 1 : -1),
+        }));
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Failed to adjust task';
+      setError(msg.includes('429') || msg.includes('rate limit')
+        ? 'AI is busy. Please wait 30 seconds and try again.' : msg);
+    } finally {
+      setAdjusting(false);
     }
   };
 
@@ -604,6 +659,30 @@ export function TaskCreationWizard({
                     </>
                   )}
 
+                  <VStack space="xs">
+                    <UIText size="sm" className="font-poppins-medium">Challenge level</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                      How ambitious should your tasks be? We'll remember your choice.
+                    </UIText>
+                    <HStack className="flex-wrap gap-2 pt-1">
+                      {CHALLENGE_LEVELS.map((level) => {
+                        const selected = challengeLevel === level.id;
+                        return (
+                          <Pressable key={level.id} onPress={() => setChallengeLevel(level.id)}>
+                            <View className={`px-3 py-2 rounded-xl border ${selected ? 'bg-optio-purple border-optio-purple' : 'bg-white dark:bg-dark-surface-100 border-surface-300 dark:border-dark-surface-300'}`}>
+                              <UIText size="xs" className={`font-poppins-semibold ${selected ? 'text-white' : 'text-typo-600 dark:text-dark-typo-600'}`}>
+                                {level.label}
+                              </UIText>
+                              <UIText size="xs" className={selected ? 'text-white/80' : 'text-typo-400 dark:text-dark-typo-400'}>
+                                {level.desc}
+                              </UIText>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </HStack>
+                  </VStack>
+
                   <Divider />
 
                   <HStack className="gap-3 justify-end">
@@ -658,14 +737,43 @@ export function TaskCreationWizard({
                       {currentTask.description && (
                         <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 leading-5">{currentTask.description}</UIText>
                       )}
+
+                      {/* Complexity dial - rewrite this task easier or harder */}
+                      {onAdjustTask && (
+                        <HStack className="items-center gap-2 pt-1">
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                            {adjusting ? 'Adjusting...' : 'Adjust difficulty:'}
+                          </UIText>
+                          <Pressable
+                            onPress={() => handleAdjust('easier')}
+                            disabled={adjusting || reviewLoading || (adjustSteps[reviewIndex] || 0) <= -MAX_ADJUST_STEPS}
+                            accessibilityLabel="Make this task easier"
+                          >
+                            <View className={`flex-row items-center gap-1 px-2.5 py-1 rounded-full border border-surface-300 dark:border-dark-surface-300 ${(adjusting || (adjustSteps[reviewIndex] || 0) <= -MAX_ADJUST_STEPS) ? 'opacity-40' : ''}`}>
+                              <Ionicons name="arrow-down" size={12} color={c.icon} />
+                              <UIText size="xs" className="font-poppins-medium">Easier</UIText>
+                            </View>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleAdjust('harder')}
+                            disabled={adjusting || reviewLoading || (adjustSteps[reviewIndex] || 0) >= MAX_ADJUST_STEPS}
+                            accessibilityLabel="Make this task harder"
+                          >
+                            <View className={`flex-row items-center gap-1 px-2.5 py-1 rounded-full border border-surface-300 dark:border-dark-surface-300 ${(adjusting || (adjustSteps[reviewIndex] || 0) >= MAX_ADJUST_STEPS) ? 'opacity-40' : ''}`}>
+                              <Ionicons name="arrow-up" size={12} color={c.icon} />
+                              <UIText size="xs" className="font-poppins-medium">Harder</UIText>
+                            </View>
+                          </Pressable>
+                        </HStack>
+                      )}
                     </VStack>
                   </View>
 
                   <HStack className="gap-3">
-                    <Button variant="outline" action="negative" className="flex-1" onPress={handleSkip} disabled={reviewLoading}>
+                    <Button variant="outline" action="negative" className="flex-1" onPress={handleSkip} disabled={reviewLoading || adjusting}>
                       <ButtonText>Skip</ButtonText>
                     </Button>
-                    <Button className="flex-1" onPress={handleAccept} loading={reviewLoading} disabled={reviewLoading}>
+                    <Button className="flex-1" onPress={handleAccept} loading={reviewLoading} disabled={reviewLoading || adjusting}>
                       <ButtonText>{reviewLoading ? 'Adding...' : 'Add Task'}</ButtonText>
                     </Button>
                   </HStack>

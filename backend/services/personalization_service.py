@@ -21,6 +21,22 @@ logger = get_logger(__name__)
 # Import task library service for saving tasks
 from services.task_library_service import TaskLibraryService
 
+# Challenge levels (UI: Easier / Standard / Challenge). Each level defines the
+# XP anchor that _enforce_xp_distribution holds 50% of tasks to, the min/max
+# clamp applied to AI-returned XP, and the range quoted in the prompt.
+CHALLENGE_LEVELS = {
+    'easier': {'anchor': 75, 'min_xp': 25, 'max_xp': 100, 'range_text': '50-100'},
+    'standard': {'anchor': 100, 'min_xp': 25, 'max_xp': 150, 'range_text': '50-150'},
+    'challenge': {'anchor': 150, 'min_xp': 50, 'max_xp': 200, 'range_text': '100-200'},
+}
+DEFAULT_CHALLENGE_LEVEL = 'standard'
+
+
+def _challenge_config(challenge_level: str) -> Dict:
+    """Resolve a challenge level to its config, falling back to standard."""
+    return CHALLENGE_LEVELS.get(challenge_level or DEFAULT_CHALLENGE_LEVEL,
+                                CHALLENGE_LEVELS[DEFAULT_CHALLENGE_LEVEL])
+
 class TaskCacheService(BaseService):
     """Caching service for AI-generated tasks"""
 
@@ -41,20 +57,28 @@ class TaskCacheService(BaseService):
         self,
         interests: List[str],
         cross_curricular: List[str],
-        exclude_tasks: List[str] = None
+        exclude_tasks: List[str] = None,
+        challenge_level: str = None
     ) -> str:
-        """Build a cache key from interests, cross-curricular subjects, and the
-        set of tasks the student already has.
+        """Build a cache key from interests, cross-curricular subjects, the
+        set of tasks the student already has, and the challenge level.
 
         exclude_tasks is part of the key so a quest that already contains tasks
         never collides with (and is never served) the pristine first-generation
         cache entry. Without this, repeat generations for the same interests
         returned the identical cached batch, which is what made tasks feel
         "repetitive over time."
+
+        challenge_level is part of the key so a Challenge request is never
+        served a cached Standard batch (entries live up to 7 days). Standard /
+        None is keyed WITHOUT a level segment so pre-existing cache entries
+        stay valid.
         """
         combined = sorted(interests) + sorted(cross_curricular)
         if exclude_tasks:
             combined += ['exclude:' + t.strip().lower() for t in sorted(exclude_tasks)]
+        if challenge_level and challenge_level != DEFAULT_CHALLENGE_LEVEL:
+            combined += [f'level:{challenge_level}']
         key_str = '|'.join(combined)
         return hashlib.md5(key_str.encode()).hexdigest()
 
@@ -207,13 +231,20 @@ class PersonalizationService(BaseService):
         exclude_tasks: List[str] = None,
         additional_feedback: str = '',
         vision_statement: str = '',
-        age_band: str = None
+        age_band: str = None,
+        challenge_level: str = None
     ) -> Dict[str, Any]:
         """Generate AI task suggestions with caching.
 
         age_band (optional, e.g. '5-7' / '8-13') tailors task difficulty + reading
         level for young learners; omitted preserves the default behavior.
+
+        challenge_level (optional, 'easier'|'standard'|'challenge') scales the
+        scope/rigor of the whole batch and its XP band. It composes with
+        age_band: difficulty is expressed relative to the learner's age, and
+        the age band's reading-level rules always win.
         """
+        challenge_level = challenge_level or DEFAULT_CHALLENGE_LEVEL
         try:
             # Always fold the student's CURRENT tasks for this quest into the
             # exclusion list so the AI never re-suggests what they already have.
@@ -245,8 +276,12 @@ class PersonalizationService(BaseService):
 
             # Build cache key always (needed for storage later). exclude_tasks is
             # part of the key so a quest that already has tasks can't be served
-            # the pristine first-generation cache entry.
-            cache_key = self.cache.build_cache_key(interests, cross_curricular_subjects, exclude_tasks)
+            # the pristine first-generation cache entry; challenge_level so a
+            # Challenge request can't be served a cached Standard batch.
+            cache_key = self.cache.build_cache_key(
+                interests, cross_curricular_subjects, exclude_tasks,
+                challenge_level=challenge_level
+            )
 
             # Skip cache if we have exclude_tasks (i.e. the quest already has
             # tasks, or the client asked to avoid some) or additional_feedback.
@@ -300,7 +335,8 @@ class PersonalizationService(BaseService):
                 additional_feedback=additional_feedback,
                 vision_statement=vision_statement,
                 age_band=age_band,
-                course_context=course_context
+                course_context=course_context,
+                challenge_level=challenge_level
             )
 
             # Generate tasks using AI service (falls back to alternate models on
@@ -321,15 +357,16 @@ class PersonalizationService(BaseService):
             for i, task in enumerate(tasks_data):
                 logger.info(f"  Task {i}: '{task.get('title')}' - AI returned pillar: '{task.get('pillar')}'")
 
-            tasks_data = self._validate_tasks(tasks_data, interests, cross_curricular_subjects)
+            tasks_data = self._validate_tasks(tasks_data, interests, cross_curricular_subjects,
+                                              challenge_level=challenge_level)
 
             # Debug: Log pillar values AFTER validation
             logger.info(f"[PERSONALIZATION] After validation:")
             for i, task in enumerate(tasks_data):
                 logger.info(f"  Task {i}: '{task.get('title')}' - Validated pillar: '{task.get('pillar')}'")
 
-            # Ensure 50%+ tasks are 100 XP
-            tasks_data = self._enforce_xp_distribution(tasks_data)
+            # Ensure 50%+ tasks sit at the level's anchor XP
+            tasks_data = self._enforce_xp_distribution(tasks_data, challenge_level=challenge_level)
 
             # Store in cache
             cached_data = {'tasks': tasks_data}
@@ -420,7 +457,9 @@ class PersonalizationService(BaseService):
                 'title': refined_task.get('title', original_task['title']),
                 'description': refined_task.get('description', original_task['description']),
                 'pillar': self.ai_service._validate_pillar(refined_task.get('pillar', original_task['pillar'])),
-                'xp_value': self.ai_service._validate_xp(refined_task.get('xp_value', original_task['xp_value'])),
+                # max_xp=200: a challenge-level task can legitimately sit at
+                # 150-200 XP; the default 150 cap would silently shrink it.
+                'xp_value': self.ai_service._validate_xp(refined_task.get('xp_value', original_task['xp_value']), max_xp=200),
                 'evidence_prompt': refined_task.get('evidence_prompt', original_task.get('evidence_prompt', '')),
                 'cross_curricular_connections': original_task.get('cross_curricular_connections', [])
             }
@@ -447,6 +486,145 @@ class PersonalizationService(BaseService):
                 'success': False,
                 'error': str(e)
             }
+
+    def adjust_task_complexity(
+        self,
+        task: Dict,
+        direction: str,
+        age_band: str = None
+    ) -> Dict[str, Any]:
+        """Rewrite a suggested task one step easier or harder (the per-task
+        "complexity dial" in the personalization wizard).
+
+        Stateless by design: the client sends the task object and swaps in the
+        result locally. The task only becomes real via accept-task /
+        finalize-tasks, which clamp XP server-side, so this adds no new
+        XP-injection surface.
+        """
+        try:
+            original_title = (task.get('title') or '').strip()
+            original_description = task.get('description', '')
+            original_pillar = task.get('pillar', 'stem')
+            try:
+                original_xp = int(task.get('xp_value', 100))
+            except (TypeError, ValueError):
+                original_xp = 100
+
+            if direction == 'harder':
+                direction_text = (
+                    "Make this task meaningfully HARDER. Increase actual scope and depth - "
+                    "original creation over consumption, real-world constraints, self-directed "
+                    "research, a more substantial final product. Do NOT just add words or steps."
+                )
+                xp_instruction = (
+                    f"Increase xp_value by 25-50 above {original_xp} to reflect the bigger scope "
+                    f"(multiple of 25, never above 200)."
+                )
+            else:
+                direction_text = (
+                    "Make this task meaningfully EASIER. Reduce scope to one clear outcome "
+                    "finishable in a single short session, with small concrete steps and more "
+                    "built-in guidance."
+                )
+                xp_instruction = (
+                    f"Decrease xp_value by 25-50 below {original_xp} to reflect the smaller scope "
+                    f"(multiple of 25, never below 25)."
+                )
+
+            age_text = ''
+            if age_band:
+                age_text = (
+                    f"\nThe learner is in the {age_band} age band. Keep the task developmentally "
+                    f"appropriate for that age - adjust difficulty within what that age can do.\n"
+                )
+
+            prompt = f"""
+Adjust the difficulty of this educational task:
+
+Original Task:
+Title: {original_title}
+Description: {original_description}
+Pillar: {original_pillar}
+XP Value: {original_xp}
+
+{direction_text}
+{age_text}
+Rules:
+1. {xp_instruction}
+2. Keep the same pillar ({original_pillar}).
+3. Keep the same topic and the student's interests - change the difficulty, not the subject.
+4. Write for a 5th-6th grade reading level. The WORK changes difficulty; the WORDS stay simple.
+5. Title: simple action verb, 5-8 words.
+6. Description: 1-2 short sentences.
+
+Return as JSON with fields: title, description, pillar, xp_value
+"""
+
+            result = self.ai_service.generate_with_fallback(prompt)
+
+            if not result or not result.text:
+                return {
+                    'success': False,
+                    'error': 'AI generation failed'
+                }
+
+            adjusted = self.ai_service._parse_quest_response(result.text)
+
+            # Validate: clamp XP to the dial's full range (25-200) and snap to a
+            # multiple of 25; force the direction to actually move the XP.
+            try:
+                new_xp = int(adjusted.get('xp_value', original_xp))
+            except (TypeError, ValueError):
+                new_xp = original_xp
+            new_xp = max(25, min(200, (new_xp // 25) * 25 or 25))
+            if direction == 'harder' and new_xp <= original_xp:
+                new_xp = min(200, original_xp + 25)
+            elif direction == 'easier' and new_xp >= original_xp:
+                new_xp = max(25, original_xp - 25)
+
+            adjusted_task = {
+                'title': adjusted.get('title') or original_title,
+                'description': adjusted.get('description') or original_description,
+                'pillar': self.ai_service._validate_pillar(adjusted.get('pillar', original_pillar)),
+                'xp_value': new_xp,
+                # Re-spread the original subject split across the new XP total.
+                'diploma_subjects': self._rescale_diploma_subjects(
+                    task.get('diploma_subjects'), new_xp
+                ),
+            }
+
+            return {
+                'success': True,
+                'task': adjusted_task
+            }
+
+        except Exception as e:
+            logger.error(f"Error adjusting task complexity: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    @staticmethod
+    def _rescale_diploma_subjects(diploma_subjects, new_xp: int) -> Dict[str, int]:
+        """Re-spread an existing subject split across a new XP total, keeping
+        proportions and multiples of 25 (remainder to the largest subject)."""
+        from utils.personalization_helpers import normalize_diploma_subjects
+        normalized = normalize_diploma_subjects(diploma_subjects or {}, new_xp)
+        old_total = sum(normalized.values())
+        if old_total <= 0:
+            return {'Electives': new_xp}
+        subjects = sorted(normalized.items(), key=lambda kv: -kv[1])
+        rescaled = {}
+        for name, xp in subjects:
+            share = ((xp * new_xp // old_total) // 25) * 25
+            rescaled[name] = share
+        rescaled = {k: v for k, v in rescaled.items() if v > 0} or {subjects[0][0]: 0}
+        remainder = new_xp - sum(rescaled.values())
+        if remainder:
+            first = next(iter(rescaled))
+            rescaled[first] += remainder
+        return rescaled
 
     def finalize_personalization(
         self,
@@ -703,7 +881,8 @@ class PersonalizationService(BaseService):
         additional_feedback: str = '',
         vision_statement: str = '',
         age_band: str = None,
-        course_context: Dict = None
+        course_context: Dict = None,
+        challenge_level: str = None
     ) -> str:
         """Build AI prompt for personalized task generation.
 
@@ -714,7 +893,13 @@ class PersonalizationService(BaseService):
         course_context (optional) grounds the tasks in the parent course (its
         title, overview, deliverable, learning outcomes, and this project's
         lessons) so generated tasks fit the course rather than the project alone.
+
+        challenge_level (optional) scales scope/rigor and the XP band of the
+        whole batch. Composes with age_band: challenge is expressed relative to
+        the learner's age, and the age band's reading-level rules always win.
         """
+        challenge_level = challenge_level or DEFAULT_CHALLENGE_LEVEL
+        level_cfg = _challenge_config(challenge_level)
 
         quest_title = quest['title']
         quest_description = quest.get('big_idea') or quest.get('description', '')
@@ -809,6 +994,34 @@ PRIORITY REQUIREMENT: The student specifically wants to earn diploma credits in 
             )
             difficulty_line = '1. Are small, age-appropriate activities sized for this learner (NOT high-school-level projects)'
 
+        # Challenge-level guidance. Scales the scope/rigor of the whole batch.
+        # When an age band is present, challenge is expressed relative to that
+        # band (a "challenge" task for an 8-year-old is not a high-school task),
+        # and the age band's reading-level rules stay in force.
+        challenge_guidance = ''
+        if challenge_level == 'easier':
+            baseline = ('what a task at this age band would normally ask' if age_band
+                        else 'a typical high school unit project')
+            challenge_guidance = (
+                f"\nCHALLENGE LEVEL: EASIER (IMPORTANT). This student wants more approachable tasks.\n"
+                f"- Reduce scope compared to {baseline}: one clear outcome per task, finishable in a single short session.\n"
+                f"- Break work into small, concrete steps with more built-in guidance.\n"
+                f"- Favor quick wins that build confidence; avoid multi-part deliverables.\n"
+            )
+        elif challenge_level == 'challenge':
+            baseline = (f'what a learner in the {age_band} age band would usually be asked; keep tasks '
+                        f'developmentally appropriate for that age, just more ambitious' if age_band
+                        else 'a typical high school unit project')
+            challenge_guidance = (
+                f"\nCHALLENGE LEVEL: CHALLENGE (IMPORTANT). This student finds typical tasks too easy.\n"
+                f"- Meaningfully increase scope and rigor compared to {baseline}.\n"
+                f"- Do NOT just add words or steps - increase actual depth: original creation over consumption, "
+                f"real-world constraints, self-directed research, multi-session projects with a substantial final product.\n"
+                f"- Expect the student to make real decisions and defend them, not follow a recipe.\n"
+                f"- The words describing the task must STAY simple (reading level rules below still apply); "
+                f"only the work itself gets harder.\n"
+            )
+
         return f"""
 You are helping a student personalize their learning quest: "{quest_title}".
 
@@ -820,12 +1033,12 @@ Student's Selected Approach: {approach_desc}
 Student's Interests: {interests_text}
 
 Student's Selected Diploma Subjects: {subjects_text}
-{age_guidance}{priority_subjects_instruction}{vision_text}{exclude_text}{feedback_text}
+{age_guidance}{challenge_guidance}{priority_subjects_instruction}{vision_text}{exclude_text}{feedback_text}
 
 Generate 6-10 tasks that:
 {difficulty_line}
-2. At least 50% of tasks should be worth exactly 100 XP
-3. Other tasks can range from 50-150 XP based on complexity
+2. At least 50% of tasks should be worth exactly {level_cfg['anchor']} XP
+3. Other tasks can range from {level_cfg['range_text']} XP based on complexity
 4. Each task must be assigned to ONE of these pillars (use exact lowercase names):
    - stem
    - wellness
@@ -876,9 +1089,16 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
         self,
         tasks: List[Dict],
         interests: List[str],
-        cross_curricular: List[str]
+        cross_curricular: List[str],
+        challenge_level: str = None
     ) -> List[Dict]:
-        """Validate and enhance generated tasks"""
+        """Validate and enhance generated tasks.
+
+        challenge_level bounds the XP clamp per level (easier caps at 100,
+        standard at 150, challenge at 200) so a level's XP band survives
+        validation instead of being flattened to the legacy 25-150 range.
+        """
+        level_cfg = _challenge_config(challenge_level)
 
         validated = []
         for task in tasks:
@@ -917,31 +1137,36 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
                 'bullet_points': task.get('bullet_points', []),
                 'pillar': validated_pillar,
                 'diploma_subjects': diploma_subjects,
-                'xp_value': self.ai_service._validate_xp(task.get('xp_value', 100))
+                'xp_value': max(level_cfg['min_xp'],
+                                self.ai_service._validate_xp(task.get('xp_value', 100),
+                                                             max_xp=level_cfg['max_xp']))
             }
             validated.append(validated_task)
 
         return validated
 
-    def _enforce_xp_distribution(self, tasks: List[Dict]) -> List[Dict]:
-        """Ensure at least 50% of tasks are 100 XP"""
+    def _enforce_xp_distribution(self, tasks: List[Dict], challenge_level: str = None) -> List[Dict]:
+        """Ensure at least 50% of tasks sit at the challenge level's anchor XP
+        (Easier: 75, Standard: 100, Challenge: 150)."""
+
+        anchor = _challenge_config(challenge_level)['anchor']
 
         total_tasks = len(tasks)
-        tasks_at_100xp = sum(1 for task in tasks if task['xp_value'] == 100)
+        tasks_at_anchor = sum(1 for task in tasks if task['xp_value'] == anchor)
 
-        required_100xp = total_tasks // 2
+        required_at_anchor = total_tasks // 2
 
-        if tasks_at_100xp < required_100xp:
-            # Adjust some tasks to 100 XP
-            tasks_to_adjust = required_100xp - tasks_at_100xp
+        if tasks_at_anchor < required_at_anchor:
+            # Adjust some tasks to the anchor XP
+            tasks_to_adjust = required_at_anchor - tasks_at_anchor
             adjusted = 0
 
             for task in tasks:
                 if adjusted >= tasks_to_adjust:
                     break
 
-                if task['xp_value'] != 100:
-                    task['xp_value'] = 100
+                if task['xp_value'] != anchor:
+                    task['xp_value'] = anchor
                     adjusted += 1
 
         return tasks

@@ -117,7 +117,7 @@ export function useQuestDetail(questId: string | null) {
     return sid;
   };
 
-  const generateTasks = async (interests?: string, pillar?: string, subject?: string) => {
+  const generateTasks = async (interests?: string, pillar?: string, subject?: string, challengeLevel?: string) => {
     if (!questId) return [];
     const sessionId = await ensureSession();
     // Pass existing task titles so AI avoids suggesting duplicates
@@ -133,8 +133,22 @@ export function useQuestDetail(questId: string | null) {
       interests: interestList,
       cross_curricular_subjects: subject ? [subject] : [],
       exclude_tasks: existingTitles,
+      // Omitted -> backend falls back to the user's stored preference.
+      ...(challengeLevel ? { challenge_level: challengeLevel } : {}),
     });
     return data.tasks || data.generated_tasks || [];
+  };
+
+  /** Complexity dial: rewrite a suggested task one step easier or harder.
+   *  Stateless server call - returns the adjusted task for the caller to swap
+   *  into its local suggestion list. */
+  const adjustTask = async (task: any, direction: 'easier' | 'harder') => {
+    if (!questId) return null;
+    const { data } = await api.post(`/api/quests/${questId}/adjust-task-difficulty`, {
+      task,
+      direction,
+    });
+    return data.task || null;
   };
 
   const acceptTask = async (task: any) => {
@@ -184,7 +198,7 @@ export function useQuestDetail(questId: string | null) {
   return {
     quest, loading, error,
     refetch: fetchQuest,
-    enroll, completeTask, generateTasks, acceptTask, deleteTask,
+    enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
   };
 }
 

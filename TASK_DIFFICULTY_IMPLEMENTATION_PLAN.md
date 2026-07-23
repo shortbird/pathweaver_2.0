@@ -1,6 +1,13 @@
 # Quest Task Difficulty - Implementation Plan
 
-**Status**: Approved for implementation | **Date**: 2026-07-23 | **Branch**: `claude/quest-difficulty-levels-uw9kz5`
+**Status**: Implemented on this branch (pending local verification + dev deploy) | **Date**: 2026-07-23 | **Branch**: `claude/quest-difficulty-levels-uw9kz5`
+
+> Implementation note: the Supabase migration
+> (`supabase/migrations/20260723_add_preferred_challenge_level.sql`) has NOT
+> been applied to any database yet - apply to the dev/branch DB before testing.
+> Until it's applied, generation still works: the backend treats a missing
+> column read as "no stored preference" and falls back to Standard, but the
+> preference won't persist and `/me` won't return it.
 
 ## Background
 

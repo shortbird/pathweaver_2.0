@@ -11,6 +11,11 @@ vi.mock('../../contexts/AIAccessContext', () => ({
   useAIAccess: () => ({ canUseTaskGeneration: true })
 }))
 
+let mockUser = { id: 'u1', preferred_challenge_level: null }
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: mockUser })
+}))
+
 vi.mock('../../utils/logger', () => ({
   default: { error: vi.fn(), debug: vi.fn(), warn: vi.fn(), info: vi.fn() }
 }))
@@ -42,9 +47,30 @@ const baseProps = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockUser = { id: 'u1', preferred_challenge_level: null }
   api.get.mockResolvedValue({ data: { success: true, subject_xp: [] } })
   api.post.mockResolvedValue({ data: { success: true, tasks: [], approach_label: 'The Personal Site' } })
 })
+
+// Drive the wizard to the AI interests step (step 2).
+async function openInterestsStep() {
+  api.post.mockResolvedValueOnce({ data: { session_id: 'sess-1' } })
+  fireEvent.click(await screen.findByText('AI Generate'))
+  await screen.findByText('Challenge Level')
+}
+
+// Drive the wizard to the one-at-a-time review step (step 4) with given tasks.
+async function openReviewStep(tasks) {
+  await openInterestsStep()
+  api.post.mockResolvedValueOnce({ data: { success: true, tasks } })
+  fireEvent.click(screen.getByText('Generate Tasks'))
+  await screen.findByText('Review Tasks')
+}
+
+const AI_TASKS = [
+  { title: 'Build a Chess Opening Tracker', description: 'Track your favorite openings.', pillar: 'stem', xp_value: 100, diploma_subjects: { Math: 100 } },
+  { title: 'Teach a Friend Chess Basics', description: 'Show a friend how pieces move.', pillar: 'communication', xp_value: 75, diploma_subjects: { Electives: 75 } }
+]
 
 describe('QuestPersonalizationWizard - curated paths', () => {
   it('hides the "Choose a Path" option when approachExamples is an empty array', async () => {
@@ -100,5 +126,101 @@ describe('QuestPersonalizationWizard - curated paths', () => {
       expect(api.post).toHaveBeenCalledWith('/api/quests/q1/add-path-tasks', { approach_index: 0 })
       expect(onComplete).toHaveBeenCalled()
     })
+  })
+})
+
+describe('QuestPersonalizationWizard - challenge level', () => {
+  it('renders the three levels with Standard selected by default', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openInterestsStep()
+
+    expect(screen.getByText('Easier')).toBeInTheDocument()
+    expect(screen.getByText('Standard')).toBeInTheDocument()
+    expect(screen.getByText('Challenge')).toBeInTheDocument()
+    expect(screen.getByText('Standard').closest('button')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('pre-selects the user\'s remembered preference', async () => {
+    mockUser = { id: 'u1', preferred_challenge_level: 'challenge' }
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openInterestsStep()
+
+    expect(screen.getByText('Challenge').closest('button')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Standard').closest('button')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('sends the selected challenge_level with generate-tasks', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openInterestsStep()
+
+    fireEvent.click(screen.getByText('Challenge'))
+    api.post.mockResolvedValueOnce({ data: { success: true, tasks: AI_TASKS } })
+    fireEvent.click(screen.getByText('Generate Tasks'))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/quests/q1/generate-tasks',
+        expect.objectContaining({ challenge_level: 'challenge' })
+      )
+    })
+  })
+})
+
+describe('QuestPersonalizationWizard - complexity dial', () => {
+  it('swaps in the adjusted task and updates the XP badge', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openReviewStep(AI_TASKS)
+
+    expect(screen.getByText('Build a Chess Opening Tracker')).toBeInTheDocument()
+    expect(screen.getByText('100 XP')).toBeInTheDocument()
+
+    api.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        task: { title: 'Build a Chess Engine Evaluator', description: 'Harder version.', pillar: 'stem', xp_value: 150, diploma_subjects: { Math: 150 } }
+      }
+    })
+    fireEvent.click(screen.getByText('Harder'))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/quests/q1/adjust-task-difficulty', {
+        task: expect.objectContaining({ title: 'Build a Chess Opening Tracker' }),
+        direction: 'harder'
+      })
+      expect(screen.getByText('Build a Chess Engine Evaluator')).toBeInTheDocument()
+      expect(screen.getByText('150 XP')).toBeInTheDocument()
+    })
+  })
+
+  it('disables the dial after two net steps in one direction', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openReviewStep(AI_TASKS)
+
+    const harderBtn = () => screen.getByText('Harder').closest('button')
+
+    for (const xp of [125, 150]) {
+      api.post.mockResolvedValueOnce({
+        data: { success: true, task: { ...AI_TASKS[0], xp_value: xp } }
+      })
+      fireEvent.click(harderBtn())
+      await waitFor(() => expect(screen.getByText(`${xp} XP`)).toBeInTheDocument())
+    }
+
+    expect(harderBtn()).toBeDisabled()
+    expect(screen.getByText('Easier').closest('button')).not.toBeDisabled()
+  })
+
+  it('keeps the original task when the adjust call fails', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openReviewStep(AI_TASKS)
+
+    api.post.mockRejectedValueOnce({ response: { data: { error: 'Failed to adjust task. Please try again.' } } })
+    fireEvent.click(screen.getByText('Harder'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to adjust task. Please try again.')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Build a Chess Opening Tracker')).toBeInTheDocument()
+    expect(screen.getByText('100 XP')).toBeInTheDocument()
   })
 })
