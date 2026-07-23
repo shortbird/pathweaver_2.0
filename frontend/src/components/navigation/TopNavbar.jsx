@@ -5,6 +5,7 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
 import NotificationBell from '../notifications/NotificationBell'
 import BackButton from './BackButton'
+import { getPostLoginPath } from '../../utils/postLoginPath'
 // import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
@@ -87,8 +88,9 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 find edge-swipe unintuitive. */}
             <BackButton />
 
-            {/* Logo - Shows both Organization and Optio */}
-            <Link to="/" className="flex items-center gap-3">
+            {/* Logo - Shows both Organization and Optio. Logged-in users go to
+                their role's dashboard, not the marketing homepage. */}
+            <Link to={isAuthenticated ? getPostLoginPath(user) : '/'} className="flex items-center gap-3">
               {/* Organization Logo (if authenticated and org has custom branding) - LEFT of Optio */}
               {isAuthenticated && organization && organization.branding_config?.logo_url && (
                 <>
