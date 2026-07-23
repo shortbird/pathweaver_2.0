@@ -643,9 +643,11 @@ const TaskWorkspace = ({
     }
   };
 
-  const handleSaveTaskEdit = async ({ pillar, xp_value }) => {
+  const handleSaveTaskEdit = async ({ pillar, xp_value, diploma_subjects }) => {
     if (!task?.id) return;
-    const response = await api.put(`/api/tasks/${task.id}`, { pillar, xp_value });
+    const payload = { pillar, xp_value };
+    if (diploma_subjects !== undefined) payload.diploma_subjects = diploma_subjects;
+    const response = await api.put(`/api/tasks/${task.id}`, payload);
     const updated = response?.data?.task;
     if (updated && onTaskUpdate) {
       onTaskUpdate(updated);
@@ -855,7 +857,7 @@ const TaskWorkspace = ({
                       onClick={() => setIsEditModalOpen(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                       style={{ fontFamily: 'Poppins' }}
-                      title="Edit pillar and XP"
+                      title="Edit pillar, XP, and diploma credit"
                     >
                       <PencilSquareIcon className="w-4 h-4" />
                       Edit
@@ -1120,10 +1122,12 @@ const TaskWorkspace = ({
         isTaskCompleted={task?.is_completed}
       />
 
-      {/* Student edit modal — pillar + XP only */}
+      {/* Student edit modal — pillar, XP, and diploma credit (subjects hidden
+          for class quests, whose credit is locked to the class subject) */}
       {isEditModalOpen && task && (
         <StudentTaskEditModal
           task={task}
+          isClassQuest={isClassQuest}
           onClose={() => setIsEditModalOpen(false)}
           onSave={handleSaveTaskEdit}
         />

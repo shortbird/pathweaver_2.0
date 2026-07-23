@@ -29,6 +29,16 @@ Reuse the branded registration funnel (`backend/routes/icreate_registration.py` 
 - **Naming cleanup (recommended while wiring):** generalize the flag key `icreate_registration` → `sis_registration` (read both, write new) so we stop compounding the iCreate coupling. Same for the `icreate_registrations` table name — optional, lower priority.
 - **Parent onboarding checklist:** a one-page "download the app / log in" handout is a docs task, not a build. Draft it with Katie for Back to School Night.
 
+### 1b. Goal/direction setting after registration — NEW (medium, Gryffin's signature flow)
+
+Where iCreate's funnel ends in the schedule builder, Gryffin's ends in **goal setting**. This is a per-org choice of post-registration step (config in the funnel: `schedule` | `goals` | `none`).
+
+- **Direction (per student):** the long-term journey — trade school (hair school), college, etc. One free-text/select field plus narrative, set by parent with the kid.
+- **Per-subject goals:** for each subject (math, history, science, LA, ...), "what does my kid want to achieve this year?" and "what long-term direction are they moving?" Subject list configurable per org in `sis_settings`.
+- **Teacher review meeting:** goals are reviewed in a meeting with Gryffin teachers. Reuse the funnel's existing appointment step (`/appointment-done`) for scheduling; add a teacher-side review state on the goals (draft → submitted → reviewed) so staff can see which families still need meetings.
+- **Data:** new `sis_student_goals` table (org_id, student_id, school_year, direction, per-subject entries JSONB or child rows, status, reviewed_by/at). Editable later from the parent portal and the SIS student record, not just at registration.
+- **AI integration (the payoff):** class quests are shared, but task suggestions become individual. Feed the student's direction + subject goals (+ hobbies/interests from registration, see 8) into the existing AI task personalization path (`personalization_service` / quest personalization, which already supports challenge levels), so the AI proposes unique tasks per student within the shared class quest. This is prompt-context plumbing on an existing system, not a new AI feature.
+
 ### 2. Information reports (medications, media release, etc.) — NEW (small)
 
 No report layer exists over registration answers today. Build an org-admin **Reports** section (SIS console) that queries registration/form answers across students:
@@ -46,6 +56,8 @@ The record-only billing model is exactly what Katie describes ("do I just track 
 - **Outstanding invoices report (CONFIG/SMALL):** BillingPage lists invoices with status; add a print-friendly "outstanding only" view if the current filter isn't enough.
 - **Automated payment reminders (NEW, small):** no dunning exists (only late-fee application). Build a monthly reminder job: for unpaid installments past day N, send a Brevo transactional email to the household's parents. Reuse the `sis_attendance_sweep` cron pattern (`POST /internal/...` + scheduled trigger). Template per org in `sis_settings`.
 - **Payment through Optio:** possible later via the school's own Stripe key (same mechanism as the registration fee), but not needed now — do not build.
+- **Parent-facing balance view (NEW, small):** parents currently have no billing surface — the household billing view is admin-side only. Katie today maintains a shared Google Sheet where each family can check their running balance (charges vs payments). Build a parent "Account" page: the household's invoices, payments, and current balance, read-only, backed by the same `sis_invoices`/`sis_payment_records` data (`routes/sis/parent.py` gains a `/billing` read). This replaces the sheet.
+- **Printable receipts (NEW, small):** families on scholarship programs need a receipt to request reimbursement. Add a print-friendly receipt view per payment record (and a statement view per date range): school name/logo from `branding_config`, payer, student(s), line items, amount, date, payment method. Reachable from both the parent Account page and admin BillingPage.
 
 ### 4. Classes, teachers, quests — mostly CONFIG, two NEW pieces
 
@@ -62,29 +74,39 @@ The record-only billing model is exactly what Katie describes ("do I just track 
 ### 5. Family communication — CONFIG + SMALL/NEW
 
 - **Audiences (CONFIG):** class group chats (roster-synced, auto-created on enrollment), org-wide announcements (`routes/announcements.py`, fans out as notifications to students/advisors/parents), DMs to individual parents. "Groups of classes" = create an ad-hoc group conversation with those rosters, or send the announcement to several classes (SMALL if multi-class targeting is missing from the announcements audience model).
-- **Email/text/push on new school message (NEW):** today delivery is in-app + realtime only — no external fan-out, and a parent who doesn't open the app misses it. Build a notification fan-out layer: on announcement (and optionally on SIS family-messaging messages), send Brevo transactional email to parents; push notification for mobile-app parents (expo push service exists). SMS via Brevo transactional SMS is possible but has per-message cost — recommend email + push first, add SMS only if Gryffin insists (decision for Tanner: SMS costs).
+- **Email/push on new school message (NEW):** today delivery is in-app + realtime only — no external fan-out, and a parent who doesn't open the app misses it. Build a notification fan-out layer: on announcement (and optionally on SIS family-messaging messages), send Brevo transactional email to parents; push notification for mobile-app parents (expo push service exists). **Decided 2026-07-23: no SMS** — in-app messaging + push notifications (email fan-out still recommended as the safety net for parents without the app).
 - **Templates / bi-weekly newsletter (SMALL/NEW):** simplest v1 = saved message templates (title + rich body) stored in `sis_settings`, selectable when composing an announcement. For the Google-composed newsletter, pasting into the composer works today; a "send this Google Doc" integration is not worth building. Brevo email templates are an option if newsletters go email-first.
+- **Communications archive (SMALL):** parents want to re-read past newsletters. `announcements` rows are already durable — add a parent-visible "News" page listing the org's past announcements (newest first, full body, search by title). Pairs naturally with the fan-out work: the email says "new announcement", the archive is the canonical copy.
 
 ### 6. Calendar — CONFIG
 
 `sis_events` + CalendarPage + FamilyCalendarPage already do exactly this: private-to-Optio events with details, org-scoped, with a tokenized iCal feed if anyone still wants Google visibility. One-time import of their existing Google Calendar events is a data-entry task (or a quick script), not a feature.
 
-### 7. Student access on shared devices — SMALL (generalize kiosk)
+### 7. Student access on shared devices — CONFIRMED, generalize kiosk + scan flow
 
-The "click their name, take a picture, attach to a quest" flow is the Treehouse kiosk (`routes/treehouse.py`: device provisioning, token-gated roster, passwordless student login). It works but is slug-hardcoded (`TREEHOUSE_SLUG`, `treehouse_kiosk_devices`).
+Confirmed use case: **a class iPad; students tap their name, scan their paper assignment, and it attaches to a quest.** The base flow is the Treehouse kiosk (`routes/treehouse.py`: device provisioning, token-gated roster, passwordless student login), but it is slug-hardcoded (`TREEHOUSE_SLUG`, `treehouse_kiosk_devices`).
 
 - Generalize: move kiosk endpoints to an org-generic module (`routes/sis/kiosk.py` or `routes/kiosk.py`), key on a `kiosk` feature flag, rename/generalize the device table (or add `organization_id` and keep it). Treehouse keeps working via the same generic path.
+- **Scan step:** the kiosk is v1 web on the iPad, so "scan" = camera capture (`<input capture>` / getUserMedia) with multi-page support, attached as evidence to the selected quest/task. Keep it simpler than the v2 native ML Kit scanner — photo capture with a crop/confirm step is enough for paper worksheets. After upload, auto-return to the tap-your-name screen for the next student.
 - **Do students need email? No (CONFIG):** dependents (`is_dependent`, `managed_by_parent_id`) exist without email; parents manage them, kiosk gives them on-site login, and `add-login`/`promote` upgrades them later. K-6 students should be created as dependents; 13+ can have real accounts.
 
 ### 8. Parent access — SMALL + NEW
 
-- **Student information page (SMALL):** parents already see their student's work (parent portal). The new piece is admin-entered "beginning of year statistics" updated over time — add a per-student assessments/notes section (org-visible fields on the SIS student record, surfaced read-only to the linked parent). Small schema addition (e.g. `sis_student_stats` or a JSONB on the SIS student profile) + UI on `StudentDetailModal` + parent view.
+- **Student record page (SMALL-M):** Katie's per-student Google Sheet (shared 2026-07-23) defines the target shape. Parents already see their student's work; the new piece is a structured, admin/teacher-editable student record surfaced read-only to the linked parent:
+  - **Profile:** preferred name, birthday, grade, parent contact, hobbies/interests/favorites (these also feed the AI personalization in 1b), free-notes (allergies, social media permissions, carpools). Most of this arrives via registration answers; the record page is where staff view/edit it after.
+  - **Beginning-of-year / end-of-year assessments:** paired BOY/EOY fields (e.g. "Math CLE Book", "LA CLE Book", "Addition Facts"), field set configurable per org in `sis_settings` so other orgs can define their own assessment keys.
+  - Schema: `sis_student_profile`-style JSONB or a `sis_student_stats` table + UI on `StudentDetailModal` + parent view.
+- **Curriculum materials tracking (NEW, small):** per-student checklist of curriculum items (e.g. "Math 400 LightUnit set", "Science") with **Paid** and **Received** checkboxes, editable by admin, visible to the parent. Ties into billing (a materials line item can appear on the household ledger). Small table: `sis_student_materials` (org, student, item, paid, received).
+- **Assignment/score tracker — "gradebook lite" (NEW, medium):** the largest spreadsheet replacement. Katie tracks CLE workbook sequences per student: rows like "Workbook 101 Quiz 1 / Quiz 2 / corrections / Test", each with date scheduled, date completed, score, notes on missed concepts, and a computed current average. Options:
+  - (a) Model each workbook unit as tasks under a class quest and bolt a `score` field + averages onto completions, or
+  - (b) A dedicated SIS assignment-tracker table (org, student, class, assignment name, scheduled/completed dates, score, notes) with reusable per-class assignment templates ("Workbook NNN" pattern) so a sequence can be stamped out per student.
+  - Recommendation: **(b)** — scores/averages are an SIS record-keeping concern and shouldn't contaminate the XP model ("The Process Is The Goal"); keep quests XP-based and let the tracker reference a quest/task optionally. Teacher edits from TeacherClassPage; parent sees scores on the student record.
 - **Portfolio (CONFIG + NEW):** public/private portfolio pages exist (`routes/portfolio.py`, `user_portfolio_settings`). Missing: the per-item "include in portfolio" toggle for scholarship curation. Add an `in_portfolio` boolean on completions/evidence, a parent/student toggle on the work item, and a filtered portfolio view. Net-new but thin.
 
 ### 9. Accounts + branding — DONE / CONFIG
 
 - Login fix applied (see Current state). Recommended usage confirmed to Katie: shared `gryffinlearningcenter@gmail.com` for admin, personal accounts for the parent view.
-- **Open questions for Katie:** which students are her children? Her parent account is linked only to garrisonbird5@gmail.com — who is in the **iCreate** org, not Gryffin (possibly wrong org, possibly genuinely attends iCreate). Tarien Bird (Gryffin student) and Kaiden Bird (platform student, no org, no email) are not linked to her. Fix links once she confirms.
+- **Family links:** Tarien Bird confirmed as Katie's child — `parent_student_links` row added 2026-07-23 (katienbird → tarienbird, approved/admin-verified). Still open: Kaiden Bird (platform student, no org, no email) — hers? And is garrisonbird5@gmail.com correctly in the **iCreate** org?
 - **Branding:** logo already in `branding_config` (replace with a right-sized asset from the files she sent). Add her palette to `branding_config` colors: `#850028`, `#C07A55`, `#DAAC6C`, `#E2D2BD` — consumed by the registration funnel and kiosk. The core app keeps Optio brand colors.
 
 ---
@@ -94,24 +116,31 @@ The "click their name, take a picture, attach to a quest" flow is the Treehouse 
 | # | Item | Size | Notes |
 |---|------|------|-------|
 | 1 | Registration funnel config for Gryffin (questions from both Google Forms, paperwork, no Stripe) + grade-band question conditions | S-M | Mostly data entry; flag-key generalization recommended |
-| 2 | Teacher submissions inbox (all new submissions across my classes, next/prev review flow) | M | The single highest-leverage new build |
-| 3 | Information reports (medications, media release, generic question report, print/CSV) | S | Over registration answers |
-| 4 | Announcement fan-out: Brevo email + push to parents (SMS deferred) | S-M | Also fixes "parents miss messages" generally |
-| 5 | Payment reminder sweep (unpaid installment → Brevo email) + outstanding-invoices print view | S | Reuses sweep pattern |
-| 6 | Kiosk generalization off the Treehouse slug (`kiosk` flag) | S-M | Needed for on-site shared-device uploads |
-| 7 | Quest inactivity alerts (unfinished-when-next-released, 2-week no-access) | S | Sweep pattern |
-| 8 | Teacher XP adjustment on completions | S | With audit trail |
-| 9 | Completed-quest archive section in student class view | S | Verify current behavior first |
-| 10 | Portfolio curation flag + filtered view | S | |
-| 11 | Student info page stats (admin-entered, parent-visible) | S | |
-| 12 | Message templates for announcements/newsletter | S | |
+| 2 | Goal/direction setting flow (post-registration step, per-subject goals, teacher review + meeting) | M | Gryffin's signature flow; replaces the schedule step |
+| 3 | AI task suggestions fed by goals + direction + interests (personalization plumbing) | S-M | Extends existing personalization_service |
+| 4 | Teacher submissions inbox (all new submissions across my classes, next/prev review flow) | M | The single highest-leverage generic build |
+| 5 | Kiosk generalization (`kiosk` flag) + tap-name → scan-assignment flow on class iPads | M | Confirmed hardware plan; web camera capture, multi-page |
+| 6 | Assignment/score tracker "gradebook lite" (CLE workbook sequences, scores, averages, notes) | M | Replaces the per-student tracking sheets; keep separate from XP |
+| 7 | Parent Account page (household balance) + printable receipts/statements | S-M | Replaces the balance Google Sheet; receipts for scholarship reimbursement |
+| 8 | Announcement fan-out: Brevo email + push to parents (no SMS — decided) | S-M | Also fixes "parents miss messages" generally |
+| 9 | Information reports (medications, media release, generic question report, print/CSV) | S | Over registration answers |
+| 10 | Student record page (profile, BOY/EOY assessments) + curriculum materials paid/received tracking | S-M | From Katie's per-student sheet |
+| 11 | Payment reminder sweep (unpaid installment → Brevo email) + outstanding-invoices print view | S | Reuses sweep pattern |
+| 12 | Communications archive page (past announcements/newsletters, parent-visible) | S | Announcements data already durable |
+| 13 | Quest inactivity alerts (unfinished-when-next-released, 2-week no-access) | S | Sweep pattern |
+| 14 | Teacher XP adjustment on completions | S | With audit trail |
+| 15 | Completed-quest archive section in student class view | S | Verify current behavior first |
+| 16 | Portfolio curation flag + filtered view | S | |
+| 17 | Message templates for announcements/newsletter | S | |
 
-Items 2, 4, and 6 are the ones with cross-org value beyond Gryffin; keep them fully generic.
+Items 4, 5, and 8 have the clearest cross-org value beyond Gryffin; the goal-setting flow (2-3) is also a strong candidate for other microschools — keep all fully generic.
 
-## Decisions needed (Tanner / Katie)
+## Decisions
 
-1. SMS notifications: real SMS (per-message cost via Brevo) or email + app push only?
-2. Flag-key generalization `icreate_registration` → `sis_registration`: do it now (recommended) or live with the name?
-3. Which Bird children belong to Katie, and is Garrison correctly in iCreate?
-4. K-6 students as email-less dependents (recommended) — confirm Gryffin is comfortable with parent-managed accounts for the littles.
-5. Kiosk hardware plan (shared tablets on site?) — affects priority of item 6.
+- **Resolved 2026-07-23:** no SMS (in-app + push, email fan-out as safety net). Kiosk confirmed: class iPads, tap-name → scan paper assignment. Tarien = Katie's child (linked).
+- **Still open (Tanner / Katie):**
+  1. Flag-key generalization `icreate_registration` → `sis_registration`: do it now (recommended) or live with the name?
+  2. Kaiden Bird (platform student, no org/email) — Katie's? Garrison Bird — correctly in iCreate?
+  3. K-6 students as email-less dependents (recommended) — confirm Gryffin is comfortable with parent-managed accounts for the littles.
+  4. Gradebook-lite modeling: standalone SIS tracker (recommended) vs scores on quest tasks.
+  5. Subject list + assessment field set (BOY/EOY keys) for `sis_settings` — get Katie's definitive list.

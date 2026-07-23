@@ -212,8 +212,10 @@ export const PILLARS = [
   { key: 'wellness', label: 'Wellness' },
 ];
 
+// Display names must match the backend SUBJECT_NORMALIZATION map in
+// routes/tasks/xp_helpers.py — unrecognized names produce credit keys the
+// diploma system can't count.
 export const DIPLOMA_SUBJECTS = [
-  'English', 'Mathematics', 'Science', 'Social Studies', 'Foreign Language',
-  'Fine Arts', 'Physical Education', 'Health', 'Technology', 'Career & Technical',
-  'Elective',
+  'Language Arts', 'Math', 'Science', 'Social Studies', 'Financial Literacy',
+  'Health', 'PE', 'Fine Arts', 'CTE', 'Digital Literacy', 'Electives',
 ];

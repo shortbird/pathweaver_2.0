@@ -218,6 +218,25 @@ def update_task(user_id: str, task_id: str):
             deduped = [s for s in cleaned if not (s in seen or seen.add(s))]
             update_payload['diploma_subjects'] = deduped[:10]
 
+            # Keep credit attribution in sync: get_subject_xp_distribution reads
+            # subject_xp_distribution FIRST, so a stored distribution built from
+            # the old subject(s) would silently win over the student's new
+            # choice at credit time. Rebuild it as an even split of the task's
+            # XP across the chosen subjects (credit review can refine later).
+            chosen = update_payload['diploma_subjects']
+            final_xp = update_payload.get('xp_value') or task_data.get('xp_value') or 0
+            if chosen and final_xp:
+                per = max(5, 5 * round(final_xp / len(chosen) / 5))
+                dist = {s: per for s in chosen}
+                diff = final_xp - sum(dist.values())
+                if diff:
+                    dist[chosen[0]] = max(5, dist[chosen[0]] + diff)
+                update_payload['subject_xp_distribution'] = dist
+            else:
+                # No subjects chosen: clear the stored distribution so the
+                # pillar-based fallback applies instead of stale data.
+                update_payload['subject_xp_distribution'] = None
+
         if not update_payload:
             return jsonify({
                 'success': False,
