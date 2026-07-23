@@ -35,7 +35,11 @@ def test_notify_staff_targets_org_admins_only():
     notified_ids = {c.args[0] for c in notify.call_args_list}
     assert notified_ids == {'admin1', 'hybrid', 'noemail'}, notified_ids
 
-    emailed = {c.kwargs['to_email'] for c in email_svc.send_email.call_args_list}
-    assert emailed == {'admin1@icreate.org', 'hybrid@icreate.org'}, emailed
-    for c in email_svc.send_email.call_args_list:
-        assert c.kwargs['subject'] == 'Schedule approval needed: Emma Pogue'
+    # One single email covering every admin (To + CC), not one send per admin:
+    # each send_email call also delivers a [COPY] to SUPPORT_COPY_EMAIL, so a
+    # per-admin loop spammed support with N monitoring copies per submission.
+    assert email_svc.send_email.call_count == 1, email_svc.send_email.call_args_list
+    call = email_svc.send_email.call_args
+    recipients = {call.kwargs['to_email']} | set(call.kwargs['cc'])
+    assert recipients == {'admin1@icreate.org', 'hybrid@icreate.org'}, recipients
+    assert call.kwargs['subject'] == 'Schedule approval needed: Emma Pogue'

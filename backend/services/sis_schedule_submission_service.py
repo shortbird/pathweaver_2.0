@@ -111,16 +111,19 @@ def _notify_staff(org_id: str, student_user_id: str) -> None:
         if emails:
             from services.email_service import EmailService
             svc = EmailService()
-            for em in emails:
-                svc.send_email(
-                    to_email=em,
-                    subject=f'Schedule approval needed: {name}',
-                    html_body=(
-                        f"<p>{name}'s class schedule was submitted for approval.</p>"
-                        '<p>Review it on the Registration page of your school console '
-                        'to approve it or send it back to the family.</p>'
-                    ),
-                )
+            # One message to all admins (first To, rest CC), not one send per
+            # admin — send_email copies SUPPORT_COPY_EMAIL on every send, so a
+            # per-admin loop delivered N monitoring copies per submission.
+            svc.send_email(
+                to_email=emails[0],
+                cc=emails[1:],
+                subject=f'Schedule approval needed: {name}',
+                html_body=(
+                    f"<p>{name}'s class schedule was submitted for approval.</p>"
+                    '<p>Review it on the Registration page of your school console '
+                    'to approve it or send it back to the family.</p>'
+                ),
+            )
     except Exception as e:  # noqa: BLE001 — notifications must never break a submit
         logger.warning(f'schedule submission: staff notification skipped for org {org_id}: {e}')
 
