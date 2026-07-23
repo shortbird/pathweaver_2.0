@@ -28,6 +28,19 @@ The full build list below was implemented on 2026-07-23 (single autonomous build
 
 Deferred/known gaps: SMS (decided against), teacher "provision kiosk" needs the token pasted on each iPad once, per-student answers from re-registration will orphan old kid ids on family back-edit (revalidated + restored), email fan-out sends a [COPY] per recipient to the support inbox (platform-wide email service behavior — revisit if newsletter volume grows).
 
+## FINE-TUNING ROUND — 2026-07-23 (shipped, commits 34428995 + 7e1eb3c2)
+
+Platform-wide SIS improvements from Gryffin tuning (all org-generic unless noted):
+
+- **Per-org module hiding**: `feature_flags.sis_settings.hidden_modules` (array). Gryffin hides `onboarding, timesheets, forms, clp` (Billing kept — required by the $ account ask). Sidebar + route guard + teacher dashboard honor it; superadmin sees the SELECTED org's nav exactly (shared active-org store `sisOrgStore.js`, `useSisOrg().activeOrg`).
+- **People consolidation**: Users/Staff/Families merged into one tabbed `/people` page (Everyone/Staff/Families, action buttons on the tab row via a portal slot); Directory is now teacher-only. Old `/users`,`/staff`,`/households` redirect to `/people?tab=`.
+- **Class archiving completed**: backend restore endpoints (`POST /api/sis/classes/<id>/restore`, `POST /api/organizations/<org>/classes/<id>/restore`); SIS ClassesPage got a Show-archived toggle + Archived badge + Restore in the detail modal and the expanded table row; learning-app ClassList got a Restore button.
+- **Registration funnel fee step**: dropped from the stepper + preview + flow for zero-fee orgs (`feeApplies` derived from config). Gryffin families never see it.
+- **Goals**: "Preview family view" button on SIS `/goals` opens FamilyGoalsPage in a read-only preview modal (sample student, org subjects).
+- **Registration page reorg**: funnel config + first-day-of-school + waitlisted age groups moved to Settings > "Registration & enrollment"; Registration page = enrollment operations queues only.
+- **Billing redesigned record-only**: `/billing` is now a family/charge ledger (paid vs outstanding by month) + Add-charge + Record-payment modal (Zelle/scholarship/cash/check) + outstanding report + reminders + print. New `POST /api/sis/billing/charges`, `GET /api/sis/billing/ledger`. Discount rules/plans/installments/late-fees removed from UI (backend intact). iCreate unaffected (doesn't use this surface). Parent billing page + receipts unchanged.
+- **Resources single source of truth**: registration paperwork docs auto-link to an `org_resources` row on save (reconcile endpoint); edits in the Resources tab flow to the form; deleting/unlinking a resource clears the stale inline snapshot.
+
 **Current state (verified in prod 2026-07-23):**
 - Org exists: slug `gryffin`, active, 14 users (1 org_admin after the login fix, 3 parents, 2 advisors, 7 students, plus Katie as parent).
 - Flags already on: `sis_enabled`, `due_dates`, `scheduled_publish`. No `sis_settings` object yet, no registration funnel config.
