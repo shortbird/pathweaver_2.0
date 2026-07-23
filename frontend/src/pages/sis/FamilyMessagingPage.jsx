@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
+import TemplateControls from '../../components/announcements/TemplateControls'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 
@@ -74,8 +75,8 @@ const FamilyMessagingPage = () => {
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-2xl">
         <p className="text-sm text-neutral-500 mb-5">
-          Send an announcement to your school. It is delivered in-app (notification bell)
-          and via push to everyone in the selected audiences.
+          Send an announcement to your school. It is delivered in-app (notification bell),
+          via push, and by email to everyone in the selected audiences.
         </p>
 
         <label className="block text-xs font-medium text-neutral-500 mb-1">Audience</label>
@@ -101,7 +102,19 @@ const FamilyMessagingPage = () => {
         <label className="block text-xs font-medium text-neutral-500 mb-1">Message</label>
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className={`${field} mb-5`} placeholder="Write your announcement…" />
 
-        <Button onClick={send} loading={sending}>Send announcement</Button>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <Button onClick={send} loading={sending}>Send announcement</Button>
+          <TemplateControls
+            key={orgId || 'no-org'}
+            orgId={orgId}
+            title={title}
+            body={message}
+            onApply={({ title: t, body: b }) => {
+              setTitle(t)
+              setMessage(b)
+            }}
+          />
+        </div>
       </div>
 
       <div className="max-w-2xl mt-8">

@@ -138,6 +138,152 @@ def get_public_diploma_by_user_id(user_id):
 
 
 # =============================================================================
+# PORTFOLIO CURATION ("Portfolio picks")
+# =============================================================================
+
+def _can_curate_for(caller_id: str, student_id: str) -> bool:
+    """May the caller curate this student's portfolio?
+    Allowed: the student themselves, their parent (parent_student_links or
+    managed_by_parent_id), an org_admin of the student's org, and superadmin."""
+    if caller_id == student_id:
+        return True
+    from database import get_supabase_admin_client
+    # admin client justified: relationship/role verification before a cross-user
+    # write (parent link, org admin, superadmin) — the write itself is a single
+    # boolean flag on the student's own completion row.
+    admin = get_supabase_admin_client()
+
+    caller_rows = admin.table('users').select(
+        'id, role, org_role, org_roles, organization_id'
+    ).eq('id', caller_id).limit(1).execute().data
+    if not caller_rows:
+        return False
+    caller = caller_rows[0]
+    if caller.get('role') == 'superadmin':
+        return True
+
+    student_rows = admin.table('users').select(
+        'id, organization_id, managed_by_parent_id'
+    ).eq('id', student_id).limit(1).execute().data
+    if not student_rows:
+        return False
+    student = student_rows[0]
+
+    # Parent of a dependent
+    if student.get('managed_by_parent_id') == caller_id:
+        return True
+
+    # Linked parent (statuses vary historically: approved / active)
+    links = admin.table('parent_student_links').select('id, status')\
+        .eq('parent_user_id', caller_id).eq('student_user_id', student_id).execute().data or []
+    if any(l.get('status') in ('approved', 'active') for l in links):
+        return True
+
+    # Org admin of the student's org
+    caller_org_roles = set(caller.get('org_roles') or [])
+    if caller.get('org_role'):
+        caller_org_roles.add(caller['org_role'])
+    if ('org_admin' in caller_org_roles
+            and caller.get('organization_id')
+            and caller.get('organization_id') == student.get('organization_id')):
+        return True
+    return False
+
+
+@bp.route('/completions/<completion_id>/curate', methods=['PATCH'])
+@require_auth
+def curate_completion(user_id, completion_id):
+    """Toggle a completed task in/out of the curated "Portfolio picks" section.
+
+    Body: {"in_portfolio": true|false}
+    Allowed: the completion's student, their parent, an org_admin of the
+    student's org, or superadmin.
+    """
+    try:
+        data = request.json or {}
+        if 'in_portfolio' not in data:
+            return error_response(
+                code='VALIDATION_ERROR',
+                message='in_portfolio (boolean) is required',
+                status=400
+            )
+        in_portfolio = bool(data.get('in_portfolio'))
+
+        from database import get_supabase_admin_client
+        # admin client justified: completion ownership + relationship checks done
+        # in _can_curate_for before this single-flag write
+        admin = get_supabase_admin_client()
+        rows = admin.table('quest_task_completions').select('id, user_id')\
+            .eq('id', completion_id).limit(1).execute().data
+        if not rows:
+            return error_response(code='NOT_FOUND', message='Completion not found', status=404)
+        student_id = rows[0]['user_id']
+
+        if not _can_curate_for(user_id, student_id):
+            return error_response(
+                code='PERMISSION_DENIED',
+                message='You cannot curate this portfolio',
+                status=403
+            )
+
+        admin.table('quest_task_completions').update(
+            {'in_portfolio': in_portfolio}
+        ).eq('id', completion_id).execute()
+
+        return success_response(data={'completion_id': completion_id,
+                                      'in_portfolio': in_portfolio})
+    except Exception as e:
+        logger.error(f"Error curating completion {completion_id}: {str(e)}")
+        return error_response(code='CURATE_ERROR', message='Failed to update portfolio', status=500)
+
+
+@bp.route('/completions/by-task/<task_id>', methods=['GET'])
+@require_auth
+def get_completion_by_task(user_id, task_id):
+    """Resolve the caller's (or, with ?student_id=, their child's) completion row
+    for a task — used by the "Include in portfolio" toggle to find completion_id.
+    Returns {has_completion, completion_id, in_portfolio}."""
+    try:
+        student_id = request.args.get('student_id') or user_id
+        if student_id != user_id and not _can_curate_for(user_id, student_id):
+            return error_response(code='PERMISSION_DENIED',
+                                  message='Not allowed for this student', status=403)
+        from database import get_supabase_admin_client
+        # admin client justified: read scoped to caller (or verified child) only
+        admin = get_supabase_admin_client()
+        rows = admin.table('quest_task_completions').select('id, in_portfolio')\
+            .eq('user_quest_task_id', task_id).eq('user_id', student_id)\
+            .limit(1).execute().data
+        if not rows:
+            return success_response(data={'has_completion': False})
+        return success_response(data={
+            'has_completion': True,
+            'completion_id': rows[0]['id'],
+            'in_portfolio': bool(rows[0].get('in_portfolio')),
+        })
+    except Exception as e:
+        logger.error(f"Error fetching completion for task {task_id}: {str(e)}")
+        return error_response(code='FETCH_ERROR', message='Failed to load completion', status=500)
+
+
+@bp.route('/completions/curated', methods=['GET'])
+@require_auth
+def get_curated_completions(user_id):
+    """The caller's curated "Portfolio picks" list (or a linked student's via
+    ?student_id=, using the same permission rules as curation)."""
+    try:
+        student_id = request.args.get('student_id') or user_id
+        if student_id != user_id and not _can_curate_for(user_id, student_id):
+            return error_response(code='PERMISSION_DENIED',
+                                  message='Not allowed for this student', status=403)
+        curated = PortfolioService().get_curated_completions(student_id)
+        return success_response(data={'curated': curated})
+    except Exception as e:
+        logger.error(f"Error fetching curated completions: {str(e)}")
+        return error_response(code='FETCH_ERROR', message='Failed to load portfolio picks', status=500)
+
+
+# =============================================================================
 # FERPA COMPLIANCE: Privacy and Consent Management
 # =============================================================================
 

@@ -6,9 +6,12 @@ import {
   BookOpenIcon,
   UserGroupIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
+import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 
 /**
@@ -185,6 +188,10 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   const [loading, setLoading] = useState(true)
   const [classData, setClassData] = useState(initialClassData || null)
   const [progress, setProgress] = useState(initialClassData?.progress || {})
+  // Ids of quests this student has fully completed (user_quests.completed_at) —
+  // used purely presentationally to fold finished quests into a collapsed section.
+  const [completedQuestIds, setCompletedQuestIds] = useState(new Set())
+  const [showCompleted, setShowCompleted] = useState(false)
 
   const classId = initialClassData?.id || propClassId
 
@@ -195,6 +202,15 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   const fetchDetails = async () => {
     try {
       setLoading(true)
+
+      // Best-effort: which quests has this student completed? Failure just means
+      // nothing gets folded into the Completed section.
+      api.get('/api/users/completed-quests?per_page=100')
+        .then((res) => {
+          const ids = (res.data?.quests || []).map((q) => q.id).filter(Boolean)
+          setCompletedQuestIds(new Set(ids))
+        })
+        .catch(() => {})
 
       const requests = [
         classService.getClassQuests(orgId, classId).catch(() => ({ success: false })),
@@ -254,6 +270,53 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   }
 
   const isComplete = progress.is_complete
+
+  const openQuest = (quest) => {
+    sessionStorage.setItem('classReturnPath', basePath ? `${basePath}/${classId}` : `/classes/${classId}`)
+    navigate(`/quests/${quest.id}`)
+  }
+
+  const renderQuestRow = (cq, quest, { completed = false } = {}) => (
+    <button
+      key={quest.id}
+      onClick={() => openQuest(quest)}
+      className={`flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm hover:border-optio-purple/30 transition-all w-full text-left ${completed ? 'opacity-75' : ''}`}
+    >
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${completed ? 'bg-green-50' : 'bg-optio-purple/10'}`}>
+        {completed ? (
+          <CheckCircleIcon className="w-5 h-5 text-green-500" />
+        ) : (
+          <BookOpenIcon className="w-5 h-5 text-optio-purple" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="font-medium text-gray-900 truncate">{quest.title}</h4>
+        {quest.description && (
+          <p className="text-sm text-gray-500 truncate">{quest.description}</p>
+        )}
+      </div>
+      {cq.due_date && !completed && (
+        <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded whitespace-nowrap flex-shrink-0">
+          Due {new Date(cq.due_date).toLocaleDateString()}
+        </span>
+      )}
+      <span className={`text-sm font-medium flex-shrink-0 ${completed ? 'text-green-600' : 'text-optio-purple'}`}>
+        View Quest
+      </span>
+    </button>
+  )
+
+  // Split into active vs completed (completed fold into a collapsed section below).
+  const activeQuests = []
+  const completedClassQuests = []
+  quests.forEach((cq) => {
+    const quest = cq.quests || cq
+    if (quest?.id && completedQuestIds.has(quest.id)) {
+      completedClassQuests.push({ cq, quest })
+    } else {
+      activeQuests.push({ cq, quest })
+    }
+  })
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -318,37 +381,35 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
           </div>
         ) : (
           <div className="space-y-3">
-            {quests.map((cq) => {
-              const quest = cq.quests || cq
-              return (
+            {activeQuests.map(({ cq, quest }) => renderQuestRow(cq, quest))}
+            {activeQuests.length === 0 && completedClassQuests.length > 0 && (
+              <p className="text-sm text-gray-500 py-2">
+                All caught up — every quest here is completed.
+              </p>
+            )}
+
+            {/* Completed quests — collapsed by default, still fully clickable */}
+            {completedClassQuests.length > 0 && (
+              <div className="pt-2">
                 <button
-                  key={quest.id}
-                  onClick={() => {
-                    sessionStorage.setItem('classReturnPath', basePath ? `${basePath}/${classId}` : `/classes/${classId}`)
-                    navigate(`/quests/${quest.id}`)
-                  }}
-                  className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm hover:border-optio-purple/30 transition-all w-full text-left"
+                  onClick={() => setShowCompleted((v) => !v)}
+                  aria-expanded={showCompleted}
+                  className="flex items-center gap-2 w-full px-2 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0">
-                    <BookOpenIcon className="w-5 h-5 text-optio-purple" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-gray-900 truncate">{quest.title}</h4>
-                    {quest.description && (
-                      <p className="text-sm text-gray-500 truncate">{quest.description}</p>
-                    )}
-                  </div>
-                  {cq.due_date && (
-                    <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded whitespace-nowrap flex-shrink-0">
-                      Due {new Date(cq.due_date).toLocaleDateString()}
-                    </span>
+                  {showCompleted ? (
+                    <ChevronDownIcon className="w-4 h-4" />
+                  ) : (
+                    <ChevronRightIcon className="w-4 h-4" />
                   )}
-                  <span className="text-sm text-optio-purple font-medium flex-shrink-0">
-                    View Quest
-                  </span>
+                  Completed ({completedClassQuests.length})
                 </button>
-              )
-            })}
+                {showCompleted && (
+                  <div className="space-y-3 mt-1">
+                    {completedClassQuests.map(({ cq, quest }) => renderQuestRow(cq, quest, { completed: true }))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

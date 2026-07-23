@@ -6,6 +6,7 @@ import SisOrgPicker from './SisOrgPicker'
 import SisOrgSettings from '../../components/sis/SisOrgSettings'
 import TimeBlocksCard from '../../components/sis/TimeBlocksCard'
 import CalendarCategoriesCard from '../../components/sis/CalendarCategoriesCard'
+import KioskDevicesCard from '../../components/sis/KioskDevicesCard'
 
 /**
  * SIS Settings page — org details, branding/logo, AI feature toggles, and School
@@ -57,6 +58,7 @@ const SettingsPage = () => {
           />
           <TimeBlocksCard key={`blocks-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <CalendarCategoriesCard key={`cats-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
+          <KioskDevicesCard key={`kiosk-${orgId}`} orgId={orgId} />
           {/* Parent-registration config moved to the Registration page (Operations). */}
         </div>
       )}

@@ -132,6 +132,15 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     },
+    {
+      name: 'Announcements',
+      path: '/announcements',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+        </svg>
+      )
+    },
     // Journal is a student learning surface. Parents don't keep a personal
     // journal -- they capture for a child from the Family dashboard -- so it's
     // hidden from parents (added conditionally below).
@@ -250,16 +259,41 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Schedule Builder: guardians at a SIS-enabled school build their children's
-  // class schedules (add/drop/waitlist until the first day of school). The page
-  // itself shows an empty state if the family isn't set up yet.
+  // Schedule Builder / Goal Setting: guardians at a SIS-enabled school get the
+  // org's post-registration surface — iCreate-style schools build class
+  // schedules; goals-mode schools (post_registration_flow === 'goals') set a
+  // direction and per-subject goals reviewed with school staff instead.
   if (sisEnabled && hasParentRelationships) {
+    const goalsMode = organization?.feature_flags?.sis_settings?.post_registration_flow === 'goals'
+    if (goalsMode) {
+      navItems.push({
+        name: 'Goal Setting',
+        path: '/family/goals',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      })
+    } else {
+      navItems.push({
+        name: 'Schedule Builder',
+        path: '/schedule-builder',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
+        )
+      })
+    }
+    // Billing: household balance, invoices, and printable receipts (families pay
+    // outside Optio; the school records payments).
     navItems.push({
-      name: 'Schedule Builder',
-      path: '/schedule-builder',
+      name: 'Billing',
+      path: '/family/billing',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
         </svg>
       )
     })

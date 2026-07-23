@@ -59,10 +59,12 @@ class TaskCacheService(BaseService):
         interests: List[str],
         cross_curricular: List[str],
         exclude_tasks: List[str] = None,
-        challenge_level: str = None
+        challenge_level: str = None,
+        student_context: str = None
     ) -> str:
         """Build a cache key from interests, cross-curricular subjects, the
-        set of tasks the student already has, and the challenge level.
+        set of tasks the student already has, the challenge level, and the
+        student's personal learning context.
 
         exclude_tasks is part of the key so a quest that already contains tasks
         never collides with (and is never served) the pristine first-generation
@@ -74,12 +76,20 @@ class TaskCacheService(BaseService):
         served a cached Standard batch (entries live up to 7 days). Standard /
         None is keyed WITHOUT a level segment so pre-existing cache entries
         stay valid.
+
+        student_context (the per-student goals/interests block) is part of the
+        key so one student's goal-tailored batch is never served to a
+        different student who happens to pick the same interests. Students
+        with no context (None) are keyed WITHOUT a context segment, keeping
+        pre-existing cache entries valid for them.
         """
         combined = sorted(interests) + sorted(cross_curricular)
         if exclude_tasks:
             combined += ['exclude:' + t.strip().lower() for t in sorted(exclude_tasks)]
         if challenge_level and challenge_level != DEFAULT_CHALLENGE_LEVEL:
             combined += [f'level:{challenge_level}']
+        if student_context:
+            combined += ['context:' + hashlib.md5(student_context.encode()).hexdigest()]
         key_str = '|'.join(combined)
         return hashlib.md5(key_str.encode()).hexdigest()
 
@@ -253,6 +263,7 @@ class PersonalizationService(BaseService):
             # works for every caller (generate-tasks, refine-tasks, web, mobile).
             # Any client-supplied exclude_tasks are merged in (case-insensitive).
             exclude_tasks = list(exclude_tasks or [])
+            session_user_id = None
             try:
                 session_row = self.supabase.table('quest_personalization_sessions')\
                     .select('user_id')\
@@ -275,13 +286,28 @@ class PersonalizationService(BaseService):
             except Exception as e:
                 logger.warning(f"Could not load existing tasks for dedup (quest {quest_id}): {e}")
 
+            # Per-student learning context (long-term direction, year goals,
+            # hobbies/interests) so shared class quests still yield individual
+            # task suggestions. Best-effort: None means "no context" and the
+            # prompt/cache behavior stays byte-identical to before.
+            student_context = None
+            if session_user_id:
+                try:
+                    from utils.student_context import get_student_learning_context
+                    student_context = get_student_learning_context(session_user_id)
+                except Exception as e:
+                    logger.warning(f"Could not load student learning context: {e}")
+
             # Build cache key always (needed for storage later). exclude_tasks is
             # part of the key so a quest that already has tasks can't be served
             # the pristine first-generation cache entry; challenge_level so a
-            # Challenge request can't be served a cached Standard batch.
+            # Challenge request can't be served a cached Standard batch;
+            # student_context so one student's goal-tailored batch is never
+            # served to a different student.
             cache_key = self.cache.build_cache_key(
                 interests, cross_curricular_subjects, exclude_tasks,
-                challenge_level=challenge_level
+                challenge_level=challenge_level,
+                student_context=student_context
             )
 
             # Skip cache if we have exclude_tasks (i.e. the quest already has
@@ -337,7 +363,8 @@ class PersonalizationService(BaseService):
                 vision_statement=vision_statement,
                 age_band=age_band,
                 course_context=course_context,
-                challenge_level=challenge_level
+                challenge_level=challenge_level,
+                student_context=student_context
             )
 
             # Generate tasks using AI service (falls back to alternate models on
@@ -910,7 +937,8 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         vision_statement: str = '',
         age_band: str = None,
         course_context: Dict = None,
-        challenge_level: str = None
+        challenge_level: str = None,
+        student_context: str = None
     ) -> str:
         """Build AI prompt for personalized task generation.
 
@@ -925,6 +953,10 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         challenge_level (optional) scales scope/rigor and the XP band of the
         whole batch. Composes with age_band: challenge is expressed relative to
         the learner's age, and the age band's reading-level rules always win.
+
+        student_context (optional) is the compact per-student block from
+        utils.student_context (long-term direction, per-subject year goals,
+        hobbies/interests). None leaves the prompt unchanged.
         """
         challenge_level = challenge_level or DEFAULT_CHALLENGE_LEVEL
         level_cfg = _challenge_config(challenge_level)
@@ -987,6 +1019,18 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         vision_text = ''
         if vision_statement:
             vision_text = f"\n\nBACKGROUND CONTEXT (for reference only):\nThe student has shared this about their learning goals: \"{vision_statement[:500]}\"\nNote: This is optional context. Generate diverse tasks based primarily on the quest topic and selected interests. Only 1-2 tasks may optionally connect to this background if it fits naturally."
+
+        # Per-student goals/interests block (from utils.student_context). When
+        # absent (None/empty) the prompt is byte-identical to before.
+        student_context_text = ''
+        if student_context:
+            student_context_text = (
+                "\n\nSTUDENT PROFILE (this student's own goals and interests):\n"
+                f"{student_context}\n"
+                "When suggesting tasks, connect them to this student's goals, direction, "
+                "and interests when it fits naturally; do not force it. Never mention "
+                "this profile text itself in the tasks."
+            )
 
         # Build priority subjects text
         priority_subjects_instruction = ''
@@ -1088,7 +1132,7 @@ Student's Selected Approach: {approach_desc}
 Student's Interests: {interests_text}
 
 Student's Selected Diploma Subjects: {subjects_text}
-{age_guidance}{challenge_guidance}{priority_subjects_instruction}{vision_text}{exclude_text}{feedback_text}
+{student_context_text}{age_guidance}{challenge_guidance}{priority_subjects_instruction}{vision_text}{exclude_text}{feedback_text}
 
 Generate 6-10 tasks that:
 {difficulty_line}

@@ -178,6 +178,47 @@ class PortfolioService:
         ''').eq('user_id', user_id).execute()
         return result.data or []
 
+    def get_curated_completions(self, user_id: str) -> List[Dict[str, Any]]:
+        """Completions the student (or their parent) marked "include in portfolio"
+        (quest_task_completions.in_portfolio). Additive: consumed as the 'curated'
+        list in the portfolio payloads; existing consumers are unaffected."""
+        try:
+            result = self.client.table('quest_task_completions').select('''
+                id,
+                completed_at,
+                evidence_text,
+                is_confidential,
+                user_quest_tasks!user_quest_task_id(title, pillar, xp_value),
+                quests(id, title)
+            ''').eq('user_id', user_id).eq('in_portfolio', True).order(
+                'completed_at', desc=True
+            ).execute()
+        except Exception as e:
+            logger.warning(f"Curated completions fetch failed for {user_id[:8]}: {e}")
+            return []
+
+        curated = []
+        for row in (result.data or []):
+            task = row.get('user_quest_tasks') or {}
+            quest = row.get('quests') or {}
+            snippet = None
+            if not row.get('is_confidential') and row.get('evidence_text'):
+                text = str(row['evidence_text']).strip()
+                # Evidence-document references aren't human-readable text.
+                if text and not text.startswith('evidence_document:'):
+                    snippet = text[:200]
+            curated.append({
+                'completion_id': row['id'],
+                'task_title': task.get('title'),
+                'quest_id': quest.get('id'),
+                'quest_title': quest.get('title'),
+                'pillar': task.get('pillar'),
+                'xp_value': task.get('xp_value'),
+                'completed_at': row.get('completed_at'),
+                'evidence_snippet': snippet,
+            })
+        return curated
+
     def get_skill_xp(self, user_id: str) -> Dict[str, int]:
         """
         Get XP breakdown by skill category/pillar.
@@ -897,6 +938,7 @@ class PortfolioService:
             ],
             'total_quests_completed': len(completed_quests),
             'total_xp': total_xp,
+            'curated': self.get_curated_completions(user_id),
             'portfolio_url': f"https://optio.com/portfolio/{diploma.get('portfolio_slug')}"
         }
 
@@ -940,6 +982,7 @@ class PortfolioService:
             'skill_details': skill_details,
             'total_quests_completed': len(completed_quests),
             'total_xp': total_xp,
+            'curated': self.get_curated_completions(user_id),
             'portfolio_url': f"https://optio.com/portfolio/{portfolio_slug}"
         }
 
@@ -1025,7 +1068,8 @@ class PortfolioService:
             'subject_xp': subject_xp,
             'total_xp': total_xp,
             'total_quests_completed': len([a for a in achievements if a.get('status') == 'completed']),
-            'transfer_credits': transfer_credits
+            'transfer_credits': transfer_credits,
+            'curated': self.get_curated_completions(user_id)
         }
 
     def _build_achievements(

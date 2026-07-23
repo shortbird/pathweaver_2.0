@@ -16,6 +16,14 @@ vi.mock('react-hot-toast', () => ({
 
 const { api } = vi.hoisted(() => {
   const apiData = (url) => {
+    if (url.includes('/api/sis/billing/outstanding')) {
+      return { data: { outstanding: [{
+        invoice_id: 'inv1', family_name: 'Bowman Family', student_name: 'Robin',
+        status: 'overdue', due_date: '2026-07-01', total_cents: 9000, amount_paid_cents: 0,
+        amount_due_cents: 9000, days_overdue: 12,
+        unpaid_installments: [{ id: 'i1', due_date: '2026-07-01', amount_cents: 4500, status: 'late' }],
+      }] } }
+    }
     if (url.includes('/api/sis/invoices/inv1')) {
       return { data: { invoice: {
         id: 'inv1', status: 'sent', total_cents: 9000, discount_cents: 1000, amount_paid_cents: 0,
@@ -34,7 +42,11 @@ const { api } = vi.hoisted(() => {
   return {
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
-      post: vi.fn(() => Promise.resolve({ data: { rule: { id: 'd2' } } })),
+      post: vi.fn((url) => Promise.resolve(
+        url.includes('/reminders/run')
+          ? { data: { success: true, checked: 3, reminded: 2, skipped: 1 } }
+          : { data: { rule: { id: 'd2' } } }
+      )),
     },
   }
 })
@@ -73,5 +85,25 @@ describe('BillingPage', () => {
     fireEvent.click(await screen.findByText('$90.00'))
     expect(await screen.findByText('Pottery')).toBeInTheDocument()
     expect(screen.getByText('Record payment')).toBeInTheDocument()
+  })
+
+  it('shows the outstanding report on its tab', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    expect(await screen.findByText('Bowman Family')).toBeInTheDocument()
+    expect(screen.getByText('12')).toBeInTheDocument()           // days overdue
+    expect(screen.getAllByText(/\$90\.00/).length).toBeGreaterThan(0) // amount due
+    expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/billing/outstanding'))
+  })
+
+  it('sends payment reminders and reports counts', async () => {
+    const { toast } = await import('react-hot-toast')
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    fireEvent.click(await screen.findByText('Send payment reminders'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/billing/reminders/run', expect.objectContaining({ organization_id: expect.anything() })))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Reminders sent: 2')))
   })
 })

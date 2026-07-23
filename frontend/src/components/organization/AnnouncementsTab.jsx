@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
 import { MegaphoneIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
+import TemplateControls from '../announcements/TemplateControls'
 
 const ROLE_OPTIONS = [
   { value: 'students', label: 'Students' },
@@ -80,10 +81,21 @@ export default function AnnouncementsTab({ orgId }) {
     <div className="space-y-8 max-w-3xl">
       {/* Composer */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <MegaphoneIcon className="w-5 h-5 text-optio-purple" />
-          New announcement
-        </h3>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <MegaphoneIcon className="w-5 h-5 text-optio-purple" />
+            New announcement
+          </h3>
+          <TemplateControls
+            orgId={orgId}
+            title={title}
+            body={content}
+            onApply={({ title: t, body: b }) => {
+              setTitle(t)
+              setContent(b)
+            }}
+          />
+        </div>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -119,7 +131,7 @@ export default function AnnouncementsTab({ orgId }) {
           </button>
         </div>
         <p className="text-xs text-gray-500">
-          Recipients get an in-app notification (and a push notification on mobile).
+          Recipients get an in-app notification, a push notification on mobile, and an email copy.
         </p>
       </div>
 

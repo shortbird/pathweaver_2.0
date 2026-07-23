@@ -139,6 +139,59 @@ const FAMILY_INPUT_NAMES = {
   city: 'city', state: 'state', postal_code: 'zip',
 }
 
+// First validation error for the org's registration questions, or null.
+// Family-level questions hold a single value; per_student questions hold
+// {kidUserId: value} and every kid on the registration must answer required
+// ones (kidsList = the kids as the server knows them, with user_id).
+export const firstQuestionError = (questions, answers, kidsList) => {
+  const empty = (q, v) => (q.type === 'multi' ? !(v || []).length : !(v || '').trim())
+  for (const q of questions || []) {
+    if (!q.required) continue
+    if (q.per_student) {
+      for (const k of kidsList || []) {
+        if (empty(q, (answers[q.key] || {})[k.user_id])) {
+          return `Please answer for ${k.first_name || k.name || 'each child'}: ${q.label}`
+        }
+      }
+    } else if (empty(q, answers[q.key])) {
+      return `Please answer: ${q.label}`
+    }
+  }
+  return null
+}
+
+// One org-question input (select / free text / multi checkboxes). Shared by
+// the family-level questions and the per-student groups on the details step.
+const QuestionField = ({ q, value, onChange }) => (
+  <div>
+    <label className="block text-sm font-medium text-neutral-800 mb-1">{q.label}{q.required && <span className="text-red-400"> *</span>}</label>
+    {q.help && <p className="text-xs text-neutral-500 mb-2 whitespace-pre-wrap">{q.help}</p>}
+    {q.type === 'multi' ? (
+      <div className="space-y-1.5">
+        {(q.options || []).map((opt) => {
+          const cur = value || []
+          return (
+            <label key={opt} className="flex items-center gap-2 text-sm text-neutral-700">
+              <input type="checkbox" checked={cur.includes(opt)}
+                onChange={(e) => onChange(e.target.checked ? [...cur, opt] : cur.filter((x) => x !== opt))}
+                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              {opt}
+            </label>
+          )
+        })}
+      </div>
+    ) : q.type === 'text' ? (
+      <textarea rows={3} className={field} value={value || ''}
+        onChange={(e) => onChange(e.target.value)} />
+    ) : (
+      <select className={field} value={value || ''} onChange={(e) => onChange(e.target.value)}>
+        <option value="">-- Please select --</option>
+        {(q.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+    )}
+  </div>
+)
+
 // What to try when a photo won't attach — written for the common iPhone case
 // (the original lives in iCloud and Safari silently fails to fetch it).
 const PHOTO_TIPS = "That photo didn't come through. On iPhones this usually means the "
@@ -333,6 +386,9 @@ const ICreateRegisterPage = () => {
   // details step
   const [contacts, setContacts] = useState([emptyContact()])
   const [answers, setAnswers] = useState({})
+  // Kids as the SERVER knows them (user_id + name) — set at family submit and
+  // on resume. Per-student questions key their answers by kid user_id.
+  const [serverKids, setServerKids] = useState([])
 
   // funnel state (issued only after email verification / sign-in)
   const [reg, setReg] = useState(null) // { registration_id, access_token }
@@ -376,6 +432,7 @@ const ICreateRegisterPage = () => {
               city: h.city || '', state: h.state || '', postal_code: h.postal_code || '',
             })
           }
+          setServerKids((regData.kids || []).filter((k) => k.user_id))
           if ((regData.kids || []).length) {
             setKids(regData.kids.map((k) => ({
               ...emptyKid(),
@@ -746,6 +803,7 @@ const ICreateRegisterPage = () => {
       })
       setFeeCents(data.fee_cents || 0)
       setFeeDeferred(!!data.fee_deferred)
+      setServerKids((data.kids || []).filter((k) => k.user_id))
       await uploadFamilyPhotos(data.kids)
       setStep('details')
     } catch (e) {
@@ -764,12 +822,8 @@ const ICreateRegisterPage = () => {
     for (const [i, c] of validContacts.entries()) {
       if (!c.name.trim() || !c.phone.trim()) return toast.error(`Emergency contact #${i + 1} needs a name and phone`)
     }
-    for (const q of config.questions || []) {
-      const v = answers[q.key]
-      if (q.required && (q.type === 'multi' ? !(v || []).length : !(v || '').trim())) {
-        return toast.error(`Please answer: ${q.label}`)
-      }
-    }
+    const qErr = firstQuestionError(config.questions, answers, serverKids)
+    if (qErr) return toast.error(qErr)
     setSubmitting(true)
     try {
       await api.post(`/api/icreate/registrations/${reg.registration_id}/details`, {
@@ -1196,44 +1250,42 @@ const ICreateRegisterPage = () => {
               <button onClick={() => setContacts((cs) => [...cs, emptyContact()])} className="mt-3 text-sm font-medium text-optio-purple hover:underline">+ Add another contact</button>
             </Section>
 
-            {(config.questions || []).length > 0 && (
-              <Section title="A few questions">
-                <div className="space-y-5">
-                  {(config.questions || []).map((q) => (
-                    <div key={q.key}>
-                      <label className="block text-sm font-medium text-neutral-800 mb-1">{q.label}{q.required && <span className="text-red-400"> *</span>}</label>
-                      {q.help && <p className="text-xs text-neutral-500 mb-2 whitespace-pre-wrap">{q.help}</p>}
-                      {q.type === 'multi' ? (
-                        <div className="space-y-1.5">
-                          {(q.options || []).map((opt) => {
-                            const cur = answers[q.key] || []
-                            return (
-                              <label key={opt} className="flex items-center gap-2 text-sm text-neutral-700">
-                                <input type="checkbox" checked={cur.includes(opt)}
-                                  onChange={(e) => setAnswers((a) => ({
-                                    ...a,
-                                    [q.key]: e.target.checked ? [...cur, opt] : cur.filter((x) => x !== opt),
-                                  }))}
-                                  className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                                {opt}
-                              </label>
-                            )
-                          })}
+            {(config.questions || []).length > 0 && (() => {
+              const familyQs = (config.questions || []).filter((q) => !q.per_student)
+              const studentQs = (config.questions || []).filter((q) => q.per_student)
+              // Per-student answers are keyed by the kid's user_id, which only
+              // exists after the family step submits. Preview mode fakes ids
+              // from the sample kids so staff sees the per-child layout.
+              const qKids = previewMode
+                ? kids.map((k, i) => ({ user_id: `preview-${i}`, first_name: k.first_name, name: `${k.first_name} ${k.last_name}`.trim() }))
+                : serverKids
+              return (
+                <Section title="A few questions">
+                  <div className="space-y-5">
+                    {familyQs.map((q) => (
+                      <QuestionField key={q.key} q={q} value={answers[q.key]}
+                        onChange={(v) => setAnswers((a) => ({ ...a, [q.key]: v }))} />
+                    ))}
+                    {studentQs.length > 0 && qKids.map((k, idx) => (
+                      <div key={k.user_id} className={familyQs.length || idx > 0 ? 'pt-4 border-t border-gray-100' : ''}>
+                        <h3 className="text-sm font-semibold text-neutral-900 mb-3">
+                          {(k.first_name || k.name || 'Your child').trim()}
+                        </h3>
+                        <div className="space-y-5">
+                          {studentQs.map((q) => (
+                            <QuestionField key={q.key} q={q} value={(answers[q.key] || {})[k.user_id]}
+                              onChange={(v) => setAnswers((a) => ({
+                                ...a,
+                                [q.key]: { ...(a[q.key] || {}), [k.user_id]: v },
+                              }))} />
+                          ))}
                         </div>
-                      ) : q.type === 'text' ? (
-                        <textarea rows={3} className={field} value={answers[q.key] || ''}
-                          onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))} />
-                      ) : (
-                        <select className={field} value={answers[q.key] || ''} onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))}>
-                          <option value="">-- Please select --</option>
-                          {(q.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </Section>
-            )}
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )
+            })()}
 
             <PrimaryButton onClick={submitDetails} disabled={submitting}>
               {submitting ? 'Saving…' : 'Continue'}
@@ -1291,7 +1343,9 @@ const ICreateRegisterPage = () => {
           const ackBlocks = needsAck && !waitlistAck
           return (
           <div className="space-y-6">
-            <Section title="Registration fee">
+            {/* When nothing is due (fee configured at 0, or a prepaid credit)
+                this step is just a finish gate — don't headline it as a fee. */}
+            <Section title={feeDeferred || feeCents > 0 ? 'Registration fee' : 'Finish your registration'}>
               <div className="text-center">
                 {feeDeferred ? (
                   <>
@@ -1369,7 +1423,30 @@ const ICreateRegisterPage = () => {
           )
         })()}
 
-        {step === 'done' && (
+        {step === 'done' && config.post_registration_flow === 'goals' && (
+          <div className="space-y-6 text-center">
+            <div className="bg-white rounded-xl border border-gray-200 p-8">
+              <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
+              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
+              <p className="text-neutral-500 mb-5">
+                Next, sit down with each of your kids and set a direction and goals for the
+                year together.
+              </p>
+              <a href="/family/goals"
+                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
+                Set your student's goals
+              </a>
+              <p className="text-sm text-neutral-500 mt-5">
+                You'll review these together at your meeting with {org.name || 'the school'}.
+              </p>
+            </div>
+            <p className="text-sm text-neutral-400">
+              Registration is complete. You can sign in at any time with your email and password.
+            </p>
+          </div>
+        )}
+
+        {step === 'done' && config.post_registration_flow !== 'goals' && (
           <div className="space-y-6 text-center">
             <div className="bg-white rounded-xl border border-gray-200 p-8">
               <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>

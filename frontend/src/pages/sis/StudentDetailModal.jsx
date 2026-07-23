@@ -19,9 +19,13 @@ const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:
 
 const TABS = [
   { key: 'profile', label: 'Profile' },
+  { key: 'record', label: 'Record' },
+  { key: 'materials', label: 'Materials' },
   { key: 'schedule', label: 'Schedule' },
   { key: 'message', label: 'Message' },
 ]
+
+const STUDENT_ONLY_TABS = ['record', 'materials', 'schedule']
 
 const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const isStudent = student.is_student !== false
@@ -93,7 +97,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         </div>
 
         <div className="flex gap-1 px-4 pt-3 border-b border-gray-100">
-          {TABS.filter((t) => t.key !== 'schedule' || isStudent).map((t) => (
+          {TABS.filter((t) => !STUDENT_ONLY_TABS.includes(t.key) || isStudent).map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -115,6 +119,8 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
               <AccountSection student={student} orgId={orgId} onSaved={onSaved} onClose={onClose} />
             </div>
           )}
+          {tab === 'record' && isStudent && <RecordPanel student={student} orgId={orgId} />}
+          {tab === 'materials' && isStudent && <MaterialsPanel student={student} orgId={orgId} />}
           {tab === 'schedule' && isStudent && <SchedulePanel student={student} orgId={orgId} />}
           {tab === 'message' && <MessagePanel student={student} orgId={orgId} />}
         </div>
@@ -499,6 +505,221 @@ const MessagePanel = ({ student, orgId }) => {
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className={`${field} resize-none`} />
       </label>
       <Button size="sm" onClick={send} loading={sending}>Send</Button>
+    </div>
+  )
+}
+
+// ── Record: profile facts + BOY/EOY assessments (per-student sheet) ───────────
+const PROFILE_FIELDS = [
+  ['preferred_name', 'Preferred name', 'input'],
+  ['grade', 'Grade', 'input'],
+  ['hobbies', 'Hobbies and interests', 'textarea'],
+  ['notes', 'Other notes', 'textarea'],
+]
+
+const prettyKey = (k) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+
+const RecordPanel = ({ student, orgId }) => {
+  const [loading, setLoading] = useState(true)
+  const [profile, setProfile] = useState({})
+  const [assessments, setAssessments] = useState({})
+  const [fields, setFields] = useState([])
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.get(`/api/sis/students/${student.student_id}/record?organization_id=${orgId}`)
+      .then((r) => {
+        setProfile(r.data?.record?.profile || {})
+        setAssessments(r.data?.record?.assessments || {})
+        setFields(r.data?.assessment_fields || [])
+      })
+      .catch(() => toast.error('Could not load the student record'))
+      .finally(() => setLoading(false))
+  }, [student.student_id, orgId])
+
+  const setProfileField = (k, v) => setProfile((p) => ({ ...p, [k]: v }))
+  const setAssessment = (key, col, v) =>
+    setAssessments((a) => ({ ...a, [key]: { ...(a[key] || {}), [col]: v } }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.put(`/api/sis/students/${student.student_id}/record`, {
+        profile, assessments, organization_id: orgId,
+      })
+      toast.success('Record saved')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not save the record')
+    } finally { setSaving(false) }
+  }
+
+  if (loading) return <p className="text-sm text-neutral-500">Loading…</p>
+
+  // Extra keys a school tracks beyond the standard four are kept editable too.
+  const extraKeys = Object.keys(profile).filter(
+    (k) => !PROFILE_FIELDS.some(([known]) => known === k) && typeof profile[k] === 'string',
+  )
+
+  return (
+    <div className="space-y-5">
+      <section className="space-y-3">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Profile</h4>
+        <div className="grid grid-cols-2 gap-3">
+          {PROFILE_FIELDS.filter(([, , kind]) => kind === 'input').map(([k, label]) => (
+            <label key={k} className="text-xs text-neutral-500">{label}
+              <input value={profile[k] || ''} onChange={(e) => setProfileField(k, e.target.value)} className={field} />
+            </label>
+          ))}
+        </div>
+        {PROFILE_FIELDS.filter(([, , kind]) => kind === 'textarea').map(([k, label]) => (
+          <label key={k} className="text-xs text-neutral-500 block">{label}
+            <textarea rows={2} value={profile[k] || ''} onChange={(e) => setProfileField(k, e.target.value)}
+              className={`${field} resize-none`} />
+          </label>
+        ))}
+        {extraKeys.map((k) => (
+          <label key={k} className="text-xs text-neutral-500 block">{prettyKey(k)}
+            <input value={profile[k] || ''} onChange={(e) => setProfileField(k, e.target.value)} className={field} />
+          </label>
+        ))}
+      </section>
+
+      <section className="border-t border-gray-100 pt-4">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Assessments</h4>
+        {fields.length === 0 ? <p className="text-sm text-neutral-400">No assessment fields configured.</p> : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-neutral-400">
+                <th className="py-1 pr-2 font-medium" />
+                <th className="py-1 pr-2 font-medium">Beginning of year</th>
+                <th className="py-1 font-medium">End of year</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fields.map((f) => (
+                <tr key={f.key}>
+                  <td className="py-1 pr-2 text-neutral-600 whitespace-nowrap">{f.label}</td>
+                  <td className="py-1 pr-2">
+                    <input aria-label={`${f.label} beginning of year`} value={assessments[f.key]?.boy || ''}
+                      onChange={(e) => setAssessment(f.key, 'boy', e.target.value)} className={field} />
+                  </td>
+                  <td className="py-1">
+                    <input aria-label={`${f.label} end of year`} value={assessments[f.key]?.eoy || ''}
+                      onChange={(e) => setAssessment(f.key, 'eoy', e.target.value)} className={field} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <Button size="sm" onClick={save} loading={saving}>Save record</Button>
+    </div>
+  )
+}
+
+// ── Materials: curriculum checklist with Paid/Received ────────────────────────
+const MaterialsPanel = ({ student, orgId }) => {
+  const [materials, setMaterials] = useState(null)
+  const emptyItem = { item_name: '', notes: '' }
+  const [ni, setNi] = useState(emptyItem)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api.get(`/api/sis/students/${student.student_id}/record?organization_id=${orgId}`)
+      .then((r) => setMaterials(r.data?.materials || []))
+      .catch(() => { toast.error('Could not load materials'); setMaterials([]) })
+  }, [student.student_id, orgId])
+
+  const add = async () => {
+    if (!ni.item_name.trim()) { toast.error('Item name required'); return }
+    setBusy(true)
+    try {
+      const r = await api.post(`/api/sis/students/${student.student_id}/materials`, {
+        item_name: ni.item_name, notes: ni.notes || undefined, organization_id: orgId,
+      })
+      setMaterials((m) => [...(m || []), r.data.material])
+      setNi(emptyItem)
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not add the item') }
+    finally { setBusy(false) }
+  }
+
+  const patch = async (m, changes) => {
+    const prev = materials
+    setMaterials((list) => list.map((x) => (x.id === m.id ? { ...x, ...changes } : x)))
+    try {
+      await api.patch(`/api/sis/materials/${m.id}`, { ...changes, organization_id: orgId })
+    } catch (e) {
+      setMaterials(prev)
+      toast.error(e?.response?.data?.error || 'Could not update the item')
+    }
+  }
+
+  const remove = async (m) => {
+    if (!window.confirm(`Remove "${m.item_name}" from the materials list?`)) return
+    try {
+      await api.delete(`/api/sis/materials/${m.id}?organization_id=${orgId}`)
+      setMaterials((list) => list.filter((x) => x.id !== m.id))
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not remove the item') }
+  }
+
+  if (materials === null) return <p className="text-sm text-neutral-500">Loading…</p>
+
+  return (
+    <div className="space-y-4">
+      {materials.length === 0
+        ? <p className="text-sm text-neutral-400">No curriculum materials yet.</p>
+        : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-neutral-400">
+                <th className="py-1 pr-2 font-medium">Item</th>
+                <th className="py-1 pr-2 font-medium text-center">Paid</th>
+                <th className="py-1 pr-2 font-medium text-center">Received</th>
+                <th className="py-1 pr-2 font-medium">Notes</th>
+                <th className="py-1" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {materials.map((m) => (
+                <tr key={m.id}>
+                  <td className="py-1.5 pr-2 text-neutral-800">{m.item_name}</td>
+                  <td className="py-1.5 pr-2 text-center">
+                    <input type="checkbox" aria-label={`${m.item_name} paid`} checked={!!m.paid}
+                      onChange={(e) => patch(m, { paid: e.target.checked })}
+                      className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                  </td>
+                  <td className="py-1.5 pr-2 text-center">
+                    <input type="checkbox" aria-label={`${m.item_name} received`} checked={!!m.received}
+                      onChange={(e) => patch(m, { received: e.target.checked })}
+                      className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                  </td>
+                  <td className="py-1.5 pr-2">
+                    <input defaultValue={m.notes || ''} aria-label={`${m.item_name} notes`}
+                      onBlur={(e) => { if (e.target.value !== (m.notes || '')) patch(m, { notes: e.target.value }) }}
+                      className={field} placeholder="Notes" />
+                  </td>
+                  <td className="py-1.5 text-right">
+                    <button onClick={() => remove(m)} className="text-red-500 text-sm hover:underline">Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+      <div className="border-t border-gray-100 pt-3">
+        <div className="grid grid-cols-2 gap-2">
+          <input value={ni.item_name} onChange={(e) => setNi({ ...ni, item_name: e.target.value })}
+            className={field} placeholder="Item (e.g. Math CLE 101-105)" />
+          <input value={ni.notes} onChange={(e) => setNi({ ...ni, notes: e.target.value })}
+            className={field} placeholder="Notes (optional)" />
+        </div>
+        <div className="mt-2">
+          <Button size="sm" onClick={add} loading={busy}>Add item</Button>
+        </div>
+      </div>
     </div>
   )
 }

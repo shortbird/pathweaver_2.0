@@ -77,6 +77,16 @@ def main():
     if now.hour == DAILY_SUMMARY_UTC_HOUR and now.minute < 10:
         _run("advisor-summary", f"{base}/api/admin/advisor-summary/trigger", cron_secret, failures)
 
+    # Once/day: SIS tuition payment reminders (15:00 UTC; 25-day per-invoice
+    # dedupe is enforced server-side, so daily firing is safe).
+    if now.hour == 15 and now.minute < 10:
+        _run("sis-billing-reminders", f"{base}/api/sis/internal/billing-reminders", cron_secret, failures)
+
+    # Once/day: SIS quest engagement sweep (13:00 UTC; open-alert dedupe is a
+    # partial unique index server-side, so re-runs are idempotent).
+    if now.hour == 13 and now.minute < 10:
+        _run("sis-engagement-sweep", f"{base}/api/sis/internal/engagement-sweep", cron_secret, failures)
+
     # Once/day: program-specific daily jobs (e.g. OEA compliance sweep), declared
     # in the program registry so core cron carries no program-specific endpoints.
     # Each no-ops cheaply off-window; alerts/dedupe are enforced server-side.

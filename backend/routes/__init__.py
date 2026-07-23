@@ -340,4 +340,8 @@ def register_all(app):
     from routes.sis import register_sis_routes
     register_sis_routes(app)
 
+    # ── Org-generic shared-device kiosk (tap your name, scan your work) ────────
+    from routes import kiosk
+    app.register_blueprint(kiosk.bp)
+
     logger.info("All route blueprints registered")

@@ -172,6 +172,7 @@ const DiplomaPage = () => {
   const [pendingSubjectXP, setPendingSubjectXP] = useState({});  // XP awaiting teacher verification
   // earnedBadges state removed (January 2026 - Microschool client feedback)
   const [learningEvents, setLearningEvents] = useState([]);  // Learning events
+  const [curated, setCurated] = useState([]);  // "Portfolio picks" (student-curated completions)
   const [transferCredits, setTransferCredits] = useState(null);  // Transfer credits from external transcripts
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState(null);
@@ -368,7 +369,8 @@ const DiplomaPage = () => {
           fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
           // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
           fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err)),
-          fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err))
+          fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err)),
+          fetchCurated().catch(err => console.error('Failed to fetch portfolio picks:', err))
         ]).finally(() => {
           // Ensure loading state is cleared even if some fetches fail
           setIsLoading(false);
@@ -428,6 +430,7 @@ const DiplomaPage = () => {
       const response = await api.get(`/api/portfolio/public/${slug}`);
       const diplomaData = response.data;
       setDiploma(diplomaData);
+      setCurated(diplomaData?.curated || []);
 
       // Fetch learning events for public diploma if user_id is available
       // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
@@ -470,6 +473,9 @@ const DiplomaPage = () => {
         setAchievements(data.achievements);
       }
 
+      // Student-curated "Portfolio picks"
+      setCurated(data.curated || []);
+
       // Extract and set XP data
       if (data.skill_xp) {
         setTotalXP(data.skill_xp);
@@ -510,6 +516,18 @@ const DiplomaPage = () => {
       setIsLoading(false);
     }
   };
+
+  const fetchCurated = useCallback(async () => {
+    // Own-diploma view: the curated list comes from a small dedicated endpoint
+    // (the public views get it inline in the diploma payload).
+    try {
+      const response = await api.get('/api/portfolio/completions/curated');
+      const data = response.data?.data || response.data;
+      setCurated(data?.curated || []);
+    } catch {
+      setCurated([]);
+    }
+  }, []);
 
   const fetchAchievements = useCallback(async () => {
     try {
@@ -1071,6 +1089,49 @@ const DiplomaPage = () => {
                 />
               ))
             }
+
+            {/* Portfolio picks — completions the student chose to spotlight */}
+            {curated.length > 0 && (
+              <div className="mb-10">
+                <div className="mb-4">
+                  <h3 className="text-2xl font-bold text-primary mb-1">Portfolio Picks</h3>
+                  <p className="text-gray-600 text-sm">
+                    {isOwner
+                      ? 'Work you chose to spotlight'
+                      : `Work ${getStudentFirstName()} chose to spotlight`}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {curated.map((pick) => (
+                    <div
+                      key={pick.completion_id}
+                      className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <h4 className="font-semibold text-gray-900 leading-snug">{pick.task_title}</h4>
+                        {typeof pick.xp_value === 'number' && (
+                          <span className="flex-shrink-0 px-2.5 py-1 text-xs font-bold rounded-full bg-gradient-to-r from-optio-purple to-optio-pink text-white">
+                            {pick.xp_value} XP
+                          </span>
+                        )}
+                      </div>
+                      {pick.quest_title && (
+                        <p className="text-sm text-optio-purple font-medium mb-2">{pick.quest_title}</p>
+                      )}
+                      {pick.evidence_snippet && (
+                        <p className="text-sm text-gray-600 line-clamp-3 mb-2">{pick.evidence_snippet}</p>
+                      )}
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        {pick.pillar && <span className="capitalize">{pick.pillar}</span>}
+                        {pick.completed_at && (
+                          <span>{new Date(pick.completed_at).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <EvidenceMasonryGallery
               achievements={achievements}

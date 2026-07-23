@@ -6,6 +6,28 @@
 
 **Guiding principle (unchanged):** build org-generically, gate per-org via `organizations.feature_flags`, never `slug === 'gryffin'` in feature logic. The iCreate SIS already follows this — nearly all of it keys on `feature_flags.sis_enabled` + org-scoped `sis_*` tables, so most of this plan is configuration, not code.
 
+## BUILD STATUS — 2026-07-23: SHIPPED
+
+The full build list below was implemented on 2026-07-23 (single autonomous build, migration `20260723_gryffin_sis_features.sql` applied to prod: 10 new tables). What shipped:
+
+- **Goals** (`sis_student_goals`): parent page `/family/goals` (replaces Schedule Builder in the sidebar for goals-mode orgs), SIS review page `/goals`, funnel completion CTA + email, `post_registration_flow` config key.
+- **Registration funnel**: per-student questions (`per_student: true` config), zero-fee finish, Gryffin question set (both Google Forms ported + medication schedule/scholarship additions), paperwork e-sign items, shareable link `/register/icreate/gryffin-family-2026`.
+- **Teacher submissions inbox**: SIS `/submissions` — unified new-submissions queue across a teacher's classes, evidence rendering, CreditFeedbackThread comments, accept-and-advance, XP adjust control.
+- **XP adjustment**: `PUT /api/sis/completions/<id>/xp` with `sis_xp_adjustments` audit, `user_skill_xp`/mastery resync.
+- **Kiosk** (org-generic, `kiosk` flag, `org_kiosk_devices`): `/kiosk` standalone page — device token setup, tap-your-name grid, camera capture, standard evidence upload, auto sign-out; device provisioning card on SIS Settings.
+- **Gradebook-lite** (`sis_assignment_templates` + `sis_student_assignments`): Gradebook tab on TeacherClassPage — sequences generator (Workbook 101-110 style), apply-to-students, inline score editing, averages, print.
+- **Parent billing**: `/family/billing` (household balance, invoices, printable receipts + statements), staff Outstanding tab, payment reminder sweep (daily 15:00 UTC via cron_dispatch, 25-day dedupe, `sis_payment_reminders`).
+- **Comms**: announcement email fan-out (Brevo transactional via email_service, dependent→parent routing), push already existed, archive page `/announcements` (+ sidebar), message templates (stored in `sis_settings.message_templates`, composer picker + save-as-template).
+- **Information reports**: SIS `/reports` — Medications, Media release, generic question report; print + CSV.
+- **Student records** (`sis_student_records` + `sis_student_materials`): Record + Materials tabs on StudentDetailModal, parent page `/family/students/:id` (profile, BOY/EOY, materials, per-class scores), "View record" on the parent dashboard.
+- **Engagement alerts** (`sis_engagement_alerts`): daily sweep (13:00 UTC) for unfinished-when-next-released + 2-week inactivity; "Needs attention" card on TeacherDashboard.
+- **Completed-quest archive**: collapsed "Completed (n)" accordion in the student class view.
+- **Portfolio curation**: `in_portfolio` on completions, toggle on completed TaskWorkspace, "Portfolio Picks" on the diploma/portfolio page, curated list in portfolio payloads.
+- **AI personalization**: student goals/direction/hobbies injected into task-suggestion prompts (cache-key aware; no-op when no data).
+- **Org config applied in prod**: `kiosk` flag, `sis_settings` (goals mode, school year, subjects, assessment fields), full funnel config, brand colors in `branding_config`, parent registration link created.
+
+Deferred/known gaps: SMS (decided against), teacher "provision kiosk" needs the token pasted on each iPad once, per-student answers from re-registration will orphan old kid ids on family back-edit (revalidated + restored), email fan-out sends a [COPY] per recipient to the support inbox (platform-wide email service behavior — revisit if newsletter volume grows).
+
 **Current state (verified in prod 2026-07-23):**
 - Org exists: slug `gryffin`, active, 14 users (1 org_admin after the login fix, 3 parents, 2 advisors, 7 students, plus Katie as parent).
 - Flags already on: `sis_enabled`, `due_dates`, `scheduled_publish`. No `sis_settings` object yet, no registration funnel config.

@@ -126,6 +126,29 @@ def submit(user_id, reg_id):
     return jsonify({'success': True, 'registration': result['registration']})
 
 
+# ── Family billing (balance, invoices, printable receipts) ───────────────────
+@bp.route('/billing', methods=['GET'])
+@require_auth
+def family_billing(user_id):
+    """Balance + invoices (line items, installments) + payments for every
+    household the caller guards (guardian household_member or the household's
+    primary contact). Empty households list if they guard none."""
+    from services import sis_billing_service as billing
+    return jsonify({'success': True, **billing.parent_billing_overview(user_id)})
+
+
+@bp.route('/billing/receipts/<payment_id>', methods=['GET'])
+@require_auth
+def billing_receipt(user_id, payment_id):
+    """Printable receipt payload for one recorded payment (guardian-only)."""
+    from services import sis_billing_service as billing
+    result = billing.payment_receipt(user_id, payment_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Receipt not found' else 403
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
 # ── Family photos (self-service) ──────────────────────────────────────────────
 def _photo_file_or_error():
     """Validate the multipart photo upload; returns (file, ext, None) or (None, None, response)."""

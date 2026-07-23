@@ -197,3 +197,50 @@ def household_billing(user_id, household_id):
     if err:
         return err
     return jsonify({'success': True, **billing.household_billing(org_id, household_id)})
+
+
+# ── Outstanding balances + payment reminders ─────────────────────────────────
+@bp.route('/billing/outstanding', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def outstanding_report(user_id):
+    """Org-scoped outstanding/overdue invoice report: family name, amount due,
+    days overdue, and unpaid installments."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'outstanding': billing.outstanding_invoices(org_id)})
+
+
+@bp.route('/billing/reminders/run', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def run_reminders(user_id):
+    """Manual admin trigger: email guardians of past-due invoices in this org.
+    Same logic as the cron sweep, scoped to the caller's organization."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, **billing.run_payment_reminders(org_id=org_id)})
+
+
+@bp.route('/internal/billing-reminders', methods=['POST'])
+def billing_reminders_cron():
+    """Cron entrypoint: payment-reminder sweep across ALL orgs.
+    Auth via X-Cron-Secret, or a signed-in superadmin for manual triggering
+    (mirrors /api/sis/internal/attendance-sweep)."""
+    from app_config import Config
+    from database import get_supabase_admin_client
+    secret = request.headers.get('X-Cron-Secret')
+    is_cron = bool(secret and Config.CRON_SECRET and secret == Config.CRON_SECRET)
+    if not is_cron:
+        from utils.session_manager import session_manager
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            row = (
+                get_supabase_admin_client().table('users').select('role')
+                .eq('id', uid).limit(1).execute()
+            ).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return jsonify({'success': True, **billing.run_payment_reminders()})

@@ -24,7 +24,8 @@ import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import SubjectBadges from '../common/SubjectBadges';
 import TaskStepsModal from './TaskStepsModal';
 import StudentTaskEditModal from './StudentTaskEditModal';
-import { SparklesIcon, AcademicCapIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, AcademicCapIcon, PencilSquareIcon, BookmarkIcon } from '@heroicons/react/24/outline';
+import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import api from '../../services/api';
 
@@ -176,6 +177,9 @@ const TaskWorkspace = ({
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRequestingCredit, setIsRequestingCredit] = useState(false);
   const [creditStatus, setCreditStatus] = useState(null); // tracks diploma_status for current task
+  // Portfolio curation: the viewer's completion row for this task (own work only).
+  const [portfolioPick, setPortfolioPick] = useState(null); // { completionId, inPortfolio }
+  const [isTogglingPortfolio, setIsTogglingPortfolio] = useState(false);
 
   // Drag sensors for task reordering
   const sensors = useSensors(
@@ -187,10 +191,12 @@ const TaskWorkspace = ({
   useEffect(() => {
     setIsDescriptionExpanded(false);
     setCreditStatus(null);
+    setPortfolioPick(null);
     if (task?.id) {
       loadEvidence();
       if (task.is_completed) {
         loadCreditStatus();
+        loadPortfolioPick();
       }
     } else {
       setEvidenceBlocks([]);
@@ -255,6 +261,37 @@ const TaskWorkspace = ({
       }
     } catch {
       // Not critical, silently ignore
+    }
+  };
+
+  const loadPortfolioPick = async () => {
+    try {
+      const response = await api.get(`/api/portfolio/completions/by-task/${task.id}`);
+      const data = response.data?.data || response.data;
+      // Only the completion's owner (or a verified parent) gets a row back, so
+      // the toggle simply never appears for anyone else.
+      if (data?.has_completion) {
+        setPortfolioPick({ completionId: data.completion_id, inPortfolio: !!data.in_portfolio });
+      }
+    } catch {
+      // Non-critical — the toggle just stays hidden
+    }
+  };
+
+  const handleTogglePortfolio = async () => {
+    if (!portfolioPick?.completionId || isTogglingPortfolio) return;
+    setIsTogglingPortfolio(true);
+    const next = !portfolioPick.inPortfolio;
+    try {
+      await api.patch(`/api/portfolio/completions/${portfolioPick.completionId}/curate`, {
+        in_portfolio: next
+      });
+      setPortfolioPick((prev) => ({ ...prev, inPortfolio: next }));
+      toast.success(next ? 'Added to your portfolio picks' : 'Removed from portfolio picks');
+    } catch {
+      toast.error('Could not update your portfolio');
+    } finally {
+      setIsTogglingPortfolio(false);
     }
   };
 
@@ -1057,6 +1094,30 @@ const TaskWorkspace = ({
                             <AcademicCapIcon className="w-4 h-4" />
                             <span className="hidden sm:inline">Credit Approved</span>
                           </span>
+                        )}
+                        {/* Portfolio curation: only rendered when this completion
+                            belongs to the viewer (the lookup 404s otherwise). */}
+                        {portfolioPick && (
+                          <button
+                            onClick={handleTogglePortfolio}
+                            disabled={isTogglingPortfolio}
+                            className={`flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 min-h-[32px] touch-manipulation ${
+                              portfolioPick.inPortfolio
+                                ? 'text-optio-purple bg-optio-purple/10 border-optio-purple/40'
+                                : 'text-gray-600 bg-white border-gray-300 hover:border-optio-purple/40 hover:text-optio-purple'
+                            }`}
+                            style={{ fontFamily: 'Poppins' }}
+                            title={portfolioPick.inPortfolio ? 'Remove from portfolio picks' : 'Include in portfolio'}
+                          >
+                            {portfolioPick.inPortfolio ? (
+                              <BookmarkSolidIcon className="w-4 h-4" />
+                            ) : (
+                              <BookmarkIcon className="w-4 h-4" />
+                            )}
+                            <span className="hidden sm:inline">
+                              {portfolioPick.inPortfolio ? 'In portfolio' : 'Include in portfolio'}
+                            </span>
+                          </button>
                         )}
                       </div>
                     )}

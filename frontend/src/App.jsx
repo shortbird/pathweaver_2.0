@@ -112,6 +112,10 @@ const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
 const FamilyResourcesPage = lazy(() => import('./pages/FamilyResourcesPage'))
 const FamilyCalendarPage = lazy(() => import('./pages/FamilyCalendarPage'))
 const FamilyDirectoryPage = lazy(() => import('./pages/FamilyDirectoryPage'))
+const FamilyGoalsPage = lazy(() => import('./pages/FamilyGoalsPage'))
+const FamilyStudentPage = lazy(() => import('./pages/FamilyStudentPage'))
+const FamilyBillingPage = lazy(() => import('./pages/FamilyBillingPage'))
+const KioskPage = lazy(() => import('./pages/KioskPage'))
 const PublicClassPage = lazy(() => import('./pages/classes/PublicClassPage'))
 // Marketing pages
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
@@ -129,6 +133,7 @@ const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
+const AnnouncementsArchivePage = lazy(() => import('./pages/AnnouncementsArchivePage'))
 const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 // Evidence Reports (February 2026 - Shareable evidence reports with PDF download)
 const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
@@ -511,6 +516,11 @@ function App() {
                 <Route path="resources" element={<FamilyResourcesPage />} />
                 <Route path="school-calendar" element={<FamilyCalendarPage />} />
                 <Route path="family-directory" element={<FamilyDirectoryPage />} />
+                {/* Goals-mode SIS orgs: parents set a direction + per-subject goals
+                    for each child (reviewed in a meeting with school staff). */}
+                <Route path="family/goals" element={<FamilyGoalsPage />} />
+                <Route path="family/students/:studentId" element={<FamilyStudentPage />} />
+                <Route path="family/billing" element={<FamilyBillingPage />} />
                 <Route path="classes/new" element={<StudentClassForm />} />
                 <Route path="classes/:id/edit" element={<StudentClassForm />} />
                 {/* Credit & Transcript Routes */}
@@ -538,6 +548,7 @@ function App() {
                 {/* LMS Features */}
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
+                <Route path="announcements" element={<AnnouncementsArchivePage />} />
                 {/* Observer Feedback */}
                 <Route path="feedback" element={<StudentFeedbackPage />} />
                 {/* Observer pages */}
@@ -636,6 +647,8 @@ function App() {
             {/* Program standalone routes (no app Layout), e.g. the Treehouse
                 kiosk — see src/programs/registry.jsx */}
             {getProgramRoutes('standalone')}
+            {/* Org-generic shared-device kiosk (class iPads: tap your name, scan your work) */}
+            <Route path="kiosk" element={<KioskPage />} />
 
             {/* Public evidence report view (no auth required) */}
             <Route path="report/:token" element={<PublicEvidenceReport />} />

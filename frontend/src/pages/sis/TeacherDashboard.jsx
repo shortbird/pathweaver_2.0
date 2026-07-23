@@ -32,10 +32,23 @@ const Card = ({ title, children, action }) => (
   </div>
 )
 
+const ALERT_LABEL = {
+  unfinished_next_released: (a) =>
+    `hasn't started "${a.quest_title || a.details?.quest_title || 'an earlier quest'}"` +
+    (a.details?.later_quest_title ? ` but "${a.details.later_quest_title}" is already out` : ''),
+  inactive_two_weeks: (a) =>
+    `has had no quest activity for ${a.details?.days_threshold || 14}+ days` +
+    (a.quest_title ? ` ("${a.quest_title}" unfinished)` : ''),
+}
+
+const alertMessage = (a) => (ALERT_LABEL[a.alert_type] ? ALERT_LABEL[a.alert_type](a) : 'needs attention')
+
 const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [clockBusy, setClockBusy] = useState(false)
+  const [alerts, setAlerts] = useState([])
+  const [resolvingId, setResolvingId] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -43,11 +56,28 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       .then((r) => setData(r.data?.data))
       .catch(() => toast.error('Failed to load your dashboard'))
       .finally(() => setLoading(false))
+    // Engagement alerts are non-critical — the card simply hides on failure.
+    api.get(withOrg('/api/sis/engagement-alerts', orgId))
+      .then((r) => setAlerts(r.data?.alerts || []))
+      .catch(() => setAlerts([]))
     // preview?.id (not the object) so a re-created preview object can't loop the effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, preview?.id])
 
   useEffect(() => { load() }, [load])
+
+  const resolveAlert = async (alertId) => {
+    setResolvingId(alertId)
+    try {
+      await api.post(`/api/sis/engagement-alerts/${alertId}/resolve`, { organization_id: orgId })
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId))
+      toast.success('Alert resolved')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not resolve the alert')
+    } finally {
+      setResolvingId(null)
+    }
+  }
 
   const clock = async (action) => {
     setClockBusy(true)
@@ -95,6 +125,37 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
             {pendingAcks.map((r) => r.title).join(' · ')}
           </p>
         </Link>
+      )}
+
+      {alerts.length > 0 && (
+        <Card title={`Needs attention (${alerts.length})`}>
+          <ul className="divide-y divide-gray-100">
+            {alerts.map((a) => (
+              <li key={a.id} className="py-2.5 flex items-start gap-3">
+                <span className="mt-1.5 w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-neutral-800">
+                    <span className="font-medium">{a.student_name}</span>
+                    {a.class_name && <span className="text-neutral-500"> · {a.class_name}</span>}
+                  </p>
+                  <p className="text-sm text-neutral-600">{alertMessage(a)}</p>
+                  {a.created_at && (
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => resolveAlert(a.id)}
+                  disabled={resolvingId === a.id}
+                  className="shrink-0 px-3 py-1.5 text-sm font-medium text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors disabled:opacity-50"
+                >
+                  Resolve
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

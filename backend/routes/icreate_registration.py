@@ -188,6 +188,10 @@ def _public_config(org, cfg, paperwork_urls=None):
             if isinstance(g, dict) and g.get('mode') == 'waitlist'
         ],
         'first_day_of_school': sis_settings.get('first_day_of_school'),
+        # What the completion email + final page point the family at:
+        # 'schedule' (default) = Schedule Builder + CLP appointment (iCreate);
+        # 'goals' = the family goals page (/family/goals).
+        'post_registration_flow': sis_settings.get('post_registration_flow') or 'schedule',
         'organization': {
             'id': org.get('id'),
             'name': org.get('name'),
@@ -215,7 +219,10 @@ def _public_config(org, cfg, paperwork_urls=None):
         'questions': [
             {'key': q.get('key'), 'label': q.get('label'), 'help': q.get('help') or '',
              'type': q.get('type') or 'select', 'options': q.get('options') or [],
-             'required': bool(q.get('required'))}
+             'required': bool(q.get('required')),
+             # per_student questions are asked once per registered kid; their
+             # answer is an object keyed by kid user_id instead of a single value.
+             'per_student': bool(q.get('per_student'))}
             for q in (cfg.get('questions') or [])
             if q.get('key') and q.get('label')
         ],
@@ -1351,6 +1358,43 @@ def submit_family(reg_id):
                     'fee_cents': fee_cents, 'fee_deferred': fee_deferred}), 200
 
 
+def _clean_answer(q, val):
+    """Sanitize one answer value (string, or list of strings for 'multi')."""
+    if q.get('type') == 'multi':
+        return [sanitize_input(str(v)) for v in (val or []) if str(v).strip()]
+    return sanitize_input(str(val or '').strip())
+
+
+def _validate_answers(questions, raw_answers, reg_kids):
+    """Validate + sanitize the org-question answers.
+
+    Family-level questions store a single value (string, or list for 'multi').
+    per_student questions expect answers[key] = {kid_user_id: value} and are
+    validated per kid: every kid on the registration must answer a required
+    one. Only the registration's own kids are kept (junk keys are dropped).
+    Returns (answers, None) on success or (None, error_message) on failure.
+    """
+    answers = {}
+    for q in questions:
+        if q.get('per_student'):
+            raw = raw_answers.get(q['key'])
+            raw = raw if isinstance(raw, dict) else {}
+            per_kid = {}
+            for kid in reg_kids:
+                val = _clean_answer(q, raw.get(kid['user_id']))
+                if q.get('required') and not val:
+                    who = kid.get('first_name') or kid.get('name') or 'each child'
+                    return None, f"Please answer for {who}: {q['label']}"
+                per_kid[kid['user_id']] = val
+            answers[q['key']] = per_kid
+        else:
+            val = _clean_answer(q, raw_answers.get(q['key']))
+            if q.get('required') and not val:
+                return None, f"Please answer: {q['label']}"
+            answers[q['key']] = val
+    return answers, None
+
+
 @bp.route('/registrations/<reg_id>/details', methods=['POST'])
 @rate_limit(max_requests=30, window_seconds=300)
 def submit_details(reg_id):
@@ -1366,19 +1410,10 @@ def submit_details(reg_id):
 
     # Validate answers against the configured questions.
     questions = [q for q in (cfg.get('questions') or []) if q.get('key') and q.get('label')]
-    raw_answers = body.get('answers') or {}
-    answers = {}
-    for q in questions:
-        val = raw_answers.get(q['key'])
-        if q.get('type') == 'multi':
-            val = [sanitize_input(str(v)) for v in (val or []) if str(v).strip()]
-            if q.get('required') and not val:
-                return jsonify({'error': f"Please answer: {q['label']}"}), 400
-        else:
-            val = sanitize_input(str(val or '').strip())
-            if q.get('required') and not val:
-                return jsonify({'error': f"Please answer: {q['label']}"}), 400
-        answers[q['key']] = val
+    reg_kids = [k for k in (reg.get('kids') or []) if k.get('user_id')]
+    answers, ans_err = _validate_answers(questions, body.get('answers') or {}, reg_kids)
+    if ans_err:
+        return jsonify({'error': ans_err}), 400
 
     # Validate + store emergency contacts (snapshot on the registration, and real
     # emergency_contacts rows per kid so staff see them in the SIS immediately).
@@ -1471,17 +1506,44 @@ def _abs_url(v):
 
 
 def _finish_fee_step(admin, reg, cfg, extra_fields=None):
-    """Shared fee completion: email the scheduling link and complete the
-    registration. Building the schedule and booking the appointment are
-    post-registration next steps shown on the final page (and reachable later
-    from the Schedule Builder), not funnel gates. Returns the response payload."""
+    """Shared fee completion: email the post-registration next step and complete
+    the registration. Which next step depends on the org's
+    sis_settings.post_registration_flow:
+      'schedule' (default) — the iCreate flow: Schedule Builder + CLP
+        appointment link (only sent when a scheduling_url is configured);
+      'goals' — set-your-student-goals email pointing at /family/goals (sent
+        regardless of scheduling_url, which goals orgs typically leave empty).
+    Either way the emailed-at moment lands in scheduling_emailed_at (in goals
+    mode it simply means "completion email sent"). Returns the response payload."""
     scheduling_url = _abs_url(cfg.get('scheduling_url'))
     now = datetime.utcnow().isoformat()
 
     emailed_at = None
     parent = _parent_row(admin, reg['parent_user_id'])
-    org = admin.table('organizations').select('name').eq('id', reg['organization_id']).single().execute().data
-    if scheduling_url and parent.get('email'):
+    org = admin.table('organizations').select('name, feature_flags') \
+        .eq('id', reg['organization_id']).single().execute().data
+    flow = ((((org or {}).get('feature_flags') or {}).get('sis_settings') or {})
+            .get('post_registration_flow') or 'schedule')
+    if flow == 'goals':
+        if parent.get('email'):
+            try:
+                from app_config import Config
+                org_name = (org or {}).get('name') or 'your school'
+                goals_url = f"{Config.FRONTEND_URL.rstrip('/')}/family/goals"
+                html = (
+                    f"<p>Hi {parent.get('first_name') or 'there'},</p>"
+                    f"<p>Thanks for registering with {org_name}!</p>"
+                    f"<p>Your next step: sit down with each of your kids and set a direction "
+                    f"and goals for the year together. You'll then review those goals in a "
+                    f"meeting with {org_name} staff.</p>"
+                    f"<p><a href=\"{goals_url}\">Set your student's goals</a></p>"
+                    f"<p>If the link doesn't work, copy and paste this into your browser:<br>{goals_url}</p>"
+                )
+                if email_service.send_email(parent['email'], f'{org_name}: set your student goals', html):
+                    emailed_at = now
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f'iCreate: goals email failed for registration {reg["id"]}: {e}')
+    elif scheduling_url and parent.get('email'):
         try:
             from app_config import Config
             org_name = (org or {}).get('name') or 'iCreate'

@@ -4,6 +4,7 @@ import { ExclamationTriangleIcon, PrinterIcon } from '@heroicons/react/24/outlin
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
+import GradebookTab from '../../components/sis/GradebookTab'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -34,6 +35,7 @@ const TeacherClassPage = () => {
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   const [saving, setSaving] = useState(false)
+  const [tab, setTab] = useState('roster')
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -108,6 +110,24 @@ const TeacherClassPage = () => {
       </div>
       <h1 className="hidden print:block text-xl font-bold mb-4">{cls?.name} — roster</h1>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
+        {[['roster', 'Roster & Attendance'], ['gradebook', 'Gradebook']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === key
+                ? 'border-optio-purple text-optio-purple'
+                : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'gradebook' && (
+        <GradebookTab classId={classId} orgId={orgId} className={cls?.name} />
+      )}
+
+      {tab === 'roster' && (<>
       {/* Attendance quick entry */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 sis-no-print">
         <div className="flex flex-wrap items-center gap-3 mb-1">
@@ -183,6 +203,7 @@ const TeacherClassPage = () => {
           </div>
         ))}
       </div>
+      </>)}
     </div>
   )
 }

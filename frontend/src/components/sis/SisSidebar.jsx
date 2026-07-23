@@ -64,12 +64,15 @@ const NAV_SECTIONS = [
       { name: 'CLP', path: '/clp', adminOnly: true, d: ICONS.doc },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
       { name: 'Attendance', path: '/attendance', adminOnly: true, d: ICONS.check },
+      { name: 'Submissions', path: '/submissions', d: ICONS.clipboard },
+      { name: 'Goals', path: '/goals', d: ICONS.doc },
     ],
   },
   {
     label: 'Operations',
     items: [
       { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard },
+      { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc },
       { name: 'Resources', path: '/resources', d: ICONS.books },
       { name: 'Forms', path: '/forms', d: ICONS.clipboard },
       { name: 'Onboarding', path: '/onboarding', d: ICONS.check },

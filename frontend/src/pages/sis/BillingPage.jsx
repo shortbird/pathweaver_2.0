@@ -21,6 +21,9 @@ const BillingPage = () => {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [newRule, setNewRule] = useState({ name: '', rule_type: 'sibling', percent: '', amount: '', code: '', threshold: '2' })
+  const [view, setView] = useState('invoices') // 'invoices' | 'outstanding'
+  const [outstanding, setOutstanding] = useState(null)
+  const [sendingReminders, setSendingReminders] = useState(false)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -71,6 +74,28 @@ const BillingPage = () => {
     } catch { toast.error('Could not record payment') }
   }
 
+  const loadOutstanding = useCallback(() => {
+    if (!orgId) return
+    setOutstanding(null)
+    api.get(withOrg('/api/sis/billing/outstanding', orgId))
+      .then((r) => setOutstanding(r.data?.outstanding || []))
+      .catch(() => { toast.error('Failed to load outstanding balances'); setOutstanding([]) })
+  }, [orgId])
+
+  useEffect(() => { if (view === 'outstanding') loadOutstanding() }, [view, loadOutstanding])
+
+  const sendReminders = async () => {
+    setSendingReminders(true)
+    try {
+      const r = await api.post('/api/sis/billing/reminders/run', { organization_id: orgId })
+      const d = r.data || {}
+      toast.success(`Reminders sent: ${d.reminded ?? 0} (checked ${d.checked ?? 0}, skipped ${d.skipped ?? 0})`)
+    } catch { toast.error('Could not send reminders') }
+    finally { setSendingReminders(false) }
+  }
+
+  const printOutstanding = () => { try { window.print() } catch { /* jsdom */ } }
+
   const createPlan = async (invoice, cadence) => {
     const count = cadence === 'monthly' ? parseInt(window.prompt('How many monthly installments?', '3') || '0', 10) : (cadence === 'semester' ? 2 : 1)
     if (cadence === 'monthly' && (!count || count < 1)) return
@@ -85,11 +110,76 @@ const BillingPage = () => {
 
   return (
     <div>
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .outstanding-print-area, .outstanding-print-area * { visibility: visible; }
+          .outstanding-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Billing</h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6">
+        {[['invoices', 'Invoices'], ['outstanding', 'Outstanding']].map(([v, label]) => (
+          <button
+            key={v} onClick={() => setView(v)}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium ${view === v
+              ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+              : 'bg-white border border-gray-200 text-neutral-600 hover:border-gray-300'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'outstanding' && (
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Button size="sm" onClick={sendReminders} disabled={sendingReminders}>
+              {sendingReminders ? 'Sending…' : 'Send payment reminders'}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={printOutstanding}>Print</Button>
+          </div>
+          {outstanding === null && <p className="text-neutral-500">Loading…</p>}
+          {outstanding?.length === 0 && <p className="text-neutral-500">No outstanding balances. Every invoice is paid up.</p>}
+          {!!outstanding?.length && (
+            <div className="outstanding-print-area bg-white rounded-xl border border-gray-200 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-neutral-400 border-b border-gray-200">
+                    <th className="px-4 py-2">Family</th>
+                    <th className="px-4 py-2">Student</th>
+                    <th className="px-4 py-2 text-right">Amount due</th>
+                    <th className="px-4 py-2 text-right">Days overdue</th>
+                    <th className="px-4 py-2">Unpaid installments</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {outstanding.map((row) => (
+                    <tr key={row.invoice_id}>
+                      <td className="px-4 py-2 font-medium text-neutral-900">{row.family_name || '—'}</td>
+                      <td className="px-4 py-2">{row.student_name || '—'}</td>
+                      <td className="px-4 py-2 text-right font-medium">{money(row.amount_due_cents)}</td>
+                      <td className={`px-4 py-2 text-right ${row.days_overdue > 0 ? 'text-red-700 font-medium' : 'text-neutral-500'}`}>
+                        {row.days_overdue > 0 ? row.days_overdue : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-neutral-600">
+                        {(row.unpaid_installments || []).map((i) => `${i.due_date} ${money(i.amount_cents)}`).join(', ') || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {view === 'invoices' && (<>
       {/* Discount rules */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
         <h2 className="font-semibold text-neutral-900 mb-3">Discount rules</h2>
@@ -170,6 +260,7 @@ const BillingPage = () => {
           </div>
         )}
       </div>
+      </>)}
     </div>
   )
 }
