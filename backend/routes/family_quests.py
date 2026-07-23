@@ -152,7 +152,9 @@ def enroll_children_in_family_quest(user_id, quest_id):
 
         # Fetch template tasks for this quest
         from routes.quest_types import get_template_tasks
+        from utils.template_tasks import get_valid_source_template_ids
         template_tasks = get_template_tasks(quest_id, filter_type='all')
+        valid_template_ids = get_valid_source_template_ids(supabase, template_tasks)
 
         enrolled = []
         failed = []
@@ -189,7 +191,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
                             'approval_status': 'approved',
                             'diploma_subjects': task.get('diploma_subjects', ['Electives']),
                             'subject_xp_distribution': task.get('subject_xp_distribution'),
-                            'source_template_task_id': task.get('id'),
+                            'source_template_task_id': task.get('id') if task.get('id') in valid_template_ids else None,
                             'source_task_id': task.get('id'),
                         })
 

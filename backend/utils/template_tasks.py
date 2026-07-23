@@ -10,6 +10,33 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def get_valid_source_template_ids(admin, template_tasks):
+    """
+    Return the subset of the given tasks' ids that currently exist in
+    quest_template_tasks.
+
+    user_quest_tasks.source_template_task_id has a foreign key to
+    quest_template_tasks(id), but get_template_tasks() can return rows from the
+    legacy fallback tables (course_quest_tasks / quest_sample_tasks) whose ids
+    don't exist there, and a concurrent bulk task edit deletes-and-recreates a
+    quest's template tasks, invalidating ids fetched moments earlier. Any id
+    not returned here must be inserted as NULL or the whole insert fails with
+    an FK violation (source_task_id has no FK and still records provenance).
+    """
+    candidate_ids = [t.get('id') for t in (template_tasks or []) if t.get('id')]
+    if not candidate_ids:
+        return set()
+    try:
+        result = admin.table('quest_template_tasks')\
+            .select('id')\
+            .in_('id', candidate_ids)\
+            .execute()
+        return {r['id'] for r in (result.data or [])}
+    except Exception as e:
+        logger.warning(f"Could not validate template task ids, inserting without source refs: {e}")
+        return set()
+
+
 def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
                                       template_tasks=None):
     """
@@ -27,6 +54,8 @@ def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
     if not template_tasks:
         return 0
 
+    valid_template_ids = get_valid_source_template_ids(admin, template_tasks)
+
     tasks_to_insert = [{
         'user_id': user_id,
         'quest_id': quest_id,
@@ -41,7 +70,7 @@ def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
         'approval_status': 'approved',
         'diploma_subjects': t.get('diploma_subjects', ['Electives']),
         'subject_xp_distribution': t.get('subject_xp_distribution'),
-        'source_template_task_id': t.get('id'),
+        'source_template_task_id': t.get('id') if t.get('id') in valid_template_ids else None,
         'source_task_id': t.get('id'),
     } for t in template_tasks]
 

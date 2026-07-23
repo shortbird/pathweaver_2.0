@@ -85,8 +85,11 @@ def get_redis_client():
         _redis_client = redis.from_url(
             redis_url,
             decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
+            # Rate limiting sits in the request hot path: a hung Redis must not
+            # stall every request for seconds. Keep timeouts tight and rely on
+            # the in-memory fallback + circuit breaker instead.
+            socket_connect_timeout=2,
+            socket_timeout=2,
             retry_on_timeout=True,
             health_check_interval=30
         )
@@ -98,23 +101,37 @@ def get_redis_client():
         logger.warning("redis library not installed - using in-memory rate limiting")
         return None
     except Exception as e:
-        logger.error(f"Failed to connect to Redis: {e} - using in-memory rate limiting")
+        # from_url() assigns the global before ping() can fail - clear it so a
+        # dead client isn't handed out on subsequent calls
+        _redis_client = None
+        logger.warning(f"Failed to connect to Redis: {e} - using in-memory rate limiting")
         return None
 
 class RateLimiter:
     """Rate limiter with Redis backend (falls back to in-memory)"""
+
+    # After a Redis failure, serve from in-memory for this long instead of
+    # letting every request re-pay the socket timeout against a dead Redis.
+    REDIS_RETRY_INTERVAL_SECONDS = 30
 
     def __init__(self):
         # In-memory fallback storage
         self.requests = defaultdict(list)
         self.blocked_ips = {}
         self.redis_client = None
+        self._redis_down_until = 0.0
 
     def _get_redis(self):
-        """Get Redis client, caching for this instance"""
+        """Get Redis client, caching for this instance. Returns None while the
+        circuit breaker is open after a recent failure."""
+        if time.time() < self._redis_down_until:
+            return None
         if self.redis_client is None:
             self.redis_client = get_redis_client()
         return self.redis_client
+
+    def _mark_redis_down(self):
+        self._redis_down_until = time.time() + self.REDIS_RETRY_INTERVAL_SECONDS
     
     def is_allowed(self, identifier: str, max_requests: int, window_seconds: int) -> Tuple[bool, int, Dict[str, any]]:
         """
@@ -189,8 +206,11 @@ class RateLimiter:
             return True, 0, rate_info
 
         except Exception as e:
-            logger.error(f"Redis rate limiting error: {e} - falling back to in-memory")
-            # Fallback to in-memory if Redis fails
+            # Warning, not error: the in-memory fallback below handles this by
+            # design, and a flaky Redis would otherwise flood Sentry with one
+            # error event per request.
+            logger.warning(f"Redis rate limiting error: {e} - falling back to in-memory")
+            self._mark_redis_down()
             return self._is_allowed_memory(identifier, max_requests, window_seconds)
 
     def _is_allowed_memory(self, identifier: str, max_requests: int, window_seconds: int) -> Tuple[bool, int, Dict[str, any]]:
