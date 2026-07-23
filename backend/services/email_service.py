@@ -576,6 +576,27 @@ class EmailService(BaseService):
             attachments=attachments
         )
 
+    def send_class_review_submitted_admin_email(
+        self,
+        student_name: str,
+        class_title: str,
+        subject_display: str,
+        approved_xp: int
+    ) -> bool:
+        """Alert the admin inbox that a class is waiting in the credit
+        review queue (sent alongside the in-app superadmin notification)."""
+        return self.send_templated_email(
+            to_email=Config.ADMIN_EMAIL,
+            subject=f"Class ready for review: {class_title}",
+            template_name='class_review_submitted_admin',
+            context={
+                'student_name': student_name,
+                'class_title': class_title,
+                'subject_display': subject_display,
+                'approved_xp': approved_xp,
+            }
+        )
+
     def send_promo_welcome_email(self, parent_email: str, parent_name: str, teen_age: str, activity: str = '') -> bool:
         """Send welcome email to parents who fill out the promo form"""
         tanner_email = Config.ADMIN_EMAIL

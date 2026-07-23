@@ -232,7 +232,7 @@ def submit_class_for_review(user_id: str, quest_id: str):
     try:
         supabase = get_supabase_admin_client()
         quest = supabase.table('quests') \
-            .select('id, quest_type, transcript_subject, class_review_status, created_by') \
+            .select('id, title, quest_type, transcript_subject, class_review_status, created_by') \
             .eq('id', quest_id) \
             .single() \
             .execute()
@@ -261,9 +261,69 @@ def submit_class_for_review(user_id: str, quest_id: str):
             'class_review_notes': None,
         }).eq('id', quest_id).execute()
 
+        # Alert the grading queue: in-app notification to every superadmin
+        # plus an email to the admin inbox. Fire-and-forget; never blocks or
+        # fails the submission.
+        try:
+            student = supabase.table('users') \
+                .select('display_name, first_name, last_name, email') \
+                .eq('id', user_id).single().execute().data or {}
+            student_name = (student.get('display_name')
+                            or f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
+                            or student.get('email') or 'A student')
+            _alert_admins_class_submitted_async(
+                class_title=q.get('title') or 'Untitled class',
+                student_name=student_name,
+                subject_display=get_display_name(subject or ''),
+                approved_xp=progress['approved_xp'],
+            )
+        except Exception as alert_err:
+            logger.error(f"Failed to queue class-submission alert for {quest_id[:8]}: {alert_err}", exc_info=True)
+
         logger.info(f"User {user_id[:8]} submitted class {quest_id[:8]} ({subject}) for review")
         return success_response(data={'quest_id': quest_id, 'review_status': 'submitted_for_review'})
 
     except Exception as e:
         logger.error(f"submit-class-for-review failed: {e}", exc_info=True)
         return error_response(code='SUBMIT_FAILED', message='Failed to submit class', status=500)
+
+
+def _alert_admins_class_submitted_async(class_title: str, student_name: str,
+                                        subject_display: str, approved_xp: int) -> None:
+    """Notify superadmins (in-app) and the admin inbox (email) that a class
+    is awaiting credit review. Runs in a background thread so the student's
+    submission response never waits on Brevo."""
+    import threading
+    from flask import current_app
+    app = current_app._get_current_object()
+
+    def _run():
+        with app.app_context():
+            try:
+                from services.notification_service import NotificationService
+                svc = NotificationService()
+                superadmins = svc.supabase.table('users').select('id') \
+                    .eq('role', 'superadmin').execute()
+                for admin in (superadmins.data or []):
+                    svc.create_notification(
+                        user_id=admin['id'],
+                        notification_type='class_submitted_for_review',
+                        title='Class submitted for review',
+                        message=f'{student_name} submitted "{class_title}" ({subject_display}) for credit review.',
+                        link='/credit-dashboard',
+                        metadata={'class_title': class_title, 'student_name': student_name},
+                    )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Class-submission in-app alert failed: {e}", exc_info=True)
+            try:
+                from services.email_service import email_service
+                email_service.send_class_review_submitted_admin_email(
+                    student_name=student_name,
+                    class_title=class_title,
+                    subject_display=subject_display,
+                    approved_xp=approved_xp,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Class-submission email alert failed: {e}", exc_info=True)
+
+    threading.Thread(target=_run, daemon=True).start()

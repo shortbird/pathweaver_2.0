@@ -74,6 +74,18 @@ emails:
       content: "This credit represents real work: ideas you explored, skills you practiced, and things you made. Take a minute to look back through it and notice how much you grew along the way."
     signature: "team"
 
+  class_review_submitted_admin:
+    subject: "Class ready for review: {{ class_title }}"
+    title: "Class Submitted for Review"
+    greeting: "Hi Tanner,"
+    paragraphs:
+      - "<strong>{{ student_name }}</strong> submitted <strong>{{ class_title }}</strong> for credit review in <strong>{{ subject_display }}</strong> with {{ approved_xp }} approved XP."
+      - "Open the credit dashboard to review the work and award the transcript credit. Approving it will automatically send the student their congratulations email and evidence portfolio."
+    cta:
+      text: "Open Credit Dashboard"
+      url: "https://www.optioeducation.com/credit-dashboard"
+    signature: "team"
+
   observer_invitation:
     subject: "{{ student_name }} invited you to follow their learning on Optio"
     title: "You've Been Invited to Support a Student on Optio"
