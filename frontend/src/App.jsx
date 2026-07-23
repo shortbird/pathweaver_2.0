@@ -46,6 +46,7 @@ import UpdateAvailableBanner from './components/UpdateAvailableBanner'
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const StaffWelcomePage = lazy(() => import('./pages/StaffWelcomePage'))
+const SisLaunchPage = lazy(() => import('./pages/SisLaunchPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
 const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
@@ -449,6 +450,10 @@ function App() {
               <Route path="lti-quest/:id" element={<LtiQuestPage />} />
               <Route path="lti-evidence" element={<LtiEvidencePage />} />
               <Route path="lti-error" element={<LtiErrorPage />} />
+
+              {/* Post-login hop to the SIS console for SIS-org staff (no Layout
+                  chrome; it forwards immediately). */}
+              <Route path="sis-launch" element={<SisLaunchPage />} />
 
               <Route path="/" element={<Layout />}>
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />

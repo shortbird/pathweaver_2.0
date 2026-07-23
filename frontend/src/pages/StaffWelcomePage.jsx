@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { toast } from 'react-hot-toast'
@@ -19,10 +19,27 @@ const StaffWelcomePage = () => {
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  // Server-resolved invite details (org name, logo, email). The query params
+  // are only a first-paint fallback; the token is the source of truth.
+  const [invite, setInvite] = useState(null)
 
   const token = useMemo(() => searchParams.get('token') || '', [searchParams])
-  const email = searchParams.get('email') || ''
-  const orgName = searchParams.get('org') || 'your school'
+  const email = invite?.email || searchParams.get('email') || ''
+  const orgName = invite?.org_name || searchParams.get('org') || 'your school'
+  const logoUrl = invite?.logo_url || null
+
+  useEffect(() => {
+    if (!token) return
+    api.get(`/api/auth/staff-invite/${token}`)
+      .then((r) => setInvite(r.data || {}))
+      .catch((err) => {
+        if (err?.response?.status === 410) {
+          setErrorMessage('This invite link has expired.')
+        }
+        // 404 (unknown/used token) surfaces when they submit; the page still
+        // renders with the query-param fallbacks.
+      })
+  }, [token])
 
   const password = watch('password', '')
   const confirmPassword = watch('confirmPassword', '')
@@ -56,6 +73,13 @@ const StaffWelcomePage = () => {
     <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={`${orgName} logo`}
+              className="mx-auto h-16 w-auto object-contain"
+            />
+          )}
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
             Welcome to {orgName} on Optio
           </h2>

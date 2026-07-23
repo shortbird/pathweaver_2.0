@@ -339,6 +339,58 @@ def forgot_password():
     }), 200
 
 
+@bp.route('/staff-invite/<token>', methods=['GET'])
+@rate_limit(max_requests=30, window_seconds=600)
+def staff_invite_info(token):
+    """Public lookup for the /staff/welcome page: resolves a pending invite
+    token to the inviting org's name + logo and the teacher's email, so the
+    page brands itself from the server instead of trusting query params.
+
+    No new capability is exposed: whoever holds the token can already set the
+    account's password via /reset-password, so showing them the email/org the
+    token belongs to reveals nothing extra.
+    """
+    if not token or len(token) < 20:
+        return jsonify({'error': 'Invalid invite link'}), 404
+    # admin client justified: pre-auth invite lookup (same posture as /reset-password)
+    admin_client = get_supabase_admin_client()
+    try:
+        rows = admin_client.table('password_reset_tokens')\
+            .select('user_id, expires_at, used')\
+            .eq('token', token).limit(1).execute().data
+        if not rows or rows[0].get('used'):
+            return jsonify({'error': 'Invalid invite link'}), 404
+        expires_at = datetime.fromisoformat(rows[0]['expires_at'].replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) > expires_at:
+            return jsonify({'error': 'This invite link has expired'}), 410
+
+        user_rows = admin_client.table('users')\
+            .select('email, first_name, organization_id')\
+            .eq('id', rows[0]['user_id']).limit(1).execute().data
+        if not user_rows:
+            return jsonify({'error': 'Invalid invite link'}), 404
+        user = user_rows[0]
+
+        org_name, logo_url = None, None
+        if user.get('organization_id'):
+            org_rows = admin_client.table('organizations')\
+                .select('name, branding_config')\
+                .eq('id', user['organization_id']).limit(1).execute().data
+            if org_rows:
+                org_name = org_rows[0].get('name')
+                logo_url = (org_rows[0].get('branding_config') or {}).get('logo_url')
+
+        return jsonify({
+            'email': user.get('email'),
+            'first_name': user.get('first_name'),
+            'org_name': org_name,
+            'logo_url': logo_url,
+        }), 200
+    except Exception as e:
+        logger.error(f"[STAFF_INVITE_INFO] lookup failed: {e}")
+        return jsonify({'error': 'Invalid invite link'}), 404
+
+
 @bp.route('/reset-password', methods=['POST'])
 @rate_limit(max_requests=10, window_seconds=600)  # AUTH-H6: throttle reset-token consumption (10 / 10 min per IP)
 def reset_password():

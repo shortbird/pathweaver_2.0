@@ -20,7 +20,8 @@ function effectiveRole(user) {
 /**
  * Where a user lands after logging in, by role:
  * - org_admin -> their organization console (or partner-simplified dashboard)
- * - advisor (teacher) -> the advisor dashboard
+ * - advisor (teacher) in a SIS org -> the SIS console (via /sis-launch)
+ * - advisor (teacher) otherwise -> the advisor dashboard
  * - parent / superadmin -> parent dashboard
  * - observer -> feed (or welcome on first visit)
  * - student and everything else -> student dashboard
@@ -32,6 +33,12 @@ export function getPostLoginPath(user) {
     return isSimplifiedPartnerOrg(user.organization_id) ? '/onfire' : '/organization'
   }
   if (role === 'advisor') {
+    // Teachers in a SIS-enabled org work in the SIS console, not the learning
+    // app. /sis-launch hops surfaces (cross-host in prod); on the SIS surface
+    // itself the route falls through to the dashboard.
+    if (user.organization?.feature_flags?.sis_enabled) {
+      return '/sis-launch'
+    }
     return '/advisor/dashboard'
   }
   if (role === 'superadmin' || role === 'parent') {
