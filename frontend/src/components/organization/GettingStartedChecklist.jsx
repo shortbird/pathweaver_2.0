@@ -51,7 +51,10 @@ const STEPS = [
 export default function GettingStartedChecklist({ orgId, onNavigate }) {
   const dismissKey = `orgSetupChecklistDismissed_${orgId}`
   const [counts, setCounts] = useState(null)
-  const [dismissed, setDismissed] = useState(() => localStorage.getItem(dismissKey) === 'true')
+  // localStorage can be unavailable (Safari private mode, restricted envs)
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(dismissKey) === 'true' } catch { return false }
+  })
 
   useEffect(() => {
     if (dismissed || !orgId) return
@@ -72,7 +75,7 @@ export default function GettingStartedChecklist({ orgId, onNavigate }) {
   if (doneCount === STEPS.length) return null
 
   const handleDismiss = () => {
-    localStorage.setItem(dismissKey, 'true')
+    try { localStorage.setItem(dismissKey, 'true') } catch { /* ignore */ }
     setDismissed(true)
   }
 
