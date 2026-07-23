@@ -235,22 +235,40 @@ def update_user_role(user_id, target_user_id):
         if target_user_id == user_id and new_role not in ['org_admin', 'superadmin']:
             return jsonify({'success': False, 'error': 'Cannot remove your own admin privileges'}), 403
 
-        # Build update data
-        update_data = {
-            'role': new_role
-        }
+        target_rows = (supabase.table('users').select('organization_id, role, org_role')
+                       .eq('id', target_user_id).limit(1).execute()).data
+        if not target_rows:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        target_user = target_rows[0]
+        target_org_id = target_user.get('organization_id')
 
-        # If setting to org_managed, check if user has an organization
+        # The users table enforces (users_role_check / direct_role_no_org_role /
+        # org_managed_requires_org): 'org_admin' is never a value of the role
+        # column, org users keep role='org_managed' with the real role in
+        # org_role, and a direct role requires org_role to be NULL.
         if new_role == 'org_managed':
-            target_user = supabase.table('users').select('organization_id, role, org_role').eq('id', target_user_id).single().execute()
-            if not target_user.data or not target_user.data.get('organization_id'):
+            if not target_org_id:
                 return jsonify({
                     'success': False,
                     'error': 'Cannot set role to org_managed for user without an organization'
                 }), 400
+            update_data = {'role': 'org_managed'}
             # If they don't have an org_role yet, default to student
-            if not target_user.data.get('org_role'):
+            if not target_user.get('org_role'):
                 update_data['org_role'] = 'student'
+        elif target_org_id and new_role != 'superadmin':
+            # Org user: their platform role stays org_managed; the requested
+            # role goes in org_role (writing it to role violates the DB checks).
+            update_data = {'role': 'org_managed', 'org_role': new_role}
+        elif new_role == 'org_admin':
+            return jsonify({
+                'success': False,
+                'error': 'org_admin is an organization role — the user must belong to an organization'
+            }), 400
+        else:
+            # Direct platform role: clear any leftover org_role so the
+            # direct_role_no_org_role constraint is satisfied.
+            update_data = {'role': new_role, 'org_role': None}
 
         logger.info(f"Attempting to update role for user {target_user_id} to {new_role}")
         result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()

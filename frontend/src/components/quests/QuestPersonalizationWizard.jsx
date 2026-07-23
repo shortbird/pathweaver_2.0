@@ -130,6 +130,10 @@ export default function QuestPersonalizationWizard({
 
   // Per-task complexity dial: net steps per task index (-2..+2) and in-flight state.
   const [taskAdjustments, setTaskAdjustments] = useState({});
+  // Cache of already-generated difficulty variants per task: { [taskIndex]: { [step]: task } }.
+  // Revisiting a step (easier then harder again) restores the exact same task
+  // instead of paying for a new AI rewrite.
+  const [taskVariants, setTaskVariants] = useState({});
   const [adjustingTask, setAdjustingTask] = useState(false);
 
   // Credit progress state
@@ -225,6 +229,7 @@ export default function QuestPersonalizationWizard({
       setCurrentTaskIndex(0);
       setAcceptedTasks([]);
       setTaskAdjustments({});
+      setTaskVariants({});
       setStep(4); // Move to one-at-a-time review for AI path
     } catch (err) {
       logger.error('Failed to generate tasks:', err);
@@ -337,12 +342,24 @@ export default function QuestPersonalizationWizard({
 
   // Per-task complexity dial: ask the AI to rewrite the current task one step
   // easier or harder and swap the result in place. Capped at +/-2 net steps.
+  // Each generated variant is cached by step, so stepping back to a difficulty
+  // the student has already seen restores that exact task without an AI call.
   const handleAdjustTask = async (direction) => {
     if (adjustingTask || loading) return;
     const task = generatedTasks[currentTaskIndex];
     const steps = taskAdjustments[currentTaskIndex] || 0;
     if ((direction === 'harder' && steps >= MAX_ADJUST_STEPS) ||
         (direction === 'easier' && steps <= -MAX_ADJUST_STEPS)) {
+      return;
+    }
+
+    const newStep = steps + (direction === 'harder' ? 1 : -1);
+    const cached = taskVariants[currentTaskIndex]?.[newStep];
+    if (cached) {
+      setGeneratedTasks(prev =>
+        prev.map((t, i) => (i === currentTaskIndex ? cached : t))
+      );
+      setTaskAdjustments(prev => ({ ...prev, [currentTaskIndex]: newStep }));
       return;
     }
 
@@ -358,9 +375,16 @@ export default function QuestPersonalizationWizard({
         setGeneratedTasks(prev =>
           prev.map((t, i) => (i === currentTaskIndex ? response.data.task : t))
         );
-        setTaskAdjustments(prev => ({
+        setTaskAdjustments(prev => ({ ...prev, [currentTaskIndex]: newStep }));
+        // Remember both the task the student was looking at and the new
+        // variant, keyed by their dial steps.
+        setTaskVariants(prev => ({
           ...prev,
-          [currentTaskIndex]: steps + (direction === 'harder' ? 1 : -1)
+          [currentTaskIndex]: {
+            ...prev[currentTaskIndex],
+            [steps]: task,
+            [newStep]: response.data.task
+          }
         }));
       }
     } catch (err) {
@@ -880,7 +904,7 @@ export default function QuestPersonalizationWizard({
               {Array.isArray(currentTask.success_criteria) && currentTask.success_criteria.length > 0 && (
                 <div className={embedded ? 'mt-2' : 'mt-4'}>
                   <p className={embedded ? 'text-xs font-semibold text-gray-500 mb-1' : 'text-sm font-semibold text-gray-500 mb-2'} style={{ fontFamily: 'Poppins' }}>
-                    How you'll know it's done
+                    Definition of Done
                   </p>
                   <ul className={embedded ? 'space-y-1' : 'space-y-1.5'}>
                     {currentTask.success_criteria.map((criterion, i) => (

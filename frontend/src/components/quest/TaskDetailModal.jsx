@@ -146,7 +146,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   borderColor: pillarData.color
                 }}
               >
-                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>How You'll Know It's Done</h4>
+                <h4 className="font-bold text-lg mb-3" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>Definition of Done</h4>
                 <ul className="space-y-2">
                   {task.success_criteria.map((criterion, idx) => (
                     <li key={idx} className="flex items-start text-base text-gray-700" style={{ fontFamily: 'Poppins' }}>

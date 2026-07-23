@@ -62,7 +62,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
-from utils.validation import sanitize_input
+from utils.validation import sanitize_input, validate_uuid
 from utils.logger import get_logger
 from services.email_service import email_service
 
@@ -545,9 +545,15 @@ def _platform_student_is_registerable_adult(admin, user):
 
 
 def _load_registration(reg_id):
+    """Registration row or None. Tolerates unknown and malformed ids (probes hit
+    this route with junk UUIDs) — callers treat None as unauthorized, not a 500."""
+    is_valid, _err = validate_uuid(str(reg_id or ''))
+    if not is_valid:
+        return None
     admin = _admin()
-    r = admin.table('icreate_registrations').select('*').eq('id', reg_id).single().execute()
-    return r.data
+    rows = (admin.table('icreate_registrations').select('*')
+            .eq('id', reg_id).limit(1).execute()).data
+    return rows[0] if rows else None
 
 
 def _authz(reg, token):

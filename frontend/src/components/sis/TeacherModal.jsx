@@ -86,7 +86,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null }
       }
       if (photoFile && staffId) await uploadPhoto(staffId)
       if (isEdit) toast.success('Teacher updated')
-      else if (emailSent) toast.success('Teacher added — they’ll get an email to set their password')
+      else if (emailSent) toast.success('Teacher added — they’ll get an email with setup instructions')
       else toast.error('Teacher added, but the set-password email could not be sent. Ask them to use "Forgot password" on the login page.', { duration: 8000 })
       onSaved()
     } catch (err) {

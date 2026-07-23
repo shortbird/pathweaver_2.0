@@ -270,7 +270,7 @@ function TaskCard({
         {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
           <VStack space="xs" className="p-2.5 rounded-lg bg-surface-100 dark:bg-dark-surface-200">
             <UIText size="xs" className="font-poppins-semibold text-typo-400 dark:text-dark-typo-400 uppercase" style={{ fontSize: 10 }}>
-              How they'll know it's done
+              Definition of Done
             </UIText>
             {task.success_criteria.map((criterion, i) => (
               <HStack key={i} className="items-start gap-1.5">

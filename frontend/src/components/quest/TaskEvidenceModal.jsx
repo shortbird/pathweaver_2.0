@@ -131,7 +131,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
             {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
               <div className="px-4 sm:px-8 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
-                  How you'll know it's done
+                  Definition of Done
                 </p>
                 <ul className="space-y-1.5">
                   {task.success_criteria.map((criterion, i) => (

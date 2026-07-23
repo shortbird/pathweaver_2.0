@@ -297,8 +297,9 @@ def trigger_advisor_summary_job():
             return jsonify({'error': 'Unauthorized'}), 401
 
     # Sentry Cron monitoring (only for the real scheduled run, not manual tests):
-    # alerts if the daily job stops firing or errors. Schedule/timezone are a
-    # best-guess (documented 5 AM) — adjust the monitor in Sentry if it differs.
+    # alerts if the daily job stops firing or errors. Schedule must match
+    # DAILY_SUMMARY_UTC_HOUR in jobs/cron_dispatch.py (12:00 UTC) — the previous
+    # '0 5 * * *' guess produced a false "missed" alert every day at 06:00.
     check_in_id = None
     if is_cron:
         try:
@@ -307,7 +308,7 @@ def trigger_advisor_summary_job():
                 monitor_slug='advisor-daily-summary',
                 status='in_progress',
                 monitor_config={
-                    'schedule': {'type': 'crontab', 'value': '0 5 * * *'},
+                    'schedule': {'type': 'crontab', 'value': '0 12 * * *'},
                     'timezone': 'UTC',
                     'checkin_margin': 60,
                     'max_runtime': 30,

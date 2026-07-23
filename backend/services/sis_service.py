@@ -636,10 +636,68 @@ def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
             'bio': u.get('bio'),
             'avatar_url': u.get('avatar_url'),
             'is_placeholder': is_placeholder_staff_email(u.get('email')),
+            # Has a real email but has never been active — the invite is
+            # probably still sitting in their inbox (or lost). Drives the
+            # "Resend setup email" action; the backend re-checks properly.
+            'login_pending': (not is_placeholder_staff_email(u.get('email'))
+                              and not u.get('last_active')),
         })
     # Org admins first, then advisors; alphabetical within.
     out.sort(key=lambda r: ('org_admin' not in r['roles'], r['name'].lower()))
     return out
+
+
+# Invites sit in inboxes for days; password resets expire in an hour.
+STAFF_INVITE_EXPIRY_DAYS = 14
+
+
+def _org_name(org_id: str) -> str:
+    rows = (_admin().table('organizations').select('name')
+            .eq('id', org_id).limit(1).execute()).data
+    return (rows[0].get('name') if rows else None) or 'your school'
+
+
+def send_staff_invite(user_id: str, email: str, first_name: str, org_id: str) -> bool:
+    """Email a teacher a branded account-setup invite.
+
+    Mints a password_reset_tokens row consumed by /api/auth/reset-password —
+    that endpoint confirms the email on use, so one link both verifies the
+    address and sets the password. The /staff/welcome page wraps it in copy
+    that explains what Optio is and why the teacher got the email.
+    """
+    import secrets
+    from datetime import datetime, timedelta, timezone
+    from urllib.parse import quote
+    from app_config import Config
+    from services.email_service import email_service
+
+    now = datetime.now(timezone.utc)
+    token = secrets.token_urlsafe(32)
+    try:
+        _admin().table('password_reset_tokens').insert({
+            'user_id': user_id,
+            'token': token,
+            'expires_at': (now + timedelta(days=STAFF_INVITE_EXPIRY_DAYS)).isoformat(),
+            'used': False,
+            'created_at': now.isoformat(),
+        }).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'send_staff_invite: token insert failed for {user_id[:8]}: {e}')
+        return False
+    org_name = _org_name(org_id)
+    link = (f'{Config.FRONTEND_URL}/staff/welcome?token={token}'
+            f'&email={quote(email)}&org={quote(org_name)}')
+    try:
+        return email_service.send_staff_invite_email(
+            user_email=email,
+            user_name=first_name or 'there',
+            org_name=org_name,
+            invite_link=link,
+            expiry_days=STAFF_INVITE_EXPIRY_DAYS,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'send_staff_invite: email failed for {email}: {e}')
+        return False
 
 
 def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
@@ -704,13 +762,8 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 pass
             return {'error': 'Could not create the account'}
-    email_sent = True
-    try:
-        admin.auth.resend({'type': 'signup', 'email': email})
-    except Exception as e:  # noqa: BLE001
-        email_sent = False
-        logger.warning(f"SIS teacher set-password email failed for {email}: {e}")
     # email_sent lets the UI warn instead of promising an email that never left.
+    email_sent = send_staff_invite(auth.user.id, email, first, org_id)
     return {'teacher': {'id': auth.user.id, 'name': profile['display_name'], 'email': email},
             'email_sent': email_sent}
 
@@ -749,7 +802,7 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
 
     rows = (
         admin.table('users')
-        .select('id, email, organization_id, org_role, org_roles, bio, avatar_url')
+        .select('id, email, first_name, organization_id, org_role, org_roles, bio, avatar_url')
         .eq('id', staff_id).limit(1).execute()
     ).data
     if not rows or rows[0].get('organization_id') != org_id:
@@ -762,7 +815,8 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
 
     existing = (
         admin.table('users')
-        .select('id, role, org_role, org_roles, organization_id, is_dependent, bio, avatar_url')
+        .select('id, role, org_role, org_roles, organization_id, is_dependent, '
+                'first_name, bio, avatar_url')
         .eq('email', email).limit(1).execute()
     ).data
 
@@ -775,12 +829,7 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
             logger.error(f'link_staff_account: auth email swap failed for {staff_id[:8]}: {e}')
             return {'error': 'Could not update the login email (is it already in use?)'}
         admin.table('users').update({'email': email}).eq('id', staff_id).execute()
-        email_sent = True
-        try:
-            admin.auth.resend({'type': 'signup', 'email': email})
-        except Exception as e:  # noqa: BLE001
-            email_sent = False
-            logger.warning(f'link_staff_account: set-password email failed for {email}: {e}')
+        email_sent = send_staff_invite(staff_id, email, ph.get('first_name'), org_id)
         return {'linked': 'invited', 'staff_id': staff_id, 'email_sent': email_sent}
 
     # Merge into the existing account.
@@ -834,8 +883,55 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
     except Exception as e:  # noqa: BLE001
         placeholder_removed = False
         logger.warning(f'link_staff_account: placeholder cleanup failed for {staff_id[:8]}: {e}')
+
+    # Tell the teacher their existing login now carries the teacher role.
+    try:
+        from app_config import Config
+        from services.email_service import email_service
+        email_service.send_staff_access_added_email(
+            user_email=email,
+            user_name=target.get('first_name') or 'there',
+            org_name=_org_name(org_id),
+            login_link=f'{Config.FRONTEND_URL}/login',
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'link_staff_account: access-added email failed for {email}: {e}')
+
     return {'linked': 'merged', 'staff_id': target['id'],
             'placeholder_removed': placeholder_removed}
+
+
+def resend_staff_invite(org_id: str, staff_id: str) -> Dict[str, Any]:
+    """Re-send the account-setup invite to a staff member who hasn't finished
+    setting up. Refuses once they've actually signed in, so an admin can't
+    accidentally fire setup links at working accounts. (Not gated on email
+    confirmation: the admin email swap during account linking marks the
+    address confirmed even though the teacher never chose a password.)"""
+    admin = _admin()
+    rows = (
+        admin.table('users')
+        .select('id, email, first_name, organization_id, org_role, org_roles')
+        .eq('id', staff_id).limit(1).execute()
+    ).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Staff member not found'}
+    u = rows[0]
+    if not any(r in _user_org_roles(u) for r in STAFF_ORG_ROLES):
+        return {'error': 'Staff member not found'}
+    if is_placeholder_staff_email(u.get('email')):
+        return {'error': 'This staff member has no email yet — link their account first'}
+    try:
+        auth_user = admin.auth.admin.get_user_by_id(staff_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'resend_staff_invite: auth lookup failed for {staff_id[:8]}: {e}')
+        return {'error': 'Could not look up the account'}
+    if auth_user and auth_user.user and getattr(auth_user.user, 'last_sign_in_at', None):
+        return {'error': 'This account is already set up — they can log in, '
+                         'or use "Forgot password" on the login page'}
+    email_sent = send_staff_invite(staff_id, u['email'], u.get('first_name'), org_id)
+    if not email_sent:
+        return {'error': 'The invite email could not be sent — try again in a minute'}
+    return {'email': u['email'], 'email_sent': True}
 
 
 _STAFF_EDIT_FIELDS = ('first_name', 'last_name', 'email', 'bio')

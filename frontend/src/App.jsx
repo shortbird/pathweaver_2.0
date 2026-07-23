@@ -45,6 +45,7 @@ import UpdateAvailableBanner from './components/UpdateAvailableBanner'
 // Auth-related pages (less frequently accessed)
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+const StaffWelcomePage = lazy(() => import('./pages/StaffWelcomePage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
 const ICreateRegisterPage = lazy(() => import('./pages/ICreateRegisterPage'))
@@ -457,6 +458,7 @@ function App() {
                 <Route path="join/:slug" element={<OrganizationSignup />} />
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="reset-password" element={<ResetPasswordPage />} />
+                <Route path="staff/welcome" element={<StaffWelcomePage />} />
                 <Route path="auth/callback" element={<AuthCallback />} />
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />

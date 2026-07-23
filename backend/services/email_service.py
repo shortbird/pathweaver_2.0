@@ -785,6 +785,51 @@ class EmailService(BaseService):
             }
         )
 
+    def send_staff_invite_email(
+        self,
+        user_email: str,
+        user_name: str,
+        org_name: str,
+        invite_link: str,
+        expiry_days: int = 14
+    ) -> bool:
+        """Account-setup invite for a teacher whose org created their account.
+        The link lands on /staff/welcome, which sets the password and confirms
+        the email in one step."""
+        return self.send_templated_email(
+            to_email=user_email,
+            subject=f"Set up your teacher account for {org_name}",
+            template_name='staff_invite',
+            context={
+                'user_name': user_name,
+                'first_name': user_name,
+                'org_name': org_name,
+                'invite_link': invite_link,
+                'expiry_days': expiry_days,
+            }
+        )
+
+    def send_staff_access_added_email(
+        self,
+        user_email: str,
+        user_name: str,
+        org_name: str,
+        login_link: str
+    ) -> bool:
+        """Notify an existing Optio user that their account gained teacher
+        access at an org (the merge path of staff account linking)."""
+        return self.send_templated_email(
+            to_email=user_email,
+            subject=f"Your Optio account now has teacher access at {org_name}",
+            template_name='staff_access_added',
+            context={
+                'user_name': user_name,
+                'first_name': user_name,
+                'org_name': org_name,
+                'login_link': login_link,
+            }
+        )
+
     def send_service_inquiry_notification(
         self,
         user_name: str,

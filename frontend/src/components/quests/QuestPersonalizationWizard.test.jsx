@@ -176,7 +176,7 @@ describe('QuestPersonalizationWizard - success criteria', () => {
       }
     ])
 
-    expect(screen.getByText("How you'll know it's done")).toBeInTheDocument()
+    expect(screen.getByText('Definition of Done')).toBeInTheDocument()
     expect(screen.getByText('You played 5 games of chess')).toBeInTheDocument()
     expect(screen.getByText('You wrote down one mistake from each game')).toBeInTheDocument()
   })
@@ -185,7 +185,7 @@ describe('QuestPersonalizationWizard - success criteria', () => {
     render(<QuestPersonalizationWizard {...baseProps} />)
     await openReviewStep(AI_TASKS)
 
-    expect(screen.queryByText("How you'll know it's done")).not.toBeInTheDocument()
+    expect(screen.queryByText('Definition of Done')).not.toBeInTheDocument()
   })
 
   it('swaps in the adjusted criteria when the dial rewrites a task', async () => {
@@ -238,6 +238,32 @@ describe('QuestPersonalizationWizard - complexity dial', () => {
       expect(screen.getByText('Build a Chess Engine Evaluator')).toBeInTheDocument()
       expect(screen.getByText('150 XP')).toBeInTheDocument()
     })
+  })
+
+  it('restores cached variants when revisiting a difficulty, without new AI calls', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openReviewStep(AI_TASKS)
+
+    api.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        task: { title: 'Build a Chess Engine Evaluator', description: 'Harder version.', pillar: 'stem', xp_value: 150, diploma_subjects: { Math: 150 } }
+      }
+    })
+    fireEvent.click(screen.getByText('Harder'))
+    await waitFor(() => expect(screen.getByText('Build a Chess Engine Evaluator')).toBeInTheDocument())
+    const callsAfterHarder = api.post.mock.calls.length
+
+    // Step back down: the original task returns from cache, no API call.
+    fireEvent.click(screen.getByText('Easier'))
+    await waitFor(() => expect(screen.getByText('Build a Chess Opening Tracker')).toBeInTheDocument())
+    expect(api.post.mock.calls.length).toBe(callsAfterHarder)
+
+    // Step harder again: the same harder variant returns from cache.
+    fireEvent.click(screen.getByText('Harder'))
+    await waitFor(() => expect(screen.getByText('Build a Chess Engine Evaluator')).toBeInTheDocument())
+    expect(screen.getByText('150 XP')).toBeInTheDocument()
+    expect(api.post.mock.calls.length).toBe(callsAfterHarder)
   })
 
   it('disables the dial after two net steps in one direction', async () => {

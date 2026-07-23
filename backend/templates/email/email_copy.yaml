@@ -372,6 +372,35 @@ emails:
     closing_paragraph: "If you didn't request a password reset, please contact us immediately at support@optioeducation.com to secure your account."
     signature: "support"
 
+  staff_invite:
+    subject: "Set up your teacher account for {{ org_name }}"
+    title: "Welcome to {{ org_name }} on Optio"
+    salutation: "Hi {{ user_name }},"
+    paragraphs:
+      - "{{ org_name }} uses Optio to manage classes, rosters, attendance, and messaging. A teacher account has been created for you."
+      - "To finish setting up, click the button below and choose a password. You'll sign in with this email address."
+    cta:
+      text: "Set Up My Account"
+      url: "{{ invite_link }}"
+    highlight_box:
+      title: "What you'll find inside"
+      content: "Your class schedule, student rosters, attendance, and parent messaging, all in one place."
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraph: "This link expires in {{ expiry_days }} days. If it has expired, ask {{ org_name }} to send a new invite, or use \"Forgot password\" on the login page with this email address."
+    signature: "support"
+
+  staff_access_added:
+    subject: "Your Optio account now has teacher access at {{ org_name }}"
+    title: "Teacher Access Added"
+    salutation: "Hi {{ user_name }},"
+    paragraphs:
+      - "{{ org_name }} has added teacher access to your existing Optio account. Log in with your usual email and password and you'll see your teacher tools alongside everything you already had."
+    cta:
+      text: "Log In"
+      url: "{{ login_link }}"
+    closing_paragraph: "If you weren't expecting this change, contact {{ org_name }} or email us at support@optioeducation.com."
+    signature: "support"
+
   service_inquiry_notification:
     subject: "We Received Your Inquiry About {{ service_name }}"
     title: "We Received Your Inquiry"

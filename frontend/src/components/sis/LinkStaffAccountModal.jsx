@@ -44,7 +44,7 @@ export default function LinkStaffAccountModal({ orgId, staff, onClose, onLinked 
           { duration: 8000 },
         )
       } else {
-        toast.success(`Invite sent — ${staff.name} will get an email to set their password`)
+        toast.success(`Invite sent — ${staff.name} will get an email with setup instructions`)
       }
       onLinked()
     } catch (err) {
@@ -76,9 +76,11 @@ export default function LinkStaffAccountModal({ orgId, staff, onClose, onLinked 
         <form onSubmit={handleSubmit}>
           <div className="p-4 space-y-3">
             <p className="text-sm text-neutral-600">
-              This staff member doesn&apos;t have a login yet. Enter their real email address to
-              connect them. If they already use Optio (for example as a parent), their existing
-              account becomes the teacher account and keeps all class assignments.
+              This staff member doesn&apos;t have a login yet. Enter their real email address and
+              we&apos;ll send them a setup email that explains their new teacher account and walks
+              them through choosing a password. If they already use Optio (for example as a
+              parent), their existing account becomes the teacher account and keeps all class
+              assignments.
             </p>
             <div>
               <label htmlFor="link-email" className="block text-sm font-medium text-gray-700 mb-1">

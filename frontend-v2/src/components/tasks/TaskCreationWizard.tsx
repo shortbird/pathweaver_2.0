@@ -128,6 +128,10 @@ export function TaskCreationWizard({
   // Complexity dial: net steps per suggestion index (-2..+2) and in-flight state.
   const [adjustSteps, setAdjustSteps] = useState<Record<number, number>>({});
   const [adjusting, setAdjusting] = useState(false);
+  // Cache of generated difficulty variants per suggestion: {index: {step: task}}.
+  // Stepping back to an already-seen difficulty restores that exact task
+  // instead of paying for a new AI rewrite.
+  const [taskVariants, setTaskVariants] = useState<Record<number, Record<number, any>>>({});
 
   const reset = () => {
     setStep('choose');
@@ -148,6 +152,7 @@ export function TaskCreationWizard({
     setAcceptedCount(0);
     setAdjustSteps({});
     setAdjusting(false);
+    setTaskVariants({});
   };
 
   const handleClose = () => {
@@ -218,6 +223,7 @@ export function TaskCreationWizard({
       setReviewIndex(0);
       setAcceptedCount(0);
       setAdjustSteps({});
+      setTaskVariants({});
       setStep('ai-review');
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to generate tasks';
@@ -254,22 +260,34 @@ export function TaskCreationWizard({
   };
 
   // Complexity dial: rewrite the current suggestion one step easier/harder
-  // and swap it in place. Capped at +/-2 net steps per suggestion.
+  // and swap it in place. Capped at +/-2 net steps per suggestion. Variants
+  // are cached by step, so revisiting a difficulty restores the same task
+  // without another AI call.
   const handleAdjust = async (direction: 'easier' | 'harder') => {
     if (!onAdjustTask || adjusting || reviewLoading) return;
     const steps = adjustSteps[reviewIndex] || 0;
     if ((direction === 'harder' && steps >= MAX_ADJUST_STEPS) ||
         (direction === 'easier' && steps <= -MAX_ADJUST_STEPS)) return;
 
+    const newStep = steps + (direction === 'harder' ? 1 : -1);
+    const cached = taskVariants[reviewIndex]?.[newStep];
+    if (cached) {
+      setSuggestions((prev) => prev.map((t, i) => (i === reviewIndex ? cached : t)));
+      setAdjustSteps((prev) => ({ ...prev, [reviewIndex]: newStep }));
+      return;
+    }
+
     setAdjusting(true);
     setError(null);
     try {
-      const adjusted = await onAdjustTask(suggestions[reviewIndex], direction);
+      const current = suggestions[reviewIndex];
+      const adjusted = await onAdjustTask(current, direction);
       if (adjusted) {
         setSuggestions((prev) => prev.map((t, i) => (i === reviewIndex ? adjusted : t)));
-        setAdjustSteps((prev) => ({
+        setAdjustSteps((prev) => ({ ...prev, [reviewIndex]: newStep }));
+        setTaskVariants((prev) => ({
           ...prev,
-          [reviewIndex]: steps + (direction === 'harder' ? 1 : -1),
+          [reviewIndex]: { ...prev[reviewIndex], [steps]: current, [newStep]: adjusted },
         }));
       }
     } catch (err: any) {
@@ -742,7 +760,7 @@ export function TaskCreationWizard({
                       {Array.isArray(currentTask.success_criteria) && currentTask.success_criteria.length > 0 && (
                         <VStack space="xs" className="mt-1 p-3 rounded-lg bg-surface-100 dark:bg-dark-surface-200">
                           <UIText size="xs" className="font-poppins-semibold text-typo-400 dark:text-dark-typo-400 uppercase">
-                            How you'll know it's done
+                            Definition of Done
                           </UIText>
                           {currentTask.success_criteria.map((criterion: string, i: number) => (
                             <HStack key={i} className="items-start gap-2">

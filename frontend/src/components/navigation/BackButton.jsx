@@ -35,6 +35,7 @@ const TAB_ROOTS = new Set([
   '/register',
   '/forgot-password',
   '/reset-password',
+  '/staff/welcome',
   '/auth/callback',
   '/email-verification',
   '/parental-consent',

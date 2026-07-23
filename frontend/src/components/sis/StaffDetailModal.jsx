@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { RolePill } from '../../components/ui/RolePill'
@@ -32,6 +33,19 @@ const actionBtn = 'px-3 py-2 rounded-lg text-sm font-medium transition-colors'
 
 export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmployment, onLink, onViewPortal }) {
   const [profile, setProfile] = useState(null)
+  const [resending, setResending] = useState(false)
+
+  const resendInvite = async () => {
+    setResending(true)
+    try {
+      await api.post(`/api/sis/staff/${staff.id}/resend-invite`, { organization_id: orgId })
+      toast.success(`Setup email sent to ${staff.email}`)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not resend the invite')
+    } finally {
+      setResending(false)
+    }
+  }
 
   useEffect(() => {
     api.get(`/api/sis/staff-admin/profiles/${staff.id}?organization_id=${orgId}`)
@@ -93,6 +107,12 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
               This teacher can&apos;t sign in yet. Link their real email so they can access their portal.
             </p>
           )}
+          {staff.login_pending && (
+            <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+              They&apos;ve been emailed a link to set up their account but haven&apos;t
+              signed in yet. You can resend the setup email if it got lost.
+            </p>
+          )}
         </div>
 
         {/* Actions */}
@@ -103,6 +123,12 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
           {staff.is_placeholder && (
             <button onClick={onLink} className={`${actionBtn} text-white bg-amber-600 hover:bg-amber-700`}>
               Link their account
+            </button>
+          )}
+          {staff.login_pending && (
+            <button onClick={resendInvite} disabled={resending}
+              className={`${actionBtn} text-blue-700 border border-blue-300 hover:bg-blue-50 disabled:opacity-50`}>
+              {resending ? 'Sending…' : 'Resend setup email'}
             </button>
           )}
           <button onClick={onEmployment} className={`${actionBtn} text-neutral-700 border border-gray-300 hover:bg-gray-50`}>

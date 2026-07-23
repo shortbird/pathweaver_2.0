@@ -121,6 +121,20 @@ def link_staff(user_id, staff_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/staff/<staff_id>/resend-invite', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def resend_staff_invite(user_id, staff_id):
+    """Re-send the account-setup email to a teacher who hasn't finished
+    setting up their login. Refuses for already-active accounts."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = sis_service.resend_staff_invite(org_id, staff_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/staff/<staff_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_staff(user_id, staff_id):

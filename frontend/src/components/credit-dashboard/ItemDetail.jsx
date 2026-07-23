@@ -362,7 +362,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
         {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
           <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Success criteria
+              Definition of Done
             </p>
             <ul className="space-y-1">
               {task.success_criteria.map((criterion, i) => (

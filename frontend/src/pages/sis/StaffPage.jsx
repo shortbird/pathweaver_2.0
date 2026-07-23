@@ -102,6 +102,11 @@ const StaffPage = () => {
                     No login yet
                   </span>
                 )}
+                {s.login_pending && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Invite pending
+                  </span>
+                )}
               </div>
               {s.bio && <p className="mt-2 text-sm text-neutral-600 line-clamp-3">{s.bio}</p>}
               {fmtDate(s.last_active) && (
