@@ -59,6 +59,21 @@ emails:
       content: "Every quest you complete brings you closer to mastering new skills. Check out more quests to continue your learning journey."
     signature: "team"
 
+  class_credit_awarded:
+    subject: "Congratulations! You earned credit for {{ class_title }}"
+    title: "Class Complete!"
+    greeting: "Congratulations, {{ student_name }}!"
+    paragraphs:
+      - "Your class <strong>{{ class_title }}</strong> has been reviewed and approved. You earned <strong>{{ credits_display }} {{ credit_word }}</strong> in <strong>{{ subject_display }}</strong> on your transcript."
+      - "{% if has_attachment %}Attached is a portfolio of the work you did to earn this credit. It brings together every task you completed and the evidence you submitted, all in one document you can keep and share.{% else %}You can revisit everything you did to earn this credit anytime from your portfolio.{% endif %}"
+    cta:
+      text: "View Your Classes"
+      url: "https://www.optioeducation.com/my-classes"
+    highlight_box:
+      title: "The Process Is The Goal"
+      content: "This credit represents real work: ideas you explored, skills you practiced, and things you made. Take a minute to look back through it and notice how much you grew along the way."
+    signature: "team"
+
   observer_invitation:
     subject: "{{ student_name }} invited you to follow their learning on Optio"
     title: "You've Been Invited to Support a Student on Optio"

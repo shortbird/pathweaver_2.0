@@ -217,6 +217,15 @@ def approve_class_review(user_id: str, quest_id: str):
             'class_review_notes': notes,
         }).eq('id', quest_id).execute()
 
+        # Congratulate the student + parents with the evidence portfolio PDF
+        # attached. Runs in a background thread (asset fetching is slow) and
+        # never blocks or fails the approval itself.
+        try:
+            from services.class_credit_pdf_service import notify_class_credit_awarded_async
+            notify_class_credit_awarded_async(quest_id)
+        except Exception as e:
+            logger.error(f"Failed to queue credit award email for {quest_id[:8]}: {e}", exc_info=True)
+
         logger.info(f"Admin {user_id[:8]} approved class {quest_id[:8]}")
         return success_response(data={'quest_id': quest_id, 'review_status': 'credit_awarded'})
 

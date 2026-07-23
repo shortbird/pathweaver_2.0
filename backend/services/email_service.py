@@ -145,14 +145,26 @@ class EmailService(BaseService):
             if support_email not in cc and to_email.lower() != support_copy_email.lower():
                 try:
                     html_context = f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; border-left: 4px solid #6D469B;"><strong>Copy:</strong> This email was sent to {to_email}</div>'
+                    # Inject the banner INSIDE <body> when the message is a full
+                    # HTML document — prepending it before <!DOCTYPE>/<head> made
+                    # Gmail drop the stylesheet, so copies arrived unstyled.
+                    import re as _re
+                    body_open = _re.search(r'<body[^>]*>', html_body, _re.IGNORECASE)
+                    if body_open:
+                        insert_at = body_open.end()
+                        copy_html = html_body[:insert_at] + html_context + html_body[insert_at:]
+                    else:
+                        copy_html = html_context + html_body
                     support_payload = {
                         'sender': {'name': sender_display_name, 'email': sender_email},
                         'to': [{'email': support_copy_email}],
                         'subject': f"[COPY] {subject}",
-                        'htmlContent': html_context + html_body,
+                        'htmlContent': copy_html,
                     }
                     if text_body:
                         support_payload['textContent'] = f"[This is a copy of an email sent to: {to_email}]\n\n{text_body}"
+                    if attachments:
+                        support_payload['attachment'] = payload['attachment']
                     if self._send_via_brevo(support_payload):
                         logger.info(f"Support copy sent successfully to {support_copy_email} | Subject: [COPY] {subject}")
                 except Exception as e:
@@ -221,7 +233,8 @@ class EmailService(BaseService):
         context: Dict[str, Any],
         cc: Optional[List[str]] = None,
         bcc: Optional[List[str]] = None,
-        reply_to: Optional[str] = None
+        reply_to: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None
     ) -> bool:
         """
         Send an email using the template system (database overrides + YAML fallback)
@@ -236,6 +249,8 @@ class EmailService(BaseService):
             reply_to: Reply-To address (optional). Required for copy that
                 invites a direct reply, since the default sender is the
                 unwatched support@ inbox.
+            attachments: List of {'filename': str, 'content': bytes,
+                'mimetype': str} dicts (optional)
 
         Returns:
             True if email sent successfully, False otherwise
@@ -270,7 +285,8 @@ class EmailService(BaseService):
                 cc,
                 bcc,
                 sender_name_override=sender_name,
-                reply_to=reply_to
+                reply_to=reply_to,
+                attachments=attachments
             )
 
         except TemplateNotFound as e:
@@ -529,6 +545,35 @@ class EmailService(BaseService):
                 'quest_title': quest_title,
                 'xp_earned': xp_earned
             }
+        )
+
+    def send_class_credit_awarded_email(
+        self,
+        to_email: str,
+        student_name: str,
+        class_title: str,
+        subject_display: str,
+        credits: float,
+        cc: Optional[List[str]] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
+        """Congratulate a student (cc parents) when their class is approved
+        for transcript credit, with the evidence portfolio PDF attached."""
+        credits_display = f'{credits:g}'
+        return self.send_templated_email(
+            to_email=to_email,
+            subject=f"Congratulations! You earned credit for {class_title}",
+            template_name='class_credit_awarded',
+            context={
+                'student_name': student_name,
+                'class_title': class_title,
+                'subject_display': subject_display,
+                'credits_display': credits_display,
+                'credit_word': 'credits' if credits > 1 else 'credit',
+                'has_attachment': bool(attachments),
+            },
+            cc=cc,
+            attachments=attachments
         )
 
     def send_promo_welcome_email(self, parent_email: str, parent_name: str, teen_age: str, activity: str = '') -> bool:
