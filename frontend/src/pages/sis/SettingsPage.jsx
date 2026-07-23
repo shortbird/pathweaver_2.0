@@ -7,12 +7,19 @@ import SisOrgSettings from '../../components/sis/SisOrgSettings'
 import TimeBlocksCard from '../../components/sis/TimeBlocksCard'
 import CalendarCategoriesCard from '../../components/sis/CalendarCategoriesCard'
 import KioskDevicesCard from '../../components/sis/KioskDevicesCard'
+import ICreateRegistrationSettings from '../../components/sis/ICreateRegistrationSettings'
+import FirstDayOfSchoolCard from '../../components/sis/FirstDayOfSchoolCard'
+import EnrollmentAgeGatesCard from '../../components/sis/EnrollmentAgeGatesCard'
 
 /**
  * SIS Settings page — org details, branding/logo, AI feature toggles, and School
  * Jobs visibility. Hosts the shared SettingsTab (same controls the legacy org
  * admin page used) but resolves the org through the SIS picker so superadmins can
  * operate across any organization, consistent with every other SIS page.
+ *
+ * Also hosts the registration CONFIG (Registration & enrollment): the parent
+ * funnel (iCreate orgs only), the first day of school, and the waitlisted age
+ * groups. The day-to-day enrollment queues stay on the Registration page.
  */
 const SettingsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
@@ -59,7 +66,21 @@ const SettingsPage = () => {
           <TimeBlocksCard key={`blocks-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <CalendarCategoriesCard key={`cats-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
           <KioskDevicesCard key={`kiosk-${orgId}`} orgId={orgId} />
-          {/* Parent-registration config moved to the Registration page (Operations). */}
+
+          {/* Registration & enrollment — how families register (funnel config,
+              first day of school, waitlisted age groups). The enrollment queues
+              themselves live on the Registration page. */}
+          <div className="pt-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-3">
+              Registration &amp; enrollment
+            </h2>
+            <div className="grid gap-6">
+              {/* Renders null for orgs without the iCreate registration funnel. */}
+              <ICreateRegistrationSettings key={`icr-${orgId}`} orgId={orgId} orgData={orgData} onUpdate={fetchOrg} />
+              <FirstDayOfSchoolCard key={`year-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
+              <EnrollmentAgeGatesCard key={`gates-${orgId}`} orgId={orgId} org={orgData.organization} onUpdate={fetchOrg} />
+            </div>
+          </div>
         </div>
       )}
     </div>

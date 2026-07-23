@@ -200,6 +200,105 @@ def get_invoice(org_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
     return inv
 
 
+# ── Manual charge (record-only, no pricing engine) ───────────────────────────
+def create_charge(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a standalone charge as a 'sent' invoice + one line item. No
+    registration, no discount rules — the school just records what a family owes
+    (they pay out-of-band by Zelle/scholarship and staff record the payment)."""
+    household_id = fields.get('household_id')
+    student_user_id = fields.get('student_user_id')
+    description = (fields.get('description') or '').strip()
+    amount_cents = fields.get('amount_cents')
+    due_date = fields.get('due_date') or None
+    if not household_id and not student_user_id:
+        return {'error': 'A family or student is required'}
+    if not description:
+        return {'error': 'A description is required'}
+    if not isinstance(amount_cents, int) or amount_cents <= 0:
+        return {'error': 'amount_cents must be a positive integer'}
+    invoice = (
+        _admin().table('sis_invoices').insert({
+            'organization_id': org_id,
+            'household_id': household_id,
+            'student_user_id': student_user_id,
+            'status': 'sent',
+            'subtotal_cents': amount_cents,
+            'discount_cents': 0,
+            'total_cents': amount_cents,
+            'amount_paid_cents': 0,
+            'issued_at': _now(),
+            'due_date': due_date,
+        }).execute()
+    ).data[0]
+    _admin().table('sis_invoice_line_items').insert({
+        'invoice_id': invoice['id'],
+        'description': description,
+        'amount_cents': amount_cents,
+        'quantity': 1,
+    }).execute()
+    return {'invoice': invoice}
+
+
+# ── Charges ledger (staff table: who owes / who paid) ────────────────────────
+def billing_ledger(org_id: str, month: Optional[str] = None) -> List[Dict[str, Any]]:
+    """One row per non-void, non-draft invoice, enriched for a staff table:
+    family + student names, the charge description, totals, balance, status,
+    and the latest payment's method + date. `month` (YYYY-MM) filters by
+    due_date. Outstanding balances sort first, then by due date."""
+    invoices = [i for i in list_invoices(org_id)
+                if i.get('status') not in ('draft', 'void')]
+    if month:
+        invoices = [i for i in invoices if str(i.get('due_date') or '')[:7] == month]
+    if not invoices:
+        return []
+    ids = [i['id'] for i in invoices]
+
+    lines_by_inv: Dict[str, List[Dict[str, Any]]] = {}
+    for li in (_admin().table('sis_invoice_line_items').select('*')
+               .in_('invoice_id', ids).execute()).data or []:
+        lines_by_inv.setdefault(li['invoice_id'], []).append(li)
+
+    # Payments ordered newest-first, so the first entry per invoice is the latest.
+    pays_by_inv: Dict[str, List[Dict[str, Any]]] = {}
+    for p in (_admin().table('sis_payment_records').select('*')
+              .in_('invoice_id', ids).order('recorded_at', desc=True).execute()).data or []:
+        pays_by_inv.setdefault(p['invoice_id'], []).append(p)
+
+    hh_ids = [i.get('household_id') for i in invoices if i.get('household_id')]
+    hh_names = {}
+    if hh_ids:
+        hh_names = {h['id']: h['name'] for h in (
+            _admin().table('households').select('id, name').in_('id', list(set(hh_ids))).execute()
+        ).data or []}
+    students = _users_map([i.get('student_user_id') for i in invoices])
+
+    out = []
+    for inv in invoices:
+        lines = lines_by_inv.get(inv['id'], [])
+        desc = '; '.join(l['description'] for l in lines if l.get('description')) or None
+        latest_pay = (pays_by_inv.get(inv['id']) or [None])[0]
+        s = students.get(inv.get('student_user_id'))
+        total = inv.get('total_cents') or 0
+        paid = inv.get('amount_paid_cents') or 0
+        out.append({
+            'invoice_id': inv['id'],
+            'household_id': inv.get('household_id'),
+            'family_name': hh_names.get(inv.get('household_id')),
+            'student_name': _display_name(s) if s else None,
+            'description': desc,
+            'total_cents': total,
+            'amount_paid_cents': paid,
+            'balance_cents': total - paid,
+            'status': inv.get('status'),
+            'due_date': inv.get('due_date'),
+            'method': (latest_pay or {}).get('method'),
+            'paid_at': (latest_pay or {}).get('recorded_at'),
+        })
+    # Outstanding (balance > 0) first, then by soonest due date.
+    out.sort(key=lambda r: (r['balance_cents'] <= 0, str(r.get('due_date') or '9999-12-31')))
+    return out
+
+
 # ── Payment plans ────────────────────────────────────────────────────────────
 def create_payment_plan(org_id: str, invoice_id: str, cadence: str,
                         installment_count: int, start_date: Any) -> Dict[str, Any]:

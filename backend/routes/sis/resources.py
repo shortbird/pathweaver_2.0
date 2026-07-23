@@ -68,6 +68,35 @@ def _claim_paperwork_key(supabase, org_id, paperwork_key, resource_id=None):
     q.execute()
 
 
+def _clear_inline_paperwork_doc(supabase, org_id, paperwork_key):
+    """When the resource backing a paperwork item is deleted or unlinked, drop the
+    inline doc_url snapshot in feature_flags.icreate_registration.paperwork so the
+    funnel doesn't silently fall back to a stale file. The paperwork item itself
+    (key/label/body) is preserved — the form just shows no document until a new
+    resource is linked. No-op when nothing is linked or nothing changes."""
+    if not paperwork_key:
+        return
+    row = (supabase.table('organizations').select('feature_flags')
+           .eq('id', org_id).limit(1).execute()).data or []
+    if not row:
+        return
+    flags = row[0].get('feature_flags') or {}
+    cfg = flags.get('icreate_registration')
+    if not cfg:
+        return
+    items = cfg.get('paperwork') or []
+    changed = False
+    for it in items:
+        if it.get('key') == paperwork_key and it.get('doc_url'):
+            it['doc_url'] = ''
+            changed = True
+    if not changed:
+        return
+    cfg['paperwork'] = items
+    flags['icreate_registration'] = cfg
+    supabase.table('organizations').update({'feature_flags': flags}).eq('id', org_id).execute()
+
+
 @bp.route('/resources', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_resources(user_id):
@@ -99,6 +128,46 @@ def list_resources(user_id):
     if is_admin:
         payload['paperwork'] = _org_paperwork(supabase, org_id)
     return jsonify(payload)
+
+
+@bp.route('/resources/reconcile-paperwork', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def reconcile_paperwork_resources(user_id):
+    """Ensure every registration paperwork item that has an uploaded document is
+    backed by a linked org_resources row, so the Resources library is the single
+    source of truth for that document (the funnel serves the resource's url).
+
+    Called right after the registration config is saved (keys are assigned then).
+    Create-only: an item that already has a linked resource is left untouched —
+    its document is edited/replaced/deleted in the Resources tab, not here — so a
+    later save never clobbers a Resources-tab edit. Returns how many were created.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    paperwork = _org_paperwork(supabase, org_id)  # [{key, label, doc_url}]
+    existing = (supabase.table('org_resources').select('paperwork_key')
+                .eq('organization_id', org_id).execute()).data or []
+    linked_keys = {r['paperwork_key'] for r in existing if r.get('paperwork_key')}
+    created = 0
+    for p in paperwork:
+        key, label, doc_url = p.get('key'), p.get('label'), (p.get('doc_url') or '').strip()
+        if not key or not doc_url or key in linked_keys:
+            continue
+        # Guard against a stray prior link to this key without a doc.
+        _claim_paperwork_key(supabase, org_id, key)
+        supabase.table('org_resources').insert({
+            'organization_id': org_id,
+            'title': label or 'Registration form',
+            'url': doc_url,
+            'category': 'Registration',
+            'paperwork_key': key,
+            'created_by': user_id,
+        }).execute()
+        linked_keys.add(key)
+        created += 1
+    return jsonify({'success': True, 'created': created})
 
 
 @bp.route('/resources/<resource_id>/ack', methods=['POST'])
@@ -205,8 +274,10 @@ def update_resource(user_id, resource_id):
     if err:
         return err
     supabase = get_supabase_admin_client()
-    if not _owned_resource(supabase, org_id, resource_id):
+    existing = _owned_resource(supabase, org_id, resource_id)
+    if not existing:
         return jsonify({'success': False, 'error': 'Resource not found'}), 404
+    old_paperwork_key = existing.get('paperwork_key')
     data = request.json or {}
     fields = {}
     for k in ('title', 'description', 'url', 'category'):
@@ -230,6 +301,11 @@ def update_resource(user_id, resource_id):
                 return jsonify({'success': False, 'error': 'Unknown registration form document'}), 400
             _claim_paperwork_key(supabase, org_id, key, resource_id=resource_id)
         fields['paperwork_key'] = key
+        # Unlinking this resource (or moving it to a different paperwork item)
+        # leaves the old item with no backing resource — drop its stale inline
+        # doc_url so the funnel doesn't fall back to a frozen snapshot.
+        if old_paperwork_key and old_paperwork_key != key:
+            _clear_inline_paperwork_doc(supabase, org_id, old_paperwork_key)
     if fields.get('title') is None and 'title' in fields:
         return jsonify({'success': False, 'error': 'Title is required'}), 400
     fields['updated_at'] = datetime.utcnow().isoformat()
@@ -248,9 +324,14 @@ def delete_resource(user_id, resource_id):
     if err:
         return err
     supabase = get_supabase_admin_client()
-    if not _owned_resource(supabase, org_id, resource_id):
+    existing = _owned_resource(supabase, org_id, resource_id)
+    if not existing:
         return jsonify({'success': False, 'error': 'Resource not found'}), 404
     supabase.table('org_resources').delete().eq('id', resource_id).execute()
+    # If this resource backed a registration paperwork item, remove the form's
+    # document too — the resource was the single source of truth, so deleting it
+    # deletes the doc from the form (no stale inline snapshot left behind).
+    _clear_inline_paperwork_doc(supabase, org_id, existing.get('paperwork_key'))
     return jsonify({'success': True})
 
 

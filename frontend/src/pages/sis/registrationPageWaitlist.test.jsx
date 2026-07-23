@@ -12,8 +12,9 @@ vi.mock('./useSisOrg', () => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false }),
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
 }))
-// The funnel-config card is a big form irrelevant to the waitlist specs.
-vi.mock('../../components/sis/ICreateRegistrationSettings', () => ({ default: () => null }))
+// The registration CONFIG cards (funnel settings, first day of school, and the
+// waitlisted-age-group editor) moved to the Settings page — the Registration
+// page is now just the enrollment operations queues, including the waitlist.
 
 const { api, state } = vi.hoisted(() => {
   const state = { entries: [], gates: [] }
@@ -59,45 +60,12 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('AgeGatesCard', () => {
-  it('adds a waitlisted age band into sis_settings', async () => {
-    render(<RegistrationPage />)
-    await screen.findByText('Enrollment age groups')
-    fireEvent.change(screen.getByLabelText('Minimum age'), { target: { value: '5' } })
-    fireEvent.change(screen.getByLabelText('Maximum age'), { target: { value: '9' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Waitlist this age group' }))
-    await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-1', expect.objectContaining({
-        feature_flags: expect.objectContaining({
-          sis_settings: expect.objectContaining({
-            enrollment_age_gates: [{ min_age: 5, max_age: 9, mode: 'waitlist' }],
-          }),
-        }),
-      })),
-    )
-    expect(await screen.findByText(/Ages 5–9/)).toBeInTheDocument()
-  })
-
-  it('reopens a band by removing it from the gates', async () => {
-    state.gates = [{ min_age: 5, max_age: 9, mode: 'waitlist' }]
-    render(<RegistrationPage />)
-    await screen.findByText(/Ages 5–9/)
-    fireEvent.click(screen.getByRole('button', { name: 'Open this group' }))
-    await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-1', expect.objectContaining({
-        feature_flags: expect.objectContaining({
-          sis_settings: expect.objectContaining({ enrollment_age_gates: [] }),
-        }),
-      })),
-    )
-  })
-})
-
 describe('EnrollmentWaitlistCard', () => {
   it('always shows the container, with an empty state when nothing is gated', async () => {
     render(<RegistrationPage />)
     expect(await screen.findByText('Enrollment waitlist')).toBeInTheDocument()
-    expect(screen.getByText(/No age groups are waitlisted/)).toBeInTheDocument()
+    // Empty state renders after the waitlist load resolves (loading -> bands empty).
+    expect(await screen.findByText(/No age groups are waitlisted/)).toBeInTheDocument()
   })
 
   it('shows an active waitlist age group even with nobody waiting', async () => {

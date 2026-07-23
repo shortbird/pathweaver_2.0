@@ -26,9 +26,14 @@ const STRIPE_KEY_RE = /^(sk|rk)_[A-Za-z0-9_]{20,}$/
 /**
  * Admin config for the iCreate parent registration funnel, stored in
  * organizations.feature_flags.icreate_registration. Rendered on the SIS Settings
- * page only for orgs that have this flag (i.e. iCreate). Lets staff set the
- * registration fee, the external payment + scheduling URLs, and the paperwork
- * items parents acknowledge during registration.
+ * page (the "Registration & enrollment" section) only for orgs that have this
+ * flag (i.e. iCreate). Lets staff set the registration fee, the external payment +
+ * scheduling URLs, and the paperwork items parents acknowledge during registration.
+ *
+ * Paperwork docs are backed by the Resources library: saving reconciles each
+ * uploaded paperwork item into a linked org_resources row (the single source of
+ * truth), so the registration form serves — and edits/deletes flow through — the
+ * Resources tab. Items already linked are edited there, not re-uploaded here.
  */
 const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
   const flags = orgData?.organization?.feature_flags || {}
@@ -44,6 +49,10 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
   const [questions, setQuestions] = useState(cfg?.questions || [])
   const [saving, setSaving] = useState(false)
   const [uploadingDoc, setUploadingDoc] = useState(null) // paperwork index mid-upload
+  // Paperwork keys already backed by a resource in the Resources library. Those
+  // documents are edited/deleted there (single source of truth), so we surface a
+  // hint instead of an inline re-upload for them.
+  const [linkedKeys, setLinkedKeys] = useState(() => new Set())
 
   // Family registration link — the org's standing parent invitation link, which
   // routes families into this registration flow. Moved here from the Users page.
@@ -62,6 +71,24 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
     const r = await api.get(`/api/admin/organizations/${orgId}/invitations?status=pending`)
     return findParentLink(r.data?.invitations)
   }
+
+  // Which paperwork items are already backed by a resource (edit those in the
+  // Resources tab). Refreshed after each save, since saving reconciles new docs.
+  const loadLinkedKeys = async () => {
+    try {
+      const r = await api.get(`/api/sis/resources?organization_id=${orgId}`)
+      const keys = (r.data?.resources || []).map((x) => x.paperwork_key).filter(Boolean)
+      setLinkedKeys(new Set(keys))
+    } catch {
+      // Non-fatal: the hint just won't show.
+    }
+  }
+
+  useEffect(() => {
+    if (!orgId || !cfg) return
+    loadLinkedKeys()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId])
 
   useEffect(() => {
     if (!orgId || !cfg) { setRegLinkLoading(false); return }
@@ -196,6 +223,14 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
           },
         },
       })
+      // Reconcile: make sure every uploaded paperwork doc is backed by a linked
+      // resource in the Resources library (the single source of truth). Keys are
+      // assigned server-side on save, so this runs after the config PUT.
+      // Non-fatal — the settings still saved even if reconciliation hiccups.
+      try {
+        await api.post(`/api/sis/resources/reconcile-paperwork?organization_id=${orgId}`, {})
+      } catch { /* best effort */ }
+      await loadLinkedKeys()
       toast.success('Registration settings saved')
       onUpdate && onUpdate()
     } catch (e) {
@@ -378,33 +413,48 @@ const ICreateRegistrationSettings = ({ orgId, orgData, onUpdate }) => {
         </div>
         <div className="space-y-3">
           {paperwork.length === 0 && <p className="text-sm text-neutral-400">No paperwork items.</p>}
-          {paperwork.map((it, i) => (
+          {paperwork.map((it, i) => {
+            const linked = it.key && linkedKeys.has(it.key)
+            return (
             <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-2">
               <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                 <input className={`${field} sm:flex-1`} placeholder="Label (e.g. Enrollment Agreement)"
                   value={it.label} onChange={(e) => setItem(i, { label: e.target.value })} />
-                <label className={`inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap cursor-pointer transition-colors ${
-                  uploadingDoc === i
-                    ? 'border-gray-200 text-neutral-400'
-                    : 'border-gray-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple'
-                }`}>
-                  {uploadingDoc === i ? 'Uploading…' : it.doc_url ? 'Replace document' : 'Upload document'}
-                  <input type="file" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
-                    disabled={uploadingDoc != null}
-                    onChange={(e) => { uploadDoc(i, e.target.files?.[0]); e.target.value = '' }} />
-                </label>
+                {!linked && (
+                  <label className={`inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                    uploadingDoc === i
+                      ? 'border-gray-200 text-neutral-400'
+                      : 'border-gray-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple'
+                  }`}>
+                    {uploadingDoc === i ? 'Uploading…' : it.doc_url ? 'Replace document' : 'Upload document'}
+                    <input type="file" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                      disabled={uploadingDoc != null}
+                      onChange={(e) => { uploadDoc(i, e.target.files?.[0]); e.target.value = '' }} />
+                  </label>
+                )}
                 <button onClick={() => removeItem(i)} className="text-red-500 text-sm px-2 hover:underline">Remove</button>
               </div>
-              {it.doc_url ? (
+              {linked ? (
+                <p className="text-xs text-neutral-500">
+                  {it.doc_url && (
+                    <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">View document</a>
+                  )}
+                  <span className={it.doc_url ? 'ml-3 text-neutral-400' : 'text-neutral-400'}>
+                    In your Resources library — replace or remove this document in the Resources tab, and the form updates too.
+                  </span>
+                </p>
+              ) : it.doc_url ? (
                 <p className="text-xs text-neutral-500">
                   <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">View document</a>
                   <button onClick={() => setItem(i, { doc_url: '' })} className="ml-3 text-red-500 hover:underline">Remove document</button>
+                  <span className="ml-2 text-neutral-400">Saving adds this to your Resources library as the source of truth.</span>
                 </p>
               ) : (
                 <p className="text-xs text-neutral-400">No document yet — upload the waiver/acknowledgment PDF parents will read and sign.</p>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 

@@ -135,6 +135,44 @@ def get_invoice(user_id, invoice_id):
     return jsonify({'success': True, 'invoice': inv})
 
 
+# ── Record-only charges + ledger (Gryffin microschool model) ─────────────────
+@bp.route('/billing/charges', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def create_charge(user_id):
+    """Create a standalone charge (invoice + one line item), no pricing engine.
+    Body: {household_id?, student_user_id?, description, amount_cents, due_date?}.
+    At least one of household_id/student_user_id is required."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.json or {}
+    amount = data.get('amount_cents')
+    if not isinstance(amount, int) or amount <= 0:
+        return jsonify({'success': False, 'error': 'amount_cents must be a positive integer'}), 400
+    result = billing.create_charge(org_id, {
+        'household_id': data.get('household_id'),
+        'student_user_id': data.get('student_user_id'),
+        'description': data.get('description'),
+        'amount_cents': amount,
+        'due_date': data.get('due_date'),
+    })
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/billing/ledger', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def billing_ledger(user_id):
+    """Charges ledger for the staff table. Optional ?month=YYYY-MM filters by
+    due_date; omitted returns all non-void, non-draft invoices."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'ledger': billing.billing_ledger(org_id, month=request.args.get('month'))})
+
+
 # ── Payment plans + payments ─────────────────────────────────────────────────
 @bp.route('/invoices/<invoice_id>/payment-plan', methods=['POST'])
 @require_role(*STAFF_ROLES)
