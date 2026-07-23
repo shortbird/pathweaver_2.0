@@ -139,6 +139,8 @@ const ClpPage = () => {
   const [notesStatus, setNotesStatus] = useState('saved') // saved | dirty | saving
   const notesTimer = useRef(null)
 
+  const [classesOverview, setClassesOverview] = useState([])
+
   // ── Data loading ───────────────────────────────────────────────────────────
   const loadDirectory = useCallback(() => {
     if (!orgId) { setDirLoading(false); return }
@@ -147,9 +149,26 @@ const ClpPage = () => {
       .then((r) => setDirectory({ families: r.data?.families || [], students: r.data?.students || [] }))
       .catch(() => toast.error('Failed to load students'))
       .finally(() => setDirLoading(false))
+    // Class-level overview for the landing view (waitlisted + low-enrollment).
+    api.get(withOrg('/api/sis/classes', orgId))
+      .then((r) => setClassesOverview(r.data?.classes || []))
+      .catch(() => setClassesOverview([]))
   }, [orgId])
 
   useEffect(() => { loadDirectory() }, [loadDirectory])
+
+  // Classes that need staff attention: someone waiting, or under 4 enrolled
+  // (at risk of being dropped). Archived classes are excluded server-side.
+  const waitlistedClasses = useMemo(
+    () => classesOverview.filter((c) => (c.waitlist_count || 0) > 0)
+      .sort((a, b) => (b.waitlist_count || 0) - (a.waitlist_count || 0)),
+    [classesOverview],
+  )
+  const lowEnrollmentClasses = useMemo(
+    () => classesOverview.filter((c) => (c.enrolled_count ?? 0) < 4)
+      .sort((a, b) => (a.enrolled_count ?? 0) - (b.enrolled_count ?? 0)),
+    [classesOverview],
+  )
 
   const loadStudent = useCallback((sid) => {
     if (!orgId || !sid) return
@@ -410,11 +429,51 @@ const ClpPage = () => {
     if (studentLoading) return <p className="text-neutral-500">Loading student…</p>
     if (!student) {
       return (
-        <div className="flex items-center justify-center h-64 text-neutral-400 text-center">
-          <div>
-            <p className="font-medium">Search for a student to begin their learning plan.</p>
-            <p className="text-sm mt-1">Their schedule and every available class will appear here.</p>
+        <div>
+          <div className="flex items-center justify-center py-10 text-neutral-400 text-center">
+            <div>
+              <p className="font-medium">Search for a student to begin their learning plan.</p>
+              <p className="text-sm mt-1">Their schedule and every available class will appear here.</p>
+            </div>
           </div>
+          {(waitlistedClasses.length > 0 || lowEnrollmentClasses.length > 0) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-neutral-900 mb-1">Classes with a waitlist</h3>
+                <p className="text-xs text-neutral-400 mb-3">Students waiting for a seat — open the class to offer it.</p>
+                {waitlistedClasses.length === 0
+                  ? <p className="text-sm text-neutral-400">No classes have a waitlist.</p>
+                  : (
+                    <ul className="divide-y divide-gray-100">
+                      {waitlistedClasses.map((c) => (
+                        <li key={c.id} className="py-2 flex items-center justify-between gap-2">
+                          <span className="text-sm text-neutral-800 truncate">{c.name}</span>
+                          <Pill className="bg-amber-100 text-amber-700 shrink-0">{c.waitlist_count} waiting</Pill>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-neutral-900 mb-1">Low enrollment</h3>
+                <p className="text-xs text-neutral-400 mb-3">Fewer than 4 students — may be in danger of being dropped.</p>
+                {lowEnrollmentClasses.length === 0
+                  ? <p className="text-sm text-neutral-400">Every class has 4 or more students.</p>
+                  : (
+                    <ul className="divide-y divide-gray-100">
+                      {lowEnrollmentClasses.map((c) => (
+                        <li key={c.id} className="py-2 flex items-center justify-between gap-2">
+                          <span className="text-sm text-neutral-800 truncate">{c.name}</span>
+                          <Pill className={`shrink-0 ${(c.enrolled_count ?? 0) === 0 ? 'bg-rose-100 text-rose-700' : 'bg-orange-100 text-orange-700'}`}>
+                            {c.enrolled_count ?? 0} enrolled
+                          </Pill>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+              </div>
+            </div>
+          )}
         </div>
       )
     }
@@ -431,12 +490,19 @@ const ClpPage = () => {
             <div className="text-neutral-500 mt-0.5 text-sm">
               {student.family?.name && <span>{student.family.name}</span>}
             </div>
-            {student.family?.payment_intent?.length > 0 && (
+            {(student.family?.payment_intent?.length > 0 || student.family?.ufa_private) && (
               <div className="flex items-center gap-1.5 flex-wrap mt-2">
                 <span className="text-xs text-neutral-400">Form of payment:</span>
-                {student.family.payment_intent.map((p) => (
-                  <Pill key={p} className="bg-sky-100 text-sky-700">{p}</Pill>
+                {(student.family.payment_intent || []).map((p) => (
+                  // A UFA-Private family shows a distinct badge instead of the plain
+                  // "Utah Fits All" pill so staff can tell them apart at a glance.
+                  p === 'Utah Fits All' && student.family.ufa_private
+                    ? <Pill key={p} className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
+                    : <Pill key={p} className="bg-sky-100 text-sky-700">{p}</Pill>
                 ))}
+                {student.family.ufa_private && !(student.family.payment_intent || []).includes('Utah Fits All') && (
+                  <Pill className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
+                )}
               </div>
             )}
             {student.learning_day?.choice && (

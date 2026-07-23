@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
@@ -20,7 +21,7 @@ const fmtDate = (d) => {
   catch { return '—' }
 }
 
-const RosterPage = () => {
+const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const navigate = useNavigate()
   const [roster, setRoster] = useState([])
@@ -108,6 +109,11 @@ const RosterPage = () => {
         cmp = (a.household_name || '').toLowerCase().localeCompare((b.household_name || '').toLowerCase())
       } else if (sort.key === 'last') {
         cmp = (a.last_name || '').toLowerCase().localeCompare((b.last_name || '').toLowerCase())
+      } else if (sort.key === 'age') {
+        // Students without a DOB sort last regardless of direction.
+        const av = a.age == null ? Infinity : a.age
+        const bv = b.age == null ? Infinity : b.age
+        cmp = av - bv
       } else if (sort.key === 'last_active') {
         cmp = new Date(a.last_active || 0) - new Date(b.last_active || 0)
       } else if (sort.key === 'role') {
@@ -124,14 +130,25 @@ const RosterPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Users</h1>
-        <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
-          <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
+      {embedded ? (
+        // In the People tab shell: buttons live on the tab row (via the toolbar slot).
+        toolbarEl && createPortal(
+          <>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
+            <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
+          </>,
+          toolbarEl,
+        )
+      ) : (
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-neutral-900">Users</h1>
+          <div className="flex items-center gap-3">
+            <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
+            <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {!loading && roster.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -176,6 +193,7 @@ const RosterPage = () => {
                     Last name{sortArrow('last')}
                   </button>
                 </th>
+                <SortHeader label="Age" col="age" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Role" col="role" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Family" col="family" sort={sort} onSort={toggleSort} arrow={sortArrow} />
                 <SortHeader label="Last active" col="last_active" sort={sort} onSort={toggleSort} arrow={sortArrow} />
@@ -204,6 +222,7 @@ const RosterPage = () => {
                       </div>
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-neutral-600">{s.age != null ? s.age : <span className="text-neutral-300">—</span>}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 flex-wrap">
                       {(s.roles?.length ? s.roles : [s.role]).filter(Boolean).map((r) => <RolePill key={r} role={r} />)}

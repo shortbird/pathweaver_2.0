@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { isSisAdmin } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
+import { isPathHidden } from '../../pages/sis/sisModules'
+import { useSisOrg } from '../../pages/sis/useSisOrg'
 
 /**
  * SIS console sidebar. Distinct from the learning app's Sidebar — this is the
@@ -45,15 +47,11 @@ const NAV_SECTIONS = [
     label: null,
     items: [
       { name: 'Dashboard', path: '/', end: true, d: ICONS.home },
-    ],
-  },
-  {
-    label: 'People',
-    items: [
-      { name: 'Users', path: '/users', adminOnly: true, d: ICONS.users },
-      { name: 'Staff', path: '/staff', adminOnly: true, d: ICONS.person },
-      { name: 'Families', path: '/households', adminOnly: true, d: ICONS.family },
-      { name: 'Directory', path: '/directory', d: ICONS.person },
+      // People is the admin roster hub (Everyone / Staff / Families tabs);
+      // Directory is the read-only staff phonebook teachers get in its place.
+      // Both are top-level — no "People" section wrapping a "People" link.
+      { name: 'People', path: '/people', adminOnly: true, d: ICONS.users },
+      { name: 'Directory', path: '/directory', teacherOnly: true, d: ICONS.person },
     ],
   },
   {
@@ -99,6 +97,9 @@ const linkClass = ({ isActive }) => `
 
 const SisSidebar = () => {
   const { user } = useAuth()
+  // activeOrg is the org currently in view — for a superadmin that's the one
+  // picked in the org selector, so the nav mirrors that org's admin exactly.
+  const { activeOrg } = useSisOrg()
   const isSuperadmin = user?.role === 'superadmin'
   // While an admin previews a teacher's portal, render the teacher nav so the
   // preview is faithful (the banner in SisLayout is the way back).
@@ -131,6 +132,8 @@ const SisSidebar = () => {
             if (it.superadmin && !isSuperadmin) return false
             if (it.adminOnly && !isAdmin) return false
             if (it.teacherOnly && isAdmin) return false
+            // Org opted out of this module (feature_flags.sis_settings.hidden_modules).
+            if (isPathHidden(it.path, activeOrg)) return false
             return true
           })
           if (!items.length) return null

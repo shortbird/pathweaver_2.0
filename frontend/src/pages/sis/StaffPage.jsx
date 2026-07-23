@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
@@ -20,7 +21,7 @@ const fmtDate = (d) => {
   catch { return null }
 }
 
-const StaffPage = () => {
+const StaffPage = ({ embedded = false, toolbarEl = null }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
@@ -57,13 +58,20 @@ const StaffPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Staff</h1>
-        <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-          <Button size="sm" onClick={() => setAdding(true)} disabled={!orgId}>Add teacher</Button>
+      {embedded ? (
+        toolbarEl && createPortal(
+          <Button size="sm" onClick={() => setAdding(true)} disabled={!orgId}>Add teacher</Button>,
+          toolbarEl,
+        )
+      ) : (
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-neutral-900">Staff</h1>
+          <div className="flex items-center gap-3">
+            <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+            <Button size="sm" onClick={() => setAdding(true)} disabled={!orgId}>Add teacher</Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
       {!loading && !staff.length && (
@@ -97,6 +105,11 @@ const StaffPage = () => {
               )}
               <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
                 {(s.roles || []).map((r) => <RolePill key={r} role={r} />)}
+                {s.staff_type === 'family' && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-optio-purple/10 text-optio-purple">
+                    Family
+                  </span>
+                )}
                 {s.is_placeholder && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                     No login yet

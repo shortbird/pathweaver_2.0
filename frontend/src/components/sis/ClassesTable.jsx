@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { ChevronDownIcon } from '@heroicons/react/24/outline'
+import React, { useState, useMemo } from 'react'
+import { ChevronDownIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline'
 import SearchSelect from '../ui/SearchSelect'
 import { meetingsToForm, blockMinutes, blockEndOptions, addMin, minutesBetween, hhmm } from './CreateClassModal'
 
@@ -70,6 +70,24 @@ const toDraft = (c) => {
 
 const numOrUndef = (v) => (v === '' || v == null ? undefined : Number(v))
 
+const teacherName = (c) => c.primary_instructor?.name || c.primary_instructor?.display_name || ''
+// Sort keys -> a comparable value for a class row. Missing values sort last.
+const SORT_VALUE = {
+  name: (c) => (c.name || '').toLowerCase(),
+  teacher: (c) => teacherName(c).toLowerCase(),
+  days: (c) => {
+    const dows = (c.meetings || []).map((m) => m.day_of_week).filter((d) => d != null)
+    return dows.length ? Math.min(...dows) : 99
+  },
+  time: (c) => {
+    const first = (c.meetings || []).find((m) => m.start_time)
+    return first ? hhmm(first.start_time) : '99:99'
+  },
+  ages: (c) => (c.min_age != null ? c.min_age : 999),
+  enrolled: (c) => c.enrolled_count ?? 0,
+  waitlist: (c) => c.waitlist_count ?? 0,
+}
+
 const draftToPayload = (d) => ({
   name: d.name.trim(),
   description: d.description,
@@ -93,10 +111,42 @@ const Field = ({ label, children, className = '' }) => (
   </div>
 )
 
-const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistration, onOpen }) => {
+const SortHeader = ({ label, sortKey, sort, onSort, className = '' }) => {
+  const active = sort.key === sortKey
+  return (
+    <th className={`px-4 py-2.5 ${className}`}>
+      <button type="button" onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-neutral-600 ${active ? 'text-optio-purple' : ''}`}>
+        {label}
+        {active
+          ? <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${sort.dir === 'asc' ? 'rotate-180' : ''}`} />
+          : <ChevronUpDownIcon className="w-3.5 h-3.5 text-neutral-300" />}
+      </button>
+    </th>
+  )
+}
+
+const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore }) => {
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
   const [expandedId, setExpandedId] = useState(null)
   const [saving, setSaving] = useState(null) // class_id mid-save
+  const [sort, setSort] = useState({ key: null, dir: 'asc' })
+
+  const onSort = (key) => setSort((s) => (
+    s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+  ))
+
+  const sortedClasses = useMemo(() => {
+    if (!sort.key) return classes
+    const val = SORT_VALUE[sort.key]
+    const factor = sort.dir === 'asc' ? 1 : -1
+    return [...classes].sort((a, b) => {
+      const va = val(a), vb = val(b)
+      if (va < vb) return -1 * factor
+      if (va > vb) return 1 * factor
+      return 0
+    })
+  }, [classes, sort])
 
   const pickable = timeBlocks.filter((b) => !b.label)
 
@@ -121,18 +171,18 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
       <table className="w-full text-sm min-w-[700px]">
         <thead>
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-gray-100">
-            <th className="px-4 py-2.5">Name</th>
-            <th className="px-4 py-2.5">Teacher</th>
-            <th className="px-4 py-2.5">Days</th>
-            <th className="px-4 py-2.5">Time</th>
-            <th className="px-4 py-2.5">Ages</th>
-            <th className="px-4 py-2.5">Enrolled</th>
-            <th className="px-4 py-2.5">Waitlist</th>
+            <SortHeader label="Name" sortKey="name" sort={sort} onSort={onSort} />
+            <SortHeader label="Teacher" sortKey="teacher" sort={sort} onSort={onSort} />
+            <SortHeader label="Days" sortKey="days" sort={sort} onSort={onSort} />
+            <SortHeader label="Time" sortKey="time" sort={sort} onSort={onSort} />
+            <SortHeader label="Ages" sortKey="ages" sort={sort} onSort={onSort} />
+            <SortHeader label="Enrolled" sortKey="enrolled" sort={sort} onSort={onSort} />
+            <SortHeader label="Waitlist" sortKey="waitlist" sort={sort} onSort={onSort} />
             <th className="px-4 py-2.5 w-8" />
           </tr>
         </thead>
         <tbody>
-          {classes.map((c) => {
+          {sortedClasses.map((c) => {
             const open = expandedId === c.id
             const d = drafts[c.id] || toDraft(c)
             const dirty = !!drafts[c.id]
@@ -145,6 +195,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                   className={`border-b border-gray-50 cursor-pointer transition-colors ${open ? 'bg-optio-purple/[0.04]' : 'hover:bg-neutral-50'}`}>
                   <td className="px-4 py-3 font-medium text-neutral-900">
                     {c.name}
+                    {c.status === 'archived' && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded uppercase">Archived</span>}
                     {dirty && <span className="ml-2 text-[10px] font-semibold text-optio-purple uppercase">edited</span>}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">{c.primary_instructor?.name || c.primary_instructor?.display_name || '—'}</td>
@@ -289,9 +340,30 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                         </Field>
                       </div>
                       <div className="flex items-center justify-between mt-3">
-                        <button onClick={() => onOpen(c)} className="text-sm text-optio-purple hover:underline">
-                          Open full editor (image, waitlist, archive, preview)
-                        </button>
+                        <div className="flex items-center gap-4">
+                          <button onClick={() => (onRoster ? onRoster(c) : onOpen(c))} className="text-sm text-optio-purple hover:underline">
+                            View roster
+                          </button>
+                          {onDuplicate && (
+                            <button onClick={() => onDuplicate(c)} className="text-sm text-neutral-500 hover:text-optio-purple hover:underline">
+                              Duplicate
+                            </button>
+                          )}
+                          <button onClick={() => onOpen(c)} className="text-sm text-neutral-500 hover:text-optio-purple hover:underline">
+                            Full editor
+                          </button>
+                          {c.status === 'archived'
+                            ? onRestore && (
+                              <button onClick={() => onRestore(c)} className="text-sm font-medium text-optio-purple hover:underline">
+                                Restore class
+                              </button>
+                            )
+                            : onArchive && (
+                              <button onClick={() => onArchive(c)} className="text-sm text-red-500 hover:underline">
+                                Archive class
+                              </button>
+                            )}
+                        </div>
                         <div className="flex items-center gap-3">
                           {dirty && (
                             <button onClick={() => cancel(c.id)} disabled={busy}

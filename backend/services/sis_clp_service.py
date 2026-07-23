@@ -159,6 +159,14 @@ def _family_and_siblings(org_id: str, student_id: str):
     if not hh:
         return None, [], []
     family = {'household_id': hh['household_id'], 'name': hh['household_name']}
+    try:
+        hrow = (
+            _admin().table('households').select('ufa_private')
+            .eq('id', hh['household_id']).limit(1).execute()
+        ).data
+        family['ufa_private'] = bool(hrow[0].get('ufa_private')) if hrow else False
+    except Exception:  # noqa: BLE001 — best-effort context
+        family['ufa_private'] = False
     members = (
         _admin().table('household_members')
         .select('user_id, relationship')

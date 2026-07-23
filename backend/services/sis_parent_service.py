@@ -678,6 +678,10 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         _admin().table('class_enrollments').update({'status': 'withdrawn'}).eq('id', enr[0]['id']).execute()
         from services.class_group_sync_service import sync_class_group
         sync_class_group(class_id, actor_id=user_id)
+        # A parent dropping their child may free a seat — alert admins to offer it
+        # to the next waitlisted student (self-gates on waiters + an open seat).
+        from services import sis_waitlist_service
+        sis_waitlist_service.alert_admins_seat_opened(org_id, class_id)
         dropped = True
 
     wl = (
@@ -789,8 +793,9 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
         return None
     q = (
         _admin().table('sis_events')
-        .select('id, title, description, location, start_at, end_at, all_day, category')
+        .select('id, title, description, location, start_at, end_at, all_day, category, audience')
         .eq('organization_id', org_id)
+        .eq('audience', 'school')  # families only ever see school-wide events
     )
     if from_iso:
         q = q.or_(f'start_at.gte.{from_iso},end_at.gte.{from_iso}')

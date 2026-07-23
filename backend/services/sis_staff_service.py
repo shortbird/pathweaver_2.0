@@ -32,7 +32,7 @@ PROFILE_FIELDS = ('position', 'staff_type', 'pay_type', 'payroll_id',
 # The subset a teacher may edit on their own profile.
 SELF_PROFILE_FIELDS = ('emergency_contact_name', 'emergency_contact_phone')
 
-STAFF_TYPES = ('employee', 'contractor')
+STAFF_TYPES = ('employee', 'contractor', 'family')
 PAY_TYPES = ('hourly', 'salaried', 'stipend', 'unpaid')
 ASSIGNMENT_TYPES = ('duty', 'event', 'meeting', 'substitute', 'other')
 
@@ -439,7 +439,7 @@ def staff_directory(org_id: str) -> List[Dict[str, Any]]:
     staff = sis_service.list_org_staff(org_id)
     profiles = {p['user_id']: p for p in (
         _admin().table('sis_staff_profiles')
-        .select('user_id, position, work_schedule, is_active')
+        .select('user_id, position, work_schedule, is_active, staff_type')
         .eq('organization_id', org_id).execute()
     ).data or []}
     out = []
@@ -453,6 +453,7 @@ def staff_directory(org_id: str) -> List[Dict[str, Any]]:
             'roles': s['roles'], 'role_labels': s['role_labels'],
             'bio': s.get('bio'), 'avatar_url': s.get('avatar_url'),
             'position': p.get('position'), 'work_schedule': p.get('work_schedule'),
+            'staff_type': p.get('staff_type'),
         })
     return out
 

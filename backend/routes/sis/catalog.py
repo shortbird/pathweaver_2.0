@@ -26,6 +26,19 @@ STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
+def _age_from_dob(dob):
+    """Whole years from an ISO date string, or None when unknown/unparseable."""
+    from datetime import date
+    if not dob:
+        return None
+    try:
+        d = date.fromisoformat(str(dob)[:10])
+    except (ValueError, TypeError):
+        return None
+    today = date.today()
+    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+
+
 def _org_or_error(user_id):
     body = request.get_json(silent=True) or {}
     requested = request.args.get('organization_id') or body.get('organization_id')
@@ -158,6 +171,14 @@ def update_class(user_id, class_id):
             new_instructor, 'New class assignment',
             f'You are now the teacher for {existing.get("name") or "a class"}.',
             link='/my-classes', organization_id=org_id)
+    # Raising capacity can open seats — alert admins to offer them to the
+    # waitlist (self-gates on there being waiters + a genuinely open seat).
+    if 'capacity' in data:
+        old_cap = existing.get('capacity')
+        new_cap = updated.get('capacity') if isinstance(updated, dict) else data.get('capacity')
+        if new_cap is None or old_cap is None or new_cap > old_cap:
+            from services import sis_waitlist_service
+            sis_waitlist_service.alert_admins_seat_opened(org_id, class_id)
     return jsonify({'success': True, 'class': updated})
 
 
@@ -194,6 +215,24 @@ def archive_class(user_id, class_id):
 
     return jsonify({'success': True, 'class': archived,
                     'enrollments_dropped': len(dropped)})
+
+
+@bp.route('/classes/<class_id>/restore', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def restore_class(user_id, class_id):
+    """Un-archive a class (status back to active). Registration stays closed and
+    prior enrollments stay withdrawn — staff reopen/re-enroll deliberately."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    supabase = get_supabase_admin_client()
+    repo = SisClassRepository(client=supabase)
+    existing = repo.find_by_id(class_id)
+    if not existing or existing.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+
+    restored = repo.restore(class_id)
+    return jsonify({'success': True, 'class': restored})
 
 
 @bp.route('/schedule-conflicts', methods=['GET'])
@@ -334,7 +373,7 @@ def class_roster(user_id, class_id):
     users = {}
     if ids:
         rows = (supabase.table('users')
-                .select('id, first_name, last_name, display_name, email, username')
+                .select('id, first_name, last_name, display_name, email, username, date_of_birth')
                 .in_('id', ids).execute()).data or []
         users = {u['id']: u for u in rows}
     roster = []
@@ -345,6 +384,7 @@ def class_roster(user_id, class_id):
                 or u.get('username') or u.get('email') or 'Unknown')
         roster.append({'student_id': e['student_id'], 'name': name,
                        'last_name': u.get('last_name'),
+                       'age': _age_from_dob(u.get('date_of_birth')),
                        'email': u.get('email'), 'username': u.get('username'),
                        'enrolled_at': e.get('enrolled_at')})
     roster.sort(key=lambda r: (r.get('last_name') or r['name']).lower())
@@ -415,6 +455,10 @@ def unenroll_student(user_id, class_id, student_id):
     supabase.table('class_enrollments').update({'status': 'withdrawn'}).eq('id', existing[0]['id']).execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=user_id)
+    # A drop may have opened a seat — alert admins so they can offer it to the
+    # next waitlisted student (self-gates on there being waiters + an open seat).
+    from services import sis_waitlist_service
+    sis_waitlist_service.alert_admins_seat_opened(org_id, class_id)
     return jsonify({'success': True})
 
 

@@ -2,6 +2,20 @@ import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface } from '../utils/appSurface'
+import { isPathHidden } from '../pages/sis/sisModules'
+import { useSisOrg } from '../pages/sis/useSisOrg'
+
+// Guards a route whose module the active org has hidden (feature_flags.
+// sis_settings.hidden_modules). A hidden module bounces to the SIS dashboard so
+// a stale bookmark or typed URL can't reach a surface the org opted out of.
+// Follows the active org, so a superadmin viewing that org is bounced too —
+// mirroring exactly what the org's admin can reach. `path` is the leading-slash
+// nav path (e.g. '/clp').
+const ModuleRoute = ({ path, children }) => {
+  const { activeOrg } = useSisOrg()
+  if (isPathHidden(path, activeOrg)) return <Navigate to="/" replace />
+  return children
+}
 
 // Family-facing links (registration invitations) belong on the Learning app.
 // If one is opened on the SIS host anyway — e.g. an old link copied before the
@@ -15,13 +29,11 @@ const LearningRedirect = () => {
 
 // New SIS console pages
 const SisDashboard = lazy(() => import('../pages/sis/SisDashboard'))
-const RosterPage = lazy(() => import('../pages/sis/RosterPage'))
-const StaffPage = lazy(() => import('../pages/sis/StaffPage'))
+const PeoplePage = lazy(() => import('../pages/sis/PeoplePage'))
 const ClassesPage = lazy(() => import('../pages/sis/ClassesPage'))
 const ClpPage = lazy(() => import('../pages/sis/ClpPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
 const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
-const HouseholdsPage = lazy(() => import('../pages/sis/HouseholdsPage'))
 const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'))
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
@@ -66,17 +78,19 @@ const SisRoutes = () => (
     <Route path="register/icreate/*" element={<LearningRedirect />} />
     <Route element={<SisLayout />}>
       <Route index element={<SisDashboard />} />
-      <Route path="users" element={<RosterPage />} />
-      <Route path="roster" element={<Navigate to="/users" replace />} />
-      <Route path="staff" element={<StaffPage />} />
+      <Route path="people" element={<PeoplePage />} />
+      {/* Old People routes now open the matching lens of the unified People page. */}
+      <Route path="users" element={<Navigate to="/people" replace />} />
+      <Route path="roster" element={<Navigate to="/people" replace />} />
+      <Route path="staff" element={<Navigate to="/people?tab=staff" replace />} />
+      <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
       <Route path="classes" element={<ClassesPage />} />
-      <Route path="clp" element={<ClpPage />} />
-      <Route path="billing" element={<BillingPage />} />
+      <Route path="clp" element={<ModuleRoute path="/clp"><ClpPage /></ModuleRoute>} />
+      <Route path="billing" element={<ModuleRoute path="/billing"><BillingPage /></ModuleRoute>} />
       <Route path="attendance" element={<AttendancePage />} />
       <Route path="goals" element={<GoalsReviewPage />} />
       <Route path="submissions" element={<SubmissionsPage />} />
       <Route path="reports" element={<ReportsPage />} />
-      <Route path="households" element={<HouseholdsPage />} />
       <Route path="messaging" element={<FamilyMessagingPage />} />
       <Route path="registration" element={<RegistrationPage />} />
       <Route path="calendar" element={<CalendarPage />} />
@@ -87,10 +101,10 @@ const SisRoutes = () => (
       <Route path="my-classes" element={<MyClassesPage />} />
       <Route path="my-classes/:classId" element={<TeacherClassPage />} />
       <Route path="directory" element={<DirectoryPage />} />
-      <Route path="forms" element={<StaffFormsPage />} />
-      <Route path="onboarding" element={<OnboardingPage />} />
-      <Route path="time" element={<MyTimePage />} />
-      <Route path="timesheets" element={<TimesheetsPage />} />
+      <Route path="forms" element={<ModuleRoute path="/forms"><StaffFormsPage /></ModuleRoute>} />
+      <Route path="onboarding" element={<ModuleRoute path="/onboarding"><OnboardingPage /></ModuleRoute>} />
+      <Route path="time" element={<ModuleRoute path="/time"><MyTimePage /></ModuleRoute>} />
+      <Route path="timesheets" element={<ModuleRoute path="/timesheets"><TimesheetsPage /></ModuleRoute>} />
 
       {/* Carved-out admin surfaces (original paths preserved) */}
       <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />

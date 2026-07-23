@@ -59,12 +59,27 @@ def _enrolled_students(class_id: str) -> List[Dict[str, Any]]:
         return []
     users = (
         _admin().table('users')
-        .select('id, display_name, first_name, last_name, username, email')
+        .select('id, display_name, first_name, last_name, username, email, date_of_birth')
         .in_('id', ids).execute()
     ).data or []
-    out = [{'student_user_id': u['id'], 'name': _student_name(u)} for u in users]
+    out = [{'student_user_id': u['id'], 'name': _student_name(u), 'age': _age(u.get('date_of_birth'))}
+           for u in users]
     out.sort(key=lambda s: s['name'].lower())
     return out
+
+
+def _age(dob):
+    """Whole years from an ISO date string — None when unknown/unparseable."""
+    from datetime import date
+    if not dob:
+        return None
+    if not isinstance(dob, date):
+        try:
+            dob = date.fromisoformat(str(dob)[:10])
+        except ValueError:
+            return None
+    today = date.today()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
 def _org_admin_ids(org_id: str) -> List[str]:

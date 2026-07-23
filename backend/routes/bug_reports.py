@@ -157,7 +157,46 @@ def create_bug_report(user_id):
     logger.info(f"[BugReport] created {created.get('id')} from user {user_id} route={record.get('current_route')}")
 
     _capture_to_sentry(record, created, user_id, message)
+    _notify_admin_email(record, created, user_id)
     return jsonify({'success': True, 'report_id': created.get('id')}), 201
+
+
+def _notify_admin_email(record, created, user_id):
+    """Email the admin inbox on every new report so feedback isn't only visible
+    in Sentry / the DB. Best-effort: never fails the request, no-op if email
+    isn't configured (local dev)."""
+    try:
+        org_name = None
+        try:
+            # admin client justified: resolves the reporter's org for email context
+            supabase = get_supabase_admin_client()
+            res = supabase.table('users').select(
+                'organization_id, organizations(name)'
+            ).eq('id', user_id).limit(1).execute()
+            if res.data:
+                org = res.data[0].get('organizations')
+                if isinstance(org, dict):
+                    org_name = org.get('name')
+        except Exception as e:
+            logger.warning(f"[BugReport] org lookup for email failed: {e}")
+
+        extra = record.get('extra') if isinstance(record.get('extra'), dict) else {}
+        from services.email_service import email_service
+        email_service.send_bug_report_admin_email({
+            'report_id': created.get('id'),
+            'report_type': extra.get('report_type') or 'bug',
+            'message': record.get('message'),
+            'steps': record.get('steps'),
+            'current_route': record.get('current_route'),
+            'reporter_email': record.get('user_email'),
+            'reporter_role': record.get('user_role'),
+            'org_name': org_name,
+            'platform': record.get('platform'),
+            'app_version': record.get('app_version'),
+            'build_number': record.get('build_number'),
+        })
+    except Exception as e:
+        logger.warning(f"[BugReport] admin email notification skipped: {e}")
 
 
 def _capture_to_sentry(record, created, user_id, message):

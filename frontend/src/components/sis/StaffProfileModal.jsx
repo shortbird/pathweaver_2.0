@@ -141,6 +141,7 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
                   <option value="">—</option>
                   <option value="employee">Employee</option>
                   <option value="contractor">Independent contractor</option>
+                  <option value="family">Family</option>
                 </select>
               </Field>
               <Field label="Pay type">

@@ -202,7 +202,9 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
         {list.map((m) => {
           const isStudent = m.relationship === 'student'
           const isPrimary = primaryId === m.user_id
-          const sub = isStudent ? [m.status, m.grade_level].filter(Boolean).join(' · ') : m.email
+          const sub = isStudent
+            ? [m.age != null ? `age ${m.age}` : null, m.status, m.grade_level].filter(Boolean).join(' · ')
+            : m.email
           return (
             <div
               key={m.user_id}
@@ -357,8 +359,43 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
             className={field} placeholder="e.g. registration fee unpaid" />
         </label>
       )}
+      <UfaPrivateRow household={household} orgId={orgId} onSaved={onSaved} />
       <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} />
     </section>
+  )
+}
+
+// Whether the family is enrolling as a UFA (Utah Fits All) Private School vs
+// standard UFA. Staff toggle for existing families; the funnel sets it for new
+// registrations. Surfaces as a badge on the CLP page.
+const UfaPrivateRow = ({ household, orgId, onSaved }) => {
+  const [on, setOn] = useState(!!household.ufa_private)
+  const [busy, setBusy] = useState(false)
+
+  const toggle = async () => {
+    const next = !on
+    setBusy(true)
+    try {
+      await api.patch(`/api/sis/households/${household.id}`, { ufa_private: next, organization_id: orgId })
+      setOn(next)
+      onSaved?.()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-neutral-900">UFA Private School</div>
+        <div className="text-xs text-neutral-500">Utah Fits All family enrolling as a private school.</div>
+      </div>
+      <button
+        type="button" role="switch" aria-checked={on} aria-label="UFA Private School" onClick={toggle} disabled={busy}
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${on ? 'bg-optio-purple' : 'bg-neutral-300'} ${busy ? 'opacity-50' : ''}`}
+      >
+        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      </button>
+    </div>
   )
 }
 

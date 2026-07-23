@@ -7,7 +7,7 @@ from .input_validation import (
     validate_quest_data,
     validate_submission_data
 )
-from .sanitization import sanitize_input, sanitize_html
+from .sanitization import sanitize_input, sanitize_html, sanitize_text
 from .validators import (
     RequiredField,
     EmailField,
@@ -30,6 +30,7 @@ __all__ = [
     # Sanitization
     'sanitize_input',
     'sanitize_html',
+    'sanitize_text',
 
     # Field validators
     'RequiredField',

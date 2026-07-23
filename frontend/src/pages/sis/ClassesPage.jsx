@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { toast } from 'react-hot-toast'
-import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { ModalOverlay } from '../../components/ui'
@@ -61,11 +61,13 @@ const ClassesPage = () => {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)     // class being edited
+  const [editTab, setEditTab] = useState('details') // which tab the class modal opens on
   const [settingsCourse, setSettingsCourse] = useState(null) // course open in the detail modal (settings/enroll/enrollments tabs)
   const [filter, setFilter] = useState('classes')  // all | classes | courses; default: org's own classes
   const [search, setSearch] = useState('')
   const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
   const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
+  const [showArchived, setShowArchived] = useState(false) // include archived classes
   // cards | table — table is the spreadsheet view of the org's classes.
   const [view, setViewState] = useState(() => {
     try { return localStorage.getItem('sis_classes_view') || 'table' } catch { return 'table' }
@@ -75,11 +77,13 @@ const ClassesPage = () => {
     try { localStorage.setItem('sis_classes_view', v) } catch { /* ignore */ }
   }
 
-  const load = useCallback(() => {
+  // silent=true refreshes data without the full-page loading state, so an
+  // inline edit doesn't unmount the table and jump the scroll back to the top.
+  const load = useCallback((silent = false) => {
     if (!orgId) { setLoading(false); return }
-    setLoading(true)
+    if (!silent) setLoading(true)
     Promise.all([
-      api.get(withOrg('/api/sis/classes', orgId)),
+      api.get(withOrg(`/api/sis/classes${showArchived ? '?include_archived=true' : ''}`, orgId)),
       api.get('/api/courses?filter=all').catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} })),
@@ -98,7 +102,7 @@ const ClassesPage = () => {
       })
       .catch(() => toast.error('Failed to load catalog'))
       .finally(() => setLoading(false))
-  }, [orgId])
+  }, [orgId, showArchived])
 
   useEffect(() => { load() }, [load])
 
@@ -160,7 +164,7 @@ const ClassesPage = () => {
       await syncMeetings(cls.id, payload.days_of_week, payload.start_time, payload.duration_minutes, cls.meetings || [])
       if (imageFile) await uploadImage(cls.id, imageFile)
       toast.success('Class updated')
-      load()
+      load(true)  // silent — keep the table mounted so scroll position is preserved
       return true
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not update class')
@@ -174,6 +178,92 @@ const ClassesPage = () => {
     if (ok) setEditing(null)
   }
 
+  // Copy a class into a new "(copy)" draft — same details, meetings, and pricing,
+  // registration left closed so it isn't published before staff review it.
+  const duplicateClass = async (c) => {
+    try {
+      const body = {
+        name: `${c.name} (copy)`,
+        description: c.description,
+        location: c.location ?? null,
+        primary_instructor_id: c.primary_instructor_id ?? null,
+        capacity: c.capacity ?? null,
+        price_cents: c.price_cents ?? null,
+        supply_fee: c.supply_fee ?? null,
+        min_age: c.min_age ?? null,
+        max_age: c.max_age ?? null,
+        requires_full_day: c.requires_full_day ?? false,
+        registration_status: 'closed',
+        organization_id: orgId,
+      }
+      const r = await api.post('/api/sis/classes', body)
+      const id = r.data?.class?.id
+      // Recreate its meeting times on the copy.
+      for (const m of (c.meetings || [])) {
+        if (!id || m.day_of_week == null || !m.start_time || !m.end_time) continue
+        await api.post(`/api/sis/classes/${id}/meetings`, {
+          day_of_week: m.day_of_week, start_time: m.start_time, end_time: m.end_time, organization_id: orgId,
+        })
+      }
+      toast.success('Class duplicated — review and open registration when ready')
+      load(true)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not duplicate class')
+    }
+  }
+
+  const openRoster = (c) => { setEditTab('roster'); setEditing(c) }
+  const openEditor = (c) => { setEditTab('details'); setEditing(c) }
+
+  // Client-side CSV of the org's classes (the columns staff asked to sort in a
+  // spreadsheet). Built from the already-loaded rows — no extra request.
+  const exportCsv = () => {
+    const DOW = { 0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat' }
+    const t12 = (t) => {
+      if (!t) return ''
+      const [h, m] = String(t).slice(0, 5).split(':').map(Number)
+      const ampm = h >= 12 ? 'pm' : 'am'
+      const h12 = h % 12 === 0 ? 12 : h % 12
+      return `${h12}:${String(m).padStart(2, '0')}${ampm}`
+    }
+    const daysOf = (mts = []) => [...new Set(mts.map((m) => m.day_of_week).filter((d) => d != null))].sort()
+      .map((d) => DOW[d]).join(' ')
+    const timeOf = (mts = []) => {
+      const f = (mts || []).find((m) => m.start_time && m.end_time)
+      return f ? `${t12(f.start_time)}-${t12(f.end_time)}` : ''
+    }
+    const ages = (c) => c.min_age != null && c.max_age != null ? `${c.min_age}-${c.max_age}`
+      : c.min_age != null ? `${c.min_age}+` : c.max_age != null ? `up to ${c.max_age}` : ''
+    const headers = ['Class name', 'Teacher', 'Days', 'Time', 'Ages', 'Description',
+      'Supply fee', 'Tuition', 'Classroom', 'Enrolled', 'Capacity', 'Waitlist']
+    const rows = classes.map((c) => [
+      c.name || '',
+      c.primary_instructor?.name || c.primary_instructor?.display_name || '',
+      daysOf(c.meetings),
+      timeOf(c.meetings),
+      ages(c),
+      c.description || '',
+      c.supply_fee != null ? `$${c.supply_fee}` : '',
+      c.price_cents != null ? `$${(c.price_cents / 100).toFixed(2)}` : '',
+      c.location || '',
+      c.enrolled_count ?? 0,
+      c.capacity ?? '',
+      c.waitlist_count ?? 0,
+    ])
+    const esc = (v) => {
+      const s = String(v ?? '')
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const csv = [headers, ...rows].map((r) => r.map(esc).join(',')).join('\n')
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${orgName.replace(/\s+/g, '-').toLowerCase()}-classes.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const archiveClass = async (c) => {
     if (!window.confirm(`Archive "${c.name}"? It will no longer accept registrations.`)) return
     try {
@@ -182,6 +272,15 @@ const ClassesPage = () => {
       setEditing(null)
       load()
     } catch { toast.error('Could not archive class') }
+  }
+
+  const restoreClass = async (c) => {
+    try {
+      await api.post(`/api/sis/classes/${c.id}/restore?organization_id=${orgId}`, {})
+      toast.success('Class restored')
+      setEditing(null)
+      load()
+    } catch { toast.error('Could not restore class') }
   }
 
   // Optimistic: flip the row in place so the expanded row / open modal stays
@@ -275,12 +374,27 @@ const ClassesPage = () => {
           placeholder="Search…"
           className="flex-1 min-w-[160px] max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
         />
+        <button
+          onClick={() => setShowArchived((v) => !v)}
+          className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+            showArchived ? 'border-optio-purple text-optio-purple bg-optio-purple/5' : 'border-gray-200 text-neutral-500 hover:bg-neutral-50'
+          }`}
+        >
+          {showArchived ? 'Showing archived' : 'Show archived'}
+        </button>
         {orgId && <ScheduleAiEditor orgId={orgId} onApplied={load} />}
         {orgId && (
           <button onClick={() => setShowSync(true)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-medium hover:bg-optio-purple/5 transition-colors">
             <ArrowPathIcon className="w-4 h-4" />
             Sync from Sheet
+          </button>
+        )}
+        {orgId && classes.length > 0 && (
+          <button onClick={exportCsv}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-neutral-50 transition-colors">
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            Export CSV
           </button>
         )}
       </div>
@@ -317,7 +431,11 @@ const ClassesPage = () => {
           timeBlocks={timeBlocks}
           onSave={saveClass}
           onToggleRegistration={toggleRegistration}
-          onOpen={(c) => setEditing(c)}
+          onOpen={openEditor}
+          onRoster={openRoster}
+          onDuplicate={duplicateClass}
+          onArchive={archiveClass}
+          onRestore={restoreClass}
         />
       )}
 
@@ -350,10 +468,12 @@ const ClassesPage = () => {
           staff={staff}
           timeBlocks={timeBlocks}
           orgId={orgId}
+          initialTab={editTab}
           onClose={() => setEditing(null)}
           onSubmit={handleUpdate}
           onToggleRegistration={toggleRegistration}
           onArchive={() => archiveClass(classes.find((c) => c.id === editing.id) || editing)}
+          onRestore={() => restoreClass(classes.find((c) => c.id === editing.id) || editing)}
         />
       )}
       {settingsCourse && (
@@ -561,10 +681,11 @@ const CLASS_TABS = [
 // editable (the embedded CreateClassModal form), plus registration + archive.
 // "Preview" renders the exact read-only modal parents and students see in the
 // Schedule Builder.
-const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmit, onToggleRegistration, onArchive }) => {
-  const [tab, setTab] = useState('details')
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore }) => {
+  const [tab, setTab] = useState(initialTab)
   const [previewing, setPreviewing] = useState(false)
   const isOpen = cls.registration_status === 'open'
+  const isArchived = cls.status === 'archived'
 
   if (previewing) {
     return (
@@ -622,13 +743,17 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, onClose, onSubmi
               <CreateClassModal embedded initial={cls} staff={staff} timeBlocks={timeBlocks} onClose={onClose} onSubmit={onSubmit} />
 
               <div className="pt-1">
-                <button onClick={onArchive} className="text-sm text-red-500 hover:underline">Archive class</button>
+                {isArchived ? (
+                  <button onClick={onRestore} className="text-sm font-medium text-optio-purple hover:underline">Restore class</button>
+                ) : (
+                  <button onClick={onArchive} className="text-sm text-red-500 hover:underline">Archive class</button>
+                )}
               </div>
             </div>
           )}
 
           {tab === 'roster' && <ClassRoster classId={cls.id} orgId={orgId} />}
-          {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} />}
+          {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} />}
         </div>
       </div>
     </ModalOverlay>
@@ -652,7 +777,10 @@ const ClassRoster = ({ classId, orgId }) => {
       <ul className="divide-y divide-gray-100">
         {roster.map((s) => (
           <li key={s.student_id} className="py-2 flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-neutral-800">{s.name}</span>
+            <span className="text-sm font-medium text-neutral-800">
+              {s.name}
+              {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
+            </span>
             <span className="text-xs text-neutral-400 truncate">{s.email || s.username || ''}</span>
           </li>
         ))}
@@ -661,7 +789,7 @@ const ClassRoster = ({ classId, orgId }) => {
   )
 }
 
-const ClassWaitlist = ({ classId, orgId }) => {
+const ClassWaitlist = ({ classId, orgId, cls }) => {
   const [entries, setEntries] = useState([])
   const [loaded, setLoaded] = useState(false)
 
@@ -673,6 +801,13 @@ const ClassWaitlist = ({ classId, orgId }) => {
   }, [classId, orgId])
 
   useEffect(() => { reload() }, [reload])
+
+  // A seat can only be offered when one is actually open. Offering into a full
+  // class enrolls someone over capacity, so the button is disabled until a seat
+  // frees up (a drop, or raising the capacity).
+  const capacity = cls?.capacity
+  const enrolled = cls?.enrolled_count ?? 0
+  const isFull = cls?.is_full ?? (capacity != null && enrolled >= capacity)
 
   const offerNext = async () => {
     try {
@@ -690,8 +825,16 @@ const ClassWaitlist = ({ classId, orgId }) => {
     <div className="border-t border-gray-100 mt-3 pt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-neutral-700">Waitlist ({entries.length})</span>
-        <Button size="sm" variant="secondary" onClick={offerNext}>Offer next seat</Button>
+        <Button size="sm" variant="secondary" onClick={offerNext} disabled={isFull}
+          title={isFull ? 'The class is full — free a seat or raise the capacity to offer one' : undefined}>
+          Offer next seat
+        </Button>
       </div>
+      {isFull && (
+        <p className="text-xs text-neutral-400 mb-2">
+          Class is full ({enrolled}/{capacity}). Drop a student or raise the capacity to offer a seat.
+        </p>
+      )}
       <div className="space-y-1">
         {entries.map((e) => (
           <div key={e.id} className="flex items-center justify-between text-sm">

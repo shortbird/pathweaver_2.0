@@ -597,6 +597,110 @@ class EmailService(BaseService):
             }
         )
 
+    def send_bug_report_admin_email(self, report: Dict[str, Any]) -> bool:
+        """Notify the admin inbox that a new in-app feedback / bug report landed.
+
+        Covers every surface that posts to /api/bug-reports (v2 mobile shake-to-
+        report AND the web-SIS feedback button). Best-effort — the caller must
+        never let a failure here fail the report submission itself.
+
+        `report` keys used (all optional except message):
+            report_id, report_type, message, steps, current_route,
+            reporter_email, reporter_role, org_name, platform,
+            app_version, build_number
+        """
+        rtype = (report.get('report_type') or 'bug').lower()
+        type_label = {
+            'bug': 'Bug report',
+            'idea': 'Idea',
+            'confusion': 'Confusion',
+        }.get(rtype, 'Feedback')
+
+        reporter = report.get('reporter_email') or 'unknown'
+        org_name = report.get('org_name')
+        who = f"{reporter}"
+        if report.get('reporter_role'):
+            who += f" ({report['reporter_role']})"
+        if org_name:
+            who += f" — {org_name}"
+
+        message = (report.get('message') or '').strip()
+        steps = (report.get('steps') or '').strip()
+        route = report.get('current_route') or 'unknown'
+        platform = report.get('platform') or 'unknown'
+        version_bits = ' '.join(
+            b for b in [report.get('app_version'), report.get('build_number')] if b
+        )
+
+        subject = f"[Feedback] {type_label} from {org_name or reporter}: {message[:60]}"
+
+        def _esc(v: str) -> str:
+            return (
+                str(v)
+                .replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+            )
+
+        rows = [
+            ('From', who),
+            ('Type', type_label),
+            ('Page', route),
+            ('Platform', platform + (f' · {version_bits}' if version_bits else '')),
+        ]
+        meta_html = ''.join(
+            f'<tr><td style="padding:4px 12px 4px 0;color:#6b7280;font-size:13px;'
+            f'white-space:nowrap;vertical-align:top;">{label}</td>'
+            f'<td style="padding:4px 0;font-size:13px;color:#111827;">{_esc(value)}</td></tr>'
+            for label, value in rows
+        )
+
+        steps_html = ''
+        if steps:
+            steps_html = (
+                '<p style="margin:16px 0 4px;color:#6b7280;font-size:13px;">'
+                'Steps to reproduce</p>'
+                f'<div style="white-space:pre-wrap;font-size:14px;color:#111827;">'
+                f'{_esc(steps)}</div>'
+            )
+
+        html_body = f"""
+        <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+                    max-width:600px;margin:0 auto;padding:24px;color:#111827;">
+          <p style="margin:0 0 4px;color:#6b7280;font-size:13px;">New in-app feedback</p>
+          <h2 style="margin:0 0 16px;font-size:18px;">{_esc(type_label)}</h2>
+          <table style="border-collapse:collapse;margin-bottom:16px;">{meta_html}</table>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
+            <div style="white-space:pre-wrap;font-size:15px;color:#111827;">{_esc(message)}</div>
+            {steps_html}
+          </div>
+          <p style="margin:16px 0 0;color:#9ca3af;font-size:12px;">
+            Report ID: {_esc(report.get('report_id') or 'n/a')}
+          </p>
+        </div>
+        """.strip()
+
+        text_lines = [
+            f"{type_label} from {who}",
+            f"Page: {route}",
+            f"Platform: {platform}" + (f" ({version_bits})" if version_bits else ''),
+            '',
+            message,
+        ]
+        if steps:
+            text_lines += ['', 'Steps to reproduce:', steps]
+        text_lines += ['', f"Report ID: {report.get('report_id') or 'n/a'}"]
+
+        # reply_to is forced to ADMIN_EMAIL so a reply doesn't get re-routed to a
+        # school inbox by the org reply-to rule (recipient IS the admin here).
+        return self.send_email(
+            to_email=Config.ADMIN_EMAIL,
+            subject=subject,
+            html_body=html_body,
+            text_body='\n'.join(text_lines),
+            reply_to=Config.ADMIN_EMAIL,
+        )
+
     def send_promo_welcome_email(self, parent_email: str, parent_name: str, teen_age: str, activity: str = '') -> bool:
         """Send welcome email to parents who fill out the promo form"""
         tanner_email = Config.ADMIN_EMAIL

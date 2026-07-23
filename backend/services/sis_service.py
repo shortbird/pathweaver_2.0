@@ -148,6 +148,16 @@ def _parse_iso_date(v: Any):
         return None
 
 
+def _age_years(dob: Any) -> Optional[int]:
+    """Whole years from a DOB (ISO string or date), or None when unknown."""
+    from datetime import date
+    d = _parse_iso_date(dob)
+    if d is None:
+        return None
+    today = date.today()
+    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+
+
 def _dob_gap_days(a: Any, b: Any) -> Optional[int]:
     """Absolute day gap between two DOBs, or None when either is unknown."""
     da, db = _parse_iso_date(a), _parse_iso_date(b)
@@ -245,6 +255,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'first_name': s.get('first_name'),
             'last_name': s.get('last_name'),
             'date_of_birth': s.get('date_of_birth'),
+            'age': _age_years(s.get('date_of_birth')) if student else None,
             'preferred_name': s.get('preferred_name'),
             'gender': s.get('gender'),
             'allergies': s.get('allergies'),
@@ -1317,6 +1328,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
             enr = enrollments.get(m['user_id']) or {}
             entry['status'] = enr.get('status') or 'unassigned'
             entry['grade_level'] = enr.get('grade_level')
+            entry['age'] = _age_years(u.get('date_of_birth')) if u else None
             # Carried only for duplicate detection; stripped before returning.
             entry['first_name'] = u.get('first_name') if u else None
             entry['last_name'] = u.get('last_name') if u else None

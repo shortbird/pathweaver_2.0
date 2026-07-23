@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
-import { withOrg } from './useSisOrg'
+import { withOrg, useSisOrg } from './useSisOrg'
 import { withPreview } from './teacherPreview'
+import { getHiddenModules } from './sisModules'
 
 /**
  * TeacherDashboard — the advisor landing page for the SIS teacher portal.
@@ -44,6 +45,8 @@ const ALERT_LABEL = {
 const alertMessage = (a) => (ALERT_LABEL[a.alert_type] ? ALERT_LABEL[a.alert_type](a) : 'needs attention')
 
 const TeacherDashboard = ({ orgId, userName, preview = null }) => {
+  const { activeOrg } = useSisOrg()
+  const hidden = getHiddenModules(activeOrg)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [clockBusy, setClockBusy] = useState(false)
@@ -107,7 +110,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
         {profile.position && <p className="text-neutral-500 mt-1">{profile.position}</p>}
       </div>
 
-      {(onboarding && onboarding.status !== 'complete') && (
+      {(onboarding && onboarding.status !== 'complete' && !hidden.has('onboarding')) && (
         <Link to="/onboarding" className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">
             Onboarding: {onboarding.done} of {onboarding.total} items complete
@@ -202,7 +205,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
               </p>
             </Card>
           )}
-          {profile.uses_time_clock && !preview && (
+          {profile.uses_time_clock && !preview && !hidden.has('timesheets') && (
             <Card title="Time clock">
               {openEntry ? (
                 <div>
@@ -226,6 +229,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
             </Card>
           )}
 
+          {!hidden.has('forms') && (
           <Card title="Recent forms" action={<Link to="/forms" className="text-sm text-optio-purple hover:underline">All forms</Link>}>
             {!recentForms.length && <p className="text-sm text-neutral-500">No submissions yet.</p>}
             <ul className="space-y-2">
@@ -242,6 +246,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
               ))}
             </ul>
           </Card>
+          )}
         </div>
       </div>
 

@@ -17,7 +17,7 @@ const PreviewBanner = () => {
         Previewing the teacher portal as {preview.name} (read-only)
       </span>
       <button
-        onClick={() => { clearPreviewTeacher(); navigate('/staff'); window.location.reload() }}
+        onClick={() => { clearPreviewTeacher(); navigate('/people?tab=staff'); window.location.reload() }}
         className="ml-auto rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1 font-semibold"
       >
         Exit preview

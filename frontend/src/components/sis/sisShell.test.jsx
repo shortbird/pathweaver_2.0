@@ -7,6 +7,12 @@ vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 // SisLayout mounts the feedback FAB, which reads the org context.
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => ({ organization: null }) }))
 vi.mock('../../services/api', () => ({ default: { post: vi.fn(() => Promise.resolve({ data: {} })) } }))
+// The sidebar resolves the active org via useSisOrg; stub it so these gate/nav
+// tests don't depend on the org-list fetch. activeOrg null => nothing hidden.
+vi.mock('../../pages/sis/useSisOrg', () => ({
+  useSisOrg: () => ({ orgId: null, setOrgId: vi.fn(), orgs: [], isSuperadmin: true, loading: false, activeOrg: null }),
+  withOrg: (p) => p,
+}))
 
 const nav = vi.hoisted(() => ({ goToLearningSurface: vi.fn(), goToSisSurface: vi.fn(), switchSurfaceInApp: vi.fn() }))
 vi.mock('../../utils/appSurface', () => nav)
@@ -62,8 +68,8 @@ describe('SisSidebar', () => {
   it('shows the Users nav and links back to the learning app', () => {
     authState = { isAuthenticated: true, effectiveRole: 'superadmin', user: { role: 'superadmin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.getByText('Users')).toBeInTheDocument()
-    expect(screen.getByText('Families')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
+    expect(screen.getByText('Classes')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Switch to Learning app'))
     expect(nav.switchSurfaceInApp).toHaveBeenCalledWith('learning', '/dashboard')
@@ -72,7 +78,7 @@ describe('SisSidebar', () => {
   it('shows the staff nav for org_admin', () => {
     authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.getByText('Users')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
     expect(screen.getByText('Classes')).toBeInTheDocument()
   })
 })

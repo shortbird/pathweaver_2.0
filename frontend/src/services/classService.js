@@ -73,6 +73,16 @@ const classService = {
     return response.data
   },
 
+  /**
+   * Restore (un-archive) a class
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   */
+  restoreClass: async (orgId, classId) => {
+    const response = await api.post(`/api/organizations/${orgId}/classes/${classId}/restore`, {})
+    return response.data
+  },
+
   // ===== Advisor Management =====
 
   /**

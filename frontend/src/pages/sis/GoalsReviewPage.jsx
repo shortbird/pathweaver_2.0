@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import FamilyGoalsPage from '../FamilyGoalsPage'
 
 /**
  * Goals — the staff side of goal/direction setting (goals-mode schools). Parents
@@ -108,11 +109,12 @@ const GoalDetail = ({ goal, orgId, onClose, onReviewed }) => {
 }
 
 const GoalsReviewPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
   const [goals, setGoals] = useState(null)
   const [config, setConfig] = useState(null)
   const [year, setYear] = useState('')
   const [selectedId, setSelectedId] = useState(null)
+  const [previewing, setPreviewing] = useState(false)
 
   const load = () => {
     if (!orgId) return
@@ -136,8 +138,29 @@ const GoalsReviewPage = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Goals</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+        <div className="flex items-center gap-3">
+          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+          <Button variant="secondary" size="sm" onClick={() => setPreviewing(true)}>
+            Preview family view
+          </Button>
+        </div>
       </div>
+
+      {previewing && (
+        <ModalOverlay onClose={() => setPreviewing(false)}>
+          <div className="bg-neutral-50 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 z-10 flex items-center justify-between bg-white/95 backdrop-blur border-b border-gray-200 px-5 py-3">
+              <span className="text-sm font-semibold text-neutral-700">Family view preview</span>
+              <button onClick={() => setPreviewing(false)} className="text-sm text-neutral-500 hover:text-neutral-800">Close</button>
+            </div>
+            <FamilyGoalsPage preview={{
+              subjects: config?.subjects || [],
+              school_year: config?.school_year || year,
+              organization_name: activeOrg?.name,
+            }} />
+          </div>
+        </ModalOverlay>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3">
         <label className="text-sm text-neutral-600" htmlFor="goals-year">School year</label>

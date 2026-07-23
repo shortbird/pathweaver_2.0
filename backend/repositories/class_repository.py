@@ -97,6 +97,10 @@ class ClassRepository(BaseRepository):
         """Archive a class (soft delete)"""
         return self.update_class(class_id, {'status': 'archived'})
 
+    def restore_class(self, class_id: str) -> Dict[str, Any]:
+        """Un-archive a class (status back to active)."""
+        return self.update_class(class_id, {'status': 'active'})
+
     # ===== Advisor Management =====
 
     def get_class_advisors(self, class_id: str) -> List[Dict[str, Any]]:

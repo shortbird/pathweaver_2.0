@@ -245,20 +245,20 @@ const PhotoPicker = ({ label, url, busy, error, onSelect }) => (
 // they unlock only by finishing the one before them.
 const BACK_EDITABLE = new Set(['family', 'details', 'paperwork'])
 
-const VerticalStepper = ({ step, onNavigate, freeNav = false }) => {
-  const idx = STEPS.indexOf(step)
+const VerticalStepper = ({ step, steps = STEPS, onNavigate, freeNav = false }) => {
+  const idx = steps.indexOf(step)
   return (
     <aside className="hidden md:block w-56 shrink-0">
       <nav className="sticky top-8">
         <ol>
-          {STEPS.map((s, i) => {
+          {steps.map((s, i) => {
             const done = i < idx
             const current = i === idx
             // freeNav (preview mode): every step is one click away.
             const clickable = freeNav ? !current : (done && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step))
             return (
               <li key={s} className="relative pb-7 last:pb-0">
-                {i < STEPS.length - 1 && (
+                {i < steps.length - 1 && (
                   <span className={`absolute left-[15px] top-10 bottom-1 w-px ${done ? 'bg-optio-purple' : 'bg-neutral-200'}`} />
                 )}
                 <button
@@ -299,12 +299,12 @@ const VerticalStepper = ({ step, onNavigate, freeNav = false }) => {
 
 // Compact horizontal stepper for small screens. Completed steps are tappable
 // to go back and edit.
-const MobileStepper = ({ step, onNavigate, freeNav = false }) => {
-  const idx = STEPS.indexOf(step)
+const MobileStepper = ({ step, steps = STEPS, onNavigate, freeNav = false }) => {
+  const idx = steps.indexOf(step)
   return (
     <div className="md:hidden mb-6">
       <div className="flex items-center gap-1.5 justify-center">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const clickable = freeNav ? i !== idx : (i < idx && BACK_EDITABLE.has(s) && !POST_FEE_STEPS.has(step))
           return (
             <React.Fragment key={s}>
@@ -316,13 +316,13 @@ const MobileStepper = ({ step, onNavigate, freeNav = false }) => {
                 } ${clickable ? '' : 'cursor-default'}`}>
                 {i < idx ? <CheckIcon className="w-3.5 h-3.5" /> : i + 1}
               </button>
-              {i < STEPS.length - 1 && <div className={`h-px w-3 ${i < idx ? 'bg-optio-purple' : 'bg-neutral-200'}`} />}
+              {i < steps.length - 1 && <div className={`h-px w-3 ${i < idx ? 'bg-optio-purple' : 'bg-neutral-200'}`} />}
             </React.Fragment>
           )
         })}
       </div>
       <p className="text-center text-xs text-neutral-400 mt-2">
-        Step {idx + 1} of {STEPS.length}: {STEP_LABELS[step]} — all steps are required, in order. Tap a completed step to edit it.
+        Step {idx + 1} of {steps.length}: {STEP_LABELS[step]} — all steps are required, in order. Tap a completed step to edit it.
       </p>
     </div>
   )
@@ -368,6 +368,16 @@ const ICreateRegisterPage = () => {
   const [loading, setLoading] = useState(true)
   const [fatal, setFatal] = useState(null)
   const [config, setConfig] = useState(null)
+  // A fee step only exists when the org can actually charge a registration fee
+  // (a flat/per-student fee, an external payment link, or card payment). Zero-fee
+  // orgs (e.g. Gryffin) never see it — not in the flow, the stepper, or preview.
+  const feeApplies = Boolean(
+    Number(config?.registration_fee_cents) > 0
+    || Number(config?.per_student_fee_cents) > 0
+    || config?.payment_url
+    || config?.stripe_enabled,
+  )
+  const steps = feeApplies ? STEPS : STEPS.filter((s) => s !== 'fee')
   const [step, setStep] = useState('account')
   const [submitting, setSubmitting] = useState(false)
 
@@ -816,7 +826,7 @@ const ICreateRegisterPage = () => {
   // ── Details / paperwork / fee (unchanged mechanics) ─────────────────────────
 
   const submitDetails = async () => {
-    if (previewMode) return setStep((config.paperwork || []).length ? 'paperwork' : 'fee')
+    if (previewMode) return setStep((config.paperwork || []).length ? 'paperwork' : (feeApplies ? 'fee' : 'done'))
     const validContacts = contacts.filter((c) => c.name.trim() || c.phone.trim())
     if (!validContacts.length) return toast.error('Add at least one emergency contact')
     for (const [i, c] of validContacts.entries()) {
@@ -845,7 +855,7 @@ const ICreateRegisterPage = () => {
   }
 
   const submitPaperwork = async () => {
-    if (previewMode) return setStep('fee')
+    if (previewMode) return setStep(feeApplies ? 'fee' : 'done')
     const items = config.paperwork || []
     for (const it of items) {
       if (!agreed[it.key]) return toast.error(`Please confirm you agree to: ${it.label}`)
@@ -1003,9 +1013,9 @@ const ICreateRegisterPage = () => {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 flex gap-10">
-        <VerticalStepper step={step} onNavigate={setStep} freeNav={previewMode} />
+        <VerticalStepper step={step} steps={steps} onNavigate={setStep} freeNav={previewMode} />
         <div className="flex-1 min-w-0 max-w-2xl">
-        <MobileStepper step={step} onNavigate={setStep} freeNav={previewMode} />
+        <MobileStepper step={step} steps={steps} onNavigate={setStep} freeNav={previewMode} />
 
         {previewMode && (
           <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
@@ -1259,6 +1269,12 @@ const ICreateRegisterPage = () => {
               const qKids = previewMode
                 ? kids.map((k, i) => ({ user_id: `preview-${i}`, first_name: k.first_name, name: `${k.first_name} ${k.last_name}`.trim() }))
                 : serverKids
+              // Built-in follow-up: only Utah Fits All families need to say
+              // whether they're enrolling as a UFA Private School.
+              const paymentIsUFA = familyQs.some((q) => {
+                const v = answers[q.key]
+                return Array.isArray(v) ? v.includes('Utah Fits All') : v === 'Utah Fits All'
+              })
               return (
                 <Section title="A few questions">
                   <div className="space-y-5">
@@ -1266,6 +1282,19 @@ const ICreateRegisterPage = () => {
                       <QuestionField key={q.key} q={q} value={answers[q.key]}
                         onChange={(v) => setAnswers((a) => ({ ...a, [q.key]: v }))} />
                     ))}
+                    {paymentIsUFA && (
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-800 mb-1">
+                          Are you enrolling as a UFA (Utah Fits All) Private School?
+                        </label>
+                        <select className={field} value={answers.ufa_private || ''}
+                          onChange={(e) => setAnswers((a) => ({ ...a, ufa_private: e.target.value }))}>
+                          <option value="">-- Please select --</option>
+                          <option value="No">No, standard Utah Fits All</option>
+                          <option value="Yes">Yes, UFA Private School</option>
+                        </select>
+                      </div>
+                    )}
                     {studentQs.length > 0 && qKids.map((k, idx) => (
                       <div key={k.user_id} className={familyQs.length || idx > 0 ? 'pt-4 border-t border-gray-100' : ''}>
                         <h3 className="text-sm font-semibold text-neutral-900 mb-3">

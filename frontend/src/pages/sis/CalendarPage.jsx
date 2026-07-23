@@ -191,7 +191,15 @@ const CalendarPage = () => {
                         <button key={e.id} type="button"
                           onClick={(ev) => { ev.stopPropagation(); setModal({ event: e }) }}
                           className={`block w-full text-left rounded px-1.5 py-0.5 transition-colors ${colorFor(e.category, categories)}`}>
-                          <span className="text-[11px] font-semibold leading-tight block truncate">{e.title}</span>
+                          <span className="text-[11px] font-semibold leading-tight block truncate">
+                            {e.audience && e.audience !== 'school' && (
+                              <span className="text-[9px] font-bold uppercase opacity-70 mr-0.5"
+                                title={e.audience === 'admins' ? 'Admins only' : 'Teachers only'}>
+                                {e.audience === 'admins' ? 'Admin' : 'Staff'}
+                              </span>
+                            )}
+                            {e.title}
+                          </span>
                           {!e.all_day && startDate === key && <span className="text-[10px] opacity-80">{fmtTime(time)}</span>}
                         </button>
                       )
@@ -249,6 +257,7 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
     description: seed?.description || '',
     location: seed?.location || '',
     category: seed?.category || '',
+    audience: seed?.audience || 'school',
     all_day: seed ? !!seed.all_day : false,
     date: start.date || defaultDate,
     end_date: end.date && end.date !== start.date ? end.date : '',
@@ -286,6 +295,7 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
       description: form.description.trim(),
       location: form.location.trim(),
       category: form.category || null,
+      audience: form.audience || 'school',
       all_day: form.all_day,
       start_at: joinStamp(form.date, form.all_day ? '00:00' : (form.start_time || '00:00')),
       end_at,
@@ -356,6 +366,14 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
               </div>
             </div>
           )}
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Who can see this</label>
+            <select className={field} value={form.audience} onChange={(e) => set({ audience: e.target.value })}>
+              <option value="school">Whole school — families, teachers, and admins</option>
+              <option value="teachers">Teachers only — staff (not families)</option>
+              <option value="admins">Admins only</option>
+            </select>
+          </div>
           {categories.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-neutral-500 mb-1">Category (optional)</label>

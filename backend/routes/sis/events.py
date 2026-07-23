@@ -11,7 +11,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
-from utils.validation import sanitize_input
+from utils.validation import sanitize_text
 from database import get_supabase_admin_client
 from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
 
@@ -19,7 +19,8 @@ logger = get_logger(__name__)
 
 bp = Blueprint('sis_events', __name__, url_prefix='/api/sis')
 
-EVENT_FIELDS = ('title', 'description', 'location', 'start_at', 'end_at', 'all_day', 'category')
+EVENT_FIELDS = ('title', 'description', 'location', 'start_at', 'end_at', 'all_day', 'category', 'audience')
+AUDIENCES = ('school', 'teachers', 'admins')
 
 
 def _clean(data):
@@ -31,8 +32,13 @@ def _clean(data):
         v = data[k]
         if k == 'all_day':
             fields[k] = bool(v)
+        elif k == 'audience':
+            fields[k] = v if v in AUDIENCES else 'school'
         elif k in ('title', 'description', 'location', 'category'):
-            fields[k] = sanitize_input(str(v or '')).strip() or None
+            # Text fields are rendered AS TEXT (React escapes; ICS has its own
+            # escaper), so store raw — html-escaping here shows entities literally
+            # and double-escapes on re-save ("&amp;amp"). See sanitize_text docs.
+            fields[k] = sanitize_text(str(v or '')).strip() or None
         elif v is None:
             # An explicit null must STAY null: str(None) is the string "None",
             # which Postgres rejects as a timestamp. This made any event without
@@ -69,6 +75,14 @@ def list_events(user_id):
     if request.args.get('to'):
         q = q.lt('start_at', request.args['to'])
     rows = (q.order('start_at').execute()).data or []
+    # Audience gate: admins see everything; teachers (advisors) see school +
+    # teacher events, never admin-only ones. (Families use a separate endpoint.)
+    from utils.roles import get_effective_role
+    viewer = (get_supabase_admin_client().table('users')
+              .select('role, org_role, organization_id').eq('id', user_id).limit(1).execute()).data
+    role = get_effective_role(viewer[0]) if viewer else None
+    if role not in ('org_admin', 'superadmin'):
+        rows = [e for e in rows if (e.get('audience') or 'school') in ('school', 'teachers')]
     _, settings = _org_calendar_settings(org_id)
     return jsonify({'success': True, 'events': rows,
                     'categories': settings.get('calendar_categories') or []})
@@ -231,7 +245,10 @@ def calendar_ics(org_id):
     if not expected or not token or not _secrets.compare_digest(str(expected), token):
         return 'Not authorized', 403
     q = (get_supabase_admin_client().table('sis_events').select('*')
-         .eq('organization_id', org_id))
+         .eq('organization_id', org_id)
+         # The token can be shared with families, so never leak admin-only events
+         # through the subscribable feed (school + teacher events only).
+         .neq('audience', 'admins'))
     if request.args.get('category'):
         q = q.eq('category', request.args['category'])
     events = (q.order('start_at').execute()).data or []

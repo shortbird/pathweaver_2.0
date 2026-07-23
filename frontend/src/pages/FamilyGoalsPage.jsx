@@ -58,7 +58,20 @@ const StatusBanner = ({ goal }) => {
   )
 }
 
-const FamilyGoalsPage = () => {
+// A read-only sample family so staff can preview exactly what parents see
+// (subjects/school year come from the org config on the SIS Goals page).
+const previewStudents = (preview) => ([{
+  id: 'preview-student',
+  name: 'Sample Student',
+  goal: null,
+  config: {
+    subjects: preview.subjects || [],
+    school_year: preview.school_year || '',
+    organization_name: preview.organization_name || 'your school',
+  },
+}])
+
+const FamilyGoalsPage = ({ preview = null }) => {
   const [students, setStudents] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [forms, setForms] = useState({}) // studentId -> form
@@ -79,7 +92,16 @@ const FamilyGoalsPage = () => {
     })
     .catch(() => { toast.error('Could not load goal setting'); setStudents([]) })
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (preview) {
+      const list = previewStudents(preview)
+      setStudents(list)
+      setActiveId(list[0].id)
+      setForms({ [list[0].id]: emptyForm(list[0].config.subjects) })
+      return
+    }
+    load()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = students?.find((s) => s.id === activeId)
   const form = active ? forms[active.id] : null
@@ -160,6 +182,7 @@ const FamilyGoalsPage = () => {
               value={form.direction}
               onChange={(e) => setForm((f) => ({ ...f, direction: e.target.value }))}
               placeholder="e.g. Trade school for welding"
+              disabled={!!preview}
             />
             <label className="block text-sm font-medium text-neutral-700 mt-3 mb-1">Notes (optional)</label>
             <textarea
@@ -168,6 +191,7 @@ const FamilyGoalsPage = () => {
               value={form.direction_notes}
               onChange={(e) => setForm((f) => ({ ...f, direction_notes: e.target.value }))}
               placeholder="Anything else about this direction"
+              disabled={!!preview}
             />
           </div>
 
@@ -182,6 +206,7 @@ const FamilyGoalsPage = () => {
                 rows={2}
                 value={s.year_goal}
                 onChange={(e) => setSubject(i, 'year_goal', e.target.value)}
+                disabled={!!preview}
               />
               <label className="block text-sm font-medium text-neutral-700 mt-3 mb-1">
                 Long-term direction in this subject
@@ -191,6 +216,7 @@ const FamilyGoalsPage = () => {
                 rows={2}
                 value={s.long_term}
                 onChange={(e) => setSubject(i, 'long_term', e.target.value)}
+                disabled={!!preview}
               />
             </div>
           ))}
@@ -199,12 +225,18 @@ const FamilyGoalsPage = () => {
             <span className="text-xs text-neutral-400 mr-auto">
               School year {active.config?.school_year}
             </span>
-            <Button variant="secondary" onClick={() => save(false)} disabled={saving}>
-              Save draft
-            </Button>
-            <Button onClick={() => save(true)} disabled={saving}>
-              Submit for review
-            </Button>
+            {preview ? (
+              <span className="text-sm text-neutral-400 italic">Preview — parents fill this in and submit for review</span>
+            ) : (
+              <>
+                <Button variant="secondary" onClick={() => save(false)} disabled={saving}>
+                  Save draft
+                </Button>
+                <Button onClick={() => save(true)} disabled={saving}>
+                  Submit for review
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -166,13 +166,14 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
   )
 }
 
-const HouseholdsPage = () => {
+const HouseholdsPage = ({ embedded = false }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const [households, setHouseholds] = useState([])
   const [members, setMembers] = useState([])
   const [unassigned, setUnassigned] = useState([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
 
@@ -208,15 +209,18 @@ const HouseholdsPage = () => {
     try {
       await api.post('/api/sis/households', { name: newName.trim(), organization_id: orgId })
       setNewName('')
+      setShowCreate(false)
       toast.success('Family created')
       load()
     } catch { toast.error('Could not create family') }
   }
 
+  // Students show their age next to the name (staff asked to see ages at a
+  // glance); guardians just show the name.
   const memberPreview = (list = []) => {
     if (!list.length) return 'No members yet'
-    const names = list.map((m) => m.name)
-    return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '')
+    const labels = list.map((m) => (m.age != null ? `${m.name} (${m.age})` : m.name))
+    return labels.slice(0, 3).join(', ') + (labels.length > 3 ? ` +${labels.length - 3}` : '')
   }
 
   // Search matches the family name AND every member's name, so a kid whose
@@ -230,29 +234,49 @@ const HouseholdsPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Families</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-      </div>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-neutral-900">Families</h1>
+          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+        </div>
+      )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex gap-3">
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && createHousehold()}
-          className={`${field} flex-1`}
-          placeholder="New family / household name"
-        />
-        <Button size="sm" onClick={createHousehold}>Create family</Button>
-      </div>
-
+      {/* Search first — staff search far more often than they create, and a
+          prominent Create button at the top led to accidental family creation. */}
       {!loading && households.length > 0 && (
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className={`${field} w-full sm:w-80 mb-4`}
+          className={`${field} w-full mb-3`}
           placeholder="Search families or any family member…"
         />
+      )}
+
+      {!loading && (
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-neutral-500">Most families are created when they register.</span>
+          {!showCreate ? (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="text-sm font-medium text-optio-purple hover:underline"
+            >
+              + Create a family manually
+            </button>
+          ) : (
+            <div className="flex flex-1 min-w-[240px] gap-2">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && createHousehold()}
+                className={`${field} flex-1`}
+                placeholder="New family / household name"
+                autoFocus
+              />
+              <Button size="sm" onClick={createHousehold}>Create</Button>
+              <Button size="sm" variant="outline" onClick={() => { setShowCreate(false); setNewName('') }}>Cancel</Button>
+            </div>
+          )}
+        </div>
       )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}

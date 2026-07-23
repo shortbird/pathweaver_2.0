@@ -24,8 +24,6 @@ const ATT_COLORS = {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
-const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
-
 const TeacherClassPage = () => {
   const { classId } = useParams()
   const { orgId } = useSisOrg()
@@ -61,10 +59,17 @@ const TeacherClassPage = () => {
       .catch(() => setMarks({}))
   }, [orgId, classId, date])
 
+  // Everyone is present by default — the teacher only taps the exceptions
+  // (absent/late/excused). Any status an admin already set (e.g. an excusal)
+  // loads into `marks` and wins over the default.
+  const markOf = (id) => marks[id] || 'present'
+
   const saveAttendance = async () => {
-    const entries = Object.entries(marks).map(([student_user_id, status]) => ({ student_user_id, status }))
+    // Record the WHOLE roster so "attendance was taken" is explicit — untouched
+    // students save as present.
+    const entries = students.map((s) => ({ student_user_id: s.student_id, status: markOf(s.student_id) }))
     if (!entries.length) {
-      toast.error('Mark at least one student first')
+      toast.error('No students to record')
       return
     }
     setSaving(true)
@@ -80,11 +85,8 @@ const TeacherClassPage = () => {
     }
   }
 
-  const markAllPresent = () => {
-    const all = {}
-    for (const s of students) all[s.student_id] = marks[s.student_id] || 'present'
-    setMarks(all)
-  }
+  // Reset any exceptions back to all-present.
+  const markAllPresent = () => setMarks({})
 
   if (loading) return <p className="text-neutral-500">Loading…</p>
 
@@ -127,83 +129,113 @@ const TeacherClassPage = () => {
         <GradebookTab classId={classId} orgId={orgId} className={cls?.name} />
       )}
 
-      {tab === 'roster' && (<>
-      {/* Attendance quick entry */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 sis-no-print">
-        <div className="flex flex-wrap items-center gap-3 mb-1">
-          <h2 className="font-semibold text-neutral-900">Attendance</h2>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-          <button onClick={markAllPresent} className="text-sm text-optio-purple hover:underline">
-            Mark all present
-          </button>
-          <button onClick={saveAttendance} disabled={saving}
-            className="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save attendance'}
-          </button>
-        </div>
-      </div>
+      {tab === 'roster' && (() => {
+        const count = (st) => students.filter((s) => markOf(s.student_id) === st).length
+        const present = count('present'); const absent = count('absent')
+        const late = count('late'); const excused = count('excused')
+        // Card background by status — mirrors the admin /attendance page.
+        const CARD = {
+          present: 'border-gray-200 bg-white hover:border-neutral-300',
+          absent: 'border-red-300 bg-red-50',
+          late: 'border-amber-300 bg-amber-50',
+          excused: 'border-blue-300 bg-blue-50',
+        }
+        return (<>
+          {/* Controls — same shell as the admin attendance page */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3 sis-no-print">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              aria-label="Attendance date" />
+            <button onClick={markAllPresent} className="text-sm text-optio-purple hover:underline">Reset to all present</button>
+          </div>
 
-      {!students.length && <p className="text-neutral-500">No students enrolled yet.</p>}
+          {!students.length && <p className="text-neutral-500 sis-no-print">No students enrolled yet.</p>}
 
-      <div className="space-y-3">
-        {students.map((s) => (
-          <div key={s.student_id} className="bg-white rounded-xl border border-gray-200 p-4 print:border-0 print:border-b print:rounded-none">
-            <div className="flex items-start gap-4">
-              {s.avatar_url ? (
-                <img src={s.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover sis-no-print" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-optio-purple/20 to-optio-pink/20 flex items-center justify-center text-sm font-semibold text-optio-purple sis-no-print">
-                  {initials(s.name)}
+          {students.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden sis-no-print">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-100">
+                <div className="text-sm text-neutral-600">
+                  <span className="font-semibold text-neutral-900">{cls?.name}</span>
+                  {' · '}{present} present
+                  {absent ? <> · <span className="text-red-600 font-medium">{absent} absent</span></> : null}
+                  {late ? ` · ${late} late` : ''}
+                  {excused ? ` · ${excused} excused` : ''}
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-neutral-900">
-                    {s.name}
-                    {s.preferred_name && s.preferred_name !== s.name && (
-                      <span className="font-normal text-neutral-500"> “{s.preferred_name}”</span>
-                    )}
-                  </p>
-                  {s.age != null && <span className="text-sm text-neutral-500">Age {s.age}</span>}
-                  {s.has_alert && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700"
-                      title={[s.allergies && `Allergies: ${s.allergies}`, s.medications && `Medical: ${s.medications}`].filter(Boolean).join(' | ')}>
-                      <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Alert
-                    </span>
-                  )}
-                </div>
-                {s.has_alert && (
-                  <p className="text-sm text-red-700 mt-0.5">
-                    {s.allergies && <span className="mr-3"><span className="font-medium">Allergies:</span> {s.allergies}</span>}
-                    {s.medications && <span><span className="font-medium">Medical:</span> {s.medications}</span>}
-                  </p>
-                )}
-                <p className="text-sm text-neutral-500 mt-0.5">
-                  {(s.guardians || []).map((g) => `${g.name}${g.email ? ` (${g.email})` : ''}`).join(' · ') || 'No guardian on file'}
-                  {s.household_phone && ` · ${s.household_phone}`}
-                </p>
-                {s.attendance && (
-                  <p className="text-xs text-neutral-400 mt-0.5 sis-no-print">
-                    Attendance: {s.attendance.present + s.attendance.late} present · {s.attendance.absent} absent · {s.attendance.excused} excused
-                  </p>
-                )}
               </div>
-              <div className="flex gap-1 shrink-0 sis-no-print">
-                {ATT_STATUSES.map((st) => (
-                  <button key={st}
-                    onClick={() => setMarks((prev) => ({ ...prev, [s.student_id]: st }))}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                      marks[s.student_id] === st ? ATT_COLORS[st] : 'bg-gray-100 text-neutral-600 hover:bg-gray-200'}`}>
-                    {st}
-                  </button>
+
+              <p className="px-4 pt-3 text-xs text-neutral-400">
+                Everyone is present by default — tap only the students who are absent, late, or excused.
+              </p>
+
+              <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {students.map((s) => (
+                  <div key={s.student_id} className={`rounded-lg border px-3 py-3 transition-colors ${CARD[markOf(s.student_id)]}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-neutral-800 truncate">
+                          {s.name}
+                          {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
+                        </span>
+                        {s.has_alert && (
+                          <span className="inline-flex items-center gap-1 mt-0.5 text-[11px] font-semibold text-red-700"
+                            title={[s.allergies && `Allergies: ${s.allergies}`, s.medications && `Medical: ${s.medications}`].filter(Boolean).join(' | ')}>
+                            <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Alert
+                          </span>
+                        )}
+                      </span>
+                      <div className="flex gap-1 shrink-0">
+                        {ATT_STATUSES.map((st) => (
+                          <button key={st}
+                            onClick={() => setMarks((prev) => ({ ...prev, [s.student_id]: st }))}
+                            className={`px-2 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${
+                              markOf(s.student_id) === st ? ATT_COLORS[st] : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}>
+                            {st}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
+
+              <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
+                <span className="text-xs text-neutral-400">Untouched students are saved as present. You can edit and re-save anytime.</span>
+                <button onClick={saveAttendance} disabled={saving}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save attendance'}
+                </button>
+              </div>
             </div>
+          )}
+
+          {/* Printed roster — full contact + alert detail for a paper copy. */}
+          <div className="hidden print:block">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-left border-b border-gray-300">
+                  <th className="py-1 pr-3">Student</th><th className="py-1 pr-3">Age</th>
+                  <th className="py-1 pr-3">Guardians</th><th className="py-1">Alerts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((s) => (
+                  <tr key={s.student_id} className="border-b border-gray-200 align-top">
+                    <td className="py-1.5 pr-3 font-medium">{s.name}</td>
+                    <td className="py-1.5 pr-3">{s.age ?? ''}</td>
+                    <td className="py-1.5 pr-3">
+                      {(s.guardians || []).map((g) => `${g.name}${g.email ? ` (${g.email})` : ''}`).join(' · ') || '—'}
+                      {s.household_phone ? ` · ${s.household_phone}` : ''}
+                    </td>
+                    <td className="py-1.5">
+                      {[s.allergies && `Allergies: ${s.allergies}`, s.medications && `Medical: ${s.medications}`].filter(Boolean).join(' | ') || ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
-      </>)}
+        </>)
+      })()}
     </div>
   )
 }

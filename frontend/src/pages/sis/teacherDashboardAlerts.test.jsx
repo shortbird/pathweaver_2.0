@@ -9,6 +9,13 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
+// Keep the real withOrg (appends ?organization_id); only stub the hook so the
+// dashboard doesn't need the org-list fetch / contexts.
+vi.mock('./useSisOrg', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: null }),
+}))
+
 const { api, state } = vi.hoisted(() => {
   const state = {
     dashboard: { today: [], classes: [], profile: {}, recent_forms: [], pending_acks: [] },

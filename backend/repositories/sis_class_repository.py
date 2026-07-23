@@ -85,6 +85,17 @@ class SisClassRepository(BaseRepository):
         )
         return resp.data[0] if resp.data else None
 
+    def restore(self, class_id: str) -> Optional[Dict[str, Any]]:
+        """Bring an archived class back to active. Enrollments stay withdrawn
+        (they were dropped on archive); staff re-enroll as needed."""
+        resp = (
+            self.client.table(self.table_name)
+            .update({'status': 'active'})
+            .eq('id', class_id)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+
     def active_enrollment_count(self, class_id: str) -> int:
         resp = (
             self.client.table('class_enrollments')

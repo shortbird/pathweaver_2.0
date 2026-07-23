@@ -124,6 +124,15 @@ class ClassService(BaseService):
 
         return cls
 
+    def restore_class(self, class_id: str, restored_by: str) -> Dict[str, Any]:
+        """Un-archive a class (status back to active)."""
+        self.validate_required(class_id=class_id, restored_by=restored_by)
+
+        cls = self.class_repo.restore_class(class_id)
+        logger.info(f"Class {class_id} restored by {restored_by}")
+
+        return cls
+
     def list_org_classes(
         self,
         org_id: str,

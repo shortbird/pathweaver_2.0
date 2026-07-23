@@ -1293,6 +1293,11 @@ def submit_family(reg_id):
             'registration_hold': bool(directive and directive.get('registration_hold')),
             'registration_hold_reason': (directive or {}).get('hold_reason'),
         }
+        # UFA Private School: set from the family's answers (an explicit
+        # `ufa_private` yes/no question, or a payment option naming "private
+        # school"). Only ever turned ON here so it never clobbers a staff toggle.
+        if _answers_signal_ufa_private(reg.get('answers') or {}):
+            hh_fields['ufa_private'] = True
         # Reuse the parent's existing household instead of inserting a duplicate
         # '<Last> Family' next to a school-imported / prior one.
         household_id = _existing_household_for_parent(admin, org_id, parent_id)
@@ -1365,6 +1370,23 @@ def _clean_answer(q, val):
     return sanitize_input(str(val or '').strip())
 
 
+def _answers_signal_ufa_private(answers):
+    """True when a family's registration answers indicate they're enrolling as a
+    UFA (Utah Fits All) Private School. Recognizes either an explicit yes/no
+    question keyed `ufa_private`, or a payment option whose text names a "private
+    school" — so the org can surface it either way in their registration config."""
+    if not isinstance(answers, dict):
+        return False
+    v = answers.get('ufa_private')
+    if isinstance(v, bool) and v:
+        return True
+    if isinstance(v, str) and v.strip().lower() in ('yes', 'true', '1', 'private', 'private school'):
+        return True
+    pi = answers.get('payment_intent')
+    vals = pi if isinstance(pi, list) else [pi]
+    return any('private school' in str(x).lower() for x in vals if x)
+
+
 def _validate_answers(questions, raw_answers, reg_kids):
     """Validate + sanitize the org-question answers.
 
@@ -1414,6 +1436,16 @@ def submit_details(reg_id):
     answers, ans_err = _validate_answers(questions, body.get('answers') or {}, reg_kids)
     if ans_err:
         return jsonify({'error': ans_err}), 400
+
+    # Built-in UFA Private School follow-up: shown in the funnel only when the
+    # family chose "Utah Fits All" as their payment. It isn't an org-configured
+    # question, so preserve it here (validate_answers would otherwise drop it).
+    raw_answers = body.get('answers') or {}
+    ufa_val = str(raw_answers.get('ufa_private') or '').strip().lower()
+    pi = answers.get('payment_intent')
+    pi_vals = pi if isinstance(pi, list) else [pi]
+    if any('utah fits all' in str(x).lower() for x in pi_vals if x) and ufa_val in ('yes', 'no'):
+        answers['ufa_private'] = 'Yes' if ufa_val == 'yes' else 'No'
 
     # Validate + store emergency contacts (snapshot on the registration, and real
     # emergency_contacts rows per kid so staff see them in the SIS immediately).

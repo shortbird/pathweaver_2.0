@@ -85,6 +85,21 @@ export default function ClassList({ orgId, isAdvisorView = false, onSelectClass 
     }
   }
 
+  const handleRestoreClass = async (classId) => {
+    try {
+      const response = await classService.restoreClass(orgId, classId)
+      if (response.success) {
+        toast.success('Class restored')
+        fetchClasses()
+      } else {
+        toast.error(response.error || 'Failed to restore class')
+      }
+    } catch (error) {
+      console.error('Failed to restore class:', error)
+      toast.error(error.response?.data?.error || 'Failed to restore class')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -159,6 +174,7 @@ export default function ClassList({ orgId, isAdvisorView = false, onSelectClass 
               classData={cls}
               onClick={() => onSelectClass?.(cls)}
               onArchive={!isAdvisorView && !showArchived ? () => handleArchiveClass(cls.id) : null}
+              onRestore={!isAdvisorView && showArchived ? () => handleRestoreClass(cls.id) : null}
             />
           ))}
         </div>

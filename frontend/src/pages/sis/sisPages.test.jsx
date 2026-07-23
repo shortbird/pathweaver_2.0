@@ -150,10 +150,12 @@ describe('HouseholdsPage', () => {
     render(<HouseholdsPage />)
     expect(await screen.findByText('Fam')).toBeInTheDocument()
 
+    // Manual creation is behind a toggle now (search-first UI).
+    fireEvent.click(screen.getByText('+ Create a family manually'))
     fireEvent.change(screen.getByPlaceholderText('New family / household name'), {
       target: { value: 'The Garcia Family' },
     })
-    fireEvent.click(screen.getByText('Create family'))
+    fireEvent.click(screen.getByText('Create'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/households', expect.objectContaining({ name: 'The Garcia Family' })),
     )

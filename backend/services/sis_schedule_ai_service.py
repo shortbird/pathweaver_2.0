@@ -30,8 +30,10 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 ALLOWED_FIELDS = ('name', 'description', 'location', 'capacity', 'min_age',
-                  'max_age', 'price_cents', 'instructor_name')
+                  'max_age', 'price_cents', 'supply_fee', 'instructor_name')
 INT_FIELDS = ('capacity', 'min_age', 'max_age', 'price_cents')
+# Dollar amounts (numeric), NOT cents — supply_fee is stored as e.g. 35.00.
+FLOAT_FIELDS = ('supply_fee',)
 
 
 def _repo():
@@ -56,6 +58,8 @@ def _org_snapshot(org_id: str) -> Dict[str, Any]:
             'id': c['id'], 'name': c.get('name'), 'location': c.get('location'),
             'capacity': c.get('capacity'), 'min_age': c.get('min_age'), 'max_age': c.get('max_age'),
             'price_cents': c.get('price_cents'),
+            'supply_fee': (float(c['supply_fee']) if c.get('supply_fee') is not None else None),
+            'description': c.get('description'),
             'instructor': staff_by_id.get(c.get('primary_instructor_id')),
             'meetings': [{'day_of_week': m.get('day_of_week'),
                           'start_time': str(m.get('start_time') or '')[:5],
@@ -87,7 +91,12 @@ Conventions:
 - If a time matches a school time block, snap exactly to that block.
 - "set_meetings" REPLACES the class's whole weekly schedule, so include every
   meeting the class should keep, not just the changed one.
-- price_cents is in US cents (e.g. $75 -> 7500).
+- price_cents is the TUITION in US cents (e.g. $75 -> 7500).
+- supply_fee is a SEPARATE supply/materials fee in US DOLLARS, not cents
+  (e.g. "$35 supply fee" -> 35). Do not confuse it with tuition/price_cents.
+- To change a class's text, put it in update_class fields as "description".
+- A request that names several classes (e.g. "all 4 Open Art Studio classes")
+  must emit one update_class operation PER matching class_id from CURRENT SCHEDULE.
 - Never invent classes to archive or update; use exact class_id values from the
   CURRENT SCHEDULE. Use instructor names exactly as listed in STAFF.
 - If the request is ambiguous or impossible, return an empty operations list and
@@ -102,7 +111,7 @@ Respond with ONLY this JSON:
     {{"action": "create_class", "name": "...", "description": "...", "location": "...",
       "capacity": 12, "min_age": 8, "max_age": 12, "price_cents": 7500,
       "instructor_name": "...", "meetings": [{{"day_of_week": 1, "start_time": "09:30", "end_time": "10:30"}}]}},
-    {{"action": "update_class", "class_id": "...", "fields": {{"location": "Room 3"}}}},
+    {{"action": "update_class", "class_id": "...", "fields": {{"location": "Room 3", "supply_fee": 35, "description": "New class description"}}}},
     {{"action": "set_meetings", "class_id": "...", "meetings": [{{"day_of_week": 2, "start_time": "13:00", "end_time": "14:00"}}]}},
     {{"action": "archive_class", "class_id": "..."}}
   ]
@@ -175,6 +184,12 @@ def _validate_operations(org_id: str, raw_ops: List[Dict[str, Any]],
                         fields[k] = int(op[k])
                     except (TypeError, ValueError):
                         pass
+            for k in FLOAT_FIELDS:
+                if op.get(k) is not None:
+                    try:
+                        fields[k] = round(float(op[k]), 2)
+                    except (TypeError, ValueError):
+                        pass
             instructor_id = resolve_instructor(op.get('instructor_name'))
             if instructor_id:
                 fields['primary_instructor_id'] = instructor_id
@@ -217,6 +232,11 @@ def _validate_operations(org_id: str, raw_ops: List[Dict[str, Any]],
                     elif k in INT_FIELDS:
                         try:
                             fields[k] = int(v) if v is not None else None
+                        except (TypeError, ValueError):
+                            pass
+                    elif k in FLOAT_FIELDS:
+                        try:
+                            fields[k] = round(float(v), 2) if v is not None else None
                         except (TypeError, ValueError):
                             pass
                     else:

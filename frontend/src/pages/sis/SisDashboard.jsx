@@ -98,7 +98,7 @@ const SisDashboard = () => {
             <Link to="/roster" className="text-sm font-semibold text-optio-purple hover:underline">
               View roster →
             </Link>
-            <Link to="/households" className="text-sm font-semibold text-optio-purple hover:underline">
+            <Link to="/people?tab=families" className="text-sm font-semibold text-optio-purple hover:underline">
               Manage families →
             </Link>
           </div>

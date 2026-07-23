@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
+import { range12h } from '../../utils/timeFormat'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
@@ -27,8 +28,7 @@ const meetingText = (meetings = []) => {
   const days = [...new Set(meetings.map((m) => m.day_of_week).filter((d) => d != null))]
     .sort().map((d) => DAYS[d]).join('/')
   const m = meetings[0]
-  const t = (v) => (v ? String(v).slice(0, 5) : '')
-  return `${days} ${t(m.start_time)}${m.end_time ? `–${t(m.end_time)}` : ''}`.trim()
+  return `${days} ${range12h(m.start_time, m.end_time)}`.trim()
 }
 const classLabel = (c) => {
   const when = meetingText(c.meetings)
@@ -191,7 +191,10 @@ const AttendancePage = () => {
                 }`}
               >
                 <span className="min-w-0">
-                  <span className={`block text-sm font-medium truncate ${s.absent ? 'text-red-700' : 'text-neutral-800'}`}>{s.name}</span>
+                  <span className={`block text-sm font-medium truncate ${s.absent ? 'text-red-700' : 'text-neutral-800'}`}>
+                    {s.name}
+                    {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
+                  </span>
                   {s.planned_absence && (
                     <span
                       className="text-[11px] text-amber-700"

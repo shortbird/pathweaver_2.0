@@ -264,9 +264,9 @@ def update_household(user_id, household_id):
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
         'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
         'registration_hold', 'registration_hold_reason', 'registration_tier',
-        'directory_opt_in'
+        'directory_opt_in', 'ufa_private'
     ) if k in data}
-    for flag in ('registration_hold', 'directory_opt_in'):
+    for flag in ('registration_hold', 'directory_opt_in', 'ufa_private'):
         if flag in fields:
             fields[flag] = bool(fields[flag])
     if 'registration_tier' in fields and fields['registration_tier'] is not None:

@@ -98,8 +98,8 @@ describe('AttendancePage', () => {
     ]
     render(<AttendancePage />)
     fireEvent.focus(screen.getByPlaceholderText('Search classes…'))
-    expect(await screen.findByText('Reading Tutoring — Tue 10:30–11:30')).toBeInTheDocument()
-    expect(screen.getByText('Reading Tutoring — Thu 09:30–10:30')).toBeInTheDocument()
+    expect(await screen.findByText('Reading Tutoring — Tue 10:30 AM–11:30 AM')).toBeInTheDocument()
+    expect(screen.getByText('Reading Tutoring — Thu 9:30 AM–10:30 AM')).toBeInTheDocument()
   })
 
   it('lets a saved absence be toggled back and re-saved as present', async () => {

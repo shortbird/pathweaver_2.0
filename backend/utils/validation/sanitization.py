@@ -35,6 +35,23 @@ def sanitize_input(text: str) -> str:
     
     return text.strip()
 
+def sanitize_text(text: str) -> str:
+    """Sanitize a plain-text value that will be rendered AS TEXT (not HTML).
+
+    Strips tags/null bytes and normalizes whitespace, but does NOT HTML-escape —
+    the render layer (React, or an ICS/CSV escaper) is responsible for escaping.
+    Use this for fields shown via React's `{value}` (e.g. calendar event titles):
+    `sanitize_input` escapes to entities, which then display literally as text and
+    double-escape on every re-save ("O'Brien" -> "O&#x27;Brien" -> "&amp;amp...").
+    """
+    if not text:
+        return ""
+    text = re.sub(r'<[^>]*>', '', text)   # drop any tags
+    text = text.replace('\x00', '')       # drop null bytes
+    text = ' '.join(text.split())         # normalize whitespace
+    return text.strip()
+
+
 def sanitize_html(html_content: str, allowed_tags: Optional[list] = None) -> str:
     """
     Sanitize HTML content, allowing only specific tags

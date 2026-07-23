@@ -261,6 +261,24 @@ def archive_class(user_id, org_id, class_id):
         }), 500
 
 
+@bp.route('/organizations/<org_id>/classes/<class_id>/restore', methods=['POST'])
+@require_role('org_admin', 'superadmin')
+def restore_class(user_id, org_id, class_id):
+    """Un-archive a class (status back to active)."""
+    try:
+        effective_role, user_org_id, _ = get_user_info(user_id)
+        service = ClassService()
+        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        service.restore_class(class_id, user_id)
+        return jsonify({'success': True, 'message': 'Class restored successfully'})
+    except Exception as e:
+        if 'not found' in str(e).lower():
+            return jsonify({'success': False, 'error': 'Class not found'}), 404
+        logger.error(f"Error restoring class: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to restore class'}), 500
+
+
 @bp.route('/student/classes', methods=['GET'])
 @require_auth
 def get_student_classes(user_id):

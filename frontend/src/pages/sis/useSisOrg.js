@@ -1,54 +1,49 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
-
-const STORE_KEY = 'optio_sis_org_id'
+import * as orgStore from './sisOrgStore'
 
 /**
  * Resolves the organization the SIS console operates on.
- * - org_admin / advisor: locked to their own organization.
- * - superadmin (no org of their own): exposes a picker over all organizations,
- *   remembering the last choice in localStorage.
+ * - org_admin / advisor: locked to their own organization (from OrganizationContext).
+ * - superadmin (no org of their own): picks from all organizations via the shared
+ *   store, so every surface — sidebar, route guards, and pages — switches together.
  *
- * Returns { orgId, setOrgId, orgs, isSuperadmin, loading }.
- * `orgId` is appended as ?organization_id to every SIS API call.
+ * Returns { orgId, setOrgId, orgs, isSuperadmin, loading, activeOrg }.
+ * `orgId` is appended as ?organization_id to every SIS API call; `activeOrg` is the
+ * full org row (with feature_flags) for the org currently in view, so callers can
+ * mirror exactly what that org's admin sees.
  */
 export function useSisOrg() {
   const { user } = useAuth()
   const { organization } = useOrganization()
   const isSuperadmin = user?.role === 'superadmin'
+  const snap = useSyncExternalStore(orgStore.subscribe, orgStore.getSnapshot)
 
-  const [orgs, setOrgs] = useState([])
-  const [orgId, setOrgIdState] = useState(() => {
-    return organization?.id || (() => { try { return localStorage.getItem(STORE_KEY) } catch { return null } })()
-  })
-  const [loading, setLoading] = useState(isSuperadmin && !organization?.id)
-
-  const setOrgId = (id) => {
-    setOrgIdState(id)
-    try { localStorage.setItem(STORE_KEY, id) } catch { /* ignore */ }
-  }
-
+  // Superadmins with no org of their own load the full org list once (shared).
   useEffect(() => {
-    if (organization?.id) {
-      setOrgIdState(organization.id)
-      return
-    }
-    if (isSuperadmin) {
-      setLoading(true)
+    if (organization?.id) return
+    if (isSuperadmin && !snap.fetched && !snap.loading) {
+      orgStore.setLoading(true)
       api.get('/api/admin/organizations')
         .then((r) => {
           const list = r.data?.organizations || r.data?.data || (Array.isArray(r.data) ? r.data : [])
-          setOrgs(list)
-          setOrgIdState((prev) => prev || list[0]?.id || null)
+          orgStore.setOrgs(list)
         })
-        .catch(() => { /* surfaced as empty picker */ })
-        .finally(() => setLoading(false))
+        .catch(() => orgStore.setOrgs([]))
     }
-  }, [organization?.id, isSuperadmin])
+  }, [organization?.id, isSuperadmin, snap.fetched, snap.loading])
 
-  return { orgId, setOrgId, orgs, isSuperadmin, loading }
+  // Org staff are pinned to their own org; superadmins use the shared selection.
+  const orgId = organization?.id || snap.orgId
+  const orgs = snap.orgs
+  const activeOrg = organization?.id
+    ? organization
+    : (orgs.find((o) => o.id === orgId) || null)
+  const loading = isSuperadmin && !organization?.id && !snap.fetched
+
+  return { orgId, setOrgId: orgStore.setOrgId, orgs, isSuperadmin, loading, activeOrg }
 }
 
 /** Append ?organization_id to a SIS API path when an org is selected. */

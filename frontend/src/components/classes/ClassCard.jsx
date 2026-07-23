@@ -11,7 +11,7 @@ import { UsersIcon, BookOpenIcon, UserGroupIcon, ArchiveBoxIcon } from '@heroico
  * - Advisor count
  * - XP threshold
  */
-export default function ClassCard({ classData, onClick, onArchive }) {
+export default function ClassCard({ classData, onClick, onArchive, onRestore }) {
   const {
     name,
     description,
@@ -83,6 +83,20 @@ export default function ClassCard({ classData, onClick, onArchive }) {
             title="Archive class"
           >
             <ArchiveBoxIcon className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Restore button (archived view) */}
+        {onRestore && isArchived && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onRestore()
+            }}
+            className="px-2.5 py-1 text-xs font-medium text-optio-purple hover:bg-optio-purple/10 rounded transition-colors"
+            title="Restore class"
+          >
+            Restore
           </button>
         )}
       </div>

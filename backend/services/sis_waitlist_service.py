@@ -150,6 +150,89 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
     return {'entry': resp.data[0] if resp.data else None, 'enrolled': True}
 
 
+def alert_admins_seat_opened(org_id: str, class_id: str) -> bool:
+    """Email the org admins when a waitlisted class has an open seat, so they can
+    manually offer it to the next student (iCreate wants to approve each admit,
+    not auto-enroll). Best-effort; safe to call whenever a seat MIGHT have freed
+    (a withdrawal, a capacity increase) — it self-gates on there actually being
+    both waiting students and an available seat, so it never emails needlessly.
+    """
+    try:
+        cls = (
+            _admin().table('org_classes')
+            .select('id, name, capacity, organization_id')
+            .eq('id', class_id).limit(1).execute()
+        ).data
+        if not cls or cls[0].get('organization_id') != org_id:
+            return False
+        cls = cls[0]
+
+        waiting = [e for e in list_for_class(org_id, class_id) if e.get('status') == 'waiting']
+        if not waiting:
+            return False
+
+        capacity = cls.get('capacity')
+        active = (
+            _admin().table('class_enrollments')
+            .select('id', count='exact')
+            .eq('class_id', class_id).eq('status', 'active').execute()
+        ).count or 0
+        seats_open = None if capacity is None else max(0, capacity - active)
+        # A None capacity means unlimited — a "seat" is always available, so any
+        # waiting student can be admitted.
+        if seats_open == 0:
+            return False
+
+        admin_emails = _org_admin_emails(org_id)
+        if not admin_emails:
+            return False
+
+        from services.email_service import email_service
+        seats_txt = 'A seat' if (seats_open in (None, 1)) else f'{seats_open} seats'
+        n = len(waiting)
+        who = f'{n} student{"" if n == 1 else "s"}'
+        subject = f'Seat open in {cls["name"]} — {n} waiting'
+        html = f"""
+        <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111827;">
+          <p style="margin:0 0 4px;color:#6b7280;font-size:13px;">Waitlist alert</p>
+          <h2 style="margin:0 0 12px;font-size:18px;">{seats_txt} opened in {cls["name"]}</h2>
+          <p style="font-size:15px;line-height:1.5;">{who} {"is" if n == 1 else "are"} waiting for this class.
+          Open the class in your SIS and use <strong>Offer next seat</strong> on the Waitlist tab to admit the next student.</p>
+          <p style="margin-top:16px;"><a href="https://sis.optioeducation.com/classes"
+             style="display:inline-block;background:#6d28d9;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;">Manage the waitlist</a></p>
+        </div>
+        """.strip()
+        text = (f'{seats_txt} opened in {cls["name"]}. {who} waiting. '
+                f'Open the class Waitlist tab in your SIS and use "Offer next seat" to admit the next student. '
+                f'https://sis.optioeducation.com/classes')
+        ok = True
+        for addr in admin_emails:
+            ok = email_service.send_email(to_email=addr, subject=subject, html_body=html, text_body=text) and ok
+        logger.info(f"[Waitlist] seat-opened alert for class {class_id}: emailed {len(admin_emails)} admin(s)")
+        return ok
+    except Exception as e:
+        logger.warning(f"[Waitlist] seat-opened alert skipped for {class_id}: {e}")
+        return False
+
+
+def _org_admin_emails(org_id: str) -> List[str]:
+    """Emails of the org's admin team (org_role / org_roles contains org_admin)."""
+    rows = (
+        _admin().table('users').select('email, org_role, org_roles')
+        .eq('organization_id', org_id).execute()
+    ).data or []
+    out = []
+    for u in rows:
+        roles = set()
+        if u.get('org_role'):
+            roles.add(u['org_role'])
+        if isinstance(u.get('org_roles'), list):
+            roles.update(u['org_roles'])
+        if 'org_admin' in roles and u.get('email'):
+            out.append(u['email'])
+    return out
+
+
 def remove(org_id: str, entry_id: str) -> None:
     (
         _admin().table('sis_waitlist_entries')
