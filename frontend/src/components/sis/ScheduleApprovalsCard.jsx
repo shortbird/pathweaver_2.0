@@ -9,15 +9,72 @@ const fmtWhen = (ts) => {
   catch { return ts }
 }
 
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const t12 = (s) => {
+  if (!s) return ''
+  const [h, m] = String(s).split(':')
+  let hr = parseInt(h, 10)
+  if (Number.isNaN(hr)) return ''
+  const ampm = hr >= 12 ? 'PM' : 'AM'
+  hr = hr % 12 || 12
+  return `${hr}:${m} ${ampm}`
+}
+
+const fmtMeetings = (meetings) => {
+  if (!meetings || !meetings.length) return 'Time TBD'
+  return meetings.map((m) => {
+    const day = m.day_of_week != null ? DAYS[m.day_of_week] : ''
+    const time = m.start_time ? `${t12(m.start_time)}${m.end_time ? '–' + t12(m.end_time) : ''}` : ''
+    return `${day} ${time}`.trim()
+  }).filter(Boolean).join(', ')
+}
+
+const ScheduleDetail = ({ sched }) => {
+  const classes = sched.classes || []
+  const waitlist = sched.waitlist || []
+  if (!classes.length && !waitlist.length) {
+    return <div className="text-xs text-neutral-500">No classes on this schedule yet.</div>
+  }
+  return (
+    <div className="space-y-1.5">
+      {classes.map((c) => (
+        <div key={c.id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span className="font-medium text-neutral-900">{c.name}</span>
+          <span className="text-xs text-neutral-500">{fmtMeetings(c.meetings)}</span>
+          {c.location && <span className="text-xs text-neutral-400">· {c.location}</span>}
+          {c.primary_instructor && <span className="text-xs text-neutral-400">· {c.primary_instructor}</span>}
+        </div>
+      ))}
+      {waitlist.length > 0 && (
+        <div className="pt-1.5">
+          <div className="text-[11px] uppercase tracking-wide text-neutral-400 mb-0.5">Waitlisted</div>
+          {waitlist.map((w) => (
+            <div key={w.class_id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+              <span className="text-neutral-700">{w.class_name}</span>
+              <span className="text-xs text-neutral-500">{fmtMeetings(w.meetings)}</span>
+              {w.position != null && <span className="text-xs text-amber-600">· #{w.position}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * Parent schedule submissions ("Submit for approval" in the Schedule Builder).
  * Approving keeps the schedule locked (staff-managed from here; billing happens
  * outside Optio). Sending it back unlocks the family's builder with a note.
- * Renders nothing when the org has no submissions.
+ * Each pending submission can be expanded to show the actual week (classes and
+ * meeting times) so staff review before they approve. Renders nothing when the
+ * org has no submissions.
  */
 const ScheduleApprovalsCard = ({ orgId }) => {
   const [submissions, setSubmissions] = useState([])
   const [busyId, setBusyId] = useState(null)
+  const [openId, setOpenId] = useState(null)
+  const [schedules, setSchedules] = useState({}) // id -> {classes, waitlist} | 'loading' | 'error'
 
   const load = useCallback(() => {
     if (!orgId) { setSubmissions([]); return }
@@ -27,6 +84,19 @@ const ScheduleApprovalsCard = ({ orgId }) => {
   }, [orgId])
 
   useEffect(() => { load() }, [load])
+
+  const toggleSchedule = async (s) => {
+    if (openId === s.id) { setOpenId(null); return }
+    setOpenId(s.id)
+    if (schedules[s.id] && schedules[s.id] !== 'error') return // already loaded
+    setSchedules((m) => ({ ...m, [s.id]: 'loading' }))
+    try {
+      const { data } = await api.get(withOrg(`/api/sis/schedule-submissions/${s.id}/schedule`, orgId))
+      setSchedules((m) => ({ ...m, [s.id]: { classes: data?.classes || [], waitlist: data?.waitlist || [] } }))
+    } catch {
+      setSchedules((m) => ({ ...m, [s.id]: 'error' }))
+    }
+  }
 
   const review = async (s, action) => {
     let note
@@ -63,25 +133,42 @@ const ScheduleApprovalsCard = ({ orgId }) => {
             schedule is locked until you approve it or send it back.
           </p>
           <div className="space-y-2">
-            {pending.map((s) => (
-              <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-neutral-900">{s.student_name}</div>
-                  <div className="text-xs text-neutral-400">
-                    Submitted by {s.guardian_name || 'a guardian'} · {fmtWhen(s.submitted_at)}
+            {pending.map((s) => {
+              const open = openId === s.id
+              const sched = schedules[s.id]
+              return (
+                <div key={s.id} className="rounded-lg border border-gray-200">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-neutral-900">{s.student_name}</div>
+                      <div className="text-xs text-neutral-400">
+                        Submitted by {s.guardian_name || 'a guardian'} · {fmtWhen(s.submitted_at)}
+                      </div>
+                      <button onClick={() => toggleSchedule(s)}
+                        className="mt-1 text-xs font-semibold text-optio-purple hover:underline">
+                        {open ? 'Hide schedule' : 'View schedule'}
+                      </button>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button size="sm" disabled={busyId === s.id} onClick={() => review(s, 'approve')}>
+                        Approve
+                      </Button>
+                      <button onClick={() => review(s, 'send_back')} disabled={busyId === s.id}
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+                        Send back
+                      </button>
+                    </div>
                   </div>
+                  {open && (
+                    <div className="border-t border-gray-100 px-3 py-2.5 bg-gray-50/60">
+                      {sched === 'loading' && <div className="text-xs text-neutral-500">Loading schedule…</div>}
+                      {sched === 'error' && <div className="text-xs text-red-600">Could not load the schedule.</div>}
+                      {sched && typeof sched === 'object' && <ScheduleDetail sched={sched} />}
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button size="sm" disabled={busyId === s.id} onClick={() => review(s, 'approve')}>
-                    Approve
-                  </Button>
-                  <button onClick={() => review(s, 'send_back')} disabled={busyId === s.id}
-                    className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50">
-                    Send back
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

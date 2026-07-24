@@ -219,6 +219,21 @@ def review_schedule_submission(user_id, submission_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/schedule-submissions/<submission_id>/schedule', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def schedule_submission_schedule(user_id, submission_id):
+    """The classes on a submitted schedule, so staff can review the week before
+    approving it or sending it back."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = submissions.submission_schedule(org_id, submission_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Submission not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
 # ── Enrollment age-group waitlist ────────────────────────────────────────────
 @bp.route('/enrollment-waitlist', methods=['GET'])
 @require_role(*STAFF_ROLES)

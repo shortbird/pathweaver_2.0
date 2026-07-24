@@ -67,6 +67,27 @@ describe('ScheduleApprovalsCard', () => {
     expect(api.post).not.toHaveBeenCalled()
   })
 
+  it('expands a submission to show its class schedule before approving', async () => {
+    api.get.mockImplementation((url) =>
+      url.includes('/sub1/schedule')
+        ? Promise.resolve({ data: { classes: [
+            { id: 'c1', name: 'Algebra 1',
+              meetings: [{ day_of_week: 1, start_time: '09:00:00', end_time: '10:00:00' }],
+              location: 'Room A', primary_instructor: 'Ms. Ada' },
+          ], waitlist: [] } })
+        : Promise.resolve({ data: { submissions: [SUBMITTED] } }))
+    render(<ScheduleApprovalsCard orgId="org-1" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'View schedule' }))
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      '/api/sis/schedule-submissions/sub1/schedule?organization_id=org-1'))
+    expect(await screen.findByText('Algebra 1')).toBeInTheDocument()
+    expect(screen.getByText(/Mon 9:00 AM–10:00 AM/)).toBeInTheDocument()
+    expect(screen.getByText(/Ms\. Ada/)).toBeInTheDocument()
+    // toggles closed again
+    fireEvent.click(screen.getByRole('button', { name: 'Hide schedule' }))
+    await waitFor(() => expect(screen.queryByText('Algebra 1')).not.toBeInTheDocument())
+  })
+
   it('lists reviewed submissions with their notes', async () => {
     api.get.mockResolvedValue({ data: { submissions: [
       { ...SUBMITTED, id: 'sub2', status: 'sent_back', review_note: 'Fix Tuesday',

@@ -154,6 +154,66 @@ def list_submissions(org_id: str, status: Optional[str] = None) -> List[Dict[str
     return rows
 
 
+def submission_schedule(org_id: str, submission_id: str) -> Dict[str, Any]:
+    """The classes on a submitted schedule, so staff can see the week before they
+    approve it. Returns the student's active class enrollments (each with meeting
+    times, location, and instructor) plus any live waitlist entries. Read-only.
+    """
+    rows = (
+        _admin().table(TABLE).select('*')
+        .eq('id', submission_id).eq('organization_id', org_id).limit(1).execute()
+    ).data or []
+    if not rows:
+        return {'error': 'Submission not found'}
+    student_id = rows[0]['student_user_id']
+
+    enrolled_ids = {
+        r['class_id'] for r in (
+            _admin().table('class_enrollments').select('class_id, status')
+            .eq('student_id', student_id).eq('status', 'active').execute()
+        ).data or []
+    }
+    waitlist_rows = (
+        _admin().table('sis_waitlist_entries').select('*')
+        .eq('organization_id', org_id).eq('student_user_id', student_id)
+        .in_('status', ['waiting', 'offered']).execute()
+    ).data or []
+
+    from services import sis_catalog_service as catalog
+    by_id = {c['id']: c for c in catalog.list_classes(org_id)}
+
+    def _instructor(c: Dict[str, Any]) -> Optional[str]:
+        pi = c.get('primary_instructor')
+        return pi.get('name') if isinstance(pi, dict) else None
+
+    def _slot(meetings: List[Dict[str, Any]]) -> tuple:
+        # Earliest (day, start-time) the class meets, so the week reads
+        # chronologically. Unscheduled classes sort last.
+        slots = [(m.get('day_of_week'), m.get('start_time') or '')
+                 for m in (meetings or []) if m.get('day_of_week') is not None]
+        return min(slots) if slots else (9, '')
+
+    classes = [{
+        'id': c['id'],
+        'name': c.get('name'),
+        'meetings': c.get('meetings') or [],
+        'location': c.get('location'),
+        'primary_instructor': _instructor(c),
+    } for c in (by_id[i] for i in enrolled_ids if i in by_id)]
+    classes.sort(key=lambda c: (_slot(c['meetings']), (c['name'] or '').lower()))
+
+    waitlist = [{
+        'class_id': w['class_id'],
+        'class_name': (by_id.get(w['class_id']) or {}).get('name') or 'Class',
+        'meetings': (by_id.get(w['class_id']) or {}).get('meetings') or [],
+        'position': w.get('position'),
+        'status': w.get('status'),
+    } for w in waitlist_rows]
+
+    return {'classes': classes, 'waitlist': waitlist,
+            'student_name': _student_name(student_id)}
+
+
 def review(org_id: str, submission_id: str, action: str, *, reviewed_by: str,
            note: Optional[str] = None) -> Dict[str, Any]:
     """Approve (schedule stays locked, staff-managed from here) or send back

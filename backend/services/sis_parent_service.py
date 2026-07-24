@@ -595,6 +595,46 @@ def _meetings_overlap(a_meetings, b_meetings) -> bool:
     return False
 
 
+def _name_matches(name: Optional[str], patterns: List[str]) -> bool:
+    """Case-insensitive substring match of a class name against any pattern."""
+    n = (name or '').lower()
+    return any(pat in n for pat in patterns)
+
+
+def _open_lab_cap_error(settings: Dict[str, Any], target_class: Dict[str, Any],
+                        enrolled_classes: List[Dict[str, Any]]) -> Optional[str]:
+    """Enforce the family-facing Open Lab cap: a student may hold at most N Open
+    Lab classes (identified by name pattern) on their own schedule unless they're
+    enrolled in an exempt program (Summit). Returns an error message to block the
+    add, or None to allow it.
+
+    Config lives in sis_settings.open_lab_cap so only opted-in orgs enforce it
+    (iCreate). Staff-side enrollment is not routed through here and stays
+    unrestricted, matching the existing double-booking rule.
+    """
+    cfg = (settings or {}).get('open_lab_cap') or {}
+    if not cfg.get('enabled'):
+        return None
+    patterns = [str(p).lower() for p in (cfg.get('class_name_patterns') or []) if p]
+    # Only applies when the class being added is itself an Open Lab.
+    if not patterns or not _name_matches(target_class.get('name'), patterns):
+        return None
+    # Students in an exempt program (Summit) are unrestricted.
+    exempt = [str(p).lower() for p in (cfg.get('exempt_class_name_patterns') or []) if p]
+    if exempt and any(_name_matches(c.get('name'), exempt) for c in enrolled_classes):
+        return None
+    max_labs = cfg.get('max')
+    if not isinstance(max_labs, int) or max_labs < 0:
+        max_labs = 2
+    current = sum(1 for c in enrolled_classes if _name_matches(c.get('name'), patterns))
+    if current < max_labs:
+        return None
+    label = cfg.get('label') or 'Open Lab'
+    exempt_label = cfg.get('exempt_label') or 'the Summit program'
+    return (f'{label} classes are limited to {max_labs} per student unless enrolled '
+            f'in {exempt_label}. This student is already in {current}.')
+
+
 def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -> Dict[str, Any]:
     """Self-service add: enroll immediately if there's a seat, otherwise join the
     waitlist (when the class allows one). Locked from the first day of school."""
@@ -630,10 +670,18 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
             .eq('student_id', student_user_id).eq('status', 'active').execute()
         ).data or []
     }
-    conflict = next((c for c in all_classes if c['id'] in enrolled_ids
-                     and _meetings_overlap(klass.get('meetings'), c.get('meetings'))), None)
+    enrolled_classes = [c for c in all_classes if c['id'] in enrolled_ids]
+    conflict = next((c for c in enrolled_classes
+                     if _meetings_overlap(klass.get('meetings'), c.get('meetings'))), None)
     if conflict:
         return {'error': f'That class overlaps "{conflict["name"]}" on this schedule — drop it first.'}
+
+    # Open Lab cap (opted-in orgs): block a family from adding more than N Open Lab
+    # classes unless the student is in the exempt program. Applies before the
+    # capacity/waitlist step so an over-cap add is refused outright, not waitlisted.
+    cap_error = _open_lab_cap_error(_sis_settings(org_id), klass, enrolled_classes)
+    if cap_error:
+        return {'error': cap_error}
 
     enrolled_count = (
         _admin().table('class_enrollments').select('id', count='exact')
