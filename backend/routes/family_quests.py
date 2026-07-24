@@ -283,7 +283,12 @@ def create_task_for_dependent(user_id, quest_id):
             .eq('user_quest_id', user_quest_id)\
             .execute()
 
-        max_order = max([t['order_index'] for t in existing_tasks.data], default=-1) if existing_tasks.data else -1
+        # Skip NULL order_index rows: the column is nullable, and a None in the
+        # list would raise "'>' not supported between ... NoneType" inside max().
+        max_order = max(
+            [t['order_index'] for t in (existing_tasks.data or []) if t.get('order_index') is not None],
+            default=-1
+        )
 
         task_data = {
             'user_id': child_id,
