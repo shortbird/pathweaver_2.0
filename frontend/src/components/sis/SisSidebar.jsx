@@ -63,7 +63,7 @@ const NAV_SECTIONS = [
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
       { name: 'Attendance', path: '/attendance', adminOnly: true, d: ICONS.check },
       { name: 'Submissions', path: '/submissions', d: ICONS.clipboard },
-      { name: 'Goals', path: '/goals', d: ICONS.doc },
+      { name: 'Goals', path: '/goals', goalsMode: true, d: ICONS.doc },
     ],
   },
   {
@@ -100,6 +100,9 @@ const SisSidebar = () => {
   // activeOrg is the org currently in view — for a superadmin that's the one
   // picked in the org selector, so the nav mirrors that org's admin exactly.
   const { activeOrg } = useSisOrg()
+  // Goals-mode orgs (e.g. Gryffin) set direction/subject goals after registration
+  // instead of building a schedule; the Goals tab is meaningless for others.
+  const isGoalsMode = activeOrg?.feature_flags?.sis_settings?.post_registration_flow === 'goals'
   const isSuperadmin = user?.role === 'superadmin'
   // While an admin previews a teacher's portal, render the teacher nav so the
   // preview is faithful (the banner in SisLayout is the way back).
@@ -134,6 +137,8 @@ const SisSidebar = () => {
             if (it.teacherOnly && isAdmin) return false
             // Org opted out of this module (feature_flags.sis_settings.hidden_modules).
             if (isPathHidden(it.path, activeOrg)) return false
+            // Goals tab is only for goals-mode orgs (schedule-mode orgs never set goals).
+            if (it.goalsMode && !isGoalsMode) return false
             return true
           })
           if (!items.length) return null

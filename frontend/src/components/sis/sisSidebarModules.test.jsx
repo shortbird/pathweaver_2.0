@@ -14,13 +14,15 @@ vi.mock('../../utils/appSurface', () => ({ switchSurfaceInApp: vi.fn() }))
 
 import SisSidebar from './SisSidebar'
 
-const withHidden = (mods) => ({ feature_flags: { sis_settings: { hidden_modules: mods } } })
+const withHidden = (mods, extraSettings = {}) =>
+  ({ feature_flags: { sis_settings: { hidden_modules: mods, ...extraSettings } } })
 
 beforeEach(() => { activeOrg = null })
 
 describe('SisSidebar module gating for the active org', () => {
   it("hides the org's opted-out modules but keeps the rest", () => {
-    activeOrg = withHidden(['onboarding', 'timesheets', 'forms', 'clp'])
+    // Gryffin: hides some modules and is goals-mode (so Goals shows).
+    activeOrg = withHidden(['onboarding', 'timesheets', 'forms', 'clp'], { post_registration_flow: 'goals' })
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
 
     // Hidden for this org (Gryffin's config)
@@ -37,7 +39,16 @@ describe('SisSidebar module gating for the active org', () => {
     expect(screen.getByText('Goals')).toBeInTheDocument()
   })
 
-  it('shows every module when the active org hides none', () => {
+  it('hides the Goals tab for a schedule-mode org (e.g. iCreate)', () => {
+    // No post_registration_flow: 'goals' -> Goals tab must not appear.
+    activeOrg = withHidden([])
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.queryByText('Goals')).not.toBeInTheDocument()
+    // Submissions is a general SIS tab and stays.
+    expect(screen.getByText('Submissions')).toBeInTheDocument()
+  })
+
+  it('shows every non-goals module when the active org hides none', () => {
     activeOrg = withHidden([])
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
     expect(screen.getByText('CLP')).toBeInTheDocument()
