@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useReviewBounty } from '../../hooks/api/useBounties'
 
 // Renders a single evidence item (text, image, video, link, document)
@@ -33,10 +33,19 @@ const EvidenceItem = ({ item }) => (
 
 // One submitted claim in the review queue: student, bounty, evidence per
 // deliverable, feedback box, and approve / revise / reject actions.
-const SubmissionReviewCard = ({ bounty, claim }) => {
+const SubmissionReviewCard = ({ bounty, claim, highlight = false }) => {
   const reviewMutation = useReviewBounty()
   const [feedback, setFeedback] = useState('')
   const [expanded, setExpanded] = useState(true)
+  const cardRef = useRef(null)
+
+  // When this card is the notification's target, scroll it into view on mount.
+  // Optional-chained so it's a no-op in jsdom, which doesn't implement scrollIntoView.
+  useEffect(() => {
+    if (highlight) {
+      cardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    }
+  }, [highlight])
 
   const deliverables = bounty.deliverables || []
   const claimEvidence = claim.evidence?.deliverable_evidence || {}
@@ -55,7 +64,11 @@ const SubmissionReviewCard = ({ bounty, claim }) => {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-yellow-200 overflow-hidden">
+    <div
+      ref={cardRef}
+      data-testid={highlight ? 'highlighted-submission' : undefined}
+      className={`bg-white rounded-xl border overflow-hidden ${highlight ? 'border-optio-purple ring-2 ring-optio-purple' : 'border-yellow-200'}`}
+    >
       {/* Header: student + bounty + submitted date */}
       <button
         onClick={() => setExpanded(e => !e)}

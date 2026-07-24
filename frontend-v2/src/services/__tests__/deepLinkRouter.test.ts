@@ -34,6 +34,25 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('/bounties/review/xyz-999')?.target).toBe('/(app)/bounties/review/xyz-999');
   });
 
+  it('translates the web review-queue submission link to the mobile review screen', () => {
+    // Backend bounty-submission notification link (web-shaped).
+    const resolved = resolveDeepLink('/bounties?tab=review&bounty=b-1&claim=c-9');
+    expect(resolved?.target).toBe('/(app)/bounties/review/b-1');
+    expect(resolved?.params?.claim).toBe('c-9');
+  });
+
+  it('routes the review queue to the bounties tab when no specific bounty is given', () => {
+    // tab=review without a bounty id can't open a per-bounty screen; fall back
+    // to the bounties tab rather than a dead route.
+    expect(resolveDeepLink('/bounties?tab=review')?.target).toBe('/(app)/(tabs)/bounties');
+  });
+
+  it('carries ?claim through the direct /bounties/review/<id> route', () => {
+    const resolved = resolveDeepLink('/bounties/review/xyz-999?claim=c-3');
+    expect(resolved?.target).toBe('/(app)/bounties/review/xyz-999');
+    expect(resolved?.params?.claim).toBe('c-3');
+  });
+
   it('routes web-only prefixes to view-on-web with params', () => {
     const resolved = resolveDeepLink('/quests/quest-id');
     expect(resolved?.target).toBe('/(app)/view-on-web');

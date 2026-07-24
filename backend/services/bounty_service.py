@@ -716,7 +716,11 @@ class BountyService(BaseService):
                         notification_type='bounty_submission',
                         title='Bounty Submission',
                         message=f'{student_name} completed all deliverables for "{bounty["title"]}" and is awaiting your review.',
-                        link='/bounties?tab=my-bounties',
+                        # Deep-link straight to THIS student's submission in the
+                        # review queue. Web reads tab=review + claim (to scroll to
+                        # /highlight the card); the mobile deep-link router reads
+                        # bounty + claim to open /bounties/review/<bounty>?claim=<claim>.
+                        link=f'/bounties?tab=review&bounty={bounty_id}&claim={claim_id}',
                         metadata={'bounty_id': bounty_id, 'claim_id': claim_id},
                     )
                 except Exception as e:
