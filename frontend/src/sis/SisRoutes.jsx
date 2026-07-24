@@ -42,6 +42,7 @@ const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
 const SubmissionsPage = lazy(() => import('../pages/sis/SubmissionsPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
+const SecureDocumentsPage = lazy(() => import('../pages/sis/SecureDocumentsPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
 const MyClassesPage = lazy(() => import('../pages/sis/MyClassesPage'))
@@ -91,6 +92,7 @@ const SisRoutes = () => (
       <Route path="goals" element={<GoalsReviewPage />} />
       <Route path="submissions" element={<SubmissionsPage />} />
       <Route path="reports" element={<ReportsPage />} />
+      <Route path="secure-documents" element={<ModuleRoute path="/secure-documents"><SecureDocumentsPage /></ModuleRoute>} />
       <Route path="messaging" element={<FamilyMessagingPage />} />
       <Route path="registration" element={<RegistrationPage />} />
       <Route path="calendar" element={<CalendarPage />} />

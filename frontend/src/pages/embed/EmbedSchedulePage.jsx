@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { range12h } from '../../utils/timeFormat'
-import { fetchEmbed, agesLabel } from './embedShared'
+import { fetchEmbed, agesLabel, useEmbedAutoHeight } from './embedShared'
 
 /**
  * Public, iframe-able weekly schedule widget: GET /api/embed/:slug/schedule.
@@ -60,6 +60,7 @@ const SessionCard = ({ cls }) => {
 const EmbedSchedulePage = () => {
   const { slug } = useParams()
   const [state, setState] = useState({ status: 'loading', days: [] })
+  useEmbedAutoHeight()
 
   useEffect(() => {
     let active = true

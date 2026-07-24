@@ -7,15 +7,24 @@ use @require_auth and authorize by family relationship inside sis_parent_service
 stops at 'submitted'; staff invoice and full payment auto-enrolls.
 """
 
+import uuid
+
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from services import sis_parent_service as parent
+from services import sis_onboarding_service as onboarding
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_parent', __name__, url_prefix='/api/sis/parent')
+
+# Private bucket for family checklist document uploads (same idiom as the staff
+# onboarding docs: never public, read via short-lived signed URLs).
+_FAMILY_DOCS_BUCKET = 'family-documents'
+_DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
+_MAX_DOC_BYTES = 10 * 1024 * 1024
 
 
 def _org(req):
@@ -327,6 +336,97 @@ def submit_schedule(user_id, student_id):
         code = 403 if 'authorized' in result['error'] else 400
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, **result}), 201
+
+
+# ── Family portal: checklists a school assigns to the guardian ────────────────
+# These reuse the onboarding template/assignment machinery (family-audience
+# templates). A guardian only ever sees checklists assigned to their own user id.
+@bp.route('/onboarding', methods=['GET'])
+@require_auth
+def my_family_checklists(user_id):
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    return jsonify({'success': True,
+                    'assignments': onboarding.list_assignments(org_id, user_id=user_id)})
+
+
+@bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])
+@require_auth
+def update_family_checklist_item(user_id, assignment_id, item_key):
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    # is_admin=False: a guardian can mark their own items done / attach a doc, but
+    # never approve. The service also verifies the assignment belongs to them.
+    result = onboarding.update_item(org_id, assignment_id, item_key,
+                                    request.get_json() or {}, actor_id=user_id, is_admin=False)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/onboarding/upload', methods=['POST'])
+@require_auth
+def upload_family_checklist_doc(user_id):
+    """Upload a document for a family checklist item to the PRIVATE family-documents
+    bucket. Returns the storage path (read back via /onboarding/doc-url)."""
+    from database import get_supabase_admin_client
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'success': False, 'error': 'A file is required'}), 400
+    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+    if ext not in _DOC_EXTENSIONS:
+        return jsonify({'success': False, 'error': 'Unsupported file type'}), 400
+    blob = f.read()
+    if len(blob) > _MAX_DOC_BYTES:
+        return jsonify({'success': False, 'error': 'File is too large (max 10MB)'}), 400
+    supabase = get_supabase_admin_client()
+    try:
+        if not supabase.storage.get_bucket(_FAMILY_DOCS_BUCKET):
+            supabase.storage.create_bucket(_FAMILY_DOCS_BUCKET, options={'public': False})
+    except Exception:  # noqa: BLE001 — bucket likely already exists
+        try:
+            supabase.storage.create_bucket(_FAMILY_DOCS_BUCKET, options={'public': False})
+        except Exception:  # noqa: BLE001
+            pass
+    path = f'{org_id}/{user_id}/{uuid.uuid4().hex}.{ext}'
+    try:
+        supabase.storage.from_(_FAMILY_DOCS_BUCKET).upload(
+            path=path, file=blob,
+            file_options={'content-type': f.mimetype or 'application/octet-stream'})
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'family checklist upload failed: {e}')
+        return jsonify({'success': False, 'error': 'Upload failed'}), 500
+    return jsonify({'success': True, 'path': path})
+
+
+@bp.route('/onboarding/doc-url', methods=['GET'])
+@require_auth
+def family_checklist_doc_url(user_id):
+    """A short-lived signed URL for one of the guardian's own uploaded docs."""
+    from database import get_supabase_admin_client
+    org_id = _org(request)
+    path = request.args.get('path') or ''
+    if not org_id or not path:
+        return jsonify({'success': False, 'error': 'organization_id and path are required'}), 400
+    parts = path.split('/')
+    # Path scheme is {org_id}/{user_id}/{file}; a guardian may only open their own.
+    if len(parts) < 3 or parts[0] != org_id or parts[1] != user_id:
+        return jsonify({'success': False, 'error': 'Not authorized for this file'}), 403
+    try:
+        signed = (get_supabase_admin_client().storage.from_(_FAMILY_DOCS_BUCKET)
+                  .create_signed_url(path, 3600))
+        url = signed.get('signedURL') or signed.get('signedUrl')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'family checklist doc-url failed: {e}')
+        url = None
+    if not url:
+        return jsonify({'success': False, 'error': 'Could not open the document'}), 404
+    return jsonify({'success': True, 'url': url})
 
 
 # ── Age-exception requests ─────────────────────────────────────────────────────

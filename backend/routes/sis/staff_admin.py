@@ -177,13 +177,32 @@ def assign_onboarding(user_id):
     if err:
         return err
     data = request.get_json() or {}
-    if not data.get('template_id') or not data.get('user_id'):
-        return jsonify({'success': False, 'error': 'template_id and user_id are required'}), 400
+    if not data.get('template_id'):
+        return jsonify({'success': False, 'error': 'template_id is required'}), 400
+    # Accept a single user_id OR a list of user_ids (bulk assign).
+    user_ids = data.get('user_ids')
+    if isinstance(user_ids, list) and user_ids:
+        result = onboarding.assign_many(org_id, data['template_id'], user_ids, assigned_by=user_id)
+        return jsonify({'success': True, **result}), 201
+    if not data.get('user_id'):
+        return jsonify({'success': False, 'error': 'user_id or user_ids is required'}), 400
     result = onboarding.assign(org_id, data['template_id'], data['user_id'],
                                assigned_by=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
     return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/onboarding/recipients', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def onboarding_recipients(user_id):
+    """People an admin can assign a template to. ?audience=staff returns staff;
+    ?audience=family returns the org's guardians (parents) for family checklists."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    audience = (request.args.get('audience') or 'staff').strip().lower()
+    return jsonify({'success': True, 'recipients': onboarding.list_recipients(org_id, audience)})
 
 
 # ── Timesheets & payroll export ──────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { range12h } from '../../utils/timeFormat'
-import { fetchEmbed, daysLabel, agesLabel, money } from './embedShared'
+import { fetchEmbed, daysLabel, agesLabel, money, useEmbedAutoHeight } from './embedShared'
 
 /**
  * Public, iframe-able class catalog widget: GET /api/embed/:slug/catalog.
@@ -98,6 +98,7 @@ const ClassCard = ({ cls }) => {
 const EmbedCatalogPage = () => {
   const { slug } = useParams()
   const [state, setState] = useState({ status: 'loading', classes: [] })
+  useEmbedAutoHeight()
 
   useEffect(() => {
     let active = true

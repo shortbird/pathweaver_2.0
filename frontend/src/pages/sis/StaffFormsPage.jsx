@@ -128,8 +128,14 @@ const AdminQueue = ({ orgId }) => {
           <li key={f.id} className="py-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{f.form_type_label}</span>
+              {f.submitter_role === 'parent' && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple font-medium">Parent</span>
+              )}
               <span className="font-medium text-neutral-900">{f.title}</span>
               <StatusPill status={f.status} />
+              {f.assigned_to_name && (
+                <span className="text-xs text-neutral-500">Assigned to {f.assigned_to_name}</span>
+              )}
               <span className="text-xs text-neutral-400 ml-auto">
                 {f.submitted_by_name} · {new Date(f.created_at).toLocaleDateString()}
               </span>

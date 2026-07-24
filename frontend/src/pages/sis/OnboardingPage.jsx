@@ -146,11 +146,12 @@ const MyChecklists = ({ orgId, preview = null }) => {
 
 // ── Admin view ────────────────────────────────────────────────────────────────
 
-const emptyItem = () => ({ title: '', description: '', required: true, needs_document: false, needs_approval: false })
+const emptyItem = () => ({ title: '', description: '', link: '', required: true, needs_document: false, needs_approval: false })
 
 const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
   const [name, setName] = useState(template?.name || '')
   const [roleType, setRoleType] = useState(template?.role_type || '')
+  const [audience, setAudience] = useState(template?.audience || 'staff')
   const [items, setItems] = useState(template?.items?.length ? template.items : [emptyItem()])
   const [busy, setBusy] = useState(false)
 
@@ -162,7 +163,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
     if (!cleaned.length) { toast.error('Add at least one item'); return }
     setBusy(true)
     try {
-      const body = { organization_id: orgId, name: name.trim(), role_type: roleType.trim(), items: cleaned }
+      const body = { organization_id: orgId, name: name.trim(), role_type: roleType.trim(), audience, items: cleaned }
       if (template?.id) await api.put(`/api/sis/staff-admin/onboarding/templates/${template.id}`, body)
       else await api.post('/api/sis/staff-admin/onboarding/templates', body)
       toast.success('Template saved')
@@ -176,9 +177,13 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
 
   return (
     <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Template name (e.g. Employee onboarding)" className={inputClass} />
         <input value={roleType} onChange={(e) => setRoleType(e.target.value)} placeholder="For role (e.g. employee, contractor)" className={inputClass} />
+        <select value={audience} onChange={(e) => setAudience(e.target.value)} className={inputClass} aria-label="Who this is for">
+          <option value="staff">For staff (their SIS checklist)</option>
+          <option value="family">For families (their portal)</option>
+        </select>
       </div>
       {items.map((it, i) => (
         <div key={i} className="bg-white rounded-lg border border-gray-200 p-3 space-y-2">
@@ -190,6 +195,8 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
           </div>
           <input value={it.description || ''} onChange={(e) => setItem(i, { description: e.target.value })}
             placeholder="Instructions (optional — link out for sensitive documents)" className={inputClass} />
+          <input value={it.link || ''} onChange={(e) => setItem(i, { link: e.target.value })}
+            placeholder="Link (optional — e.g. a form to fill on another site)" className={inputClass} />
           <div className="flex items-center gap-4 text-sm text-neutral-600">
             <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={it.required !== false} onChange={(e) => setItem(i, { required: e.target.checked })} /> Required
@@ -222,36 +229,57 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
 const AdminOnboarding = ({ orgId }) => {
   const [templates, setTemplates] = useState([])
   const [assignments, setAssignments] = useState([])
-  const [staff, setStaff] = useState([])
   const [editing, setEditing] = useState(null) // null | 'new' | template
   const [assignTemplate, setAssignTemplate] = useState('')
-  const [assignUser, setAssignUser] = useState('')
+  const [recipients, setRecipients] = useState([])
+  const [assignUserIds, setAssignUserIds] = useState([])
+  const [assigning, setAssigning] = useState(false)
 
   const load = useCallback(() => {
     Promise.all([
       api.get(withOrg('/api/sis/staff-admin/onboarding/templates', orgId)),
       api.get(withOrg('/api/sis/staff-admin/onboarding/assignments', orgId)),
-      api.get(withOrg('/api/sis/staff', orgId)),
-    ]).then(([t, a, s]) => {
+    ]).then(([t, a]) => {
       setTemplates(t.data?.templates || [])
       setAssignments(a.data?.assignments || [])
-      setStaff(s.data?.staff || [])
     }).catch(() => toast.error('Failed to load onboarding admin'))
   }, [orgId])
 
   useEffect(() => { if (orgId) load() }, [load, orgId])
 
+  // Recipients depend on the selected template's audience: staff get staff,
+  // family templates get the org's guardians.
+  const selectedTemplate = templates.find((t) => t.id === assignTemplate)
+  const audience = selectedTemplate?.audience === 'family' ? 'family' : 'staff'
+  useEffect(() => {
+    setAssignUserIds([])
+    if (!orgId || !assignTemplate) { setRecipients([]); return }
+    api.get(withOrg(`/api/sis/staff-admin/onboarding/recipients?audience=${audience}`, orgId))
+      .then((r) => setRecipients(r.data?.recipients || []))
+      .catch(() => setRecipients([]))
+  }, [orgId, assignTemplate, audience])
+
+  const toggleRecipient = (id) => setAssignUserIds((prev) => (
+    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  ))
+  const allSelected = recipients.length > 0 && assignUserIds.length === recipients.length
+  const toggleAll = () => setAssignUserIds(allSelected ? [] : recipients.map((r) => r.id))
+
   const assign = async () => {
-    if (!assignTemplate || !assignUser) { toast.error('Pick a template and a staff member'); return }
+    if (!assignTemplate || !assignUserIds.length) { toast.error('Pick a template and at least one recipient'); return }
+    setAssigning(true)
     try {
-      await api.post('/api/sis/staff-admin/onboarding/assignments', {
-        organization_id: orgId, template_id: assignTemplate, user_id: assignUser,
+      const r = await api.post('/api/sis/staff-admin/onboarding/assignments', {
+        organization_id: orgId, template_id: assignTemplate, user_ids: assignUserIds,
       })
-      toast.success('Checklist assigned')
-      setAssignUser('')
+      const n = r.data?.assigned ?? assignUserIds.length
+      toast.success(`Assigned to ${n} ${audience === 'family' ? 'famil' + (n === 1 ? 'y' : 'ies') : 'staff'}`)
+      setAssignUserIds([])
       load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not assign')
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -285,25 +313,54 @@ const AdminOnboarding = ({ orgId }) => {
           {templates.map((t) => (
             <li key={t.id} className="py-2.5 flex items-center gap-2">
               <span className="text-sm font-medium text-neutral-900">{t.name}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
+                {t.audience === 'family' ? 'Family' : 'Staff'}
+              </span>
               {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
               <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
               <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline ml-auto">Edit</button>
             </li>
           ))}
         </ul>
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+        <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
           <select value={assignTemplate} onChange={(e) => setAssignTemplate(e.target.value)} className={inputClass}>
-            <option value="">Assign template…</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            <option value="">Assign a checklist…</option>
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.audience === 'family' ? 'family' : 'staff'})</option>)}
           </select>
-          <select value={assignUser} onChange={(e) => setAssignUser(e.target.value)} className={inputClass}>
-            <option value="">To staff member…</option>
-            {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <button onClick={assign}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold shrink-0">
-            Assign
-          </button>
+          {assignTemplate && (
+            <div className="rounded-lg border border-gray-200 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  {audience === 'family' ? 'Assign to families' : 'Assign to staff'}
+                </span>
+                {recipients.length > 0 && (
+                  <button onClick={toggleAll} className="text-xs text-optio-purple hover:underline">
+                    {allSelected ? 'Clear all' : 'Select all'}
+                  </button>
+                )}
+              </div>
+              {recipients.length === 0 ? (
+                <p className="text-sm text-neutral-400">No {audience === 'family' ? 'families' : 'staff'} to assign to yet.</p>
+              ) : (
+                <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
+                  {recipients.map((r) => (
+                    <label key={r.id} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
+                      <input type="checkbox" checked={assignUserIds.includes(r.id)} onChange={() => toggleRecipient(r.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                      <span className="text-neutral-800">{r.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-xs text-neutral-400">{assignUserIds.length} selected</span>
+                <button onClick={assign} disabled={assigning || !assignUserIds.length}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                  {assigning ? 'Assigning…' : 'Assign checklist'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

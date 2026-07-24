@@ -31,15 +31,33 @@ FORM_TYPES = {
 }
 STATUSES = ('submitted', 'under_review', 'resolved')
 
+# Form types a parent/guardian may file from the family Learning app. These land
+# in the SAME staff review queue as staff-filed forms (submitter_role='parent').
+PARENT_FORM_TYPES = {
+    'at_home_learning_day': 'At-home learning day request',
+    'general_request': 'General request',
+    'records_request': 'Records request',
+    'meeting_request': 'Request a meeting',
+}
+
 
 def _admin():
     return get_supabase_admin_client()
 
 
-def submit(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+# Label lookup spanning staff + parent form types (a submission of either kind
+# resolves its human label here).
+ALL_FORM_TYPES = {**FORM_TYPES, **PARENT_FORM_TYPES}
+
+
+def submit(org_id: str, user_id: str, data: Dict[str, Any],
+           submitter_role: str = 'staff') -> Dict[str, Any]:
     form_type = data.get('form_type')
-    if form_type not in FORM_TYPES:
+    # Staff callers use FORM_TYPES; parent callers use PARENT_FORM_TYPES.
+    allowed = PARENT_FORM_TYPES if submitter_role == 'parent' else FORM_TYPES
+    if form_type not in allowed:
         return {'error': 'Unknown form type'}
+    label = allowed[form_type]
     body = (data.get('body') or '').strip()
     if not body:
         return {'error': 'Please describe the issue or request'}
@@ -51,17 +69,19 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     row = (_admin().table('sis_form_submissions').insert({
         'organization_id': org_id,
         'submitted_by': user_id,
+        'submitter_role': submitter_role,
         'form_type': form_type,
-        'title': (data.get('title') or '').strip() or FORM_TYPES[form_type],
+        'title': (data.get('title') or '').strip() or label,
         'payload': payload,
         'student_user_id': data.get('student_user_id') or None,
         'class_id': data.get('class_id') or None,
     }).execute()).data
     submission = row[0] if row else None
+    prefix = 'family' if submitter_role == 'parent' else 'staff'
     for admin_id in sis_service.org_admin_ids(org_id):
         sis_notifications.notify(
-            admin_id, f'New {FORM_TYPES[form_type].lower()}',
-            (submission or {}).get('title') or FORM_TYPES[form_type],
+            admin_id, f'New {prefix} {label.lower()}',
+            (submission or {}).get('title') or label,
             link='/forms', organization_id=org_id)
     return {'submission': submission}
 
@@ -80,11 +100,13 @@ def _names_for(user_ids: List[str]) -> Dict[str, str]:
 
 def _decorate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     names = _names_for([r.get('submitted_by') for r in rows]
-                       + [r.get('student_user_id') for r in rows])
+                       + [r.get('student_user_id') for r in rows]
+                       + [r.get('assigned_to') for r in rows])
     for r in rows:
         r['submitted_by_name'] = names.get(r.get('submitted_by'))
         r['student_name'] = names.get(r.get('student_user_id'))
-        r['form_type_label'] = FORM_TYPES.get(r.get('form_type'), r.get('form_type'))
+        r['assigned_to_name'] = names.get(r.get('assigned_to'))
+        r['form_type_label'] = ALL_FORM_TYPES.get(r.get('form_type'), r.get('form_type'))
     return rows
 
 
@@ -128,7 +150,7 @@ def update_status(org_id: str, submission_id: str, fields: Dict[str, Any],
            .eq('id', submission_id).execute()).data
     updated = row[0] if row else None
     if status and rows[0].get('submitted_by') != actor_id:
-        label = FORM_TYPES.get(rows[0].get('form_type'), 'form')
+        label = ALL_FORM_TYPES.get(rows[0].get('form_type'), 'form')
         sis_notifications.notify(
             rows[0]['submitted_by'], f'Your {label.lower()} is {status.replace("_", " ")}',
             rows[0].get('title') or label, link='/forms', organization_id=org_id)

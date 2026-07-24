@@ -6,6 +6,43 @@
  * which attaches httpOnly cookies + CSRF and would fail cross-origin).
  */
 
+import { useEffect } from 'react'
+
+// Auto-resize handshake: an iframed widget can't grow to fit its content on its
+// own (cross-origin), so it measures its content height and postMessages it to
+// the host page, which listens and sets the iframe height. Fires on mount, on
+// every content/size change (ResizeObserver), on font/image load, and on window
+// resize. The host script (given to the site owner) verifies the origin and
+// matches the sending frame by contentWindow, so one listener handles every
+// Optio widget on the page.
+export const EMBED_HEIGHT_MESSAGE = 'optio-embed-height'
+
+export const useEmbedAutoHeight = () => {
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return
+    let last = 0
+    const post = () => {
+      const height = Math.ceil(Math.max(
+        document.body.scrollHeight,
+        document.documentElement.scrollHeight,
+      ))
+      if (!height || height === last) return
+      last = height
+      window.parent.postMessage({ type: EMBED_HEIGHT_MESSAGE, height }, '*')
+    }
+    post()
+    const ro = new ResizeObserver(post)
+    ro.observe(document.body)
+    window.addEventListener('load', post)
+    window.addEventListener('resize', post)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('load', post)
+      window.removeEventListener('resize', post)
+    }
+  }, [])
+}
+
 // Same base the app's axios client uses: http://localhost:5001 in dev,
 // https://api.optioeducation.com in prod (Render env VITE_API_URL). The embed
 // endpoints send Access-Control-Allow-Origin: * so this cross-origin GET works.

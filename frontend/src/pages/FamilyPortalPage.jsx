@@ -1,0 +1,166 @@
+import React, { useCallback, useEffect, useState } from 'react'
+import { toast } from 'react-hot-toast'
+import api from '../services/api'
+
+/**
+ * Family portal (Learning app) — the checklists a school assigns to a guardian.
+ *
+ * Backed by /api/sis/parent/onboarding (authorized by family relationship). A
+ * guardian marks items complete, follows any linked step, and can attach a
+ * document to items that need one. Distinct from the staff SIS console, which is
+ * where admins build the templates and assign them.
+ */
+
+const ITEM_BADGE = {
+  pending: 'bg-gray-100 text-neutral-600',
+  complete: 'bg-blue-100 text-blue-700',
+  approved: 'bg-green-100 text-green-700',
+  rejected: 'bg-red-100 text-red-700',
+}
+
+const FamilyPortalPage = () => {
+  const [loading, setLoading] = useState(true)
+  const [orgs, setOrgs] = useState([])
+  const [orgId, setOrgId] = useState('')
+  const [assignments, setAssignments] = useState([])
+  const [busyKey, setBusyKey] = useState(null)
+
+  useEffect(() => {
+    api.get('/api/sis/parent/context')
+      .then((r) => {
+        const list = r.data?.orgs || []
+        setOrgs(list)
+        if (list.length) setOrgId(list[0].organization_id)
+      })
+      .catch(() => toast.error('Could not load your portal'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const load = useCallback(() => {
+    if (!orgId) return
+    api.get(`/api/sis/parent/onboarding?organization_id=${orgId}`)
+      .then((r) => setAssignments(r.data?.assignments || []))
+      .catch(() => toast.error('Could not load your checklists'))
+  }, [orgId])
+
+  useEffect(() => { load() }, [load])
+
+  const patchItem = async (assignmentId, itemKey, fields) => {
+    setBusyKey(`${assignmentId}:${itemKey}`)
+    try {
+      await api.patch(`/api/sis/parent/onboarding/${assignmentId}/items/${itemKey}`, {
+        organization_id: orgId, ...fields,
+      })
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not update the item')
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
+  const uploadDoc = async (assignmentId, itemKey, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    setBusyKey(`${assignmentId}:${itemKey}`)
+    try {
+      const r = await api.post(`/api/sis/parent/onboarding/upload?organization_id=${orgId}`, form)
+      await patchItem(assignmentId, itemKey, { document_url: r.data?.path, status: 'complete' })
+      toast.success('Document attached')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Upload failed')
+      setBusyKey(null)
+    }
+  }
+
+  const openDoc = async (path) => {
+    try {
+      const r = await api.get(`/api/sis/parent/onboarding/doc-url?organization_id=${orgId}&path=${encodeURIComponent(path)}`)
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+    } catch {
+      toast.error('Could not open the document')
+    }
+  }
+
+  if (loading) return <div className="max-w-3xl mx-auto px-4 py-8"><p className="text-neutral-500">Loading…</p></div>
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="flex items-center justify-between mb-1 gap-3">
+        <h1 className="text-2xl font-bold text-neutral-900">Your portal</h1>
+        {orgs.length > 1 && (
+          <select value={orgId} onChange={(e) => setOrgId(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            {orgs.map((o) => <option key={o.organization_id} value={o.organization_id}>{o.organization_name || 'School'}</option>)}
+          </select>
+        )}
+      </div>
+      <p className="text-neutral-500 mb-6">Checklists your school has shared with you. Mark each step done as you finish it.</p>
+
+      {!assignments.length ? (
+        <p className="text-neutral-400">Nothing to complete right now.</p>
+      ) : (
+        <div className="space-y-4">
+          {assignments.map((a) => (
+            <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-neutral-900">{a.template_name || 'Checklist'}</h2>
+                <span className="text-sm text-neutral-500">{a.done_count}/{a.total_count} complete</span>
+              </div>
+              <ul className="divide-y divide-gray-100">
+                {(a.items || []).map((item) => {
+                  const busy = busyKey === `${a.id}:${item.key}`
+                  const done = ['complete', 'approved'].includes(item.status)
+                  return (
+                    <li key={item.key} className="py-3 flex items-start gap-3">
+                      <input type="checkbox" checked={done} disabled={busy || item.status === 'approved'}
+                        onChange={(e) => patchItem(a.id, item.key, { status: e.target.checked ? 'complete' : 'pending' })}
+                        className="mt-1 h-4 w-4 accent-purple-700" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-sm font-medium ${done ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>
+                            {item.title}
+                          </span>
+                          {!item.required && <span className="text-xs text-neutral-400">optional</span>}
+                          {item.due_date && <span className="text-xs text-neutral-400">due {item.due_date}</span>}
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${ITEM_BADGE[item.status] || ITEM_BADGE.pending}`}>
+                            {item.status || 'pending'}
+                          </span>
+                        </div>
+                        {item.description && <p className="text-sm text-neutral-500 mt-0.5">{item.description}</p>}
+                        {item.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {item.admin_notes}</p>}
+                        <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+                          {item.link && (
+                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
+                              Open link
+                            </a>
+                          )}
+                          {item.needs_document && (
+                            <>
+                              {item.document_url && (
+                                <button onClick={() => openDoc(item.document_url)} className="text-sm text-optio-purple hover:underline">
+                                  View document
+                                </button>
+                              )}
+                              <label className="text-sm text-optio-purple hover:underline cursor-pointer">
+                                {item.document_url ? 'Replace document' : 'Upload document'}
+                                <input type="file" className="hidden" disabled={busy}
+                                  onChange={(e) => e.target.files?.[0] && uploadDoc(a.id, item.key, e.target.files[0])} />
+                              </label>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default FamilyPortalPage

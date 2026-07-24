@@ -109,6 +109,8 @@ const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
+const FamilyFormsPage = lazy(() => import('./pages/FamilyFormsPage'))
+const FamilyPortalPage = lazy(() => import('./pages/FamilyPortalPage'))
 const FamilyResourcesPage = lazy(() => import('./pages/FamilyResourcesPage'))
 const FamilyCalendarPage = lazy(() => import('./pages/FamilyCalendarPage'))
 const FamilyDirectoryPage = lazy(() => import('./pages/FamilyDirectoryPage'))
@@ -524,6 +526,10 @@ function App() {
                 </Route>
                 {/* Parent/guardian self-service: report a child's planned absences */}
                 <Route path="absences" element={<AbsenceReportingPage />} />
+                {/* Parent/guardian self-service: submit a request to the school */}
+                <Route path="family/forms" element={<FamilyFormsPage />} />
+                {/* Family portal: checklists the school assigns to the guardian */}
+                <Route path="family/portal" element={<FamilyPortalPage />} />
                 {/* School document library + opt-in family directory (SIS orgs) */}
                 <Route path="resources" element={<FamilyResourcesPage />} />
                 <Route path="school-calendar" element={<FamilyCalendarPage />} />

@@ -779,6 +779,10 @@ def register_sis_routes(app):
     app.register_blueprint(submissions_bp)
     from routes.sis.class_discussions import bp as class_discussions_bp
     app.register_blueprint(class_discussions_bp)
+    from routes.sis.secure_documents import bp as secure_documents_bp
+    app.register_blueprint(secure_documents_bp)
+    from routes.sis.parent_forms import bp as parent_forms_bp
+    app.register_blueprint(parent_forms_bp)
     from routes.sis.gradebook import bp as gradebook_bp
     app.register_blueprint(gradebook_bp)
     from routes.sis.engagement import bp as engagement_bp

@@ -20,6 +20,7 @@ export const SIS_MODULE_BY_PATH = {
   '/billing': 'billing',
   '/forms': 'forms',
   '/onboarding': 'onboarding',
+  '/secure-documents': 'secure_documents',
   '/timesheets': 'timesheets',
   '/time': 'timesheets',
 }

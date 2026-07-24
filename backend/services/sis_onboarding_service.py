@@ -48,8 +48,21 @@ def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
             'needs_document': bool(item.get('needs_document', False)),
             'needs_approval': bool(item.get('needs_approval', False)),
             'due_date': item.get('due_date') or None,
+            # Optional external link surfaced next to the item (e.g. a form to
+            # fill on another site). Families/staff open it to complete the step.
+            'link': (item.get('link') or '').strip() or None,
         })
     return cleaned
+
+
+# A template targets either staff (the SIS console "My checklists") or families
+# (their portal in the learning app). Defaults to staff to preserve existing rows.
+AUDIENCES = ('staff', 'family')
+
+
+def _clean_audience(value: Any) -> str:
+    v = (str(value or '').strip().lower())
+    return v if v in AUDIENCES else 'staff'
 
 
 # ── Templates (admin) ────────────────────────────────────────────────────────
@@ -70,6 +83,7 @@ def save_template(org_id: str, data: Dict[str, Any], actor_id: str,
     if items is None:
         return {'error': 'Each item needs at least a title'}
     payload = {'name': name, 'role_type': (data.get('role_type') or '').strip() or None,
+               'audience': _clean_audience(data.get('audience')),
                'items': items, 'updated_at': _now()}
     admin = _admin()
     if template_id:
@@ -102,6 +116,10 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     if not rows or rows[0].get('organization_id') != org_id:
         return {'error': 'Template not found'}
     template = rows[0]
+    # Family checklists live in the learning-app family portal; staff ones in the
+    # SIS console — point the notification at the right place.
+    is_family = _clean_audience(template.get('audience')) == 'family'
+    link = '/family/portal' if is_family else '/onboarding'
     items = [{**i, 'status': 'pending', 'document_url': None,
               'submitted_at': None, 'approved_by': None, 'approved_at': None,
               'admin_notes': None}
@@ -111,11 +129,48 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
         'template_id': template_id, 'template_name': template['name'],
         'items': items, 'assigned_by': assigned_by,
     }).execute()).data
+    label = 'Checklist assigned' if is_family else 'Onboarding checklist assigned'
     sis_notifications.notify(
-        user_id, 'Onboarding checklist assigned',
+        user_id, label,
         f'"{template["name"]}" has {len(items)} item{"s" if len(items) != 1 else ""} to complete.',
-        link='/onboarding', organization_id=org_id)
+        link=link, organization_id=org_id)
     return {'assignment': row[0] if row else None}
+
+
+def assign_many(org_id: str, template_id: str, user_ids: List[str],
+                assigned_by: str) -> Dict[str, Any]:
+    """Assign a template to several people at once (bulk). Returns how many were
+    assigned; skips ids that error so one bad id doesn't sink the batch."""
+    assigned, errors = 0, []
+    for uid in dict.fromkeys(uid for uid in user_ids if uid):  # de-dupe, keep order
+        result = assign(org_id, template_id, uid, assigned_by)
+        if result.get('error'):
+            errors.append(result['error'])
+        else:
+            assigned += 1
+    return {'assigned': assigned, 'errors': errors}
+
+
+def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]]:
+    """People an admin can assign a template to, by audience. 'family' returns the
+    org's guardians (parents); 'staff' returns teachers/admins."""
+    audience = _clean_audience(audience)
+    rows = (_admin().table('users')
+            .select('id, first_name, last_name, display_name, email, org_role, role')
+            .eq('organization_id', org_id).execute()).data or []
+    if audience == 'family':
+        wanted = {'parent'}
+    else:
+        wanted = {'advisor', 'org_admin'}
+    people = [u for u in rows if (u.get('org_role') in wanted or u.get('role') in wanted)]
+    out = [{
+        'id': u['id'],
+        'name': (u.get('display_name')
+                 or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                 or u.get('email') or 'Unnamed'),
+    } for u in people]
+    out.sort(key=lambda p: (p['name'] or '').lower())
+    return out
 
 
 def list_assignments(org_id: str, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
