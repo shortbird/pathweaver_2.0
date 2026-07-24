@@ -55,7 +55,7 @@ def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
     users = {
         u['id']: u for u in (
             _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
             .in_('id', student_ids).execute()
         ).data or []
     }
@@ -64,7 +64,21 @@ def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
         r['student_name'] = (u.get('display_name')
                              or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
                              or u.get('username') or u.get('email') or 'Unnamed')
+        r['student_age'] = _age_from_dob(u.get('date_of_birth'))
     return rows
+
+
+def _age_from_dob(dob):
+    """Whole years from an ISO date string, or None when unknown/unparseable."""
+    from datetime import date
+    if not dob:
+        return None
+    try:
+        d = date.fromisoformat(str(dob)[:10])
+    except (ValueError, TypeError):
+        return None
+    today = date.today()
+    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
 def add_to_waitlist(org_id: str, class_id: str, student_user_id: str) -> Dict[str, Any]:

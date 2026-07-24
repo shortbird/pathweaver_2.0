@@ -153,6 +153,8 @@ const LtiDeepLinkPage = lazy(() => import('./pages/lti/LtiDeepLinkPage'))
 const LtiQuestPage = lazy(() => import('./pages/lti/LtiQuestPage'))
 const LtiErrorPage = lazy(() => import('./pages/lti/LtiErrorPage'))
 const LtiEvidencePage = lazy(() => import('./pages/lti/LtiEvidencePage'))
+const EmbedCatalogPage = lazy(() => import('./pages/embed/EmbedCatalogPage'))
+const EmbedSchedulePage = lazy(() => import('./pages/embed/EmbedSchedulePage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -340,6 +342,12 @@ function SurfaceRoutes({ renderLearning }) {
     setSurface(target);
     navigate(path || '/');
   }), [navigate]);
+  // Public embeddable widgets live in the learning route tree and must render
+  // regardless of the sticky SIS/learning surface (a staff member with the SIS
+  // surface persisted would otherwise get bounced to login on an /embed URL).
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/embed/')) {
+    return renderLearning();
+  }
   return surface === 'sis' ? <SisRoutes /> : renderLearning();
 }
 
@@ -459,6 +467,10 @@ function App() {
               {/* Post-login hop to the SIS console for SIS-org staff (no Layout
                   chrome; it forwards immediately). */}
               <Route path="sis-launch" element={<SisLaunchPage />} />
+
+              {/* Public embeddable widgets (iframed onto external org sites; no chrome/auth) */}
+              <Route path="embed/:slug/catalog" element={<EmbedCatalogPage />} />
+              <Route path="embed/:slug/schedule" element={<EmbedSchedulePage />} />
 
               <Route path="/" element={<Layout />}>
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />

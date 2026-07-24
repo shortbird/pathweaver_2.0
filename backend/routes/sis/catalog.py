@@ -64,6 +64,19 @@ def _instructor_in_org(org_id, instructor_id):
     return bool(row and row[0].get('organization_id') == org_id)
 
 
+def _invalid_assistant(org_id, assistant_ids):
+    """Validate an optional list of assistant-teacher ids all belong to the org.
+    Returns an error string, or None when valid/absent."""
+    if assistant_ids is None:
+        return None
+    if not isinstance(assistant_ids, list):
+        return 'assistant_instructor_ids must be a list'
+    for aid in assistant_ids:
+        if aid and not _instructor_in_org(org_id, aid):
+            return 'An assistant teacher was not found in this organization'
+    return None
+
+
 # ── Programs ─────────────────────────────────────────────────────────────────
 # ── Classes (org_classes SIS view) ───────────────────────────────────────────
 @bp.route('/classes', methods=['GET'])
@@ -126,6 +139,9 @@ def create_class(user_id):
         return jsonify({'success': False, 'error': invalid}), 400
     if data.get('primary_instructor_id') and not _instructor_in_org(org_id, data['primary_instructor_id']):
         return jsonify({'success': False, 'error': 'Teacher not found in this organization'}), 400
+    bad_assistant = _invalid_assistant(org_id, data.get('assistant_instructor_ids'))
+    if bad_assistant:
+        return jsonify({'success': False, 'error': bad_assistant}), 400
     repo = SisClassRepository(client=get_supabase_admin_client())
     fields = {**data, 'name': name}
     cls = repo.create_for_org(org_id, created_by=user_id, fields=fields)
@@ -159,6 +175,9 @@ def update_class(user_id, class_id):
         return jsonify({'success': False, 'error': invalid}), 400
     if data.get('primary_instructor_id') and not _instructor_in_org(org_id, data['primary_instructor_id']):
         return jsonify({'success': False, 'error': 'Teacher not found in this organization'}), 400
+    bad_assistant = _invalid_assistant(org_id, data.get('assistant_instructor_ids'))
+    if bad_assistant:
+        return jsonify({'success': False, 'error': bad_assistant}), 400
     repo = SisClassRepository(client=get_supabase_admin_client())
     existing = repo.find_by_id(class_id)
     if not existing or existing.get('organization_id') != org_id:

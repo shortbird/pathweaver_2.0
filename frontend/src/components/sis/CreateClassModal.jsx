@@ -101,6 +101,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
     name: initial?.name || '',
     description: initial?.description || '',
     primary_instructor_id: initial?.primary_instructor_id || '',
+    assistant_instructor_ids: initial?.assistant_instructor_ids || [],
     location: initial?.location || '',
     days_of_week: seed?.days_of_week || [],
     start_time: seed?.start_time || '',
@@ -184,6 +185,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
       description: formData.description,
       location: formData.location.trim() || null,
       primary_instructor_id: formData.primary_instructor_id || null,
+      assistant_instructor_ids: (formData.assistant_instructor_ids || []).filter(Boolean),
       days_of_week: dow,                          // SIS day_of_week ints (0=Sun..6=Sat)
       start_time: formData.start_time || undefined,
       duration_minutes: numOrUndef(formData.duration_minutes),
@@ -261,6 +263,49 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
                   getId={(s) => s.id}
                   getLabel={(s) => s.name}
                   placeholder="Search staff…"
+                />
+              </div>
+            )}
+
+            {/* Assistant teacher(s) — optional, one or more */}
+            {staff.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assistant teacher(s)</label>
+                {formData.assistant_instructor_ids.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {formData.assistant_instructor_ids.map((id) => {
+                      const s = staff.find((x) => x.id === id)
+                      return (
+                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-medium px-2.5 py-1">
+                          {s?.name || 'Staff member'}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${s?.name || 'assistant'}`}
+                            onClick={() => setFormData((prev) => ({
+                              ...prev,
+                              assistant_instructor_ids: prev.assistant_instructor_ids.filter((x) => x !== id),
+                            }))}
+                            className="hover:text-optio-pink font-bold leading-none"
+                          >×</button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+                <SearchSelect
+                  value=""
+                  onChange={(id) => {
+                    if (!id) return
+                    setFormData((prev) => (
+                      prev.assistant_instructor_ids.includes(id) || id === prev.primary_instructor_id
+                        ? prev
+                        : { ...prev, assistant_instructor_ids: [...prev.assistant_instructor_ids, id] }
+                    ))
+                  }}
+                  options={staff.filter((s) => s.id !== formData.primary_instructor_id && !formData.assistant_instructor_ids.includes(s.id))}
+                  getId={(s) => s.id}
+                  getLabel={(s) => s.name}
+                  placeholder="Add an assistant…"
                 />
               </div>
             )}

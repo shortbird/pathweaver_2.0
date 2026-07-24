@@ -777,6 +777,8 @@ def register_sis_routes(app):
     app.register_blueprint(staff_admin_bp)
     from routes.sis.submissions import bp as submissions_bp
     app.register_blueprint(submissions_bp)
+    from routes.sis.class_discussions import bp as class_discussions_bp
+    app.register_blueprint(class_discussions_bp)
     from routes.sis.gradebook import bp as gradebook_bp
     app.register_blueprint(gradebook_bp)
     from routes.sis.engagement import bp as engagement_bp

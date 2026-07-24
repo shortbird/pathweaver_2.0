@@ -382,20 +382,31 @@ const ClpPage = () => {
                 {(byDay[d] || []).map(({ cls, m }, i) => {
                   const focused = timeFocus && timeFocus.classId === cls.class_id && timeFocus.day === d
                   return (
-                    <button
-                      key={`${cls.class_id}-${i}`}
-                      type="button"
-                      onClick={() => setTimeFocus(focused ? null : { label: cls.name, day: d, classId: cls.class_id, meetings: cls.meetings })}
-                      className={`w-full text-left rounded-lg p-2.5 border transition-colors ${
-                        focused
-                          ? 'border-optio-purple bg-optio-purple/10 ring-1 ring-optio-purple'
-                          : 'border-gray-200 bg-gradient-to-br from-[#F3EFF4] to-white hover:border-optio-purple'
-                      }`}
-                    >
-                      <div className="text-sm font-semibold text-neutral-900 leading-tight">{cls.name}</div>
-                      <div className="text-xs text-neutral-500 mt-0.5">{fmtTime(m.start_time)}–{fmtTime(m.end_time)}</div>
-                      {cls.primary_instructor?.name && <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{cls.primary_instructor.name}</div>}
-                    </button>
+                    <div key={`${cls.class_id}-${i}`} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setTimeFocus(focused ? null : { label: cls.name, day: d, classId: cls.class_id, meetings: cls.meetings })}
+                        className={`w-full text-left rounded-lg p-2.5 pr-7 border transition-colors ${
+                          focused
+                            ? 'border-optio-purple bg-optio-purple/10 ring-1 ring-optio-purple'
+                            : 'border-gray-200 bg-gradient-to-br from-[#F3EFF4] to-white hover:border-optio-purple'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-neutral-900 leading-tight">{cls.name}</div>
+                        <div className="text-xs text-neutral-500 mt-0.5">{fmtTime(m.start_time)}–{fmtTime(m.end_time)}</div>
+                        {cls.primary_instructor?.name && <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{cls.primary_instructor.name}</div>}
+                      </button>
+                      <button
+                        type="button"
+                        title={`Drop ${cls.name}`}
+                        aria-label={`Drop ${cls.name}`}
+                        disabled={busyId === cls.class_id}
+                        onClick={() => { if (window.confirm(`Drop ${cls.name} from this student's schedule?`)) drop(cls) }}
+                        className="absolute top-1 right-1 text-neutral-300 hover:text-red-600 leading-none text-base font-bold px-1 disabled:opacity-40"
+                      >
+                        {busyId === cls.class_id ? '·' : '×'}
+                      </button>
+                    </div>
                   )
                 })}
                 {!(byDay[d] || []).length && <div className="text-xs text-neutral-300 text-center py-4">—</div>}

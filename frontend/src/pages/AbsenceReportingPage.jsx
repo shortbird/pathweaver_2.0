@@ -119,7 +119,7 @@ const AbsenceReportingPage = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-neutral-900 mb-1">Report an absence</h1>
-      <p className="text-neutral-500 mb-6">Let your school know ahead of time when your child will be out.</p>
+      <p className="text-neutral-500 mb-6">Let {org?.organization_name || 'your school'} know ahead of time when your child will be out.</p>
 
       {/* Child / org pickers */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-end gap-3">

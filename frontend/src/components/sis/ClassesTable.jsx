@@ -88,6 +88,11 @@ const SORT_VALUE = {
   waitlist: (c) => c.waitlist_count ?? 0,
 }
 
+const SORT_LABELS = {
+  name: 'Name', teacher: 'Teacher', days: 'Days', time: 'Time',
+  ages: 'Ages', enrolled: 'Enrolled', waitlist: 'Waitlist',
+}
+
 const draftToPayload = (d) => ({
   name: d.name.trim(),
   description: d.description,
@@ -111,15 +116,23 @@ const Field = ({ label, children, className = '' }) => (
   </div>
 )
 
+// Multi-level sort: `sort` is an ordered list of {key, dir}. Index 0 is the
+// primary sort; each further click on a new column adds a deeper tiebreaker, so
+// you can freeze one column and keep sorting within it (day, then time, …).
 const SortHeader = ({ label, sortKey, sort, onSort, className = '' }) => {
-  const active = sort.key === sortKey
+  const idx = sort.findIndex((s) => s.key === sortKey)
+  const active = idx !== -1
+  const entry = active ? sort[idx] : null
   return (
     <th className={`px-4 py-2.5 ${className}`}>
       <button type="button" onClick={() => onSort(sortKey)}
         className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-neutral-600 ${active ? 'text-optio-purple' : ''}`}>
         {label}
         {active
-          ? <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${sort.dir === 'asc' ? 'rotate-180' : ''}`} />
+          ? <>
+              <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${entry.dir === 'asc' ? 'rotate-180' : ''}`} />
+              {sort.length > 1 && <span className="text-[10px] font-bold">{idx + 1}</span>}
+            </>
           : <ChevronUpDownIcon className="w-3.5 h-3.5 text-neutral-300" />}
       </button>
     </th>
@@ -130,20 +143,31 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
   const [expandedId, setExpandedId] = useState(null)
   const [saving, setSaving] = useState(null) // class_id mid-save
-  const [sort, setSort] = useState({ key: null, dir: 'asc' })
+  const [sort, setSort] = useState([]) // ordered [{ key, dir }] — index 0 is primary
 
-  const onSort = (key) => setSort((s) => (
-    s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
-  ))
+  // Click cycles a column asc -> desc -> off. A column not yet in the sort is
+  // appended as the next-deeper tiebreaker, so clicking Day then Time sorts by
+  // day and then by time within each day.
+  const onSort = (key) => setSort((stack) => {
+    const i = stack.findIndex((s) => s.key === key)
+    if (i === -1) return [...stack, { key, dir: 'asc' }]
+    if (stack[i].dir === 'asc') {
+      const next = [...stack]
+      next[i] = { key, dir: 'desc' }
+      return next
+    }
+    return stack.filter((s) => s.key !== key)
+  })
 
   const sortedClasses = useMemo(() => {
-    if (!sort.key) return classes
-    const val = SORT_VALUE[sort.key]
-    const factor = sort.dir === 'asc' ? 1 : -1
+    if (!sort.length) return classes
     return [...classes].sort((a, b) => {
-      const va = val(a), vb = val(b)
-      if (va < vb) return -1 * factor
-      if (va > vb) return 1 * factor
+      for (const { key, dir } of sort) {
+        const val = SORT_VALUE[key]
+        const va = val(a), vb = val(b)
+        if (va < vb) return dir === 'asc' ? -1 : 1
+        if (va > vb) return dir === 'asc' ? 1 : -1
+      }
       return 0
     })
   }, [classes, sort])
@@ -168,6 +192,15 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+      {sort.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs text-neutral-500 border-b border-gray-100">
+          <span>
+            Sorted by {sort.map((s, i) => `${sort.length > 1 ? `${i + 1}. ` : ''}${SORT_LABELS[s.key]}${s.dir === 'desc' ? ' ↓' : ' ↑'}`).join(', ')}
+          </span>
+          <button type="button" onClick={() => setSort([])} className="text-optio-purple hover:underline">Clear</button>
+          <span className="text-neutral-300 hidden sm:inline">· Click a column to add a deeper level; click again to flip or remove it.</span>
+        </div>
+      )}
       <table className="w-full text-sm min-w-[700px]">
         <thead>
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-gray-100">
@@ -198,7 +231,14 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                     {c.status === 'archived' && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded uppercase">Archived</span>}
                     {dirty && <span className="ml-2 text-[10px] font-semibold text-optio-purple uppercase">edited</span>}
                   </td>
-                  <td className="px-4 py-3 text-neutral-600">{c.primary_instructor?.name || c.primary_instructor?.display_name || '—'}</td>
+                  <td className="px-4 py-3 text-neutral-600">
+                    {c.primary_instructor?.name || c.primary_instructor?.display_name || '—'}
+                    {c.assistant_instructors?.length > 0 && (
+                      <span className="block text-xs text-neutral-400">
+                        + {c.assistant_instructors.map((a) => a.name).join(', ')}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{daysText(c.meetings)}</td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{timeText(c.meetings)}</td>
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{agesText(c)}</td>

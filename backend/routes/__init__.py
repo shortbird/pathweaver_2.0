@@ -340,6 +340,10 @@ def register_all(app):
     from routes.sis import register_sis_routes
     register_sis_routes(app)
 
+    # ── Public embeddable widgets (org catalog/schedule for external sites) ────
+    from routes import embed
+    app.register_blueprint(embed.bp)
+
     # ── Org-generic shared-device kiosk (tap your name, scan your work) ────────
     from routes import kiosk
     app.register_blueprint(kiosk.bp)

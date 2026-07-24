@@ -237,6 +237,23 @@ def registration_questions(user_id):
     return jsonify({'success': True, 'questions': questions})
 
 
+# Values that mean "nothing to report" — a report should show only the
+# students/families it is actually about, so these are treated as no answer.
+_BLANK_VALUES = {'', 'none', 'no', 'n/a', 'na', 'n.a.', 'n.a', 'nope', 'nan',
+                 'null', '-', '--', 'none.', 'no.', 'not applicable'}
+
+
+def _has_value(v) -> bool:
+    """True when v is a real, non-empty, non-'none' answer."""
+    if v is None:
+        return False
+    if isinstance(v, (list, tuple, set)):
+        return any(_has_value(x) for x in v)
+    if isinstance(v, dict):
+        return any(_has_value(x) for x in v.values())
+    return str(v).strip().lower() not in _BLANK_VALUES
+
+
 @bp.route('/reports/registration-answers', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def registration_answers(user_id):
@@ -283,6 +300,9 @@ def registration_answers(user_id):
                 'answer': _fmt_answer(val),
                 'status': status,
             })
+    # Only families/students who actually answered — an empty or "none" answer
+    # isn't relevant to a per-question report.
+    rows = [r for r in rows if _has_value(r['answer'])]
     rows.sort(key=lambda r: (r['student'] or '').lower())
 
     if request.args.get('format') == 'csv':
@@ -339,10 +359,12 @@ def medications(user_id):
             kid_id = kid.get('user_id')
             kid_user = users.get(kid_id) or {}
             meds = (kid.get('medications') or kid_user.get('medications') or '').strip()
+            if not _has_value(meds):
+                meds = ''
             notes = []
             for key, label in med_keys.items():
                 v = _answer_for_kid(answers, key, kid_id)
-                if v:
+                if _has_value(v):
                     notes.append(f'{label}: {v}')
             if not meds and not notes:
                 continue
@@ -362,7 +384,7 @@ def medications(user_id):
     try:
         extras = [s for s in sis_service.get_roster(org_id)
                   if s.get('is_student') and s['student_id'] not in seen_kid_ids
-                  and (s.get('medications') or '').strip()]
+                  and _has_value(s.get('medications'))]
         extra_contacts = _first_emergency_contact(org_id, [s['student_id'] for s in extras])
         for s in extras:
             hh = households.get(s['student_id']) or {}
@@ -383,6 +405,105 @@ def medications(user_id):
             [[r['student'], r['medications'], r['notes'], r['parent'],
               r['parent_phone'], r['emergency_contact']] for r in rows])
     return jsonify({'success': True, 'report': {'rows': rows}})
+
+
+@bp.route('/reports/allergies', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def allergies(user_id):
+    """Canned report: every kid with a recorded allergy — from the registration
+    kids[] entry, the synced users.allergies column, or any answer whose question
+    key contains 'allerg'. Only students who actually have an allergy are listed."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    questions = _configured_questions(_org_flags(org_id))
+    regs, users, households = _reg_context(org_id)
+
+    allergy_keys = {q['key']: q['label'] for q in questions if 'allerg' in q['key'].lower()}
+    for reg in regs:
+        for key in (reg.get('answers') or {}):
+            if 'allerg' in key.lower() and key not in allergy_keys:
+                allergy_keys[key] = key
+
+    all_kid_ids = [k.get('user_id') for r in regs for k in (r.get('kids') or [])]
+    contact1 = _first_emergency_contact(org_id, all_kid_ids)
+
+    rows, seen_kid_ids = [], set()
+    for reg in regs:
+        answers = reg.get('answers') or {}
+        parent = users.get(reg.get('parent_user_id')) or {}
+        parent_name = _user_name(parent)
+        household = households.get(reg.get('parent_user_id')) or {}
+        for kid in (reg.get('kids') or []):
+            kid_id = kid.get('user_id')
+            kid_user = users.get(kid_id) or {}
+            allergy = (kid.get('allergies') or kid_user.get('allergies') or '').strip()
+            if not _has_value(allergy):
+                allergy = ''
+            notes = []
+            for key, label in allergy_keys.items():
+                v = _answer_for_kid(answers, key, kid_id)
+                if _has_value(v):
+                    notes.append(f'{label}: {v}')
+            if not allergy and not notes:
+                continue
+            if kid_id:
+                seen_kid_ids.add(kid_id)
+            rows.append({
+                'student': _kid_name(kid, users),
+                'allergies': allergy,
+                'notes': '; '.join(notes),
+                'parent': parent_name,
+                'parent_phone': (households.get(kid_id) or household).get('phone') or '',
+                'emergency_contact': contact1.get(kid_id) or '',
+            })
+
+    # Union: org students with a staff-entered allergy but no registration row.
+    try:
+        extras = [s for s in sis_service.get_roster(org_id)
+                  if s.get('is_student') and s['student_id'] not in seen_kid_ids
+                  and _has_value(s.get('allergies'))]
+        extra_contacts = _first_emergency_contact(org_id, [s['student_id'] for s in extras])
+        for s in extras:
+            hh = households.get(s['student_id']) or {}
+            rows.append({
+                'student': s['name'], 'allergies': (s.get('allergies') or '').strip(),
+                'notes': '', 'parent': '', 'parent_phone': hh.get('phone') or '',
+                'emergency_contact': extra_contacts.get(s['student_id']) or '',
+            })
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'allergies report: roster union failed: {e}')
+
+    rows.sort(key=lambda r: (r['student'] or '').lower())
+    if request.args.get('format') == 'csv':
+        return _csv_response(
+            'allergies.csv',
+            ['Student', 'Allergies', 'Notes', 'Parent', 'Parent Phone', 'Emergency Contact 1'],
+            [[r['student'], r['allergies'], r['notes'], r['parent'],
+              r['parent_phone'], r['emergency_contact']] for r in rows])
+    return jsonify({'success': True, 'report': {'rows': rows}})
+
+
+@bp.route('/reports/daily-attendance', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def daily_attendance(user_id):
+    """Who was absent (excused vs unexcused) on one day, across all classes —
+    matches guardian-reported absences against what teachers marked so staff can
+    see at a glance who is missing and whether it was excused. ?date=YYYY-MM-DD
+    (defaults to today)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from datetime import date
+    on_date = request.args.get('date') or date.today().isoformat()
+    from services import sis_attendance_service as attendance
+    rows = attendance.daily_report(org_id, on_date)
+    if request.args.get('format') == 'csv':
+        return _csv_response(
+            f'daily-attendance-{on_date}.csv',
+            ['Student', 'Class', 'Status', 'Excused?', 'Reason'],
+            [[r['student'], r['class'], r['status'], r['excused'], r['reason']] for r in rows])
+    return jsonify({'success': True, 'report': {'rows': rows, 'date': on_date}})
 
 
 @bp.route('/reports/media-release', methods=['GET'])

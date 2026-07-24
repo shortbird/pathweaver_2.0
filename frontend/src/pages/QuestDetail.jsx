@@ -9,6 +9,7 @@ import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
 import QuestApproachExamples from '../components/quest/QuestApproachExamples';
 import QuestMetadataCard from '../components/quest/QuestMetadataCard';
+import ClassDiscussion from '../components/discussion/ClassDiscussion';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
@@ -642,6 +643,14 @@ const QuestDetail = () => {
               </span>
             </button>
           </div>
+        )}
+
+        {/* Class discussion board — only for org members viewing a quest that
+            belongs to a SIS class they participate in. The component self-hides
+            (backend 403/404) for everyone else, so this stays quiet on ordinary
+            quests. */}
+        {user?.organization_id && quest.user_enrollment && (
+          <ClassDiscussion questId={quest.id} className="mt-6" />
         )}
       </div>
 

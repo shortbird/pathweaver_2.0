@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import GradebookTab from '../../components/sis/GradebookTab'
+import ClassDiscussion from '../../components/discussion/ClassDiscussion'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -114,7 +115,7 @@ const TeacherClassPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
-        {[['roster', 'Roster & Attendance'], ['gradebook', 'Gradebook']].map(([key, label]) => (
+        {[['roster', 'Roster & Attendance'], ['gradebook', 'Gradebook'], ['discussion', 'Discussion']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key
@@ -127,6 +128,10 @@ const TeacherClassPage = () => {
 
       {tab === 'gradebook' && (
         <GradebookTab classId={classId} orgId={orgId} className={cls?.name} />
+      )}
+
+      {tab === 'discussion' && (
+        <ClassDiscussion classId={classId} />
       )}
 
       {tab === 'roster' && (() => {

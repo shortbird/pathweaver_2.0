@@ -211,6 +211,77 @@ def _notify_admins_of_absences(org_id: str, class_id: str, on_date: str,
     return len(admin_ids)
 
 
+def daily_report(org_id: str, on_date: str) -> List[Dict[str, Any]]:
+    """Every non-present student for a single day, across all classes, flagged
+    excused vs. unexcused — so a campus coordinator can see at a glance who is
+    missing and whether a guardian reported it. Excused = a teacher marked
+    'excused', OR a guardian reported the student out (whole-day or that class).
+    Planned absences with no attendance recorded yet show as 'reported out'."""
+    admin = _admin()
+    records = (
+        admin.table('sis_attendance')
+        .select('student_user_id, class_id, status, note')
+        .eq('organization_id', org_id).eq('date', on_date).execute()
+    ).data or []
+    planned = (
+        admin.table('student_planned_absences')
+        .select('student_user_id, class_id, reason')
+        .eq('organization_id', org_id).eq('absence_date', on_date).execute()
+    ).data or []
+
+    planned_all_day, planned_by_class = {}, {}
+    for p in planned:
+        if p.get('class_id'):
+            planned_by_class[(p['student_user_id'], p['class_id'])] = p
+        else:
+            planned_all_day[p['student_user_id']] = p
+
+    class_ids = {r['class_id'] for r in records if r.get('class_id')} \
+        | {p['class_id'] for p in planned if p.get('class_id')}
+    student_ids = {r['student_user_id'] for r in records} | {p['student_user_id'] for p in planned}
+    classes = {}
+    if class_ids:
+        classes = {c['id']: c['name'] for c in (
+            admin.table('org_classes').select('id, name').in_('id', list(class_ids)).execute()
+        ).data or []}
+    users = {}
+    if student_ids:
+        users = {u['id']: _student_name(u) for u in (
+            admin.table('users')
+            .select('id, display_name, first_name, last_name, username, email')
+            .in_('id', list(student_ids)).execute()
+        ).data or []}
+
+    rows, covered = [], set()
+    for r in records:
+        sid, cid, status = r['student_user_id'], r.get('class_id'), r.get('status')
+        covered.add((sid, cid))
+        has_plan = (sid in planned_all_day) or ((sid, cid) in planned_by_class)
+        if status == 'present' or (status not in ('absent', 'excused', 'late') and not has_plan):
+            continue
+        reason = (planned_by_class.get((sid, cid)) or planned_all_day.get(sid) or {}).get('reason')
+        rows.append({
+            'student': users.get(sid, 'Unnamed'),
+            'class': classes.get(cid, '—'),
+            'status': status or 'not recorded',
+            'excused': 'Excused' if (status == 'excused' or has_plan) else 'Unexcused',
+            'reason': reason or '',
+        })
+    for p in planned:  # reported out, no attendance recorded yet
+        sid, cid = p['student_user_id'], p.get('class_id')
+        if (sid, cid) in covered:
+            continue
+        rows.append({
+            'student': users.get(sid, 'Unnamed'),
+            'class': classes.get(cid, 'All day') if cid else 'All day',
+            'status': 'reported out',
+            'excused': 'Excused',
+            'reason': p.get('reason') or '',
+        })
+    rows.sort(key=lambda r: (r['excused'], r['student'].lower(), r['class'].lower()))
+    return rows
+
+
 def student_history(org_id: str, student_user_id: str) -> Dict[str, Any]:
     records = (
         _admin().table('sis_attendance').select('*')

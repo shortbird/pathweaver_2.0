@@ -73,7 +73,10 @@ def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, 
     meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
     for m in meetings:
         meetings_by_class.setdefault(m['class_id'], []).append(m)
-    instructors = _instructors_by_id([c.get('primary_instructor_id') for c in classes])
+    all_instructor_ids = [c.get('primary_instructor_id') for c in classes]
+    for c in classes:
+        all_instructor_ids.extend(c.get('assistant_instructor_ids') or [])
+    instructors = _instructors_by_id(all_instructor_ids)
 
     out = []
     for c in classes:
@@ -87,6 +90,7 @@ def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, 
             'is_full': is_full(cap, enrolled),
             'meetings': meetings_by_class.get(c['id'], []),
             'primary_instructor': instructors.get(c.get('primary_instructor_id')),
+            'assistant_instructors': [instructors[a] for a in (c.get('assistant_instructor_ids') or []) if a in instructors],
         })
     return out
 
@@ -103,8 +107,10 @@ def get_class_detail(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
     cls['is_full'] = is_full(cap, enrolled)
     cls['meetings'] = repo.list_meetings(class_id)
     cls['prerequisites'] = repo.list_prerequisites(class_id)
-    cls['primary_instructor'] = _instructors_by_id(
-        [cls.get('primary_instructor_id')]).get(cls.get('primary_instructor_id'))
+    all_ids = [cls.get('primary_instructor_id')] + list(cls.get('assistant_instructor_ids') or [])
+    people = _instructors_by_id(all_ids)
+    cls['primary_instructor'] = people.get(cls.get('primary_instructor_id'))
+    cls['assistant_instructors'] = [people[a] for a in (cls.get('assistant_instructor_ids') or []) if a in people]
     return cls
 
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
@@ -14,6 +15,10 @@ import ParentClassPreview from '../../components/schedule/ClassDetailsModal'
 import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
 import ScheduleSyncModal from '../../components/sis/ScheduleSyncModal'
 import ClassesTable from '../../components/sis/ClassesTable'
+
+// What Optio charges a school per student to enroll in an Optio course. Optio
+// invoices the school directly for each enrollment — there is no in-app billing.
+const OPTIO_COURSE_FEE = '$50'
 
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
@@ -63,7 +68,17 @@ const ClassesPage = () => {
   const [editing, setEditing] = useState(null)     // class being edited
   const [editTab, setEditTab] = useState('details') // which tab the class modal opens on
   const [settingsCourse, setSettingsCourse] = useState(null) // course open in the detail modal (settings/enroll/enrollments tabs)
-  const [filter, setFilter] = useState('classes')  // all | classes | courses; default: org's own classes
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Two top-level tabs: the org's own classes, and the Optio course catalog they
+  // can enroll students into. Uses the ?tab= URL pattern (like the People page)
+  // so a tab is linkable; the default (org classes) omits the param.
+  const tab = searchParams.get('tab') === 'courses' ? 'courses' : 'classes'
+  const setTab = (key) => {
+    const next = new URLSearchParams(searchParams)
+    if (key === 'courses') next.set('tab', 'courses')
+    else next.delete('tab')
+    setSearchParams(next, { replace: true })
+  }
   const [search, setSearch] = useState('')
   const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
   const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
@@ -187,6 +202,7 @@ const ClassesPage = () => {
         description: c.description,
         location: c.location ?? null,
         primary_instructor_id: c.primary_instructor_id ?? null,
+        assistant_instructor_ids: c.assistant_instructor_ids ?? [],
         capacity: c.capacity ?? null,
         price_cents: c.price_cents ?? null,
         supply_fee: c.supply_fee ?? null,
@@ -311,15 +327,14 @@ const ClassesPage = () => {
     load()
   }
 
-  // ── Unified, filtered catalog ────────────────────────────────────────────────
+  // ── Tab-scoped, searched catalog ─────────────────────────────────────────────
   const items = useMemo(() => {
-    const cls = classes.map((c) => ({ kind: 'class', _name: c.name, ...c }))
-    const crs = courses.map((c) => ({ kind: 'course', _name: c.title, ...c }))
-    let list = filter === 'classes' ? cls : filter === 'courses' ? crs : [...cls, ...crs]
+    const source = tab === 'courses'
+      ? courses.map((c) => ({ kind: 'course', _name: c.title, ...c }))
+      : classes.map((c) => ({ kind: 'class', _name: c.name, ...c }))
     const q = search.trim().toLowerCase()
-    if (q) list = list.filter((i) => (i._name || '').toLowerCase().includes(q))
-    return list
-  }, [classes, courses, filter, search])
+    return q ? source.filter((i) => (i._name || '').toLowerCase().includes(q)) : source
+  }, [classes, courses, tab, search])
 
   // Table view is the org's classes only (Optio courses aren't org-editable).
   const tableClasses = useMemo(() => {
@@ -327,10 +342,9 @@ const ClassesPage = () => {
     return q ? classes.filter((c) => (c.name || '').toLowerCase().includes(q)) : classes
   }, [classes, search])
 
-  const FILTERS = [
-    { key: 'all', label: `All (${classes.length + courses.length})` },
-    { key: 'classes', label: `${orgName} classes (${classes.length})` },
-    { key: 'courses', label: `Optio Courses (${courses.length})` },
+  const TABS = [
+    { key: 'classes', label: `${orgName} classes`, count: classes.length },
+    { key: 'courses', label: 'Optio courses', count: courses.length },
   ]
 
   return (
@@ -339,58 +353,66 @@ const ClassesPage = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Classes</h1>
         <div className="flex items-center gap-3">
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-          <Button size="sm" onClick={() => setCreating(true)} disabled={!orgId}>Create class</Button>
+          {tab === 'classes' && (
+            <Button size="sm" onClick={() => setCreating(true)} disabled={!orgId}>Create class</Button>
+          )}
         </div>
       </div>
 
-      {/* Filters + view toggle */}
+      {/* Tabs */}
+      <div className="flex gap-5 border-b border-gray-200 mb-5">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-1 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors ${
+              tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label} ({t.count})
+          </button>
+        ))}
+      </div>
+
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
-        {view === 'cards' && (
+        {tab === 'classes' && (
           <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${filter === f.key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}
-              >
-                {f.label}
-              </button>
-            ))}
+            <button onClick={() => setView('cards')} title="Card view" aria-pressed={view === 'cards'}
+              className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'cards' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+              <Squares2X2Icon className="w-4 h-4" />
+            </button>
+            <button onClick={() => setView('table')} title="Table view" aria-pressed={view === 'table'}
+              className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'table' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+              <TableCellsIcon className="w-4 h-4" />
+            </button>
           </div>
         )}
-        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
-          <button onClick={() => setView('cards')} title="Card view" aria-pressed={view === 'cards'}
-            className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'cards' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
-            <Squares2X2Icon className="w-4 h-4" />
-          </button>
-          <button onClick={() => setView('table')} title="Table view" aria-pressed={view === 'table'}
-            className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'table' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
-            <TableCellsIcon className="w-4 h-4" />
-          </button>
-        </div>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search…"
           className="flex-1 min-w-[160px] max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
         />
-        <button
-          onClick={() => setShowArchived((v) => !v)}
-          className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
-            showArchived ? 'border-optio-purple text-optio-purple bg-optio-purple/5' : 'border-gray-200 text-neutral-500 hover:bg-neutral-50'
-          }`}
-        >
-          {showArchived ? 'Showing archived' : 'Show archived'}
-        </button>
-        {orgId && <ScheduleAiEditor orgId={orgId} onApplied={load} />}
-        {orgId && (
+        {tab === 'classes' && (
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+              showArchived ? 'border-optio-purple text-optio-purple bg-optio-purple/5' : 'border-gray-200 text-neutral-500 hover:bg-neutral-50'
+            }`}
+          >
+            {showArchived ? 'Showing archived' : 'Show archived'}
+          </button>
+        )}
+        {tab === 'classes' && orgId && <ScheduleAiEditor orgId={orgId} onApplied={load} />}
+        {tab === 'classes' && orgId && (
           <button onClick={() => setShowSync(true)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-medium hover:bg-optio-purple/5 transition-colors">
             <ArrowPathIcon className="w-4 h-4" />
             Sync from Sheet
           </button>
         )}
-        {orgId && classes.length > 0 && (
+        {tab === 'classes' && orgId && classes.length > 0 && (
           <button onClick={exportCsv}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-neutral-50 transition-colors">
             <ArrowDownTrayIcon className="w-4 h-4" />
@@ -399,11 +421,20 @@ const ClassesPage = () => {
         )}
       </div>
 
+      {/* Optio-course billing notice — Optio invoices the school per enrollment */}
+      {tab === 'courses' && (
+        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-700">
+          Enrolling a student in an Optio course costs{' '}
+          <span className="font-semibold text-neutral-900">{OPTIO_COURSE_FEE} per student</span>.
+          Optio invoices the school for each enrollment when the student is added.
+        </div>
+      )}
+
       {showSync && orgId && (
         <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={load} />
       )}
 
-      {!loading && closedClasses.length > 0 && (
+      {tab === 'classes' && !loading && closedClasses.length > 0 && (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           <span>
             {closedClasses.length} class{closedClasses.length === 1 ? ' is' : 'es are'} closed to
@@ -418,13 +449,20 @@ const ClassesPage = () => {
       )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
-      {!loading && view === 'cards' && !items.length && (
+
+      {/* Empty state (courses tab, or classes tab in card view) */}
+      {!loading && !items.length && (tab === 'courses' || view === 'cards') && (
         <p className="text-neutral-500">
-          {search ? 'Nothing matches your search.' : 'Nothing here yet. Create a class to get started.'}
+          {search
+            ? 'Nothing matches your search.'
+            : tab === 'courses'
+              ? 'No Optio courses are available to enroll in yet.'
+              : 'Nothing here yet. Create a class to get started.'}
         </p>
       )}
 
-      {!loading && view === 'table' && (
+      {/* Classes — table view */}
+      {!loading && tab === 'classes' && view === 'table' && (
         <ClassesTable
           classes={tableClasses}
           staff={staff}
@@ -439,7 +477,8 @@ const ClassesPage = () => {
         />
       )}
 
-      {view === 'cards' && (
+      {/* Cards — classes (card view) or the Optio course catalog */}
+      {!loading && (tab === 'courses' || view === 'cards') && items.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {items.map((item) => (
             item.kind === 'class' ? (
@@ -541,6 +580,7 @@ const CourseCard = ({ c, onOpen }) => (
     <div className="p-4">
       <h3 className="font-semibold text-neutral-900">{c.title}</h3>
       {c.description && <p className="text-sm text-neutral-500 mt-1 line-clamp-3">{c.description}</p>}
+      <p className="mt-2 text-xs font-medium text-optio-purple">{OPTIO_COURSE_FEE} per student · billed to the school</p>
     </div>
   </button>
 )
@@ -644,8 +684,13 @@ const CourseDetailModal = ({ course, staff, current, orgId, isSuperadmin, onClos
           )}
 
           {tab === 'manage' && (
-            <CourseEnrollmentManager embedded courseId={course.id} courseName={course.title}
-              orgId={orgId} isSuperadmin={isSuperadmin} />
+            <div className="space-y-3">
+              <div className="rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-3 py-2 text-xs text-neutral-700">
+                Each student you enroll adds a <span className="font-semibold text-neutral-900">{OPTIO_COURSE_FEE}</span> charge that Optio invoices to the school.
+              </div>
+              <CourseEnrollmentManager embedded courseId={course.id} courseName={course.title}
+                orgId={orgId} isSuperadmin={isSuperadmin} />
+            </div>
           )}
         </div>
 
@@ -763,11 +808,25 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, initialTab = 'de
 // Enrolled students for the class (sorted by last name).
 const ClassRoster = ({ classId, orgId }) => {
   const [roster, setRoster] = useState(null)
-  useEffect(() => {
+  const [dropping, setDropping] = useState(null)
+
+  const reload = useCallback(() => {
     api.get(withOrg(`/api/sis/classes/${classId}/enrollments`, orgId))
       .then((r) => setRoster(r.data?.roster || []))
       .catch(() => { toast.error('Failed to load the roster'); setRoster([]) })
   }, [classId, orgId])
+  useEffect(() => { reload() }, [reload])
+
+  const drop = async (s) => {
+    if (!window.confirm(`Drop ${s.name} from this class?`)) return
+    setDropping(s.student_id)
+    try {
+      await api.delete(withOrg(`/api/sis/classes/${classId}/enrollments/${s.student_id}`, orgId))
+      toast.success(`Dropped ${s.name}`)
+      reload()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not drop the student') }
+    finally { setDropping(null) }
+  }
 
   if (roster === null) return <p className="text-sm text-neutral-400">Loading…</p>
   if (!roster.length) return <p className="text-sm text-neutral-400">No students enrolled yet.</p>
@@ -781,7 +840,12 @@ const ClassRoster = ({ classId, orgId }) => {
               {s.name}
               {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
             </span>
-            <span className="text-xs text-neutral-400 truncate">{s.email || s.username || ''}</span>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-neutral-400 truncate max-w-[10rem]">{s.email || s.username || ''}</span>
+              <Button size="sm" variant="outline" disabled={dropping === s.student_id} onClick={() => drop(s)}>
+                {dropping === s.student_id ? '…' : 'Drop'}
+              </Button>
+            </div>
           </li>
         ))}
       </ul>
@@ -838,7 +902,10 @@ const ClassWaitlist = ({ classId, orgId, cls }) => {
       <div className="space-y-1">
         {entries.map((e) => (
           <div key={e.id} className="flex items-center justify-between text-sm">
-            <span className="text-neutral-700">#{e.position} · {e.student_name}</span>
+            <span className="text-neutral-700">
+              #{e.position} · {e.student_name}
+              {e.student_age != null && <span className="ml-1.5 text-xs text-neutral-400">age {e.student_age}</span>}
+            </span>
             <span className="text-neutral-400">{e.status}</span>
           </div>
         ))}

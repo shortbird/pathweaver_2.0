@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 # org_classes columns a SIS staff user may set (the LMS-owned name/description/
 # xp_threshold/status are still editable through the existing class CRUD).
 SIS_CLASS_FIELDS = (
-    'capacity', 'primary_instructor_id', 'price_cents',
+    'capacity', 'primary_instructor_id', 'assistant_instructor_ids', 'price_cents',
     'billing_type', 'billing_cadence', 'min_age', 'max_age', 'location',
     'waitlist_enabled', 'registration_status', 'requires_full_day',
     # iCreate catalog extras (display-only): a class image + an optional supply fee.

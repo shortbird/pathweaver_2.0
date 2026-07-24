@@ -75,7 +75,7 @@ const FamilyMessagingPage = () => {
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-2xl">
         <p className="text-sm text-neutral-500 mb-5">
-          Send an announcement to your school. It is delivered in-app (notification bell),
+          Send an announcement to {orgs.find((o) => o.id === orgId)?.name || 'your school'}. It is delivered in-app (notification bell),
           via push, and by email to everyone in the selected audiences.
         </p>
 

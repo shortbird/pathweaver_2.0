@@ -68,6 +68,14 @@ export const AuthProvider = ({ children }) => {
         return
       }
 
+      // Skip session check on public embeddable widgets (/embed/*) — they are
+      // unauthenticated, iframed onto external sites, and fetch public data
+      // directly, so there is no session to load.
+      if (window.location.pathname.startsWith('/embed/')) {
+        setLoading(false)
+        return
+      }
+
       try {
         // C2: Purge any legacy persisted tokens/user/encryption-key.
         tokenStore.init()

@@ -47,6 +47,22 @@ const shapeReport = (type, data, questionLabel) => {
       ]),
     }
   }
+  if (type === 'allergies') {
+    return {
+      title: 'Allergies',
+      columns: ['Student', 'Allergies', 'Notes', 'Parent', 'Parent phone', 'Emergency contact 1'],
+      rows: (report.rows || []).map((r) => [
+        r.student, r.allergies, r.notes, r.parent, r.parent_phone, r.emergency_contact,
+      ]),
+    }
+  }
+  if (type === 'daily-attendance') {
+    return {
+      title: `Daily attendance${report.date ? ` — ${report.date}` : ''}`,
+      columns: ['Student', 'Class', 'Status', 'Excused?', 'Reason'],
+      rows: (report.rows || []).map((r) => [r.student, r.class, r.status, r.excused, r.reason]),
+    }
+  }
   if (type === 'media-release') {
     const questions = report.questions || []
     return {
@@ -95,6 +111,8 @@ const ReportsPage = () => {
   const [questionKey, setQuestionKey] = useState('')
   const [report, setReport] = useState(null)          // {title, columns, rows, csvUrl, csvName}
   const [reportLoading, setReportLoading] = useState(false)
+  const [sort, setSort] = useState({ col: 0, dir: 'asc' })  // report table sort
+  const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -118,11 +136,29 @@ const ReportsPage = () => {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setReport(null); setQuestionKey('') }, [orgId])
+  // Reset the table sort whenever a different report is shown.
+  useEffect(() => { setSort({ col: 0, dir: 'asc' }) }, [report?.title])
+
+  const toggleSort = (col) => setSort((s) => (
+    s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }
+  ))
+
+  // Rows to render, sorted by the active column.
+  const displayRows = React.useMemo(() => {
+    if (!report) return []
+    const { col, dir } = sort
+    return [...report.rows].sort((a, b) => {
+      const av = String(a[col] ?? '').toLowerCase()
+      const bv = String(b[col] ?? '').toLowerCase()
+      const n = av.localeCompare(bv, undefined, { numeric: true })
+      return dir === 'asc' ? n : -n
+    })
+  }, [report, sort])
 
   const runReport = useCallback(async (type, key) => {
-    const path = type === 'question'
-      ? `/api/sis/reports/registration-answers?question_key=${encodeURIComponent(key)}`
-      : `/api/sis/reports/${type}`
+    let path = `/api/sis/reports/${type}`
+    if (type === 'question') path = `/api/sis/reports/registration-answers?question_key=${encodeURIComponent(key)}`
+    else if (type === 'daily-attendance') path = `/api/sis/reports/daily-attendance?date=${attendanceDate}`
     setReportLoading(true)
     try {
       const res = await api.get(withOrg(path, orgId))
@@ -131,14 +167,15 @@ const ReportsPage = () => {
       setReport({
         ...shaped,
         csvPath: path,
-        csvName: type === 'question' ? `registration-answers-${key}.csv` : `${type}.csv`,
+        csvName: type === 'question' ? `registration-answers-${key}.csv`
+          : type === 'daily-attendance' ? `daily-attendance-${attendanceDate}.csv` : `${type}.csv`,
       })
     } catch {
       toast.error('Failed to load report')
     } finally {
       setReportLoading(false)
     }
-  }, [orgId, questions])
+  }, [orgId, questions, attendanceDate])
 
   const downloadCsv = useCallback(async () => {
     if (!report) return
@@ -171,6 +208,27 @@ const ReportsPage = () => {
                 description="Every student who needs a medication, with schedule notes, parent contact, and emergency contact."
               >
                 <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('medications')} />
+              </ReportCard>
+              <ReportCard
+                title="Allergies"
+                description="Every student with a recorded allergy, with notes, parent contact, and emergency contact. Only students who have an allergy are listed."
+              >
+                <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('allergies')} />
+              </ReportCard>
+              <ReportCard
+                title="Daily attendance"
+                description="For one day, every student who was absent, late, or reported out — flagged excused vs. unexcused, across all classes."
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    aria-label="Attendance date"
+                    value={attendanceDate}
+                    onChange={(e) => setAttendanceDate(e.target.value)}
+                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('daily-attendance')} />
+                </div>
               </ReportCard>
               <ReportCard
                 title="Media release"
@@ -232,20 +290,28 @@ const ReportsPage = () => {
                     </button>
                   </div>
                 </div>
-                {report.rows.length === 0 ? (
+                {displayRows.length === 0 ? (
                   <p className="text-neutral-500">No matching records.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="text-left border-b border-gray-200">
-                          {report.columns.map((c) => (
-                            <th key={c} className="py-2 pr-4 font-semibold text-neutral-700">{c}</th>
+                          {report.columns.map((c, j) => (
+                            <th key={c} className="py-2 pr-4 font-semibold text-neutral-700">
+                              <button type="button" onClick={() => toggleSort(j)}
+                                className="inline-flex items-center gap-1 hover:text-optio-purple">
+                                {c}
+                                <span className="text-[10px] text-neutral-400">
+                                  {sort.col === j ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}
+                                </span>
+                              </button>
+                            </th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {report.rows.map((row, i) => (
+                        {displayRows.map((row, i) => (
                           <tr key={i} className="border-b border-gray-100 align-top">
                             {row.map((cell, j) => (
                               <td key={j} className="py-2 pr-4 text-neutral-800">{cell || ''}</td>

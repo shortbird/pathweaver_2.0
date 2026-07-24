@@ -57,8 +57,11 @@ const EnrollmentAgeGatesCard = ({ orgId, org, onUpdate }) => {
       <h2 className="text-lg font-semibold text-neutral-900">Enrollment age groups</h2>
       <p className="text-sm text-neutral-500 mb-4">
         New students whose age (on the first day of school) falls in a waitlisted band finish
-        registering but can't choose classes until you release them. Removing a band only
-        affects future registrations — students already waiting stay until released.
+        registering but can't choose classes until you release them from the Enrollment waitlist.
+        Opening a band back up only changes what happens to <em>new</em> registrations — students
+        already on the waitlist stay there until you release them (individually, or a set number
+        at a time), so you decide exactly who gets a spot and when. Each student you release is
+        emailed automatically that they can now choose classes.
       </p>
       {gates.length > 0 && (
         <div className="space-y-2 mb-4">

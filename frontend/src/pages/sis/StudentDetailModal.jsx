@@ -420,6 +420,18 @@ const SchedulePanel = ({ student, orgId }) => {
     finally { setBusy(false) }
   }
 
+  const [dropping, setDropping] = useState(null)
+  const drop = async (c) => {
+    if (!window.confirm(`Drop ${student.name || 'this student'} from ${c.name}?`)) return
+    setDropping(c.class_id)
+    try {
+      await api.delete(`/api/sis/classes/${c.class_id}/enrollments/${student.student_id}?organization_id=${orgId}`)
+      toast.success(`Dropped ${c.name}`)
+      reload()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not drop the class') }
+    finally { setDropping(null) }
+  }
+
   const enrolledIds = new Set(classes.map((c) => c.class_id))
   const options = all.filter((c) => !enrolledIds.has(c.id))
 
@@ -439,17 +451,28 @@ const SchedulePanel = ({ student, orgId }) => {
                 ))}
               </div>
             </div>
-            {view === 'grid' ? <WeeklyScheduleGrid classes={classes} /> : (
+            {view === 'grid' ? (
+              <WeeklyScheduleGrid
+                classes={classes}
+                droppingId={dropping}
+                onDrop={(classId, name) => drop({ class_id: classId, name })}
+              />
+            ) : (
               <div className="space-y-2">
                 {classes.map((c) => (
-                  <div key={c.class_id} className="rounded-lg border border-gray-200 px-3 py-2.5">
-                    <div className="font-medium text-neutral-900">{c.name}</div>
-                    <div className="text-sm text-neutral-500">{c.teacher_name ? `Teacher: ${c.teacher_name}` : 'No teacher assigned'}</div>
-                    {c.quest_id
-                      ? <button onClick={() => switchSurfaceInApp('learning', `/quests/${c.quest_id}`)} className="text-sm text-optio-purple font-medium hover:underline">
-                          Open quest{c.quest_title ? `: ${c.quest_title}` : ''} →
-                        </button>
-                      : <span className="text-xs text-neutral-400">No quest linked</span>}
+                  <div key={c.class_id} className="rounded-lg border border-gray-200 px-3 py-2.5 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-neutral-900">{c.name}</div>
+                      <div className="text-sm text-neutral-500">{c.teacher_name ? `Teacher: ${c.teacher_name}` : 'No teacher assigned'}</div>
+                      {c.quest_id
+                        ? <button onClick={() => switchSurfaceInApp('learning', `/quests/${c.quest_id}`)} className="text-sm text-optio-purple font-medium hover:underline">
+                            Open quest{c.quest_title ? `: ${c.quest_title}` : ''} →
+                          </button>
+                        : <span className="text-xs text-neutral-400">No quest linked</span>}
+                    </div>
+                    <Button size="sm" variant="outline" disabled={dropping === c.class_id} onClick={() => drop(c)} className="shrink-0">
+                      {dropping === c.class_id ? '…' : 'Drop'}
+                    </Button>
                   </div>
                 ))}
               </div>

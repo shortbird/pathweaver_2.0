@@ -139,7 +139,7 @@ describe('ClassesPage', () => {
 
   it('opens the course modal with Details and Enrollments tabs only', async () => {
     await renderCards()
-    fireEvent.click(screen.getByText(/^Optio Courses \(/))
+    fireEvent.click(screen.getByRole('button', { name: /Optio courses/i }))
     fireEvent.click(await screen.findByText('Intro to Robotics')) // card opens the detail modal
     expect(await screen.findByText('Details')).toBeInTheDocument()
     expect(screen.getByText('Enrollments')).toBeInTheDocument()
@@ -148,7 +148,7 @@ describe('ClassesPage', () => {
 
   it('manages enrollments from the modal tab', async () => {
     await renderCards()
-    fireEvent.click(screen.getByText(/^Optio Courses \(/))
+    fireEvent.click(screen.getByRole('button', { name: /Optio courses/i }))
     fireEvent.click(await screen.findByText('Intro to Robotics'))
     fireEvent.click(await screen.findByText('Enrollments')) // tab inside the modal
     expect(await screen.findByText('Enroll Users')).toBeInTheDocument() // embedded manager sub-tabs
@@ -172,7 +172,7 @@ describe('ClassesPage', () => {
 
   it('shows course details and reassigns the teacher via the card modal', async () => {
     await renderCards()
-    fireEvent.click(screen.getByText(/^Optio Courses \(/))
+    fireEvent.click(screen.getByRole('button', { name: /Optio courses/i }))
     fireEvent.click(await screen.findByText('Intro to Robotics')) // card opens the detail modal
     expect(screen.queryByText('$250.00')).not.toBeInTheDocument() // tuition is parent-facing only, not shown in SIS
     expect(screen.getByPlaceholderText('Search staff…')).toHaveValue('Jane Doe') // current teacher prefilled
@@ -189,7 +189,7 @@ describe('ClassesPage', () => {
 
   it('filters to courses only', async () => {
     await renderCards()
-    fireEvent.click(screen.getByText(/^Optio Courses \(/))
+    fireEvent.click(screen.getByRole('button', { name: /Optio courses/i }))
     expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
     expect(screen.queryByText('Pottery')).not.toBeInTheDocument()
   })
