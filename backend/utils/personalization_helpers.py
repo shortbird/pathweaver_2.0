@@ -277,9 +277,13 @@ def get_next_order_index(user_id: str, quest_id: str) -> int:
         .eq('quest_id', quest_id)\
         .execute()
 
-    max_order = max(
-        [t.get('order_index', -1) for t in existing_tasks.data],
-        default=-1
-    ) if existing_tasks.data else -1
+    # Coalesce NULL order_index to -1: .get('order_index', -1) only catches a
+    # missing key, but the column is nullable, so a present-but-NULL value would
+    # leak None into max() and raise "'>' not supported between ... NoneType".
+    order_indices = [
+        t.get('order_index') for t in (existing_tasks.data or [])
+        if t.get('order_index') is not None
+    ]
+    max_order = max(order_indices, default=-1)
 
     return max_order + 1

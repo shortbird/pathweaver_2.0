@@ -142,7 +142,12 @@ def create_student_task(user_id, target_user_id, quest_id):
             .eq('user_quest_id', user_quest_id)\
             .execute()
 
-        max_order = max([t['order_index'] for t in existing_tasks.data], default=-1) if existing_tasks.data else -1
+        # Skip NULL order_index rows: the column is nullable, and a None in the
+        # list would raise "'>' not supported between ... NoneType" inside max().
+        max_order = max(
+            [t['order_index'] for t in (existing_tasks.data or []) if t.get('order_index') is not None],
+            default=-1
+        )
 
         # MODE 1: Copy from template
         if template_task_id:
@@ -347,7 +352,12 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
             .eq('user_quest_id', user_quest_id)\
             .execute()
 
-        max_order = max([t['order_index'] for t in existing_tasks.data], default=-1) if existing_tasks.data else -1
+        # Skip NULL order_index rows: the column is nullable, and a None in the
+        # list would raise "'>' not supported between ... NoneType" inside max().
+        max_order = max(
+            [t['order_index'] for t in (existing_tasks.data or []) if t.get('order_index') is not None],
+            default=-1
+        )
 
         # Fetch all template tasks
         templates = supabase.table('user_quest_tasks')\
