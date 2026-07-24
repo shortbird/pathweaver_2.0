@@ -33,19 +33,27 @@ export const navItems: NavItem[] = [
 ];
 
 /**
- * Mobile tab order for the default (student) shell: Home, Journal, [+ Capture], Feed, Messages.
+ * Mobile tab order for the default (student) shell: Home, Journal, [+ Capture], Bounties, Feed.
  * - 'capture' is a special key (not a route — triggers the CaptureSheet modal)
  * - Home replaces Feed-as-landing: active quests, next-up tasks, learning rhythm
  * - Journal subsumes Quests on mobile (quest discovery + creation lives inside Journal now)
+ * - Bounties is the student's "chase / earn" surface. It was previously a hidden
+ *   deep-link even though parents and observers already had it as a tab —
+ *   promoting it here makes the earning loop first-class and consistent across
+ *   roles (see parentMobileTabOrder / observerTabOrder).
  * - Feed lives in the tab bar because it's a daily/social surface
+ * - Messages is notification-driven, not a browse destination, so it moved out
+ *   of the tab bar to a chat icon in the mobile PageHeader (next to the
+ *   notification bell); its unread badge moved with it. It stays a registered
+ *   route for deep links.
  * - Profile is reached by tapping the avatar in the Home welcome header
  *   (standard mobile pattern); it stays a registered route for deep links.
- * - Quests + Bounties remain as routes (deep-link from Home / Journal); they're
- *   not bottom tabs because the journal+quest merger gives students a single
- *   surface for both browsing and capturing.
+ * - Quests remains a route (deep-link from Home / Journal); not a bottom tab
+ *   because the journal+quest merger gives students a single surface for both
+ *   browsing and capturing.
  * Parent and observer roles override this in app/(app)/(tabs)/_layout.tsx.
  */
-export const mobileTabOrder = ['dashboard', 'journal', 'capture', 'feed', 'messages'];
+export const mobileTabOrder = ['dashboard', 'journal', 'capture', 'bounties', 'feed'];
 
 /** Mobile tab order for parents. 'capture' is the center button, handled the
  *  same way as in the student shell — it triggers the CaptureSheet modal in
