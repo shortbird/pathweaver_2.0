@@ -272,6 +272,51 @@ def reject_enrollment_waitlist_entry(user_id, entry_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/enrollment-waitlist/manual', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def add_enrollment_waitlist_entry(user_id):
+    """Hand-add a student to the waitlist — a family who queued somewhere other
+    than the registration funnel (the old Google form, a phone call). Pass
+    queued_at to record when they actually got in line so they sort into their
+    real place instead of the back."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    student_user_id = data.get('student_user_id')
+    if not student_user_id:
+        return jsonify({'success': False, 'error': 'student_user_id is required'}), 400
+    result = enrollment_waitlist.add_manual(
+        org_id, student_user_id,
+        added_by=user_id,
+        queued_at=data.get('queued_at'),
+        band_min_age=data.get('band_min_age'),
+        band_max_age=data.get('band_max_age'))
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/enrollment-waitlist/reorder', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def reorder_enrollment_waitlist(user_id):
+    """Set an explicit order for one age band. `entry_ids` is the band's whole
+    waiting list, in the order staff want it."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    entry_ids = data.get('entry_ids')
+    if not isinstance(entry_ids, list) or not entry_ids:
+        return jsonify({'success': False, 'error': 'entry_ids must be a non-empty list'}), 400
+    result = enrollment_waitlist.reorder(
+        org_id, data.get('band_min_age'), data.get('band_max_age'), entry_ids,
+        ordered_by=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/enrollment-waitlist/release-band', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def release_enrollment_waitlist_band(user_id):

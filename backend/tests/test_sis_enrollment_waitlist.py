@@ -229,6 +229,91 @@ class TestPriorityOrdering:
         assert [r['id'] for r in ordered] == ['pre_plain', 'pre_sib', 'new_plain']
 
 
+    def test_staff_order_beats_sibling_priority_and_dates(self):
+        # Once staff rank a band, that order is the order — a later-registering
+        # sibling-priority kid can't jump back over someone staff placed first.
+        rows = [
+            {'id': 'third', 'queued_at': '2026-07-10T00:00:00+00:00',
+             'household_id': 'h1', 'manual_rank': 3},
+            {'id': 'first', 'queued_at': '2026-07-20T00:00:00+00:00',
+             'household_id': 'h2', 'manual_rank': 1},
+            {'id': 'second', 'queued_at': '2026-07-11T00:00:00+00:00',
+             'household_id': 'hsib', 'manual_rank': 2},
+        ]
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_households', return_value={'hsib'}):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['first', 'second', 'third']
+
+    def test_unranked_rows_queue_behind_staff_ranked_ones(self):
+        # A new registration lands after everyone staff has already placed,
+        # however early they registered.
+        rows = [
+            {'id': 'newcomer', 'queued_at': '2026-07-01T00:00:00+00:00', 'household_id': 'h9'},
+            {'id': 'ranked', 'queued_at': '2026-07-20T00:00:00+00:00',
+             'household_id': 'h1', 'manual_rank': 1},
+        ]
+        with patch.object(ewl, '_priority_since', return_value=None):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['ranked', 'newcomer']
+
+    def test_queued_at_places_a_hand_added_family_by_their_real_date(self):
+        # A Google-form family added today with their real sign-up date sorts by
+        # that date, not by when the row happened to be created.
+        rows = [
+            {'id': 'registered', 'created_at': '2026-07-15T00:00:00+00:00',
+             'queued_at': '2026-07-15T00:00:00+00:00', 'household_id': 'h1'},
+            {'id': 'from_form', 'created_at': '2026-07-25T00:00:00+00:00',
+             'queued_at': '2026-07-02T00:00:00+00:00', 'household_id': 'h2'},
+        ]
+        with patch.object(ewl, '_priority_since', return_value=None):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['from_form', 'registered']
+
+    def test_rows_without_queued_at_fall_back_to_created_at(self):
+        # Rows written before queued_at existed still order correctly.
+        rows = [
+            {'id': 'later', 'created_at': '2026-07-20T00:00:00+00:00', 'household_id': 'h1'},
+            {'id': 'earlier', 'created_at': '2026-07-10T00:00:00+00:00', 'household_id': 'h2'},
+        ]
+        with patch.object(ewl, '_priority_since', return_value=None):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['earlier', 'later']
+
+
+@pytest.mark.unit
+class TestReorder:
+    def test_rejects_a_stale_list_rather_than_writing_half_an_order(self):
+        # Someone released a student in another tab: the submitted list no longer
+        # matches the band, so nothing is written.
+        rows = _chain([{'id': 'a'}, {'id': 'b'}, {'id': 'c'}])
+        with patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client({ewl.TABLE: rows})):
+            result = ewl.reorder('org1', 5, 9, ['a', 'b'], ordered_by='admin1')
+        assert 'error' in result
+        assert 'reload' in result['error']
+
+    def test_rejects_a_duplicated_entry(self):
+        rows = _chain([{'id': 'a'}, {'id': 'b'}])
+        with patch('services.sis_enrollment_waitlist_service._admin',
+                   return_value=_client({ewl.TABLE: rows})):
+            result = ewl.reorder('org1', 5, 9, ['a', 'a'], ordered_by='admin1')
+        assert 'error' in result
+
+    def test_writes_ranks_in_the_submitted_order(self):
+        table = MagicMock()
+        for chained in ('select', 'eq', 'is_', 'update'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = MagicMock(data=[{'id': 'a'}, {'id': 'b'}])
+        client = MagicMock()
+        client.table.return_value = table
+        with patch('services.sis_enrollment_waitlist_service._admin', return_value=client):
+            result = ewl.reorder('org1', 5, 9, ['b', 'a'], ordered_by='admin1')
+        assert result == {'reordered': 2}
+        assert table.update.call_args_list[0][0][0] == {'manual_rank': 1}
+        assert table.update.call_args_list[1][0][0] == {'manual_rank': 2}
+
+
 @pytest.mark.unit
 class TestPriorityHouseholds:
     def test_household_with_unblocked_sibling_gets_priority(self):

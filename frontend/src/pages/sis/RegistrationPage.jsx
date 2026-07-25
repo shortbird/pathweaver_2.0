@@ -5,6 +5,9 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import AgeExceptionRequestsCard from '../../components/sis/AgeExceptionRequestsCard'
 import ScheduleApprovalsCard from '../../components/sis/ScheduleApprovalsCard'
+import AddToWaitlistModal from '../../components/sis/AddToWaitlistModal'
+import { useAuth } from '../../contexts/AuthContext'
+import { isSisAdmin } from './sisRole'
 
 /**
  * SIS Registration page — the enrollment operations queue: the day-to-day work
@@ -66,9 +69,13 @@ const RegistrationPage = () => {
 // Releasing unlocks class selection and emails the family; "Not accepted"
 // refunds that child's registration fee.
 const EnrollmentWaitlistCard = ({ orgId, org }) => {
+  const { user } = useAuth()
+  const admin = isSisAdmin(user) // adding + reordering are admin-only
   const [entries, setEntries] = useState([])
   const [busy, setBusy] = useState(null) // entry id (or band label) mid-action
   const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)   // add-student modal open
+  const [reordering, setReordering] = useState(null) // band label mid-save
 
   const reload = useCallback(() => {
     setLoading(true)
@@ -137,6 +144,34 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
     } finally { setBusy(null) }
   }
 
+  // Move one student up or down within their age group. The whole band's order
+  // goes back to the server, which rejects it if the list changed underneath us.
+  const move = async (band, index, delta) => {
+    const next = [...band.members]
+    const target = index + delta
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+
+    // Optimistic: renumber locally so the row moves the instant it's clicked.
+    const ids = new Set(next.map((m) => m.id))
+    setEntries((prev) => prev.map((e) => {
+      if (!ids.has(e.id)) return e
+      return { ...e, position: next.findIndex((m) => m.id === e.id) + 1 }
+    }))
+    setReordering(band.band_label)
+    try {
+      await api.post('/api/sis/enrollment-waitlist/reorder', {
+        organization_id: orgId,
+        band_min_age: band.band_min_age ?? null,
+        band_max_age: band.band_max_age ?? null,
+        entry_ids: next.map((m) => m.id),
+      })
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the new order')
+      reload() // put it back the way the server has it
+    } finally { setReordering(null) }
+  }
+
   const releaseBand = async (band) => {
     const n = band.members.length
     if (!window.confirm(`Release all ${n} waiting student${n === 1 ? '' : 's'} (${band.band_label})? Each family will be emailed.`)) return
@@ -164,6 +199,12 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
           <Chip tone="bg-amber-100 text-amber-800">{waiting.length} waiting</Chip>
           {released.length > 0 && <Chip tone="bg-green-100 text-green-700">{released.length} released</Chip>}
           {rejected.length > 0 && <Chip tone="bg-gray-100 text-gray-600">{rejected.length} not accepted</Chip>}
+          {admin && (
+            <button onClick={() => setAdding(true)}
+              className="rounded-lg border border-optio-purple/30 px-3 py-1.5 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+              Add student
+            </button>
+          )}
         </div>
       </div>
       <p className="text-sm text-neutral-500 mt-1 mb-4">
@@ -186,6 +227,15 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
         </div>
       ) : (
         <div className="space-y-4">
+          {adding && (
+            <AddToWaitlistModal
+              orgId={orgId}
+              bands={bands}
+              existingStudentIds={waiting.map((e) => e.student_user_id)}
+              onClose={() => setAdding(false)}
+              onAdded={() => { setAdding(false); reload() }}
+            />
+          )}
           {bands.map((band) => (
             <div key={band.band_label} className="rounded-lg border border-gray-200 overflow-hidden">
               <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
@@ -204,9 +254,26 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
                 <p className="text-sm text-neutral-400 px-3 py-3">No students waiting in this group yet.</p>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {band.members.map((e) => (
+                  {band.members.map((e, i) => (
                     <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                      <div className="min-w-0 text-sm">
+                      <div className="flex min-w-0 items-center gap-2 text-sm">
+                        {admin && band.members.length > 1 && (
+                          <span className="flex flex-col leading-none">
+                            <button onClick={() => move(band, i, -1)}
+                              disabled={i === 0 || reordering === band.band_label}
+                              aria-label={`Move ${e.student_name} up`}
+                              className="px-1 text-neutral-400 hover:text-optio-purple disabled:opacity-30 disabled:hover:text-neutral-400">
+                              ▲
+                            </button>
+                            <button onClick={() => move(band, i, 1)}
+                              disabled={i === band.members.length - 1 || reordering === band.band_label}
+                              aria-label={`Move ${e.student_name} down`}
+                              className="px-1 text-neutral-400 hover:text-optio-purple disabled:opacity-30 disabled:hover:text-neutral-400">
+                              ▼
+                            </button>
+                          </span>
+                        )}
+                        <div className="min-w-0">
                         <span className="font-medium text-neutral-900">#{e.position} {e.student_name}</span>
                         {e.priority && (
                           <span title="An older sibling has been accepted — this child has sibling priority"
@@ -214,8 +281,15 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
                             sibling priority
                           </span>
                         )}
+                        {e.source === 'manual' && (
+                          <span title="Added by staff rather than through the registration funnel"
+                            className="ml-1.5 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-neutral-500 align-middle">
+                            added by staff
+                          </span>
+                        )}
                         {e.age_snapshot != null && <span className="text-neutral-400"> · age {e.age_snapshot}</span>}
                         {e.guardian_name && <span className="text-neutral-400"> · {e.guardian_name}</span>}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => rejectOne(e)} disabled={busy === e.id}
