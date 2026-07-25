@@ -113,6 +113,12 @@ const CurriculumView = ({
   onSaveProgress,
   onStepChange,
   onExitToProject,
+  // Read-only preview (staff reviewing/demoing a course): render the lesson
+  // exactly as a student sees it, but never read or write the viewer's own
+  // progress and show `previewTasks` (the lesson's suggested tasks) in place of
+  // the viewer's personal task list.
+  previewMode = false,
+  previewTasks,
 }) => {
   // React Router location for detecting navigation
   const location = useLocation()
@@ -199,8 +205,12 @@ const CurriculumView = ({
           !propLessons
             ? api.get(`/api/quests/${questId}/curriculum/lessons${isAdmin ? '?include_unpublished=true' : ''}`).catch(() => ({ data: { lessons: [] } }))
             : Promise.resolve(null),
-          api.get(`/api/quests/${questId}/tasks`).catch(() => ({ data: { tasks: [] } })),
-          api.get(`/api/quests/${questId}/curriculum/progress`).catch(() => ({ data: { progress: [] } }))
+          previewMode
+            ? Promise.resolve({ data: { tasks: previewTasks || [] } })
+            : api.get(`/api/quests/${questId}/tasks`).catch(() => ({ data: { tasks: [] } })),
+          previewMode
+            ? Promise.resolve({ data: { progress: [] } })
+            : api.get(`/api/quests/${questId}/curriculum/progress`).catch(() => ({ data: { progress: [] } }))
         ])
 
         if (lessonsResult) {
@@ -227,18 +237,21 @@ const CurriculumView = ({
     }
 
     fetchData()
-  }, [questId, propLessons])
+  }, [questId, propLessons, previewMode, previewTasks])
 
   // Function to refresh just the tasks (not lessons/progress)
   const refreshQuestTasks = useCallback(async () => {
     if (!questId) return
+    // In preview the tasks come from the course preview payload, not from the
+    // viewer's own quest tasks -- refetching would blank them out.
+    if (previewMode) return
     try {
       const tasksResult = await api.get(`/api/quests/${questId}/tasks`)
       setQuestTasks(tasksResult.data.tasks || [])
     } catch (error) {
       console.error('Failed to refresh tasks:', error)
     }
-  }, [questId])
+  }, [questId, previewMode])
 
   // Refresh tasks when location changes (handles returning from quest page after completing a task)
   // This is the primary mechanism for detecting navigation back to this view
@@ -354,6 +367,8 @@ const CurriculumView = ({
   // Save progress to API
   const saveProgress = async (lessonId, completedStepsArray, currentStep) => {
     if (!questId) return
+    // A preview must not leave progress behind on the previewer's account.
+    if (previewMode) return
     try {
       const allComplete = totalSteps > 0 && completedStepsArray.length >= totalSteps
       await api.post(`/api/quests/${questId}/curriculum/progress/${lessonId}`, {

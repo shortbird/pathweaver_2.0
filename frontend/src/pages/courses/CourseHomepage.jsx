@@ -16,6 +16,7 @@ import {
   ClipboardDocumentListIcon,
   SparklesIcon,
   TrashIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
@@ -259,7 +260,7 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
 /**
  * CourseTaskItem - Expandable task card with evidence and completion
  */
-const CourseTaskItem = ({ task, onComplete, onRemove }) => {
+const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
   const [expanded, setExpanded] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
@@ -272,8 +273,9 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
   const pillar = getPillarData(task.pillar)
   const xp = task.xp_value || task.xp_amount || 0
 
-  // Lazy-load evidence when expanded
+  // Lazy-load evidence when expanded (a preview has no evidence of its own)
   useEffect(() => {
+    if (preview) return
     if (expanded && !evidenceLoaded && task.id) {
       (async () => {
         try {
@@ -283,9 +285,18 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
         finally { setEvidenceLoaded(true) }
       })()
     }
-  }, [expanded, task.id])
+  }, [expanded, task.id, preview])
+
+  // In a staff preview the student view renders in full, but nothing is written
+  // to the previewer's account.
+  const blockedInPreview = () => {
+    if (!preview) return false
+    toast('Preview only - student actions are disabled here')
+    return true
+  }
 
   const handleComplete = async () => {
+    if (blockedInPreview()) return
     const blocks = [...evidenceBlocks]
     if (textEvidence.trim()) {
       blocks.push({ type: 'text', content: { text: textEvidence.trim() }, order_index: blocks.length })
@@ -309,6 +320,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
   const handleFileSelect = async (e) => {
     const file = e.target?.files?.[0]
     if (!file) return
+    if (blockedInPreview()) return
     const maxSize = file.type.startsWith('video/') ? 50 * 1024 * 1024 : file.type.startsWith('image/') ? 10 * 1024 * 1024 : 25 * 1024 * 1024
     if (file.size > maxSize) {
       toast.error(`File too large (${(file.size / (1024 * 1024)).toFixed(1)}MB)`)
@@ -332,6 +344,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
 
   const handleAddText = async () => {
     if (!textEvidence.trim()) return
+    if (blockedInPreview()) return
     const newBlock = { type: 'text', content: { text: textEvidence.trim() }, order_index: evidenceBlocks.length }
     const updated = [...evidenceBlocks, newBlock]
     try {
@@ -342,6 +355,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
   }
 
   const handleDeleteBlock = async (idx) => {
+    if (blockedInPreview()) return
     const updated = evidenceBlocks.filter((_, i) => i !== idx)
     try {
       await api.post(`/api/evidence/documents/${task.id}`, { blocks: updated.map(b => ({ ...b, type: b.type || b.block_type })), status: 'draft' })
@@ -351,6 +365,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
 
   const handleRemove = async () => {
     if (!onRemove) return
+    if (blockedInPreview()) return
     setRemoving(true)
     try {
       await onRemove(task.id)
@@ -517,7 +532,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove }) => {
 /**
  * ProjectView - Task-first project content view
  */
-const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, questTasksLoading, onTaskComplete, onTaskRemove, onAcceptSuggestion, onWizardComplete, refetchCourse }) => {
+const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, questTasksLoading, onTaskComplete, onTaskRemove, onAcceptSuggestion, onWizardComplete, refetchCourse, preview = false }) => {
   const isCompleted = quest.progress?.is_completed
   const hasLessons = quest.lessons && quest.lessons.length > 0
   const headerImage = quest.header_image_url || quest.image_url || fallbackImageUrl
@@ -549,6 +564,10 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
   }
 
   const handleAddSuggestion = async (suggestion) => {
+    if (preview) {
+      toast('Preview only - student actions are disabled here')
+      return
+    }
     setAddedSuggestionIds(prev => new Set(prev).add(suggestion.id))
     await onAcceptSuggestion(quest.id, suggestion)
     toast.success('Task added!')
@@ -686,6 +705,7 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
               <CourseTaskItem
                 key={task.id}
                 task={task}
+                preview={preview}
                 onComplete={handleLocalTaskComplete}
                 onRemove={onTaskRemove ? (taskId) => onTaskRemove(quest.id, taskId) : undefined}
               />
@@ -708,7 +728,13 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
               Write a custom task or use AI to generate personalized ideas.
             </p>
             <button
-              onClick={() => setShowWizard(true)}
+              onClick={() => {
+                if (preview) {
+                  toast('Preview only - student actions are disabled here')
+                  return
+                }
+                setShowWizard(true)
+              }}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors flex-shrink-0 ml-3"
             >
               <SparklesIcon className="w-4 h-4" />
@@ -789,10 +815,19 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
 /**
  * CourseHomepage - Main course homepage with sidebar navigation
  */
-const CourseHomepageInner = () => {
-  const { courseId } = useParams()
+const CourseHomepageInner = ({ courseId: propCourseId, preview = false, onClose }) => {
+  const params = useParams()
+  const courseId = propCourseId || params.courseId
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [urlSearchParams, setUrlSearchParams] = useSearchParams()
+  // A preview renders this page inside a modal on another surface (the SIS
+  // console), so its quest/lesson selection is kept in local state instead of
+  // the address bar -- everything else on the page is the student view as-is.
+  const [localSearchParams, setLocalSearchParams] = useState(() => new URLSearchParams())
+  const searchParams = preview ? localSearchParams : urlSearchParams
+  const setSearchParams = preview
+    ? (next) => setLocalSearchParams(new URLSearchParams(next))
+    : setUrlSearchParams
   const location = useLocation()
   const { user } = useAuth()
   const { isActive: isOnboarding, currentStep: onboardingStep, startOnboarding } = useOnboarding()
@@ -1033,8 +1068,10 @@ const CourseHomepageInner = () => {
     window.history.replaceState({}, document.title)
   }, [data?.quests, location.state])
 
-  // Trigger onboarding walkthrough for first-time users
+  // Trigger onboarding walkthrough for first-time users (never in a preview --
+  // the walkthrough is the student's, not the previewing admin's)
   useEffect(() => {
+    if (preview) return
     if (!data?.quests?.length || !user) return
     if (user.tutorial_completed_at) return
     if (searchParams.get('quest')) return // Don't start if deep-linking
@@ -1064,7 +1101,7 @@ const CourseHomepageInner = () => {
   // Auto-select next-step quest on load (only if no URL state and not onboarding)
   useEffect(() => {
     if (isOnboarding) return
-    if (user && !user.tutorial_completed_at) return // Onboarding about to start
+    if (!preview && user && !user.tutorial_completed_at) return // Onboarding about to start
     if (data?.quests?.length > 0 && !selectedQuest && !searchParams.get('quest')) {
       if (next_step) {
         const quest = data.quests.find(q => q.id === next_step.quest_id)
@@ -1180,7 +1217,7 @@ const CourseHomepageInner = () => {
           <p className="text-gray-600 mb-2">Please try again later</p>
           <p className="text-sm text-gray-400 mb-4 font-mono">{errorMessage}</p>
           <button
-            onClick={() => navigate('/courses')}
+            onClick={() => (preview ? onClose?.() : navigate('/courses'))}
             className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:opacity-90"
           >
             Go Back
@@ -1202,7 +1239,7 @@ const CourseHomepageInner = () => {
           <div className="flex items-center justify-between gap-2">
             {/* Left: Back + Title (clickable together) */}
             <button
-              onClick={() => navigate('/courses')}
+              onClick={() => (preview ? onClose?.() : navigate('/courses'))}
               className="flex items-center gap-2 sm:gap-3 p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors min-w-0"
             >
               <ChevronLeftIcon className="w-5 h-5 flex-shrink-0" />
@@ -1234,8 +1271,15 @@ const CourseHomepageInner = () => {
                 )}
               </div>
 
-              {/* Enroll, End Course, or Unenroll Buttons */}
-              {isEnrolled ? (
+              {/* Enroll, End Course, or Unenroll Buttons. A staff preview shows
+                  the student view without the enrollment controls -- previewing
+                  must never enroll the admin (or bill their school for it). */}
+              {preview ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-optio-purple/30 bg-optio-purple/5 text-optio-purple text-sm font-medium">
+                  <EyeIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">Student view</span>
+                </span>
+              ) : isEnrolled ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -1408,6 +1452,7 @@ const CourseHomepageInner = () => {
                       questId={selectedQuest?.id}
                       lessons={selectedQuest?.lessons}
                       isAdmin={false}
+                      previewMode={preview}
                       initialLessonId={selectedLesson.id}
                       initialStepIndex={initialStepIndex}
                       embedded={true}
@@ -1428,6 +1473,7 @@ const CourseHomepageInner = () => {
                 /* Task-First Project View */
                 <ProjectView
                   quest={selectedQuest}
+                  preview={preview}
                   onSelectLesson={handleSelectLesson}
                   fallbackImageUrl={course?.cover_image_url}
                   questTasks={questTasks[selectedQuest.id]}
@@ -1562,9 +1608,16 @@ const CourseHomepageInner = () => {
   )
 }
 
-const CourseHomepage = () => (
+/**
+ * The student course view.
+ *
+ * Routed at /courses/:courseId for students, and also rendered directly (with a
+ * `courseId` prop and `preview`) by the SIS console so staff can open the exact
+ * same view to review a course or demo it -- see CoursePreviewModal.
+ */
+const CourseHomepage = (props) => (
   <OnboardingProvider>
-    <CourseHomepageInner />
+    <CourseHomepageInner {...props} />
   </OnboardingProvider>
 )
 
