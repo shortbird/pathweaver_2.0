@@ -18,6 +18,9 @@ export interface Bounty {
   deliverables: Array<{ id: string; text: string }>;
   status: string;
   claims_count?: number;
+  // The detail/review endpoint (useBountyDetail) embeds the full claim list;
+  // list endpoints omit it. Optional so both response shapes fit one type.
+  claims?: BountyClaim[];
   created_at: string;
 }
 

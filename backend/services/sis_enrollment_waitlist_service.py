@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
-from services.sis_eligibility import age_on
+from services.sis_eligibility import _coerce_date, age_on
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -63,7 +63,6 @@ def matching_gate(org_id: str, dob: Any,
     if not gates:
         return None
     first_day = _sis_settings(org_id).get('first_day_of_school')
-    from services.sis_eligibility import _coerce_date
     age = age_on(dob, _coerce_date(first_day))
     if age is None:
         return None
@@ -116,18 +115,32 @@ def waiting_entry(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]
     return entry
 
 
-# ── Queue ordering (frozen prefix + sibling priority) ──────────────────────────
+# ── Queue ordering (staff order → frozen prefix → sibling priority) ───────────
+# A staff-set order always wins: rows with a manual_rank come first, by rank
+# (see reorder()). Everything else falls back to the computed queue.
+#
 # Sibling priority: a waiting student whose household has an ACCEPTED sibling
 # (an older kid in a non-waitlisted band, or a sibling already released off the
 # waitlist) moves ahead of waiting students with no accepted sibling. To honour
 # "freeze the live waitlist", this only reorders FUTURE registrations: every row
-# created before the org's cutoff (sis_settings.enrollment_waitlist_priority_since)
+# queued before the org's cutoff (sis_settings.enrollment_waitlist_priority_since)
 # is a frozen prefix that keeps its exact place; priority sorts only the rows
 # after it. So the queue is three lanes, in order:
-#   0  everything created before the cutoff  (frozen, by created_at)
-#   1  post-cutoff with an accepted sibling  (by created_at)
-#   2  post-cutoff without                    (by created_at)
+#   0  everything queued before the cutoff   (frozen, by queued_at)
+#   1  post-cutoff with an accepted sibling  (by OLDEST sibling's age, desc)
+#   2  post-cutoff without                    (by queued_at)
 # No cutoff set → lane 0 for everyone → the original pure-FIFO behaviour.
+#
+# Within the priority lane the OLDER the accepted sibling, the higher the spot:
+# a family already committed through high school is a deeper commitment to the
+# school than one whose oldest is 10, and the younger family has more years of
+# chances to get in. Ties (same oldest-sibling age, or siblings whose DOB we
+# don't know) fall back to queued_at, so date order is still the tiebreaker.
+#
+# Ordering is by queued_at — when the family actually got in line — not
+# created_at. They differ only for students staff hand-added (a Google-form
+# family carries their real sign-up date), which is what lets those rows land in
+# the right place instead of at the back.
 
 def _parse_ts(value: Any) -> Optional[datetime]:
     if not value:
@@ -159,61 +172,122 @@ def _priority_since(org_id: str) -> Optional[datetime]:
     return _EPOCH if has_gate else None
 
 
-def _priority_households(org_id: str, household_ids: set) -> set:
-    """Of the given households, those with at least one ACCEPTED sibling — a
-    student member who is NOT currently blocked (blocked = has a waitlist row in
-    'waiting' or 'rejected'). A member with no row is a non-waitlisted (older)
-    kid; a 'released' member was accepted off the waitlist. Either grants the
-    household's remaining waiting kids priority."""
+def _priority_siblings(org_id: str, household_ids: set) -> Dict[str, Dict[str, Any]]:
+    """Of the given households, those with at least one ACCEPTED sibling, with
+    who that sibling is and how old they are.
+
+    An accepted sibling is a student member who is NOT currently blocked
+    (blocked = has a waitlist row in 'waiting' or 'rejected'). A member with no
+    row is a non-waitlisted (older) kid; a 'released' member was accepted off
+    the waitlist. Either grants the household's remaining waiting kids priority.
+
+    Returns {household_id: {'siblings': [{'user_id', 'name', 'age'}, ...],
+                            'top_age': int | None}} — siblings oldest first,
+    top_age being the oldest KNOWN age (None when no sibling has a usable DOB).
+    Households with no accepted sibling are absent, so `hh in result` is still
+    the yes/no priority test. Ages use the same yardstick as the gates: age on
+    the first day of school.
+    """
     household_ids = {h for h in household_ids if h}
     if not household_ids:
-        return set()
+        return {}
     admin = _admin()
     members = (admin.table('household_members').select('household_id, user_id')
                .in_('household_id', list(household_ids))
                .eq('relationship', 'student').execute().data) or []
     if not members:
-        return set()
+        return {}
     student_ids = list({m['user_id'] for m in members})
     blocked_rows = (admin.table(TABLE).select('student_user_id')
                     .eq('organization_id', org_id)
                     .in_('status', ['waiting', 'rejected'])
                     .in_('student_user_id', student_ids).execute().data) or []
     blocked = {r['student_user_id'] for r in blocked_rows}
-    return {m['household_id'] for m in members if m['user_id'] not in blocked}
+    accepted = [m for m in members if m['user_id'] not in blocked]
+    if not accepted:
+        return {}
+
+    users_map = {
+        u['id']: u for u in (
+            admin.table('users')
+            .select('id, display_name, first_name, last_name, username, email, date_of_birth')
+            .in_('id', list({m['user_id'] for m in accepted})).execute().data) or []
+    }
+    first_day = _coerce_date(_sis_settings(org_id).get('first_day_of_school'))
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for m in accepted:
+        user = users_map.get(m['user_id'], {})
+        out.setdefault(m['household_id'], {'siblings': [], 'top_age': None})['siblings'].append({
+            'user_id': m['user_id'],
+            'name': _display_name(user) if user else 'Sibling',
+            'age': age_on(user.get('date_of_birth'), first_day),
+        })
+    for info in out.values():
+        # Oldest first; unknown ages last so the badge leads with a real number.
+        info['siblings'].sort(key=lambda s: (0, -s['age']) if s['age'] is not None else (1, 0))
+        ages = [s['age'] for s in info['siblings'] if s['age'] is not None]
+        info['top_age'] = max(ages) if ages else None
+    return out
+
+
+def _queued_at(entry: Dict[str, Any]) -> str:
+    """When this family got in line. Falls back to created_at for rows written
+    before queued_at existed."""
+    return entry.get('queued_at') or entry.get('created_at') or ''
+
+
+def _sibling_rank(entry: Dict[str, Any], sibling_map: Dict[str, Dict[str, Any]]) -> int:
+    """Sort weight for the priority lane: older accepted sibling sorts first.
+    Negated age, so 17 → -17 beats 10 → -10. A priority household whose siblings
+    all have unknown DOBs gets 1 — still in the lane, but behind every family we
+    can actually put a number on."""
+    info = sibling_map.get(entry.get('household_id') or '')
+    top = info.get('top_age') if info else None
+    return -top if top is not None else 1
 
 
 def _queue_sort_key(entry: Dict[str, Any], cutoff: Optional[datetime],
-                    priority_households: set):
-    created = entry.get('created_at') or ''
-    created_dt = _parse_ts(created)
-    if cutoff and created_dt and created_dt >= cutoff:
-        lane = 1 if entry.get('household_id') in priority_households else 2
-    else:
-        lane = 0
-    return (lane, created)
+                    sibling_map: Dict[str, Dict[str, Any]]):
+    # Group 0 = staff-ordered (by rank), group 1 = computed (by lane, then
+    # oldest-sibling age, then date). Both tuples are (int, int, int, str) so
+    # they stay comparable.
+    rank = entry.get('manual_rank')
+    if rank is not None:
+        return (0, rank, 0, '')
+    queued = _queued_at(entry)
+    queued_dt = _parse_ts(queued)
+    if cutoff and queued_dt and queued_dt >= cutoff:
+        if entry.get('household_id') in sibling_map:
+            return (1, 1, _sibling_rank(entry, sibling_map), queued)
+        return (1, 2, 0, queued)
+    return (1, 0, 0, queued)
 
 
 def _is_priority(entry: Dict[str, Any], cutoff: Optional[datetime],
-                 priority_households: set) -> bool:
-    created_dt = _parse_ts(entry.get('created_at'))
-    return bool(cutoff and created_dt and created_dt >= cutoff
-                and entry.get('household_id') in priority_households)
+                 sibling_map: Dict[str, Dict[str, Any]]) -> bool:
+    """Whether sibling priority actually moves this row. A pre-cutoff row can
+    have an accepted sibling and still be frozen in place — the sibling detail
+    is shown either way, but only this counts as priority."""
+    queued_dt = _parse_ts(_queued_at(entry))
+    return bool(cutoff and queued_dt and queued_dt >= cutoff
+                and entry.get('household_id') in sibling_map)
 
 
 def _order_waiting(org_id: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Sort waiting rows into queue order (frozen prefix, then sibling priority)."""
+    """Sort waiting rows into queue order (staff order, frozen prefix, then
+    sibling priority by oldest sibling)."""
     cutoff = _priority_since(org_id)
-    if not cutoff:
-        return sorted(rows, key=lambda r: r.get('created_at') or '')
-    priority = _priority_households(org_id, {r.get('household_id') for r in rows})
-    return sorted(rows, key=lambda r: _queue_sort_key(r, cutoff, priority))
+    siblings = _priority_siblings(
+        org_id, {r.get('household_id') for r in rows}) if cutoff else {}
+    return sorted(rows, key=lambda r: _queue_sort_key(r, cutoff, siblings))
 
 
 def _position(entry: Dict[str, Any]) -> int:
     """1-based place in line among waiting students of the same band, in queue
     order (frozen prefix + sibling priority)."""
-    q = (_admin().table(TABLE).select('id, created_at, household_id')
+    q = (_admin().table(TABLE)
+         .select('id, created_at, queued_at, manual_rank, household_id')
          .eq('organization_id', entry['organization_id']).eq('status', 'waiting'))
     for col in ('band_min_age', 'band_max_age'):
         if entry.get(col) is None:
@@ -264,11 +338,14 @@ def list_entries(org_id: str) -> List[Dict[str, Any]]:
         ).data or []
     }
     # Queue order + positions (frozen prefix + sibling priority), per band.
+    # Sibling detail is resolved for every waiting row, cutoff or not: staff
+    # deciding who to release want to see a frozen-prefix child's 16-year-old
+    # sibling even though priority isn't reordering that row.
     waiting_rows = [r for r in rows if r['status'] == 'waiting']
     cutoff = _priority_since(org_id)
-    priority_hh: set = set()
-    if cutoff and waiting_rows:
-        priority_hh = _priority_households(
+    sibling_map: Dict[str, Dict[str, Any]] = {}
+    if waiting_rows:
+        sibling_map = _priority_siblings(
             org_id, {r.get('household_id') for r in waiting_rows})
     bands: Dict[Any, List[Dict[str, Any]]] = {}
     for r in waiting_rows:
@@ -276,10 +353,10 @@ def list_entries(org_id: str) -> List[Dict[str, Any]]:
     pos_map: Dict[Any, int] = {}
     prio_map: Dict[Any, bool] = {}
     for group in bands.values():
-        group.sort(key=lambda r: _queue_sort_key(r, cutoff, priority_hh))
+        group.sort(key=lambda r: _queue_sort_key(r, cutoff, sibling_map))
         for i, r in enumerate(group):
             pos_map[r['id']] = i + 1
-            prio_map[r['id']] = _is_priority(r, cutoff, priority_hh)
+            prio_map[r['id']] = _is_priority(r, cutoff, sibling_map)
 
     for r in rows:
         r['student_name'] = _display_name(users_map.get(r['student_user_id'], {}))
@@ -290,7 +367,130 @@ def list_entries(org_id: str) -> List[Dict[str, Any]]:
         if r['status'] == 'waiting':
             r['position'] = pos_map.get(r['id'])
             r['priority'] = prio_map.get(r['id'], False)
+            info = sibling_map.get(r.get('household_id') or '') or {}
+            r['siblings'] = info.get('siblings') or []
+            r['sibling_top_age'] = info.get('top_age')
     return rows
+
+
+# ── Staff-managed queue (SIS admin only; authorization is in the routes) ──────
+def _band_query(q, band_min_age: Optional[int], band_max_age: Optional[int]):
+    """Constrain a query to one age band, matching NULL bands correctly."""
+    q = q.eq('band_min_age', band_min_age) if band_min_age is not None \
+        else q.is_('band_min_age', 'null')
+    q = q.eq('band_max_age', band_max_age) if band_max_age is not None \
+        else q.is_('band_max_age', 'null')
+    return q
+
+
+def add_manual(org_id: str, student_user_id: str, *, added_by: str,
+               queued_at: Optional[str] = None,
+               band_min_age: Optional[int] = None,
+               band_max_age: Optional[int] = None) -> Dict[str, Any]:
+    """Hand-add a student to the waitlist.
+
+    For families who queued somewhere other than the registration funnel — the
+    old Google form, a phone call. `queued_at` is when they actually got in
+    line, so they sort into their real place rather than the back of the queue;
+    it defaults to now.
+
+    The band comes from the student's age gate when one matches, so a hand-added
+    student lands in the same queue they'd have landed in by registering. An
+    explicit band overrides that (a student whose DOB is missing or who the
+    school is placing in a specific group).
+    """
+    admin = _admin()
+    users = (admin.table('users')
+             .select('id, organization_id, date_of_birth, display_name, first_name, last_name')
+             .eq('id', student_user_id).limit(1).execute()).data or []
+    if not users:
+        return {'error': 'Student not found'}
+    student = users[0]
+    if student.get('organization_id') != org_id:
+        return {'error': 'That student is not in this organization'}
+
+    live = (admin.table(TABLE).select('id, status')
+            .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+            .eq('status', 'waiting').limit(1).execute()).data or []
+    if live:
+        return {'error': f'{_display_name(student)} is already on the waitlist'}
+
+    gate = matching_gate(org_id, student.get('date_of_birth'))
+    if band_min_age is None and band_max_age is None:
+        if gate:
+            band_min_age, band_max_age = gate.get('min_age'), gate.get('max_age')
+        else:
+            gates = gates_for_org(org_id)
+            if len(gates) == 1:
+                band_min_age = gates[0].get('min_age')
+                band_max_age = gates[0].get('max_age')
+            elif gates:
+                return {'error': "Pick an age group — this student's age doesn't "
+                                 'match one of the waitlisted groups'}
+
+    household = (admin.table('household_members').select('household_id')
+                 .eq('user_id', student_user_id).eq('relationship', 'student')
+                 .limit(1).execute()).data or []
+
+    payload = {
+        'organization_id': org_id,
+        'student_user_id': student_user_id,
+        'household_id': household[0]['household_id'] if household else None,
+        # Same yardstick the funnel uses: age as of the first day of school.
+        'age_snapshot': gate.get('age') if gate else age_on(
+            student.get('date_of_birth'),
+            _coerce_date(_sis_settings(org_id).get('first_day_of_school'))),
+        'band_min_age': band_min_age,
+        'band_max_age': band_max_age,
+        'added_by': added_by,
+        'source': 'manual',
+    }
+    if queued_at:
+        payload['queued_at'] = queued_at
+
+    try:
+        created = admin.table(TABLE).insert(payload).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        if 'sis_enrollment_waitlist_waiting_uniq' in str(e):
+            return {'error': f'{_display_name(student)} is already on the waitlist'}
+        logger.error(f'enrollment waitlist: manual add failed for {student_user_id[:8]}: {e}')
+        return {'error': 'Could not add that student to the waitlist'}
+
+    entry = created[0] if created else None
+    return {
+        'entry': entry,
+        'student_name': _display_name(student),
+        'position': _position(entry) if entry else None,
+    }
+
+
+def reorder(org_id: str, band_min_age: Optional[int], band_max_age: Optional[int],
+            ordered_ids: List[str], *, ordered_by: str) -> Dict[str, Any]:
+    """Persist an explicit staff order for one age band.
+
+    `ordered_ids` must be exactly the band's waiting entries — the UI sends the
+    whole list back, so a stale client (someone released a student in another
+    tab) is rejected rather than silently writing a half-order. Ranks are
+    rewritten 1..N, and a rank always outranks the computed order, so the queue
+    then reads exactly as staff arranged it.
+    """
+    admin = _admin()
+    q = admin.table(TABLE).select('id').eq('organization_id', org_id).eq('status', 'waiting')
+    rows = _band_query(q, band_min_age, band_max_age).execute().data or []
+    current = {r['id'] for r in rows}
+    submitted = list(ordered_ids or [])
+
+    if len(set(submitted)) != len(submitted):
+        return {'error': 'The same student appears twice in that order'}
+    if set(submitted) != current:
+        return {'error': 'The waitlist changed while you were reordering — reload and try again'}
+
+    for i, entry_id in enumerate(submitted):
+        admin.table(TABLE).update({'manual_rank': i + 1}).eq('id', entry_id).execute()
+
+    logger.info(f'enrollment waitlist: {ordered_by[:8]} reordered '
+                f'{len(submitted)} entries in {org_id[:8]} band {band_min_age}-{band_max_age}')
+    return {'reordered': len(submitted)}
 
 
 # ── Release ───────────────────────────────────────────────────────────────────

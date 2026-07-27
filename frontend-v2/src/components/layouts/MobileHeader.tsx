@@ -50,6 +50,8 @@ function PreviewRolePill() {
   );
 }
 import { useUnreadCount } from '@/src/hooks/useNotifications';
+import { useUnreadCount as useUnreadMessages } from '@/src/hooks/useMessages';
+import { useIsParent, useIsObserver } from '@/src/hooks/useStartSomething';
 import { VStack, UIText, Heading } from '../ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -326,6 +328,38 @@ function NotificationBell() {
   );
 }
 
+// Messages moved out of the student tab bar (it's notification-driven, not a
+// browse destination) into this header icon, sitting next to the bell. The
+// unread badge moved with it. Only rendered in the student shell — parents keep
+// Messages as a tab, and observers have no messaging surface (see PageHeader).
+function MessagesButton() {
+  const c = useThemeColors();
+  const { count } = useUnreadMessages();
+
+  return (
+    <Pressable
+      onPress={() => router.push('/(app)/(tabs)/messages' as any)}
+      style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+      accessibilityRole="button"
+      accessibilityLabel={count > 0 ? `Messages, ${count} unread` : 'Messages'}
+    >
+      <Ionicons name="chatbubbles-outline" size={22} color={c.icon} />
+      {count > 0 && (
+        <View style={{
+          position: 'absolute', top: 2, right: 2,
+          minWidth: 16, height: 16, borderRadius: 8,
+          backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center',
+          paddingHorizontal: 3,
+        }}>
+          <UIText style={{ color: '#fff', fontSize: 10, fontWeight: '700', lineHeight: 12 }}>
+            {count > 99 ? '99+' : count}
+          </UIText>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 // Small badge shown next to the page title while an admin is masquerading as
 // another user, so it's always obvious whose account you're viewing.
 function MasqueradeBadge() {
@@ -359,6 +393,12 @@ function MasqueradeBadge() {
 
 export function PageHeader({ title }: PageHeaderProps) {
   const { isDesktop } = useBreakpoint();
+  const isParent = useIsParent();
+  const isObserver = useIsObserver();
+  // Messages lives in the header only for the student shell. Parents keep it as
+  // a bottom tab; observers have no messaging surface. Mirrors which shell
+  // (tabs)/_layout.tsx renders, so the icon is present iff Messages left the bar.
+  const showMessages = !isParent && !isObserver;
 
   // Desktop doesn't need this -- sidebar handles navigation
   if (isDesktop) return null;
@@ -372,6 +412,7 @@ export function PageHeader({ title }: PageHeaderProps) {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <PreviewRolePill />
+          {showMessages && <MessagesButton />}
           <NotificationBell />
           <AvatarMenu />
         </View>

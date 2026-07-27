@@ -5,8 +5,8 @@
  * Includes full evidence preview (images, text, links, videos) per deliverable.
  */
 
-import React, { useState } from 'react';
-import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Image, Modal } from 'react-native';
+import React, { useState, useRef, useCallback } from 'react';
+import { View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Image, Modal, findNodeHandle } from 'react-native';
 import { safeOpenURL } from '@/src/utils/linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -301,10 +301,72 @@ function ClaimReviewCard({
   );
 }
 
+/** Move the claim with `targetId` to the front of the list (non-mutating). */
+function floatToFront(claims: any[], targetId?: string): any[] {
+  if (!targetId) return claims;
+  const idx = claims.findIndex((cl: any) => cl.id === targetId);
+  if (idx <= 0) return claims;
+  const copy = claims.slice();
+  const [target] = copy.splice(idx, 1);
+  copy.unshift(target);
+  return copy;
+}
+
 export default function ReviewBountyPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `claim` is set when arriving from a "student submitted, needs review"
+  // notification — it names the specific submission the poster tapped, which we
+  // float to the top of the queue, highlight, and scroll into view.
+  const { id, claim: highlightClaimId } = useLocalSearchParams<{ id: string; claim?: string }>();
   const { bounty, loading, refetch } = useBountyDetail(id || null);
   const c = useThemeColors();
+
+  const scrollRef = useRef<ScrollView>(null);
+  const highlightRef = useRef<View>(null);
+  const didScrollRef = useRef(false);
+
+  // Scroll the highlighted submission into view once it has laid out. measureLayout
+  // gives its offset relative to the ScrollView; guarded so it's a no-op in the
+  // test renderer (no native layout) and when there's no highlight target.
+  const scrollToHighlight = useCallback(() => {
+    if (didScrollRef.current) return;
+    const node = highlightRef.current;
+    const scroller = scrollRef.current;
+    if (!node || !scroller) return;
+    const handle = findNodeHandle(scroller);
+    if (handle == null || typeof node.measureLayout !== 'function') return;
+    try {
+      node.measureLayout(
+        handle,
+        (_x: number, y: number) => {
+          didScrollRef.current = true;
+          scroller.scrollTo({ y: Math.max(0, y - 16), animated: true });
+        },
+        () => { /* measure failed; leave scroll position untouched */ },
+      );
+    } catch { /* measureLayout unavailable */ }
+  }, []);
+
+  // Render one claim card, wrapped so the highlighted one gets a ring, a testID,
+  // and the ref/onLayout used to scroll it into view.
+  const renderClaim = useCallback((cl: any, deliverableMap: Record<string, string>) => {
+    const highlighted = !!highlightClaimId && cl.id === highlightClaimId;
+    return (
+      <View
+        key={cl.id}
+        ref={highlighted ? highlightRef : undefined}
+        onLayout={highlighted ? scrollToHighlight : undefined}
+        testID={highlighted ? 'highlighted-claim' : undefined}
+        className={highlighted ? 'rounded-2xl border-2 border-optio-purple' : undefined}
+      >
+        <ClaimReviewCard
+          claim={cl}
+          bountyId={id!}
+          deliverableMap={deliverableMap}
+          onReviewed={refetch}
+        />
+      </View>
+    );
+  }, [highlightClaimId, id, refetch, scrollToHighlight]);
 
   if (loading) {
     return (
@@ -327,13 +389,15 @@ export default function ReviewBountyPage() {
   }
 
   const claims = bounty.claims || [];
-  const submittedClaims = claims.filter((c: any) => c.status === 'submitted');
-  const otherClaims = claims.filter((c: any) => c.status !== 'submitted');
+  // Float the notification-targeted submission to the front of whichever section
+  // holds it (usually "awaiting review"; "all claims" if it was already reviewed).
+  const submittedClaims = floatToFront(claims.filter((c: any) => c.status === 'submitted'), highlightClaimId);
+  const otherClaims = floatToFront(claims.filter((c: any) => c.status !== 'submitted'), highlightClaimId);
   const deliverableMap = buildDeliverableMap(bounty.deliverables);
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <VStack className="px-5 pt-4 max-w-2xl w-full md:mx-auto" space="lg">
 
           {/* Back + Edit */}
@@ -383,15 +447,7 @@ export default function ReviewBountyPage() {
           {submittedClaims.length > 0 && (
             <VStack space="sm">
               <Heading size="md">Awaiting Review ({submittedClaims.length})</Heading>
-              {submittedClaims.map((claim: any) => (
-                <ClaimReviewCard
-                  key={claim.id}
-                  claim={claim}
-                  bountyId={id!}
-                  deliverableMap={deliverableMap}
-                  onReviewed={refetch}
-                />
-              ))}
+              {submittedClaims.map((claim: any) => renderClaim(claim, deliverableMap))}
             </VStack>
           )}
 
@@ -399,15 +455,7 @@ export default function ReviewBountyPage() {
           {otherClaims.length > 0 && (
             <VStack space="sm">
               <Heading size="md">All Claims ({otherClaims.length})</Heading>
-              {otherClaims.map((claim: any) => (
-                <ClaimReviewCard
-                  key={claim.id}
-                  claim={claim}
-                  bountyId={id!}
-                  deliverableMap={deliverableMap}
-                  onReviewed={refetch}
-                />
-              ))}
+              {otherClaims.map((claim: any) => renderClaim(claim, deliverableMap))}
             </VStack>
           )}
 

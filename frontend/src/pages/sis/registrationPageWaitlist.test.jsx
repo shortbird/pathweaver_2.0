@@ -12,6 +12,9 @@ vi.mock('./useSisOrg', () => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false }),
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
 }))
+// Adding to / reordering the waitlist is admin-only, so the card needs a user.
+let authState = { user: { id: 'admin-1', role: 'org_admin' } }
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 // The registration CONFIG cards (funnel settings, first day of school, and the
 // waitlisted-age-group editor) moved to the Settings page — the Registration
 // page is now just the enrollment operations queues, including the waitlist.
@@ -20,6 +23,13 @@ const { api, state } = vi.hoisted(() => {
   const state = { entries: [], gates: [] }
   const apiData = (url) => {
     if (url.includes('/enrollment-waitlist')) return { data: { entries: state.entries } }
+    if (url.includes('/api/sis/members')) {
+      return { data: { members: [
+        { id: 'stu-form', name: 'Form Kid', is_student: true },
+        { id: 'stu-other', name: 'Other Kid', is_student: true },
+        { id: 'par-1', name: 'A Parent', is_student: false },
+      ] } }
+    }
     if (url.includes('/age-exception-requests')) return { data: { requests: [] } }
     if (url.includes('/family-directives')) return { data: { directives: [] } }
     if (url.includes('/api/admin/organizations/')) {
@@ -57,6 +67,7 @@ const WAITING = (over = {}) => ({
 beforeEach(() => {
   state.entries = []
   state.gates = []
+  authState = { user: { id: 'admin-1', role: 'org_admin' } }
   vi.clearAllMocks()
 })
 
@@ -110,11 +121,51 @@ describe('EnrollmentWaitlistCard', () => {
     expect(await screen.findByText('Released (1)')).toBeInTheDocument()
   })
 
-  it('badges a student who has sibling priority', async () => {
-    state.entries = [WAITING({ priority: true })]
+  it('badges a student who has sibling priority, with the oldest sibling age', async () => {
+    state.entries = [WAITING({
+      priority: true,
+      sibling_top_age: 16,
+      siblings: [{ user_id: 's1', name: 'Big Sis', age: 16 }],
+    })]
     render(<RegistrationPage />)
-    // The badge (identified by its tooltip) sits on the student's row.
-    expect(await screen.findByTitle(/this child has sibling priority/)).toBeInTheDocument()
+    expect(await screen.findByText(/sibling priority · sibling 16/)).toBeInTheDocument()
+    // The tooltip names the siblings and their ages so staff can tell a
+    // high-schooler's little brother from a 10-year-old's.
+    expect(screen.getByTitle(/Accepted sibling: Big Sis \(16\)/)).toBeInTheDocument()
+  })
+
+  it('lists every accepted sibling oldest-first in the tooltip', async () => {
+    state.entries = [WAITING({
+      priority: true,
+      sibling_top_age: 17,
+      siblings: [
+        { user_id: 's1', name: 'Eldest', age: 17 },
+        { user_id: 's2', name: 'Middle', age: 11 },
+      ],
+    })]
+    render(<RegistrationPage />)
+    expect(await screen.findByTitle(/Accepted siblings: Eldest \(17\), Middle \(11\)/)).toBeInTheDocument()
+  })
+
+  it('still shows a frozen-prefix student sibling, without claiming priority', async () => {
+    // Registered before the priority cutoff: their place is frozen, but staff
+    // deciding who to release still need to see the sibling.
+    state.entries = [WAITING({
+      priority: false,
+      sibling_top_age: 15,
+      siblings: [{ user_id: 's1', name: 'Big Bro', age: 15 }],
+    })]
+    render(<RegistrationPage />)
+    expect(await screen.findByText(/has sibling · 15/)).toBeInTheDocument()
+    // No priority badge — the tooltip is the one unique to a prioritized row.
+    expect(screen.queryByTitle(/Sibling priority moves this child up/)).toBeNull()
+  })
+
+  it('shows no sibling badge when there is no accepted sibling', async () => {
+    state.entries = [WAITING({ priority: false, siblings: [] })]
+    render(<RegistrationPage />)
+    expect(await screen.findByText(/Kid One/)).toBeInTheDocument()
+    expect(screen.queryByTitle(/Accepted sibling/)).toBeNull()
   })
 
   it('rejects a student (refund) after a confirm', async () => {
@@ -137,5 +188,79 @@ describe('EnrollmentWaitlistCard', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Not accepted' }))
     expect(api.post).not.toHaveBeenCalledWith('/api/sis/enrollment-waitlist/w1/reject',
       { organization_id: 'org-1' })
+  })
+
+  // Staff-managed queue: admins can correct the order and add families who
+  // queued outside the registration funnel.
+  describe('staff-managed queue', () => {
+    it('moves a student up and sends the whole band back in the new order', async () => {
+      state.entries = [
+        WAITING(),
+        WAITING({ id: 'w2', student_name: 'Kid Two', position: 2 }),
+        WAITING({ id: 'w3', student_name: 'Kid Three', position: 3 }),
+      ]
+      render(<RegistrationPage />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Move Kid Three up' }))
+      await waitFor(() =>
+        expect(api.post).toHaveBeenCalledWith('/api/sis/enrollment-waitlist/reorder', {
+          organization_id: 'org-1', band_min_age: 5, band_max_age: 9,
+          entry_ids: ['w1', 'w3', 'w2'],
+        }),
+      )
+    })
+
+    it('cannot move the first student up or the last one down', async () => {
+      state.entries = [WAITING(), WAITING({ id: 'w2', student_name: 'Kid Two', position: 2 })]
+      render(<RegistrationPage />)
+      expect(await screen.findByRole('button', { name: 'Move Kid One up' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Move Kid Two down' })).toBeDisabled()
+    })
+
+    it('offers no reordering when a band has a single student', async () => {
+      state.entries = [WAITING()]
+      render(<RegistrationPage />)
+      await screen.findByText(/#1 Kid One/)
+      expect(screen.queryByRole('button', { name: /Move Kid One/ })).not.toBeInTheDocument()
+    })
+
+    it('adds a student who signed up on the old form, dated to when they queued', async () => {
+      state.gates = [{ min_age: 5, max_age: 9, mode: 'waitlist' }]
+      state.entries = [WAITING()]
+      api.post.mockResolvedValueOnce({ data: { student_name: 'Form Kid', position: 1 } })
+      render(<RegistrationPage />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Add student' }))
+      fireEvent.focus(await screen.findByPlaceholderText('Search students…'))
+      fireEvent.change(screen.getByPlaceholderText('Search students…'), { target: { value: 'Form' } })
+      fireEvent.mouseDown(await screen.findByText('Form Kid'))
+      fireEvent.change(screen.getByLabelText('Got in line on'), { target: { value: '2026-07-05' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Add to waitlist' }))
+      await waitFor(() =>
+        expect(api.post).toHaveBeenCalledWith('/api/sis/enrollment-waitlist/manual',
+          expect.objectContaining({
+            organization_id: 'org-1',
+            student_user_id: 'stu-form',
+            queued_at: '2026-07-05T12:00:00Z',
+          })),
+      )
+    })
+
+    it('keeps students already waiting out of the add picker', async () => {
+      state.gates = [{ min_age: 5, max_age: 9, mode: 'waitlist' }]
+      state.entries = [WAITING({ student_user_id: 'stu-form' })]
+      render(<RegistrationPage />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Add student' }))
+      fireEvent.focus(await screen.findByPlaceholderText('Search students…'))
+      fireEvent.change(screen.getByPlaceholderText('Search students…'), { target: { value: 'Form' } })
+      await waitFor(() => expect(screen.queryByText('Form Kid')).not.toBeInTheDocument())
+    })
+
+    it('hides adding and reordering from non-admin staff', async () => {
+      authState = { user: { id: 'adv-1', role: 'advisor' } }
+      state.entries = [WAITING(), WAITING({ id: 'w2', student_name: 'Kid Two', position: 2 })]
+      render(<RegistrationPage />)
+      await screen.findByText(/#1 Kid One/)
+      expect(screen.queryByRole('button', { name: 'Add student' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Move Kid One/ })).not.toBeInTheDocument()
+    })
   })
 })

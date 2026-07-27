@@ -65,6 +65,22 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   // for the view-on-web fallback so the browser opens the exact page.
   const queryIndex = link.indexOf('?');
   const path = queryIndex === -1 ? link : link.slice(0, queryIndex);
+  const query = queryIndex === -1 ? '' : link.slice(queryIndex + 1);
+
+  // Bounty-submission notifications point the WEB app at its review queue
+  // ("/bounties?tab=review&bounty=<id>&claim=<id>"). Mobile has a dedicated
+  // per-bounty review screen instead, so translate that link into it and carry
+  // the claim through so the screen can scroll to / highlight that submission.
+  if (/^\/bounties\/?$/.test(path) && getQueryParam(query, 'tab') === 'review') {
+    const bountyId = getQueryParam(query, 'bounty');
+    if (bountyId) {
+      const claimId = getQueryParam(query, 'claim');
+      return {
+        target: `/(app)/bounties/review/${bountyId}`,
+        ...(claimId ? { params: { claim: claimId } } : {}),
+      };
+    }
+  }
 
   // Exact remaps first (matched on path, query ignored)
   for (const [pattern, target] of REMAP) {
@@ -73,7 +89,13 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
 
   // Dynamic routes that exist on mobile
   const bountyReview = path.match(/^\/bounties\/review\/([^/]+)$/);
-  if (bountyReview) return { target: `/(app)/bounties/review/${bountyReview[1]}` };
+  if (bountyReview) {
+    const claimId = getQueryParam(query, 'claim');
+    return {
+      target: `/(app)/bounties/review/${bountyReview[1]}`,
+      ...(claimId ? { params: { claim: claimId } } : {}),
+    };
+  }
 
   const bountyDetail = path.match(/^\/bounties\/([^/]+)$/);
   if (bountyDetail) return { target: `/(app)/bounties/${bountyDetail[1]}` };
@@ -112,6 +134,24 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   // Unknown/unmapped link: land on the notifications list rather than pushing a
   // route that doesn't exist (which would crash with "no route").
   return { target: '/(app)/notifications' };
+}
+
+/**
+ * Read a single param out of a raw query string ("a=1&b=2"). Kept dependency-free
+ * (no URL/URLSearchParams) so it behaves the same across Hermes/JSC/web. Returns
+ * null when absent or empty.
+ */
+function getQueryParam(query: string, key: string): string | null {
+  if (!query) return null;
+  for (const pair of query.split('&')) {
+    const eq = pair.indexOf('=');
+    const k = eq === -1 ? pair : pair.slice(0, eq);
+    if (k === key) {
+      const v = eq === -1 ? '' : decodeURIComponent(pair.slice(eq + 1));
+      return v || null;
+    }
+  }
+  return null;
 }
 
 function labelForPrefix(prefix: string): string {

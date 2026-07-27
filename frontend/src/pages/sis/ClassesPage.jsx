@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
+import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon, EyeIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { ModalOverlay } from '../../components/ui'
@@ -15,6 +15,7 @@ import ParentClassPreview from '../../components/schedule/ClassDetailsModal'
 import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
 import ScheduleSyncModal from '../../components/sis/ScheduleSyncModal'
 import ClassesTable from '../../components/sis/ClassesTable'
+import CoursePreviewModal from '../../components/course/CoursePreviewModal'
 
 // What Optio charges a school per student to enroll in an Optio course. Optio
 // invoices the school directly for each enrollment — there is no in-app billing.
@@ -68,6 +69,7 @@ const ClassesPage = () => {
   const [editing, setEditing] = useState(null)     // class being edited
   const [editTab, setEditTab] = useState('details') // which tab the class modal opens on
   const [settingsCourse, setSettingsCourse] = useState(null) // course open in the detail modal (settings/enroll/enrollments tabs)
+  const [viewingCourse, setViewingCourse] = useState(null)   // course open in the student view (review / demo to students)
   const [searchParams, setSearchParams] = useSearchParams()
   // Two top-level tabs: the org's own classes, and the Optio course catalog they
   // can enroll students into. Uses the ?tab= URL pattern (like the People page)
@@ -492,6 +494,7 @@ const ClassesPage = () => {
                 key={`course-${item.id}`}
                 c={item}
                 onOpen={() => setSettingsCourse(item)}
+                onView={() => setViewingCourse(item)}
               />
             )
           ))}
@@ -514,6 +517,9 @@ const ClassesPage = () => {
           onArchive={() => archiveClass(classes.find((c) => c.id === editing.id) || editing)}
           onRestore={() => restoreClass(classes.find((c) => c.id === editing.id) || editing)}
         />
+      )}
+      {viewingCourse && (
+        <CoursePreviewModal courseId={viewingCourse.id} onClose={() => setViewingCourse(null)} />
       )}
       {settingsCourse && (
         <CourseDetailModal
@@ -558,31 +564,42 @@ const ClassCard = ({ c, onOpen }) => (
   </button>
 )
 
-const CourseCard = ({ c, onOpen }) => (
-  <button
-    type="button"
-    onClick={onOpen}
-    className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col text-left hover:border-optio-purple/50 hover:shadow-md transition-all"
-  >
-    <div className="relative h-40 w-full bg-gradient-to-br from-optio-pink/10 to-optio-purple/10">
-      {c.cover_image_url ? (
-        <img src={c.cover_image_url} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-optio-pink/30">
-          <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-          </svg>
-        </div>
-      )}
-      <span className="absolute top-2 right-2"><Chip className="bg-white/90 text-optio-pink">Course</Chip></span>
-    </div>
+// The card body opens the course's SIS settings/enrollments; "View" opens the
+// course in the real student view so staff can review it or demo it.
+const CourseCard = ({ c, onOpen, onView }) => (
+  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col hover:border-optio-purple/50 hover:shadow-md transition-all">
+    <button type="button" onClick={onOpen} className="text-left flex-1">
+      <div className="relative h-40 w-full bg-gradient-to-br from-optio-pink/10 to-optio-purple/10">
+        {c.cover_image_url ? (
+          <img src={c.cover_image_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-optio-pink/30">
+            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+          </div>
+        )}
+        <span className="absolute top-2 right-2"><Chip className="bg-white/90 text-optio-pink">Course</Chip></span>
+      </div>
 
-    <div className="p-4">
-      <h3 className="font-semibold text-neutral-900">{c.title}</h3>
-      {c.description && <p className="text-sm text-neutral-500 mt-1 line-clamp-3">{c.description}</p>}
-      <p className="mt-2 text-xs font-medium text-optio-purple">{OPTIO_COURSE_FEE} per student · billed to the school</p>
+      <div className="px-4 pt-4">
+        <h3 className="font-semibold text-neutral-900">{c.title}</h3>
+        {c.description && <p className="text-sm text-neutral-500 mt-1 line-clamp-3">{c.description}</p>}
+        <p className="mt-2 text-xs font-medium text-optio-purple">{OPTIO_COURSE_FEE} per student · billed to the school</p>
+      </div>
+    </button>
+
+    <div className="px-4 pb-4 pt-3">
+      <button
+        type="button"
+        onClick={onView}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-optio-purple/10 text-optio-purple text-sm font-medium hover:bg-optio-purple/20 transition-colors min-h-[44px]"
+      >
+        <EyeIcon className="w-5 h-5" />
+        View
+      </button>
     </div>
-  </button>
+  </div>
 )
 
 const COURSE_TABS = [
@@ -592,11 +609,14 @@ const COURSE_TABS = [
 
 // Tuition is intentionally not shown here: SIS staff manage the teacher and
 // rosters; the price surfaces in the parent-facing schedule builder instead.
+// "View as student" opens the course in the real student view (CourseHomepage),
+// so staff can review it or demo it without enrolling themselves.
 const CourseDetailModal = ({ course, staff, current, orgId, isSuperadmin, onClose, onSaved }) => {
   const [tab, setTab] = useState('details')
   const [teacherId, setTeacherId] = useState(current?.teacher?.id || '')
   const [saving, setSaving] = useState(false)
   const [quests, setQuests] = useState([])
+  const [viewingAsStudent, setViewingAsStudent] = useState(false)
 
   // Courses are built from Projects (quests) — list what's inside.
   useEffect(() => {
@@ -621,6 +641,10 @@ const CourseDetailModal = ({ course, staff, current, orgId, isSuperadmin, onClos
     } finally {
       setSaving(false)
     }
+  }
+
+  if (viewingAsStudent) {
+    return <CoursePreviewModal courseId={course.id} onClose={() => setViewingAsStudent(false)} />
   }
 
   return (
@@ -696,6 +720,12 @@ const CourseDetailModal = ({ course, staff, current, orgId, isSuperadmin, onClos
 
         {tab === 'details' && (
           <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 shrink-0">
+            <button
+              onClick={() => setViewingAsStudent(true)}
+              className="mr-auto px-4 py-2 text-sm font-medium text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors"
+            >
+              View as student
+            </button>
             <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm">
               Close
             </button>

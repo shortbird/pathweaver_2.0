@@ -107,6 +107,54 @@ class TestReview:
 
 
 @pytest.mark.unit
+class TestSubmissionSchedule:
+    """Staff view the classes on a submitted schedule before approving it."""
+
+    _CLASSES = [
+        {'id': 'c1', 'name': 'Teen Maker Open Lab (Tues Block 3)',
+         'meetings': [{'day_of_week': 2, 'start_time': '13:00:00', 'end_time': '14:00:00'}],
+         'location': 'Room A', 'primary_instructor': {'name': 'Ms. Ada'}},
+        {'id': 'c2', 'name': 'Algebra 1',
+         'meetings': [{'day_of_week': 1, 'start_time': '09:00:00', 'end_time': '10:00:00'}]},
+        {'id': 'c3', 'name': 'Not Enrolled', 'meetings': []},
+    ]
+
+    def _run(self, sub_rows, enroll_rows, waitlist_rows=None):
+        tables = {
+            'sis_schedule_submissions': _chain(sub_rows),
+            'class_enrollments': _chain(enroll_rows),
+            'sis_waitlist_entries': _chain(waitlist_rows or []),
+        }
+        with patch('services.sis_schedule_submission_service._admin', return_value=_client(tables)), \
+             patch('services.sis_schedule_submission_service._student_name', return_value='Stu One'), \
+             patch('services.sis_catalog_service.list_classes', return_value=self._CLASSES):
+            return subs.submission_schedule('org1', 'sub1')
+
+    def test_missing_submission_errors(self):
+        assert self._run([], []) == {'error': 'Submission not found'}
+
+    def test_returns_enrolled_classes_with_meetings_sorted_by_day(self):
+        out = self._run([_SUBMITTED],
+                        [{'class_id': 'c1', 'status': 'active'},
+                         {'class_id': 'c2', 'status': 'active'}])
+        # Only enrolled classes (c3 excluded); Monday Algebra sorts before Tues lab.
+        assert [c['name'] for c in out['classes']] == ['Algebra 1', 'Teen Maker Open Lab (Tues Block 3)']
+        lab = out['classes'][1]
+        assert lab['meetings'][0]['day_of_week'] == 2
+        assert lab['location'] == 'Room A'
+        assert lab['primary_instructor'] == 'Ms. Ada'
+        assert out['student_name'] == 'Stu One'
+
+    def test_includes_live_waitlist_entries(self):
+        out = self._run([_SUBMITTED],
+                        [{'class_id': 'c2', 'status': 'active'}],
+                        waitlist_rows=[{'id': 'w1', 'class_id': 'c1', 'status': 'waiting', 'position': 2}])
+        assert len(out['waitlist']) == 1
+        assert out['waitlist'][0]['class_name'] == 'Teen Maker Open Lab (Tues Block 3)'
+        assert out['waitlist'][0]['position'] == 2
+
+
+@pytest.mark.unit
 class TestLockState:
     @pytest.mark.parametrize('status,locked', [
         ('submitted', True), ('approved', True), ('sent_back', False),

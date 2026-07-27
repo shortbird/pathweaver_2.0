@@ -30,8 +30,10 @@ vi.mock('../../services/courseService', () => ({
   unenrollFromCourse: vi.fn()
 }))
 
+// react-hot-toast's default export is callable (toast('...')) as well as
+// having .success/.error — the preview guards use the plain form.
 vi.mock('react-hot-toast', () => ({
-  default: { success: vi.fn(), error: vi.fn() }
+  default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() })
 }))
 
 // Mock OnboardingContext
@@ -59,10 +61,11 @@ vi.mock('../../components/courses/QuestJourneyMap', () => ({
 
 // Mock CurriculumView
 vi.mock('../../components/curriculum/CurriculumView', () => ({
-  default: ({ questId, initialLessonId }) => (
+  default: ({ questId, initialLessonId, previewMode }) => (
     <div data-testid="curriculum-view">
       <span data-testid="cv-quest">{questId}</span>
       <span data-testid="cv-lesson">{initialLessonId}</span>
+      <span data-testid="cv-preview">{String(Boolean(previewMode))}</span>
     </div>
   )
 }))
@@ -81,7 +84,12 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ArrowRightStartOnRectangleIcon: (props) => <svg data-testid="exit-icon" {...props} />,
   ExclamationTriangleIcon: (props) => <svg data-testid="warning-icon" {...props} />,
   XMarkIcon: (props) => <svg data-testid="x-icon" {...props} />,
-  QuestionMarkCircleIcon: (props) => <svg data-testid="question-icon" {...props} />
+  QuestionMarkCircleIcon: (props) => <svg data-testid="question-icon" {...props} />,
+  EyeIcon: (props) => <svg data-testid="eye-icon" {...props} />,
+  PlusIcon: (props) => <svg data-testid="plus-icon" {...props} />,
+  TrashIcon: (props) => <svg data-testid="trash-icon" {...props} />,
+  SparklesIcon: (props) => <svg data-testid="sparkles-icon" {...props} />,
+  ClipboardDocumentListIcon: (props) => <svg data-testid="clipboard-icon" {...props} />
 }))
 
 vi.mock('@heroicons/react/24/solid', () => ({
@@ -327,6 +335,51 @@ describe('CourseHomepage', () => {
       }
       renderCourseHomepage()
       expect(screen.getByText('No projects in this course yet.')).toBeInTheDocument()
+    })
+  })
+
+  // --- Staff preview (SIS "View" opens this same component) ---
+  describe('preview mode', () => {
+    const renderPreview = (onClose = vi.fn()) => {
+      const utils = render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={['/classes']}>
+            <CourseHomepage courseId="course-123" preview onClose={onClose} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+      return { ...utils, onClose }
+    }
+
+    it('renders the student view from a courseId prop, with no route params', () => {
+      renderPreview()
+      // Same page students get: course title, progress, and the project list.
+      expect(screen.getAllByText('Robotics 101').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Build a Robot Arm').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Program the Controller').length).toBeGreaterThan(0)
+    })
+
+    it('replaces the enrollment controls with a Student view chip', () => {
+      renderPreview()
+      expect(screen.getByText('Student view')).toBeInTheDocument()
+      expect(screen.queryByTitle('Enroll in this course')).not.toBeInTheDocument()
+      expect(screen.queryByTitle(/Unenroll/)).not.toBeInTheDocument()
+    })
+
+    it('closes the preview instead of navigating away', () => {
+      const { onClose } = renderPreview()
+      fireEvent.click(screen.getAllByText('Robotics 101')[0]) // header back button
+      expect(onClose).toHaveBeenCalled()
+      expect(mockNavigate).not.toHaveBeenCalled()
+    })
+
+    it('opens a project without writing lesson progress', async () => {
+      renderPreview()
+      fireEvent.click(screen.getAllByText('Program the Controller')[0]) // sidebar item
+      // Lesson viewer is the real student one, told not to record progress.
+      fireEvent.click(await screen.findByText('Arduino Intro'))
+      expect(await screen.findByTestId('curriculum-view')).toBeInTheDocument()
+      expect(screen.getByTestId('cv-preview')).toHaveTextContent('true')
     })
   })
 })

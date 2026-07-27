@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, memo } from 'react'
+import React, { useState, useCallback, useMemo, memo, useEffect } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useBounties, useMyClaims, useMyPostedBounties, useToggleDeliverable, useDeleteBounty, useDeleteEvidence, useTurnInBounty } from '../hooks/api/useBounties'
@@ -325,6 +325,18 @@ const BountyBoardPage = () => {
     return effectiveRole === 'parent' ? 'my-bounties' : 'browse'
   })
 
+  // The initial tab is read once on mount. When a notification deep-link changes
+  // ?tab= while this page is already mounted (e.g. poster taps "needs review"
+  // from the bounty board), sync the active tab so it actually switches. Only
+  // reacts to real URL changes, so manual tab clicks (which don't touch the URL)
+  // are left alone.
+  const urlTab = searchParams.get('tab')
+  useEffect(() => {
+    if (['browse', 'active', 'my-bounties', 'review'].includes(urlTab)) {
+      setTab(urlTab)
+    }
+  }, [urlTab])
+
   const isStudent = user?.role === 'student' || user?.org_role === 'student'
   const canPost = !isStudent || user?.role === 'superadmin'
 
@@ -337,7 +349,13 @@ const BountyBoardPage = () => {
   // Review tab badge count is visible from any tab.
   const { data: myPosted = [], isLoading: loadingPosted } = useMyPostedBounties({ enabled: canPost, staleTime: 0 })
 
-  // Flat queue of every submitted claim across all posted bounties, oldest first
+  // The specific submission to focus, set when the poster arrives from a
+  // "student submitted, needs review" notification (link carries ?claim=<id>).
+  const highlightClaimId = searchParams.get('claim')
+
+  // Flat queue of every submitted claim across all posted bounties, oldest first.
+  // The highlighted submission floats to the top so the tapped notification lands
+  // the poster directly on that student's review card.
   const pendingSubmissions = useMemo(() => {
     const items = []
     for (const b of myPosted) {
@@ -346,8 +364,12 @@ const BountyBoardPage = () => {
       }
     }
     items.sort((a, z) => new Date(a.claim.submitted_at || 0) - new Date(z.claim.submitted_at || 0))
+    if (highlightClaimId) {
+      const idx = items.findIndex(i => i.claim.id === highlightClaimId)
+      if (idx > 0) items.unshift(items.splice(idx, 1)[0])
+    }
     return items
-  }, [myPosted])
+  }, [myPosted, highlightClaimId])
 
   const claimStatusMap = useMemo(() => {
     const map = {}
@@ -623,7 +645,12 @@ const BountyBoardPage = () => {
         ) : (
           <div className="space-y-4 max-w-3xl">
             {pendingSubmissions.map(({ bounty, claim }) => (
-              <SubmissionReviewCard key={claim.id} bounty={bounty} claim={claim} />
+              <SubmissionReviewCard
+                key={claim.id}
+                bounty={bounty}
+                claim={claim}
+                highlight={claim.id === highlightClaimId}
+              />
             ))}
           </div>
         )

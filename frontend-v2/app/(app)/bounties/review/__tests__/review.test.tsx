@@ -153,6 +153,35 @@ describe('ReviewBountyPage', () => {
     });
   });
 
+  it('highlights and floats the notification-targeted claim to the top', async () => {
+    // Poster tapped a "needs review" notification for claim-2; the deep-link
+    // router passed ?claim=claim-2 through to this screen.
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'bounty-1', claim: 'claim-2' });
+    const mkClaim = (id: string, name: string, createdAt: string) => ({
+      id,
+      student_id: `s-${id}`,
+      status: 'submitted',
+      created_at: createdAt,
+      student: { display_name: name, first_name: name, last_name: 'X' },
+      evidence: { completed_deliverables: [], deliverable_evidence: {} },
+    });
+    const bounty = {
+      ...createMockBounty({ poster_id: 'parent-1' }),
+      // claim-1 is older (would normally sort/appear first); claim-2 is the target.
+      claims: [mkClaim('claim-1', 'Alice', '2026-03-19T10:00:00Z'), mkClaim('claim-2', 'Bob', '2026-03-20T10:00:00Z')],
+    };
+    (bountyAPI.get as jest.Mock).mockResolvedValueOnce({ data: { bounty } });
+
+    const { getByTestId, getByText } = render(<ReviewBountyPage />);
+
+    await waitFor(() => {
+      expect(getByTestId('highlighted-claim')).toBeTruthy();
+    });
+    // Exactly the targeted student's card is highlighted; the other still renders.
+    expect(getByTestId('highlighted-claim')).toContainElement(getByText('Bob'));
+    expect(getByText('Alice')).toBeTruthy();
+  });
+
   it('shows bounty not found on error', async () => {
     (bountyAPI.get as jest.Mock).mockRejectedValueOnce(new Error('Not found'));
 

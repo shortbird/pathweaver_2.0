@@ -57,6 +57,14 @@ const { api } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
+// The student view itself is covered by CourseHomepage.test.jsx; here we only
+// care that the SIS entry points hand it the right course.
+vi.mock('../../pages/courses/CourseHomepage', () => ({
+  default: ({ courseId, preview }) => (
+    <div data-testid="course-student-view">{courseId}{preview ? ' preview' : ''}</div>
+  ),
+}))
+
 import ClassesPage from './ClassesPage'
 
 beforeEach(() => {
@@ -185,6 +193,25 @@ describe('ClassesPage', () => {
         teacher_id: 's2',
       })),
     )
+  })
+
+  // Org admins review an Optio course by opening it in the real student view
+  // (the same CourseHomepage the learning app's "View" button opens), so what
+  // they review and demo is exactly what students get.
+  it('opens the course in the student view from the card', async () => {
+    await renderCards()
+    fireEvent.click(screen.getByRole('button', { name: /Optio courses/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'View' }))
+    expect(await screen.findByTestId('course-student-view')).toHaveTextContent('crs1')
+    expect(screen.getByText(/exactly what your students see/i)).toBeInTheDocument()
+  })
+
+  it('opens the course in the student view from the detail modal', async () => {
+    await renderCards()
+    fireEvent.click(screen.getByRole('button', { name: /Optio courses/i }))
+    fireEvent.click(await screen.findByText('Intro to Robotics')) // card body opens settings
+    fireEvent.click(await screen.findByRole('button', { name: 'View as student' }))
+    expect(await screen.findByTestId('course-student-view')).toHaveTextContent('crs1')
   })
 
   it('filters to courses only', async () => {
