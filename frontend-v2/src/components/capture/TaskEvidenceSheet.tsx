@@ -122,15 +122,48 @@ export function TaskEvidenceSheet({
   // crashes with "unregistered ActivityResultLauncher" (and iOS can drop the
   // first launch). Hide the sheet, launch once it's gone, then re-present.
   // State is preserved because reset() only runs on an explicit handleClose.
+  //
+  // IMPORTANT: only the native picker *launch* runs while the sheet is hidden.
+  // The heavy post-processing (video transcode, which can take tens of seconds
+  // on a budget device) must run with the sheet VISIBLE, so its "Optimizing
+  // video…" progress is on screen. Otherwise the user just sees the popup
+  // vanish with no feedback and assumes the upload failed — the reported
+  // "pick a video and the Add Evidence popup goes away / nothing uploads" bug.
   const [pickerSuspended, setPickerSuspended] = useState(false);
-  const pendingPickerRef = useRef<null | (() => Promise<void>)>(null);
+  // The pending picker returns the raw assets to process (or nothing, for the
+  // document scanner, which attaches its own media).
+  type PickerAction = () => Promise<ImagePicker.ImagePickerAsset[] | void>;
+  const pendingPickerRef = useRef<null | PickerAction>(null);
 
-  const runWithSheetHidden = (action: () => Promise<void>) => {
+  // Process picker results (compress + attach) with error surfacing. Runs with
+  // the sheet visible so video-compression progress shows.
+  const processPickerAssets = async (assets: ImagePicker.ImagePickerAsset[] | void) => {
+    if (!assets || assets.length === 0) return;
+    try {
+      await processAndAdd(assets);
+    } catch (err) {
+      captureException(err, { stage: 'task-evidence-process' });
+      Alert.alert('Something went wrong', "That file couldn't be added. Please try again.");
+    }
+  };
+
+  const runWithSheetHidden = (action: PickerAction) => {
     // Android-only close-then-launch dance (avoids the unregistered
     // ActivityResultLauncher crash). On iOS, dismissing the Modal first makes
-    // the picker silently fail to present, so launch directly there.
+    // the picker silently fail to present, so launch directly there (the sheet
+    // stays visible the whole time, so compression progress already shows).
     if (Platform.OS !== 'android') {
-      action().catch((err) => captureException(err, { stage: 'task-evidence-picker-launch' }));
+      (async () => {
+        let assets: ImagePicker.ImagePickerAsset[] | void;
+        try {
+          assets = await action();
+        } catch (err) {
+          captureException(err, { stage: 'task-evidence-picker-launch' });
+          Alert.alert('Something went wrong', "That didn't work. Please try again.");
+          return;
+        }
+        await processPickerAssets(assets);
+      })();
       return;
     }
     pendingPickerRef.current = action;
@@ -142,13 +175,20 @@ export function TaskEvidenceSheet({
     pendingPickerRef.current = null;
     if (!action) return;
     (async () => {
+      let assets: ImagePicker.ImagePickerAsset[] | void = undefined;
       try {
-        await action();
+        // Only the native picker launch runs while the sheet is hidden.
+        assets = await action();
       } catch (err) {
         captureException(err, { stage: 'task-evidence-picker-launch' });
+        Alert.alert('Something went wrong', "That didn't work. Please try again.");
       } finally {
+        // Re-present the sheet BEFORE the (possibly slow) video transcode, so
+        // the "Optimizing video…" progress is visible instead of the popup
+        // appearing to have vanished.
         setPickerSuspended(false);
       }
+      await processPickerAssets(assets);
     })();
   };
 
@@ -202,7 +242,10 @@ export function TaskEvidenceSheet({
     }
   };
 
-  const openCamera = async () => {
+  // Picker actions only LAUNCH the native picker and return the raw assets;
+  // compression/attachment happens in processPickerAssets once the sheet is
+  // back on screen (see runWithSheetHidden / handleSheetClosed).
+  const openCamera = async (): Promise<ImagePicker.ImagePickerAsset[] | void> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Camera permission is required.');
@@ -214,11 +257,11 @@ export function TaskEvidenceSheet({
       videoMaxDuration: 120,
     });
     if (!result.canceled && result.assets.length > 0) {
-      await processAndAdd(result.assets);
+      return result.assets;
     }
   };
 
-  const pickFiles = async () => {
+  const pickFiles = async (): Promise<ImagePicker.ImagePickerAsset[] | void> => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       quality: 0.8,
@@ -226,7 +269,7 @@ export function TaskEvidenceSheet({
       selectionLimit: 10,
     });
     if (!result.canceled && result.assets.length > 0) {
-      await processAndAdd(result.assets);
+      return result.assets;
     }
   };
 
