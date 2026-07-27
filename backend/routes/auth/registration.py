@@ -255,6 +255,21 @@ def register():
 
             raise
 
+        # Supabase GoTrue does NOT error when signing up an email that already
+        # exists (email-enumeration protection). Instead it returns an obfuscated
+        # "fake" user: a fresh random id that is never written to auth.users, with
+        # an empty identities array. Detect it here — otherwise we'd try to insert
+        # a public.users row whose id isn't in auth.users and hit the
+        # users_auth_id_fkey FK violation (23503), which the retry loop below can
+        # never resolve ("Profile creation failed after 3 attempts").
+        if auth_response.user and not auth_response.user.identities:
+            logger.info("[REGISTRATION] Duplicate signup detected (empty identities) - email already registered")
+            return error_response(
+                code='EMAIL_ALREADY_EXISTS',
+                message='An account with this email already exists. If you created your account through single sign-on (SSO), you can set a password by clicking "Forgot Password" on the login page.',
+                status=400
+            )
+
         if auth_response.user:
             # Sanitize names for database storage (prevent XSS)
             sanitized_first_name = sanitize_input(original_first_name)
