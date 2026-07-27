@@ -229,6 +229,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                   <td className="px-4 py-3 font-medium text-neutral-900">
                     {c.name}
                     {c.status === 'archived' && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded uppercase">Archived</span>}
+                    {!isOpen && c.status !== 'archived' && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded uppercase" title="Closed to registration — families can't see this class in the Schedule Builder">Closed</span>}
                     {dirty && <span className="ml-2 text-[10px] font-semibold text-optio-purple uppercase">edited</span>}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">

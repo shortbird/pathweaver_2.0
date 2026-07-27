@@ -286,12 +286,13 @@ describe('ClassesPage', () => {
     expect(api.get.mock.calls.length).toBe(getCalls)
   })
 
-  it('warns when classes are closed to registration and can open them all', async () => {
+  it('marks closed classes per-row and can open them all at once', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ClassesPage />)
     await screen.findByText('Pottery')
-    expect(screen.getByText(/1 class is closed to registration/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Open all 1' }))
+    // The closed class is flagged on its own row/card, not in a page-level banner.
+    expect(screen.getByText('Closed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open all 1 closed' }))
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/classes/c1', expect.objectContaining({ registration_status: 'open' })),
     )

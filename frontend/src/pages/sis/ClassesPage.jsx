@@ -316,7 +316,7 @@ const ClassesPage = () => {
 
   // Every non-archived class that isn't open is invisible to families in the
   // Schedule Builder — new classes default to closed, which is easy to miss.
-  const closedClasses = classes.filter((c) => c.registration_status !== 'open')
+  const closedClasses = classes.filter((c) => c.registration_status !== 'open' && c.status !== 'archived')
   const openAll = async () => {
     if (!window.confirm(`Open registration for all ${closedClasses.length} closed class${closedClasses.length === 1 ? '' : 'es'}? Families will see them in the Schedule Builder immediately.`)) return
     try {
@@ -421,6 +421,13 @@ const ClassesPage = () => {
             Export CSV
           </button>
         )}
+        {tab === 'classes' && orgId && !loading && closedClasses.length > 0 && (
+          <button onClick={openAll}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-400 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors"
+            title="Open registration for every class marked Closed">
+            Open all {closedClasses.length} closed
+          </button>
+        )}
       </div>
 
       {/* Optio-course billing notice — Optio invoices the school per enrollment */}
@@ -434,20 +441,6 @@ const ClassesPage = () => {
 
       {showSync && orgId && (
         <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={load} />
-      )}
-
-      {tab === 'classes' && !loading && closedClasses.length > 0 && (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          <span>
-            {closedClasses.length} class{closedClasses.length === 1 ? ' is' : 'es are'} closed to
-            registration — families can't see {closedClasses.length === 1 ? 'it' : 'them'} in the
-            Schedule Builder. Use each row's Registration toggle, or open all at once.
-          </span>
-          <button onClick={openAll}
-            className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-semibold border border-amber-400 text-amber-800 hover:bg-amber-100 transition-colors">
-            Open all {closedClasses.length}
-          </button>
-        </div>
       )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
@@ -558,7 +551,12 @@ const ClassCard = ({ c, onOpen }) => (
     </div>
 
     <div className="p-4">
-      <h3 className="font-semibold text-neutral-900">{c.name}</h3>
+      <div className="flex items-center gap-2">
+        <h3 className="font-semibold text-neutral-900">{c.name}</h3>
+        {c.registration_status !== 'open' && c.status !== 'archived' && (
+          <Chip className="bg-amber-100 text-amber-700">Closed</Chip>
+        )}
+      </div>
       {c.description && <p className="text-sm text-neutral-500 mt-1 line-clamp-3">{c.description}</p>}
     </div>
   </button>
