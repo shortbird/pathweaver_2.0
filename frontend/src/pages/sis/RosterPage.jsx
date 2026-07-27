@@ -31,6 +31,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const [menuFor, setMenuFor] = useState(null)      // open actions menu (student_id)
   const [search, setSearch] = useState('')
   const [hideInactive, setHideInactive] = useState(true)
+  const [studentsOnly, setStudentsOnly] = useState(false)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
 
   const load = useCallback(() => {
@@ -98,6 +99,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const visibleRoster = useMemo(() => {
     const q = search.trim().toLowerCase()
     const rows = roster.filter((s) => {
+      if (studentsOnly && !s.is_student) return false
       if (hideInactive && s.is_student && INACTIVE_STATUSES.includes(s.enrollment_status)) return false
       if (!q) return true
       return [s.name, s.email, s.username, s.role].some((v) => (v || '').toLowerCase().includes(q))
@@ -124,7 +126,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
       if (cmp === 0) cmp = (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
       return cmp * dir
     })
-  }, [roster, search, hideInactive, sort])
+  }, [roster, search, hideInactive, studentsOnly, sort])
 
   const hiddenCount = roster.length - visibleRoster.length
 
@@ -166,6 +168,15 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
               className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
             />
             Hide withdrawn &amp; graduated
+          </label>
+          <label className="flex items-center gap-2 text-sm text-neutral-600 select-none">
+            <input
+              type="checkbox"
+              checked={studentsOnly}
+              onChange={(e) => setStudentsOnly(e.target.checked)}
+              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+            />
+            Students only
           </label>
         </div>
       )}
