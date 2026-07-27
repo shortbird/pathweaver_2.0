@@ -260,18 +260,47 @@ def update_user_role(admin_id, user_id):
     try:
         new_role = data.get('role')
         reason = data.get('reason', 'Role change by admin')
-        
+
         # Validate role
         valid_roles = ['student', 'parent', 'advisor', 'org_admin', 'superadmin', 'observer', 'org_managed']
         if new_role not in valid_roles:
             return jsonify({'error': 'Invalid role'}), 400
-        
+
+        # Load the target so we can map the requested role to the columns the
+        # users table actually allows.
+        target_rows = (supabase.table('users').select('organization_id, role, org_role')
+                       .eq('id', user_id).limit(1).execute()).data
+        if not target_rows:
+            return jsonify({'error': 'User not found'}), 404
+        target_user = target_rows[0]
+        target_org_id = target_user.get('organization_id')
+
+        # The users table enforces (users_role_check / direct_role_no_org_role):
+        # 'org_admin' is never a value of the role column, org users keep
+        # role='org_managed' with the real role in org_role, and a direct role
+        # requires org_role to be NULL. Writing new_role straight to `role`
+        # violates those checks (Sentry OPTIO-BACKEND-9 / -A).
+        if new_role == 'org_managed':
+            if not target_org_id:
+                return jsonify({'error': 'Cannot set role to org_managed for user without an organization'}), 400
+            update_data = {'role': 'org_managed'}
+            if not target_user.get('org_role'):
+                update_data['org_role'] = 'student'
+        elif target_org_id and new_role != 'superadmin':
+            # Org user: platform role stays org_managed; requested role goes in org_role.
+            update_data = {'role': 'org_managed', 'org_role': new_role}
+        elif new_role == 'org_admin':
+            return jsonify({'error': 'org_admin is an organization role — the user must belong to an organization'}), 400
+        else:
+            # Direct platform role: clear any leftover org_role.
+            update_data = {'role': new_role, 'org_role': None}
+
         # Update user role
         response = supabase.table('users')\
-            .update({'role': new_role})\
+            .update(update_data)\
             .eq('id', user_id)\
             .execute()
-        
+
         if not response.data:
             return jsonify({'error': 'User not found'}), 404
         

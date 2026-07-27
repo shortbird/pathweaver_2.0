@@ -185,7 +185,7 @@ def get_student_dm_messages(user_id, student_id, conversation_id):
 
         # Get messages
         messages = supabase.table('direct_messages').select('''
-            id, sender_id, content, created_at, is_read,
+            id, sender_id, content:message_content, created_at, read_at,
             sender:sender_id(id, display_name, first_name, last_name, avatar_url, role)
         ''').eq('conversation_id', conversation_id).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
