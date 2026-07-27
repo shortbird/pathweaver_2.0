@@ -63,6 +63,18 @@ const RegistrationPage = () => {
   )
 }
 
+// Tooltip for the sibling badge: who the accepted siblings are and how old,
+// so staff can tell a high-schooler's little brother from a 10-year-old's.
+const siblingTitle = (e, prioritized) => {
+  const list = (e.siblings || [])
+    .map((s) => (s.age != null ? `${s.name} (${s.age})` : `${s.name} (age unknown)`))
+    .join(', ')
+  const who = `Accepted sibling${(e.siblings || []).length === 1 ? '' : 's'}: ${list}`
+  return prioritized
+    ? `${who}. Sibling priority moves this child up the line, oldest sibling first.`
+    : `${who}. This child registered before sibling priority started, so their place is frozen — use the arrows to move them up.`
+}
+
 // The enrollment age-group waitlist workspace. Always visible so staff have a
 // home for it: every active waitlist age group shows (even with nobody waiting),
 // students queue in priority order, and staff release or decline them here.
@@ -212,7 +224,8 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
         a student choose classes and emails their family — release only as many as you have room for.
         "Not accepted" refunds that child's registration fee. Children with an accepted older sibling
         are tagged <span className="font-semibold text-optio-purple">sibling priority</span> and move
-        up the line. Add or reopen waitlisted age groups in Settings → Registration &amp; enrollment.
+        up the line, the oldest sibling first — hover the tag to see the sibling's age. Add or reopen
+        waitlisted age groups in Settings → Registration &amp; enrollment.
       </p>
 
       {loading ? (
@@ -275,10 +288,15 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
                         )}
                         <div className="min-w-0">
                         <span className="font-medium text-neutral-900">#{e.position} {e.student_name}</span>
-                        {e.priority && (
-                          <span title="An older sibling has been accepted — this child has sibling priority"
+                        {e.priority ? (
+                          <span title={siblingTitle(e, true)}
                             className="ml-1.5 inline-block rounded-full bg-optio-purple/10 px-2 py-0.5 text-[11px] font-semibold text-optio-purple align-middle">
-                            sibling priority
+                            sibling priority{e.sibling_top_age != null ? ` · sibling ${e.sibling_top_age}` : ''}
+                          </span>
+                        ) : e.siblings?.length > 0 && (
+                          <span title={siblingTitle(e, false)}
+                            className="ml-1.5 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-neutral-500 align-middle">
+                            has sibling{e.sibling_top_age != null ? ` · ${e.sibling_top_age}` : ''}
                           </span>
                         )}
                         {e.source === 'manual' && (

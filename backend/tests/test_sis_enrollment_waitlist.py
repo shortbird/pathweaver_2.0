@@ -210,7 +210,7 @@ class TestPriorityOrdering:
             {'id': 'newSib', 'created_at': '2026-07-20T00:00:00+00:00', 'household_id': 'hn2'},
         ]
         with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
-             patch.object(ewl, '_priority_households', return_value={'hn2'}):
+             patch.object(ewl, '_priority_siblings', return_value={'hn2': {'siblings': [], 'top_age': None}}):
             ordered = ewl._order_waiting('org1', rows)
         # frozen prefix keeps its order; then the sibling-priority kid jumps the
         # earlier-but-non-priority newcomer.
@@ -224,7 +224,7 @@ class TestPriorityOrdering:
         ]
         # hsib has an accepted sibling, but it's pre-cutoff so it stays put.
         with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
-             patch.object(ewl, '_priority_households', return_value={'hsib'}):
+             patch.object(ewl, '_priority_siblings', return_value={'hsib': {'siblings': [], 'top_age': None}}):
             ordered = ewl._order_waiting('org1', rows)
         assert [r['id'] for r in ordered] == ['pre_plain', 'pre_sib', 'new_plain']
 
@@ -241,7 +241,7 @@ class TestPriorityOrdering:
              'household_id': 'hsib', 'manual_rank': 2},
         ]
         with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
-             patch.object(ewl, '_priority_households', return_value={'hsib'}):
+             patch.object(ewl, '_priority_siblings', return_value={'hsib': {'siblings': [], 'top_age': None}}):
             ordered = ewl._order_waiting('org1', rows)
         assert [r['id'] for r in ordered] == ['first', 'second', 'third']
 
@@ -315,19 +315,131 @@ class TestReorder:
 
 
 @pytest.mark.unit
-class TestPriorityHouseholds:
-    def test_household_with_unblocked_sibling_gets_priority(self):
-        members = _chain([
-            {'household_id': 'h1', 'user_id': 'stuA'},   # waiting kid (blocked)
-            {'household_id': 'h1', 'user_id': 'stuB'},   # older sibling, no row
-            {'household_id': 'h2', 'user_id': 'stuC'},   # waiting kid, no sibling
-        ])
-        # stuA and stuC are blocked (waiting/rejected); stuB is not.
-        blocked = _chain([{'student_user_id': 'stuA'}, {'student_user_id': 'stuC'}])
+class TestPrioritySiblings:
+    """Which households have an accepted sibling, who they are, and how old —
+    the age is what grades the priority lane and what staff see on the card."""
+
+    def _run(self, members, blocked, users):
+        tables = {
+            'household_members': _chain(members),
+            ewl.TABLE: _chain(blocked),
+            'users': _chain(users),
+            'organizations': _chain(_GATES_FLAGS),  # first_day_of_school lookup
+        }
         with patch('services.sis_enrollment_waitlist_service._admin',
-                   return_value=_client({'household_members': members, ewl.TABLE: blocked})):
-            result = ewl._priority_households('org1', {'h1', 'h2'})
-        assert result == {'h1'}
+                   return_value=_client(tables)):
+            return ewl._priority_siblings('org1', {'h1', 'h2'})
+
+    def test_household_with_unblocked_sibling_gets_priority(self):
+        result = self._run(
+            members=[
+                {'household_id': 'h1', 'user_id': 'stuA'},   # waiting kid (blocked)
+                {'household_id': 'h1', 'user_id': 'stuB'},   # older sibling, no row
+                {'household_id': 'h2', 'user_id': 'stuC'},   # waiting kid, no sibling
+            ],
+            # stuA and stuC are blocked (waiting/rejected); stuB is not.
+            blocked=[{'student_user_id': 'stuA'}, {'student_user_id': 'stuC'}],
+            users=[{'id': 'stuB', 'first_name': 'Big', 'last_name': 'Sis',
+                    'date_of_birth': '2009-05-01'}],
+        )
+        assert set(result) == {'h1'}
+        assert result['h1']['top_age'] == 17  # 17 on the first day of school
+        assert result['h1']['siblings'] == [
+            {'user_id': 'stuB', 'name': 'Big Sis', 'age': 17}]
+
+    def test_top_age_is_the_oldest_sibling_and_they_sort_first(self):
+        result = self._run(
+            members=[
+                {'household_id': 'h1', 'user_id': 'waiting'},
+                {'household_id': 'h1', 'user_id': 'middle'},
+                {'household_id': 'h1', 'user_id': 'eldest'},
+            ],
+            blocked=[{'student_user_id': 'waiting'}],
+            users=[
+                {'id': 'middle', 'display_name': 'Middle', 'date_of_birth': '2015-01-01'},
+                {'id': 'eldest', 'display_name': 'Eldest', 'date_of_birth': '2008-01-01'},
+            ],
+        )
+        assert result['h1']['top_age'] == 18
+        assert [s['name'] for s in result['h1']['siblings']] == ['Eldest', 'Middle']
+
+    def test_sibling_without_a_dob_still_counts_but_has_no_age(self):
+        result = self._run(
+            members=[{'household_id': 'h1', 'user_id': 'waiting'},
+                     {'household_id': 'h1', 'user_id': 'mystery'}],
+            blocked=[{'student_user_id': 'waiting'}],
+            users=[{'id': 'mystery', 'display_name': 'No DOB', 'date_of_birth': None}],
+        )
+        assert set(result) == {'h1'}  # still priority
+        assert result['h1']['top_age'] is None
+
+
+@pytest.mark.unit
+class TestSiblingAgeOrdering:
+    """Within the priority lane, the older the accepted sibling the higher the
+    spot: a high-school sibling outranks a 10-year-old one."""
+
+    _ROWS = [
+        {'id': 'tenSib', 'queued_at': '2026-07-19T00:00:00+00:00', 'household_id': 'h10'},
+        {'id': 'hsSib', 'queued_at': '2026-07-21T00:00:00+00:00', 'household_id': 'hHS'},
+        {'id': 'noSib', 'queued_at': '2026-07-20T00:00:00+00:00', 'household_id': 'hNone'},
+    ]
+    _SIBS = {'h10': {'siblings': [], 'top_age': 10},
+             'hHS': {'siblings': [], 'top_age': 16}}
+
+    def test_older_sibling_outranks_younger_sibling_and_both_beat_no_sibling(self):
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_siblings', return_value=self._SIBS):
+            ordered = ewl._order_waiting('org1', self._ROWS)
+        # hsSib queued LAST but their sibling is 16, so they lead the lane.
+        assert [r['id'] for r in ordered] == ['hsSib', 'tenSib', 'noSib']
+
+    def test_equal_sibling_ages_fall_back_to_queue_date(self):
+        rows = [
+            {'id': 'later', 'queued_at': '2026-07-21T00:00:00+00:00', 'household_id': 'hB'},
+            {'id': 'earlier', 'queued_at': '2026-07-19T00:00:00+00:00', 'household_id': 'hA'},
+        ]
+        sibs = {'hA': {'siblings': [], 'top_age': 14},
+                'hB': {'siblings': [], 'top_age': 14}}
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_siblings', return_value=sibs):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['earlier', 'later']
+
+    def test_unknown_sibling_age_stays_in_the_lane_but_behind_known_ages(self):
+        rows = [
+            {'id': 'unknownAge', 'queued_at': '2026-07-19T00:00:00+00:00', 'household_id': 'hU'},
+            {'id': 'youngSib', 'queued_at': '2026-07-22T00:00:00+00:00', 'household_id': 'hY'},
+            {'id': 'noSib', 'queued_at': '2026-07-20T00:00:00+00:00', 'household_id': 'hN'},
+        ]
+        sibs = {'hU': {'siblings': [], 'top_age': None},
+                'hY': {'siblings': [], 'top_age': 6}}
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_siblings', return_value=sibs):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['youngSib', 'unknownAge', 'noSib']
+
+    def test_sibling_age_never_breaks_the_frozen_prefix(self):
+        rows = [
+            {'id': 'preNoSib', 'queued_at': '2026-07-10T00:00:00+00:00', 'household_id': 'hp1'},
+            {'id': 'postHsSib', 'queued_at': '2026-07-20T00:00:00+00:00', 'household_id': 'hHS'},
+        ]
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_siblings', return_value=self._SIBS):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['preNoSib', 'postHsSib']
+
+    def test_staff_order_still_beats_sibling_age(self):
+        rows = [
+            {'id': 'hsSib', 'queued_at': '2026-07-20T00:00:00+00:00',
+             'household_id': 'hHS', 'manual_rank': 2},
+            {'id': 'placedFirst', 'queued_at': '2026-07-24T00:00:00+00:00',
+             'household_id': 'hNone', 'manual_rank': 1},
+        ]
+        with patch.object(ewl, '_priority_since', return_value=_CUTOFF), \
+             patch.object(ewl, '_priority_siblings', return_value=self._SIBS):
+            ordered = ewl._order_waiting('org1', rows)
+        assert [r['id'] for r in ordered] == ['placedFirst', 'hsSib']
 
 
 @pytest.mark.unit

@@ -121,11 +121,51 @@ describe('EnrollmentWaitlistCard', () => {
     expect(await screen.findByText('Released (1)')).toBeInTheDocument()
   })
 
-  it('badges a student who has sibling priority', async () => {
-    state.entries = [WAITING({ priority: true })]
+  it('badges a student who has sibling priority, with the oldest sibling age', async () => {
+    state.entries = [WAITING({
+      priority: true,
+      sibling_top_age: 16,
+      siblings: [{ user_id: 's1', name: 'Big Sis', age: 16 }],
+    })]
     render(<RegistrationPage />)
-    // The badge (identified by its tooltip) sits on the student's row.
-    expect(await screen.findByTitle(/this child has sibling priority/)).toBeInTheDocument()
+    expect(await screen.findByText(/sibling priority · sibling 16/)).toBeInTheDocument()
+    // The tooltip names the siblings and their ages so staff can tell a
+    // high-schooler's little brother from a 10-year-old's.
+    expect(screen.getByTitle(/Accepted sibling: Big Sis \(16\)/)).toBeInTheDocument()
+  })
+
+  it('lists every accepted sibling oldest-first in the tooltip', async () => {
+    state.entries = [WAITING({
+      priority: true,
+      sibling_top_age: 17,
+      siblings: [
+        { user_id: 's1', name: 'Eldest', age: 17 },
+        { user_id: 's2', name: 'Middle', age: 11 },
+      ],
+    })]
+    render(<RegistrationPage />)
+    expect(await screen.findByTitle(/Accepted siblings: Eldest \(17\), Middle \(11\)/)).toBeInTheDocument()
+  })
+
+  it('still shows a frozen-prefix student sibling, without claiming priority', async () => {
+    // Registered before the priority cutoff: their place is frozen, but staff
+    // deciding who to release still need to see the sibling.
+    state.entries = [WAITING({
+      priority: false,
+      sibling_top_age: 15,
+      siblings: [{ user_id: 's1', name: 'Big Bro', age: 15 }],
+    })]
+    render(<RegistrationPage />)
+    expect(await screen.findByText(/has sibling · 15/)).toBeInTheDocument()
+    // No priority badge — the tooltip is the one unique to a prioritized row.
+    expect(screen.queryByTitle(/Sibling priority moves this child up/)).toBeNull()
+  })
+
+  it('shows no sibling badge when there is no accepted sibling', async () => {
+    state.entries = [WAITING({ priority: false, siblings: [] })]
+    render(<RegistrationPage />)
+    expect(await screen.findByText(/Kid One/)).toBeInTheDocument()
+    expect(screen.queryByTitle(/Accepted sibling/)).toBeNull()
   })
 
   it('rejects a student (refund) after a confirm', async () => {
