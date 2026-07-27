@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { isSisAdmin } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
-import { isPathHidden } from '../../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 
 /**
@@ -36,6 +36,7 @@ const ICONS = {
   check: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
   clipboard: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
   books: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  community: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2.83-4M9 8a3 3 0 10-2.83 4',
   card: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
   chat: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
   clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
@@ -52,6 +53,8 @@ const NAV_SECTIONS = [
       // Both are top-level — no "People" section wrapping a "People" link.
       { name: 'People', path: '/people', adminOnly: true, d: ICONS.users },
       { name: 'Directory', path: '/directory', teacherOnly: true, d: ICONS.person },
+      // Community Hub — opt-in per org (feature_flags.sis_settings.community_enabled).
+      { name: 'Community', path: '/community', communityMode: true, d: ICONS.community },
     ],
   },
   {
@@ -140,6 +143,8 @@ const SisSidebar = () => {
             if (isPathHidden(it.path, activeOrg)) return false
             // Goals tab is only for goals-mode orgs (schedule-mode orgs never set goals).
             if (it.goalsMode && !isGoalsMode) return false
+            // Community Hub is opt-in per org.
+            if (it.communityMode && !isCommunityEnabled(activeOrg)) return false
             return true
           })
           if (!items.length) return null

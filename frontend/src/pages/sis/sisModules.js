@@ -36,3 +36,13 @@ export function isPathHidden(path, organization) {
   const mod = SIS_MODULE_BY_PATH[path]
   return Boolean(mod) && getHiddenModules(organization).has(mod)
 }
+
+/**
+ * Community Hub is OPT-IN (unlike the opt-out modules above): it shows only for
+ * orgs that set `feature_flags.sis_settings.community_enabled === true`. This keeps
+ * the experimental section off every existing org's console until they turn it on.
+ * A null org (superadmin before selecting one) sees it hidden.
+ */
+export function isCommunityEnabled(organization) {
+  return organization?.feature_flags?.sis_settings?.community_enabled === true
+}

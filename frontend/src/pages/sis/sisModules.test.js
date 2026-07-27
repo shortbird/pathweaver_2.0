@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getHiddenModules, isPathHidden, SIS_MODULE_BY_PATH } from './sisModules'
+import { getHiddenModules, isPathHidden, isCommunityEnabled, SIS_MODULE_BY_PATH } from './sisModules'
 
 const orgWith = (hidden) => ({ feature_flags: { sis_settings: { hidden_modules: hidden } } })
 
@@ -43,5 +43,20 @@ describe('sisModules', () => {
     for (const path of Object.keys(SIS_MODULE_BY_PATH)) {
       expect(isPathHidden(path, null)).toBe(false)
     }
+  })
+
+  describe('isCommunityEnabled (opt-in)', () => {
+    it('is false by default (no flag, no org)', () => {
+      expect(isCommunityEnabled(null)).toBe(false)
+      expect(isCommunityEnabled({})).toBe(false)
+      expect(isCommunityEnabled({ feature_flags: { sis_settings: {} } })).toBe(false)
+    })
+
+    it('is true only when community_enabled === true', () => {
+      expect(isCommunityEnabled({ feature_flags: { sis_settings: { community_enabled: true } } })).toBe(true)
+      expect(isCommunityEnabled({ feature_flags: { sis_settings: { community_enabled: false } } })).toBe(false)
+      // Truthy-but-not-true values do not enable it.
+      expect(isCommunityEnabled({ feature_flags: { sis_settings: { community_enabled: 'yes' } } })).toBe(false)
+    })
   })
 })

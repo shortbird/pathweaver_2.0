@@ -1,0 +1,234 @@
+"""
+SIS Community Hub — org community section (Announcements, Lost & Found, Recognition)
+plus a read-only Highlights feed and thin surfaces for the existing Events/Resources.
+
+NEW, additive (/api/sis/community/*), staff-gated, org-scoped. Reads are staff-
+readable (STAFF_ROLES); writes are admin/staff per module. Recognition can be posted
+by any staff member (v1); announcements and lost&found are managed by admins. The
+three backing tables are deny-all RLS — everything goes through the service-role
+admin client in sis_community_service; this route enforces role + org scoping.
+"""
+
+import uuid as _uuid
+
+from flask import Blueprint, request, jsonify
+
+from utils.auth.decorators import require_role
+from utils.logger import get_logger
+from database import get_supabase_admin_client
+from services import sis_community_service as community
+from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
+
+logger = get_logger(__name__)
+
+bp = Blueprint('sis_community', __name__, url_prefix='/api/sis/community')
+
+# Lost & Found photos reuse the family-images upload pattern (public bucket).
+_IMAGE_BUCKET = 'community-images'
+_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+# ── Highlights (read-only aggregation) ────────────────────────────────────────
+@bp.route('/highlights', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def get_highlights(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'highlights': community.highlights(org_id)})
+
+
+# ── Announcements ─────────────────────────────────────────────────────────────
+@bp.route('/announcements', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_announcements(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'announcements': community.list_announcements(org_id)})
+
+
+@bp.route('/announcements', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_announcement(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = community.create_announcement(org_id, user_id, request.get_json() or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/announcements/<announcement_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def update_announcement(user_id, announcement_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = community.update_announcement(org_id, announcement_id, request.get_json() or {})
+    if result is None:
+        return jsonify({'success': False, 'error': 'Announcement not found'}), 404
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/announcements/<announcement_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_announcement(user_id, announcement_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not community.delete_row(org_id, 'sis_announcements', announcement_id):
+        return jsonify({'success': False, 'error': 'Announcement not found'}), 404
+    return jsonify({'success': True})
+
+
+# ── Lost & Found ──────────────────────────────────────────────────────────────
+@bp.route('/lost-found', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_lost_found(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    status = request.args.get('status')
+    return jsonify({'success': True, 'items': community.list_lost_found(org_id, status=status)})
+
+
+@bp.route('/lost-found', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_lost_found(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = community.create_lost_found(org_id, user_id, request.get_json() or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/lost-found/<item_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def update_lost_found(user_id, item_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = community.update_lost_found(org_id, item_id, request.get_json() or {})
+    if result is None:
+        return jsonify({'success': False, 'error': 'Item not found'}), 404
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/lost-found/<item_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_lost_found(user_id, item_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not community.delete_row(org_id, 'sis_lost_found', item_id):
+        return jsonify({'success': False, 'error': 'Item not found'}), 404
+    return jsonify({'success': True})
+
+
+@bp.route('/lost-found/mark-expired', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def mark_lost_found_expired(user_id):
+    """Flag every unclaimed item past its 14-day donation deadline as donated."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, **community.mark_expired_for_donation(org_id)})
+
+
+@bp.route('/lost-found/upload', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def upload_lost_found_image(user_id):
+    """Upload a Lost & Found photo to a public bucket; returns its URL. Mirrors the
+    household image upload pattern in routes/sis/__init__.py."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in _IMAGE_EXTENSIONS:
+        return jsonify({'success': False, 'error': 'Invalid file type'}), 400
+    file.seek(0, 2)
+    if file.tell() > _MAX_IMAGE_BYTES:
+        return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
+    file.seek(0)
+
+    supabase = get_supabase_admin_client()
+    try:
+        if not supabase.storage.get_bucket(_IMAGE_BUCKET):
+            supabase.storage.create_bucket(_IMAGE_BUCKET, options={'public': True})
+    except Exception:
+        try:
+            supabase.storage.create_bucket(_IMAGE_BUCKET, options={'public': True})
+        except Exception:
+            pass
+    path = f"{org_id}/lost-found/{_uuid.uuid4().hex}.{ext}"
+    try:
+        supabase.storage.from_(_IMAGE_BUCKET).upload(
+            path=path, file=file.read(),
+            file_options={'content-type': file.content_type or f'image/{ext}'},
+        )
+        url = supabase.storage.from_(_IMAGE_BUCKET).get_public_url(path)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Lost & Found image upload failed: {e}')
+        return jsonify({'success': False, 'error': 'Failed to upload image'}), 500
+    return jsonify({'success': True, 'url': url})
+
+
+# ── Recognition ───────────────────────────────────────────────────────────────
+@bp.route('/recognition', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_recognition(user_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    rec_type = request.args.get('type')
+    return jsonify({'success': True, 'recognition': community.list_recognition(org_id, rec_type=rec_type)})
+
+
+@bp.route('/recognition', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def create_recognition(user_id):
+    """Any staff member can post a shout-out (v1)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = community.create_recognition(org_id, user_id, request.get_json() or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/recognition/<recognition_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_recognition(user_id, recognition_id):
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not community.delete_row(org_id, 'sis_recognition', recognition_id):
+        return jsonify({'success': False, 'error': 'Recognition not found'}), 404
+    return jsonify({'success': True})
+
+
+# ── Members (recipient picker for Recognition) ────────────────────────────────
+@bp.route('/members', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_members(user_id):
+    """Org members for the Recognition recipient picker (id + name)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_service
+    return jsonify({'success': True, 'members': sis_service.list_org_members(org_id)})

@@ -2,7 +2,7 @@ import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface } from '../utils/appSurface'
-import { isPathHidden } from '../pages/sis/sisModules'
+import { isPathHidden, isCommunityEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 
 // Guards a route whose module the active org has hidden (feature_flags.
@@ -14,6 +14,15 @@ import { useSisOrg } from '../pages/sis/useSisOrg'
 const ModuleRoute = ({ path, children }) => {
   const { activeOrg } = useSisOrg()
   if (isPathHidden(path, activeOrg)) return <Navigate to="/" replace />
+  return children
+}
+
+// Community Hub is opt-in — bounce to the dashboard for any org that hasn't
+// enabled it (feature_flags.sis_settings.community_enabled), so a typed URL or
+// stale bookmark can't reach a section the org hasn't turned on.
+const CommunityRoute = ({ children }) => {
+  const { activeOrg } = useSisOrg()
+  if (!isCommunityEnabled(activeOrg)) return <Navigate to="/" replace />
   return children
 }
 
@@ -38,6 +47,7 @@ const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
 const ResourcesPage = lazy(() => import('../pages/sis/ResourcesPage'))
+const CommunityPage = lazy(() => import('../pages/sis/CommunityPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
 const SubmissionsPage = lazy(() => import('../pages/sis/SubmissionsPage'))
@@ -97,6 +107,7 @@ const SisRoutes = () => (
       <Route path="registration" element={<RegistrationPage />} />
       <Route path="calendar" element={<CalendarPage />} />
       <Route path="resources" element={<ResourcesPage />} />
+      <Route path="community" element={<CommunityRoute><CommunityPage /></CommunityRoute>} />
       <Route path="settings" element={<SettingsPage />} />
 
       {/* Teacher portal */}

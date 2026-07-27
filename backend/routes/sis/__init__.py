@@ -803,3 +803,5 @@ def register_sis_routes(app):
     app.register_blueprint(goals_bp)
     from routes.sis.student_records import bp as student_records_bp
     app.register_blueprint(student_records_bp)
+    from routes.sis.community import bp as community_bp
+    app.register_blueprint(community_bp)
