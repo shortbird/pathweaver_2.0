@@ -11,6 +11,10 @@ import Button from '../components/ui/Button'
  */
 const money = (cents) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
 const shortDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '—')
+const FUNDING_LABELS = {
+  ufa: 'UFA', ufa_private: 'UFA – Private School',
+  private_pay: 'Private Pay', other: 'Other',
+}
 const STATUS_STYLES = {
   sent: 'bg-blue-100 text-blue-700', partial: 'bg-amber-100 text-amber-700',
   paid: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700',
@@ -42,9 +46,18 @@ const ReceiptPrintView = ({ receipt }) => (
     <table style={{ width: '100%', marginTop: '24px', fontSize: '14px', borderCollapse: 'collapse' }}>
       <tbody>
         <tr><td style={{ padding: '4px 0', color: '#555' }}>Receipt no.</td><td style={{ textAlign: 'right' }}>{(receipt.payment?.id || '').slice(0, 8).toUpperCase()}</td></tr>
+        {receipt.confirmation_number && (
+          <tr><td style={{ padding: '4px 0', color: '#555' }}>Confirmation no.</td><td style={{ textAlign: 'right' }}>{receipt.confirmation_number}</td></tr>
+        )}
+        {receipt.invoice?.invoice_number && (
+          <tr><td style={{ padding: '4px 0', color: '#555' }}>Invoice no.</td><td style={{ textAlign: 'right' }}>{receipt.invoice.invoice_number}</td></tr>
+        )}
         <tr><td style={{ padding: '4px 0', color: '#555' }}>Payment date</td><td style={{ textAlign: 'right' }}>{shortDate(receipt.payment?.recorded_at)}</td></tr>
         <tr><td style={{ padding: '4px 0', color: '#555' }}>Amount paid</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>{money(receipt.payment?.amount_cents)}</td></tr>
         <tr><td style={{ padding: '4px 0', color: '#555' }}>Method</td><td style={{ textAlign: 'right' }}>{receipt.payment?.method || '—'}</td></tr>
+        {receipt.funding_source && (
+          <tr><td style={{ padding: '4px 0', color: '#555' }}>Funding source</td><td style={{ textAlign: 'right' }}>{FUNDING_LABELS[receipt.funding_source] || receipt.funding_source}</td></tr>
+        )}
         {receipt.payment?.external_ref && (
           <tr><td style={{ padding: '4px 0', color: '#555' }}>Reference</td><td style={{ textAlign: 'right' }}>{receipt.payment.external_ref}</td></tr>
         )}
@@ -67,6 +80,11 @@ const ReceiptPrintView = ({ receipt }) => (
       {(receipt.invoice?.discount_cents || 0) > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#555' }}>
           <span>Discount</span><span>-{money(receipt.invoice.discount_cents)}</span>
+        </div>
+      )}
+      {(receipt.invoice?.processing_fee_cents || 0) > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#555' }}>
+          <span>Processing fee</span><span>{money(receipt.invoice.processing_fee_cents)}</span>
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #999', marginTop: '4px', paddingTop: '4px' }}>
@@ -142,7 +160,10 @@ const StatementPrintView = ({ household }) => {
   )
 }
 
-const InvoiceCard = ({ invoice, expanded, onToggle }) => (
+const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline }) => {
+  const amountDue = (invoice.total_cents || 0) + (invoice.processing_fee_cents || 0) - (invoice.amount_paid_cents || 0)
+  const payable = canPayOnline && amountDue > 0 && !['paid', 'void', 'draft'].includes(invoice.status)
+  return (
   <div className="bg-white rounded-xl border border-gray-200">
     <button onClick={onToggle} className="w-full text-left p-4">
       <div className="flex items-center justify-between">
@@ -154,9 +175,17 @@ const InvoiceCard = ({ invoice, expanded, onToggle }) => (
         </span>
       </div>
       <div className="text-sm text-neutral-400 mt-0.5">
-        Issued {shortDate(invoice.issued_at)}{invoice.due_date ? ` · due ${invoice.due_date}` : ''} · paid {money(invoice.amount_paid_cents)}
+        {invoice.invoice_number ? `${invoice.invoice_number} · ` : ''}Issued {shortDate(invoice.issued_at)}{invoice.due_date ? ` · due ${invoice.due_date}` : ''} · paid {money(invoice.amount_paid_cents)}
       </div>
     </button>
+    {payable && (
+      <div className="px-4 pb-3 -mt-1">
+        <Button size="sm" onClick={() => onPay(invoice)} loading={paying}>
+          Pay {money(amountDue)} online
+        </Button>
+        <span className="ml-2 text-xs text-neutral-400">A card processing fee is added at checkout.</span>
+      </div>
+    )}
     {expanded && (
       <div className="px-4 pb-4 text-sm">
         <div className="space-y-1 border-t border-gray-100 pt-2">
@@ -185,7 +214,8 @@ const InvoiceCard = ({ invoice, expanded, onToggle }) => (
       </div>
     )}
   </div>
-)
+  )
+}
 
 const FamilyBillingPage = () => {
   const [households, setHouseholds] = useState(null)
@@ -193,12 +223,44 @@ const FamilyBillingPage = () => {
   const [receipt, setReceipt] = useState(null)
   const [statementFor, setStatementFor] = useState(null)
   const [printMode, setPrintMode] = useState(null) // 'receipt' | 'statement'
+  const [paying, setPaying] = useState(null) // invoice id mid-checkout
 
+  const loadBilling = () => api.get('/api/sis/parent/billing')
+    .then((r) => setHouseholds(r.data?.households || []))
+    .catch(() => { toast.error('Could not load your billing'); setHouseholds([]) })
+
+  useEffect(() => { loadBilling() }, [])
+
+  // Returning from Stripe (?payment=return&pay_invoice=<id>): verify + record.
   useEffect(() => {
-    api.get('/api/sis/parent/billing')
-      .then((r) => setHouseholds(r.data?.households || []))
-      .catch(() => { toast.error('Could not load your billing'); setHouseholds([]) })
+    const params = new URLSearchParams(window.location.search)
+    const invoiceId = params.get('pay_invoice')
+    const outcome = params.get('payment')
+    if (!invoiceId || !outcome) return
+    // Clean the URL so a refresh doesn't re-trigger.
+    window.history.replaceState({}, '', window.location.pathname)
+    if (outcome === 'canceled') { toast('Payment canceled'); return }
+    if (outcome !== 'return') return
+    api.post(`/api/sis/parent/billing/invoices/${invoiceId}/confirm-payment`, {})
+      .then((r) => {
+        if (r.data?.paid) toast.success('Payment received — thank you!')
+        else toast('We could not confirm the payment yet. It may take a moment.')
+        loadBilling()
+      })
+      .catch(() => toast.error('Could not confirm the payment'))
   }, [])
+
+  const payInvoice = async (invoice) => {
+    setPaying(invoice.id)
+    try {
+      const returnUrl = `${window.location.origin}${window.location.pathname}?pay_invoice=${invoice.id}`
+      const r = await api.post(`/api/sis/parent/billing/invoices/${invoice.id}/checkout`, { return_url: returnUrl })
+      if (r.data?.checkout_url) window.location.href = r.data.checkout_url
+      else toast.error('Could not start the payment')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not start the payment')
+    } finally { setPaying(null) }
+  }
 
   useEffect(() => {
     if (!printMode) return undefined
@@ -272,6 +334,8 @@ const FamilyBillingPage = () => {
               <InvoiceCard
                 key={inv.id} invoice={inv} expanded={!!expanded[inv.id]}
                 onToggle={() => setExpanded((e) => ({ ...e, [inv.id]: !e[inv.id] }))}
+                onPay={payInvoice} paying={paying === inv.id}
+                canPayOnline={!!hh.organization?.online_pay_enabled}
               />
             ))}
           </div>

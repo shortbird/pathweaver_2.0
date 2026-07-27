@@ -158,6 +158,33 @@ def billing_receipt(user_id, payment_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/billing/invoices/<invoice_id>/checkout', methods=['POST'])
+@require_auth
+def billing_invoice_checkout(user_id, invoice_id):
+    """Start an online card payment for an invoice on the school's own Stripe
+    account. Body: {return_url}. Returns a hosted checkout URL."""
+    from services import sis_billing_service as billing
+    return_url = (request.get_json(silent=True) or {}).get('return_url', '')
+    result = billing.create_invoice_checkout(user_id, invoice_id, return_url)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/billing/invoices/<invoice_id>/confirm-payment', methods=['POST'])
+@require_auth
+def billing_invoice_confirm(user_id, invoice_id):
+    """After returning from Stripe, verify a paid session and record the payment
+    (idempotent). Returns {paid, payment?, invoice?}."""
+    from services import sis_billing_service as billing
+    result = billing.confirm_invoice_payment(user_id, invoice_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
 # ── Family photos (self-service) ──────────────────────────────────────────────
 def _photo_file_or_error():
     """Validate the multipart photo upload; returns (file, ext, None) or (None, None, response)."""

@@ -34,6 +34,81 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+# ── Processing fees ──────────────────────────────────────────────────────────
+# Default is Stripe's standard US card rate. Orgs can override in
+# branding_config.processing_fee = {"percent": 2.9, "flat_cents": 30}. Applied to
+# any payment method that costs the school a fee (card / e-check / ACH-with-fee).
+_DEFAULT_PROCESSING_FEE = {'percent': 2.9, 'flat_cents': 30}
+
+
+def _processing_fee_config(org_id: str) -> Dict[str, Any]:
+    try:
+        row = (_admin().table('organizations').select('branding_config')
+               .eq('id', org_id).limit(1).execute()).data
+        cfg = ((row[0].get('branding_config') if row else None) or {}).get('processing_fee')
+        if isinstance(cfg, dict):
+            return {'percent': float(cfg.get('percent', _DEFAULT_PROCESSING_FEE['percent'])),
+                    'flat_cents': int(cfg.get('flat_cents', _DEFAULT_PROCESSING_FEE['flat_cents']))}
+    except Exception:  # noqa: BLE001
+        pass
+    return dict(_DEFAULT_PROCESSING_FEE)
+
+
+def compute_processing_fee(org_id: str, base_cents: int) -> int:
+    """The processing fee on a base amount, per the org's configured rate.
+    Rounded to whole cents; never negative."""
+    if not base_cents or base_cents <= 0:
+        return 0
+    cfg = _processing_fee_config(org_id)
+    fee = round(base_cents * (cfg['percent'] / 100.0)) + cfg['flat_cents']
+    return max(0, int(fee))
+
+
+# ── Invoice numbers ──────────────────────────────────────────────────────────
+def _make_invoice_number(invoice_id: str, created_at: Optional[str] = None) -> str:
+    """Human-friendly, collision-free number derived from the invoice id, e.g.
+    INV-2026-A1B2C3."""
+    year = str(created_at or _now())[:4]
+    return f"INV-{year}-{invoice_id.replace('-', '')[:6].upper()}"
+
+
+def _assign_invoice_number(invoice: Dict[str, Any]) -> Dict[str, Any]:
+    """Stamp an invoice_number on a freshly-created invoice (derived from its id)."""
+    number = _make_invoice_number(invoice['id'], invoice.get('created_at'))
+    updated = (_admin().table('sis_invoices')
+               .update({'invoice_number': number}).eq('id', invoice['id']).execute()).data
+    return updated[0] if updated else {**invoice, 'invoice_number': number}
+
+
+# ── Audit log ────────────────────────────────────────────────────────────────
+def _audit(org_id: str, invoice_id: Optional[str], actor_user_id: Optional[str],
+           action: str, detail: Optional[Dict[str, Any]] = None) -> None:
+    """Record a billing action (mark-paid, fee override, edit). Best-effort — an
+    audit failure must never break the underlying billing operation."""
+    try:
+        _admin().table('sis_billing_audit').insert({
+            'organization_id': org_id,
+            'invoice_id': invoice_id,
+            'actor_user_id': actor_user_id,
+            'action': action,
+            'detail': detail or {},
+        }).execute()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[SIS billing] audit log skipped ({action}): {e}')
+
+
+def invoice_audit(org_id: str, invoice_id: str) -> List[Dict[str, Any]]:
+    """The audit trail for one invoice, newest first (staff view)."""
+    rows = (_admin().table('sis_billing_audit').select('*')
+            .eq('organization_id', org_id).eq('invoice_id', invoice_id)
+            .order('created_at', desc=True).execute()).data or []
+    actors = _users_map([r.get('actor_user_id') for r in rows])
+    for r in rows:
+        a = actors.get(r.get('actor_user_id'))
+        r['actor_name'] = _display_name(a) if a else None
+    return rows
+
+
 # ── Discount rules ───────────────────────────────────────────────────────────
 def list_discount_rules(org_id: str) -> List[Dict[str, Any]]:
     return (
@@ -139,6 +214,7 @@ def create_invoice_from_registration(org_id: str, reg_id: str,
             'issued_at': _now(),
         }).execute()
     ).data[0]
+    invoice = _assign_invoice_number(invoice)
 
     # class names for line descriptions
     class_ids = [it['class_id'] for it in items]
@@ -230,6 +306,7 @@ def create_charge(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
             'due_date': due_date,
         }).execute()
     ).data[0]
+    invoice = _assign_invoice_number(invoice)
     _admin().table('sis_invoice_line_items').insert({
         'invoice_id': invoice['id'],
         'description': description,
@@ -339,7 +416,8 @@ def _recompute_invoice_status(invoice_id: str) -> Dict[str, Any]:
         .eq('invoice_id', invoice_id).execute()
     ).data or []
     paid = sum(p['amount_cents'] for p in payments)
-    if paid >= inv['total_cents'] and inv['total_cents'] > 0:
+    amount_due = (inv['total_cents'] or 0) + (inv.get('processing_fee_cents') or 0)
+    if paid >= amount_due and amount_due > 0:
         status = 'paid'
     elif paid > 0:
         status = 'partial'
@@ -381,8 +459,28 @@ def record_payment(org_id: str, invoice_id: str, amount_cents: int,
         ).eq('id', installment_id).execute()
     invoice = _recompute_invoice_status(invoice_id)
     enqueue_qbo(org_id, 'payment', record['id'])
+    _audit(org_id, invoice_id, recorded_by, 'payment_recorded', {
+        'amount_cents': amount_cents, 'method': method,
+        'external_ref': external_ref, 'note': note})
     auto = _maybe_autocomplete_registration(org_id, invoice, recorded_by)
     return {'payment': record, 'invoice': invoice, 'auto_enrolled': auto}
+
+
+def set_processing_fee(org_id: str, invoice_id: str, processing_fee_cents: int,
+                       actor_user_id: str) -> Dict[str, Any]:
+    """Admin override of an invoice's processing fee (e.g. waive it, or set it to
+    the card rate). Recomputes status and audits the change."""
+    inv = (_admin().table('sis_invoices').select('id, processing_fee_cents')
+           .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
+    if not inv:
+        return {'error': 'Invoice not found'}
+    fee = max(0, int(processing_fee_cents or 0))
+    _admin().table('sis_invoices').update(
+        {'processing_fee_cents': fee, 'updated_at': _now()}).eq('id', invoice_id).execute()
+    invoice = _recompute_invoice_status(invoice_id)
+    _audit(org_id, invoice_id, actor_user_id, 'processing_fee_set',
+           {'from_cents': inv[0].get('processing_fee_cents') or 0, 'to_cents': fee})
+    return {'invoice': invoice}
 
 
 def _maybe_autocomplete_registration(org_id: str, invoice: Dict[str, Any],
@@ -516,14 +614,24 @@ def _users_map(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
 
 
 def _org_branding(org_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Org identity for branded invoices/receipts: name, logo, and the optional
+    billing block (address / accent color / contact) admins set in
+    branding_config. Falls back gracefully when a field isn't configured."""
     ids = [i for i in set(org_ids) if i]
     if not ids:
         return {}
     out = {}
     for o in (_admin().table('organizations').select('id, name, branding_config')
               .in_('id', ids).execute()).data or []:
-        out[o['id']] = {'id': o['id'], 'name': o['name'],
-                        'logo_url': (o.get('branding_config') or {}).get('logo_url')}
+        cfg = o.get('branding_config') or {}
+        out[o['id']] = {
+            'id': o['id'], 'name': o['name'],
+            'logo_url': cfg.get('logo_url'),
+            'billing_address': cfg.get('billing_address'),
+            'accent_color': cfg.get('accent_color') or '#0d9488',  # teal default
+            'billing_email': cfg.get('billing_email'),
+            'billing_phone': cfg.get('billing_phone'),
+        }
     return out
 
 
@@ -566,6 +674,9 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
     if not households:
         return {'households': []}
     orgs = _org_branding([h.get('organization_id') for h in households])
+    # Flag which orgs accept online card payment (their own Stripe account).
+    for oid, o in orgs.items():
+        o['online_pay_enabled'] = bool(_org_stripe_secret(oid))
     out = []
     for hh in households:
         invoices = [i for i in list_invoices(hh.get('organization_id') or '', household_id=hh['id'])
@@ -624,8 +735,14 @@ def payment_receipt(user_id: str, payment_id: str) -> Dict[str, Any]:
         rows = (_admin().table('sis_installments').select('*')
                 .eq('id', pay['installment_id']).limit(1).execute()).data
         installment = rows[0] if rows else None
+    # Confirmation number: the gateway reference for online payments, else a
+    # short code from the payment id so every receipt has one.
+    confirmation = pay.get('external_ref') or ('PMT-' + pay['id'].replace('-', '')[:8].upper())
+    funding = _household_funding_source(household['id'])
     return {'receipt': {
         'organization': org,
+        'confirmation_number': confirmation,
+        'funding_source': funding,
         'payment': {
             'id': pay['id'],
             'amount_cents': pay['amount_cents'],
@@ -640,16 +757,205 @@ def payment_receipt(user_id: str, payment_id: str) -> Dict[str, Any]:
         'students': students,
         'invoice': {
             'id': inv['id'],
+            'invoice_number': inv.get('invoice_number'),
             'status': inv.get('status'),
             'issued_at': inv.get('issued_at'),
             'due_date': inv.get('due_date'),
             'subtotal_cents': inv.get('subtotal_cents'),
             'discount_cents': inv.get('discount_cents'),
+            'processing_fee_cents': inv.get('processing_fee_cents') or 0,
             'total_cents': inv.get('total_cents'),
             'amount_paid_cents': inv.get('amount_paid_cents'),
             'line_items': inv.get('line_items', []),
         },
     }}
+
+
+def _household_funding_source(household_id: Optional[str]) -> Optional[str]:
+    if not household_id:
+        return None
+    try:
+        row = (_admin().table('households').select('funding_source')
+               .eq('id', household_id).limit(1).execute()).data
+        return (row[0].get('funding_source') if row else None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# ── Branded invoice document (staff preview + guardian view) ─────────────────
+_FUNDING_LABELS = {'ufa': 'UFA', 'ufa_private': 'UFA – Private School',
+                   'private_pay': 'Private Pay', 'other': 'Other'}
+
+
+def invoice_document(org_id: str, invoice_id: str) -> Dict[str, Any]:
+    """A branded, itemized invoice payload for printing/PDF: org identity block,
+    invoice number, family + students, line items, discount, processing fee,
+    funding source, totals, and amount due. Rendered to PDF by the frontend
+    (browser print), so no server-side PDF dependency is needed."""
+    inv = get_invoice(org_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    org = _org_branding([org_id]).get(org_id) or {}
+    household = None
+    if inv.get('household_id'):
+        rows = (_admin().table('households').select('id, name, funding_source, address_line1, address_line2, city, state, postal_code')
+                .eq('id', inv['household_id']).limit(1).execute()).data
+        household = rows[0] if rows else None
+    student = None
+    if inv.get('student_user_id'):
+        student = _users_map([inv['student_user_id']]).get(inv['student_user_id'])
+    funding = (household or {}).get('funding_source')
+    total = inv.get('total_cents') or 0
+    fee = inv.get('processing_fee_cents') or 0
+    paid = inv.get('amount_paid_cents') or 0
+    return {'document': {
+        'organization': org,
+        'invoice_number': inv.get('invoice_number'),
+        'status': inv.get('status'),
+        'issued_at': inv.get('issued_at'),
+        'due_date': inv.get('due_date'),
+        'family': {
+            'name': (household or {}).get('name'),
+            'address': household,
+        },
+        'student_name': _display_name(student) if student else None,
+        'funding_source': funding,
+        'funding_label': _FUNDING_LABELS.get(funding) if funding else None,
+        'line_items': inv.get('line_items', []),
+        'subtotal_cents': inv.get('subtotal_cents') or 0,
+        'discount_cents': inv.get('discount_cents') or 0,
+        'processing_fee_cents': fee,
+        'total_cents': total,
+        'amount_due_cents': total + fee - paid,
+        'amount_paid_cents': paid,
+        'payments': inv.get('payments', []),
+    }}
+
+
+# ── Online payment (Stripe Checkout on the school's own account) ─────────────
+# Mirrors the registration-fee flow: a Checkout Session is created on the org's
+# own Stripe account (feature_flags.icreate_registration.stripe_secret_key) and
+# verified by POLLING (no webhook infra), so a paid session is never missed.
+def _org_stripe_secret(org_id: str) -> Optional[str]:
+    try:
+        row = (_admin().table('organizations').select('feature_flags')
+               .eq('id', org_id).limit(1).execute()).data
+        ff = (row[0].get('feature_flags') if row else None) or {}
+        return (ff.get('icreate_registration') or {}).get('stripe_secret_key') or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _guardian_invoice(user_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
+    """Load an invoice only if `user_id` guards its household."""
+    inv = (_admin().table('sis_invoices').select('*').eq('id', invoice_id).limit(1).execute()).data
+    if not inv:
+        return None
+    inv = inv[0]
+    hh_ids = {h['id'] for h in _guardian_household_rows(user_id)}
+    if inv.get('household_id') not in hh_ids:
+        return None
+    return inv
+
+
+def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> Dict[str, Any]:
+    """Guardian pays an invoice online. Charges the remaining tuition balance plus
+    a card processing fee on the school's Stripe account. Returns a hosted URL."""
+    inv = _guardian_invoice(user_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    if inv.get('status') in ('paid', 'void', 'draft'):
+        return {'error': 'This invoice is not payable'}
+    org_id = inv['organization_id']
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school'}
+    if not (return_url or '').startswith('http'):
+        return {'error': 'Invalid return URL'}
+    balance = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+    if balance <= 0:
+        return {'error': 'This invoice has no balance due'}
+    fee = compute_processing_fee(org_id, balance)
+    org = _org_branding([org_id]).get(org_id) or {}
+    org_name = org.get('name') or 'School'
+    guardian = _users_map([user_id]).get(user_id) or {}
+    try:
+        import stripe
+        sep = '&' if '?' in return_url else '?'
+        line_items = [{
+            'price_data': {'currency': 'usd',
+                           'product_data': {'name': f"{org_name} tuition · {inv.get('invoice_number') or ''}".strip()},
+                           'unit_amount': balance},
+            'quantity': 1,
+        }]
+        if fee > 0:
+            line_items.append({
+                'price_data': {'currency': 'usd',
+                               'product_data': {'name': 'Card processing fee'},
+                               'unit_amount': fee},
+                'quantity': 1,
+            })
+        session = stripe.checkout.Session.create(
+            api_key=secret, mode='payment', line_items=line_items,
+            customer_email=guardian.get('email') or None,
+            metadata={'invoice_id': invoice_id, 'base_cents': balance, 'fee_cents': fee},
+            success_url=f'{return_url}{sep}payment=return',
+            cancel_url=f'{return_url}{sep}payment=canceled',
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'[SIS billing] invoice checkout failed for {invoice_id}: {e}')
+        return {'error': 'Could not start the payment. Please try again or contact the school.'}
+    history = list(inv.get('stripe_session_ids') or [])
+    history.append(session.id)
+    _admin().table('sis_invoices').update(
+        {'stripe_session_ids': history[-10:], 'updated_at': _now()}).eq('id', invoice_id).execute()
+    return {'checkout_url': session.url}
+
+
+def confirm_invoice_payment(user_id: str, invoice_id: str) -> Dict[str, Any]:
+    """After the family returns from Stripe, find a PAID session for this invoice
+    and record the payment once (idempotent). Sets the processing fee so the
+    branded receipt reflects it, and generates a receipt."""
+    inv = _guardian_invoice(user_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    org_id = inv['organization_id']
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school'}
+    session_ids = list(inv.get('stripe_session_ids') or [])
+    if not session_ids:
+        return {'paid': False}
+    try:
+        import stripe
+    except Exception:  # noqa: BLE001
+        return {'error': 'Payment library unavailable'}
+    for sid in reversed(session_ids):  # newest first
+        try:
+            sess = stripe.checkout.Session.retrieve(sid, api_key=secret)
+        except Exception:  # noqa: BLE001
+            continue
+        if (sess.get('payment_status') != 'paid'):
+            continue
+        pi = sess.get('payment_intent')
+        # Idempotency: skip if we've already recorded a payment for this session.
+        already = (_admin().table('sis_payment_records').select('id')
+                   .eq('invoice_id', invoice_id).eq('external_ref', pi or sid).limit(1).execute()).data
+        if already:
+            return {'paid': True, 'already_recorded': True}
+        base = int((sess.get('metadata') or {}).get('base_cents') or 0)
+        fee = int((sess.get('metadata') or {}).get('fee_cents') or 0)
+        amount_total = int(sess.get('amount_total') or (base + fee))
+        if fee > 0:
+            _admin().table('sis_invoices').update(
+                {'processing_fee_cents': fee, 'updated_at': _now()}).eq('id', invoice_id).execute()
+        result = record_payment(
+            org_id, invoice_id, amount_cents=amount_total, method='card',
+            external_ref=pi or sid, installment_id=None, recorded_by=user_id,
+            note='Online card payment (Stripe)')
+        _audit(org_id, invoice_id, user_id, 'online_payment', {'session_id': sid, 'amount_cents': amount_total})
+        return {'paid': True, 'payment': result.get('payment'), 'invoice': result.get('invoice')}
+    return {'paid': False}
 
 
 # ── Outstanding-balance report (staff) ───────────────────────────────────────

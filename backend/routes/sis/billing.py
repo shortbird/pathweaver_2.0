@@ -135,6 +135,47 @@ def get_invoice(user_id, invoice_id):
     return jsonify({'success': True, 'invoice': inv})
 
 
+@bp.route('/invoices/<invoice_id>/document', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def invoice_document(user_id, invoice_id):
+    """Branded, itemized invoice payload for print/PDF (org identity, number,
+    family, line items, discount, processing fee, funding source, amount due)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = billing.invoice_document(org_id, invoice_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/invoices/<invoice_id>/audit', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def invoice_audit(user_id, invoice_id):
+    """The audit trail for one invoice (who marked paid / overrode a fee / edited)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'audit': billing.invoice_audit(org_id, invoice_id)})
+
+
+@bp.route('/invoices/<invoice_id>/processing-fee', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def set_processing_fee(user_id, invoice_id):
+    """Admin override of an invoice's processing fee (waive it or set the card rate)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.json or {}
+    fee = data.get('processing_fee_cents')
+    if not isinstance(fee, int) or fee < 0:
+        return jsonify({'success': False, 'error': 'processing_fee_cents must be a non-negative integer'}), 400
+    result = billing.set_processing_fee(org_id, invoice_id, fee, actor_user_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
 # ── Record-only charges + ledger (Gryffin microschool model) ─────────────────
 @bp.route('/billing/charges', methods=['POST'])
 @require_role(*STAFF_ROLES)

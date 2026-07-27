@@ -369,13 +369,21 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
   const [method, setMethod] = useState('zelle')
   const [date, setDate] = useState(today())
   const [note, setNote] = useState('')
+  const [fee, setFee] = useState(((row.processing_fee_cents || 0) / 100).toFixed(2))
   const [saving, setSaving] = useState(false)
 
   const submit = async () => {
     const amount_cents = Math.round(parseFloat(amount) * 100)
     if (!amount_cents || amount_cents <= 0) { toast.error('Enter a valid amount'); return }
+    const fee_cents = Math.round(parseFloat(fee || '0') * 100)
     setSaving(true)
     try {
+      // Optional processing-fee override (audited) before recording the payment.
+      if (fee_cents !== (row.processing_fee_cents || 0)) {
+        await api.patch(`/api/sis/invoices/${row.invoice_id}/processing-fee`, {
+          organization_id: orgId, processing_fee_cents: Math.max(0, fee_cents),
+        })
+      }
       await api.post(`/api/sis/invoices/${row.invoice_id}/payments`, {
         organization_id: orgId,
         amount_cents,
@@ -407,9 +415,16 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
             </select>
           </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-neutral-500 mb-1">Date</label>
-          <input className={field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Date</label>
+            <input className={field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1">Processing fee ($)</label>
+            <input className={field} type="number" min="0" step="0.01"
+              value={fee} onChange={(e) => setFee(e.target.value)} />
+          </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1">Note (optional)</label>
