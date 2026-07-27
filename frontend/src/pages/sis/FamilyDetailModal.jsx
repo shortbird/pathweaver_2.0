@@ -6,6 +6,20 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { RolePill, PrimaryTag } from '../../components/ui/RolePill'
 import StudentDetailModal from './StudentDetailModal'
+import { useSisOrg } from './useSisOrg'
+
+// Funding source options (school-of-record enrollment is tracked separately).
+const FUNDING_OPTIONS = [
+  { value: '', label: 'Not set' },
+  { value: 'ufa', label: 'UFA (Utah Fits All)' },
+  { value: 'ufa_private', label: 'UFA – Private School' },
+  { value: 'private_pay', label: 'Private Pay' },
+  { value: 'other', label: 'Other' },
+]
+export const FUNDING_LABELS = {
+  ufa: 'UFA', ufa_private: 'UFA – Private School',
+  private_pay: 'Private Pay', other: 'Other',
+}
 
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 const Avatar = ({ name, src }) => (
@@ -313,6 +327,8 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
 // Class-signup access: a hold blocks the family entirely; the tier controls when
 // their registration window opens (dates configured in Settings).
 const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
+  const { activeOrg } = useSisOrg()
+  const schoolName = activeOrg?.branding_config?.private_school_name || 'Private School'
   const [hold, setHold] = useState(!!household.registration_hold)
   const [reason, setReason] = useState(household.registration_hold_reason || '')
   const [busy, setBusy] = useState(false)
@@ -359,43 +375,66 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
             className={field} placeholder="e.g. registration fee unpaid" />
         </label>
       )}
-      <UfaPrivateRow household={household} orgId={orgId} onSaved={onSaved} />
+      <FundingRow household={household} orgId={orgId} schoolName={schoolName} onSaved={onSaved} />
       <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} />
     </section>
   )
 }
 
-// Whether the family is enrolling as a UFA (Utah Fits All) Private School vs
-// standard UFA. Staff toggle for existing families; the funnel sets it for new
-// registrations. Surfaces as a badge on the CLP page.
-const UfaPrivateRow = ({ household, orgId, onSaved }) => {
-  const [on, setOn] = useState(!!household.ufa_private)
+// School of record (are they enrolled in the org's private school, e.g. iCreate
+// Academy) and how tuition is funded. These are separate: a family can be an
+// iCreate Academy student while paying privately, not via UFA. Funding of
+// "UFA – Private School" implies enrollment and keeps the legacy ufa_private
+// flag (which gates the learning-day feature) in sync server-side.
+const FundingRow = ({ household, orgId, schoolName, onSaved }) => {
+  const [enrolled, setEnrolled] = useState(!!household.enrolled_private_school)
+  const [funding, setFunding] = useState(household.funding_source || '')
   const [busy, setBusy] = useState(false)
 
-  const toggle = async () => {
-    const next = !on
+  const save = async (fields, apply) => {
     setBusy(true)
     try {
-      await api.patch(`/api/sis/households/${household.id}`, { ufa_private: next, organization_id: orgId })
-      setOn(next)
-      onSaved?.()
+      await api.patch(`/api/sis/households/${household.id}`, { ...fields, organization_id: orgId })
+      apply?.(); onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
     finally { setBusy(false) }
   }
 
+  const toggleEnrolled = () => {
+    const next = !enrolled
+    save({ enrolled_private_school: next }, () => setEnrolled(next))
+  }
+  const changeFunding = (e) => {
+    const next = e.target.value
+    // UFA – Private School implies enrolled; reflect that immediately.
+    const impliesEnrolled = next === 'ufa_private'
+    save({ funding_source: next || null }, () => {
+      setFunding(next)
+      if (impliesEnrolled) setEnrolled(true)
+    })
+  }
+
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-neutral-900">UFA Private School</div>
-        <div className="text-xs text-neutral-500">Utah Fits All family enrolling as a private school.</div>
+    <>
+      <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-neutral-900">{schoolName} student</div>
+          <div className="text-xs text-neutral-500">Enrolled in {schoolName} (school of record).</div>
+        </div>
+        <button
+          type="button" role="switch" aria-checked={enrolled} aria-label={`${schoolName} student`} onClick={toggleEnrolled} disabled={busy}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${enrolled ? 'bg-optio-purple' : 'bg-neutral-300'} ${busy ? 'opacity-50' : ''}`}
+        >
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${enrolled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
       </div>
-      <button
-        type="button" role="switch" aria-checked={on} aria-label="UFA Private School" onClick={toggle} disabled={busy}
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${on ? 'bg-optio-purple' : 'bg-neutral-300'} ${busy ? 'opacity-50' : ''}`}
-      >
-        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
-      </button>
-    </div>
+      <label className="text-xs text-neutral-500 block">Funding source
+        <select value={funding} onChange={changeFunding} disabled={busy}
+          className="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-optio-purple focus:ring-optio-purple">
+          {FUNDING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </label>
+    </>
   )
 }
 

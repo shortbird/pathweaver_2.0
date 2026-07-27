@@ -6,6 +6,7 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import WeeklyScheduleGrid from '../../components/sis/WeeklyScheduleGrid'
 import { switchSurfaceInApp } from '../../utils/appSurface'
+import { useSisOrg } from './useSisOrg'
 
 /**
  * Tabbed per-student management modal.
@@ -28,6 +29,8 @@ const TABS = [
 const STUDENT_ONLY_TABS = ['record', 'materials', 'schedule']
 
 const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
+  const { activeOrg } = useSisOrg()
+  const schoolName = activeOrg?.branding_config?.private_school_name || 'Private School'
   const isStudent = student.is_student !== false
   const [tab, setTab] = useState('profile')
   const [form, setForm] = useState({
@@ -113,7 +116,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         <div className="p-5 overflow-y-auto">
           {tab === 'profile' && (
             <div className="space-y-5">
-              <ProfileFields form={form} set={setField} isStudent={isStudent} />
+              <ProfileFields form={form} set={setField} isStudent={isStudent} schoolName={schoolName} />
               {isStudent && <FamilySection student={student} orgId={orgId} onSaved={onSaved} />}
               {isStudent && <ContactsSection student={student} orgId={orgId} />}
               <AccountSection student={student} orgId={orgId} onSaved={onSaved} onClose={onClose} />
@@ -160,7 +163,7 @@ const RolesField = ({ form, set }) => {
   )
 }
 
-const ProfileFields = ({ form, set, isStudent }) => (
+const ProfileFields = ({ form, set, isStudent, schoolName }) => (
   <section className="space-y-3">
     <div className="grid grid-cols-2 gap-3">
       <label className="text-xs text-neutral-500">First name
@@ -213,7 +216,7 @@ const ProfileFields = ({ form, set, isStudent }) => (
             onChange={(e) => set('sis_tuition_plan', e.target.checked ? 'ufa_academy' : '')}
           />
           <span>
-            UFA private school academy student
+            {schoolName} academy student (flat tuition)
             <span className="block text-xs text-neutral-400">
               Flat academy tuition regardless of blocks taken — replaces block/class pricing in the Schedule Builder.
             </span>

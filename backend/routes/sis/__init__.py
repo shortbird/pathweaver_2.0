@@ -264,11 +264,23 @@ def update_household(user_id, household_id):
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
         'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
         'registration_hold', 'registration_hold_reason', 'registration_tier',
-        'directory_opt_in', 'ufa_private'
+        'directory_opt_in', 'ufa_private', 'funding_source', 'enrolled_private_school'
     ) if k in data}
-    for flag in ('registration_hold', 'directory_opt_in', 'ufa_private'):
+    for flag in ('registration_hold', 'directory_opt_in', 'ufa_private',
+                 'enrolled_private_school'):
         if flag in fields:
             fields[flag] = bool(fields[flag])
+    # funding_source is the source of truth; keep the legacy ufa_private boolean
+    # (which gates the learning-day feature) mirrored from it. Setting a funding
+    # source of ufa_private also implies enrolled in the private school.
+    if 'funding_source' in fields:
+        fs = fields['funding_source'] or None
+        if fs not in (None, 'ufa', 'ufa_private', 'private_pay', 'other'):
+            return jsonify({'success': False, 'error': 'invalid funding_source'}), 400
+        fields['funding_source'] = fs
+        fields['ufa_private'] = (fs == 'ufa_private')
+        if fs == 'ufa_private':
+            fields['enrolled_private_school'] = True
     if 'registration_tier' in fields and fields['registration_tier'] is not None:
         try:
             fields['registration_tier'] = int(fields['registration_tier'])

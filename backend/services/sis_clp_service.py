@@ -36,6 +36,21 @@ def _admin():
     return get_supabase_admin_client()
 
 
+def _org_private_school_name(org_id: str) -> Optional[str]:
+    """The org's private-school display name (branding_config.private_school_name),
+    e.g. 'iCreate Academy'. None when the org has no private school configured."""
+    try:
+        rows = (
+            _admin().table('organizations').select('branding_config')
+            .eq('id', org_id).limit(1).execute()
+        ).data
+        cfg = (rows[0].get('branding_config') if rows else None) or {}
+        name = (cfg.get('private_school_name') or '').strip()
+        return name or None
+    except Exception:  # noqa: BLE001 — best-effort context
+        return None
+
+
 def _full_name(u: Dict[str, Any]) -> str:
     name = f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
     return name or u.get('display_name') or u.get('username') or u.get('email') or 'Unknown'
@@ -161,12 +176,19 @@ def _family_and_siblings(org_id: str, student_id: str):
     family = {'household_id': hh['household_id'], 'name': hh['household_name']}
     try:
         hrow = (
-            _admin().table('households').select('ufa_private')
+            _admin().table('households')
+            .select('ufa_private, funding_source, enrolled_private_school')
             .eq('id', hh['household_id']).limit(1).execute()
         ).data
-        family['ufa_private'] = bool(hrow[0].get('ufa_private')) if hrow else False
+        row = hrow[0] if hrow else {}
+        family['ufa_private'] = bool(row.get('ufa_private'))
+        family['funding_source'] = row.get('funding_source')
+        family['enrolled_private_school'] = bool(row.get('enrolled_private_school'))
     except Exception:  # noqa: BLE001 — best-effort context
         family['ufa_private'] = False
+        family['funding_source'] = None
+        family['enrolled_private_school'] = False
+    family['school_name'] = _org_private_school_name(org_id)
     members = (
         _admin().table('household_members')
         .select('user_id, relationship')

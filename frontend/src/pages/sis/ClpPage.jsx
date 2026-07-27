@@ -104,6 +104,11 @@ const LEARNING_DAY_LABELS = {
   elementary_at_home: 'Elementary At-Home Academic Learning Day',
 }
 
+const FUNDING_LABELS = {
+  ufa: 'UFA', ufa_private: 'UFA – Private School',
+  private_pay: 'Private Pay', other: 'Other',
+}
+
 // Seats "3 / 12 · 9 left" or "8 / 8 · Full" or "Unlimited".
 const SeatsPill = ({ cls }) => {
   if (cls.capacity == null) return <Pill className="bg-neutral-100 text-neutral-600">Unlimited</Pill>
@@ -501,18 +506,30 @@ const ClpPage = () => {
             <div className="text-neutral-500 mt-0.5 text-sm">
               {student.family?.name && <span>{student.family.name}</span>}
             </div>
-            {(student.family?.payment_intent?.length > 0 || student.family?.ufa_private) && (
+            {student.family?.enrolled_private_school && student.family?.school_name && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                <span className="text-xs text-neutral-400">School:</span>
+                <Pill className="bg-emerald-100 text-emerald-700">{student.family.school_name}</Pill>
+              </div>
+            )}
+            {(student.family?.funding_source || student.family?.payment_intent?.length > 0 || student.family?.ufa_private) && (
               <div className="flex items-center gap-1.5 flex-wrap mt-2">
                 <span className="text-xs text-neutral-400">Form of payment:</span>
-                {(student.family.payment_intent || []).map((p) => (
-                  // A UFA-Private family shows a distinct badge instead of the plain
-                  // "Utah Fits All" pill so staff can tell them apart at a glance.
-                  p === 'Utah Fits All' && student.family.ufa_private
-                    ? <Pill key={p} className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
-                    : <Pill key={p} className="bg-sky-100 text-sky-700">{p}</Pill>
-                ))}
-                {student.family.ufa_private && !(student.family.payment_intent || []).includes('Utah Fits All') && (
-                  <Pill className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
+                {student.family?.funding_source ? (
+                  // Explicit funding source is the source of truth (staff-set or
+                  // funnel-derived); distinguishes UFA vs UFA-Private at a glance.
+                  <Pill className="bg-indigo-100 text-indigo-700">{FUNDING_LABELS[student.family.funding_source] || student.family.funding_source}</Pill>
+                ) : (
+                  <>
+                    {(student.family.payment_intent || []).map((p) => (
+                      p === 'Utah Fits All' && student.family.ufa_private
+                        ? <Pill key={p} className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
+                        : <Pill key={p} className="bg-sky-100 text-sky-700">{p}</Pill>
+                    ))}
+                    {student.family.ufa_private && !(student.family.payment_intent || []).includes('Utah Fits All') && (
+                      <Pill className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
+                    )}
+                  </>
                 )}
               </div>
             )}
