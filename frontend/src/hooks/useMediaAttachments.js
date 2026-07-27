@@ -39,6 +39,19 @@ export default function useMediaAttachments({ skipVideoSizeLimit = false } = {})
     const newAttachments = [];
 
     for (const file of files) {
+      // iCloud "Optimize iPhone Storage" (on by default): the full-res original
+      // lives in iCloud and only a thumbnail is on-device. The file input can
+      // then hand back a 0-byte file -- the OS hasn't finished pulling the
+      // original down, especially on a weak connection. Catch it here with an
+      // actionable message instead of uploading an empty body that only fails
+      // server-side after the round trip.
+      if (!file.size) {
+        errors.push(
+          `"${file.name}" appears to be empty. If it's an iPhone photo, it may still be in iCloud -- open it in the Photos app first (or turn off Settings > Photos > Optimize iPhone Storage), then try again.`
+        );
+        continue;
+      }
+
       let mediaType;
       if (sourceType === 'camera') {
         mediaType = detectMediaType(file);

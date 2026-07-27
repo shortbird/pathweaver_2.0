@@ -607,7 +607,11 @@ class MediaUploadService:
                 logger.debug("failed to clean up empty upload", exc_info=True)
             return MediaUploadResult(
                 success=False,
-                error_message='Uploaded file is empty. Please try selecting the photo or video again.',
+                error_message=(
+                    'Uploaded file is empty. If this is an iPhone photo, it may '
+                    'still be in iCloud -- open it in the Photos app first (or turn '
+                    'off Settings > Photos > Optimize iPhone Storage), then try again.'
+                ),
                 error_code='FILE_EMPTY',
             )
 
@@ -627,6 +631,42 @@ class MediaUploadService:
                 error_message=f'File is too large ({file_mb:.1f}MB). Maximum for {block_type}s is {max_mb}MB.',
                 error_code='FILE_TOO_LARGE',
             )
+
+        # iPhone photos arrive as HEIC/HEIF, which no browser except Safari can
+        # render. On the signed-upload path the file lands in storage
+        # unconverted -- the legacy multipart path (upload_evidence_file)
+        # transcodes inline, but the direct-to-Storage flow that parents/mobile
+        # use skips that -- so convert here: download the object, transcode to
+        # JPEG, upload the JPEG to the sibling .jpg path, and remove the HEIC.
+        # Photos are small enough to process inline safely (unlike videos). If
+        # conversion is unavailable (pillow-heif missing) or fails, keep the
+        # HEIC rather than failing the whole upload.
+        if block_type == 'image' and ext in ('heic', 'heif'):
+            try:
+                heic_bytes = supabase.storage.from_(bucket).download(storage_path)
+                converted = self._convert_heif_to_jpeg(heic_bytes, filename)
+                if converted:
+                    new_content, new_filename, new_ext, new_content_type = converted
+                    parent_path = storage_path.rsplit('/', 1)[0] if '/' in storage_path else ''
+                    new_storage_path = f'{parent_path}/{new_filename}' if parent_path else new_filename
+                    supabase.storage.from_(bucket).upload(
+                        path=new_storage_path,
+                        file=new_content,
+                        file_options={"content-type": new_content_type, "upsert": "true"},
+                    )
+                    # Remove the original HEIC so we don't leave an orphan object.
+                    try:
+                        supabase.storage.from_(bucket).remove([storage_path])
+                    except Exception:
+                        logger.debug("failed to remove original HEIC after conversion", exc_info=True)
+                    storage_path = new_storage_path
+                    filename = new_filename
+                    ext = new_ext
+                    file_size = len(new_content)
+                    actual_content_type = new_content_type
+                    logger.info(f"[MediaUpload] Converted finalized HEIC to JPEG: {bucket}/{new_storage_path}")
+            except Exception as e:
+                logger.error(f"[MediaUpload] HEIC finalize conversion failed for {bucket}/{storage_path}: {e}")
 
         content_type = actual_content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
         public_url = fix_storage_url(

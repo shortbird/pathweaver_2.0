@@ -17,7 +17,10 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = [
 export const ALLOWED_VIDEO_EXTENSIONS = ['mp4', 'mov'];
 export const ALLOWED_VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime'];
 
-export const IMAGE_ACCEPT_STRING = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.tiff,.tif,.bmp,.avif,.jfif';
+// image/* (without an explicit .heic/.heif) lets iOS auto-convert HEIC picks to
+// JPEG at selection time; any HEIC that slips through is converted server-side
+// on upload finalize. See CAMERA_ACCEPT_STRING in utils/mediaUtils.js.
+export const IMAGE_ACCEPT_STRING = 'image/*,.jpg,.jpeg,.png,.gif,.webp,.tiff,.tif,.bmp,.avif,.jfif';
 export const DOCUMENT_ACCEPT_STRING = '.pdf,.doc,.docx,.txt';
 export const VIDEO_ACCEPT_STRING = '.mp4,.mov';
 export const IMAGE_FORMAT_LABEL = 'JPG, JPEG, PNG, GIF, WebP, HEIC, TIFF, BMP, or AVIF';

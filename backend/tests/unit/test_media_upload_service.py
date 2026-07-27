@@ -929,6 +929,123 @@ def test_finalize_upload_large_video_skips_inline_post_processing():
     mock_vps.process_video_background.assert_not_called()
 
 
+# ── finalize_upload HEIC/HEIF conversion (iPhone photos) ──────────────
+
+
+def test_finalize_upload_converts_heic_to_jpeg():
+    """iPhone photos land in storage as HEIC on the signed-upload path (no
+    inline conversion like the legacy multipart path). finalize_upload must
+    download, transcode to JPEG, upload the JPEG, and return JPEG metadata so
+    non-Safari browsers can render it."""
+    from services.media_upload_service import MediaUploadService
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("uuid.heic", 2048, "image/heic")]
+    bucket.download.return_value = b"HEICBYTES"
+
+    with patch.object(
+        MediaUploadService,
+        "_convert_heif_to_jpeg",
+        return_value=(b"JPEGDATA", "uuid.jpg", "jpg", "image/jpeg"),
+    ):
+        result = svc.finalize_upload(
+            user_id="parent-user-id",
+            storage_path="learning_moments/child-user-id/uuid.heic",
+            bucket="user-uploads",
+            context_type="moment",
+            context_id="child-user-id",
+            block_type="image",
+        )
+
+    assert result.success is True
+    # Metadata reflects the converted JPEG, not the original HEIC.
+    assert result.filename == "uuid.jpg"
+    assert result.content_type == "image/jpeg"
+    assert result.file_size == len(b"JPEGDATA")
+    assert result.media_type == "image"
+    # The original HEIC was downloaded for conversion...
+    bucket.download.assert_called_once_with("learning_moments/child-user-id/uuid.heic")
+    # ...the JPEG was uploaded to the sibling .jpg path...
+    assert bucket.upload.call_count == 1
+    upload_path = bucket.upload.call_args.kwargs.get("path")
+    assert upload_path == "learning_moments/child-user-id/uuid.jpg"
+    # ...and the public URL is derived from the new .jpg path.
+    bucket.get_public_url.assert_called_with("learning_moments/child-user-id/uuid.jpg")
+
+
+def test_finalize_upload_removes_original_heic_after_conversion():
+    """No orphaned HEIC should be left behind once the JPEG is written."""
+    from services.media_upload_service import MediaUploadService
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("uuid.heic", 2048, "image/heic")]
+
+    with patch.object(
+        MediaUploadService,
+        "_convert_heif_to_jpeg",
+        return_value=(b"JPEGDATA", "uuid.jpg", "jpg", "image/jpeg"),
+    ):
+        result = svc.finalize_upload(
+            user_id="parent-user-id",
+            storage_path="learning_moments/child-user-id/uuid.heic",
+            bucket="user-uploads",
+            context_type="moment",
+            context_id="child-user-id",
+            block_type="image",
+        )
+
+    assert result.success is True
+    bucket.remove.assert_called_once_with(["learning_moments/child-user-id/uuid.heic"])
+
+
+def test_finalize_upload_keeps_heic_when_conversion_unavailable():
+    """If pillow-heif is missing or conversion fails, degrade gracefully: keep
+    the original HEIC and still succeed rather than failing the whole upload."""
+    from services.media_upload_service import MediaUploadService
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("uuid.heic", 2048, "image/heic")]
+
+    with patch.object(MediaUploadService, "_convert_heif_to_jpeg", return_value=None):
+        result = svc.finalize_upload(
+            user_id="parent-user-id",
+            storage_path="learning_moments/child-user-id/uuid.heic",
+            bucket="user-uploads",
+            context_type="moment",
+            context_id="child-user-id",
+            block_type="image",
+        )
+
+    assert result.success is True
+    # Original kept: no JPEG upload, no delete of the source.
+    assert result.filename == "uuid.heic"
+    bucket.upload.assert_not_called()
+    bucket.remove.assert_not_called()
+
+
+def test_finalize_upload_non_heic_image_is_not_downloaded_or_converted():
+    """A normal JPEG/PNG must not trigger a download+convert round trip."""
+    from services.media_upload_service import MediaUploadService
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("uuid.png", 2048, "image/png")]
+
+    with patch.object(MediaUploadService, "_convert_heif_to_jpeg") as mock_convert:
+        result = svc.finalize_upload(
+            user_id="user-1",
+            storage_path="learning_moments/child-user-id/uuid.png",
+            bucket="user-uploads",
+            context_type="moment",
+            context_id="child-user-id",
+            block_type="image",
+        )
+
+    assert result.success is True
+    assert result.filename == "uuid.png"
+    mock_convert.assert_not_called()
+    bucket.download.assert_not_called()
+
+
 def test_upload_session_to_dict_omits_none_values():
     from services.media_upload_service import UploadSession
 
