@@ -219,10 +219,13 @@ def alert_admins_seat_opened(org_id: str, class_id: str) -> bool:
         text = (f'{seats_txt} opened in {cls["name"]}. {who} waiting. '
                 f'Open the class Waitlist tab in your SIS and use "Offer next seat" to admit the next student. '
                 f'https://sis.optioeducation.com/classes')
-        ok = True
-        for addr in admin_emails:
-            ok = email_service.send_email(to_email=addr, subject=subject, html_body=html, text_body=text) and ok
-        logger.info(f"[Waitlist] seat-opened alert for class {class_id}: emailed {len(admin_emails)} admin(s)")
+        # One message to all admins (first To, rest CC), not one send per admin —
+        # a per-admin loop delivered N copies (each also copying SUPPORT_COPY_EMAIL).
+        ok = email_service.send_email(
+            to_email=admin_emails[0], cc=admin_emails[1:],
+            subject=subject, html_body=html, text_body=text,
+        )
+        logger.info(f"[Waitlist] seat-opened alert for class {class_id}: emailed {len(admin_emails)} admin(s) (1 message)")
         return ok
     except Exception as e:
         logger.warning(f"[Waitlist] seat-opened alert skipped for {class_id}: {e}")

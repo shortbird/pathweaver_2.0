@@ -522,7 +522,10 @@ def _send_release_email(entry: Dict[str, Any], fee_due_cents: int) -> bool:
     if not email:
         return False
     org_name = (org[0].get('name') if org else None) or 'your school'
+    # Full name in the subject line, first name only in the email body.
     student_name = _display_name(student[0]) if student else 'Your student'
+    student_first = ((student[0].get('first_name') if student else None)
+                     or student_name.split(' ')[0])
 
     try:
         from app_config import Config
@@ -533,16 +536,16 @@ def _send_release_email(entry: Dict[str, Any], fee_due_cents: int) -> bool:
                 f"<p>One step first: your registration fee of "
                 f"<strong>${fee_due_cents / 100:.2f}</strong> is now due. "
                 f"<a href=\"{base}/register/icreate/resume\">Finish it here</a>, "
-                f"then build {student_name}'s schedule.</p>"
+                f"then build {student_first}'s schedule.</p>"
             )
         else:
             action = (
                 f"<p><a href=\"{base}/schedule-builder\">Open the Schedule Builder</a> "
-                f"to choose {student_name}'s classes.</p>"
+                f"to choose {student_first}'s classes.</p>"
             )
         html = (
             f"<p>Hi {(guardian[0].get('first_name') if guardian else None) or 'there'},</p>"
-            f"<p>Good news — a spot opened at {org_name}! {student_name} can now "
+            f"<p>Good news — a spot opened at {org_name}! {student_first} can now "
             f"choose classes.</p>"
             f"{action}"
             f"<p>Classes fill in the order families pick them, so it's worth doing soon.</p>"

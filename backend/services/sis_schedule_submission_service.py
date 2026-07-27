@@ -114,14 +114,27 @@ def _notify_staff(org_id: str, student_user_id: str) -> None:
             # One message to all admins (first To, rest CC), not one send per
             # admin — send_email copies SUPPORT_COPY_EMAIL on every send, so a
             # per-admin loop delivered N monitoring copies per submission.
+            approve_url = 'https://sis.optioeducation.com/registration'
             svc.send_email(
                 to_email=emails[0],
                 cc=emails[1:],
                 subject=f'Schedule approval needed: {name}',
                 html_body=(
-                    f"<p>{name}'s class schedule was submitted for approval.</p>"
-                    '<p>Review it on the Registration page of your school console '
-                    'to approve it or send it back to the family.</p>'
+                    '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'
+                    'max-width:560px;margin:0 auto;padding:24px;color:#111827;">'
+                    '<p style="margin:0 0 4px;color:#6b7280;font-size:13px;">Schedule approval</p>'
+                    f'<h2 style="margin:0 0 12px;font-size:18px;">{name}\'s schedule is ready for review</h2>'
+                    f"<p style=\"font-size:15px;line-height:1.5;\">{name}'s class schedule was submitted "
+                    'for approval. Review it to approve it or send it back to the family.</p>'
+                    f'<p style="margin-top:16px;"><a href="{approve_url}" '
+                    'style="display:inline-block;background:#6d28d9;color:#fff;text-decoration:none;'
+                    'padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;">'
+                    'Review the schedule</a></p>'
+                    '</div>'
+                ),
+                text_body=(
+                    f"{name}'s class schedule was submitted for approval. "
+                    f'Review it to approve or send it back: {approve_url}'
                 ),
             )
     except Exception as e:  # noqa: BLE001 — notifications must never break a submit
