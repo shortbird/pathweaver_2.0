@@ -51,23 +51,28 @@ def _link(responses, email='real@example.com'):
 @pytest.mark.unit
 class TestLinkStaffAccountClaim:
     def test_new_email_claims_placeholder_in_place(self):
-        result, client, table, _ = _link([
+        from services import sis_service
+        client, table = _admin_with([
             [_placeholder_row()],  # placeholder lookup
             [],                    # no account with the real email
             [],                    # users email update
         ])
+        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+             patch('services.sis_service.send_staff_invite', return_value=True) as invite:
+            result = sis_service.link_staff_account(ORG, PH_ID, 'real@example.com')
         assert result == {'linked': 'invited', 'staff_id': PH_ID, 'email_sent': True}
         client.auth.admin.update_user_by_id.assert_called_once_with(
             PH_ID, {'email': 'real@example.com'})
-        client.auth.resend.assert_called_once_with(
-            {'type': 'signup', 'email': 'real@example.com'})
         table.update.assert_called_once_with({'email': 'real@example.com'})
+        # The set-password invite goes out via send_staff_invite (password-reset
+        # token + Brevo), not the old auth.resend signup path.
+        invite.assert_called_once()
 
     def test_failed_invite_email_is_reported_not_fatal(self):
-        client, table = _admin_with([[_placeholder_row()], [], []])
-        client.auth.resend.side_effect = Exception('smtp down')
         from services import sis_service
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client):
+        client, table = _admin_with([[_placeholder_row()], [], []])
+        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+             patch('services.sis_service.send_staff_invite', return_value=False):
             result = sis_service.link_staff_account(ORG, PH_ID, 'real@example.com')
         assert result['linked'] == 'invited'
         assert result['email_sent'] is False
@@ -114,6 +119,28 @@ class TestLinkStaffAccountMerge:
         # Messaging groups re-synced for the repointed classes.
         assert [c.args[0] for c in sync.call_args_list] == ['class-1', 'class-2']
         client.auth.admin.delete_user.assert_called_once_with(PH_ID)
+
+    def test_merge_repoints_onboarding_assignments_before_delete(self):
+        # An onboarding checklist assigned to the placeholder must move onto the
+        # real account, not be orphaned when the placeholder row is deleted.
+        target = {'id': 'real-1', 'role': 'org_managed', 'org_role': 'parent',
+                  'org_roles': ['parent'], 'organization_id': ORG,
+                  'is_dependent': False, 'bio': None, 'avatar_url': None}
+        result, client, table, _ = _link([
+            [_placeholder_row()],
+            [target],
+            [],                          # target role update
+            [{'id': 'class-1'}],         # org_classes repoint
+            [],                          # class_advisors repoint
+            [],                          # org_course_settings repoint
+            [],                          # sis_onboarding_assignments repoint
+            [],                          # placeholder delete
+        ])
+        assert result['linked'] == 'merged'
+        # The onboarding repoint is the one update keyed only on user_id.
+        onboarding = [c.args[0] for c in table.update.call_args_list
+                      if c.args and c.args[0] == {'user_id': 'real-1'}]
+        assert onboarding == [{'user_id': 'real-1'}]
 
     def test_platform_parent_is_attached_to_org(self):
         target = {'id': 'real-2', 'role': 'parent', 'org_role': None,

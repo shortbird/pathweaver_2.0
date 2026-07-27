@@ -26,9 +26,17 @@ export {
  * Camera input accept string: images + video/mp4 + video/quicktime.
  * Composed once so every file-input that offers "Camera" uses the
  * same set of accepted types.
+ *
+ * We deliberately do NOT list .heic/.heif here. On iOS, when an <input>'s
+ * accept list names the HEIC extension explicitly, Safari hands over the
+ * original HEIC file; when it only sees image/* it transcodes the pick to
+ * JPEG automatically. Browsers other than Safari can't render HEIC, so we
+ * want that JPEG. Any HEIC that still slips through (Files app, Android) is
+ * converted to JPEG server-side on upload finalize. image/* keeps HEIC
+ * photos selectable.
  */
 export const CAMERA_ACCEPT_STRING =
-  'image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,video/mp4,video/quicktime,.mp4,.mov';
+  'image/*,.jpg,.jpeg,.png,.gif,.webp,video/mp4,video/quicktime,.mp4,.mov';
 
 /**
  * Format byte count into a human-readable string.

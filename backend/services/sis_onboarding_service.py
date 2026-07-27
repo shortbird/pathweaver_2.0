@@ -162,7 +162,11 @@ def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]
         wanted = {'parent'}
     else:
         wanted = {'advisor', 'org_admin'}
-    people = [u for u in rows if (u.get('org_role') in wanted or u.get('role') in wanted)]
+    people = [u for u in rows
+              if (u.get('org_role') in wanted or u.get('role') in wanted)
+              # Placeholder staff (schedule-import rows with no real login) can
+              # never open the portal to complete a checklist — don't offer them.
+              and not sis_service.is_placeholder_staff_email(u.get('email'))]
     out = [{
         'id': u['id'],
         'name': (u.get('display_name')

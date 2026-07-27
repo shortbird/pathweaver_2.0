@@ -23,6 +23,7 @@ from flask import Flask
 
 REG_ID = 'reg-1'
 SECRET = 'rk_live_test'
+PARENT_EMAIL = 'makenzie@example.com'
 
 BASE_REG = {
     'id': REG_ID,
@@ -39,6 +40,17 @@ def _session(sid, paid, reg_id=REG_ID, amount=12500):
     return {'id': sid, 'metadata': {'registration_id': reg_id},
             'payment_status': 'paid' if paid else 'unpaid',
             'amount_total': amount, 'payment_intent': f'pi_{sid}'}
+
+
+def _session_no_meta(sid, paid=True, amount=12500, email=None):
+    """A pre-2026-07-22 session: no registration_id in metadata. Optionally
+    carries the customer's email (Stripe sets customer_details.email)."""
+    s = {'id': sid, 'metadata': {},
+         'payment_status': 'paid' if paid else 'unpaid',
+         'amount_total': amount, 'payment_intent': f'pi_{sid}'}
+    if email is not None:
+        s['customer_details'] = {'email': email}
+    return s
 
 
 class FakeStripe:
@@ -80,6 +92,8 @@ def _confirm(client, reg, stripe_fake, finish_result=None):
     with patch.dict(sys.modules, {'stripe': stripe_fake.mod}), \
          patch('routes.icreate_registration._load_registration', return_value=reg), \
          patch('routes.icreate_registration._admin'), \
+         patch('routes.icreate_registration._parent_row',
+               return_value={'email': PARENT_EMAIL}), \
          patch('routes.icreate_registration._org_config',
                return_value={'stripe_secret_key': SECRET}), \
          patch('routes.icreate_registration._finish_fee_step',
@@ -145,6 +159,67 @@ def test_wrong_registration_metadata_never_verifies(client):
     stripe_fake = FakeStripe(
         {'cs_foreign': _session('cs_foreign', paid=True, reg_id='someone-else')},
         listing=[])
+    res, finish = _confirm(client, reg, stripe_fake)
+    assert res.status_code == 402
+    finish.assert_not_called()
+
+
+# ── Pre-metadata (2026-07-12 MaKenzie Candland) rescue ───────────────────────
+
+def test_paid_metadata_less_session_in_history_is_accepted(client):
+    """Sessions created before 2026-07-22 carry no registration_id metadata. One
+    we recorded in THIS registration's history is ours by construction, so a paid
+    one must verify even without metadata."""
+    reg = {**BASE_REG, 'stripe_session_id': 'cs_new_unpaid',
+           'stripe_session_ids': ['cs_old_paid_nometa', 'cs_new_unpaid']}
+    stripe_fake = FakeStripe({
+        'cs_new_unpaid': _session('cs_new_unpaid', paid=False),
+        'cs_old_paid_nometa': _session_no_meta('cs_old_paid_nometa', paid=True),
+    })
+    res, finish = _confirm(client, reg, stripe_fake)
+    assert res.status_code == 200
+    assert res.get_json()['paid'] is True
+    extra = finish.call_args.kwargs.get('extra_fields') or finish.call_args.args[3]
+    assert extra['stripe_payment_ref'] == 'pi_cs_old_paid_nometa'
+
+
+def test_pre_metadata_session_rescued_by_email_and_amount_in_sweep(client):
+    """MaKenzie Candland's systemic case: the paid session has no registration_id
+    metadata and isn't in the stored history, but carries the family's email and
+    the exact fee amount — the sweep must rescue it."""
+    reg = {**BASE_REG, 'stripe_session_id': 'cs_new_unpaid', 'stripe_session_ids': []}
+    stripe_fake = FakeStripe(
+        {'cs_new_unpaid': _session('cs_new_unpaid', paid=False)},
+        listing=[_session_no_meta('cs_paid_orphan', paid=True, email=PARENT_EMAIL)],
+    )
+    res, _ = _confirm(client, reg, stripe_fake)
+    assert res.status_code == 200
+    assert res.get_json()['paid'] is True
+
+
+def test_metadata_less_session_wrong_email_not_matched(client):
+    """A metadata-less paid session for a DIFFERENT family (wrong email) must not
+    complete this registration."""
+    reg = {**BASE_REG, 'stripe_session_id': 'cs_new_unpaid', 'stripe_session_ids': []}
+    stripe_fake = FakeStripe(
+        {'cs_new_unpaid': _session('cs_new_unpaid', paid=False)},
+        listing=[_session_no_meta('cs_other_family', paid=True,
+                                  email='someone-else@example.com')],
+    )
+    res, finish = _confirm(client, reg, stripe_fake)
+    assert res.status_code == 402
+    finish.assert_not_called()
+
+
+def test_metadata_less_session_right_email_wrong_amount_not_matched(client):
+    """Email matches but amount doesn't — the email fallback must require the
+    exact fee, so this stays unverified."""
+    reg = {**BASE_REG, 'stripe_session_id': 'cs_new_unpaid', 'stripe_session_ids': []}
+    stripe_fake = FakeStripe(
+        {'cs_new_unpaid': _session('cs_new_unpaid', paid=False)},
+        listing=[_session_no_meta('cs_wrong_amt', paid=True, amount=5000,
+                                  email=PARENT_EMAIL)],
+    )
     res, finish = _confirm(client, reg, stripe_fake)
     assert res.status_code == 402
     finish.assert_not_called()

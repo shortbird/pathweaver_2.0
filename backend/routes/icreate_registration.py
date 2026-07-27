@@ -1754,19 +1754,42 @@ def preview_checkout():
     return jsonify({'success': True, 'checkout_url': session.url}), 200
 
 
-def _find_paid_session(reg, secret):
+def _find_paid_session(reg, secret, parent_email=None):
     """Find a PAID Stripe Checkout Session belonging to this registration.
 
     A parent can create several sessions (Pay clicked twice, two tabs) and pay
     any ONE of them, while stripe_session_id only remembers the LAST click — so
     verification must consider every candidate, not just the latest:
-      1. the current stripe_session_id + the stored stripe_session_ids history;
-      2. fallback: list the school's recent Checkout Sessions on Stripe and
-         match metadata.registration_id (rescues registrations from before the
-         history column existed).
+      1. every session id WE recorded for this registration (stripe_session_id +
+         the stripe_session_ids history) — ours by construction, so a paid one
+         counts even if it predates registration_id metadata;
+      2. fallback: list the school's recent Checkout Sessions and match either
+         metadata.registration_id, or — for pre-metadata sessions carrying no
+         registration_id — the family's email + the exact fee amount.
+
+    Both branches must tolerate sessions created BEFORE 2026-07-22, which carry
+    no registration_id metadata and were never added to stripe_session_ids: a
+    later checkout overwrote stripe_session_id, so the paid session is otherwise
+    unreachable and the family is stranded at the fee step even though Stripe has
+    their money (MaKenzie Candland, paid 2026-07-12).
     Returns (paid_session_or_None, retrieve_errors_count).
     """
     import stripe
+
+    reg_id = reg['id']
+    fee_cents = int(reg.get('fee_cents') or 0)
+    parent_email = (parent_email.strip().lower()
+                    if isinstance(parent_email, str) and _valid_email(parent_email) else None)
+
+    def _email_amount_match(session):
+        """Pre-metadata rescue: a metadata-less paid session is this family's when
+        the Checkout customer email and the exact fee amount both match."""
+        if not (parent_email and fee_cents):
+            return False
+        sess_email = ((session.get('customer_details') or {}).get('email')
+                      or session.get('customer_email') or '')
+        return (str(sess_email).strip().lower() == parent_email
+                and int(session.get('amount_total') or 0) == fee_cents)
 
     candidates = []
     for sid in [reg.get('stripe_session_id')] + list(reversed(reg.get('stripe_session_ids') or [])):
@@ -1781,16 +1804,22 @@ def _find_paid_session(reg, secret):
             logger.error(f'iCreate confirm-payment: retrieve failed for {sid[:20]}: {e}')
             errors += 1
             continue
-        if (session.get('metadata') or {}).get('registration_id') != reg['id']:
+        if session.get('payment_status') != 'paid':
             continue
-        if session.get('payment_status') == 'paid':
+        # A session id we stored for THIS registration is ours by construction —
+        # accept it when paid unless its metadata explicitly names a DIFFERENT
+        # registration (defensive; shouldn't happen for our own sessions).
+        meta_reg = (session.get('metadata') or {}).get('registration_id')
+        if not meta_reg or meta_reg == reg_id:
             return session, errors
 
     # Fallback sweep: any paid session for this registration among the school's
-    # recent sessions (created since this registration existed), capped pages.
+    # recent sessions, capped pages. The lookback starts a little BEFORE this
+    # registration row so a payment made just before the row was (re-)created is
+    # still found.
     try:
         created_gte = int(datetime.fromisoformat(
-            str(reg.get('created_at')).replace('Z', '+00:00').replace(' ', 'T')).timestamp())
+            str(reg.get('created_at')).replace('Z', '+00:00').replace(' ', 'T')).timestamp()) - 45 * 86400
     except (ValueError, TypeError):
         created_gte = None
     try:
@@ -1800,8 +1829,10 @@ def _find_paid_session(reg, secret):
         listing = stripe.checkout.Session.list(**params)
         for page in range(3):
             for session in listing.get('data') or []:
-                if ((session.get('metadata') or {}).get('registration_id') == reg['id']
-                        and session.get('payment_status') == 'paid'):
+                if session.get('payment_status') != 'paid':
+                    continue
+                meta_reg = (session.get('metadata') or {}).get('registration_id')
+                if meta_reg == reg_id or (not meta_reg and _email_amount_match(session)):
                     return session, errors
             if not listing.get('has_more'):
                 break
@@ -1836,7 +1867,10 @@ def confirm_payment(reg_id):
     if not secret or not (reg.get('stripe_session_id') or reg.get('stripe_session_ids')):
         return jsonify({'error': 'No payment to verify for this registration'}), 400
 
-    session, errors = _find_paid_session(reg, secret)
+    # Parent email lets the sweep rescue pre-metadata paid sessions by email +
+    # amount when no registration_id is on the session.
+    parent_email = (_parent_row(admin, reg['parent_user_id']) or {}).get('email')
+    session, errors = _find_paid_session(reg, secret, parent_email=parent_email)
     if session is None:
         if errors:
             return jsonify({'error': 'Could not verify the payment. Please try again.'}), 502

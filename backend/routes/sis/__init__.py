@@ -99,9 +99,13 @@ def create_teacher(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    result = sis_service.create_org_teacher(org_id, request.get_json() or {})
+    result = sis_service.create_org_teacher(org_id, request.get_json() or {}, actor_id=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
+    # A same-named placeholder exists: don't create a duplicate — let the UI
+    # offer to link that account instead (or re-POST with force_new to override).
+    if result.get('placeholder_match'):
+        return jsonify({'success': True, 'placeholder_match': result['placeholder_match']}), 200
     return jsonify({'success': True, **result}), 201
 
 

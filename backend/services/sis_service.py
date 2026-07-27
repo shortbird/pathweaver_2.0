@@ -711,13 +711,54 @@ def send_staff_invite(user_id: str, email: str, first_name: str, org_id: str) ->
         return False
 
 
-def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+def find_placeholder_match(org_id: str, first: str, last: str) -> Optional[Dict[str, Any]]:
+    """A placeholder teacher in this org with the same name, or None.
+
+    iCreate's schedule import seeded ~20 placeholder teacher rows (synthetic
+    *.placeholder.optioeducation.com emails) that hold class assignments. If an
+    admin types that teacher's real name into "Add teacher", they'd create a
+    second, empty account and strand the placeholder's classes — the fix is to
+    surface the placeholder and offer to LINK instead. Matched on exact
+    (case-insensitive) first+last so we only prompt when it's almost certainly
+    the same person; the caller can force through when it isn't.
+    """
+    first_n = (first or '').strip().lower()
+    last_n = (last or '').strip().lower()
+    if not first_n or not last_n:
+        return None
+    rows = (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, email, org_role, org_roles')
+        .eq('organization_id', org_id).execute()
+    ).data or []
+    for u in rows:
+        if not is_placeholder_staff_email(u.get('email')):
+            continue
+        if not any(r in _user_org_roles(u) for r in STAFF_ORG_ROLES):
+            continue
+        if ((u.get('first_name') or '').strip().lower() == first_n
+                and (u.get('last_name') or '').strip().lower() == last_n):
+            return {'id': u['id'], 'name': _full_name(u),
+                    'class_count': len(advisor_class_ids(u['id'], org_id))}
+    return None
+
+
+def create_org_teacher(org_id: str, fields: Dict[str, Any],
+                       actor_id: Optional[str] = None) -> Dict[str, Any]:
     """Create a teacher (advisor) account in this org, with an optional bio.
 
     Creates the auth user with a placeholder password and sends the standard
     set-password (signup confirmation) email best-effort — same pattern as the
-    iCreate registration student accounts. Returns {'error': ...} on bad input
-    or a duplicate email."""
+    iCreate registration student accounts.
+
+    Two onboarding-flow extras:
+    - If a placeholder teacher of the same name already exists, returns
+      {'placeholder_match': {...}} without creating anything, so the caller can
+      offer to link that account instead (pass force_new=True to override).
+    - When onboarding_template_id is supplied, the matching checklist is assigned
+      to the new teacher so they land in the portal with their onboarding ready.
+
+    Returns {'error': ...} on bad input or a duplicate email."""
     import secrets
 
     first = (fields.get('first_name') or '').strip()
@@ -727,6 +768,11 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         return {'error': 'First and last name are required'}
     if not email or '@' not in email:
         return {'error': 'A valid email is required'}
+    # Guard the duplicate-account trap unless the admin explicitly overrides.
+    if not fields.get('force_new'):
+        match = find_placeholder_match(org_id, first, last)
+        if match:
+            return {'placeholder_match': match}
     admin = _admin()
     existing = admin.table('users').select('id').eq('email', email).limit(1).execute().data
     if existing:
@@ -775,8 +821,21 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
             return {'error': 'Could not create the account'}
     # email_sent lets the UI warn instead of promising an email that never left.
     email_sent = send_staff_invite(auth.user.id, email, first, org_id)
+    # Assign the chosen onboarding checklist so the teacher lands with it ready.
+    # Best-effort: the account already exists and the invite is out, so an
+    # onboarding hiccup must not fail the whole create.
+    onboarding_assigned = False
+    template_id = (fields.get('onboarding_template_id') or '').strip() or None
+    if template_id:
+        try:
+            from services import sis_onboarding_service
+            res = sis_onboarding_service.assign(
+                org_id, template_id, auth.user.id, assigned_by=actor_id or auth.user.id)
+            onboarding_assigned = not res.get('error')
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'create_org_teacher: onboarding assign failed: {e}')
     return {'teacher': {'id': auth.user.id, 'name': profile['display_name'], 'email': email},
-            'email_sent': email_sent}
+            'email_sent': email_sent, 'onboarding_assigned': onboarding_assigned}
 
 
 # Columns that can point at a placeholder teacher; repointed when merging into a
@@ -878,6 +937,15 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
         except Exception as e:  # noqa: BLE001
             logger.error(f'link_staff_account: repoint {table}.{column} failed: {e}')
             return {'error': 'Could not move class assignments to the existing account'}
+
+    # Move any onboarding checklist off the placeholder onto the real account, so
+    # it isn't orphaned when the placeholder row is deleted below. Best-effort:
+    # a placeholder rarely has one, and a failure here shouldn't block the merge.
+    try:
+        (admin.table('sis_onboarding_assignments').update({'user_id': target['id']})
+         .eq('user_id', staff_id).execute())
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'link_staff_account: onboarding repoint failed: {e}')
 
     # Refresh class messaging groups so the real account replaces the placeholder.
     try:
