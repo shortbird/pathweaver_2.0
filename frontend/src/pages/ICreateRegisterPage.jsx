@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon, PhotoIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
+import { compressImage } from '../utils/compressImage'
 import { clearICreateRegistrationGate } from '../hooks/useICreateRegistrationGate'
 
 // Branded multi-step parent registration for the iCreate microschool.
@@ -606,12 +607,15 @@ const ICreateRegisterPage = () => {
 
   const pickParentPhoto = async (f) => {
     if (!f.size) return setParentPhoto((p) => ({ ...p, error: PHOTO_TIPS }))
-    const preview = URL.createObjectURL(f)
+    // Shrink big phone photos to JPEG before upload so they clear the 5MB limit.
+    // Falls back to the original file if the browser can't decode/encode it.
+    const file = await compressImage(f).catch(() => f)
+    const preview = URL.createObjectURL(file)
     const canUpload = !previewMode && !!reg
-    setParentPhoto({ file: f, preview, avatar_url: '', uploading: canUpload, error: '' })
+    setParentPhoto({ file, preview, avatar_url: '', uploading: canUpload, error: '' })
     if (!canUpload) return
     try {
-      const { data } = await uploadPhoto('parent', f)
+      const { data } = await uploadPhoto('parent', file)
       setParentPhoto({ file: null, preview, avatar_url: data.avatar_url, uploading: false, error: '' })
     } catch (e) {
       setParentPhoto((p) => ({ ...p, uploading: false, error: e.response?.data?.error || PHOTO_TIPS }))
@@ -621,10 +625,13 @@ const ICreateRegisterPage = () => {
   const pickKidPhoto = async (kidRef, f) => {
     const key = kidRef._key
     if (!f.size) return setKidByKey(key, { photo_error: PHOTO_TIPS })
-    const preview = URL.createObjectURL(f)
+    // Shrink big phone photos to JPEG before upload so they clear the 5MB limit.
+    // Falls back to the original file if the browser can't decode/encode it.
+    const file = await compressImage(f).catch(() => f)
+    const preview = URL.createObjectURL(file)
     const canUpload = !previewMode && !!reg
     setKidByKey(key, {
-      photo_file: f, photo_preview: preview, avatar_url: '', staged_url: '',
+      photo_file: file, photo_preview: preview, avatar_url: '', staged_url: '',
       photo_uploading: canUpload, photo_error: '',
     })
     if (!canUpload) return
@@ -632,7 +639,7 @@ const ICreateRegisterPage = () => {
       // Kids restored on back-edit already have accounts — upload straight to
       // them. New kids have no account until the family submits, so the file
       // is staged under the registration and attached at submit (photo_url).
-      const { data } = await uploadPhoto(kidRef.user_id || 'staged', f)
+      const { data } = await uploadPhoto(kidRef.user_id || 'staged', file)
       setKidByKey(key, kidRef.user_id
         ? { photo_file: null, avatar_url: data.avatar_url, photo_uploading: false, photo_error: '' }
         : { photo_file: null, staged_url: data.photo_url, photo_uploading: false, photo_error: '' })

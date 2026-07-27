@@ -354,6 +354,10 @@ def _existing_account_for_kid(admin, org_id, parent_id, email):
     if not rows:
         return None, None
     u = rows[0]
+    # The parent reused their OWN email for a 13+ teen (a common slip). That's
+    # not a child account to attach — surface a clear, self-serve fix upstream.
+    if u['id'] == parent_id:
+        return None, 'is_parent'
     if u.get('role') == 'superadmin' or u.get('is_dependent'):
         return None, 'not_attachable'
     if u.get('organization_id') and u['organization_id'] != org_id:
@@ -1112,6 +1116,10 @@ def submit_family(reg_id):
             if candidate:
                 existing_user = candidate
             elif why and wants_own_account:
+                if why == 'is_parent':
+                    return jsonify({'error': f"That's your own email address. {kf} needs their own "
+                                             f'email to have a login — or leave the email blank and '
+                                             f'mark {kf} as managed by you (no email needed).'}), 409
                 if why == 'other_org':
                     return jsonify({'error': f"{kf}'s Optio account belongs to another school. "
                                              'Please contact iCreate.'}), 409

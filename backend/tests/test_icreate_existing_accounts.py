@@ -114,6 +114,14 @@ class TestExistingAccountForKid:
                                'organization_id': None, 'is_dependent': False}])
         assert u is None and why == 'not_student'
 
+    def test_parent_own_email_reported_distinctly(self):
+        """Parent reused their own email for a 13+ teen: must report 'is_parent'
+        (drives the self-serve 'use their own email / mark as managed' message)
+        rather than the dead-end 'not_student' contact-iCreate error."""
+        u, why = _kid_lookup([{'id': 'parent1', 'role': 'org_managed', 'org_role': 'parent',
+                               'organization_id': 'org1', 'is_dependent': False}])
+        assert u is None and why == 'is_parent'
+
     def test_dependent_and_superadmin_refuse(self):
         u, why = _kid_lookup([{'id': 'k1', 'role': 'student', 'organization_id': None,
                                'is_dependent': True}])
