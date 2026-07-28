@@ -1892,6 +1892,42 @@ def confirm_payment(reg_id):
     return jsonify({**result, 'paid': True}), 200
 
 
+@bp.route('/registrations/<reg_id>/fee-status', methods=['POST'])
+@rate_limit(max_requests=60, window_seconds=300)
+def fee_status(reg_id):
+    """Authoritative fee state for the fee step. The client renders pay-vs-finish
+    from THIS, not from a feeCents it cached earlier in the funnel — otherwise a
+    fee recomputed mid-flight (a prepaid credit removed, a back-edited family step)
+    strands the parent on a stale "$0, finish" view that /fee then refuses forever
+    (erin4collins, 2026-07-28). Read-only apart from the same idempotent
+    prepaid-directive zeroing /fee and /checkout apply, so `requires_card` here is
+    exactly what those endpoints will enforce. POST keeps the access token out of
+    URLs/logs, matching the other reg-scoped routes."""
+    body = request.get_json(silent=True) or {}
+    reg = _load_registration(reg_id)
+    if not _authz(reg, body.get('access_token')):
+        return jsonify({'error': 'Not authorized'}), 403
+
+    admin = _admin()
+    cfg = _org_config(admin, reg['organization_id'])
+    completed = reg.get('status') in ('schedule', 'appointment', 'completed')
+    reg = _apply_prepaid_directive(admin, reg)
+    fee_cents = int(reg.get('fee_cents') or 0)
+    fee_deferred = bool(reg.get('fee_deferred'))
+    stripe_enabled = bool(cfg.get('stripe_secret_key'))
+    # Mirrors the /fee 402 gate exactly.
+    requires_card = stripe_enabled and fee_cents > 0 and not fee_deferred and not completed
+    return jsonify({
+        'success': True,
+        'status': reg.get('status'),
+        'fee_cents': fee_cents,
+        'fee_deferred': fee_deferred,
+        'stripe_enabled': stripe_enabled,
+        'requires_card': requires_card,
+        'already_completed': completed,
+    }), 200
+
+
 @bp.route('/registrations/<reg_id>/fee', methods=['POST'])
 @rate_limit(max_requests=30, window_seconds=300)
 def record_fee(reg_id):
@@ -1914,7 +1950,12 @@ def record_fee(reg_id):
     # Fee-deferred families (every kid on the enrollment waitlist) finish without
     # paying — the fee comes due when the school releases their first student.
     if cfg.get('stripe_secret_key') and fee_cents > 0 and not reg.get('fee_deferred'):
-        return jsonify({'error': 'Please pay the registration fee by card to finish.'}), 402
+        # Return the authoritative fee so a client whose local feeCents went stale
+        # (e.g. the fee was recomputed after a prepaid directive was removed, or a
+        # tab loaded a $0 "finish" view before the fee was set) can self-correct
+        # to the pay-by-card UI instead of dead-ending on this toast.
+        return jsonify({'error': 'Please pay the registration fee by card to finish.',
+                        'requires_card': True, 'fee_cents': fee_cents}), 402
 
     result = _finish_fee_step(admin, reg, cfg, extra_fields={'fee_cents': fee_cents})
     return jsonify(result), 200

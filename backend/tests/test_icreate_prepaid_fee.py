@@ -118,7 +118,12 @@ class TestPrepaidDirectiveFee:
         admin = _FakeAdmin()
         resp = _call(client, admin, '/api/icreate/registrations/reg1/fee', _reg(), None)
         assert resp.status_code == 402
-        assert 'card' in resp.get_json()['error'].lower()
+        body = resp.get_json()
+        assert 'card' in body['error'].lower()
+        # The 402 echoes the authoritative fee so a client with a stale $0
+        # feeCents can self-correct into the pay-by-card UI instead of dead-ending.
+        assert body['fee_cents'] == 12500
+        assert body['requires_card'] is True
         assert not _fee_updates(admin)
 
     def test_prepaid_directive_completes_without_card(self, client):

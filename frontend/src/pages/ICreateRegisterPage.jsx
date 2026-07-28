@@ -896,11 +896,42 @@ const ICreateRegisterPage = () => {
       sessionStorage.removeItem('icreate_funnel')
       setStep('done')
     } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not finish registration')
+      // A card payment is actually due (local feeCents went stale — e.g. the fee
+      // was recomputed after this tab loaded a $0 "finish" view). Self-correct to
+      // the pay-by-card UI instead of dead-ending on the toast.
+      const d = e.response?.data
+      if (e.response?.status === 402 && Number(d?.fee_cents) > 0) {
+        setFeeCents(Number(d.fee_cents))
+        setFeeDeferred(false)
+        toast.error('A registration fee is due — please complete the payment below.')
+      } else {
+        toast.error(d?.error || 'Could not finish registration')
+      }
     } finally {
       setSubmitting(false)
     }
   }, [reg])
+
+  // The fee step renders pay-vs-finish from the server's authoritative fee, not
+  // the feeCents this tab cached earlier in the funnel. On landing here we re-sync
+  // so a fee recomputed mid-flight (prepaid credit removed, family back-edited,
+  // etc.) can never strand a parent on a stale "$0, finish" view that /fee then
+  // refuses (erin4collins, 2026-07-28). finishFee's 402 self-heal is the fallback
+  // if this sync can't reach the server.
+  useEffect(() => {
+    if (step !== 'fee' || !reg || previewMode) return
+    let alive = true
+    api.post(`/api/icreate/registrations/${reg.registration_id}/fee-status`, {
+      access_token: reg.access_token,
+    })
+      .then(({ data }) => {
+        if (!alive) return
+        setFeeCents(Number(data.fee_cents) || 0)
+        setFeeDeferred(!!data.fee_deferred)
+      })
+      .catch(() => { /* keep cached feeCents; finishFee still self-heals on 402 */ })
+    return () => { alive = false }
+  }, [step, reg, previewMode])
 
   // ── Stripe card payment (verified server-side) ─────────────────────────────
 
