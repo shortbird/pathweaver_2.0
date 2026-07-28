@@ -424,3 +424,107 @@ def delete_preset_task(user_id, class_id, quest_id, task_id):
     admin.table('quest_template_tasks').delete() \
         .eq('id', task_id).eq('quest_id', quest_id).execute()
     return jsonify({'success': True})
+
+
+# ── Student progress ──────────────────────────────────────────────────────────
+
+@bp.route('/classes/<class_id>/progress', methods=['GET'])
+@require_auth
+def class_student_progress(user_id, class_id):
+    """Per-student task progress for the quests assigned to this class.
+
+    This is the automatic replacement for the hand-entered gradebook: nothing
+    here is typed by a teacher. For every enrolled student it reports, per
+    assigned quest, whether they have started it and how many of their tasks
+    are done — read from user_quests / user_quest_tasks / quest_task_completions,
+    the same records that drive the student's own dashboard.
+
+    Students who have not started a quest are reported explicitly rather than
+    omitted; "nobody has begun this yet" is the single most useful thing on the
+    page and it must not look like missing data.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+
+    assigned = (admin.table('class_quests')
+                .select('quest_id, sequence_order, due_date, quests(id, title)')
+                .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
+    quests = [{
+        'quest_id': r['quest_id'],
+        'title': (r.get('quests') or {}).get('title') or 'Untitled quest',
+        'due_date': r.get('due_date'),
+    } for r in assigned]
+    quest_ids = [q['quest_id'] for q in quests]
+
+    enrolled = (admin.table('class_enrollments').select('student_id')
+                .eq('class_id', class_row['id']).execute()).data or []
+    student_ids = [e['student_id'] for e in enrolled if e.get('student_id')]
+
+    if not student_ids:
+        return jsonify({'success': True, 'quests': quests, 'students': []})
+
+    users = (admin.table('users')
+             .select('id, first_name, last_name, display_name')
+             .in_('id', student_ids).execute()).data or []
+    names = {u['id']: ((u.get('display_name')
+                        or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip())
+                       or 'Unnamed') for u in users}
+
+    # Enrollments, then that enrollment's tasks, then which of those are done.
+    user_quests, tasks, done_task_ids = [], [], set()
+    if quest_ids:
+        user_quests = (admin.table('user_quests')
+                       .select('id, user_id, quest_id, is_active, completed_at, started_at')
+                       .in_('user_id', student_ids).in_('quest_id', quest_ids).execute()).data or []
+    uq_ids = [uq['id'] for uq in user_quests]
+    if uq_ids:
+        tasks = (admin.table('user_quest_tasks')
+                 .select('id, user_quest_id, user_id, quest_id, title, xp_value')
+                 .in_('user_quest_id', uq_ids).execute()).data or []
+    task_ids = [t['id'] for t in tasks]
+    for chunk_start in range(0, len(task_ids), 200):  # keep the IN list sane
+        chunk = task_ids[chunk_start:chunk_start + 200]
+        rows = (admin.table('quest_task_completions').select('task_id')
+                .in_('task_id', chunk).execute()).data or []
+        done_task_ids.update(r['task_id'] for r in rows)
+
+    tasks_by_uq = {}
+    for t in tasks:
+        tasks_by_uq.setdefault(t['user_quest_id'], []).append(t)
+    uq_by_student_quest = {(uq['user_id'], uq['quest_id']): uq for uq in user_quests}
+
+    students = []
+    for sid in student_ids:
+        cells, total_done, total_tasks = [], 0, 0
+        for q in quests:
+            uq = uq_by_student_quest.get((sid, q['quest_id']))
+            if not uq:
+                cells.append({'quest_id': q['quest_id'], 'started': False,
+                              'completed': False, 'done': 0, 'total': 0})
+                continue
+            own = tasks_by_uq.get(uq['id'], [])
+            done = len([t for t in own if t['id'] in done_task_ids])
+            total_done += done
+            total_tasks += len(own)
+            cells.append({
+                'quest_id': q['quest_id'],
+                'started': True,
+                'completed': bool(uq.get('completed_at')),
+                'done': done,
+                'total': len(own),
+                'started_at': uq.get('started_at'),
+                'completed_at': uq.get('completed_at'),
+            })
+        students.append({
+            'student_id': sid,
+            'name': names.get(sid, 'Unnamed'),
+            'cells': cells,
+            'tasks_done': total_done,
+            'tasks_total': total_tasks,
+            'quests_started': len([c for c in cells if c['started']]),
+            'quests_completed': len([c for c in cells if c['completed']]),
+        })
+    students.sort(key=lambda s: s['name'].lower())
+
+    return jsonify({'success': True, 'quests': quests, 'students': students})

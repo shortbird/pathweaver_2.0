@@ -53,6 +53,8 @@ const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
 const SubmissionsPage = lazy(() => import('../pages/sis/SubmissionsPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const SecureDocumentsPage = lazy(() => import('../pages/sis/SecureDocumentsPage'))
+const CurriculumPage = lazy(() => import('../pages/sis/CurriculumPage'))
+const StaffTrainingPage = lazy(() => import('../pages/sis/StaffTrainingPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
 const MyClassesPage = lazy(() => import('../pages/sis/MyClassesPage'))
@@ -62,6 +64,7 @@ const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
 const OnboardingPage = lazy(() => import('../pages/sis/OnboardingPage'))
+const MyDocumentsPage = lazy(() => import('../pages/sis/MyDocumentsPage'))
 const MyTimePage = lazy(() => import('../pages/sis/MyTimePage'))
 const TimesheetsPage = lazy(() => import('../pages/sis/TimesheetsPage'))
 
@@ -109,6 +112,8 @@ const SisRoutes = () => (
       <Route path="registration" element={<RegistrationPage />} />
       <Route path="calendar" element={<CalendarPage />} />
       <Route path="resources" element={<ResourcesPage />} />
+      <Route path="curriculum" element={<CurriculumPage />} />
+      <Route path="training" element={<StaffTrainingPage />} />
       <Route path="community" element={<CommunityRoute><CommunityPage /></CommunityRoute>} />
       <Route path="settings" element={<SettingsPage />} />
 
@@ -120,6 +125,7 @@ const SisRoutes = () => (
       <Route path="directory" element={<DirectoryPage />} />
       <Route path="forms" element={<ModuleRoute path="/forms"><StaffFormsPage /></ModuleRoute>} />
       <Route path="onboarding" element={<ModuleRoute path="/onboarding"><OnboardingPage /></ModuleRoute>} />
+      <Route path="my-documents" element={<MyDocumentsPage />} />
       <Route path="time" element={<ModuleRoute path="/time"><MyTimePage /></ModuleRoute>} />
       <Route path="timesheets" element={<ModuleRoute path="/timesheets"><TimesheetsPage /></ModuleRoute>} />
 

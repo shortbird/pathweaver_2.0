@@ -109,6 +109,8 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
     max_students: initial?.capacity != null ? String(initial.capacity) : '',
     tuition: initial?.price_cents != null ? String(initial.price_cents / 100) : '',
     supply_fee: initial?.supply_fee != null ? String(initial.supply_fee) : '',
+    supply_budget_per_student: initial?.supply_budget_per_student != null
+      ? String(initial.supply_budget_per_student) : '',
     age_min: initial?.min_age != null ? String(initial.min_age) : '',
     age_max: initial?.max_age != null ? String(initial.max_age) : '',
     // The DB defaults new classes to closed, which hides them from families —
@@ -192,6 +194,9 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
       capacity: numOrUndef(formData.max_students),
       price_cents: formData.tuition === '' ? null : Math.round(Number(formData.tuition) * 100),
       supply_fee: numOrUndef(formData.supply_fee),
+      // '' means "use the school default", which is a null column, not 0.
+      supply_budget_per_student: formData.supply_budget_per_student === ''
+        ? null : numOrUndef(formData.supply_budget_per_student),
       min_age: ageMin,
       max_age: ageMax,
       requires_full_day: formData.requires_full_day,
@@ -415,6 +420,25 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
                     onChange={handleChange} min={0} step="0.01" placeholder="0.00" className={`${inputClass} pl-7`} />
                 </div>
               </div>
+            </div>
+
+            {/* Materials allowance funded from tuition, on top of the supply fee.
+                Blank inherits the school-wide default from Settings. */}
+            <div>
+              <label htmlFor="supply_budget_per_student" className="block text-sm font-medium text-gray-700 mb-1">
+                Extra materials allowance <span className="font-normal text-gray-400">per student, per year</span>
+              </label>
+              <div className="relative max-w-[12rem]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                <input type="number" id="supply_budget_per_student" name="supply_budget_per_student"
+                  value={formData.supply_budget_per_student}
+                  onChange={handleChange} min={0} step="0.01" placeholder="School default"
+                  className={`${inputClass} pl-7`} />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Covered by tuition, on top of the supply fee. The teacher sees the total as
+                "spend up to $X". Leave blank to use the school-wide default.
+              </p>
             </div>
 
             {/* Age range */}

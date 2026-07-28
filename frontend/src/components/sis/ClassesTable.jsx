@@ -62,6 +62,7 @@ const toDraft = (c) => {
     capacity: c.capacity != null ? String(c.capacity) : '',
     tuition: c.price_cents != null ? String(c.price_cents / 100) : '',
     supply_fee: c.supply_fee != null ? String(c.supply_fee) : '',
+    supply_budget_per_student: c.supply_budget_per_student != null ? String(c.supply_budget_per_student) : '',
     min_age: c.min_age != null ? String(c.min_age) : '',
     max_age: c.max_age != null ? String(c.max_age) : '',
     requires_full_day: !!c.requires_full_day,

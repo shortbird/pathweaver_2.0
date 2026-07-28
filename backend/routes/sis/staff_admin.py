@@ -153,12 +153,17 @@ def update_template(user_id, template_id):
 @bp.route('/onboarding/templates/<template_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_template(user_id, template_id):
+    """Delete a template. 409 (with assigned_count) when people still hold a
+    checklist from it, unless the caller passes ?force=1 after confirming."""
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    if not onboarding.delete_template(org_id, template_id):
-        return jsonify({'success': False, 'error': 'Template not found'}), 404
-    return jsonify({'success': True})
+    force = str(request.args.get('force', '')).lower() in ('1', 'true', 'yes')
+    result = onboarding.delete_template(org_id, template_id, force=force)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error'],
+                        'assigned_count': result.get('assigned_count')}), result.get('status', 400)
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/onboarding/assignments', methods=['GET'])
@@ -191,6 +196,19 @@ def assign_onboarding(user_id):
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
     return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/onboarding/assignments/<assignment_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def unassign_onboarding(user_id, assignment_id):
+    """Take a checklist back off someone. Their uploaded documents are kept."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = onboarding.unassign(org_id, assignment_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/onboarding/recipients', methods=['GET'])

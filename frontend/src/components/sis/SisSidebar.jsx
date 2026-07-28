@@ -76,9 +76,12 @@ const NAV_SECTIONS = [
       { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard },
       { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc },
       { name: 'Resources', path: '/resources', d: ICONS.books },
+      { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books },
+      { name: 'Training', path: '/training', d: ICONS.check },
       { name: 'Forms', path: '/forms', d: ICONS.clipboard },
       { name: 'Onboarding', path: '/onboarding', d: ICONS.check },
       { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, d: ICONS.doc },
+      { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
       { name: 'My Time', path: '/time', teacherOnly: true, d: ICONS.clock },
       { name: 'Timesheets', path: '/timesheets', adminOnly: true, d: ICONS.clock },
       { name: 'Billing', path: '/billing', adminOnly: true, d: ICONS.card },
@@ -101,7 +104,7 @@ const linkClass = ({ isActive }) => `
     : 'text-neutral-700 hover:bg-[#F3EFF4]'}
 `
 
-const SisSidebar = () => {
+const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   const { user } = useAuth()
   // activeOrg is the org currently in view — for a superadmin that's the one
   // picked in the org selector, so the nav mirrors that org's admin exactly.
@@ -115,7 +118,12 @@ const SisSidebar = () => {
   const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
 
   return (
-    <aside className="fixed top-0 left-0 bottom-0 w-60 bg-white border-r border-gray-200 flex flex-col z-40">
+    // Below lg the sidebar is a drawer: off-canvas until the header's menu
+    // button opens it. It used to be permanently fixed at desktop width, which
+    // simply pushed the whole console off the side of a tablet screen.
+    <aside className={`fixed top-0 left-0 bottom-0 w-60 bg-white border-r border-gray-200 flex flex-col z-50
+      transition-transform duration-200 lg:translate-x-0
+      ${open ? 'translate-x-0 shadow-xl' : '-translate-x-full'}`}>
       <div className="h-16 flex items-center gap-2 px-5 border-b border-gray-100">
         <img
           src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
@@ -158,7 +166,8 @@ const SisSidebar = () => {
                 </div>
               )}
               {items.map((item) => (
-                <NavLink key={item.path} to={item.path} end={item.end} className={linkClass}>
+                <NavLink key={item.path} to={item.path} end={item.end} className={linkClass}
+                  onClick={onNavigate}>
                   <span className="text-neutral-500">{icon(item.d)}</span>
                   {item.name}
                 </NavLink>

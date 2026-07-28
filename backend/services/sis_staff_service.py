@@ -41,6 +41,10 @@ def _admin():
     return get_supabase_admin_client()
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _org_tz(org_id: str) -> ZoneInfo:
     row = (
         _admin().table('organizations').select('timezone')
@@ -292,6 +296,20 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
         .order('created_at', desc=True).limit(5).execute()
     ).data or []
 
+    # Staff-facing resources (the mentor handbook and friends). These already
+    # existed but only surfaced when an acknowledgment was outstanding, so a
+    # teacher had no way to find the handbook again afterwards.
+    staff_resources = [
+        {'id': r['id'], 'title': r['title'], 'url': r.get('url'), 'category': r.get('category')}
+        for r in (
+            _admin().table('org_resources')
+            .select('id, title, url, category, audience')
+            .eq('organization_id', org_id)
+            .in_('audience', ['staff', 'all'])
+            .order('title').limit(8).execute()
+        ).data or []
+    ]
+
     return {
         # Before the first day of school the daily schedule stays empty — weekly
         # meeting patterns exist in the catalog but classes haven't started yet.
@@ -304,6 +322,7 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
         'onboarding': onboarding,
         'pending_acks': pending_acks,
         'recent_forms': forms,
+        'staff_resources': staff_resources,
     }
 
 
@@ -639,3 +658,120 @@ def payroll_rows(org_id: str, start: str, end: str) -> List[List[Any]]:
                 e.get('notes') or '', e.get('status'),
             ])
     return rows
+
+
+# ── Archiving and removing staff ─────────────────────────────────────────────
+
+def _staff_history(org_id: str, staff_id: str) -> Dict[str, int]:
+    """What a staff record is tied to. Anything non-zero means deleting the row
+    would orphan real school records, so the caller must archive instead."""
+    admin = _admin()
+
+    def _count(table: str, column: str, **extra) -> int:
+        try:
+            q = admin.table(table).select('id').eq(column, staff_id)
+            for k, v in extra.items():
+                q = q.eq(k, v)
+            return len(q.limit(50).execute().data or [])
+        except Exception:  # noqa: BLE001 — a missing table must not block the check
+            logger.debug('history probe failed for %s.%s', table, column, exc_info=True)
+            return 0
+
+    return {
+        'classes': _count('org_classes', 'primary_instructor_id', organization_id=org_id),
+        'time_entries': _count('sis_time_entries', 'user_id', organization_id=org_id),
+        'forms': _count('sis_form_submissions', 'submitted_by', organization_id=org_id),
+        'onboarding': _count('sis_onboarding_assignments', 'user_id', organization_id=org_id),
+        'attendance': _count('class_attendance', 'recorded_by'),
+    }
+
+
+def staff_removal_preview(org_id: str, staff_id: str) -> Dict[str, Any]:
+    """What would happen if this staff member were removed — shown in the confirm
+    dialog so nobody deletes a teacher and discovers the consequences after."""
+    # include_archived: an already-archived person can still be deleted later,
+    # once whatever was blocking it is gone.
+    staff = next((s for s in sis_service.list_org_staff(org_id, include_archived=True)
+                  if s['id'] == staff_id), None)
+    if not staff:
+        return {'error': 'Staff member not found'}
+    history = _staff_history(org_id, staff_id)
+    classes = (_admin().table('org_classes').select('id, name')
+               .eq('organization_id', org_id).eq('primary_instructor_id', staff_id)
+               .execute()).data or []
+    # Anything except the class assignment is history we must not orphan;
+    # classes alone can be unassigned cleanly ("Teacher TBD").
+    blocking = {k: v for k, v in history.items() if k != 'classes' and v}
+    return {
+        'staff': {'id': staff_id, 'name': staff['name'],
+                  'is_placeholder': staff.get('is_placeholder')},
+        'classes': [{'id': c['id'], 'name': c.get('name')} for c in classes],
+        'history': history,
+        'can_delete': not blocking,
+        'blocking': blocking,
+    }
+
+
+def archive_staff(org_id: str, staff_id: str, actor_id: str) -> Dict[str, Any]:
+    """Hide a staff member from the SIS without touching their history.
+
+    Their classes are unassigned (the class shows no teacher rather than a
+    ghost), and their profile is marked inactive, which is what the staff list
+    and directory already filter on. Nothing is deleted, so an archive can be
+    undone by reactivating the profile.
+    """
+    preview = staff_removal_preview(org_id, staff_id)
+    if preview.get('error'):
+        return preview
+    now = _now_iso()
+    for c in preview['classes']:
+        _admin().table('org_classes').update({'primary_instructor_id': None}).eq('id', c['id']).execute()
+    existing = (_admin().table('sis_staff_profiles').select('id')
+                .eq('organization_id', org_id).eq('user_id', staff_id).limit(1).execute()).data
+    payload = {'is_active': False, 'archived_at': now, 'archived_by': actor_id}
+    if existing:
+        _admin().table('sis_staff_profiles').update(payload).eq('id', existing[0]['id']).execute()
+    else:
+        _admin().table('sis_staff_profiles').insert(
+            {'organization_id': org_id, 'user_id': staff_id, **payload}).execute()
+    return {'archived': True, 'classes_unassigned': len(preview['classes']),
+            'name': preview['staff']['name']}
+
+
+def delete_staff(org_id: str, staff_id: str) -> Dict[str, Any]:
+    """Permanently remove a staff record — only when it carries no history.
+
+    This exists for the placeholder rows a school creates while hiring ("Art
+    Teacher TBD") and then decides against. If the person has taken attendance,
+    clocked in, filed a form, or been assigned onboarding, deletion would orphan
+    those records, so the caller is told to archive instead. Class assignments
+    alone don't block: they are cleared first.
+    """
+    preview = staff_removal_preview(org_id, staff_id)
+    if preview.get('error'):
+        return preview
+    if not preview['can_delete']:
+        return {'error': ('This person has school records attached '
+                          f'({", ".join(sorted(preview["blocking"]))}). '
+                          'Archive them instead — it hides them without losing history.'),
+                'blocking': preview['blocking']}
+    for c in preview['classes']:
+        _admin().table('org_classes').update({'primary_instructor_id': None}).eq('id', c['id']).execute()
+    _admin().table('sis_staff_profiles').delete() \
+        .eq('organization_id', org_id).eq('user_id', staff_id).execute()
+    _admin().table('users').delete().eq('id', staff_id).eq('organization_id', org_id).execute()
+    return {'deleted': True, 'classes_unassigned': len(preview['classes']),
+            'name': preview['staff']['name']}
+
+
+def restore_staff(org_id: str, staff_id: str) -> Dict[str, Any]:
+    """Undo an archive. Classes are not reassigned — that's a deliberate choice
+    each time, not something to guess at."""
+    rows = (_admin().table('sis_staff_profiles').select('id')
+            .eq('organization_id', org_id).eq('user_id', staff_id).limit(1).execute()).data
+    if not rows:
+        return {'error': 'Staff member not found'}
+    _admin().table('sis_staff_profiles').update(
+        {'is_active': True, 'archived_at': None, 'archived_by': None}
+    ).eq('id', rows[0]['id']).execute()
+    return {'restored': True}

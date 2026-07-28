@@ -18,6 +18,7 @@ from services import sis_service
 from services import sis_staff_service as staff
 from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
+from services import sis_supply_budget_service as supply_budget
 from database import get_supabase_admin_client
 
 logger = get_logger(__name__)
@@ -91,12 +92,18 @@ def class_roster(user_id, class_id):
     if scope is not None and class_id not in scope:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     cls = (get_supabase_admin_client().table('org_classes')
-           .select('id, name, organization_id').eq('id', class_id).limit(1).execute()).data
+           .select('id, name, organization_id, supply_fee, supply_budget_per_student')
+           .eq('id', class_id).limit(1).execute()).data
     if not cls or cls[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     role = 'org_admin' if scope is None else 'advisor'
     data = staff.class_roster_detail(org_id, class_id, user_id, role)
-    return jsonify({'success': True, 'class': {'id': cls[0]['id'], 'name': cls[0]['name']},
+    # Teachers plan materials against this; it rides along with the roster so the
+    # class page doesn't need a second round trip.
+    budget = supply_budget.budget_for_class(org_id, cls[0])
+    return jsonify({'success': True,
+                    'class': {'id': cls[0]['id'], 'name': cls[0]['name']},
+                    'supply_budget': budget or None,
                     **data})
 
 
@@ -303,3 +310,127 @@ def my_time_entries(user_id):
         return jsonify({'success': False, 'error': 'start and end are required (YYYY-MM-DD)'}), 400
     return jsonify({'success': True,
                     **staff.my_time_entries(org_id, _read_target(user_id, org_id), start, end)})
+
+
+# ── My documents (the staff member's own secure documents) ────────────────────
+
+_SECURE_DOCS_BUCKET = 'sis-secure-documents'  # PRIVATE — same store the admin page uses
+
+
+@bp.route('/my-documents', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def my_documents(user_id):
+    """The caller's own documents.
+
+    Two kinds, and only two: documents an admin has explicitly SHARED with them
+    (shared_with_owner), and documents they uploaded themselves. Everything else
+    filed about a staff member — background checks above all — stays invisible
+    here. The org filter plus the owner filter is the whole access rule; there
+    is no id-based lookup that could be walked.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    rows = (get_supabase_admin_client().table('sis_secure_documents')
+            .select('id, filename, category, note, size_bytes, created_at, '
+                    'shared_with_owner, uploaded_by_owner')
+            .eq('organization_id', org_id).eq('owner_user_id', user_id)
+            .eq('shared_with_owner', True)
+            .order('created_at', desc=True).execute()).data or []
+    return jsonify({'success': True, 'documents': rows})
+
+
+@bp.route('/my-documents/upload', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def upload_my_document(user_id):
+    """Send a document in to the school — a signed contract, a certificate.
+
+    Files land in the same private store the office already uses, attached to
+    the uploader and shared back to them so they can see what they sent. The
+    school gets it immediately; there is no paper step.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in _DOC_EXTENSIONS:
+        return jsonify({'success': False, 'error': 'Allowed types: pdf, doc, docx, png, jpg, webp'}), 400
+    file.seek(0, 2)
+    size_bytes = file.tell()
+    if size_bytes > _MAX_DOC_BYTES:
+        return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
+    file.seek(0)
+
+    supabase = get_supabase_admin_client()
+    try:
+        supabase.storage.get_bucket(_SECURE_DOCS_BUCKET)
+    except Exception:
+        try:
+            supabase.storage.create_bucket(_SECURE_DOCS_BUCKET, options={'public': False})
+        except Exception:
+            pass
+    path = f"{org_id}/{_uuid.uuid4().hex}.{ext}"
+    try:
+        supabase.storage.from_(_SECURE_DOCS_BUCKET).upload(
+            path=path, file=file.read(),
+            file_options={'content-type': file.content_type or 'application/octet-stream'},
+        )
+    except Exception as e:
+        logger.error(f'Staff document upload failed: {e}')
+        return jsonify({'success': False, 'error': 'Failed to upload document'}), 500
+
+    category = (request.form.get('category') or '').strip() or 'Submitted by staff'
+    row = {
+        'organization_id': org_id,
+        'owner_user_id': user_id,      # always themselves — never a form field
+        'uploaded_by': user_id,
+        'storage_path': path,
+        'filename': file.filename,
+        'content_type': file.content_type,
+        'size_bytes': size_bytes,
+        'category': category,
+        'note': (request.form.get('note') or '').strip() or None,
+        'shared_with_owner': True,     # it's theirs; they can see it
+        'uploaded_by_owner': True,     # distinguishes "they sent this" in the office view
+    }
+    try:
+        inserted = (supabase.table('sis_secure_documents').insert(row).execute()).data
+    except Exception as e:
+        logger.error(f'Staff document insert failed: {e}')
+        try:
+            supabase.storage.from_(_SECURE_DOCS_BUCKET).remove([path])
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': 'Failed to save document'}), 500
+    return jsonify({'success': True, 'document': (inserted or [row])[0]}), 201
+
+
+@bp.route('/my-documents/<doc_id>/url', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def my_document_url(user_id, doc_id):
+    """Signed URL for one of the caller's own documents. Ownership and sharing
+    are re-checked here, not trusted from the list call."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    rows = (get_supabase_admin_client().table('sis_secure_documents')
+            .select('id, storage_path, organization_id, owner_user_id, shared_with_owner')
+            .eq('id', doc_id).limit(1).execute()).data or []
+    doc = rows[0] if rows else None
+    if (not doc or doc.get('organization_id') != org_id
+            or doc.get('owner_user_id') != user_id
+            or not doc.get('shared_with_owner')):
+        return jsonify({'success': False, 'error': 'Document not found'}), 404
+    try:
+        signed = get_supabase_admin_client().storage.from_(_SECURE_DOCS_BUCKET) \
+            .create_signed_url(doc['storage_path'], 3600)
+        url = signed.get('signedURL') or signed.get('signedUrl')
+    except Exception as e:
+        logger.error(f'Signed URL failed for staff document {doc_id}: {e}')
+        return jsonify({'success': False, 'error': 'Could not open the document'}), 500
+    return jsonify({'success': True, 'url': url})

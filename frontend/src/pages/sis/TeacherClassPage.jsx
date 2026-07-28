@@ -4,9 +4,10 @@ import { ExclamationTriangleIcon, PrinterIcon } from '@heroicons/react/24/outlin
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import GradebookTab from '../../components/sis/GradebookTab'
+import StudentProgressTab from '../../components/sis/StudentProgressTab'
 import ClassDiscussion from '../../components/discussion/ClassDiscussion'
 import ClassCurriculum from '../../components/discussion/ClassCurriculum'
+import ClassCurriculumLibrary from '../../components/sis/ClassCurriculumLibrary'
 import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
 
 /**
@@ -27,27 +28,36 @@ const ATT_COLORS = {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
-const VALID_TABS = ['roster', 'quests', 'curriculum', 'gradebook', 'messages']
+// 'gradebook' stays accepted so old links and bookmarks land on the tab that
+// replaced it rather than silently falling back to the roster.
+const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'messages']
+const TAB_ALIASES = { gradebook: 'progress' }
 
 const TeacherClassPage = () => {
   const { classId } = useParams()
   const { orgId } = useSisOrg()
   const [searchParams] = useSearchParams()
   const [cls, setCls] = useState(null)
+  const [budget, setBudget] = useState(null)
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   const [saving, setSaving] = useState(false)
   // Deep links (e.g. the home "Message" shortcut) can preselect a tab via ?tab=.
-  const initialTab = VALID_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'roster'
+  const requestedTab = TAB_ALIASES[searchParams.get('tab')] || searchParams.get('tab')
+  const initialTab = VALID_TABS.includes(requestedTab) ? requestedTab : 'roster'
   const [tab, setTab] = useState(initialTab)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
     setLoading(true)
     api.get(withOrg(`/api/sis/teacher/classes/${classId}/roster`, orgId))
-      .then((r) => { setCls(r.data?.class); setStudents(r.data?.students || []) })
+      .then((r) => {
+        setCls(r.data?.class)
+        setBudget(r.data?.supply_budget || null)
+        setStudents(r.data?.students || [])
+      })
       .catch((e) => toast.error(e?.response?.data?.error || 'Failed to load the roster'))
       .finally(() => setLoading(false))
   }, [orgId, classId])
@@ -122,7 +132,7 @@ const TeacherClassPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
-        {[['roster', 'Roster & Attendance'], ['quests', 'Quests'], ['curriculum', 'Curriculum'], ['gradebook', 'Gradebook'], ['messages', 'Messages']].map(([key, label]) => (
+        {[['roster', 'Roster & Attendance'], ['quests', 'Quests'], ['curriculum', 'Curriculum'], ['progress', 'Student Progress'], ['messages', 'Messages']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key
@@ -138,11 +148,16 @@ const TeacherClassPage = () => {
       )}
 
       {tab === 'curriculum' && (
-        <ClassCurriculum classId={classId} />
+        <>
+          {/* School-provided curriculum (staff-only) sits above the materials the
+              teacher shares with students — different audiences, kept apart. */}
+          <ClassCurriculumLibrary classId={classId} />
+          <ClassCurriculum classId={classId} />
+        </>
       )}
 
-      {tab === 'gradebook' && (
-        <GradebookTab classId={classId} orgId={orgId} className={cls?.name} />
+      {tab === 'progress' && (
+        <StudentProgressTab classId={classId} className={cls?.name} />
       )}
 
       {tab === 'messages' && (
@@ -152,6 +167,26 @@ const TeacherClassPage = () => {
             To reach families, use Announcements or the class group in the Learning app.
           </p>
           <ClassDiscussion classId={classId} />
+        </div>
+      )}
+
+      {/* Materials budget — a ceiling, never a target. The wording matters:
+          "up to" is what the school asked for, so teachers don't read it as
+          money they're expected to spend. */}
+      {budget && budget.total > 0 && tab === 'roster' && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 mb-6 sis-no-print">
+          <p className="text-sm text-neutral-600">
+            Supply budget: spend <span className="font-semibold text-neutral-900">up to ${budget.total.toLocaleString()}</span> on
+            materials for this class this year.
+          </p>
+          <p className="text-xs text-neutral-400 mt-1">
+            {budget.students} student{budget.students === 1 ? '' : 's'}
+            {budget.supply_fee_per_student > 0 && ` · $${budget.supply_fee_per_student} supply fee each`}
+            {budget.allowance_per_student > 0 && ` · $${budget.allowance_per_student} each from tuition`}
+            {budget.frozen
+              ? ` · fixed at the roster on ${budget.as_of}`
+              : ' · updates as students enrol until the first day of school'}
+          </p>
         </div>
       )}
 

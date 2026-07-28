@@ -72,6 +72,30 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
     } finally { setSavingTuition(false) }
   }
 
+  // School-wide materials allowance, in dollars per enrolled student per year,
+  // on top of each class's supply fee. Individual classes can override it.
+  const storedAllowance = org.feature_flags?.sis_settings?.supply_budget_per_student
+  const [allowance, setAllowance] = useState(storedAllowance != null ? String(storedAllowance) : '')
+  const [savingAllowance, setSavingAllowance] = useState(false)
+  const saveAllowance = async () => {
+    const value = allowance === '' ? null : Number(allowance)
+    if (value === (storedAllowance ?? null)) return
+    if (value != null && (Number.isNaN(value) || value < 0)) return toast.error('Enter a valid amount')
+    setSavingAllowance(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        feature_flags: {
+          ...(org.feature_flags || {}),
+          sis_settings: { ...(org.feature_flags?.sis_settings || {}), supply_budget_per_student: value },
+        },
+      })
+      toast.success(value != null ? 'Materials allowance saved' : 'Materials allowance cleared')
+      onUpdate && onUpdate()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to save')
+    } finally { setSavingAllowance(false) }
+  }
+
   const saveDetails = async () => {
     if (!name.trim()) return toast.error('Name is required')
     if (!/^[a-z0-9-]+$/.test(slug)) return toast.error('Slug can only contain lowercase letters, numbers, and hyphens')
@@ -239,6 +263,26 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
               </div>
             </div>
           )}
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <p className="text-sm font-medium text-neutral-800">Materials allowance per student</p>
+              <p className="text-xs text-neutral-500">
+                Funded from tuition, on top of each class's supply fee. Sets every teacher's
+                "spend up to $X" budget; a class can override it.
+              </p>
+            </div>
+            <div className="relative w-32 shrink-0">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+              <input
+                type="number" min={0} step="0.01" placeholder="0.00"
+                aria-label="Materials allowance per student"
+                value={allowance} disabled={savingAllowance}
+                onChange={(e) => setAllowance(e.target.value)}
+                onBlur={saveAllowance}
+                className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+          </div>
           <ToggleRow
             label="Public bounties"
             description="Students also see the platform-wide public bounty board. Bounties your organization posts always show."

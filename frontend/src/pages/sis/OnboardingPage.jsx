@@ -196,18 +196,27 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
           <input value={it.description || ''} onChange={(e) => setItem(i, { description: e.target.value })}
             placeholder="Instructions (optional — link out for sensitive documents)" className={inputClass} />
           <input value={it.link || ''} onChange={(e) => setItem(i, { link: e.target.value })}
-            placeholder="Link (optional — e.g. a form to fill on another site)" className={inputClass} />
-          <div className="flex items-center gap-4 text-sm text-neutral-600">
+            placeholder="Document or link we give THEM (optional) — e.g. the handbook, or a contract to print and sign" className={inputClass} />
+          <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-600">
             <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={it.required !== false} onChange={(e) => setItem(i, { required: e.target.checked })} /> Required
             </label>
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={!!it.needs_document} onChange={(e) => setItem(i, { needs_document: e.target.checked })} /> Needs document
+            {/* "Needs document" read as "am I giving them one, or asking for one?" —
+                it has only ever meant the latter, so say so. */}
+            <label className="flex items-center gap-1.5"
+              title="Adds an Upload button to their checklist. To hand them a document instead, use the link field above.">
+              <input type="checkbox" checked={!!it.needs_document} onChange={(e) => setItem(i, { needs_document: e.target.checked })} />
+              They upload a document to us
             </label>
             <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={!!it.needs_approval} onChange={(e) => setItem(i, { needs_approval: e.target.checked })} /> Needs admin approval
             </label>
           </div>
+          {it.needs_document && (
+            <p className="text-xs text-neutral-400">
+              They will see an Upload button on this item and the file comes back to you for review.
+            </p>
+          )}
         </div>
       ))}
       <div className="flex items-center gap-3">
@@ -283,6 +292,39 @@ const AdminOnboarding = ({ orgId }) => {
     }
   }
 
+  const deleteTemplate = async (t, { force = false } = {}) => {
+    if (!force && !window.confirm(`Delete the "${t.name}" template? This can't be undone.`)) return
+    try {
+      await api.delete(withOrg(`/api/sis/staff-admin/onboarding/templates/${t.id}${force ? '?force=1' : ''}`, orgId))
+      toast.success('Template deleted')
+      load()
+    } catch (err) {
+      // 409 = still assigned to people. Say who, then let them confirm.
+      if (err?.response?.status === 409) {
+        if (window.confirm(`${err.response.data?.error}\n\nTheir checklists stay in place.`)) {
+          deleteTemplate(t, { force: true })
+        }
+        return
+      }
+      toast.error(err?.response?.data?.error || 'Could not delete the template')
+    }
+  }
+
+  const unassign = async (a) => {
+    const done = a.done_count || 0
+    const warning = done
+      ? `\n\n${done} of ${a.total_count} items are already done. Any documents they uploaded are kept.`
+      : ''
+    if (!window.confirm(`Remove "${a.template_name}" from ${a.user_name}?${warning}`)) return
+    try {
+      await api.delete(withOrg(`/api/sis/staff-admin/onboarding/assignments/${a.id}`, orgId))
+      toast.success('Checklist removed')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove the checklist')
+    }
+  }
+
   const reviewItem = async (assignmentId, itemKey, status) => {
     try {
       await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
@@ -318,7 +360,10 @@ const AdminOnboarding = ({ orgId }) => {
               </span>
               {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
               <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
-              <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline ml-auto">Edit</button>
+              <div className="ml-auto flex items-center gap-3">
+                <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
+                <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
+              </div>
             </li>
           ))}
         </ul>
@@ -377,6 +422,13 @@ const AdminOnboarding = ({ orgId }) => {
                   a.status === 'complete' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'}`}>
                   {a.done_count}/{a.total_count}
                 </span>
+                <button
+                  onClick={(e) => { e.preventDefault(); unassign(a) }}
+                  className="text-xs text-red-600 hover:underline shrink-0"
+                  title="Remove this checklist — their uploaded documents are kept"
+                >
+                  Unassign
+                </button>
               </summary>
               <ul className="px-3 pb-3 divide-y divide-gray-100">
                 {(a.items || []).map((item) => (

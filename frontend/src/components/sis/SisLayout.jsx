@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Outlet, Navigate, useNavigate, Link } from 'react-router-dom'
+import { Outlet, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
+import { Bars3Icon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { goToLearningSurface } from '../../utils/appSurface'
 import api from '../../services/api'
@@ -75,6 +76,12 @@ const Spinner = () => (
  */
 const SisLayout = () => {
   const { isAuthenticated, effectiveRole, user, loading } = useAuth()
+  const [navOpen, setNavOpen] = useState(false)
+  const location = useLocation()
+
+  // Close the drawer on navigation — otherwise it stays over the page you just
+  // opened. (Hooks run before the auth guards below, which is why they're here.)
+  useEffect(() => { setNavOpen(false) }, [location.pathname])
 
   if (loading) return <Spinner />
 
@@ -94,12 +101,35 @@ const SisLayout = () => {
 
   return (
     <div className="min-h-screen bg-neutral-50">
-      <SisSidebar />
-      <main id="main-content" className="ml-60 min-h-screen">
+      <SisSidebar open={navOpen} onNavigate={() => setNavOpen(false)} />
+      {/* Scrim behind the drawer on small screens */}
+      {navOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setNavOpen(false)}
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+        />
+      )}
+      <main id="main-content" className="lg:ml-60 min-h-screen">
+        {/* Small-screen header. Without this the fixed sidebar simply ran off
+            the edge of a tablet and there was no way back to the dashboard. */}
+        <header className="lg:hidden sticky top-0 z-30 flex items-center gap-3 h-14 px-4 bg-white border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={navOpen}
+            className="p-2 -ml-2 rounded-lg text-neutral-600 hover:bg-neutral-100"
+          >
+            <Bars3Icon className="w-6 h-6" />
+          </button>
+          <Link to="/" className="font-semibold text-neutral-900">Optio <span className="text-xs uppercase tracking-wide text-neutral-400">SIS</span></Link>
+        </header>
         {admin && <PreviewBanner />}
         {/* Teacher (non-admin, not previewing): nudge until onboarding is done. */}
         {!admin && !previewing && <OnboardingNudge />}
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <Outlet />
         </div>
       </main>

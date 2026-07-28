@@ -1,12 +1,24 @@
 """
 SIS gradebook-lite routes — assignment/score tracking per student per class.
 
+RETIRED FROM THE UI (2026-07-28). The hand-entered score book was replaced by
+the automatic Student Progress tab (GET /api/sis/classes/<id>/progress in
+routes/sis/class_quests.py), which reports what students have actually
+completed instead of what a teacher remembered to type in. iCreate confirmed
+they don't need numeric scores.
+
+These endpoints and the sis_assignment_templates / sis_student_assignments
+tables are DELIBERATELY LEFT IN PLACE so no existing score data is destroyed —
+any org that entered scores can still read them back through the API. Nothing
+in the frontend calls this any more. Delete the routes and tables only after
+confirming no org has rows worth keeping.
+
 Replaces microschool Google-Sheets gradebooks (e.g. CLE workbook sequences:
 "Workbook 101 - Quiz 1 / Quiz 2 / Corrections / Test" with scheduled/completed
 dates, scores, notes, and a running average per student).
 
 Scores are an SIS record-keeping concern only — they never touch the XP/quest
-model. NEW, additive (/api/sis/gradebook), staff-gated, org-scoped; advisors
+model. Additive (/api/sis/gradebook), staff-gated, org-scoped; advisors
 are confined to their own classes via sis_service.class_scope.
 """
 

@@ -143,6 +143,7 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
           onEmployment={() => { setManaging(viewing); setViewing(null) }}
           onLink={() => { setLinking(viewing); setViewing(null) }}
           onViewPortal={() => openPortalPreview(viewing)}
+          onRemoved={() => { setViewing(null); load() }}
         />
       )}
 

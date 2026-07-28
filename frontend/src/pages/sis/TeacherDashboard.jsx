@@ -103,7 +103,8 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   if (!data) return <p className="text-neutral-500">Nothing to show yet.</p>
 
   const { today = [], classes = [], profile = {}, open_time_entry: openEntry,
-    onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [] } = data
+    onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [],
+    staff_resources: staffResources = [] } = data
 
   const todayClasses = today.filter((i) => i.kind === 'class')
 
@@ -220,6 +221,28 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
               <Link to="/time" className="block text-center text-sm text-optio-purple hover:underline mt-3">
                 View my hours
               </Link>
+            </Card>
+          )}
+
+          {/* The staff handbook and anything else the school keeps for teachers.
+              Previously only reachable while an acknowledgment was outstanding. */}
+          {staffResources.length > 0 && (
+            <Card title="Teacher resources"
+              action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
+              <ul className="space-y-2">
+                {staffResources.slice(0, 5).map((r) => (
+                  <li key={r.id}>
+                    {r.url ? (
+                      <a href={r.url} target="_blank" rel="noopener noreferrer"
+                        className="text-sm text-neutral-700 hover:text-optio-purple truncate block">
+                        {r.title}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-neutral-700 truncate block">{r.title}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </Card>
           )}
 

@@ -25,6 +25,9 @@ SIS_CLASS_FIELDS = (
     'waitlist_enabled', 'registration_status', 'requires_full_day',
     # iCreate catalog extras (display-only): a class image + an optional supply fee.
     'image_url', 'supply_fee',
+    # Per-class override for the tuition-funded materials allowance, in dollars
+    # per enrolled student per year. NULL falls back to the org default.
+    'supply_budget_per_student',
 )
 
 

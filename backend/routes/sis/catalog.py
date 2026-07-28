@@ -118,9 +118,11 @@ def _validate_class_fields(data):
             and data['min_age'] > data['max_age']:
         return 'min_age cannot exceed max_age'
     # supply_fee is dollars (numeric), display-only; accept any non-negative number.
-    sf = data.get('supply_fee')
-    if sf is not None and (isinstance(sf, bool) or not isinstance(sf, (int, float)) or sf < 0):
-        return 'supply_fee must be a non-negative number'
+    # supply_budget_per_student is the same shape: dollars per student per year.
+    for key in ('supply_fee', 'supply_budget_per_student'):
+        v = data.get(key)
+        if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0):
+            return f'{key} must be a non-negative number'
     return None
 
 

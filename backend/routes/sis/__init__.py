@@ -20,6 +20,7 @@ from flask import Blueprint, request, jsonify, Response
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
+from services import sis_staff_service
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
 
@@ -150,6 +151,59 @@ def update_staff(user_id, staff_id):
     if updated is None:
         return jsonify({'success': False, 'error': 'Staff member not found'}), 404
     return jsonify({'success': True, 'staff': updated})
+
+
+@bp.route('/staff/<staff_id>/removal-preview', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def staff_removal_preview(user_id, staff_id):
+    """What removing this person would affect — which classes lose their teacher,
+    and whether they carry history that rules out deleting them outright."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = sis_staff_service.staff_removal_preview(org_id, staff_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/staff/<staff_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def remove_staff(user_id, staff_id):
+    """Archive a staff member, or delete them outright with ?mode=delete.
+
+    Archive is the default because it is always safe. Delete is refused by the
+    service when the person has attendance, timesheets, forms, or onboarding
+    attached — it exists for the placeholder rows schools create while hiring.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if staff_id == user_id:
+        return jsonify({'success': False, 'error': "You can't remove your own account"}), 400
+    mode = (request.args.get('mode') or 'archive').strip().lower()
+    if mode == 'delete':
+        result = sis_staff_service.delete_staff(org_id, staff_id)
+    else:
+        result = sis_staff_service.archive_staff(org_id, staff_id, actor_id=user_id)
+    if result.get('error'):
+        status = 404 if result['error'] == 'Staff member not found' else 409
+        return jsonify({'success': False, 'error': result['error'],
+                        'blocking': result.get('blocking')}), status
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/staff/<staff_id>/restore', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def restore_staff(user_id, staff_id):
+    """Bring an archived staff member back. Their classes stay unassigned."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = sis_staff_service.restore_staff(org_id, staff_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/staff/<staff_id>/photo', methods=['POST'])
@@ -799,6 +853,10 @@ def register_sis_routes(app):
     app.register_blueprint(class_materials_bp)
     from routes.sis.class_quests import bp as class_quests_bp
     app.register_blueprint(class_quests_bp)
+    from routes.sis.curriculum import bp as sis_curriculum_bp
+    app.register_blueprint(sis_curriculum_bp)
+    from routes.sis.staff_training import bp as staff_training_bp
+    app.register_blueprint(staff_training_bp)
     from routes.sis.secure_documents import bp as secure_documents_bp
     app.register_blueprint(secure_documents_bp)
     from routes.sis.parent_forms import bp as parent_forms_bp

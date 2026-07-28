@@ -125,6 +125,12 @@ def upload_secure_document(user_id):
         'size_bytes': size_bytes,
         'category': _clean('category'),
         'note': _clean('note'),
+        # Opt-in, and off unless the admin says otherwise. This store holds
+        # background checks; a document must never become visible to the person
+        # it is about just because it was filed against them.
+        'shared_with_owner': (request.form.get('shared_with_owner')
+                              or request.args.get('shared_with_owner')
+                              or '').strip().lower() in ('1', 'true', 'yes'),
     }
     try:
         inserted = (supabase.table('sis_secure_documents').insert(row).execute()).data
@@ -181,6 +187,35 @@ def _doc_or_error(user_id, doc_id):
     if not rows or rows[0].get('organization_id') != org_id:
         return None, None, (jsonify({'success': False, 'error': 'Document not found'}), 404)
     return rows[0], org_id, None
+
+
+@bp.route('/secure-documents/<doc_id>', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+def update_secure_document(user_id, doc_id):
+    """Change a document's sharing or filing details.
+
+    Sharing is the interesting one: turning `shared_with_owner` on is what makes
+    a contract visible to the teacher it belongs to, in their My Documents page.
+    Turning it back off hides it again — the file is not deleted.
+    """
+    doc, _org_id, err = _doc_or_error(user_id, doc_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    fields = {}
+    if 'shared_with_owner' in data:
+        if not doc.get('owner_user_id') and data.get('shared_with_owner'):
+            return jsonify({'success': False,
+                            'error': 'Attach this document to a person before sharing it'}), 400
+        fields['shared_with_owner'] = bool(data['shared_with_owner'])
+    for key in ('category', 'note'):
+        if key in data:
+            fields[key] = (data.get(key) or '').strip() or None
+    if not fields:
+        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+    row = (get_supabase_admin_client().table('sis_secure_documents')
+           .update(fields).eq('id', doc_id).execute()).data
+    return jsonify({'success': True, 'document': (row or [doc])[0]})
 
 
 @bp.route('/secure-documents/<doc_id>/url', methods=['GET'])

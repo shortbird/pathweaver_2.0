@@ -123,6 +123,16 @@ class BountyService(BaseService):
         if visibility not in ('public', 'organization', 'family'):
             raise ValidationError(f"Invalid visibility: {visibility}")
 
+        # Audience — who may claim it. Defaults to students, so nothing about
+        # existing bounty creation changes.
+        audience = (data.get('audience') or 'students').strip().lower()
+        if audience not in ('students', 'staff'):
+            raise ValidationError(f"Invalid audience: {audience}")
+        if audience == 'staff' and visibility != 'organization':
+            # A staff bounty is a school's internal business. Public or family
+            # visibility would put it on boards belonging to other schools.
+            raise ValidationError("Staff bounties must use 'organization' visibility")
+
         # Build requirements text from deliverables for backwards compatibility
         requirements_text = '\n'.join(f"- {d['text']}" for d in deliverables)
 
@@ -182,6 +192,10 @@ class BountyService(BaseService):
             # Optional cohort restriction (The Treehouse "differentiate boards by
             # cohort"): when set, only students enrolled in this org_class see it.
             'cohort_class_id': data.get('cohort_class_id') or None,
+            # Who this is for. 'staff' bounties are teacher training bonuses and
+            # never appear on a student board; anything unspecified stays a
+            # student bounty, which is every bounty that existed before this.
+            'audience': audience,
         }
 
         bounty = self.repository.create_bounty(bounty_data)
@@ -368,9 +382,10 @@ class BountyService(BaseService):
         """List active bounties visible to the user, with optional filters."""
         all_bounties = self.repository.list_active_bounties(pillar=pillar, bounty_type=bounty_type)
 
-        # Get user info for visibility filtering
+        # Get user info for visibility filtering (org_role too: org-managed staff
+        # carry their real role there, and it decides which board they see).
         user_result = self.repository.client.table('users').select(
-            'id, role, organization_id, managed_by_parent_id'
+            'id, role, org_role, organization_id, managed_by_parent_id'
         ).eq('id', user_id).execute()
 
         if not user_result.data:
@@ -379,6 +394,14 @@ class BountyService(BaseService):
         user = user_result.data[0]
         user_org_id = user.get('organization_id')
         is_superadmin = user.get('role') == 'superadmin'
+
+        # Split the two boards before anything else: staff training bounties are
+        # not student content, and student bounties are not staff work. A
+        # superadmin sees whichever board they asked for rather than both mixed.
+        wanted_audience = 'staff' if self._is_staff_user(user) else 'students'
+        all_bounties = [b for b in all_bounties
+                        if (b.get('audience') or 'students') == wanted_audience
+                        or (is_superadmin and b['poster_id'] == user_id)]
 
         # Adults connected to this user (managing parent, approved parent
         # links, observers) — their family-visibility bounties are visible.
@@ -544,8 +567,43 @@ class BountyService(BaseService):
 
         return False
 
+    @staticmethod
+    def _is_staff_user(user: Dict[str, Any]) -> bool:
+        """Teacher or org admin — the people staff bounties are for. Org-managed
+        users carry their real role in org_role."""
+        role = user.get('role')
+        effective = user.get('org_role') if role == 'org_managed' else role
+        return effective in ('advisor', 'org_admin')
+
+    def _audience_matches_claimer(self, claimer_id: str, bounty: Dict[str, Any]) -> bool:
+        """Whether this person is who the bounty was posted for.
+
+        Staff can claim bounties since 2026-07-28 (teacher training bonuses), so
+        audience is what keeps the two boards apart: a teacher must not be able
+        to claim the bounty a parent posted for their own child, and a student
+        must not pick up staff training. Superadmins bypass, as everywhere else.
+        """
+        audience = (bounty.get('audience') or 'students').strip().lower()
+        user = None
+        try:
+            rows = (self.repository.client.table('users')
+                    .select('role, org_role').eq('id', claimer_id).execute()).data
+            if isinstance(rows, list) and rows:
+                user = rows[0]
+        except Exception:
+            logger.warning('Could not resolve claimer role for audience check', exc_info=True)
+
+        if user and user.get('role') == 'superadmin':
+            return True
+        # An unresolvable role counts as "not staff": that still lets a student
+        # claim a student bounty, and refuses a staff bounty to anyone we cannot
+        # positively identify as staff, which is the direction that matters.
+        is_staff = self._is_staff_user(user) if user else False
+        return is_staff if audience == 'staff' else not is_staff
+
     def claim_bounty(self, bounty_id: str, student_id: str) -> Dict[str, Any]:
-        """Student claims a bounty."""
+        """Claim a bounty. `student_id` is the claimer — a student, or (for
+        audience='staff' training bounties) a teacher or org admin."""
         bounty = self.repository.get_bounty_by_id(bounty_id)
         if not bounty:
             raise NotFoundError(f"Bounty {bounty_id} not found")
@@ -553,10 +611,14 @@ class BountyService(BaseService):
         if bounty['status'] != 'active':
             raise ValidationError("Bounty is not active")
 
-        # Enforce visibility: a student can only claim a bounty they can see
+        # Enforce visibility: a claimer can only claim a bounty they can see
         # on their board (family bounties from their own adults, org bounties
         # from their own org). Prevents claiming via a shared direct link.
         if not self._student_can_access_bounty(student_id, bounty):
+            raise NotFoundError(f"Bounty {bounty_id} not found")
+
+        # 404 rather than 403: a staff bounty simply isn't on a student's board.
+        if not self._audience_matches_claimer(student_id, bounty):
             raise NotFoundError(f"Bounty {bounty_id} not found")
 
         # Check capacity (0 = unlimited)

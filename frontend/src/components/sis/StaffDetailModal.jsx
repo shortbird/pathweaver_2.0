@@ -31,9 +31,55 @@ const Row = ({ label, value }) => (
 
 const actionBtn = 'px-3 py-2 rounded-lg text-sm font-medium transition-colors'
 
-export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmployment, onLink, onViewPortal }) {
+export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmployment, onLink, onViewPortal, onRemoved }) {
   const [profile, setProfile] = useState(null)
   const [resending, setResending] = useState(false)
+  const [removing, setRemoving] = useState(false)
+
+  /**
+   * Remove this person. Asks the backend first what removal would affect, then
+   * offers only what is actually safe: a clean placeholder can be deleted
+   * outright, anyone with history can only be archived. The confirm names the
+   * classes that will lose their teacher — "unassigns 3 classes" is the part
+   * people regret not being told.
+   */
+  const remove = async () => {
+    setRemoving(true)
+    try {
+      const { data } = await api.get(
+        `/api/sis/staff/${staff.id}/removal-preview?organization_id=${orgId}`)
+      const classNames = (data.classes || []).map((c) => c.name).filter(Boolean)
+      const classLine = classNames.length
+        ? `\n\nThese classes will show no teacher until you reassign them:\n· ${classNames.join('\n· ')}`
+        : ''
+
+      if (data.can_delete) {
+        const choice = window.confirm(
+          `Delete ${staff.name} permanently?${classLine}\n\n`
+          + 'They have no attendance, timesheets, forms, or onboarding on record, so nothing is lost.\n\n'
+          + 'OK to delete, Cancel to keep them.')
+        if (!choice) { setRemoving(false); return }
+        const r = await api.delete(
+          `/api/sis/staff/${staff.id}?organization_id=${orgId}&mode=delete`)
+        toast.success(`${r.data?.name || staff.name} deleted`)
+      } else {
+        const kinds = Object.keys(data.blocking || {}).join(', ')
+        const choice = window.confirm(
+          `Archive ${staff.name}?${classLine}\n\n`
+          + `They can't be deleted because they have school records attached (${kinds}). `
+          + 'Archiving hides them from staff lists and the directory without losing any history, '
+          + 'and can be undone.\n\nOK to archive, Cancel to keep them.')
+        if (!choice) { setRemoving(false); return }
+        const r = await api.delete(`/api/sis/staff/${staff.id}?organization_id=${orgId}`)
+        toast.success(`${r.data?.name || staff.name} archived`)
+      }
+      onRemoved && onRemoved()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove this person')
+    } finally {
+      setRemoving(false)
+    }
+  }
 
   const resendInvite = async () => {
     setResending(true)
@@ -117,6 +163,10 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
 
         {/* Actions */}
         <div className="flex flex-wrap items-center justify-end gap-2 p-4 border-t border-gray-200 shrink-0">
+          <button onClick={remove} disabled={removing}
+            className={`${actionBtn} text-red-600 hover:bg-red-50 mr-auto disabled:opacity-50`}>
+            {removing ? 'Working…' : 'Remove'}
+          </button>
           <button onClick={onViewPortal} className={`${actionBtn} text-neutral-700 hover:bg-gray-100`}>
             View portal
           </button>

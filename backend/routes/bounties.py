@@ -146,7 +146,7 @@ def update_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claim', methods=['POST', 'OPTIONS'])
-@require_role('student', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'superadmin')
 def claim_bounty(user_id, bounty_id):
     """Claim a bounty."""
     try:
@@ -165,7 +165,7 @@ def claim_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/deliverables', methods=['PUT', 'OPTIONS'])
-@require_role('student', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'superadmin')
 def toggle_deliverable(user_id, bounty_id, claim_id):
     """Toggle a deliverable as completed/uncompleted. Auto-submits when all done."""
     try:
@@ -195,7 +195,7 @@ def toggle_deliverable(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/turn-in', methods=['POST', 'OPTIONS'])
-@require_role('student', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'superadmin')
 def turn_in_bounty(user_id, bounty_id, claim_id):
     """Student turns in a bounty for review."""
     try:
@@ -218,7 +218,7 @@ def turn_in_bounty(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>', methods=['DELETE', 'OPTIONS'])
-@require_role('student', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'superadmin')
 def abandon_claim(user_id, bounty_id, claim_id):
     """Student drops a bounty they claimed (before turning it in)."""
     try:
@@ -235,7 +235,7 @@ def abandon_claim(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/evidence/<deliverable_id>/<int:evidence_index>', methods=['DELETE', 'OPTIONS'])
-@require_role('student', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'superadmin')
 def delete_deliverable_evidence(user_id, bounty_id, claim_id, deliverable_id, evidence_index):
     """Delete a specific evidence item from a deliverable."""
     try:
@@ -308,7 +308,7 @@ def get_my_posted(user_id):
 
 
 @bounties_bp.route('/api/bounties/my-claims', methods=['GET', 'OPTIONS'])
-@require_role('student', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'superadmin')
 def get_my_claims(user_id):
     """Get bounties claimed by current user, enriched with bounty data."""
     try:

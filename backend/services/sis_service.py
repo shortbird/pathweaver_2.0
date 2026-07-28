@@ -616,8 +616,21 @@ def _user_org_roles(u: Dict[str, Any]) -> List[str]:
     return list(dict.fromkeys(roles))
 
 
-def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
+def _archived_staff_ids(org_id: str) -> set:
+    """Staff whose profile has been archived — hidden from staff lists but still
+    attached to their history (see sis_staff_service.archive_staff)."""
+    try:
+        rows = (_admin().table('sis_staff_profiles').select('user_id, archived_at')
+                .eq('organization_id', org_id).not_.is_('archived_at', 'null')
+                .execute()).data or []
+    except Exception:  # noqa: BLE001 — pre-migration DBs simply have nobody archived
+        return set()
+    return {r['user_id'] for r in rows if r.get('archived_at')}
+
+
+def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
     """Org staff (org_admin / advisor) with their role labels, for the SIS Staff page."""
+    archived = set() if include_archived else _archived_staff_ids(org_id)
     resp = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, '
@@ -634,6 +647,8 @@ def list_org_staff(org_id: str) -> List[Dict[str, Any]]:
         roles = _user_org_roles(u)
         staff_roles = [r for r in STAFF_ORG_ROLES if r in roles]
         if not staff_roles:
+            continue
+        if u['id'] in archived:
             continue
         out.append({
             'id': u['id'],

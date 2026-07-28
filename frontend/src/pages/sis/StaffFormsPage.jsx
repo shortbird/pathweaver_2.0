@@ -27,7 +27,7 @@ const StatusPill = ({ status }) => (
   </span>
 )
 
-const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false }) => {
+const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false, admin = false }) => {
   const [formType, setFormType] = useState('incident')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -57,12 +57,14 @@ const SubmitForm = ({ orgId, formTypes, onSubmitted, disabled = false }) => {
   return (
     <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
       <h2 className="font-semibold text-neutral-900">Submit a form</h2>
-      {disabled && (
-        <p className="text-sm text-neutral-500">
-          This is what teachers use to file incident reports, supply requests, and more.
-          Submitting is turned off while previewing.
-        </p>
-      )}
+      {/* Teachers see this page too, so the description is written to them.
+          Admins get the third-person version, which is what they're here for. */}
+      <p className="text-sm text-neutral-500">
+        {admin
+          ? 'This is what teachers use to file incident reports, supply requests, and more.'
+          : 'Submit your supply requests, incident reports, and more.'}
+        {disabled && ' Submitting is turned off while previewing.'}
+      </p>
       <fieldset disabled={disabled} className={disabled ? 'opacity-60 space-y-3' : 'space-y-3'}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <select value={formType} onChange={(e) => setFormType(e.target.value)} className={inputClass}>
@@ -195,7 +197,8 @@ const StaffFormsPage = () => {
       </div>
 
       {Object.keys(formTypes).length > 0 && (
-        <SubmitForm orgId={orgId} formTypes={formTypes} onSubmitted={loadMine} disabled={Boolean(preview)} />
+        <SubmitForm orgId={orgId} formTypes={formTypes} onSubmitted={loadMine}
+          disabled={Boolean(preview)} admin={admin && !preview} />
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">

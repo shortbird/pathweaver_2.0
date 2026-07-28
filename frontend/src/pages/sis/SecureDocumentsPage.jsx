@@ -126,6 +126,24 @@ const SecureDocumentsPage = () => {
 
   const aboutLabel = (d) => d.student_name || d.owner_name || '—'
 
+  // Sharing is per document and off by default — this store holds background
+  // checks, so visibility to the person a file is about is always a decision
+  // someone made on purpose.
+  const toggleShare = useCallback(async (doc) => {
+    const next = !doc.shared_with_owner
+    if (next && !window.confirm(
+      `Share "${doc.filename}" with ${doc.owner_name}? They'll see it in My Documents.`)) return
+    try {
+      await api.patch(`/api/sis/secure-documents/${doc.id}`, {
+        organization_id: orgId, shared_with_owner: next,
+      })
+      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, shared_with_owner: next } : d)))
+      toast.success(next ? 'Shared with them' : 'No longer shared')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not change sharing')
+    }
+  }, [orgId])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -240,6 +258,7 @@ const SecureDocumentsPage = () => {
                       <th className="py-3 px-4 font-semibold text-neutral-700">Document</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Category</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">About</th>
+                      <th className="py-3 px-4 font-semibold text-neutral-700">Shared</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Uploaded by</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700">Date</th>
                       <th className="py-3 px-4 font-semibold text-neutral-700 text-right">Actions</th>
@@ -257,6 +276,29 @@ const SecureDocumentsPage = () => {
                         </td>
                         <td className="py-3 px-4 text-neutral-700">{d.category || '—'}</td>
                         <td className="py-3 px-4 text-neutral-700">{aboutLabel(d)}</td>
+                        <td className="py-3 px-4">
+                          {d.uploaded_by_owner ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                              They sent this
+                            </span>
+                          ) : !d.owner_user_id ? (
+                            <span className="text-xs text-neutral-400">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleShare(d)}
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                d.shared_with_owner
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}
+                              title={d.shared_with_owner
+                                ? 'They can see this in My Documents — click to stop sharing'
+                                : 'Only admins can see this — click to share it with them'}
+                            >
+                              {d.shared_with_owner ? 'Shared with them' : 'Private'}
+                            </button>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-neutral-700">{d.uploaded_by_name || '—'}</td>
                         <td className="py-3 px-4 text-neutral-700 whitespace-nowrap">{formatDate(d.created_at)}</td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">

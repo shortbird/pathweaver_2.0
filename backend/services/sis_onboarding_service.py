@@ -99,13 +99,36 @@ def save_template(org_id: str, data: Dict[str, Any], actor_id: str,
     return {'template': row[0] if row else None}
 
 
-def delete_template(org_id: str, template_id: str) -> bool:
+def count_template_assignments(org_id: str, template_id: str) -> int:
+    """How many people currently hold a checklist from this template."""
+    rows = (_admin().table('sis_onboarding_assignments').select('id')
+            .eq('organization_id', org_id).eq('template_id', template_id).execute()).data
+    return len(rows or [])
+
+
+def delete_template(org_id: str, template_id: str,
+                    force: bool = False) -> Dict[str, Any]:
+    """Delete a template.
+
+    Refuses while people still hold a checklist from it — deleting would leave
+    those assignments pointing at nothing, and the usual intent is to edit the
+    template rather than strand four half-finished checklists. `force=True` is
+    the caller's explicit override (the UI asks first); assignments survive it,
+    because `template_id` is ON DELETE SET NULL and each assignment carries its
+    own `template_name` and item copy.
+    """
     rows = (_admin().table('sis_onboarding_templates').select('id, organization_id')
             .eq('id', template_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
-        return False
+        return {'error': 'Template not found', 'status': 404}
+    assigned = count_template_assignments(org_id, template_id)
+    if assigned and not force:
+        return {'error': (f'This template is assigned to {assigned} '
+                          f'{"person" if assigned == 1 else "people"}. '
+                          'Delete it anyway? Their checklists will be kept.'),
+                'assigned_count': assigned, 'status': 409}
     _admin().table('sis_onboarding_templates').delete().eq('id', template_id).execute()
-    return True
+    return {'deleted': True, 'assigned_count': assigned}
 
 
 # ── Assignments ──────────────────────────────────────────────────────────────
@@ -198,6 +221,28 @@ def list_assignments(org_id: str, user_id: Optional[str] = None) -> List[Dict[st
         r['done_count'] = len([i for i in items if i.get('status') in ('complete', 'approved')])
         r['total_count'] = len(items)
     return rows
+
+
+def unassign(org_id: str, assignment_id: str) -> Dict[str, Any]:
+    """Remove a checklist from someone (the "oops, wrong template" undo).
+
+    Uploaded documents are deliberately LEFT IN STORAGE. An accidental unassign
+    must not destroy a background check or a signed contract someone already
+    sent in; the files stay in the private staff-documents bucket and any
+    re-assignment starts a fresh checklist. Returns how many documents were
+    detached so the UI can warn before removing a checklist with real work in it.
+    """
+    rows = (_admin().table('sis_onboarding_assignments')
+            .select('id, organization_id, items, template_name')
+            .eq('id', assignment_id).limit(1).execute()).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return {'error': 'Checklist not found'}
+    items = rows[0].get('items') or []
+    docs = len([i for i in items if i.get('document_url')])
+    done = len([i for i in items if i.get('status') in ('complete', 'approved')])
+    _admin().table('sis_onboarding_assignments').delete().eq('id', assignment_id).execute()
+    return {'unassigned': True, 'documents_kept': docs, 'items_completed': done,
+            'template_name': rows[0].get('template_name')}
 
 
 def _load_assignment(org_id: str, assignment_id: str) -> Optional[Dict[str, Any]]:
