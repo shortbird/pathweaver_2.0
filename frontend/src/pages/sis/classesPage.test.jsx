@@ -306,6 +306,34 @@ describe('ClassesPage', () => {
     expect(screen.getByText('3')).toBeInTheDocument()
   })
 
+  it('offers the next seat straight from a class row when a seat is open and someone is waiting', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Offer next seat' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/classes/c1/waitlist/offer-next', { organization_id: 'org-1' }),
+    )
+  })
+
+  it('hides the row offer-seat button when the class is full', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Pottery', enrolled_count: 10, capacity: 10, is_full: true,
+            registration_status: 'open', waitlist_count: 3, meetings: [] },
+        ] } })
+      }
+      if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: [] } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    await screen.findByText('Waitlist')
+    expect(screen.queryByRole('button', { name: 'Offer next seat' })).not.toBeInTheDocument()
+  })
+
   it('creates classes open for registration by default, with the checkbox opting out', async () => {
     render(<ClassesPage />)
     await screen.findByText('Pottery')

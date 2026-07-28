@@ -314,6 +314,19 @@ const ClassesPage = () => {
     }
   }
 
+  // Offer the open seat to the next waiting student, straight from a class row —
+  // no need to open the class and switch to the Waitlist tab. Only surfaced on
+  // rows that actually have an open seat AND a waitlist (see ClassesTable).
+  const offerNextSeat = async (c) => {
+    try {
+      const r = await api.post(`/api/sis/classes/${c.id}/waitlist/offer-next`, { organization_id: orgId })
+      toast.success(r.data?.entry ? 'Seat offered to next student' : 'No one waiting')
+      load(true)  // silent — refresh the counts without collapsing the table
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not offer seat')
+    }
+  }
+
   // Every non-archived class that isn't open is invisible to families in the
   // Schedule Builder — new classes default to closed, which is easy to miss.
   const closedClasses = classes.filter((c) => c.registration_status !== 'open' && c.status !== 'archived')
@@ -469,6 +482,7 @@ const ClassesPage = () => {
           onDuplicate={duplicateClass}
           onArchive={archiveClass}
           onRestore={restoreClass}
+          onOfferSeat={offerNextSeat}
         />
       )}
 

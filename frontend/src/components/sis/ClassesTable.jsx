@@ -139,10 +139,11 @@ const SortHeader = ({ label, sortKey, sort, onSort, className = '' }) => {
   )
 }
 
-const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore }) => {
+const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat }) => {
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
   const [expandedId, setExpandedId] = useState(null)
   const [saving, setSaving] = useState(null) // class_id mid-save
+  const [offering, setOffering] = useState(null) // class_id mid seat-offer
   const [sort, setSort] = useState([]) // ordered [{ key, dir }] — index 0 is primary
 
   // Click cycles a column asc -> desc -> off. A column not yet in the sort is
@@ -188,6 +189,11 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
       const ok = await onSave(c, draftToPayload(d))
       if (ok) cancel(c.id)
     } finally { setSaving(null) }
+  }
+
+  const offerSeat = async (c) => {
+    setOffering(c.id)
+    try { await onOfferSeat(c) } finally { setOffering(null) }
   }
 
   return (
@@ -248,9 +254,24 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                     {c.is_full && <span className="ml-1.5 text-[10px] font-semibold text-red-500">FULL</span>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {c.waitlist_count > 0
-                      ? <span className="text-amber-700 font-medium">{c.waitlist_count}</span>
-                      : <span className="text-neutral-300">—</span>}
+                    <div className="flex items-center gap-2">
+                      {c.waitlist_count > 0
+                        ? <span className="text-amber-700 font-medium">{c.waitlist_count}</span>
+                        : <span className="text-neutral-300">—</span>}
+                      {/* Offer the open seat to the next waiting student right here.
+                          Only when a seat is actually open (not full) and someone
+                          is waiting — offering into a full class over-enrolls. */}
+                      {onOfferSeat && c.waitlist_count > 0 && !c.is_full && c.status !== 'archived' && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); offerSeat(c) }}
+                          disabled={offering === c.id}
+                          title="Offer the open seat to the next student on the waitlist"
+                          className="text-[11px] font-semibold px-2 py-1 rounded-md border border-optio-purple/40 text-optio-purple hover:bg-optio-purple/5 disabled:opacity-50 transition-colors">
+                          {offering === c.id ? '…' : 'Offer next seat'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <ChevronDownIcon className={`w-4 h-4 text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`} />
