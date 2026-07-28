@@ -72,6 +72,101 @@ def _class_subject_override(supabase, quest_id: str, xp_value: int):
     return None, None
 
 
+def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_id: str,
+                          task: dict, *, save_to_library: bool = True):
+    """Shared persistence for an accepted/created quest task.
+
+    Single source of truth for turning a task dict (AI-suggested or hand-built)
+    into a user_quest_tasks row, so the student self-accept path
+    (accept_task_immediate) and the parent on-behalf-of-child path
+    (family_quests.create_task_for_dependent) store IDENTICAL data — including
+    success_criteria (the Definition of Done), AI subject classification, diploma
+    subjects, and the class-XP override. `target_user_id` is whose enrollment the
+    task is written to (self, or the managed child); callers own authorization.
+
+    Returns the inserted row dict, or None if the insert returned no data.
+    """
+    from services.task_library_service import TaskLibraryService
+    from utils.pillar_utils import normalize_pillar_name
+
+    # Clamp the (client-controlled) xp_value before it's persisted and copied
+    # into the shared task library. min_xp=1 matches the UI's validated floor.
+    try:
+        _raw_xp = int(task.get('xp_value', 100))
+    except (TypeError, ValueError):
+        _raw_xp = 100
+    task['xp_value'] = clamp_xp_value(_raw_xp, min_xp=1)
+
+    user_quest_id = get_or_create_enrollment(target_user_id, quest_id)
+
+    try:
+        pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
+    except ValueError:
+        pillar_key = 'stem'
+
+    diploma_subjects = normalize_diploma_subjects(
+        task.get('diploma_subjects', {}),
+        task.get('xp_value', 100)
+    )
+    next_order = get_next_order_index(target_user_id, quest_id)
+
+    subject_xp_distribution = {}
+    try:
+        subject_xp_distribution = subject_service.classify_task_subjects(
+            title=task['title'],
+            description=task.get('description', ''),
+            pillar=pillar_key,
+            xp_value=task.get('xp_value', 100)
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate subject distribution for task '{task.get('title')}': {e}")
+
+    # Class override: dump 100% of XP into the class's transcript_subject.
+    class_ds, class_sxd = _class_subject_override(supabase, quest_id, task.get('xp_value', 100))
+    if class_ds is not None:
+        diploma_subjects = class_ds
+        subject_xp_distribution = class_sxd
+
+    user_task = {
+        'user_id': target_user_id,
+        'quest_id': quest_id,
+        'user_quest_id': user_quest_id,
+        'title': task['title'],
+        'description': task.get('description', ''),
+        'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
+        'pillar': pillar_key,
+        'diploma_subjects': diploma_subjects,
+        'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
+        'xp_value': task.get('xp_value', 100),
+        'order_index': next_order,
+        'is_required': False,
+        'is_manual': False,
+        'approval_status': 'approved',
+        'created_at': datetime.utcnow().isoformat()
+    }
+
+    result = supabase.table('user_quest_tasks').insert(user_task).execute()
+    if not result.data:
+        return None
+
+    if save_to_library:
+        try:
+            library_service = TaskLibraryService()
+            library_service.add_library_task(quest_id, {
+                'title': task['title'],
+                'description': task.get('description', ''),
+                'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
+                'pillar': pillar_key,
+                'xp_value': task.get('xp_value', 100),
+                'diploma_subjects': diploma_subjects,
+                'ai_generated': True
+            })
+        except Exception as e:
+            logger.error(f"Failed to save task to library: {e}")
+
+    return result.data[0]
+
+
 @bp.route('/<quest_id>/start-personalization', methods=['POST'])
 @require_auth
 def start_personalization(user_id: str, quest_id: str):
@@ -828,8 +923,6 @@ def accept_task_immediate(user_id: str, quest_id: str):
     }
     """
     try:
-        from services.task_library_service import TaskLibraryService
-        from utils.pillar_utils import normalize_pillar_name
         from services.subject_classification_service import SubjectClassificationService
 
         # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
@@ -845,94 +938,15 @@ def accept_task_immediate(user_id: str, quest_id: str):
         session_id = data['session_id']
         task = data['task']
 
-        # QP-1 fix: clamp the student-controlled xp_value before this
-        # auto-approved task is created AND copied into the shared task library.
-        try:
-            _raw_xp = int(task.get('xp_value', 100))
-        except (TypeError, ValueError):
-            _raw_xp = 100
-        # min_xp=1 matches the UI's validated floor — see the twin call above.
-        task['xp_value'] = clamp_xp_value(_raw_xp, min_xp=1)
-
-        # Get or create enrollment
-        user_quest_id = get_or_create_enrollment(user_id, quest_id)
-
-        # Normalize pillar name
-        try:
-            pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
-        except ValueError:
-            pillar_key = 'stem'
-
-        # Handle diploma_subjects format
-        diploma_subjects = normalize_diploma_subjects(
-            task.get('diploma_subjects', {}),
-            task.get('xp_value', 100)
-        )
-
-        # Get next order_index
-        next_order = get_next_order_index(user_id, quest_id)
-
-        # Generate subject XP distribution using AI
-        subject_xp_distribution = {}
-        try:
-            subject_xp_distribution = subject_service.classify_task_subjects(
-                title=task['title'],
-                description=task.get('description', ''),
-                pillar=pillar_key,
-                xp_value=task.get('xp_value', 100)
-            )
-            logger.info(f"Generated subject distribution for accepted task '{task['title']}': {subject_xp_distribution}")
-        except Exception as e:
-            logger.error(f"Failed to generate subject distribution for accepted task '{task['title']}': {e}")
-
-        # Class override: dump 100% of XP into the class's transcript_subject
-        # so the credit bar moves by the task's full XP.
-        class_ds, class_sxd = _class_subject_override(supabase, quest_id, task.get('xp_value', 100))
-        if class_ds is not None:
-            diploma_subjects = class_ds
-            subject_xp_distribution = class_sxd
-
-        # Create user_quest_tasks entry
-        user_task = {
-            'user_id': user_id,
-            'quest_id': quest_id,
-            'user_quest_id': user_quest_id,
-            'title': task['title'],
-            'description': task.get('description', ''),
-            'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
-            'pillar': pillar_key,
-            'diploma_subjects': diploma_subjects,
-            'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
-            'xp_value': task.get('xp_value', 100),
-            'order_index': next_order,
-            'is_required': False,
-            'is_manual': False,
-            'approval_status': 'approved',
-            'created_at': datetime.utcnow().isoformat()
-        }
-
-        result = supabase.table('user_quest_tasks')\
-            .insert(user_task)\
-            .execute()
-
-        if not result.data:
+        # Shared persistence: writes success_criteria, AI subject classification,
+        # diploma subjects, class override, and the task library entry. Same helper
+        # the parent on-behalf-of-child path uses, so both stay identical.
+        inserted = persist_accepted_task(supabase, subject_service, user_id, quest_id, task)
+        if inserted is None:
             return jsonify({
                 'success': False,
                 'error': 'Failed to create task'
             }), 500
-
-        # Save task to library for future users
-        library_service = TaskLibraryService()
-        library_task_data = {
-            'title': task['title'],
-            'description': task.get('description', ''),
-            'success_criteria': sanitize_success_criteria(task.get('success_criteria')) or None,
-            'pillar': pillar_key,
-            'xp_value': task.get('xp_value', 100),
-            'diploma_subjects': diploma_subjects,
-            'ai_generated': True
-        }
-        library_service.add_library_task(quest_id, library_task_data)
 
         logger.info(f"User {user_id} accepted task '{task['title']}' for quest {quest_id}")
 
@@ -941,7 +955,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
 
         return jsonify({
             'success': True,
-            'task': result.data[0],
+            'task': inserted,
             'message': 'Task added to your quest'
         })
 

@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 # Evidence validation rules
 EVIDENCE_RULES = {
     'text': {
-        'min_length': 50,
+        'min_length': 0,
         'max_length': 5000,
         'required_fields': ['content']
     },

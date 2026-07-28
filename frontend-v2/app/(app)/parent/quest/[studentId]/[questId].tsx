@@ -160,6 +160,7 @@ function TaskCard({
   studentId,
   canComplete,
   onEvidenceAdded,
+  onDelete,
 }: {
   task: Task;
   studentId: string;
@@ -167,6 +168,9 @@ function TaskCard({
    *  acting_as_dependent_id for under-13 dependents. */
   canComplete: boolean;
   onEvidenceAdded: () => void;
+  /** When provided (managed dependents only), shows a delete control. Completed
+   *  tasks can't be deleted, so the control hides once the task is done. */
+  onDelete?: () => void;
 }) {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -249,14 +253,21 @@ function TaskCard({
               </View>
             )}
           </HStack>
-          {task.xp_value > 0 && (
-            <HStack className="items-center gap-1">
-              <Ionicons name="star" size={12} color="#FF9028" />
-              <UIText size="xs" className="font-poppins-bold" style={{ color: '#FF9028' }}>
-                {task.xp_value} XP
-              </UIText>
-            </HStack>
-          )}
+          <HStack className="items-center gap-2">
+            {task.xp_value > 0 && (
+              <HStack className="items-center gap-1">
+                <Ionicons name="star" size={12} color="#FF9028" />
+                <UIText size="xs" className="font-poppins-bold" style={{ color: '#FF9028' }}>
+                  {task.xp_value} XP
+                </UIText>
+              </HStack>
+            )}
+            {onDelete && !task.is_completed && (
+              <Pressable onPress={onDelete} hitSlop={8} className="p-1" accessibilityLabel="Remove task">
+                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+              </Pressable>
+            )}
+          </HStack>
         </HStack>
 
         <Heading size="sm">{task.title}</Heading>
@@ -418,8 +429,37 @@ export default function ParentQuestViewPage() {
       description: task.description,
       pillar: task.pillar,
       xp_value: task.xp_value,
+      // Forward the AI task's Definition of Done + subjects so the parent path
+      // stores the same data as the student self-accept path.
+      success_criteria: task.success_criteria,
+      diploma_subjects: task.diploma_subjects,
     });
     await fetchData();
+  };
+
+  // Delete a task from the CHILD's quest enrollment (parent on-behalf-of).
+  // Completed tasks can't be deleted (backend rejects). Confirms first.
+  const handleDeleteTask = (task: Task) => {
+    const doDelete = async () => {
+      try {
+        await api.delete(`/api/family/quests/${questId}/tasks/${task.id}`, {
+          params: { child_id: studentId },
+        });
+        await fetchData();
+      } catch (e: any) {
+        Alert.alert('Could not remove', e?.response?.data?.error || 'Failed to remove this task.');
+      }
+    };
+    const msg = `Remove "${task.title}"? This can't be undone.`;
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (typeof confirm !== 'function' || confirm(msg)) doDelete();
+    } else {
+      Alert.alert('Remove task?', msg, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   };
 
   // Mirrors useQuestDetail.generateTasks so the AI step is identical for parents.
@@ -434,7 +474,8 @@ export default function ParentQuestViewPage() {
       cross_curricular_subjects: subject ? [subject] : [],
       exclude_tasks: tasks.map((t) => t.title),
       ...(challengeLevel ? { challenge_level: challengeLevel } : {}),
-    });
+      // AI generation runs several model calls; override the 15s global timeout.
+    }, { timeout: 90000 });
     return gen.tasks || gen.generated_tasks || [];
   };
 
@@ -520,6 +561,7 @@ export default function ParentQuestViewPage() {
                   studentId={studentId!}
                   canComplete={data.is_dependent}
                   onEvidenceAdded={fetchData}
+                  onDelete={data.is_dependent ? () => handleDeleteTask(task) : undefined}
                 />
               ))
             )}

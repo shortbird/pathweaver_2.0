@@ -426,6 +426,7 @@ def get_student_quest_view(user_id, student_id, quest_id):
                 'id': task_id,
                 'title': task['title'],
                 'description': task.get('description'),
+                'success_criteria': task.get('success_criteria'),
                 'pillar': get_pillar_name(task['pillar']),
                 'xp_value': task.get('xp_value', 0),
                 'order_index': task.get('order_index', 0),

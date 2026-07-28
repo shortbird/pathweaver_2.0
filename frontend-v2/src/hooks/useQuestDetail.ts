@@ -137,7 +137,8 @@ export function useQuestDetail(questId: string | null) {
       exclude_tasks: existingTitles,
       // Omitted -> backend falls back to the user's stored preference.
       ...(challengeLevel ? { challenge_level: challengeLevel } : {}),
-    });
+      // AI generation runs several model calls; override the 15s global timeout.
+    }, { timeout: 90000 });
     return data.tasks || data.generated_tasks || [];
   };
 

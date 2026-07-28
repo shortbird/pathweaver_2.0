@@ -122,8 +122,8 @@ class BaseAIService(BaseService):
     # Class-level cache for alternative models
     _alt_models = {}
 
-    # Default configuration
-    DEFAULT_MODEL = 'gemini-2.5-flash-lite'
+    # Default configuration (fallback when Config.GEMINI_MODEL is unset)
+    DEFAULT_MODEL = 'gemini-3.5-flash-lite'
     # PERF-H3 fix: keep (retries × per-request timeout + backoff) UNDER the
     # gunicorn worker timeout (120s), or a slow provider triggers a worker
     # SIGKILL and cascading 502s. Worst case here: 2 × 45s + ≤8s backoff = 98s

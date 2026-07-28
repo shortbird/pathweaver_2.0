@@ -161,12 +161,15 @@ class Config:
     
     # Google Gemini Configuration
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
-    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+    # Primary model: gemini-3.5-flash-lite (GA 2026-07-21) — fastest/lowest-cost
+    # in the 3.5 family, built for high-throughput structured generation. Replaced
+    # gemini-2.5-flash-lite, which had aged into frequent 503 "high demand" errors.
+    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.5-flash-lite')
     # Ordered fallback models tried when the primary model returns a transient
     # error (e.g. 503 "high demand"). Comma-separated; tried left to right.
     GEMINI_FALLBACK_MODELS = [
         m.strip() for m in os.getenv(
-            'GEMINI_FALLBACK_MODELS', 'gemini-2.5-flash,gemini-2.0-flash'
+            'GEMINI_FALLBACK_MODELS', 'gemini-3.6-flash,gemini-2.5-flash'
         ).split(',') if m.strip()
     ]
     GOOGLE_API_KEY = GEMINI_API_KEY  # Backward-compat alias

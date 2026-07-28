@@ -267,61 +267,89 @@ def create_task_for_dependent(user_id, quest_id):
         if xp_value <= 0:
             return jsonify({'success': False, 'error': 'XP value must be greater than 0'}), 400
 
-        # Get user_quest_id for the child's enrollment
-        user_quest = supabase.table('user_quests').select('id').eq(
-            'user_id', child_id
-        ).eq('quest_id', quest_id).execute()
+        # Persist via the SHARED helper so a parent-added task stores exactly what
+        # a student self-accepted task does — including success_criteria (the
+        # Definition of Done) and AI subject classification. `child_id` is the
+        # write target; parent authorization was verified above.
+        from routes.quest_personalization import persist_accepted_task
+        from services.subject_classification_service import SubjectClassificationService
 
-        if not user_quest.data:
-            return jsonify({'success': False, 'error': 'Child is not enrolled in this quest'}), 404
-
-        user_quest_id = user_quest.data[0]['id']
-
-        # Get next order_index
-        existing_tasks = supabase.table('user_quest_tasks')\
-            .select('order_index')\
-            .eq('user_quest_id', user_quest_id)\
-            .execute()
-
-        # Skip NULL order_index rows: the column is nullable, and a None in the
-        # list would raise "'>' not supported between ... NoneType" inside max().
-        max_order = max(
-            [t['order_index'] for t in (existing_tasks.data or []) if t.get('order_index') is not None],
-            default=-1
-        )
-
-        task_data = {
-            'user_id': child_id,
-            'quest_id': quest_id,
-            'user_quest_id': user_quest_id,
+        task = {
             'title': data['title'].strip(),
             'description': data.get('description', '').strip(),
             'pillar': pillar,
             'xp_value': xp_value,
-            'order_index': max_order + 1,
-            'is_required': False,
-            'is_manual': True,
-            'approval_status': 'approved',
-            'diploma_subjects': ['Electives'],
-            'created_at': datetime.now(timezone.utc).isoformat(),
+            'success_criteria': data.get('success_criteria'),
+            'diploma_subjects': data.get('diploma_subjects') or {},
         }
 
-        result = supabase.table('user_quest_tasks').insert(task_data).execute()
-
-        if not result.data:
+        inserted = persist_accepted_task(
+            supabase, SubjectClassificationService(), child_id, quest_id, task
+        )
+        if inserted is None:
             return jsonify({'success': False, 'error': 'Failed to create task'}), 500
 
         logger.info(f"Parent {user_id[:8]} created task for dependent {child_id[:8]} in quest {quest_id[:8]}")
 
         return jsonify({
             'success': True,
-            'task': result.data[0],
+            'task': inserted,
             'message': 'Task created successfully'
         })
 
     except Exception as e:
         logger.error(f"Error creating task for dependent: {str(e)}")
         return jsonify({'success': False, 'error': f'Failed to create task: {str(e)}'}), 500
+
+
+@bp.route('/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
+@require_auth
+def delete_task_for_dependent(user_id, quest_id, task_id):
+    """
+    Delete a task from a dependent child's quest enrollment (parent on-behalf-of).
+    Mirrors the student drop_task rules: completed tasks cannot be removed.
+    `child_id` is passed as a query param. Only allowed for parents managing the
+    dependent.
+    """
+    try:
+        verify_parent_role(user_id)
+
+        child_id = request.args.get('child_id')
+        if not child_id:
+            return jsonify({'success': False, 'error': 'child_id is required'}), 400
+
+        # Verify parent has access to this child
+        if not verify_parent_has_access_to_child(user_id, child_id):
+            return jsonify({'success': False, 'error': 'No access to this child'}), 403
+
+        # admin client justified: parent deletes a dependent's task; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
+        supabase = get_supabase_admin_client()
+
+        # Verify child IS a dependent (managed_by_parent_id == user_id)
+        child_check = supabase.table('users').select('managed_by_parent_id').eq('id', child_id).single().execute()
+        if not child_check.data or child_check.data.get('managed_by_parent_id') != user_id:
+            return jsonify({'success': False, 'error': 'This action is only allowed for managed dependents'}), 403
+
+        # Verify the task belongs to THIS child and quest before deleting
+        task = supabase.table('user_quest_tasks').select('id, title, user_id, quest_id').eq('id', task_id).single().execute()
+        if not task.data or task.data.get('user_id') != child_id or task.data.get('quest_id') != quest_id:
+            return jsonify({'success': False, 'error': 'Task not found for this child'}), 404
+
+        # Don't delete completed tasks (mirrors student drop_task)
+        completion = supabase.table('quest_task_completions').select('id').eq(
+            'user_id', child_id
+        ).eq('user_quest_task_id', task_id).execute()
+        if completion.data:
+            return jsonify({'success': False, 'error': 'Cannot remove a completed task'}), 400
+
+        supabase.table('user_quest_tasks').delete().eq('id', task_id).execute()
+
+        logger.info(f"Parent {user_id[:8]} deleted task {task_id[:8]} for dependent {child_id[:8]} in quest {quest_id[:8]}")
+        return jsonify({'success': True, 'message': f"Task '{task.data['title']}' removed"}), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting task for dependent: {str(e)}")
+        return jsonify({'success': False, 'error': f'Failed to delete task: {str(e)}'}), 500
 
 
 @bp.route('/quests/<quest_id>/tasks/<task_id>/uncomplete', methods=['POST'])

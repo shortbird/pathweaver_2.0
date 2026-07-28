@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable, TextInput, Modal } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PILLARS } from '@/src/hooks/useQuestDetail';
 import {
@@ -305,13 +305,15 @@ export function TaskCreationWizard({
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={handleClose}>
-      <Pressable
-        className="flex-1 items-center justify-center"
-        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-        onPress={handleClose}
-      >
+      <View className="flex-1 items-center justify-center">
+        {/* Backdrop lives BEHIND the card as an absolute-fill Pressable. A
+            Pressable wrapping the card would steal the ScrollView's pan gesture,
+            so the card only scrolled when a drag began inside the TextInput. */}
         <Pressable
-          onPress={(e) => e.stopPropagation?.()}
+          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+          onPress={handleClose}
+        />
+        <View
           style={{ backgroundColor: c.card, borderRadius: 20, width: 560, maxWidth: '92%', maxHeight: '85%' }}
         >
           <ScrollView contentContainerStyle={{ padding: 28 }} keyboardShouldPersistTaps="handled">
@@ -490,8 +492,8 @@ export function TaskCreationWizard({
                     <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{manualDesc.length} characters</UIText>
                   </VStack>
 
-                  <HStack className="gap-6">
-                    <VStack space="xs" className="flex-1">
+                  <VStack space="md">
+                    <VStack space="xs">
                       <UIText size="sm" className="font-poppins-medium">Pillar *</UIText>
                       <HStack className="flex-wrap gap-2">
                         {PILLARS.map((p) => (
@@ -520,7 +522,7 @@ export function TaskCreationWizard({
                         ))}
                       </HStack>
                     </VStack>
-                  </HStack>
+                  </VStack>
 
                   {manualAdded > 0 && (
                     <View className="bg-green-50 p-3 rounded-lg">
@@ -824,8 +826,8 @@ export function TaskCreationWizard({
               )}
             </VStack>
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

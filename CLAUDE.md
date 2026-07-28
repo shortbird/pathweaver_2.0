@@ -161,7 +161,7 @@ EOF
 - **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
 - **Web (v1)**: React 18.3 + Vite + TailwindCSS (in `frontend/`) — the production web app
 - **Mobile (v2)**: Expo SDK 55 + Expo Router + NativeWind in `frontend-v2/`, dev builds via EAS — iOS/Android app
-- **AI**: Gemini `gemini-2.5-flash-lite` (always use this model)
+- **AI**: Gemini `gemini-3.5-flash-lite` (primary; GA 2026-07-21), fallbacks `gemini-3.6-flash` → `gemini-2.5-flash`. Configured in `app_config.py` (`GEMINI_MODEL` / `GEMINI_FALLBACK_MODELS`). Upgraded 2026-07-28 from `gemini-2.5-flash-lite`, which had aged into frequent 503 "high demand" errors.
 - **Host**: Render
 
 > **Naming convention (as of 2026-05-22):** v1 = the web app (`frontend/`). v2 = the mobile iOS/Android app (`frontend-v2/`). The `frontend-v2/` codebase is technically a universal Expo project that also builds for web — that web target is kept for dev/testing and a future page-by-page rebuild of the web app, but day-to-day "v2 work" means mobile. Web users stay on v1 indefinitely until that rebuild happens.
