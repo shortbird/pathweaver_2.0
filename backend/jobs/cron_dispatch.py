@@ -73,6 +73,12 @@ def main():
     # Every run: SIS attendance sweep (reminders + gap alerts).
     _run("sis-attendance-sweep", f"{base}/api/sis/internal/attendance-sweep", cron_secret, failures)
 
+    # Every run: expire stale per-class waitlist offers (past their 48h TTL) so a
+    # freed seat returns to the queue and admins get re-alerted promptly rather
+    # than up to a day later. The sweep is idempotent and no-ops cheaply when
+    # nothing is expired, so running it each cycle is safe.
+    _run("sis-waitlist-offer-sweep", f"{base}/api/sis/internal/waitlist-offer-sweep", cron_secret, failures)
+
     # Once/day: daily advisor summary emails (first run of the 12:00 UTC hour).
     if now.hour == DAILY_SUMMARY_UTC_HOUR and now.minute < 10:
         _run("advisor-summary", f"{base}/api/admin/advisor-summary/trigger", cron_secret, failures)

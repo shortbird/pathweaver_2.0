@@ -120,14 +120,38 @@ def offer_next(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
     )
     offered = resp.data[0] if resp.data else None
     if offered:
-        from services import sis_notifications
-        sis_notifications.notify(
-            offered['student_user_id'],
-            'A seat opened up',
-            'A spot has opened in a class you were waitlisted for. Please confirm to claim it.',
-            organization_id=org_id,
-        )
+        _notify_offer(org_id, class_id, offered)
     return offered
+
+
+def expire_stale_offers() -> Dict[str, Any]:
+    """Cron sweep: expire per-class waitlist offers past their TTL so the held
+    seat frees up for the next student, then re-alert admins that the seat is
+    open again (we don't auto-offer — staff choose who gets it). Best-effort per
+    entry; returns a summary."""
+    admin = _admin()
+    now_iso = _now().isoformat()
+    stale = (
+        admin.table('sis_waitlist_entries')
+        .select('id, organization_id, class_id')
+        .eq('status', 'offered').lt('offer_expires_at', now_iso).execute()
+    ).data or []
+    expired = 0
+    affected = set()
+    for e in stale:
+        try:
+            admin.table('sis_waitlist_entries').update(
+                {'status': 'expired', 'updated_at': now_iso}).eq('id', e['id']).execute()
+            expired += 1
+            affected.add((e['organization_id'], e['class_id']))
+        except Exception as ex:  # noqa: BLE001
+            logger.warning(f"[Waitlist] could not expire offer {e['id']}: {ex}")
+    # A freshly-expired offer means the seat is open again — nudge admins to
+    # offer it to the next waiting student (self-gates on waiters + an open seat).
+    for org_id, class_id in affected:
+        alert_admins_seat_opened(org_id, class_id)
+    logger.info(f"[Waitlist] offer sweep: expired {expired}, re-alerted {len(affected)} class(es)")
+    return {'expired': expired, 'reAlerted': len(affected)}
 
 
 def respond_to_offer(org_id: str, entry_id: str, accept: bool,
@@ -230,6 +254,134 @@ def alert_admins_seat_opened(org_id: str, class_id: str) -> bool:
     except Exception as e:
         logger.warning(f"[Waitlist] seat-opened alert skipped for {class_id}: {e}")
         return False
+
+
+# ── Family-facing offer notification (guardian, not the dependent student) ────
+# A household member who isn't the student counts as a guardian (mirrors
+# sis_parent_service.GUARDIAN_RELATIONSHIPS).
+_GUARDIAN_RELATIONSHIPS = ('guardian', 'other')
+
+
+def _display_name(u: Dict[str, Any]) -> str:
+    name = (u.get('display_name') or
+            f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip()
+    return name or (u.get('username') or u.get('email') or 'Unnamed')
+
+
+def _student_guardians(student_user_id: str) -> List[Dict[str, Any]]:
+    """The student's guardians as [{id, email, first_name}] — resolved via the
+    dependent link (users.managed_by_parent_id) and household membership. Empty
+    when the student has no guardian (e.g. a self-managed platform account)."""
+    admin = _admin()
+    guardian_ids = set()
+
+    stu = (
+        admin.table('users').select('id, managed_by_parent_id')
+        .eq('id', student_user_id).limit(1).execute()
+    ).data or []
+    if stu and stu[0].get('managed_by_parent_id'):
+        guardian_ids.add(stu[0]['managed_by_parent_id'])
+
+    memberships = (
+        admin.table('household_members').select('household_id')
+        .eq('user_id', student_user_id).eq('relationship', 'student').execute()
+    ).data or []
+    hh_ids = [m['household_id'] for m in memberships if m.get('household_id')]
+    if hh_ids:
+        members = (
+            admin.table('household_members').select('user_id, relationship')
+            .in_('household_id', hh_ids).execute()
+        ).data or []
+        for m in members:
+            if m.get('relationship') in _GUARDIAN_RELATIONSHIPS and m.get('user_id'):
+                guardian_ids.add(m['user_id'])
+
+    if not guardian_ids:
+        return []
+    return (
+        admin.table('users').select('id, email, first_name')
+        .in_('id', list(guardian_ids)).execute()
+    ).data or []
+
+
+def _notify_offer(org_id: str, class_id: str, offered: Dict[str, Any]) -> None:
+    """Tell the family a per-class seat was offered: an in-app notification to
+    each guardian (falling back to the student's own account when there is no
+    guardian) plus a transactional email with a link to claim it in the Schedule
+    Builder. Best-effort — a notification failure must never break the offer."""
+    try:
+        from services import sis_notifications
+        student_id = offered['student_user_id']
+        guardians = _student_guardians(student_id)
+        cls = (
+            _admin().table('org_classes').select('name')
+            .eq('id', class_id).limit(1).execute()
+        ).data or []
+        class_name = (cls[0].get('name') if cls else None) or 'a class'
+        from app_config import Config
+        link = f"{Config.FRONTEND_URL.rstrip('/')}/schedule-builder"
+        title = 'A seat opened up'
+        body = (f'A spot has opened in {class_name}. Open the Schedule Builder to '
+                f'claim it before the offer expires.')
+        targets = [g['id'] for g in guardians] or [student_id]
+        for uid in targets:
+            sis_notifications.notify(uid, title, body, link=link, organization_id=org_id)
+        _email_offer(org_id, class_name, student_id, guardians, offered.get('offer_expires_at'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[Waitlist] offer notify skipped for class {class_id}: {e}")
+
+
+def _email_offer(org_id: str, class_name: str, student_id: str,
+                 guardians: List[Dict[str, Any]], offer_expires_at: Optional[str]) -> None:
+    """Email each guardian that a seat opened, with a Claim-spot link. No-op when
+    there is no guardian email on file."""
+    if not guardians:
+        return
+    admin = _admin()
+    org = (
+        admin.table('organizations').select('name').eq('id', org_id).limit(1).execute()
+    ).data or []
+    org_name = (org[0].get('name') if org else None) or 'your school'
+    student = (
+        admin.table('users')
+        .select('first_name, last_name, display_name, username, email')
+        .eq('id', student_id).limit(1).execute()
+    ).data or []
+    student_name = _display_name(student[0]) if student else 'your student'
+    student_first = ((student[0].get('first_name') if student else None)
+                     or student_name.split(' ')[0])
+
+    from app_config import Config
+    base = Config.FRONTEND_URL.rstrip('/')
+    hold_line = ''
+    if offer_expires_at:
+        try:
+            exp = datetime.fromisoformat(str(offer_expires_at).replace('Z', '+00:00'))
+            when = exp.strftime('%A, %B ') + str(exp.day)
+            hold_line = (f"<p>This spot is held for {student_first} until "
+                         f"<strong>{when}</strong>. After that it may be offered to the "
+                         f"next family.</p>")
+        except ValueError:
+            pass
+
+    from services.email_service import email_service
+    subject = f'{org_name}: a spot opened in {class_name} for {student_name}'
+    for g in guardians:
+        email = g.get('email')
+        if not email:
+            continue
+        html = (
+            f"<p>Hi {g.get('first_name') or 'there'},</p>"
+            f"<p>Good news — a spot has opened in <strong>{class_name}</strong> at "
+            f"{org_name}, and we're offering it to {student_first}.</p>"
+            f"{hold_line}"
+            f"<p><a href=\"{base}/schedule-builder\">Open the Schedule Builder</a> and use "
+            f"<strong>Claim spot</strong> next to {class_name} to enroll {student_first}.</p>"
+        )
+        try:
+            email_service.send_email(email, subject, html)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[Waitlist] offer email failed for entry in {org_id[:8]}: {e}")
 
 
 def _org_admin_emails(org_id: str) -> List[str]:

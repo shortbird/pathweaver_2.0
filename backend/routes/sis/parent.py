@@ -333,6 +333,21 @@ def drop_student_class(user_id, student_id, class_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/students/<student_id>/classes/<class_id>/claim', methods=['POST'])
+@require_auth
+def claim_student_spot(user_id, student_id, class_id):
+    """Claim a per-class waitlist spot the school offered: enrolls the student if
+    the offer is still live and the seat is still open."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.claim_offered_spot(user_id, org_id, student_id, class_id)
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
 # ── UFA learning day + schedule submission ────────────────────────────────────
 @bp.route('/students/<student_id>/learning-day', methods=['PUT'])
 @require_auth

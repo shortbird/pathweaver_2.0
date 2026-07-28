@@ -745,6 +745,61 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
     return {'ok': True, 'dropped': dropped}
 
 
+def claim_offered_spot(user_id: str, org_id: str, student_user_id: str,
+                       class_id: str) -> Dict[str, Any]:
+    """A guardian accepts a per-class waitlist offer the school made: if the seat
+    is still open, enroll the student and mark the entry promoted.
+
+    Not subject to the first-day-of-school lock — a waitlist offer is an explicit
+    admit by the school and often happens mid-year when a seat frees up. The offer
+    must still be live (status 'offered', not past its TTL) and a seat must remain
+    open (another student may have been enrolled since the offer went out)."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+
+    rows = (
+        _admin().table('sis_waitlist_entries').select('*')
+        .eq('organization_id', org_id).eq('class_id', class_id)
+        .eq('student_user_id', student_user_id).eq('status', 'offered')
+        .limit(1).execute()
+    ).data or []
+    if not rows:
+        return {'error': 'There is no spot being offered for this class right now. '
+                         'If the school offered you one, it may have expired.'}
+    entry = rows[0]
+
+    # A stale offer (past its TTL) can't be claimed — the sweep cron also expires
+    # these, but guard here in case the parent clicks before it runs.
+    from datetime import datetime, timezone
+    exp = entry.get('offer_expires_at')
+    if exp:
+        try:
+            exp_dt = datetime.fromisoformat(str(exp).replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > exp_dt:
+                return {'error': 'This offer has expired. Contact the school to ask '
+                                 'for the spot again.'}
+        except ValueError:
+            pass
+
+    klass = next((c for c in catalog.list_classes(org_id) if c['id'] == class_id), None)
+    if not klass:
+        return {'error': 'Class not found'}
+    capacity = klass.get('capacity')
+    if capacity is not None:
+        active = (
+            _admin().table('class_enrollments').select('id', count='exact')
+            .eq('class_id', class_id).eq('status', 'active').execute()
+        ).count or 0
+        if active >= capacity:
+            return {'error': 'That spot was just filled. You are still on the waitlist.'}
+
+    from services import sis_waitlist_service
+    result = sis_waitlist_service.respond_to_offer(org_id, entry['id'], True, enrolled_by=user_id)
+    if result.get('error'):
+        return {'error': result['error']}
+    return {'enrolled': True, 'class_name': klass.get('name')}
+
+
 # ── UFA learning day + schedule submission (guardian-scoped) ──────────────────
 def set_learning_day(user_id: str, org_id: str, student_user_id: str,
                      choice: Optional[str]) -> Dict[str, Any]:

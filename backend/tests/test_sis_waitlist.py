@@ -118,3 +118,55 @@ class TestWaitlistRoutes:
             resp = client.post('/api/sis/waitlist/wX/respond', headers=auth_headers,
                                json={'accept': False, 'organization_id': 'org-1'})
         assert resp.status_code == 404
+
+
+@pytest.mark.unit
+class TestOfferSweepRoute:
+    """The cron entrypoint that expires stale offers (X-Cron-Secret or superadmin)."""
+
+    def test_sweep_forbidden_for_non_super_without_secret(self, client, auth_headers, mock_verify_token):
+        with patch('utils.session_manager.session_manager.get_effective_user_id',
+                   return_value='test-user-123'), \
+             patch('routes.sis.waitlist.get_supabase_admin_client',
+                   return_value=_admin_client_for_role('student')):
+            resp = client.post('/api/sis/internal/waitlist-offer-sweep', headers=auth_headers, json={})
+        assert resp.status_code == 401
+
+    def test_sweep_runs_for_superadmin(self, client, auth_headers, mock_verify_token):
+        with patch('utils.session_manager.session_manager.get_effective_user_id',
+                   return_value='super-1'), \
+             patch('routes.sis.waitlist.get_supabase_admin_client',
+                   return_value=_admin_client_for_role('superadmin')), \
+             patch('routes.sis.waitlist.waitlist.expire_stale_offers',
+                   return_value={'expired': 2, 'reAlerted': 1}) as sweep:
+            resp = client.post('/api/sis/internal/waitlist-offer-sweep', headers=auth_headers, json={})
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['expired'] == 2
+        sweep.assert_called_once()
+
+
+@pytest.mark.unit
+class TestParentClaimRoute:
+    """The guardian-facing claim-spot route (family-relationship auth in the service)."""
+
+    def test_claim_success(self, client, auth_headers, mock_verify_token):
+        with patch('routes.sis.parent.parent.claim_offered_spot',
+                   return_value={'enrolled': True, 'class_name': 'Art'}):
+            resp = client.post('/api/sis/parent/students/s1/classes/c1/claim',
+                               headers=auth_headers, json={'organization_id': 'org-1'})
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['enrolled'] is True
+
+    def test_claim_no_live_offer(self, client, auth_headers, mock_verify_token):
+        with patch('routes.sis.parent.parent.claim_offered_spot',
+                   return_value={'error': 'There is no spot being offered for this class right now.'}):
+            resp = client.post('/api/sis/parent/students/s1/classes/c1/claim',
+                               headers=auth_headers, json={'organization_id': 'org-1'})
+        assert resp.status_code == 400
+
+    def test_claim_not_authorized(self, client, auth_headers, mock_verify_token):
+        with patch('routes.sis.parent.parent.claim_offered_spot',
+                   return_value={'error': 'Not authorized for this student'}):
+            resp = client.post('/api/sis/parent/students/s1/classes/c1/claim',
+                               headers=auth_headers, json={'organization_id': 'org-1'})
+        assert resp.status_code == 403

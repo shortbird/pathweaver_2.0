@@ -8,6 +8,7 @@ and remove entries.
 
 from flask import Blueprint, request, jsonify
 
+from app_config import Config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
@@ -103,3 +104,25 @@ def remove_entry(user_id, entry_id):
         return err
     waitlist.remove(org_id, entry_id)
     return jsonify({'success': True})
+
+
+@bp.route('/internal/waitlist-offer-sweep', methods=['POST'])
+def waitlist_offer_sweep():
+    """Cron entrypoint: expire per-class waitlist offers past their TTL and
+    re-alert admins that the seat is open. Auth via X-Cron-Secret, or a signed-in
+    superadmin for manual triggering (mirrors /api/sis/internal/attendance-sweep)."""
+    secret = request.headers.get('X-Cron-Secret')
+    is_cron = bool(secret and Config.CRON_SECRET and secret == Config.CRON_SECRET)
+    if not is_cron:
+        from utils.session_manager import session_manager
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            row = (
+                get_supabase_admin_client().table('users').select('role')
+                .eq('id', uid).limit(1).execute()
+            ).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return jsonify({'success': True, **waitlist.expire_stale_offers()})

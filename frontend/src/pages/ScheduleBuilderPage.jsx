@@ -427,6 +427,23 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
+  // Claim a per-class waitlist spot the school offered (status 'offered'). The
+  // backend re-checks the offer is live and a seat is still open before enrolling.
+  const claimSpot = async (w) => {
+    if (previewCode) return
+    setBusy(w.class_id)
+    try {
+      await api.post(`/api/sis/parent/students/${studentId}/classes/${w.class_id}/claim`, {
+        organization_id: orgId,
+      })
+      toast.success(`Enrolled in ${w.class_name}`)
+      reload()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not claim the spot')
+      reload()
+    } finally { setBusy(null) }
+  }
+
   // Ask the school to allow this student into a class its age band excludes.
   // Deliberately low-key (exceptions should stay rare): a quiet footnote in the
   // slot popup, only where the age filter actually hid something.
@@ -696,21 +713,32 @@ const ScheduleBuilderPage = () => {
           <div className="mt-5 pt-4 border-t border-gray-100">
             <h3 className="text-sm font-semibold text-neutral-700 mb-2">Waitlisted</h3>
             <div className="space-y-2">
-              {waitlist.map((w) => (
-                <div key={w.entry_id} className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5">
+              {waitlist.map((w) => {
+                const offered = w.status === 'offered'
+                return (
+                <div key={w.entry_id} className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${offered ? 'border-green-300 bg-green-50/60' : 'border-dashed border-amber-300 bg-amber-50/50'}`}>
                   <div className="min-w-0">
                     <div className="font-medium text-neutral-900 truncate">{w.class_name}</div>
-                    <div className="text-xs text-amber-700">
-                      {w.status === 'offered' ? 'Seat offered — the school will confirm with you' : `Waitlist${w.position ? ` #${w.position}` : ''}`}
+                    <div className={`text-xs ${offered ? 'text-green-700 font-medium' : 'text-amber-700'}`}>
+                      {offered ? 'A spot opened — claim it now' : `Waitlist${w.position ? ` #${w.position}` : ''}`}
                       {' · '}{meetingText(w.meetings)}
                     </div>
                   </div>
-                  {!locked && (
-                    <button onClick={() => dropClass(w, true)} disabled={busy === w.class_id}
-                      className="text-sm text-red-500 hover:underline disabled:opacity-50 shrink-0 ml-3">Leave</button>
-                  )}
+                  <div className="flex items-center gap-3 shrink-0 ml-3">
+                    {offered && !previewCode && (
+                      <button onClick={() => claimSpot(w)} disabled={busy === w.class_id}
+                        className="text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg px-3 py-1.5 disabled:opacity-50">
+                        {busy === w.class_id ? 'Claiming…' : 'Claim spot'}
+                      </button>
+                    )}
+                    {!locked && (
+                      <button onClick={() => dropClass(w, true)} disabled={busy === w.class_id}
+                        className="text-sm text-red-500 hover:underline disabled:opacity-50">{offered ? 'Decline' : 'Leave'}</button>
+                    )}
+                  </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
