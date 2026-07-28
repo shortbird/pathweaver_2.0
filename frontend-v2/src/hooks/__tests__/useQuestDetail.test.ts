@@ -105,7 +105,7 @@ describe('generateTasks', () => {
       approach: 'hybrid',
       interests: ['photography'],
       exclude_tasks: ['Existing Task'],
-    }));
+    }), expect.objectContaining({ timeout: 90000 }));
     expect(tasks!).toHaveLength(1);
     expect(tasks![0].title).toBe('AI Task');
   });
