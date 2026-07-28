@@ -62,6 +62,7 @@ const NAV_SECTIONS = [
     items: [
       { name: 'Classes', path: '/classes', adminOnly: true, d: ICONS.classes },
       { name: 'My Classes', path: '/my-classes', teacherOnly: true, d: ICONS.classes },
+      { name: 'My Schedule', path: '/my-schedule', teacherOnly: true, d: ICONS.calendar },
       { name: 'CLP', path: '/clp', adminOnly: true, d: ICONS.doc },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
       { name: 'Attendance', path: '/attendance', adminOnly: true, d: ICONS.check },
@@ -88,6 +89,7 @@ const NAV_SECTIONS = [
     label: 'Settings',
     items: [
       { name: 'Settings', path: '/settings', adminOnly: true, d: ICONS.gear },
+      { name: 'My Profile', path: '/my-profile', teacherOnly: true, d: ICONS.person },
     ],
   },
 ]

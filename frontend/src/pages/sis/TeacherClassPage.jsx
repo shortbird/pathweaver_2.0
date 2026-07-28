@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ExclamationTriangleIcon, PrinterIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import GradebookTab from '../../components/sis/GradebookTab'
 import ClassDiscussion from '../../components/discussion/ClassDiscussion'
+import ClassCurriculum from '../../components/discussion/ClassCurriculum'
+import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -25,16 +27,21 @@ const ATT_COLORS = {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+const VALID_TABS = ['roster', 'quests', 'curriculum', 'gradebook', 'messages']
+
 const TeacherClassPage = () => {
   const { classId } = useParams()
   const { orgId } = useSisOrg()
+  const [searchParams] = useSearchParams()
   const [cls, setCls] = useState(null)
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState('roster')
+  // Deep links (e.g. the home "Message" shortcut) can preselect a tab via ?tab=.
+  const initialTab = VALID_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'roster'
+  const [tab, setTab] = useState(initialTab)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -115,7 +122,7 @@ const TeacherClassPage = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
-        {[['roster', 'Roster & Attendance'], ['gradebook', 'Gradebook'], ['discussion', 'Discussion']].map(([key, label]) => (
+        {[['roster', 'Roster & Attendance'], ['quests', 'Quests'], ['curriculum', 'Curriculum'], ['gradebook', 'Gradebook'], ['messages', 'Messages']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key
@@ -126,12 +133,26 @@ const TeacherClassPage = () => {
         ))}
       </div>
 
+      {tab === 'quests' && (
+        <ClassQuestsManager classId={classId} />
+      )}
+
+      {tab === 'curriculum' && (
+        <ClassCurriculum classId={classId} />
+      )}
+
       {tab === 'gradebook' && (
         <GradebookTab classId={classId} orgId={orgId} className={cls?.name} />
       )}
 
-      {tab === 'discussion' && (
-        <ClassDiscussion classId={classId} />
+      {tab === 'messages' && (
+        <div>
+          <p className="text-sm text-neutral-500 mb-3">
+            Post updates and reminders to {cls?.name || 'this class'}. You and the enrolled students can see and reply here.
+            To reach families, use Announcements or the class group in the Learning app.
+          </p>
+          <ClassDiscussion classId={classId} />
+        </div>
       )}
 
       {tab === 'roster' && (() => {

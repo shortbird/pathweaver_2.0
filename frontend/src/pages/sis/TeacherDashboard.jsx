@@ -1,16 +1,20 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
+import { ClipboardDocumentCheckIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { withOrg, useSisOrg } from './useSisOrg'
 import { withPreview } from './teacherPreview'
 import { getHiddenModules } from './sisModules'
 
 /**
- * TeacherDashboard — the advisor landing page for the SIS teacher portal.
- * One backend call (/api/sis/teacher/dashboard) feeds every card: today's
- * schedule, the time clock, onboarding progress, required reading, classes,
- * and recent form submissions.
+ * TeacherDashboard — the advisor home for the SIS teacher portal.
+ *
+ * Class management first: today's teaching schedule (with one-tap attendance)
+ * and the teacher's classes lead the page; operational items (time clock,
+ * onboarding, required reading, forms) sit in a secondary rail; learning-app
+ * engagement alerts drop to the bottom. One backend call
+ * (/api/sis/teacher/dashboard) feeds every card.
  */
 
 const fmtTime = (hhmm) => {
@@ -57,7 +61,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
     if (!orgId) { setLoading(false); return }
     api.get(withPreview(withOrg('/api/sis/teacher/dashboard', orgId), preview))
       .then((r) => setData(r.data?.data))
-      .catch(() => toast.error('Failed to load your dashboard'))
+      .catch(() => toast.error('Failed to load your home'))
       .finally(() => setLoading(false))
     // Engagement alerts are non-critical — the card simply hides on failure.
     api.get(withOrg('/api/sis/engagement-alerts', orgId))
@@ -101,15 +105,20 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const { today = [], classes = [], profile = {}, open_time_entry: openEntry,
     onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [] } = data
 
+  const todayClasses = today.filter((i) => i.kind === 'class')
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-neutral-900">
-          {userName ? `Welcome, ${userName}` : 'Your day'}
+          {userName ? `Welcome, ${userName}` : 'Your classes'}
         </h1>
-        {profile.position && <p className="text-neutral-500 mt-1">{profile.position}</p>}
+        <p className="text-neutral-500 mt-1">
+          {profile.position || 'Manage your classes, take attendance, and stay in touch with your families.'}
+        </p>
       </div>
 
+      {/* Setup / action banners — kept up top because they gate the teacher's readiness. */}
       {(onboarding && onboarding.status !== 'complete' && !hidden.has('onboarding')) && (
         <Link to="/onboarding" className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">
@@ -130,40 +139,10 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
         </Link>
       )}
 
-      {alerts.length > 0 && (
-        <Card title={`Needs attention (${alerts.length})`}>
-          <ul className="divide-y divide-gray-100">
-            {alerts.map((a) => (
-              <li key={a.id} className="py-2.5 flex items-start gap-3">
-                <span className="mt-1.5 w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-neutral-800">
-                    <span className="font-medium">{a.student_name}</span>
-                    {a.class_name && <span className="text-neutral-500"> · {a.class_name}</span>}
-                  </p>
-                  <p className="text-sm text-neutral-600">{alertMessage(a)}</p>
-                  {a.created_at && (
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                      {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => resolveAlert(a.id)}
-                  disabled={resolvingId === a.id}
-                  className="shrink-0 px-3 py-1.5 text-sm font-medium text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors disabled:opacity-50"
-                >
-                  Resolve
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Hero: today's teaching schedule with one-tap attendance */}
         <div className="lg:col-span-2">
-          <Card title="Today">
+          <Card title="Today" action={<Link to="/my-schedule" className="text-sm text-optio-purple hover:underline">Full schedule</Link>}>
             {data.school_starts && (
               <p className="text-sm text-neutral-500">
                 School starts {new Date(`${data.school_starts}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} — no classes until then.
@@ -172,29 +151,44 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
             {!today.length && !data.school_starts && (
               <p className="text-sm text-neutral-500">Nothing scheduled today.</p>
             )}
-            <ul className="divide-y divide-gray-100">
-              {today.map((item, i) => (
-                <li key={i} className="py-2.5 flex items-center gap-3">
-                  <span className="text-sm font-medium text-neutral-500 w-28 shrink-0">
-                    {item.start_time ? `${fmtTime(item.start_time)}–${fmtTime(item.end_time)}` : 'All day'}
-                  </span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600 shrink-0">
-                    {KIND_LABEL[item.kind] || item.kind}
-                  </span>
-                  {item.kind === 'class' && item.class_id ? (
-                    <Link to={`/my-classes/${item.class_id}`} className="text-sm font-medium text-optio-purple hover:underline truncate">
-                      {item.title}
-                    </Link>
-                  ) : (
-                    <span className="text-sm text-neutral-800 truncate">{item.title}</span>
-                  )}
-                  {item.location && <span className="text-xs text-neutral-400 ml-auto shrink-0">{item.location}</span>}
-                </li>
-              ))}
+            <ul className="space-y-2">
+              {today.map((item, i) => {
+                const isClass = item.kind === 'class' && item.class_id
+                return (
+                  <li key={i}
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
+                      isClass ? 'border-gray-200 hover:border-optio-purple/40 transition-colors' : 'border-transparent bg-gray-50'}`}>
+                    <span className="text-sm font-semibold text-neutral-500 w-24 shrink-0">
+                      {item.start_time ? `${fmtTime(item.start_time)}–${fmtTime(item.end_time)}` : 'All day'}
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600 shrink-0">
+                      {KIND_LABEL[item.kind] || item.kind}
+                    </span>
+                    {isClass ? (
+                      <Link to={`/my-classes/${item.class_id}`} className="text-sm font-medium text-neutral-900 hover:text-optio-purple truncate">
+                        {item.title}
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-neutral-800 truncate">{item.title}</span>
+                    )}
+                    {item.location && <span className="hidden sm:inline text-xs text-neutral-400 shrink-0">{item.location}</span>}
+                    {isClass && (
+                      <Link to={`/my-classes/${item.class_id}`}
+                        className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-semibold">
+                        <ClipboardDocumentCheckIcon className="w-4 h-4" /> Take attendance
+                      </Link>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
+            {!todayClasses.length && today.length > 0 && (
+              <p className="mt-2 text-xs text-neutral-400">No classes to take attendance for today.</p>
+            )}
           </Card>
         </div>
 
+        {/* Secondary rail: time clock + recent forms */}
         <div className="space-y-4">
           {profile.uses_time_clock && preview && (
             <Card title="Time clock">
@@ -250,18 +244,61 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
         </div>
       </div>
 
+      {/* My classes — the core of the portal */}
       <Card title="My classes" action={<Link to="/my-classes" className="text-sm text-optio-purple hover:underline">See all</Link>}>
         {!classes.length && <p className="text-sm text-neutral-500">No classes assigned yet — talk to your administrator.</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {classes.slice(0, 6).map((c) => (
-            <Link key={c.id} to={`/my-classes/${c.id}`}
+            <div key={c.id}
               className="rounded-lg border border-gray-200 p-3 hover:border-optio-purple/50 transition-colors">
-              <p className="font-medium text-neutral-900 truncate">{c.name}</p>
-              <p className="text-sm text-neutral-500">{c.enrolled_count} student{c.enrolled_count === 1 ? '' : 's'}</p>
-            </Link>
+              <Link to={`/my-classes/${c.id}`} className="block">
+                <p className="font-medium text-neutral-900 truncate">{c.name}</p>
+                <p className="text-sm text-neutral-500">{c.enrolled_count} student{c.enrolled_count === 1 ? '' : 's'}</p>
+              </Link>
+              <div className="mt-2 flex items-center gap-3 text-xs font-medium">
+                <Link to={`/my-classes/${c.id}`} className="inline-flex items-center gap-1 text-optio-purple hover:underline">
+                  <ClipboardDocumentCheckIcon className="w-4 h-4" /> Attendance
+                </Link>
+                <Link to={`/my-classes/${c.id}?tab=messages`} className="inline-flex items-center gap-1 text-optio-purple hover:underline">
+                  <ChatBubbleLeftRightIcon className="w-4 h-4" /> Message
+                </Link>
+              </div>
+            </div>
           ))}
         </div>
       </Card>
+
+      {/* Learning-app engagement alerts — secondary, below class management. */}
+      {alerts.length > 0 && (
+        <Card title={`Needs attention (${alerts.length})`}>
+          <ul className="divide-y divide-gray-100">
+            {alerts.map((a) => (
+              <li key={a.id} className="py-2.5 flex items-start gap-3">
+                <span className="mt-1.5 w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-neutral-800">
+                    <span className="font-medium">{a.student_name}</span>
+                    {a.class_name && <span className="text-neutral-500"> · {a.class_name}</span>}
+                  </p>
+                  <p className="text-sm text-neutral-600">{alertMessage(a)}</p>
+                  {a.created_at && (
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => resolveAlert(a.id)}
+                  disabled={resolvingId === a.id}
+                  className="shrink-0 px-3 py-1.5 text-sm font-medium text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors disabled:opacity-50"
+                >
+                  Resolve
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   )
 }
