@@ -63,12 +63,14 @@ def register_routes(bp):
         try:
             # admin client justified: token-refresh path runs before the new session is established; reads users.last_logout_at to detect post-logout token replay
             admin_client = get_supabase_admin_client()
+            # maybe_single(): a token whose users row is gone must not raise
+            # PGRST116 and log an error — data=None skips the logout check.
             user_data = with_connection_retry(
-                lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute(),
+                lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).maybe_single().execute(),
                 operation_name='refresh_check_logout'
             )
 
-            if user_data.data and user_data.data.get('last_logout_at'):
+            if user_data and user_data.data and user_data.data.get('last_logout_at'):
                 last_logout_at = datetime.fromisoformat(user_data.data['last_logout_at'].replace('Z', '+00:00'))
 
                 # If token was issued before logout, reject it

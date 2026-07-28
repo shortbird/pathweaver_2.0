@@ -41,8 +41,8 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
     try:
         # Special case: Admin viewing their own data (self-link for demo)
         if parent_user_id == student_user_id:
-            user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
-            if user_response.data and user_response.data.get('role') == 'superadmin':
+            user_response = supabase.table('users').select('role').eq('id', parent_user_id).maybe_single().execute()
+            if user_response and user_response.data and user_response.data.get('role') == 'superadmin':
                 return True
 
         # Query user with role info AND parent links
@@ -54,9 +54,9 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
                 student_user_id,
                 status
             )
-        ''').eq('id', parent_user_id).single().execute()
+        ''').eq('id', parent_user_id).maybe_single().execute()
 
-        if not user_response.data:
+        if not (user_response and user_response.data):
             raise AuthorizationError("User not found")
 
         user = user_response.data
@@ -78,8 +78,8 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
             return True
 
         # Check if student is a dependent managed by this parent
-        student_response = supabase.table('users').select('is_dependent, managed_by_parent_id').eq('id', student_user_id).single().execute()
-        if student_response.data:
+        student_response = supabase.table('users').select('is_dependent, managed_by_parent_id').eq('id', student_user_id).maybe_single().execute()
+        if student_response and student_response.data:
             is_dependent = student_response.data.get('is_dependent', False)
             managed_by = student_response.data.get('managed_by_parent_id')
             if is_dependent and managed_by == parent_user_id:

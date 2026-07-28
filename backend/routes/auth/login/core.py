@@ -69,8 +69,11 @@ def register_routes(bp):
 
                         # admin client justified: /me logout-replay check; reads users.last_logout_at to reject tokens issued before logout (pre-trust validation)
                         admin_client = get_supabase_admin_client()
+                        # maybe_single(): a valid token whose users row is gone
+                        # (deleted/unmigrated profile) must not raise PGRST116 and
+                        # log an error — data=None skips the logout check cleanly.
                         user_data = with_connection_retry(
-                            lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute(),
+                            lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).maybe_single().execute(),
                             operation_name='check_last_logout_at'
                         )
 
@@ -93,13 +96,15 @@ def register_routes(bp):
             admin_client = get_supabase_admin_client()
 
             try:
-                # Fetch complete user profile with retry logic for transient connection failures
+                # Fetch complete user profile with retry logic for transient connection failures.
+                # maybe_single(): a missing profile row returns data=None and falls
+                # through to the 404 below, instead of raising PGRST116 -> 500 + Sentry.
                 user_data = with_connection_retry(
-                    lambda: admin_client.table('users').select('*').eq('id', user_id).single().execute(),
+                    lambda: admin_client.table('users').select('*').eq('id', user_id).maybe_single().execute(),
                     operation_name='fetch_user_profile'
                 )
 
-                if user_data.data:
+                if user_data and user_data.data:
                     response_data = user_data.data
 
                     # Include organization data if user has an organization
@@ -108,7 +113,7 @@ def register_routes(bp):
                             org_data = admin_client.table('organizations')\
                                 .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags')\
                                 .eq('id', response_data['organization_id'])\
-                                .single()\
+                                .maybe_single()\
                                 .execute()
                             if org_data.data:
                                 response_data['organization'] = org_data.data

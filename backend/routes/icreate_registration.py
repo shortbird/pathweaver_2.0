@@ -572,13 +572,15 @@ def _authz(reg, token):
 
 
 def _org_config(admin, org_id):
-    r = admin.table('organizations').select('feature_flags').eq('id', org_id).single().execute()
-    return ((r.data or {}).get('feature_flags') or {}).get('icreate_registration') or {}
+    # maybe_single(): a missing org row returns {} instead of raising PGRST116
+    # (which surfaced as a confirm_payment error in Sentry).
+    r = admin.table('organizations').select('feature_flags').eq('id', org_id).maybe_single().execute()
+    return (((r.data if r else None) or {}).get('feature_flags') or {}).get('icreate_registration') or {}
 
 
 def _parent_row(admin, parent_id):
-    r = admin.table('users').select('id, email, first_name, last_name, avatar_url').eq('id', parent_id).single().execute()
-    return r.data or {}
+    r = admin.table('users').select('id, email, first_name, last_name, avatar_url').eq('id', parent_id).maybe_single().execute()
+    return (r.data if r else None) or {}
 
 
 def _existing_household_for_parent(admin, org_id, parent_id):
