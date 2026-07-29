@@ -76,6 +76,12 @@ const meetingSummary = (meetings) => {
     .join(', ')
 }
 
+const fmtDate = (ts) => {
+  if (!ts) return ''
+  try { return new Date(ts).toLocaleDateString(undefined, { dateStyle: 'medium' }) }
+  catch { return '' }
+}
+
 const priceLabel = (cents) => (cents ? `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}` : null)
 
 const dollars = (n) => `$${Number(n).toFixed(Number(n) % 1 ? 2 : 0)}`
@@ -228,6 +234,29 @@ const ClpPage = () => {
     notesTimer.current = setTimeout(() => saveNotes(value), 800)
   }
 
+  // Approve the schedule in the meeting (or hand it back to the family).
+  // Approving locks the family's Schedule Builder — staff make changes from here
+  // on, which is exactly the state a finished CLP meeting should leave behind.
+  const [approvalBusy, setApprovalBusy] = useState(false)
+  const reviewSchedule = async (action) => {
+    let note
+    if (action === 'reopen') {
+      note = window.prompt('Anything to tell the family about what needs to change? (optional)')
+      if (note === null) return // cancelled
+    }
+    setApprovalBusy(true)
+    try {
+      await api.post(withOrg(`/api/sis/clp/students/${selectedId}/schedule-approval`, orgId),
+        { action, note, organization_id: orgId })
+      toast.success(action === 'approve' ? 'Schedule approved' : 'Schedule reopened for the family')
+      loadStudent(selectedId)
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not update the schedule approval')
+    } finally {
+      setApprovalBusy(false)
+    }
+  }
+
   // Mark the CLP finished (or reopen it) — reflected as a check in the directory.
   const toggleFinished = async () => {
     const next = !student?.clp_record?.finished
@@ -354,6 +383,57 @@ const ClpPage = () => {
       <div className="flex-shrink-0">{renderClassActions(cls)}</div>
     </div>
   )
+
+  // Approve the week without leaving the meeting. Approved is the end state a
+  // CLP meeting aims for, so the button sits on the schedule itself rather than
+  // in the Registration review queue the family's own submissions land in.
+  const renderScheduleApproval = () => {
+    const approval = student?.schedule_approval || {}
+    const approved = approval.status === 'approved'
+    return (
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        {approved ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+              <CheckIcon className="w-4 h-4" /> Schedule approved
+            </span>
+            {(approval.reviewed_by_name || approval.reviewed_at) && (
+              <span className="text-xs text-neutral-400">
+                {approval.reviewed_by_name ? `by ${approval.reviewed_by_name}` : ''}
+                {approval.reviewed_at ? ` · ${fmtDate(approval.reviewed_at)}` : ''}
+              </span>
+            )}
+            {/* Undo, staff-side only — never a stray click with the screen
+                turned toward the family. */}
+            {!presentation && (
+              <button type="button" onClick={() => reviewSchedule('reopen')} disabled={approvalBusy}
+                className="text-xs text-neutral-400 underline hover:text-neutral-600 disabled:opacity-50">
+                Reopen for the family
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <Button size="sm" onClick={() => reviewSchedule('approve')} disabled={approvalBusy}>
+              {approvalBusy ? 'Approving…' : 'Approve schedule'}
+            </Button>
+            {approval.status === 'submitted' && (
+              <span className="text-xs text-neutral-400">
+                Submitted by {approval.submitted_by_name || 'the family'}
+                {approval.submitted_at ? ` · ${fmtDate(approval.submitted_at)}` : ''}
+              </span>
+            )}
+            {approval.status === 'sent_back' && !presentation && (
+              <span className="text-xs text-amber-600">Sent back to the family</span>
+            )}
+            {!presentation && (
+              <span className="text-xs text-neutral-400">Locks the family's schedule builder</span>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
 
   const renderScheduleGrid = () => {
     const byDay = {}
@@ -601,9 +681,12 @@ const ClpPage = () => {
 
         {/* Weekly schedule */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-neutral-900">Weekly schedule</h3>
-            <span className="text-sm text-neutral-400">{schedule.length} class{schedule.length === 1 ? '' : 'es'}</span>
+          <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+            <div>
+              <h3 className="font-semibold text-neutral-900">Weekly schedule</h3>
+              <span className="text-sm text-neutral-400">{schedule.length} class{schedule.length === 1 ? '' : 'es'}</span>
+            </div>
+            {renderScheduleApproval()}
           </div>
           {renderScheduleGrid()}
         </div>

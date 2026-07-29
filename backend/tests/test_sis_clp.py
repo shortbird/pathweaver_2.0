@@ -124,7 +124,8 @@ _CATALOG = [
 
 @pytest.mark.unit
 class TestClpStudent:
-    def _run(self, enrolled, waitlist, payment=None, record=None, learning_day=None):
+    def _run(self, enrolled, waitlist, payment=None, record=None, learning_day=None,
+             approval=None):
         tables = {
             'class_enrollments': _chain(enrolled),
             'sis_waitlist_entries': _chain(waitlist),
@@ -141,6 +142,8 @@ class TestClpStudent:
                    return_value=record or {'finished': False, 'notes': None}), \
              patch('services.sis_learning_day_service.get_selection', return_value=learning_day), \
              patch('services.sis_clp_service.catalog.list_classes', return_value=_CATALOG), \
+             patch('services.sis_clp_service.schedule_approval_state',
+                   return_value=approval or {'status': None}), \
              patch('services.sis_clp_service._admin', return_value=_client(tables)):
             return clp.get_clp_student('org1', 's1')
 
@@ -188,6 +191,53 @@ class TestClpStudent:
         assert out['clp_record']['finished'] is True
         assert out['clp_record']['notes'] == 'Great meeting'
         assert out['learning_day']['choice'] == 'elementary_at_home'
+
+    def test_schedule_approval_surfaces_for_the_meeting_screen(self):
+        out = self._run(enrolled=[], waitlist=[],
+                        approval={'status': 'approved', 'reviewed_by_name': 'Molly C'})
+        assert out['schedule_approval']['status'] == 'approved'
+        assert out['schedule_approval']['reviewed_by_name'] == 'Molly C'
+
+    def test_schedule_approval_never_breaks_the_payload(self):
+        """A lookup failure degrades to None — the meeting screen still loads."""
+        tables = {'class_enrollments': _chain([]), 'sis_waitlist_entries': _chain([])}
+        with patch('services.sis_clp_service.sis_service.student_in_org', return_value=True), \
+             patch('services.sis_clp_service._student_profile',
+                   return_value={'student_id': 's1', 'name': 'Alice Ant', 'age': 10}), \
+             patch('services.sis_clp_service._family_and_siblings',
+                   return_value=(None, [], [])), \
+             patch('services.sis_clp_service.get_clp_record',
+                   return_value={'finished': False, 'notes': None}), \
+             patch('services.sis_learning_day_service.get_selection', return_value=None), \
+             patch('services.sis_clp_service.catalog.list_classes', return_value=_CATALOG), \
+             patch('services.sis_clp_service.schedule_approval_state',
+                   side_effect=RuntimeError('table missing')), \
+             patch('services.sis_clp_service._admin', return_value=_client(tables)):
+            out = clp.get_clp_student('org1', 's1')
+        assert out['schedule_approval'] is None
+
+
+@pytest.mark.unit
+class TestScheduleApprovalState:
+    """What the CLP screen shows about where a schedule stands."""
+
+    def test_no_submission_means_no_status(self):
+        with patch('services.sis_schedule_submission_service.current', return_value=None):
+            out = clp.schedule_approval_state('org1', 's1')
+        assert out['status'] is None and out['reviewed_by_name'] is None
+
+    def test_hydrates_the_submitting_and_reviewing_names(self):
+        sub = {'status': 'approved', 'submitted_by': 'g1', 'reviewed_by': 'staff1',
+               'submitted_at': '2026-07-20T10:00:00Z', 'reviewed_at': '2026-07-21T10:00:00Z',
+               'review_note': None}
+        users = _chain([{'id': 'g1', 'first_name': 'Gina', 'last_name': 'Guardian'},
+                        {'id': 'staff1', 'first_name': 'Molly', 'last_name': 'C'}])
+        with patch('services.sis_schedule_submission_service.current', return_value=sub), \
+             patch('services.sis_clp_service._admin', return_value=_client({'users': users})):
+            out = clp.schedule_approval_state('org1', 's1')
+        assert out['status'] == 'approved'
+        assert out['submitted_by_name'] == 'Gina Guardian'
+        assert out['reviewed_by_name'] == 'Molly C'
 
 
 @pytest.mark.unit

@@ -308,6 +308,14 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:  # noqa: BLE001
         logger.warning(f'CLP: learning-day lookup failed for {student_id[:8]}: {e}')
 
+    # Schedule approval state, so the meeting screen can show where this
+    # student's schedule stands and approve it without leaving the CLP.
+    schedule_approval = None
+    try:
+        schedule_approval = schedule_approval_state(org_id, student_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'CLP: schedule approval lookup failed for {student_id[:8]}: {e}')
+
     return {
         'student': student,
         'family': family,
@@ -316,6 +324,32 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
         'schedule': schedule,
         'clp_record': clp_record,
         'learning_day': learning_day,
+        'schedule_approval': schedule_approval,
+    }
+
+
+def schedule_approval_state(org_id: str, student_id: str) -> Dict[str, Any]:
+    """Where this student's schedule stands for approval, hydrated with the
+    names the meeting screen shows. `status` is None when neither the family nor
+    staff has ever acted on it."""
+    from services import sis_schedule_submission_service as submissions
+    sub = submissions.current(org_id, student_id) or {}
+    people_ids = [i for i in (sub.get('submitted_by'), sub.get('reviewed_by')) if i]
+    names = {}
+    if people_ids:
+        rows = (
+            _admin().table('users')
+            .select('id, display_name, first_name, last_name, username, email')
+            .in_('id', people_ids).execute()
+        ).data or []
+        names = {r['id']: _full_name(r) for r in rows}
+    return {
+        'status': sub.get('status'),
+        'submitted_at': sub.get('submitted_at'),
+        'submitted_by_name': names.get(sub.get('submitted_by')),
+        'reviewed_at': sub.get('reviewed_at'),
+        'reviewed_by_name': names.get(sub.get('reviewed_by')),
+        'review_note': sub.get('review_note'),
     }
 
 

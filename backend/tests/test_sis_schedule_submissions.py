@@ -276,3 +276,66 @@ class TestSchedulePayloadDegradation:
         assert out['approval_enabled'] is False
         assert out['submission'] is None
         assert 'classes' in out  # the builder payload itself survived
+
+
+@pytest.mark.unit
+class TestApproveFromClp:
+    """The CLP meeting screen approves by student, not by submission id — in a
+    meeting the schedule is usually built live and was never submitted."""
+
+    def test_approves_a_pending_submission_through_review(self):
+        with patch('services.sis_schedule_submission_service.current',
+                   return_value=_SUBMITTED), \
+             patch('services.sis_schedule_submission_service.review') as review:
+            review.return_value = {'submission': {**_SUBMITTED, 'status': 'approved'}}
+            out = subs.approve_for_student('org1', 'stu1', reviewed_by='staff1')
+        review.assert_called_once_with('org1', 'sub1', 'approve',
+                                       reviewed_by='staff1', note=None)
+        assert out['submission']['status'] == 'approved'
+
+    def test_records_a_staff_approval_when_the_family_never_submitted(self):
+        approved = {**_SUBMITTED, 'status': 'approved', 'submitted_by': None}
+        chain = _chain([approved])  # the upsert
+        tables = {'sis_schedule_submissions': chain}
+        with patch('services.sis_schedule_submission_service.current', return_value=None), \
+             patch('services.sis_schedule_submission_service._admin', return_value=_client(tables)), \
+             patch('services.sis_schedule_submission_service._household_guardian_ids',
+                   return_value=['g1', 'g2']), \
+             patch('services.sis_schedule_submission_service._notify_guardian') as notify:
+            out = subs.approve_for_student('org1', 'stu1', reviewed_by='staff1')
+        payload = chain.upsert.call_args.args[0]
+        assert payload['status'] == 'approved'
+        assert payload['reviewed_by'] == 'staff1'
+        assert payload['submitted_at']  # locks the row even with no parent submit
+        assert out['submission']['status'] == 'approved'
+        # With no submitting guardian, every guardian on the household is told.
+        assert notify.call_args.kwargs['fallback_user_ids'] == ['g1', 'g2']
+
+    def test_already_approved_is_a_no_op(self):
+        approved = {**_SUBMITTED, 'status': 'approved'}
+        with patch('services.sis_schedule_submission_service.current', return_value=approved), \
+             patch('services.sis_schedule_submission_service.review') as review:
+            out = subs.approve_for_student('org1', 'stu1', reviewed_by='staff1')
+        assert out['already'] is True
+        review.assert_not_called()
+
+    def test_reopen_unlocks_the_family_builder(self):
+        approved = {**_SUBMITTED, 'status': 'approved'}
+        chain = _chain([{**approved, 'status': 'sent_back'}])  # the update
+        tables = {'sis_schedule_submissions': chain}
+        with patch('services.sis_schedule_submission_service.current', return_value=approved), \
+             patch('services.sis_schedule_submission_service._admin', return_value=_client(tables)), \
+             patch('services.sis_schedule_submission_service._household_guardian_ids', return_value=[]), \
+             patch('services.sis_schedule_submission_service._notify_guardian') as notify:
+            out = subs.reopen_for_student('org1', 'stu1', reviewed_by='staff1',
+                                          note='Add a Thursday class')
+        payload = chain.update.call_args.args[0]
+        assert payload['status'] == 'sent_back'
+        assert payload['review_note'] == 'Add a Thursday class'
+        assert out['submission']['status'] == 'sent_back'
+        notify.assert_called_once()
+
+    def test_reopen_without_an_approval_errors(self):
+        with patch('services.sis_schedule_submission_service.current', return_value=None):
+            out = subs.reopen_for_student('org1', 'stu1', reviewed_by='staff1')
+        assert out == {'error': 'No schedule approval to reopen'}

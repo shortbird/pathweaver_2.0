@@ -257,23 +257,112 @@ def review(org_id: str, submission_id: str, action: str, *, reviewed_by: str,
     return {'submission': row}
 
 
-def _notify_guardian(sub: Dict[str, Any]) -> None:
-    """Tell the submitting guardian the outcome (in-app, best-effort)."""
+def _household_guardian_ids(org_id: str, student_user_id: str) -> List[str]:
+    """The student's guardians, for a staff approval with no submitting parent
+    to notify (the CLP meeting case). Best-effort — never raises."""
+    try:
+        from services import sis_service
+        hh = sis_service._household_by_user(org_id).get(student_user_id)
+        if not hh:
+            return []
+        members = (
+            _admin().table('household_members').select('user_id, relationship')
+            .eq('household_id', hh['household_id']).execute()
+        ).data or []
+        return [m['user_id'] for m in members
+                if m.get('relationship') != 'student' and m.get('user_id')]
+    except Exception as e:  # noqa: BLE001 — notification lookup is never fatal
+        logger.warning(f'schedule submission: guardian lookup failed: {e}')
+        return []
+
+
+def approve_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,
+                        note: Optional[str] = None) -> Dict[str, Any]:
+    """Approve a student's schedule from the CLP meeting screen.
+
+    Same end state as approving from the Registration review queue, but keyed by
+    student rather than submission id, because in a CLP meeting the schedule is
+    usually built live with the family in the room and was never submitted
+    through the Schedule Builder. Approves the pending submission when there is
+    one; otherwise records a staff approval (which locks self-service changes,
+    exactly as a parent-submitted approval does). Already-approved is a no-op.
+    """
+    cur = current(org_id, student_user_id)
+    if cur and cur.get('status') == 'approved':
+        return {'already': True, 'submission': cur}
+    if cur and cur.get('status') == 'submitted':
+        return review(org_id, cur['id'], 'approve', reviewed_by=reviewed_by, note=note)
+
+    now = datetime.now(timezone.utc).isoformat()
+    row = (
+        _admin().table(TABLE).upsert({
+            'organization_id': org_id,
+            'student_user_id': student_user_id,
+            'status': 'approved',
+            # No parent submission: the schedule was agreed in the meeting, so
+            # the approving staff member stands in as the submitter of record.
+            'submitted_by': (cur or {}).get('submitted_by'),
+            'submitted_at': (cur or {}).get('submitted_at') or now,
+            'reviewed_by': reviewed_by,
+            'reviewed_at': now,
+            'review_note': (note or '').strip()[:MAX_NOTE_LEN] or None,
+            'updated_at': now,
+        }, on_conflict='organization_id,student_user_id').execute()
+    ).data[0]
+    _notify_guardian(row, fallback_user_ids=_household_guardian_ids(org_id, student_user_id))
+    return {'submission': row}
+
+
+def reopen_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,
+                       note: Optional[str] = None) -> Dict[str, Any]:
+    """Undo an approval — unlocks the family's Schedule Builder again.
+
+    A CLP approval happens live, so a mis-click has to be reversible in the same
+    place. Sends the schedule back to the family with an optional note, which is
+    the existing 'unlocked' state.
+    """
+    cur = current(org_id, student_user_id)
+    if not cur:
+        return {'error': 'No schedule approval to reopen'}
+    if cur.get('status') == 'sent_back':
+        return {'already': True, 'submission': cur}
+    now = datetime.now(timezone.utc).isoformat()
+    updated = (
+        _admin().table(TABLE).update({
+            'status': 'sent_back',
+            'reviewed_by': reviewed_by,
+            'reviewed_at': now,
+            'review_note': (note or '').strip()[:MAX_NOTE_LEN] or None,
+            'updated_at': now,
+        }).eq('id', cur['id']).execute()
+    ).data
+    row = updated[0] if updated else {**cur, 'status': 'sent_back'}
+    _notify_guardian(row, fallback_user_ids=_household_guardian_ids(org_id, student_user_id))
+    return {'submission': row}
+
+
+def _notify_guardian(sub: Dict[str, Any], fallback_user_ids: Optional[List[str]] = None) -> None:
+    """Tell the submitting guardian the outcome (in-app, best-effort).
+
+    `fallback_user_ids` covers staff-initiated approvals, where there is no
+    submitting guardian — every guardian on the household is told instead."""
     try:
         from services.sis_notifications import notify
         guardian = sub.get('submitted_by')
-        if not guardian:
+        recipients = [guardian] if guardian else list(fallback_user_ids or [])
+        if not recipients:
             return
-        if sub.get('status') == 'approved':
-            notify(guardian, 'Schedule approved',
-                   "Your student's class schedule was approved by the school.",
-                   link='/schedule-builder', organization_id=sub.get('organization_id'))
-        else:
-            note = sub.get('review_note')
-            notify(guardian, 'Schedule needs changes',
-                   "The school sent your student's schedule back"
-                   + (f': {note}' if note else
-                      ' — open the Schedule Builder to make changes and resubmit.'),
-                   link='/schedule-builder', organization_id=sub.get('organization_id'))
+        for recipient in recipients:
+            if sub.get('status') == 'approved':
+                notify(recipient, 'Schedule approved',
+                       "Your student's class schedule was approved by the school.",
+                       link='/schedule-builder', organization_id=sub.get('organization_id'))
+            else:
+                note = sub.get('review_note')
+                notify(recipient, 'Schedule needs changes',
+                       "The school sent your student's schedule back"
+                       + (f': {note}' if note else
+                          ' — open the Schedule Builder to make changes and resubmit.'),
+                       link='/schedule-builder', organization_id=sub.get('organization_id'))
     except Exception as e:  # noqa: BLE001 — notifications must never break a review
         logger.warning(f'schedule submission: guardian notification skipped: {e}')
