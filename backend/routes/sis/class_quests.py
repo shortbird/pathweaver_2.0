@@ -281,6 +281,60 @@ def unassign_quest(user_id, class_id, quest_id):
     return jsonify({'success': True})
 
 
+@bp.route('/classes/<class_id>/quests/<quest_id>/delete', methods=['DELETE'])
+@require_auth
+def delete_class_quest(user_id, class_id, quest_id):
+    """Delete one of the school's own quests outright, not just unassign it.
+
+    Unassigning leaves the quest in the school's library, which is right for a
+    quest that will be used again and wrong for one created by mistake. This
+    removes it — but only when it is safe to:
+
+      - it must belong to this org (Optio-library quests are shared, so deleting
+        one here would take it away from every other school), and
+      - no student may have started it. Deleting a quest with progress behind it
+        would destroy their completed tasks and the XP those earned.
+
+    When students have started it, we refuse and say how many, so the teacher
+    can unassign instead.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
+
+    quest = (admin.table('quests').select('id, title, organization_id')
+             .eq('id', quest_id).limit(1).execute()).data
+    quest = quest[0] if quest else None
+    if not quest:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    if quest.get('organization_id') != class_row['organization_id']:
+        return jsonify({
+            'success': False,
+            'error': ('This quest comes from the Optio library and is shared with other '
+                      'schools, so it can only be removed from your class, not deleted.'),
+        }), 403
+
+    started = (admin.table('user_quests').select('id')
+               .eq('quest_id', quest_id).limit(50).execute()).data or []
+    if started:
+        return jsonify({
+            'success': False,
+            'error': (f'{len(started)} student{"s have" if len(started) != 1 else " has"} '
+                      'already started this quest, so deleting it would erase their work. '
+                      'Remove it from the class instead.'),
+            'started_count': len(started),
+        }), 409
+
+    # class_quests rows and template tasks go with it; the quest row is last so a
+    # failure part-way leaves the quest reachable rather than orphaned.
+    admin.table('class_quests').delete().eq('quest_id', quest_id).execute()
+    admin.table('quest_template_tasks').delete().eq('quest_id', quest_id).execute()
+    admin.table('quests').delete().eq('id', quest_id).execute()
+    return jsonify({'success': True, 'title': quest.get('title')})
+
+
 @bp.route('/classes/<class_id>/quests/create', methods=['POST'])
 @require_auth
 def create_quest_with_tasks(user_id, class_id):

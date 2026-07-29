@@ -12,10 +12,16 @@ import { ModalOverlay } from '../ui'
  * ready. Creating a teacher makes the account (org advisor) and sends them a
  * set-password email; the photo is uploaded separately once the account exists.
  *
- * If a placeholder teacher of the same name already exists (a schedule-import
- * row that holds class assignments), the create is intercepted and the admin is
- * offered to LINK that account instead of creating a duplicate that would strand
- * the placeholder's classes.
+ * Adding needs ONLY an email (2026-07-29): the teacher fills in their own name
+ * and bio when they set their password, so an admin never has to know how
+ * someone spells their name to invite them.
+ *
+ * That removed the old name-match guard against duplicating a placeholder
+ * teacher (a schedule-import row holding class assignments) — with no name
+ * typed there is nothing to match on. In its place, when the org still has
+ * unlinked placeholders the add form names them and points at "Link their
+ * account", which is what carries their classes across. The backend match still
+ * runs for callers that do send a name.
  *
  * Pass `initial` (a staff row from /api/sis/staff) to edit an existing member.
  */
@@ -23,7 +29,7 @@ import { ModalOverlay } from '../ui'
 const inputClass =
   'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent'
 
-export default function TeacherModal({ orgId, onClose, onSaved, initial = null }) {
+export default function TeacherModal({ orgId, onClose, onSaved, initial = null, placeholders = [] }) {
   const isEdit = Boolean(initial)
   const [formData, setFormData] = useState({
     first_name: initial?.first_name || '',
@@ -119,9 +125,9 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null }
       if (data.email_sent === false) {
         toast.error('Teacher added, but the set-password email could not be sent. Ask them to use "Forgot password" on the login page.', { duration: 8000 })
       } else if (data.onboarding_assigned) {
-        toast.success('Teacher added — they’ll get a setup email and their onboarding checklist is ready')
+        toast.success('Invite sent — they’ll add their name when they set their password, and their onboarding checklist is ready')
       } else {
-        toast.success('Teacher added — they’ll get an email with setup instructions')
+        toast.success('Invite sent — they’ll add their name when they set their password')
       }
       onSaved()
     } catch (err) {
@@ -163,12 +169,15 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null }
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!formData.first_name.trim() || !formData.last_name.trim()) {
-      setError('First and last name are required')
-      return
-    }
     if (!formData.email.trim()) {
       setError('Email is required')
+      return
+    }
+    // Adding a teacher needs nothing but an email — they supply their own name
+    // and bio when they set their password. Editing still requires a name,
+    // because by then there is one to keep.
+    if (isEdit && (!formData.first_name.trim() || !formData.last_name.trim())) {
+      setError('First and last name are required')
       return
     }
     if (isEdit) {
@@ -278,40 +287,68 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null }
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name <span className="text-red-500">*</span>
-                </label>
-                <input type="text" id="first_name" name="first_name" value={formData.first_name}
-                  onChange={handleChange} className={inputClass} required autoFocus />
-              </div>
-              <div>
-                <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name <span className="text-red-500">*</span>
-                </label>
-                <input type="text" id="last_name" name="last_name" value={formData.last_name}
-                  onChange={handleChange} className={inputClass} required />
-              </div>
-            </div>
-
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email <span className="text-red-500">*</span>
               </label>
               <input type="email" id="email" name="email" value={formData.email}
-                onChange={handleChange} placeholder="teacher@school.org" className={inputClass} required />
+                onChange={handleChange} placeholder="teacher@school.org" className={inputClass}
+                required autoFocus={!isEdit} />
               {!isEdit && (
-                <p className="text-xs text-gray-400 mt-1">They’ll receive an email to set their password.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  That’s all you need. They’ll get an email to set their password, and add their
+                  own name and bio when they do.
+                </p>
               )}
             </div>
 
-            <div>
-              <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-              <textarea id="bio" name="bio" value={formData.bio} onChange={handleChange}
-                placeholder="A short introduction families will see"
-                rows={4} className={`${inputClass} resize-none`} />
-            </div>
+            {/* Replaces the old name-match guard: with no name typed we can't
+                detect the duplicate, so we say plainly when placeholders exist
+                and where the linking lives. */}
+            {!isEdit && placeholders.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-medium text-amber-900">
+                  Replacing a teacher who already has classes?
+                </p>
+                <p className="text-sm text-amber-800 mt-0.5">
+                  {placeholders.slice(0, 4).map((p) => p.name).join(', ')}
+                  {placeholders.length > 4 ? `, and ${placeholders.length - 4} more` : ''}
+                  {placeholders.length === 1 ? ' is' : ' are'} set up without a login.
+                  Adding a new teacher here leaves their classes unassigned — instead, open that
+                  person on the Staff list and choose <span className="font-medium">Link their account</span>.
+                </p>
+              </div>
+            )}
+
+            {/* Name and bio are the teacher's to fill in, so these only appear
+                when editing someone who already has an account. */}
+            {isEdit && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name <span className="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="first_name" name="first_name" value={formData.first_name}
+                      onChange={handleChange} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name <span className="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="last_name" name="last_name" value={formData.last_name}
+                      onChange={handleChange} className={inputClass} required />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+                  <textarea id="bio" name="bio" value={formData.bio} onChange={handleChange}
+                    placeholder="A short introduction families will see"
+                    rows={4} className={`${inputClass} resize-none`} />
+                </div>
+              </>
+            )}
 
             {/* Onboarding checklist (add only) */}
             {!isEdit && (

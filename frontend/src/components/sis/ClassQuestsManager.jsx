@@ -250,12 +250,30 @@ export default function ClassQuestsManager({ classId }) {
     }
   }
 
-  const unassign = async (questId) => {
+  // Two different things, kept visibly apart: unassign takes the quest off this
+  // class and leaves it in the school's library; delete removes it entirely.
+  const unassign = async (q) => {
+    if (!window.confirm(
+      `Take "${q.title}" off this class?\n\nThe quest stays in your school's library and you can assign it again later.`)) return
     try {
-      await api.delete(`/api/sis/classes/${classId}/quests/${questId}`)
-      setQuests((prev) => prev.filter((q) => q.quest_id !== questId))
+      await api.delete(`/api/sis/classes/${classId}/quests/${q.quest_id}`)
+      setQuests((prev) => prev.filter((x) => x.quest_id !== q.quest_id))
+      toast.success('Removed from this class')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove the quest')
+    }
+  }
+
+  const destroy = async (q) => {
+    if (!window.confirm(
+      `Delete "${q.title}" for good?\n\nThis removes it from your school's library, not just this class. It can't be undone.`)) return
+    try {
+      await api.delete(`/api/sis/classes/${classId}/quests/${q.quest_id}/delete`)
+      setQuests((prev) => prev.filter((x) => x.quest_id !== q.quest_id))
+      toast.success('Quest deleted')
+    } catch (err) {
+      // 409 = students have started it. The message explains what to do instead.
+      toast.error(err?.response?.data?.error || 'Could not delete the quest')
     }
   }
 
@@ -365,10 +383,23 @@ export default function ClassQuestsManager({ classId }) {
                       {!q.editable_tasks ? ' · Optio library' : ''}
                     </p>
                   </div>
-                  <button onClick={() => unassign(q.quest_id)}
-                    className="shrink-0 px-3 py-1.5 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-gray-50">
-                    Remove
-                  </button>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <button onClick={() => unassign(q)}
+                      title="Take it off this class — the quest stays in your library"
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-gray-50">
+                      Unassign
+                    </button>
+                    {/* Only the school's own quests can be deleted; library
+                        quests are shared with other schools. */}
+                    {q.editable_tasks && (
+                      <button onClick={() => destroy(q)}
+                        title="Delete it from your school's library for good"
+                        className="p-1.5 text-gray-400 hover:text-red-500"
+                        aria-label={`Delete ${q.title}`}>
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {open && (
                   <div className="border-t border-gray-100 px-4 pb-4">

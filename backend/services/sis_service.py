@@ -779,12 +779,16 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
     first = (fields.get('first_name') or '').strip()
     last = (fields.get('last_name') or '').strip()
     email = (fields.get('email') or '').strip().lower()
-    if not first or not last:
-        return {'error': 'First and last name are required'}
     if not email or '@' not in email:
         return {'error': 'A valid email is required'}
-    # Guard the duplicate-account trap unless the admin explicitly overrides.
-    if not fields.get('force_new'):
+    # Name is OPTIONAL (2026-07-29). An admin adding staff only knows their
+    # email; the teacher fills in their own name and bio when they set their
+    # password. Until then the account carries a provisional label derived from
+    # the address so it is recognizable in the staff list.
+    provisional_name = not (first and last)
+    # Placeholder matching is name-based, so it only runs when a name was given
+    # (the "link their account" flow on the placeholder itself covers the rest).
+    if first and last and not fields.get('force_new'):
         match = find_placeholder_match(org_id, first, last)
         if match:
             return {'placeholder_match': match}
@@ -807,9 +811,12 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
     profile = {
         'id': auth.user.id,
         'email': email,
-        'first_name': first,
-        'last_name': last,
-        'display_name': f'{first} {last}'.strip(),
+        'first_name': first or None,
+        'last_name': last or None,
+        # Something readable in the staff list before they've registered. The
+        # email local part beats a blank row or the word "Unnamed", and it is
+        # replaced by their real name the moment they set their password.
+        'display_name': (f'{first} {last}'.strip() or email.split('@')[0]),
         'role': 'org_managed',
         'org_role': 'advisor',
         'org_roles': ['advisor'],
@@ -850,7 +857,10 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
         except Exception as e:  # noqa: BLE001
             logger.warning(f'create_org_teacher: onboarding assign failed: {e}')
     return {'teacher': {'id': auth.user.id, 'name': profile['display_name'], 'email': email},
-            'email_sent': email_sent, 'onboarding_assigned': onboarding_assigned}
+            'email_sent': email_sent, 'onboarding_assigned': onboarding_assigned,
+            # The UI says "they'll add their name when they sign in" rather than
+            # implying the admin left something out.
+            'awaiting_profile': provisional_name}
 
 
 # Columns that can point at a placeholder teacher; repointed when merging into a

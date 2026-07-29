@@ -25,6 +25,9 @@ const StaffWelcomePage = () => {
 
   const token = useMemo(() => searchParams.get('token') || '', [searchParams])
   const email = invite?.email || searchParams.get('email') || ''
+  // Default true: an admin adding a teacher supplies only their email, so the
+  // name fields show unless the server says the account already has one.
+  const needsProfile = invite ? invite.needs_profile !== false : true
   const orgName = invite?.org_name || searchParams.get('org') || 'your school'
   const logoUrl = invite?.logo_url || null
 
@@ -56,6 +59,12 @@ const StaffWelcomePage = () => {
       await api.post('/api/auth/reset-password', {
         token,
         new_password: data.password,
+        // Admins invite staff by email alone, so the teacher names themselves
+        // here. The backend ignores these for an account that already has a
+        // name, so a returning user can't be renamed by this form.
+        first_name: (data.first_name || '').trim(),
+        last_name: (data.last_name || '').trim(),
+        bio: (data.bio || '').trim(),
       })
       toast.success('Your account is ready. Log in with your new password.')
       navigate('/login')
@@ -85,8 +94,10 @@ const StaffWelcomePage = () => {
           </h2>
           <p className="mt-3 text-sm text-gray-600">
             {orgName} uses Optio to manage classes, rosters, attendance, and
-            messaging. A teacher account has been created for you. Choose a
-            password below to finish setting it up.
+            messaging. A teacher account has been created for you
+            {needsProfile
+              ? ' — tell us your name and choose a password to finish setting it up.'
+              : '. Choose a password below to finish setting it up.'}
           </p>
           {email && (
             <p className="mt-2 text-sm text-gray-600">
@@ -121,6 +132,60 @@ const StaffWelcomePage = () => {
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="rounded-md shadow-sm space-y-4">
+            {/* The school only had your email — tell us who you are. Skipped for
+                accounts that already have a name (e.g. a claimed placeholder). */}
+            {needsProfile && (
+            <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+                  First name
+                </label>
+                <input
+                  {...register('first_name', { required: 'Please enter your first name' })}
+                  id="first_name"
+                  type="text"
+                  autoComplete="given-name"
+                  className="input-field rounded-lg"
+                  placeholder="Jane"
+                />
+                {errors.first_name && (
+                  <p className="mt-1 text-sm text-red-600">{errors.first_name.message}</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Last name
+                </label>
+                <input
+                  {...register('last_name', { required: 'Please enter your last name' })}
+                  id="last_name"
+                  type="text"
+                  autoComplete="family-name"
+                  className="input-field rounded-lg"
+                  placeholder="Doe"
+                />
+                {errors.last_name && (
+                  <p className="mt-1 text-sm text-red-600">{errors.last_name.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
+                A little about you <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                {...register('bio')}
+                id="bio"
+                rows={3}
+                className="input-field rounded-lg resize-none"
+                placeholder="A short introduction families will see — what you teach, and anything you'd like them to know."
+              />
+            </div>
+            </>
+            )}
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Choose a password

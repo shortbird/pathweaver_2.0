@@ -385,10 +385,58 @@ def staff_invite_info(token):
             'first_name': user.get('first_name'),
             'org_name': org_name,
             'logo_url': logo_url,
+            # Invited by email alone, so the welcome page asks for their name.
+            # A teacher whose account was created with a name (or claimed from a
+            # placeholder) isn't asked again.
+            'needs_profile': not (user.get('first_name') or '').strip(),
         }), 200
     except Exception as e:
         logger.error(f"[STAFF_INVITE_INFO] lookup failed: {e}")
         return jsonify({'error': 'Invalid invite link'}), 404
+
+
+_MAX_NAME_LEN = 100
+_MAX_BIO_LEN = 2000
+
+
+def _apply_invite_profile(admin_client, user_id, data):
+    """Let an invited staff member name themselves while setting their password.
+
+    Admins add teachers by email alone, so the account starts with no name. The
+    teacher fills it in on the welcome page and it arrives here with the
+    password. Guarded two ways: the reset token already proves they own the
+    address, and the write is skipped unless the profile is still nameless — so
+    this can never rename an account that already has one.
+
+    Best-effort: the password is already changed by this point, and a profile
+    hiccup must not turn a successful reset into an error the user sees.
+    """
+    first = (data.get('first_name') or '').strip()[:_MAX_NAME_LEN]
+    last = (data.get('last_name') or '').strip()[:_MAX_NAME_LEN]
+    bio = (data.get('bio') or '').strip()[:_MAX_BIO_LEN]
+    if not (first or last or bio):
+        return
+    try:
+        rows = (admin_client.table('users')
+                .select('first_name, last_name, bio')
+                .eq('id', user_id).limit(1).execute()).data or []
+        if not rows:
+            return
+        profile = rows[0]
+        if profile.get('first_name') or profile.get('last_name'):
+            return  # already named — not ours to change
+        fields = {}
+        if first or last:
+            fields['first_name'] = first or None
+            fields['last_name'] = last or None
+            fields['display_name'] = f'{first} {last}'.strip()
+        if bio and not (profile.get('bio') or '').strip():
+            fields['bio'] = bio
+        if fields:
+            admin_client.table('users').update(fields).eq('id', user_id).execute()
+            logger.info(f"[RESET_PASSWORD] Applied invited-staff profile for {user_id[:8]}")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[RESET_PASSWORD] Could not apply invited-staff profile: {e}")
 
 
 @bp.route('/reset-password', methods=['POST'])
@@ -397,6 +445,9 @@ def reset_password():
     """
     Reset password using custom token from email link.
     Validates new password and updates user account.
+
+    Optionally accepts first_name / last_name / bio — used by the staff welcome
+    page, where an invited teacher names themselves (see _apply_invite_profile).
     """
     try:
         data = request.json
@@ -483,6 +534,12 @@ def reset_password():
             except Exception as sync_error:
                 # Don't fail password reset if email sync fails, just log it
                 logger.error(f"[RESET_PASSWORD] Warning: Failed to sync email in public.users: {sync_error}")
+
+            # Staff invited by email alone arrive here with no name on file and
+            # supply it themselves on the welcome page, alongside their bio.
+            # Applied ONLY when the profile has no name yet: a genuine password
+            # reset must never be a route to renaming an established account.
+            _apply_invite_profile(admin_client, user_id, data)
 
             # Token already marked as used atomically at the start (prevents race condition)
 

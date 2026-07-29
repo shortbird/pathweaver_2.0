@@ -1,0 +1,92 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+
+vi.mock('react-hot-toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+  default: { success: vi.fn(), error: vi.fn() },
+}))
+
+const { api } = vi.hoisted(() => ({
+  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+}))
+vi.mock('../../services/api', () => ({ default: api }))
+
+import ClassQuestsManager from './ClassQuestsManager'
+
+const OWN_QUEST = {
+  quest_id: 'q1', title: 'Bridge Building', template_task_count: 2, editable_tasks: true,
+}
+const LIBRARY_QUEST = {
+  quest_id: 'q2', title: 'Optio Poetry', template_task_count: 0, editable_tasks: false,
+}
+
+const mockQuests = (quests) => api.get.mockImplementation((url) => (
+  url.includes('/quests') && !url.includes('assignable')
+    ? Promise.resolve({ data: { quests } })
+    : Promise.resolve({ data: { quests: [] } })
+))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+})
+
+describe('ClassQuestsManager unassign vs delete', () => {
+  it('unassign takes the quest off the class but keeps it in the library', async () => {
+    mockQuests([OWN_QUEST])
+    api.delete.mockResolvedValue({ data: { success: true } })
+    render(<ClassQuestsManager classId="c1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Unassign' }))
+
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/api/sis/classes/c1/quests/q1'))
+    // The confirm must say the quest survives, or the two actions read alike.
+    expect(window.confirm.mock.calls[0][0]).toMatch(/stays in your school's library/)
+  })
+
+  it('delete removes it from the library, on a separate endpoint', async () => {
+    mockQuests([OWN_QUEST])
+    api.delete.mockResolvedValue({ data: { success: true } })
+    render(<ClassQuestsManager classId="c1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Delete Bridge Building/i }))
+
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('/api/sis/classes/c1/quests/q1/delete'))
+    expect(window.confirm.mock.calls[0][0]).toMatch(/can't be undone/i)
+  })
+
+  it('offers no delete for Optio library quests — they are shared', async () => {
+    mockQuests([LIBRARY_QUEST])
+    render(<ClassQuestsManager classId="c1" />)
+
+    expect(await screen.findByRole('button', { name: 'Unassign' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Delete Optio Poetry/i })).not.toBeInTheDocument()
+  })
+
+  it('cancelling the confirm leaves the quest alone', async () => {
+    window.confirm.mockReturnValue(false)
+    mockQuests([OWN_QUEST])
+    render(<ClassQuestsManager classId="c1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Unassign' }))
+
+    expect(api.delete).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the refusal when students have already started the quest', async () => {
+    const { toast } = await import('react-hot-toast')
+    mockQuests([OWN_QUEST])
+    api.delete.mockRejectedValue({
+      response: { status: 409, data: { error: '3 students have already started this quest' } },
+    })
+    render(<ClassQuestsManager classId="c1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Delete Bridge Building/i }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('3 students have already started this quest'))
+    // Still listed — a failed delete must not look like it worked.
+    expect(screen.getByText('Bridge Building')).toBeInTheDocument()
+  })
+})

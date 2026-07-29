@@ -151,6 +151,7 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
         <TeacherModal
           orgId={orgId}
           initial={editing}
+          placeholders={staff.filter((s) => s.is_placeholder)}
           onClose={closeModals}
           onSaved={() => { closeModals(); load() }}
         />

@@ -60,15 +60,15 @@ describe('StaffPage', () => {
     render(<StaffPage />)
     await screen.findByText('Jane Doe')
     fireEvent.click(screen.getByText('Add teacher'))
-    fireEvent.change(screen.getByLabelText(/First Name/), { target: { value: 'Sam' } })
-    fireEvent.change(screen.getByLabelText(/Last Name/), { target: { value: 'Lee' } })
+    // Email is the only thing an admin supplies; the teacher names themselves
+    // when they set their password.
+    expect(screen.queryByLabelText(/First Name/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Bio/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'sam@icreate.org' } })
-    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Robotics coach' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add Teacher' }))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/staff', expect.objectContaining({
-        first_name: 'Sam', last_name: 'Lee', email: 'sam@icreate.org',
-        bio: 'Robotics coach', organization_id: 'org-1',
+        email: 'sam@icreate.org', organization_id: 'org-1',
       })),
     )
   })
@@ -132,8 +132,6 @@ describe('StaffPage', () => {
     render(<StaffPage />)
     await screen.findByText('Jane Doe')
     fireEvent.click(screen.getByText('Add teacher'))
-    fireEvent.change(screen.getByLabelText(/First Name/), { target: { value: 'Sam' } })
-    fireEvent.change(screen.getByLabelText(/Last Name/), { target: { value: 'Lee' } })
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'jane@icreate.org' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add Teacher' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('A user with this email already exists')

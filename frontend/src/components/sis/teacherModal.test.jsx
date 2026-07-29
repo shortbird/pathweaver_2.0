@@ -18,9 +18,8 @@ vi.mock('../../services/api', () => ({ default: api }))
 
 import TeacherModal from './TeacherModal'
 
+// Adding a teacher takes an email and nothing else.
 const fillForm = () => {
-  fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Jane' } })
-  fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Doe' } })
   fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: 'jane@real.com' } })
 }
 
@@ -59,58 +58,54 @@ describe('TeacherModal onboarding picker', () => {
   })
 })
 
-describe('TeacherModal placeholder guard', () => {
-  it('offers to link an existing placeholder instead of creating a duplicate', async () => {
-    api.post.mockImplementation((url) => {
-      if (url === '/api/sis/staff') {
-        return Promise.resolve({ data: { placeholder_match: { id: 'ph-1', name: 'Jane Doe', class_count: 3 } } })
-      }
-      if (url.includes('/link')) {
-        return Promise.resolve({ data: { linked: 'invited', staff_id: 'ph-1', email_sent: true } })
-      }
-      return Promise.resolve({ data: {} })
-    })
-    const onSaved = vi.fn()
-    render(<TeacherModal orgId="org-1" onClose={vi.fn()} onSaved={onSaved} />)
+describe('TeacherModal email-only add', () => {
+  it('asks only for an email — the teacher supplies their own name and bio', async () => {
+    render(<TeacherModal orgId="org-1" onClose={vi.fn()} onSaved={vi.fn()} />)
     await screen.findByText('Employee onboarding (employee)')
 
-    fillForm()
-    fireEvent.click(screen.getByRole('button', { name: /add teacher/i }))
-
-    // Decision screen appears instead of creating.
-    await screen.findByText(/may already exist/i)
-    expect(screen.getByText(/3 classes assigned/)).toBeTruthy()
-
-    fireEvent.click(screen.getByRole('button', { name: /link jane doe.*account/i }))
-
-    await waitFor(() => expect(onSaved).toHaveBeenCalled())
-    const linkCall = api.post.mock.calls.find(([u]) => u.includes('/link'))
-    expect(linkCall[0]).toBe('/api/sis/staff/ph-1/link')
-    expect(linkCall[1]).toMatchObject({ email: 'jane@real.com', organization_id: 'org-1' })
+    expect(screen.getByLabelText(/^email/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/first name/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/last name/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/bio/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/add their\s+own name and bio/i)).toBeInTheDocument()
   })
 
-  it('force-creates when the admin chooses "create a new teacher"', async () => {
-    let calls = 0
-    api.post.mockImplementation((url) => {
-      if (url === '/api/sis/staff') {
-        calls += 1
-        return calls === 1
-          ? Promise.resolve({ data: { placeholder_match: { id: 'ph-1', name: 'Jane Doe', class_count: 0 } } })
-          : Promise.resolve({ data: { teacher: { id: 'new-1' }, email_sent: true } })
-      }
-      return Promise.resolve({ data: {} })
-    })
-    const onSaved = vi.fn()
-    render(<TeacherModal orgId="org-1" onClose={vi.fn()} onSaved={onSaved} />)
+  it('still collects name and bio when editing someone who already has an account', async () => {
+    render(
+      <TeacherModal
+        orgId="org-1"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={{ id: 's1', first_name: 'Jane', last_name: 'Doe', email: 'jane@real.com', bio: 'Coach' }}
+      />,
+    )
+    expect(await screen.findByLabelText(/first name/i)).toHaveValue('Jane')
+    expect(screen.getByLabelText(/last name/i)).toHaveValue('Doe')
+    expect(screen.getByLabelText(/bio/i)).toHaveValue('Coach')
+  })
+
+  it('warns about unlinked placeholders so their classes are not stranded', async () => {
+    // The old name-match guard cannot fire without a name, so this note is what
+    // stops an admin creating a duplicate and orphaning a placeholder's classes.
+    render(
+      <TeacherModal
+        orgId="org-1"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        placeholders={[{ id: 'ph-1', name: 'Liz Smith' }, { id: 'ph-2', name: 'Ray Ng' }]}
+      />,
+    )
     await screen.findByText('Employee onboarding (employee)')
 
-    fillForm()
-    fireEvent.click(screen.getByRole('button', { name: /add teacher/i }))
-    await screen.findByText(/may already exist/i)
-    fireEvent.click(screen.getByRole('button', { name: /create a new teacher/i }))
+    expect(screen.getByText(/Replacing a teacher who already has classes/i)).toBeInTheDocument()
+    expect(screen.getByText(/Liz Smith, Ray Ng/)).toBeInTheDocument()
+    expect(screen.getByText(/Link their account/)).toBeInTheDocument()
+  })
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalled())
-    const second = api.post.mock.calls.filter(([u]) => u === '/api/sis/staff')[1]
-    expect(second[1].force_new).toBe(true)
+  it('says nothing about placeholders when the org has none', async () => {
+    render(<TeacherModal orgId="org-1" onClose={vi.fn()} onSaved={vi.fn()} placeholders={[]} />)
+    await screen.findByText('Employee onboarding (employee)')
+
+    expect(screen.queryByText(/Replacing a teacher who already has classes/i)).not.toBeInTheDocument()
   })
 })
