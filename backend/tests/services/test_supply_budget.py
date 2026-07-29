@@ -127,18 +127,27 @@ class TestEnrolledCounts:
             {'class_id': 'c1', 'status': 'waitlisted'},
             {'class_id': 'c1', 'status': 'withdrawn'},
         ]
-        with patch.object(budget, '_admin') as admin:
-            (admin.return_value.table.return_value.select.return_value
-             .in_.return_value.execute.return_value.data) = rows
+        with patch.object(budget, '_admin'), \
+             patch.object(budget, 'fetch_all_rows', return_value=rows):
             counts = budget._enrolled_counts(['c1'])
 
         assert counts == {'c1': 2}
 
     def test_missing_status_counts_as_active(self):
         """Older rows predate the status column being populated."""
-        with patch.object(budget, '_admin') as admin:
-            (admin.return_value.table.return_value.select.return_value
-             .in_.return_value.execute.return_value.data) = [{'class_id': 'c1', 'status': None}]
+        with patch.object(budget, '_admin'), \
+             patch.object(budget, 'fetch_all_rows',
+                          return_value=[{'class_id': 'c1', 'status': None}]):
             counts = budget._enrolled_counts(['c1'])
 
         assert counts == {'c1': 1}
+
+    def test_the_roster_read_is_paged(self):
+        """The read spans every class in the org, so it must page — PostgREST
+        truncates a large response silently, and a short read here would hand
+        teachers a budget ceiling lower than what families actually paid."""
+        with patch.object(budget, '_admin'), \
+             patch.object(budget, 'fetch_all_rows', return_value=[]) as paged:
+            budget._enrolled_counts(['c1', 'c2'])
+
+        paged.assert_called_once()

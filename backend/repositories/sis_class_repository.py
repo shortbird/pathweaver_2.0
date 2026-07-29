@@ -13,6 +13,7 @@ that compose enrollment counts + schedule live in services/sis_catalog_service.p
 from typing import Optional, Dict, List, Any
 
 from repositories.base_repository import BaseRepository
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -37,15 +38,19 @@ class SisClassRepository(BaseRepository):
     # ── Classes (org_classes) ────────────────────────────────────────────────
     def list_for_org(self, organization_id: str,
                      include_archived: bool = False) -> List[Dict[str, Any]]:
-        query = (
-            self.client.table(self.table_name)
-            .select('*')
-            .eq('organization_id', organization_id)
-        )
-        if not include_archived:
-            query = query.neq('status', 'archived')
-        resp = query.order('name').execute()
-        return resp.data or []
+        def build():
+            query = (
+                self.client.table(self.table_name)
+                .select('*')
+                .eq('organization_id', organization_id)
+            )
+            return query if include_archived else query.neq('status', 'archived')
+
+        # Paged by id (unique, so pages can't skip or repeat), then sorted by
+        # name for display — a silently truncated read would drop classes off
+        # the end of the catalog entirely.
+        rows = fetch_all_rows(build)
+        return sorted(rows, key=lambda c: (c.get('name') or '').lower())
 
     def create_for_org(self, organization_id: str, created_by: str,
                        fields: Dict[str, Any]) -> Dict[str, Any]:
@@ -110,34 +115,40 @@ class SisClassRepository(BaseRepository):
         return resp.count or 0
 
     def enrollment_counts_for_classes(self, class_ids: List[str]) -> Dict[str, int]:
-        """active enrollment count per class_id in one query."""
+        """active enrollment count per class_id.
+
+        Paged: an org's enrollments run past PostgREST's per-response row cap
+        once the school is big enough, and the truncation is silent. Tallying a
+        truncated read made the class list under-report — counts *fell* as more
+        families enrolled, and a full class read 0/12 while its roster still
+        listed twelve students (iCreate, 2026-07-29).
+        """
         if not class_ids:
             return {}
-        resp = (
+        rows = fetch_all_rows(lambda: (
             self.client.table('class_enrollments')
-            .select('class_id')
+            .select('id, class_id')
             .in_('class_id', class_ids)
             .eq('status', 'active')
-            .execute()
-        )
+        ))
         counts: Dict[str, int] = {}
-        for row in (resp.data or []):
+        for row in rows:
             counts[row['class_id']] = counts.get(row['class_id'], 0) + 1
         return counts
 
     def waitlist_counts_for_classes(self, class_ids: List[str]) -> Dict[str, int]:
-        """waiting/offered waitlist entries per class_id in one query."""
+        """waiting/offered waitlist entries per class_id. Paged for the same
+        reason as enrollment_counts_for_classes."""
         if not class_ids:
             return {}
-        resp = (
+        rows = fetch_all_rows(lambda: (
             self.client.table('sis_waitlist_entries')
-            .select('class_id')
+            .select('id, class_id')
             .in_('class_id', class_ids)
             .in_('status', ['waiting', 'offered'])
-            .execute()
-        )
+        ))
         counts: Dict[str, int] = {}
-        for row in (resp.data or []):
+        for row in rows:
             counts[row['class_id']] = counts.get(row['class_id'], 0) + 1
         return counts
 
@@ -153,15 +164,15 @@ class SisClassRepository(BaseRepository):
         return resp.data or []
 
     def meetings_for_classes(self, class_ids: List[str]) -> List[Dict[str, Any]]:
+        """Every meeting for the given classes. Paged — a truncated read would
+        silently blank out the day/time on the classes past the cut."""
         if not class_ids:
             return []
-        resp = (
+        return fetch_all_rows(lambda: (
             self.client.table('class_meetings')
             .select('*')
             .in_('class_id', class_ids)
-            .execute()
-        )
-        return resp.data or []
+        ))
 
     def add_meeting(self, class_id: str, organization_id: str,
                     fields: Dict[str, Any]) -> Dict[str, Any]:

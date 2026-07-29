@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
 from services import sis_notifications
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -123,12 +124,14 @@ def _sweep_org(org_id: str) -> int:
     # Class quests, ordered per class.
     quests_by_class: Dict[str, List[Dict[str, Any]]] = {}
     cq_rows: List[Dict[str, Any]] = []
+    # _chunks bounds the number of class ids per request (URL length); paging
+    # bounds the ROWS per response, which PostgREST otherwise truncates silently.
     for chunk in _chunks(class_ids):
-        cq_rows.extend((
+        cq_rows.extend(fetch_all_rows(lambda c=chunk: (
             admin.table('class_quests')
-            .select('class_id, quest_id, sequence_order, publish_at, added_at')
-            .in_('class_id', chunk).execute()
-        ).data or [])
+            .select('id, class_id, quest_id, sequence_order, publish_at, added_at')
+            .in_('class_id', c)
+        )))
     for cq in cq_rows:
         quests_by_class.setdefault(cq['class_id'], []).append(cq)
     for cid in quests_by_class:
@@ -138,10 +141,10 @@ def _sweep_org(org_id: str) -> int:
     students_by_class: Dict[str, List[str]] = {}
     enr_rows: List[Dict[str, Any]] = []
     for chunk in _chunks(class_ids):
-        enr_rows.extend((
-            admin.table('class_enrollments').select('class_id, student_id, status')
-            .in_('class_id', chunk).eq('status', 'active').execute()
-        ).data or [])
+        enr_rows.extend(fetch_all_rows(lambda c=chunk: (
+            admin.table('class_enrollments').select('id, class_id, student_id, status')
+            .in_('class_id', c).eq('status', 'active')
+        )))
     for e in enr_rows:
         students_by_class.setdefault(e['class_id'], []).append(e['student_id'])
 

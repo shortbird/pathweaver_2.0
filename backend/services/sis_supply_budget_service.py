@@ -27,6 +27,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,8 +66,12 @@ def _first_day(settings: Dict[str, Any]) -> Optional[date]:
 def _enrolled_counts(class_ids: List[str]) -> Dict[str, int]:
     if not class_ids:
         return {}
-    rows = (_admin().table('class_enrollments').select('class_id, status')
-            .in_('class_id', class_ids).execute()).data or []
+    # Paged: tallying a silently-truncated org-wide read under-counts the roster,
+    # which would hand teachers a budget ceiling lower than what families paid.
+    rows = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('id, class_id, status')
+        .in_('class_id', class_ids)
+    ))
     counts: Dict[str, int] = {}
     for r in rows:
         # Waitlisted and withdrawn students never paid a supply fee, so they

@@ -17,6 +17,7 @@ from typing import Dict, List, Any, Optional
 from database import get_supabase_admin_client
 from repositories.sis_class_repository import SisClassRepository
 from services import sis_eligibility as elig
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -223,19 +224,21 @@ def list_schedule_conflicts(org_id: str) -> List[Dict[str, Any]]:
     re-validates a roster when a class's times move). Archived classes are
     ignored (they no longer run). One row per (student, class-pair)."""
     admin = _admin()
-    classes = (
+    classes = fetch_all_rows(lambda: (
         admin.table('org_classes').select('id, name, status')
-        .eq('organization_id', org_id).execute()
-    ).data or []
+        .eq('organization_id', org_id)
+    ))
     class_name = {c['id']: c.get('name') for c in classes if c.get('status') != 'archived'}
     if not class_name:
         return []
     class_ids = list(class_name.keys())
 
-    enr = (
-        admin.table('class_enrollments').select('student_id, class_id')
-        .in_('class_id', class_ids).eq('status', 'active').execute()
-    ).data or []
+    # Paged: this read spans the whole org, and PostgREST truncates a large
+    # response silently — a short read would hide real conflicts.
+    enr = fetch_all_rows(lambda: (
+        admin.table('class_enrollments').select('id, student_id, class_id')
+        .in_('class_id', class_ids).eq('status', 'active')
+    ))
     enrollments_by_student: Dict[str, List[str]] = {}
     for r in enr:
         enrollments_by_student.setdefault(r['student_id'], []).append(r['class_id'])
