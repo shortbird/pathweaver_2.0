@@ -82,33 +82,100 @@ Tests: `backend/tests/test_db_fetch_paging.py` (12) plus one added to
 row cap and assert the counts stay exact — including the "full class reads 0/12"
 case specifically. The old code fails them.
 
-> Not verified against production data: this session has no Supabase access to
-> the iCreate project, so the diagnosis is from the code path plus the symptom
-> pattern, not from counting rows in the database. To confirm the cap was the
-> trigger: `select count(*) from class_enrollments ce join org_classes oc on
-> oc.id = ce.class_id where oc.organization_id = '<icreate>' and ce.status =
-> 'active';` — a result above 1000 is the confirmation. After deploying, the
-> class list should agree with every roster.
+### Verified against production
+
+| Check | Result |
+|---|---|
+| Project's PostgREST `max_rows` | **1000** |
+| iCreate active enrollments | **1070** — 70 rows past the cap |
+| Non-archived classes | 154 |
+
+Emulating the capped read (`… WHERE status='active' LIMIT 1000`) and diffing the
+resulting tally against the true per-class counts reproduces her numbers:
+
+| Class | Real | List showed | Capacity |
+|---|---|---|---|
+| Lego Robotics (Non-competition) | **14** | **13** | 15 |
+| Sword of Truth (Tuesday) | 16 | 15 | 16 |
+| ALD: Academic Learning Day (At Home) | 8 | **0** | — |
+| QLD: Quest Learning Day (At Home) | 7 | **0** | — |
+| Creative Explorers: Nature & Art (Tues, Block 4) | 11 | 7 | 12 |
+
+34 classes were affected in that single sample — most losing 1–2, two reading
+zero. "Lego robotics says 13/15 … there are 14 on the roster" is reproduced to
+the digit.
+
+**Nothing was dropped.** Outdoor Adventure (Tuesday) — the `0/12` she reported —
+holds **12 active enrollments and zero withdrawals**. Sword of Truth (Thursday)
+still has the 6 she remembered. Which classes lose rows shifts between requests,
+because the read has no `ORDER BY`; that instability is why the numbers appeared
+to change as she worked.
+
+One caveat on the reproduction: an unordered `LIMIT` in raw SQL need not pick the
+identical 1000 rows PostgREST did, so the per-class breakdown is representative
+rather than a byte-exact replay of what was on her screen.
+
+After deploying, the class list should agree with every roster.
 
 ---
 
-## The one part that is not this bug: Van Stanfill
+## The one part that is not this bug: the waitlisted son
 
-His son really is on the waitlist, and that is working as designed — but it needs
-a human action Molly may be waiting on.
+He is **not** on the Lego Robotics waitlist — that class has zero waitlist
+entries. He is held by the **age-group enrollment gate**, which is a different
+mechanism with a different fix, and that is why looking at the class list gave
+Molly no explanation.
 
-A freed seat is **never auto-filled**. When someone drops, the next waitlisted
-student stays waiting until an admin uses **Offer next seat** on the class's
-Waitlist tab. That was a deliberate call so iCreate vets who comes off the
-waitlist (see [FAB_TRIAGE_2026-07-27.md](FAB_TRIAGE_2026-07-27.md), which
-answered the same question for Theater JR). `alert_admins_seat_opened` emails the
-admin team when a seat opens on a class with people waiting.
+iCreate gates two bands in `sis_settings.enrollment_age_gates`, both in
+`waitlist` mode: **ages 5–9** and **ages 10–11** (age judged as of the first day
+of school, 2026-08-24). Current queue:
 
-So the likely sequence: Lego Robotics filled, his son joined the waitlist, a
-student later dropped, and the seat has been sitting open since. Fixing the
-counts makes the open seat visible; it does not fill it.
+| Band | waiting | released |
+|---|---|---|
+| 5–9 | 1 (queued 07-27) | 12 |
+| 10–11 | **1 (queued 07-29 — today)** | 0 |
 
-**This is the second round of feedback where the manual-offer rule has caused
-confusion.** The deferred "auto-promote the next waitlisted student when a seat
-frees (opt-in per class)" item is worth promoting to a real decision rather than
-answering the question a third time.
+A student in a gated band completes registration but **cannot select any class**
+until staff release them. The 10–11 row was queued the same day the parent
+messaged, and nobody has been released from that band yet.
+
+**The action is Registration → Enrollment waitlist → Release** for that student —
+*not* "Offer next seat", which only applies to a full class's own queue. Releasing
+unlocks the Schedule Builder and emails the guardian.
+
+Worth asking Molly directly whether gating ages 10–11 is still intended, since
+the 5–9 band has been actively released (12 students) while 10–11 has released
+nobody. If that band was switched on to manage a specific crunch and the crunch
+has passed, it is now quietly blocking registrants.
+
+### Separately: per-class seats sitting open
+
+Three classes have a free seat *and* students waiting, which needs **Offer next
+seat** on each class's Waitlist tab (a freed seat is never auto-filled — the
+deliberate call recorded in [FAB_TRIAGE_2026-07-27.md](FAB_TRIAGE_2026-07-27.md)
+for Theater JR):
+
+| Class | Enrolled | Seats open | Waiting |
+|---|---|---|---|
+| Elementary Microschool (Monday) | 10/12 | 2 | 3 |
+| Elementary Microschool (Wednesday) | 10/12 | 2 | 1 |
+| Beginning Guitar Jam (Tues Block 1) | 5/6 | 1 | 3 |
+
+**This is the second round where the manual-offer rule has caused confusion.**
+The deferred "auto-promote the next waitlisted student when a seat frees (opt-in
+per class)" item is worth a decision rather than a third explanation.
+
+---
+
+## Unrelated finding worth a look
+
+**3D Modeling & Printing (Tues Block 5) is over capacity: 11 enrolled, cap 10.**
+It is the only over-cap class in the org. Staff-side enrollment is intentionally
+unrestricted (staff override is the override), so this is most likely deliberate
+or an accident during hand-enrollment rather than a capacity-check failure — the
+family self-service path re-counts with an exact query and would have waitlisted
+the 11th. Worth confirming with Molly whether the cap or the roster is wrong.
+
+Under the truncation this class displayed `10/10` — exactly full and unremarkable
+— so the fix will make it start showing `11/10`. That is the correct number, not
+a new bug.
