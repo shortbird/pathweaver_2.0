@@ -6,7 +6,13 @@ let authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { rol
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 // SisLayout mounts the feedback FAB, which reads the org context.
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => ({ organization: null }) }))
-vi.mock('../../services/api', () => ({ default: { post: vi.fn(() => Promise.resolve({ data: {} })) } }))
+// The teacher chrome (onboarding nudge) fetches assignments on mount.
+vi.mock('../../services/api', () => ({
+  default: {
+    post: vi.fn(() => Promise.resolve({ data: {} })),
+    get: vi.fn(() => Promise.resolve({ data: { assignments: [] } })),
+  },
+}))
 // The sidebar resolves the active org via useSisOrg; stub it so these gate/nav
 // tests don't depend on the org-list fetch. activeOrg null => nothing hidden.
 vi.mock('../../pages/sis/useSisOrg', () => ({
@@ -54,6 +60,12 @@ describe('SisLayout gate', () => {
     authState = { isAuthenticated: false, effectiveRole: null, user: null, loading: false }
     renderLayout()
     expect(nav.goToLearningSurface).toHaveBeenCalledWith('/login')
+  })
+
+  it('mounts the feedback FAB for teachers, not just admins', () => {
+    authState = { isAuthenticated: true, effectiveRole: 'advisor', user: { role: 'org_managed', org_role: 'advisor' }, loading: false }
+    renderLayout()
+    expect(screen.getByLabelText('Send beta feedback')).toBeInTheDocument()
   })
 
   it('bounces non-staff (students) back to the learning app', () => {

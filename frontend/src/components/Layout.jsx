@@ -3,13 +3,15 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import Sidebar from './navigation/Sidebar'
 import TopNavbar from './navigation/TopNavbar'
+import FeedbackFab from './feedback/FeedbackFab'
 import { isFocusMode, setFocusMode, getFocusConfig, FOCUS_EVENT } from '../utils/focusMode'
+import { isStaffUser } from '../utils/userRoles'
 import { useKioskIdleTimeout } from '../hooks/useKioskIdleTimeout'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
 const Layout = () => {
-  const { isAuthenticated, effectiveRole, logout } = useAuth()
+  const { isAuthenticated, effectiveRole, user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -119,6 +121,12 @@ const Layout = () => {
   // (observers only need /observer/feed; other nav items confuse them)
   const shouldShowSidebar = isAuthenticated && effectiveRole !== 'observer'
 
+  // Beta feedback FAB for school staff. The SIS console has had one since the
+  // pilot started, but teachers also work on this surface (class messaging,
+  // curriculum, quests) and had no way to report from here. Staff only —
+  // families and students are not in the beta-feedback loop.
+  const showFeedbackFab = isAuthenticated && isStaffUser(user)
+
   return (
     <div className="min-h-screen bg-neutral-50">
       {/* Skip Navigation Link - Accessibility (WCAG 2.1) */}
@@ -171,6 +179,17 @@ const Layout = () => {
           </p>
         </div>
       </footer>
+
+      {/* Beta feedback (bug / idea / "I don't get this") — stacked above the
+          page-level capture FABs so it never sits on top of them. */}
+      {showFeedbackFab && (
+        <FeedbackFab
+          surface="learning"
+          platform="web"
+          buttonPosition="bottom-24 right-4"
+          panelPosition="bottom-40 right-4"
+        />
+      )}
     </div>
   )
 }
