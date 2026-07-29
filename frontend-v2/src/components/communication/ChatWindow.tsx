@@ -280,12 +280,9 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
     }
   };
 
-  const handleKeyPress = (e: any) => {
-    if (e.nativeEvent?.key === 'Enter' && !e.nativeEvent?.shiftKey) {
-      e.preventDefault?.();
-      handleSend();
-    }
-  };
+  // Enter deliberately does NOT send: preventDefault on the RN key event can't
+  // stop the newline the input has already inserted, so Enter-to-send both sent
+  // the message and left a stray line break behind. Sending is the send button.
 
   const header = (
     <View
@@ -488,10 +485,10 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
             ref={inputRef}
             value={input}
             onChangeText={setInput}
-            onKeyPress={handleKeyPress}
             placeholder={`Message ${name}...`}
             placeholderTextColor={c.textFaint}
             multiline
+            submitBehavior="newline"
             maxLength={2000}
             className="flex-1 bg-surface-100 dark:bg-dark-surface-200 rounded-2xl px-4 py-2 font-poppins text-sm text-typo dark:text-dark-typo"
             style={{
