@@ -1,237 +1,230 @@
-# Scope: Organization ("School") page for the mobile app (v2)
+# Scope: school features for org parents in the mobile app (v2)
 
 **Date**: 2026-07-29
-**Goal**: Let org parents — iCreate first, other schools later — do school-specific
-actions from the mobile app instead of having to log into the website.
+**Goal**: Give org parents (iCreate first) the school actions that actually belong on
+a phone — communication, their kids' schedule/classes, absence excusal — and hand off
+to web for everything else.
+
+> Supersedes the earlier full-port scope. The full inventory of v1 parent surfaces is
+> retained at the bottom for reference, but the plan is now a thin slice.
 
 ---
 
-## Headline
+## Five findings that should shape the plan
 
-**This is ~90% a `frontend-v2/` job. The backend is already built.**
+### 1. The backend is already built and already mobile-ready
 
-The entire parent-facing school API already exists at `/api/sis/parent/*`
-(`backend/routes/sis/parent.py`, 28 endpoints + `parent_forms.py`), it uses
-`@require_auth` (not the staff-gated `/api/sis` decorators), and it authorizes by
-family relationship inside `sis_parent_service`. Two things make it mobile-ready today:
+`/api/sis/parent/*` (`backend/routes/sis/parent.py`, 28 endpoints) is the complete
+parent-facing school API. It uses `@require_auth`, not the staff-gated SIS decorators.
+Two things make it usable from v2 today:
 
 - `session_manager.get_effective_user_id()` reads `Authorization: Bearer` before
-  cookies (`backend/utils/session_manager.py:654`), so v2's Bearer tokens work.
-- `backend/middleware/csrf_protection.py:167` exempts any request carrying a
-  Bearer header, so v2 POST/PUT/PATCH/DELETE work without CSRF plumbing.
+  cookies (`backend/utils/session_manager.py:654`).
+- `backend/middleware/csrf_protection.py:167` exempts Bearer requests from CSRF.
 
-**No backend auth, CSRF, or endpoint work is required for the core surfaces.**
-The only backend changes proposed are small additive conveniences (see Phase 0).
+`/api/auth/me` already returns `organization` with `feature_flags`
+(`backend/routes/auth/login/core.py:113`) — v2's `User` type just discards it.
+`/api/sis/parent/context` returns the guardian's SIS orgs + students; an empty
+`orgs` array is a ready-made gate. **No new endpoints needed for this slice.**
 
-Meanwhile `frontend-v2/` has **zero** references to `/api/sis` — this is greenfield
-on the mobile side.
+### 2. Push notifications already reach parents — the plumbing works
 
----
+`'announcement'` is in `MOBILE_PUSH_NOTIFICATION_TYPES`
+(`backend/services/notification_service.py:24`), and `sis_notifications.py:17` sets
+`SIS_NOTIFICATION_TYPE = 'announcement'`, so **every SIS event already fires an Expo
+push**. v2 has the receiving end (`src/services/pushNotifications.ts`,
+`useNotifications.ts`, `app/(app)/notifications.tsx`).
 
-## What "school-specific actions" means today (v1 web)
+Communication is therefore **not a build — it's a repair job.** See finding 3.
 
-The parent school nav is gated in `frontend/src/components/navigation/Sidebar.jsx:266`
-by `sisEnabled && hasParentRelationships`, where `sisEnabled` comes from
-`organization.feature_flags.sis_enabled`. That block is the definitive list:
+### 3. …but every SIS notification dead-ends on mobile
 
-| # | Surface | v1 page | LOC | Backend endpoints |
-|---|---------|---------|-----|-------------------|
-| 1 | **Schedule Builder** (default) | `ScheduleBuilderPage.jsx` | 1116 | `/classes`, `/students/:id/schedule`, `/students/:id/classes` (POST/DELETE), `/claim`, `/learning-day`, `/schedule-submission`, `/age-exception-requests`, `/photo` |
-| 1b | **Goal Setting** (goals-mode orgs) | `FamilyGoalsPage.jsx` | 247 | goals endpoints |
-| 2 | **Billing** | `FamilyBillingPage.jsx` | 369 | `/billing`, `/billing/receipts/:id`, `/billing/invoices/:id/checkout`, `/confirm-payment` |
-| 3 | **Absences** | `AbsenceReportingPage.jsx` | 195 | `/absences` GET/POST/DELETE |
-| 4 | **School Calendar** | `FamilyCalendarPage.jsx` | 220 | `/events` |
-| 5 | **Resources** | `FamilyResourcesPage.jsx` | 83 | `/resources` |
-| 6 | **Directory** | `FamilyDirectoryPage.jsx` | 159 | `/directory`, `/directory/opt-in` GET/PUT |
-| 7 | **Portal** (school-assigned checklists) | `FamilyPortalPage.jsx` | 166 | `/onboarding`, `/onboarding/:id/items/:key`, `/onboarding/upload`, `/onboarding/doc-url` |
-| 8 | **Requests** (records / meeting / at-home day) | `FamilyFormsPage.jsx` | 204 | `/forms` GET/POST |
-| 9 | Student detail | `FamilyStudentPage.jsx` | 202 | `/students/:id/*`, `/courses` |
-| — | Registration (annual) | `ICreateRegisterPage.jsx` | 1561 | `/registrations` flow, `/quote`, `/submit` |
+iCreate's SIS notifications over the last 3 weeks (prod, queried 2026-07-29):
 
-**~2,961 LOC** of web page code for surfaces 1–9, **~4,522 LOC** including registration.
-That is the upper bound of what would be re-expressed in React Native — but a
-straight LOC port is the wrong estimate, because the mobile versions should be
-narrower (see "What not to port").
+| Title | Count | `link` | Audience | Resolves on mobile? |
+|-------|-------|--------|----------|---------------------|
+| Take attendance | 315 | `/attendance` | staff | no |
+| Schedule submitted for approval | 129 | `/registration` | staff | no |
+| Onboarding checklist assigned | 18 | `/onboarding` | **parent** | no |
+| A seat opened up | 11 | *(null)* | **parent** | no |
+| New class assignment | 7 | `/my-classes` | staff | no |
+| Absence reported | 4 | `/attendance` | staff | no |
+| Schedule needs changes | 4 | `/schedule-builder` | **parent** | no |
 
-Every one of these pages follows the same shape: call `/api/sis/parent/context`
-first to get `{ orgs: [{ organization_id, organization_name, students[], scheduling_url }] }`,
-then make org-scoped calls with `?organization_id=`. That consistency makes the
-port mechanical.
+Every one of those `link` values is a **SIS console path**. None appear in
+`deepLinkRouter.ts`'s `REMAP` or `WEB_ONLY_PREFIXES`, so per its safety contract they
+all fall back to the generic notifications list. **A parent gets pushed "A seat opened
+up", taps it, and lands on a list.**
 
----
+Two more problems in the same area:
 
-## Who this serves (production data, queried 2026-07-29)
+- **The type is overloaded.** "Take attendance" is typed `announcement`, so v2's
+  notifications screen renders it with announcement styling (`notifications.tsx:68`),
+  and there's no way to offer per-type push preferences or to filter staff pings out
+  of a parent's feed.
+- **The durable row is silently failing.** All 488 iCreate `announcement` notifications
+  have `metadata.announcement_id = null` and the `announcements` table has **0 rows**
+  for iCreate — because SIS notifications never write one. Any mobile "announcements
+  inbox" built on that table would be empty.
 
-| Org | slug | sis_enabled | parents | students | advisors | notes |
-|-----|------|-------------|---------|----------|----------|-------|
-| **iCreate** | `icreate` | yes | **72** | 163 | 27 | no hidden modules, schedule-builder mode |
-| Test-Org | `test` | yes | 7 | 45 | 1 | |
-| Gryffin Learning Center | `gryffin` | yes | 5 | 7 | 1 | **goals-mode**, hides `onboarding`, `timesheets`, `forms`, `clp` |
-| Horizon | `horizon` | yes | 0 | 2 | 0 | |
+### 4. iCreate has never sent a broadcast announcement
 
-So the real audience today is **72 iCreate parents**, and Gryffin is the proof that
-the per-org module config already has a second consumer. Build the page
-**config-driven, not iCreate-hardcoded** — the config layer already exists.
+Zero rows in `announcements` for iCreate. The 488 are all system events. So a
+family-announcements inbox would be building for a channel the school **doesn't
+currently use** — they presumably communicate by email/text today. Worth asking them
+before building it, rather than assuming.
 
----
+### 5. The real bottleneck is adoption, not features
 
-## Gating: all the data is already on the wire
+Device-token coverage (prod, 2026-07-29):
 
-Two sources, both already returned by the backend:
+| Org | role | users | with device token |
+|-----|------|-------|-------------------|
+| iCreate | **parent** | **72** | **3** |
+| iCreate | student | 163 | 3 |
+| iCreate | advisor | 27 | 1 |
+| Gryffin | parent | 5 | 0 |
 
-1. **`/api/auth/me`** returns `organization` with
-   `id, name, slug, branding_config, quest_visibility_policy, feature_flags`
-   (`backend/routes/auth/login/core.py:113`). `feature_flags` carries
-   `sis_enabled`, `sis_settings.hidden_modules`, `sis_settings.post_registration_flow`,
-   `sis_settings.community_enabled`, `icreate_registration.*`.
-   v2's `User` interface (`frontend-v2/src/stores/authStore.ts:20`) has
-   `organization_id` and `org_role` but **not** `organization` — the payload is
-   being discarded. Adding the field is a few lines.
-
-2. **`/api/sis/parent/context`** returns the guardian's SIS orgs and their
-   registerable students; **an empty `orgs` array is itself the gate**. This
-   correctly covers org_admins and advisors who are also parents (v1 relies on the
-   same `hasParentRelationships` idea).
-
-**Recommendation**: gate the mobile School surface on `context.orgs.length > 0`,
-and use `organization.feature_flags` for per-module visibility. That mirrors v1
-exactly and needs no new endpoint.
+**3 of 72 iCreate parents have the app.** Every notification improvement above is
+currently reaching three people. This argues strongly for the thin slice — build the
+smallest set of things that make the app worth installing, ship it with a deliberate
+"install the app" push to iCreate families, then let usage tell you what to build next.
 
 ---
 
-## Where it lives in the mobile app (the one real design decision)
+## Recommended scope
 
-`frontend-v2/src/config/navigation.ts:56` defines the parent shell:
+### Phase 1 — Fix the notification loop (2–3 days) — *do this first*
 
-```ts
-export const parentMobileTabOrder = ['family', 'feed', 'capture', 'bounties', 'messages'];
-```
+Highest value per day of work in the whole plan, and it improves the experience for
+users who already have the app.
 
-Five slots, all occupied, and `capture` is the center FAB. There is no free tab.
-Three options:
+- **Split the notification type.** `sis_notifications.py:17` should emit distinct types
+  (`sis_absence`, `sis_schedule`, `sis_waitlist`, `sis_checklist`, …) instead of
+  overloading `announcement`. Add them to `MOBILE_PUSH_NOTIFICATION_TYPES` and the
+  `notifications.type` CHECK constraint. Unblocks per-type styling and preferences.
+- **Add SIS paths to `deepLinkRouter.ts`** so pushes land somewhere real: parent-facing
+  links to the new mobile screens below, staff-facing links to `view-on-web.tsx` (which
+  already exists and takes a `path` + `label`).
+- **Give "A seat opened up" a link at all** — it currently has none.
+- Filter staff-typed notifications out of the parent feed.
 
-| Option | How | Trade-off |
-|--------|-----|-----------|
-| **A. "School" hub screen** (recommended) | New stack route `app/(app)/school/index.tsx` — a card grid of enabled modules — reached from an entry point on the Family tab header and from Profile/Settings | Zero disruption to the tab bar; matches how `settings`, `approvals`, `notifications` already work; one extra tap |
-| **B. Swap a tab for SIS parents only** | Conditionally replace `messages` or `bounties` with `school` when `context.orgs.length > 0` | Best discoverability; but the parent shell then differs between org and platform parents, and `_layout.tsx` role branching gets another axis |
-| **C. Section inside the Family tab** | Add a "School" section to `(tabs)/family.tsx` | No new nav at all; but `family.tsx` is already a large multi-child dashboard and this buries 8 surfaces |
+**Also worth fixing while in here**: the "Take attendance" push fires 315 times in 3
+weeks at 27 advisors. If advisors adopt the app, that's a notification-fatigue problem
+waiting to happen — it should probably be a digest, not a per-event push.
 
-**Recommendation: A.** It is the lowest-risk shape, it is how the codebase already
-handles secondary surfaces, and the hub screen doubles as the place where
-`hidden_modules` visibly does its job. If iCreate parents report the entry point is
-too buried after launch, promoting it to B is a small follow-up.
+### Phase 2 — Absence excusal (2–3 days)
 
-Expo Router is file-based, so `app/(app)/school/*.tsx` auto-registers — no route
-table edit needed beyond `navigation.ts` if a nav item is added.
+Smallest real surface (v1 page is 195 LOC, 3 endpoints: `GET`/`POST`/`DELETE`
+`/api/sis/parent/absences`), and the best phone fit — "kid's sick at 7am" is not a
+laptop moment. Staff notification on report is already wired
+(`sis_planned_absence_service.py:179`).
 
----
+Needs a date-picker primitive — v2's `src/components/ui/` has 20 primitives but no
+date input. Build it here; Phase 3 reuses it.
 
-## What not to port
+*Honest caveat*: only **2** absences have ever been recorded, both in July. That's
+plausibly because it's buried on the web and the school year hasn't started — but it
+means the feature is cheap insurance for the fall, not a proven pain point. Worth one
+question to iCreate before building.
 
-- **Registration** (`ICreateRegisterPage.jsx`, 1561 LOC) — a once-a-year, long-form,
-  multi-student flow with paperwork signatures and per-student conditional questions.
-  Open it in `expo-web-browser` against the existing web page. `expo-web-browser`
-  and `expo-linking` are already dependencies. Revisit only if parents complain.
-- **Anything staff-facing.** The SIS console (`frontend/src/sis/`, 34 pages) is
-  org_admin/advisor territory and explicitly out of scope for a parent surface.
-- **Schedule Builder's full grid UX** — port the *outcomes* (view schedule, add/drop a
-  class, claim a waitlist spot, set learning day, submit), not the desktop drag-grid.
+### Phase 3 — Schedule + classes inside the existing child view (3–4 days)
 
----
+**Don't build a new page.** `app/(app)/parent/child/[studentId].tsx` is already a
+228-line stack of cards (Learning Activity, Pillar Breakdown, Journal Topics, Subject
+Credits, Activity). Add **"School Schedule"** and **"Classes"** cards there. That *is*
+the interweaving with the parent quest view.
 
-## Known risks
+`GET /api/sis/parent/students/:id/schedule` returns exactly what's needed: enrolled
+classes with meetings, live waitlist entries, at-home Optio courses, and a flag for
+whether self-service changes are still open — use that flag as the read-only/edit switch.
 
-1. **Stripe Checkout on native.** `create_invoice_checkout`
-   (`backend/services/sis_billing_service.py:861`) returns a hosted Stripe URL built
-   from a `return_url`, on the *school's own* Stripe account. On mobile this needs
-   `expo-web-browser` + a deep-link return, and the `?payment=return` /
-   `?payment=canceled` handling has to move to a mobile route. **Separately, App
-   Store review**: tuition for real-world schooling is normally outside the IAP
-   requirement, but shipping a payment button in an iOS build is a review risk worth
-   pricing in. Lowest-risk MVP: show balance, invoices, and receipts read-only on
-   mobile, and hand off to web for the actual card payment.
-2. **Schedule Builder is the hardest port** — 1116 LOC and the most interaction-heavy
-   surface. It is also the highest-value one for iCreate (schedule-builder mode is
-   their `post_registration_flow`). Budget for it accordingly and do it last.
-3. **Document uploads.** Portal checklists accept `pdf/doc/docx/png/jpg/jpeg/webp`
-   (`backend/routes/sis/parent.py:27`). v2 has `expo-image-picker` but **not**
-   `expo-document-picker` — either add the dep or restrict mobile uploads to
-   camera/photo (which covers most "photograph the form" cases).
-4. **Signed URLs for private docs.** `/onboarding/doc-url` returns short-lived signed
-   URLs from the private `family-documents` bucket. Verify native fetch/display of
-   those (likely fine via `expo-web-browser`, but untested on this path).
-5. **No date/calendar primitives in v2.** `frontend-v2/src/components/ui/` has 20
-   primitives (Card, Button, BottomSheet, Input, Badge…) but no date picker, calendar
-   grid, or table. Absences, Calendar, and Schedule Builder all need date input —
-   this is shared groundwork worth building once in Phase 0/1.
-6. **School announcements are a separate system.** v1's `FamilyMessagingPage` posts to
-   `/api/announcements`; v2's `announcement_only` flag is a *group-chat setting*, not
-   the same thing. Parents receiving school announcements on mobile is arguably the
-   single highest-value item here (v2 already has `src/services/pushNotifications.ts`),
-   but it is **net-new work, not a port**. Called out separately below.
+**Read-only, with one exception**: include **waitlist claim**
+(`POST /students/:id/classes/:id/claim`). It's time-sensitive, it's the natural
+destination for the "A seat opened up" push from Phase 1, and it makes that whole loop
+work end to end. Add/drop, learning day, age exceptions, and schedule submission stay
+on web.
 
----
+### Explicitly out of scope — hand off to web
 
-## Proposed phasing
+`view-on-web.tsx` already implements the handoff (path + label → browser). Point these
+at it: Schedule Builder edits, registration (`ICreateRegisterPage.jsx` is 1561 LOC of
+annual long-form), billing/payments, the family directory, resources, and the whole
+staff SIS console.
 
-Estimates assume one engineer familiar with the codebase, and include Jest tests
-(v2 is at 276 tests / 100% pass and CI-gated at 95%, so tests are not optional).
+**Billing is worth one exception to consider**: a single "outstanding balance" line on
+the child card is nearly free from `GET /api/sis/parent/billing` and is the kind of
+thing parents check on a phone. Payment itself should stay on web — `create_invoice_checkout`
+(`sis_billing_service.py:861`) returns a hosted Stripe URL on the school's own account,
+and shipping a tuition payment button in an iOS build is an App Store review risk
+that isn't worth taking for this slice.
 
-### Phase 0 — Foundation (2–3 days)
-- Add `organization` (with `feature_flags`) to v2's `User` type + `authStore`.
-- `src/hooks/useSisParent.ts` — wraps `/api/sis/parent/context`; provides the gate,
-  the active-org selector, and the student selector. Every later phase depends on it.
-- `src/config/sisModules.ts` — port of `frontend/src/pages/sis/sisModules.js`
-  (`hidden_modules`, `post_registration_flow`, `community_enabled`). Keep the two in
-  lockstep; consider extracting shared constants later.
-- `app/(app)/school/index.tsx` — the School hub, rendering only enabled modules.
-- Entry point from the Family tab header + Profile.
-- Shared date-input primitive.
-
-### Phase 1 — Read-only surfaces (3–4 days)
-Calendar, Resources, Directory (+ opt-in toggle). Low risk, immediately useful,
-and they prove the hub/gating end to end.
-
-### Phase 2 — Light write surfaces (4–5 days)
-Absences (report/cancel — likely the most-used mobile action), Portal checklists
-(incl. upload), Requests/forms.
-
-### Phase 3 — Billing (3–4 days)
-Balance, invoices, receipts. Payment either deferred to web or built with
-`expo-web-browser` + deep-link return — decide before starting, per risk 1.
-
-### Phase 4 — Schedule Builder / Goal Setting (6–8 days)
-Mobile-native rethink rather than a port. Goal Setting (Gryffin's mode) is much
-smaller than Schedule Builder (iCreate's) — both are needed for the config-driven
-promise to hold, but Goal Setting could ship first as the easier half.
-
-### Phase 5 — Deferred
-Registration (webview handoff). School announcements + push (see below).
-
-**Total for Phases 0–4: roughly 4–5 weeks.**
-**A useful first release (Phases 0–2) is about 2 weeks** and already removes most of
-the day-to-day reasons an iCreate parent opens the website.
+**No "School hub" screen yet.** With three surfaces — notifications, absences, and a
+card inside a screen that already exists — there's nothing to hub. Two entry points
+suffice: absences from the Family tab, schedule inside the child view. Revisit if this
+grows past four surfaces.
 
 ---
 
-## Worth considering alongside this
+## Total: roughly 7–10 days
 
-**School announcements with push notifications.** Right now a parent has no way to
-receive school communication on their phone. v2 already has the push
-infrastructure (`src/services/pushNotifications.ts`, `useNotifications.ts`) and the
-backend already has `/api/announcements` per org. Wiring school announcements into
-mobile push is probably a smaller job than any single Phase 1–4 item and is plausibly
-worth more to a parent than any of them — it is the thing a phone is *for*. It is not
-part of "port the org page", so it is listed separately rather than folded into an
-estimate.
+Versus 4–5 weeks for the full port. And Phase 1 alone is arguably worth shipping on its
+own, since it improves things for existing users without adding any new surface.
+
+---
+
+## Other ideas worth considering
+
+1. **Ship an install campaign with it.** 3/72 parents is the constraint. A slice this
+   size lives or dies on whether iCreate families actually install the app — the
+   feature work and the distribution work should ship together.
+2. **Ask iCreate what they currently do by email/text.** They've sent zero broadcast
+   announcements through Optio but clearly communicate somehow. Whatever that channel
+   is, it's the real "communication" feature request, and it may be a smaller build
+   than anything above.
+3. **Advisors are 27 users with 1 device token.** "Take attendance" is the highest-volume
+   notification in the system. A tiny advisor attendance surface on mobile might be a
+   bigger operational win for iCreate than anything parent-facing — worth asking.
+4. **Per-type notification preferences.** Phase 1's type split makes this possible;
+   `src/components/profile/NotificationPreferences.tsx` already exists to extend.
+5. **Keep it config-driven, not iCreate-hardcoded.** Gryffin (5 parents) runs goals-mode
+   with 4 hidden modules — the per-org config in
+   `frontend/src/pages/sis/sisModules.js` already has a second consumer. Port that
+   logic rather than branching on the iCreate slug.
 
 ---
 
 ## Open questions
 
-1. **Entry point** — hub screen (A), tab swap (B), or Family-tab section (C)?
-2. **Billing payments on mobile** — read-only, or full Stripe handoff with the App
-   Store risk accepted?
-3. **Scope of the first release** — Phases 0–2 as a shippable slice, or hold until
-   Schedule Builder is in?
-4. **Announcements + push** — fold in now, or track separately?
+1. Absence excusal — confirm with iCreate it's a real pain point before building (2
+   recorded uses)?
+2. Announcements — is there an off-platform channel they'd want to move into Optio?
+3. Waitlist claim on mobile — in, or keep all schedule writes on web?
+4. Billing balance as a read-only line — in or out?
+5. Advisor attendance on mobile — worth scoping separately?
+
+---
+
+## Appendix: full v1 parent surface inventory
+
+Gated in `frontend/src/components/navigation/Sidebar.jsx:266` by
+`sisEnabled && hasParentRelationships`. Retained for reference; most of this is
+intentionally *not* in the recommended scope.
+
+| Surface | v1 page | LOC | Endpoints |
+|---------|---------|-----|-----------|
+| Schedule Builder | `ScheduleBuilderPage.jsx` | 1116 | `/classes`, `/students/:id/schedule`, `/students/:id/classes`, `/claim`, `/learning-day`, `/schedule-submission`, `/age-exception-requests`, `/photo` |
+| Goal Setting (goals-mode orgs) | `FamilyGoalsPage.jsx` | 247 | goals endpoints |
+| Billing | `FamilyBillingPage.jsx` | 369 | `/billing`, `/billing/receipts/:id`, `/checkout`, `/confirm-payment` |
+| Absences | `AbsenceReportingPage.jsx` | 195 | `/absences` GET/POST/DELETE |
+| School Calendar | `FamilyCalendarPage.jsx` | 220 | `/events` |
+| Resources | `FamilyResourcesPage.jsx` | 83 | `/resources` |
+| Directory | `FamilyDirectoryPage.jsx` | 159 | `/directory`, `/directory/opt-in` |
+| Portal (checklists) | `FamilyPortalPage.jsx` | 166 | `/onboarding`, `/onboarding/upload`, `/onboarding/doc-url` |
+| Requests | `FamilyFormsPage.jsx` | 204 | `/forms` GET/POST |
+| Student detail | `FamilyStudentPage.jsx` | 202 | `/students/:id/*`, `/courses` |
+| Registration | `ICreateRegisterPage.jsx` | 1561 | `/registrations` flow, `/quote`, `/submit` |
+
+**Orgs with `sis_enabled`** (prod, 2026-07-29): iCreate (72 parents / 163 students),
+Test-Org (7/45), Gryffin (5/7, goals-mode, hides `onboarding`/`timesheets`/`forms`/`clp`),
+Horizon (0/2).
