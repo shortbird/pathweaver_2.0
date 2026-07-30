@@ -52,21 +52,19 @@ class AnalyticsService(BaseService):
             Dictionary with category names as keys and counts as values
         """
         try:
-            query = self.supabase.table('user_activity_events').select('event_category').gte(
-                'created_at', start_date.isoformat()
-            ).lte('created_at', end_date.isoformat())
+            # Counted in Postgres. Reading the rows to tally them here returned
+            # at most 1000 of them (PostgREST's silent row cap) against a table
+            # holding 106k, so every category count was quietly short.
+            response = self.supabase.rpc('analytics_event_counts_by_category', {
+                'p_start': start_date.isoformat(),
+                'p_end': end_date.isoformat(),
+                'p_user_id': user_id,
+            }).execute()
 
-            if user_id:
-                query = query.eq('user_id', user_id)
-
-            response = query.execute()
-            events = response.data or []
-
-            # Count events by category
-            category_counts = {}
-            for event in events:
-                category = event.get('event_category', 'other')
-                category_counts[category] = category_counts.get(category, 0) + 1
+            category_counts = {
+                row['event_category']: row['event_count']
+                for row in (response.data or [])
+            }
 
             return category_counts
 
@@ -88,37 +86,25 @@ class AnalyticsService(BaseService):
         try:
             start_date = datetime.utcnow() - timedelta(days=days)
 
-            # Get quest events
-            quest_events_response = self.supabase.table('user_activity_events').select(
-                'event_type, event_data'
-            ).in_(
-                'event_type', ['quest_started', 'quest_completed', 'quest_viewed']
-            ).gte('created_at', start_date.isoformat()).execute()
+            # Grouped in Postgres: one row per quest instead of one row per
+            # event. Tallying the events here read 1000 of them at most, so the
+            # rankings were computed from about a third of a 30-day window and
+            # far less over longer ones. The aggregate also drops non-UUID
+            # quest ids left by the old activity tracker, which used to log
+            # collection routes ("similar", "topics") as quests.
+            response = self.supabase.rpc('analytics_quest_event_counts', {
+                'p_since': start_date.isoformat(),
+            }).execute()
 
-            quest_events = quest_events_response.data or []
-
-            # Count events per quest
-            quest_stats = {}
-            for event in quest_events:
-                quest_id = event.get('event_data', {}).get('quest_id')
-                if not quest_id:
-                    continue
-
-                if quest_id not in quest_stats:
-                    quest_stats[quest_id] = {
-                        'quest_id': quest_id,
-                        'views': 0,
-                        'starts': 0,
-                        'completions': 0
-                    }
-
-                event_type = event['event_type']
-                if event_type == 'quest_viewed':
-                    quest_stats[quest_id]['views'] += 1
-                elif event_type == 'quest_started':
-                    quest_stats[quest_id]['starts'] += 1
-                elif event_type == 'quest_completed':
-                    quest_stats[quest_id]['completions'] += 1
+            quest_stats = {
+                row['quest_id']: {
+                    'quest_id': row['quest_id'],
+                    'views': row['views'] or 0,
+                    'starts': row['starts'] or 0,
+                    'completions': row['completions'] or 0,
+                }
+                for row in (response.data or [])
+            }
 
             # Calculate popularity score (weighted)
             for quest_id in quest_stats:
