@@ -17,6 +17,7 @@ from utils.auth.decorators import require_superadmin
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from datetime import datetime, timedelta
+from utils.db_fetch import fetch_all_rows
 
 logger = get_logger(__name__)
 
@@ -44,12 +45,12 @@ def get_cost_summary(user_id):
         date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
         # Get aggregated summary
-        result = supabase.table('ai_usage_logs')\
-            .select('input_tokens, output_tokens, estimated_cost, success')\
-            .gte('created_at', date_threshold)\
-            .execute()
+        rows = fetch_all_rows(lambda: (
+            supabase.table('ai_usage_logs')
+            .select('id, input_tokens, output_tokens, estimated_cost, success')
+            .gte('created_at', date_threshold)))
 
-        if not result.data:
+        if not rows:
             return jsonify({
                 'period_days': days,
                 'total_requests': 0,
@@ -64,12 +65,12 @@ def get_cost_summary(user_id):
             })
 
         # Calculate aggregates
-        total_requests = len(result.data)
-        successful = sum(1 for r in result.data if r.get('success', True))
+        total_requests = len(rows)
+        successful = sum(1 for r in rows if r.get('success', True))
         failed = total_requests - successful
-        total_input = sum(r.get('input_tokens', 0) for r in result.data)
-        total_output = sum(r.get('output_tokens', 0) for r in result.data)
-        total_cost = sum(r.get('estimated_cost', 0) for r in result.data)
+        total_input = sum(r.get('input_tokens', 0) for r in rows)
+        total_output = sum(r.get('output_tokens', 0) for r in rows)
+        total_cost = sum(r.get('estimated_cost', 0) for r in rows)
 
         return jsonify({
             'period_days': days,
@@ -110,17 +111,17 @@ def get_costs_by_service(user_id):
         date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
         # Get all logs for the period
-        result = supabase.table('ai_usage_logs')\
-            .select('service_name, input_tokens, output_tokens, estimated_cost, response_time_ms')\
-            .gte('created_at', date_threshold)\
-            .execute()
+        rows = fetch_all_rows(lambda: (
+            supabase.table('ai_usage_logs')
+            .select('id, service_name, input_tokens, output_tokens, estimated_cost, response_time_ms')
+            .gte('created_at', date_threshold)))
 
-        if not result.data:
+        if not rows:
             return jsonify({'services': [], 'period_days': days})
 
         # Group by service
         by_service = {}
-        for log in result.data:
+        for log in rows:
             service = log.get('service_name', 'unknown')
             if service not in by_service:
                 by_service[service] = {
@@ -193,18 +194,19 @@ def get_cost_trends(user_id):
         date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
         # Get all logs for the period
-        result = supabase.table('ai_usage_logs')\
-            .select('created_at, input_tokens, output_tokens, estimated_cost')\
-            .gte('created_at', date_threshold)\
-            .order('created_at')\
-            .execute()
+        # .order() alone does NOT bound a response — it still truncates at the
+        # row cap. Grouping happens by date below, so paging by id is fine.
+        rows = fetch_all_rows(lambda: (
+            supabase.table('ai_usage_logs')
+            .select('id, created_at, input_tokens, output_tokens, estimated_cost')
+            .gte('created_at', date_threshold)))
 
-        if not result.data:
+        if not rows:
             return jsonify({'trends': [], 'period_days': days})
 
         # Group by date
         by_date = {}
-        for log in result.data:
+        for log in rows:
             # Extract date from timestamp
             created_at = log.get('created_at', '')
             date_str = created_at[:10] if created_at else 'unknown'

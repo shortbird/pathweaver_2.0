@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.db_fetch import fetch_all_rows
 
 logger = get_logger(__name__)
 
@@ -102,12 +103,12 @@ class CostTracker(BaseService):
             date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
             # Query usage logs
-            result = self.supabase.table('ai_usage_logs')\
-                .select('service_name, input_tokens, output_tokens, estimated_cost, created_at')\
-                .gte('created_at', date_threshold)\
-                .execute()
+            rows = fetch_all_rows(lambda: (
+                self.supabase.table('ai_usage_logs')
+                .select('id, service_name, input_tokens, output_tokens, estimated_cost, created_at')
+                .gte('created_at', date_threshold)))
 
-            if not result.data:
+            if not rows:
                 return {
                     'period_days': days,
                     'total_cost_usd': 0.0,
@@ -119,14 +120,14 @@ class CostTracker(BaseService):
                 }
 
             # Aggregate the data
-            total_cost = sum(log.get('estimated_cost', 0) for log in result.data)
-            total_input = sum(log.get('input_tokens', 0) for log in result.data)
-            total_output = sum(log.get('output_tokens', 0) for log in result.data)
-            total_requests = len(result.data)
+            total_cost = sum(log.get('estimated_cost', 0) for log in rows)
+            total_input = sum(log.get('input_tokens', 0) for log in rows)
+            total_output = sum(log.get('output_tokens', 0) for log in rows)
+            total_requests = len(rows)
 
             # Group by service
             by_service = {}
-            for log in result.data:
+            for log in rows:
                 service = log.get('service_name', 'unknown')
                 if service not in by_service:
                     by_service[service] = {

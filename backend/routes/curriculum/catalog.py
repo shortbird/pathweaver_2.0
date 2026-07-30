@@ -38,6 +38,7 @@ logger = get_logger(__name__)
 
 
 from routes.curriculum import bp
+from utils.db_fetch import fetch_all_rows
 
 
 @bp.route('/curriculum-projects/<org_id>', methods=['GET'])
@@ -77,14 +78,15 @@ def get_curriculum_projects(user_id: str, org_id: str):
             return jsonify({'error': 'Permission denied'}), 403
 
         # Get all quest IDs that have lessons for this organization
-        lessons_result = supabase.table('curriculum_lessons')\
-            .select('quest_id')\
-            .eq('organization_id', org_id)\
-            .execute()
+        # Org-wide read feeding a Python tally — page it.
+        lesson_rows = fetch_all_rows(lambda: (
+            supabase.table('curriculum_lessons')
+            .select('id, quest_id')
+            .eq('organization_id', org_id)))
 
         # Count lessons per quest
         quest_lesson_counts = {}
-        for lesson in lessons_result.data:
+        for lesson in lesson_rows:
             quest_id = lesson['quest_id']
             quest_lesson_counts[quest_id] = quest_lesson_counts.get(quest_id, 0) + 1
 
@@ -158,12 +160,12 @@ def get_available_quests_for_curriculum(user_id: str, org_id: str):
             return jsonify({'error': 'Permission denied'}), 403
 
         # Get quest IDs that already have lessons for this org
-        lessons_result = supabase.table('curriculum_lessons')\
-            .select('quest_id')\
-            .eq('organization_id', org_id)\
-            .execute()
+        lesson_rows = fetch_all_rows(lambda: (
+            supabase.table('curriculum_lessons')
+            .select('id, quest_id')
+            .eq('organization_id', org_id)))
 
-        quests_with_curriculum = {lesson['quest_id'] for lesson in lessons_result.data}
+        quests_with_curriculum = {lesson['quest_id'] for lesson in lesson_rows}
 
         # Fetch only public, active quests
         quests_result = supabase.table('quests')\

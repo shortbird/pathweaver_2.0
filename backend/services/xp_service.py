@@ -14,6 +14,7 @@ from utils.pillar_utils import normalize_pillar_name
 import json
 
 from utils.logger import get_logger
+from utils.db_fetch import fetch_all_rows
 
 logger = get_logger(__name__)
 
@@ -231,14 +232,14 @@ class XPService(BaseService):
             else:
                 # Get overall leaderboard by summing all XP
                 # Note: This would be better as a database view or function
-                all_xp = self.supabase.table('user_skill_xp')\
-                    .select('user_id, xp_amount')\
-                    .execute()
+                all_rows = fetch_all_rows(lambda: (
+                    self.supabase.table('user_skill_xp')
+                    .select('id, user_id, xp_amount')))
 
-                if all_xp.data:
+                if all_rows:
                     # Sum XP per user
                     user_totals = {}
-                    for record in all_xp.data:
+                    for record in all_rows:
                         uid = record['user_id']
                         if uid not in user_totals:
                             user_totals[uid] = 0

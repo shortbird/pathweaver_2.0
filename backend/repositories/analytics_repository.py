@@ -8,6 +8,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 from repositories.base_repository import BaseRepository
 from utils.logger import get_logger
+from utils.db_fetch import fetch_all_rows
 
 logger = get_logger(__name__)
 
@@ -125,14 +126,16 @@ class AnalyticsRepository(BaseRepository):
         """
         try:
             # Total XP by pillar
-            xp_result = self.client.table('user_skill_xp')\
-                .select('pillar, xp_amount')\
-                .execute()
+            # Whole-table read feeding a Python sum: page it, or the totals
+            # silently stop growing once the table passes the row cap.
+            xp_rows = fetch_all_rows(lambda: (
+                self.client.table('user_skill_xp')
+                .select('id, pillar, xp_amount')))
 
             pillar_xp = {}
             total_xp = 0
 
-            for record in (xp_result.data or []):
+            for record in xp_rows:
                 pillar = record.get('pillar', 'unknown')
                 xp = record.get('xp_amount', 0)
                 pillar_xp[pillar] = pillar_xp.get(pillar, 0) + xp
@@ -219,13 +222,13 @@ class AnalyticsRepository(BaseRepository):
         """
         try:
             # Get all user XP totals
-            xp_result = self.client.table('user_skill_xp')\
-                .select('user_id, xp_amount')\
-                .execute()
+            xp_rows = fetch_all_rows(lambda: (
+                self.client.table('user_skill_xp')
+                .select('id, user_id, xp_amount')))
 
             # Aggregate by user
             user_totals = {}
-            for record in (xp_result.data or []):
+            for record in xp_rows:
                 user_id = record.get('user_id')
                 xp = record.get('xp_amount', 0)
                 user_totals[user_id] = user_totals.get(user_id, 0) + xp
