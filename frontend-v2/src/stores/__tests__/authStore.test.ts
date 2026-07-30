@@ -11,6 +11,9 @@ jest.mock('@/src/services/api', () =>
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
+    // loadUser reads the tri-state restoreDetailed() so it can tell an empty
+    // store (real logout) from an unreadable one (keychain locked -> retry).
+    restoreDetailed: jest.fn(),
     setTokens: jest.fn().mockResolvedValue(undefined),
     clearTokens: jest.fn().mockResolvedValue(undefined),
     getAccessToken: jest.fn(),
@@ -200,12 +203,12 @@ describe('authStore', () => {
 
   describe('loadUser', () => {
     it('restores tokens and fetches user from /me', async () => {
-      (tokenStore.restore as jest.Mock).mockResolvedValue(true);
+      (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('restored');
       (authAPI.me as jest.Mock).mockResolvedValue({ data: mockUser });
 
       await useAuthStore.getState().loadUser();
 
-      expect(tokenStore.restore).toHaveBeenCalled();
+      expect(tokenStore.restoreDetailed).toHaveBeenCalled();
       expect(authAPI.me).toHaveBeenCalled();
 
       const state = useAuthStore.getState();
@@ -215,7 +218,7 @@ describe('authStore', () => {
     });
 
     it('sets unauthenticated when no tokens exist', async () => {
-      (tokenStore.restore as jest.Mock).mockResolvedValue(false);
+      (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('empty');
 
       await useAuthStore.getState().loadUser();
 
@@ -227,14 +230,61 @@ describe('authStore', () => {
     });
 
     it('clears tokens and state when /me fails (expired token)', async () => {
-      (tokenStore.restore as jest.Mock).mockResolvedValue(true);
-      (authAPI.me as jest.Mock).mockRejectedValue(new Error('401'));
+      (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('restored');
+      // A real rejected session: the interceptor already tried to refresh and
+      // the backend answered 401, so the response shape must say so.
+      (authAPI.me as jest.Mock).mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 401, data: { error: 'SESSION_EXPIRED' } },
+      });
 
       await useAuthStore.getState().loadUser();
 
       expect(tokenStore.clearTokens).toHaveBeenCalled();
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.isLoading).toBe(false);
+    });
+
+    it('keeps tokens when /me fails with a 5xx (Render cold start)', async () => {
+      (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('restored');
+      (authAPI.me as jest.Mock).mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 503, data: { error: 'unavailable' } },
+      });
+
+      await useAuthStore.getState().loadUser();
+
+      // The refresh token is still valid — destroying it over a backend blip is
+      // what users report as "it logged me out when I closed the app".
+      expect(tokenStore.clearTokens).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().isLoading).toBe(false);
+    });
+
+    it('keeps tokens when the failure is a local throw, not an HTTP answer', async () => {
+      (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('restored');
+      // e.g. a SecureStore/keychain read blowing up. extractApiError maps a bare
+      // Error to isAuthError=false/isNetworkError=false; the old condition
+      // (`|| !isNetworkError`) swept that in and wiped the session permanently.
+      (authAPI.me as jest.Mock).mockRejectedValue(new Error('keychain unavailable'));
+
+      await useAuthStore.getState().loadUser();
+
+      expect(tokenStore.clearTokens).not.toHaveBeenCalled();
+    });
+
+    it('does not clear tokens when the keychain is unreadable on boot', async () => {
+      // restoreDetailed reports 'unavailable' (device locked at launch). loadUser
+      // retries, and if it is still unreadable it must leave SecureStore alone so
+      // the next launch restores the session intact.
+      (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('unavailable');
+
+      await useAuthStore.getState().loadUser();
+
+      expect(tokenStore.clearTokens).not.toHaveBeenCalled();
+      expect(authAPI.me).not.toHaveBeenCalled();
+      const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(false);
       expect(state.isLoading).toBe(false);
     });

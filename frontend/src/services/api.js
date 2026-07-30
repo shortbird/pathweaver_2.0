@@ -2,6 +2,7 @@ import axios from 'axios'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 import { captureException } from './sentry'
+import { postRefreshWithRetry, isUnrecoverableAuthFailure } from './sessionRecovery'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
@@ -240,7 +241,11 @@ api.interceptors.response.use(
                 }
               }
 
-              const response = await api.post('/api/auth/refresh', requestBody)
+              // One jittered retry on a transient failure (cold Render worker,
+              // network blip). A 4xx still fails fast — see sessionRecovery.js.
+              const response = await postRefreshWithRetry(requestBody, {
+                post: (path, b) => api.post(path, b)
+              })
 
               if (response.status === 200) {
                 // Backend returns access_token and refresh_token in response body for all browsers.
@@ -252,7 +257,11 @@ api.interceptors.response.use(
 
                 return true // Refresh successful
               }
-              throw new Error('Token refresh failed')
+              // A non-200 with no thrown error means we got a response but no
+              // usable session out of it. Nothing to retry — end the session.
+              const noSession = new Error('Token refresh failed')
+              noSession.__sessionOver = true
+              throw noSession
             } finally {
               // Clear promise after refresh completes (success or failure)
               refreshPromise = null
@@ -266,6 +275,21 @@ api.interceptors.response.use(
         // Retry the original request (new tokens automatically sent via cookies or Authorization header)
         return api(originalRequest)
       } catch (refreshError) {
+        // Only tear the session down when the refresh genuinely failed because
+        // the credentials are gone — a 401/403 from /api/auth/refresh.
+        //
+        // A network error, a timeout, a 5xx (Render cold start) or a 429 (the
+        // per-IP refresh throttle) says nothing about whether the refresh
+        // cookie is still valid, and it usually is: it lives 30 days while the
+        // access cookie lives 15 minutes, so every return visit after a break
+        // arrives here. Clearing tokens and redirecting on those is what made
+        // users report "it logged me out when I closed the app". Leave the
+        // session alone and let the next request recover.
+        if (!isUnrecoverableAuthFailure(refreshError)) {
+          logger.warn('[API] Token refresh failed transiently — keeping session', refreshError)
+          return Promise.reject(refreshError)
+        }
+
         // Tokens are cleared by the backend response and from in-memory storage.
         tokenStore.clearTokens()
 

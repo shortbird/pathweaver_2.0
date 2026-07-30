@@ -87,7 +87,25 @@ export const AuthProvider = ({ children }) => {
         // is valid we're in; if it's expired the response interceptor will
         // transparently call /refresh using the httpOnly refresh cookie and retry.
         try {
-          const response = await api.get('/api/auth/me')
+          let response
+          try {
+            response = await api.get('/api/auth/me')
+          } catch (firstErr) {
+            // A 401/403 here is a real verdict (the interceptor already tried to
+            // refresh and the backend rejected the token) — rethrow immediately
+            // so logged-out users still reach /login without an added delay.
+            const status = firstErr?.response?.status
+            if (status === 401 || status === 403) throw firstErr
+            // Anything else is transient, and boot is when it is most likely:
+            // this is the first request of the session, so it is the one that
+            // wakes a cold Render worker. PrivateRoute redirects to /login the
+            // moment isAuthenticated goes false, so giving up here *looks* like
+            // being logged out even though the cookies are fine. Wait for the
+            // worker and ask once more.
+            logger.warn('[AuthContext] /me failed transiently — retrying once', firstErr)
+            await new Promise((resolve) => setTimeout(resolve, 600))
+            response = await api.get('/api/auth/me')
+          }
           if (response.data) {
             queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
             identifyUser(response.data)
@@ -101,14 +119,35 @@ export const AuthProvider = ({ children }) => {
           if (isSafari() || isIOS()) {
             logger.debug('[AuthContext] Safari/iOS detected - will use Authorization headers on next login')
           }
-          // Defensive: drop any stale in-memory tokens so a subsequent /me retry
-          // doesn't attach a header the backend has already invalidated.
-          tokenStore.clearTokens()
+          // Distinguish "your session is over" from "we couldn't reach the
+          // backend". Boot is exactly when the backend is most likely to be
+          // cold (first request of the day wakes the Render worker), and this
+          // catch used to clear tokens either way — throwing away a refresh
+          // cookie that was still good for weeks. That is the boot-time half of
+          // the "logged out when I closed the app" reports.
+          //
+          // The interceptor above already retried /refresh once and only
+          // surfaces a 401/403 after the session is genuinely gone, so anything
+          // without an auth status here is transient: leave the cookies in
+          // place so the next request re-authenticates silently.
+          const status = cookieError?.response?.status
+          const sessionIsOver = status === 401 || status === 403
+          if (sessionIsOver) {
+            // Defensive: drop any stale in-memory tokens so a subsequent /me retry
+            // doesn't attach a header the backend has already invalidated.
+            tokenStore.clearTokens()
+          } else {
+            logger.warn('[AuthContext] Session check failed transiently — keeping cookies', cookieError)
+          }
           queryClient.setQueryData(queryKeys.user.profile('current'), null)
           setSession(null)
         }
       } catch (error) {
-        tokenStore.clearTokens()
+        // Reaching here means the setup steps themselves threw (tokenStore.init
+        // touching a blocked localStorage, browser-detection). That says nothing
+        // about the session, so don't clear the httpOnly cookies over it — the
+        // user stays signed in on the next request.
+        logger.warn('[AuthContext] Session check aborted before /me — keeping cookies', error)
         queryClient.setQueryData(queryKeys.user.profile('current'), null)
         setSession(null)
       } finally {
