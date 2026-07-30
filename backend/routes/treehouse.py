@@ -25,6 +25,7 @@ from repositories.class_repository import ClassRepository
 from services.notification_service import NotificationService
 from utils.treehouse import facilitators_for_student
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.db_fetch import fetch_all_rows
 from utils.session_manager import SessionManager
 from utils.logger import get_logger
 
@@ -118,12 +119,17 @@ def _is_admin(ctx):
 
 
 def _cohort_student_ids(admin, class_ids):
-    """Active-enrollment student ids across the given org_class ids."""
+    """Active-enrollment student ids across the given org_class ids.
+
+    Paged: this spans many classes, and a silently truncated read would quietly
+    shrink the cohort rather than fail.
+    """
     if not class_ids:
         return []
-    res = (admin.table('class_enrollments').select('student_id')
-           .in_('class_id', class_ids).eq('status', 'active').execute())
-    return list({r['student_id'] for r in (res.data or [])})
+    rows = fetch_all_rows(lambda: (
+        admin.table('class_enrollments').select('id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active')))
+    return list({r['student_id'] for r in rows})
 
 
 def _advisor_class_ids(admin, advisor_id):
@@ -1052,14 +1058,19 @@ def kiosk_roster():
     # in a cohort. The flat `students` list stays for backward compatibility.
     cohorts = []
     try:
-        classes = (admin.table('org_classes').select('id, name, ui_mode')
-                   .eq('organization_id', device['organization_id'])
-                   .eq('status', 'active').execute()).data or []
+        # Org-wide reads, so both page — a silently truncated enrollment read
+        # would drop students out of their cohort and strand them in the
+        # "not in a cohort" bucket with no error to explain it.
+        classes = fetch_all_rows(lambda: (
+            admin.table('org_classes').select('id, name, ui_mode')
+            .eq('organization_id', device['organization_id'])
+            .eq('status', 'active')))
         class_ids = [c['id'] for c in classes]
         enrollments = []
         if class_ids:
-            enrollments = (admin.table('class_enrollments').select('student_id, class_id')
-                           .in_('class_id', class_ids).eq('status', 'active').execute()).data or []
+            enrollments = fetch_all_rows(lambda: (
+                admin.table('class_enrollments').select('id, student_id, class_id')
+                .in_('class_id', class_ids).eq('status', 'active')))
         by_id = {s['id']: s for s in students}
         members = {}
         assigned = set()

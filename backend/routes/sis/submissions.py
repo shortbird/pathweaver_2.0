@@ -19,6 +19,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
+from utils.db_fetch import fetch_all_rows
 
 logger = get_logger(__name__)
 
@@ -69,18 +70,21 @@ def _scope_classes(user_id, org_id):
 def _class_maps(class_ids):
     """(enrolled, attached): {class_id: set(student_ids)}, {class_id: set(quest_ids)}."""
     admin = get_supabase_admin_client()
+    # Both reads span every class in scope, so both must page: PostgREST
+    # truncates a large response silently, and a short read here drops students
+    # and quests out of the maps without any error.
     enrolled = {}
-    rows = (
-        admin.table('class_enrollments').select('class_id, student_id')
-        .in_('class_id', class_ids).eq('status', 'active').execute()
-    ).data or []
+    rows = fetch_all_rows(lambda: (
+        admin.table('class_enrollments').select('id, class_id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active')
+    ))
     for r in rows:
         enrolled.setdefault(r['class_id'], set()).add(r['student_id'])
     attached = {}
-    rows = (
-        admin.table('class_quests').select('class_id, quest_id')
-        .in_('class_id', class_ids).execute()
-    ).data or []
+    rows = fetch_all_rows(lambda: (
+        admin.table('class_quests').select('id, class_id, quest_id')
+        .in_('class_id', class_ids)
+    ))
     for r in rows:
         attached.setdefault(r['class_id'], set()).add(r['quest_id'])
     return enrolled, attached

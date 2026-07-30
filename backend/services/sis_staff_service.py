@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_notifications
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -168,19 +169,21 @@ def _classes_by_ids(org_id: str, class_ids: List[str]) -> List[Dict[str, Any]]:
 def _meetings_for_classes(org_id: str, class_ids: List[str]) -> List[Dict[str, Any]]:
     if not class_ids:
         return []
-    return (
+    return fetch_all_rows(lambda: (
         _admin().table('class_meetings').select('*')
-        .eq('organization_id', org_id).in_('class_id', class_ids).execute()
-    ).data or []
+        .eq('organization_id', org_id).in_('class_id', class_ids)
+    ))
 
 
 def _enrolled_counts(class_ids: List[str]) -> Dict[str, int]:
+    """Active enrollment count per class. Paged — tallying a silently-truncated
+    read is what made the SIS class list under-report enrollment."""
     if not class_ids:
         return {}
-    rows = (
-        _admin().table('class_enrollments').select('class_id')
-        .in_('class_id', class_ids).eq('status', 'active').execute()
-    ).data or []
+    rows = fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('id, class_id')
+        .in_('class_id', class_ids).eq('status', 'active')
+    ))
     counts: Dict[str, int] = {}
     for r in rows:
         counts[r['class_id']] = counts.get(r['class_id'], 0) + 1

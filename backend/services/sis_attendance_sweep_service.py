@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 from database import get_supabase_admin_client
 from services import sis_attendance_sweep as rules
 from services import sis_notifications
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -210,27 +211,37 @@ def _sweep_org(org_id: str) -> Dict[str, int]:
     student_ids = [e['student_user_id'] for e in enr]
 
     # class -> meetings, class -> name, student -> classes (active enrollments)
-    classes = (
+    # Every read below spans the whole org, so every one of them pages. A
+    # silently truncated response here does not raise — it just drops rows, and
+    # the sweep then fails to alert on the students whose enrollments or
+    # attendance fell past the cut. Missed alerts are invisible, so this is
+    # exactly the place a short read must never happen.
+    classes = fetch_all_rows(lambda: (
         _admin().table('org_classes').select('id, name, primary_instructor_id')
-        .eq('organization_id', org_id).execute()
-    ).data or []
+        .eq('organization_id', org_id)
+    ))
     class_ids = [c['id'] for c in classes]
     class_name = {c['id']: c['name'] for c in classes}
     meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
     if class_ids:
-        for m in (_admin().table('class_meetings').select('*')
-                  .in_('class_id', class_ids).execute()).data or []:
+        for m in fetch_all_rows(lambda: (
+                _admin().table('class_meetings').select('*')
+                .in_('class_id', class_ids))):
             meetings_by_class.setdefault(m['class_id'], []).append(m)
     student_classes: Dict[str, List[str]] = {}
     if class_ids:
-        for e in (_admin().table('class_enrollments').select('student_id, class_id, status')
-                  .in_('class_id', class_ids).eq('status', 'active').execute()).data or []:
+        for e in fetch_all_rows(lambda: (
+                _admin().table('class_enrollments')
+                .select('id, student_id, class_id, status')
+                .in_('class_id', class_ids).eq('status', 'active'))):
             student_classes.setdefault(e['student_id'], []).append(e['class_id'])
 
     # per-class attendance recorded today
     attendance = {}  # (student, class) -> status
-    for a in (_admin().table('sis_attendance').select('student_user_id, class_id, status')
-              .eq('organization_id', org_id).eq('date', today.isoformat()).execute()).data or []:
+    for a in fetch_all_rows(lambda: (
+            _admin().table('sis_attendance')
+            .select('id, student_user_id, class_id, status')
+            .eq('organization_id', org_id).eq('date', today.isoformat()))):
         attendance[(a['student_user_id'], a['class_id'])] = a['status']
 
     already = _already_alerted(org_id, today.isoformat())

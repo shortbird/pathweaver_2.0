@@ -9,6 +9,7 @@ parent-student links yet. Read-only aggregation.
 from flask import Blueprint, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_org_admin
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -67,34 +68,37 @@ def get_setup_status(current_user_id, current_org_id, is_superadmin, org_id):
             if 'parent' in roles:
                 parents += 1
 
-        classes = supabase.table('org_classes')\
-            .select('id')\
-            .eq('organization_id', org_id)\
-            .eq('status', 'active')\
-            .execute().data or []
+        # Paged: class_ids drives the counts below, so a silently truncated read
+        # here would undercount everything downstream.
+        classes = fetch_all_rows(lambda: (
+            supabase.table('org_classes')
+            .select('id')
+            .eq('organization_id', org_id)
+            .eq('status', 'active')))
         class_ids = [c['id'] for c in classes]
 
+        # These are counts, so let Postgres count (head=True transfers no rows).
+        # Fetching rows to call len() on them is wrong once an org outgrows the
+        # 1000-row cap — the number silently stops growing. See CLAUDE.md rule 9.
         class_quests = 0
         if class_ids:
-            quest_rows = supabase.table('class_quests')\
-                .select('id')\
+            class_quests = supabase.table('class_quests')\
+                .select('id', count='exact', head=True)\
                 .in_('class_id', class_ids)\
-                .execute().data or []
-            class_quests = len(quest_rows)
+                .execute().count or 0
 
         parent_links = 0
         if student_ids:
-            link_rows = supabase.table('parent_student_links')\
-                .select('id')\
+            parent_links = supabase.table('parent_student_links')\
+                .select('id', count='exact', head=True)\
                 .in_('student_user_id', student_ids)\
-                .execute().data or []
-            parent_links = len(link_rows)
+                .execute().count or 0
 
-        invitations = supabase.table('org_invitations')\
-            .select('id')\
+        pending_invitations = supabase.table('org_invitations')\
+            .select('id', count='exact', head=True)\
             .eq('organization_id', org_id)\
             .eq('status', 'pending')\
-            .execute().data or []
+            .execute().count or 0
 
         return jsonify({
             'success': True,
@@ -105,7 +109,7 @@ def get_setup_status(current_user_id, current_org_id, is_superadmin, org_id):
                 'classes': len(classes),
                 'class_quests': class_quests,
                 'parent_links': parent_links,
-                'pending_invitations': len(invitations)
+                'pending_invitations': pending_invitations
             }
         })
 
