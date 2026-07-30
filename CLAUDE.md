@@ -14,6 +14,7 @@
 6. **Run tests before production** - `release.yml` runs them on push to `main`; Render deploys + the production OTA publishes only if they pass. Don't push known-failing code to `main`.
 7. **Include superadmin in role checks** - When creating new routes with role-based authorization, ALWAYS include `superadmin` in the allowed roles list.
 8. **API keys via Config class only** - All API keys and secrets must be accessed via `Config` from `app_config.py`, never `os.getenv()` directly. See `backend/docs/ENV_KEYS_REFERENCE.md`.
+9. **Never count rows in Python** - PostgREST silently truncates every response at 1000 rows (`Config.POSTGREST_MAX_ROWS`), so fetching rows to tally them returns a number that is quietly wrong once an org gets big enough. Use `count='exact'` for one number, or `utils.db_fetch.fetch_all_rows()` when you genuinely need every row. See [Row Limits](#row-limits-postgrests-silent-truncation).
 
 ### Role System (Platform vs Organization Users)
 
@@ -403,6 +404,52 @@ organizations            - id, name, slug, quest_visibility_policy, is_active
 SELECT column_name, data_type FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'your_table';
 ```
+
+### Row Limits: PostgREST's silent truncation
+
+**Every Data API response is capped at 1000 rows, and nothing tells you.**
+`APIResponse` exposes only `data` and `count` — the `Content-Range` header that
+would reveal the cut is dropped, so a truncated read is indistinguishable from a
+complete one at the call site.
+
+This shipped a real bug: the SIS class list built enrollment counts by fetching
+every active `class_enrollments` row for the org and tallying them in Python.
+When iCreate passed 1000 active enrollments the tail was silently discarded, so
+displayed counts *fell as more families enrolled* — a full class read `0/12` while
+its roster still listed twelve students. Postmortem:
+[docs/icreate/FAB_TRIAGE_2026-07-29_enrollment_counts.md](docs/icreate/FAB_TRIAGE_2026-07-29_enrollment_counts.md).
+
+**Pick by what you need:**
+
+```python
+# A count -> let Postgres count. Cannot truncate.
+n = client.table('class_enrollments').select('id', count='exact') \
+      .eq('class_id', cid).eq('status', 'active').execute().count or 0
+
+# Every row of an org-wide read -> page it.
+from utils.db_fetch import fetch_all_rows
+rows = fetch_all_rows(lambda: (
+    client.table('class_enrollments').select('id, class_id')
+    .in_('class_id', class_ids).eq('status', 'active')
+))
+
+# WRONG: silently truncates once the org outgrows the cap.
+rows = client.table('class_enrollments').select('class_id') \
+         .in_('class_id', class_ids).execute().data
+counts = Counter(r['class_id'] for r in rows)
+```
+
+**Rules of thumb**
+- Bounded by one parent row (one student's classes, one class's roster)? Fine as-is.
+- Row count grows with the size of an org? Page it, or aggregate in Postgres.
+- Never raise `POSTGREST_MAX_ROWS` to make a symptom go away — that moves the
+  cliff without removing it, and it desyncs the canary below.
+
+**Safety net:** `utils/db_truncation_canary.py` hooks the httpx session on every
+client and logs a warning + Sentry event (tag `source:db_truncation`) whenever a
+response comes back holding exactly the cap. A hit means some read is truncated
+and whatever was computed from it is wrong — fix the call site. Watch for these
+after any change that grows a customer's data.
 
 ### Data API Grants (Supabase 2026-10-30 change)
 

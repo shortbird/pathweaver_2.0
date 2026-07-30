@@ -140,6 +140,13 @@ class Config:
     SUPABASE_MAX_OVERFLOW = int(os.getenv('DB_POOL_OVERFLOW', '5'))
     SUPABASE_CONN_LIFETIME = int(os.getenv('DB_CONN_LIFETIME', '3600'))
 
+    # PostgREST's per-response row cap (Supabase Settings -> API -> "Max rows").
+    # MUST match the project setting: it is the number the truncation canary
+    # watches for, and the page size paged reads are allowed to request. A read
+    # that comes back with exactly this many rows was almost certainly cut off —
+    # PostgREST gives no other signal. See utils/db_fetch.py.
+    POSTGREST_MAX_ROWS = int(os.getenv('POSTGREST_MAX_ROWS', '1000'))
+
     # Service Layer Configuration - CONFIGURABLE
     SERVICE_RETRY_ATTEMPTS = int(os.getenv('SERVICE_RETRY_ATTEMPTS', '3'))
     SERVICE_RETRY_DELAY = float(os.getenv('SERVICE_RETRY_DELAY', '0.5'))

@@ -94,6 +94,28 @@ def _get_client_options() -> ClientOptions:
     # custom httpx client via whatever the new API is.
     return ClientOptions()
 
+
+def _with_truncation_canary(client):
+    """Attach the silent-truncation warning to a freshly built client.
+
+    PostgREST caps every response at `db-max-rows` and supabase-py drops the
+    `Content-Range` header, so a truncated read looks exactly like a complete one
+    at the call site. The canary reads that header off the httpx session and warns
+    when a response comes back holding exactly the cap — see
+    utils/db_truncation_canary.py for why and what to do about a hit.
+
+    Imported lazily: `utils` pulls in utils.auth.decorators, which imports this
+    module, so a top-level import would be circular. Failure is swallowed inside
+    install() — observability must never stop a client from being created.
+    """
+    try:
+        from utils.db_truncation_canary import install
+        return install(client)
+    except Exception as e:  # noqa: BLE001
+        _get_logger().debug(f"[DATABASE] truncation canary unavailable: {e}")
+        return client
+
+
 # Create singleton client for anonymous operations only
 # Admin client is per-request (cached in Flask's g) to prevent HTTP/2 exhaustion
 _supabase_client = None
@@ -107,10 +129,10 @@ def get_supabase_client() -> Client:
 
     # Create singleton client with connection pooling configuration
     if _supabase_client is None:
-        _supabase_client = create_client(
+        _supabase_client = _with_truncation_canary(create_client(
             Config.SUPABASE_URL,
             Config.SUPABASE_ANON_KEY,
-        )
+        ))
         _get_logger().info(f"[DATABASE] Created anonymous client with connection pool (size={Config.SUPABASE_POOL_SIZE}, timeout={Config.SUPABASE_POOL_TIMEOUT}s)")
 
     return _supabase_client
@@ -131,10 +153,10 @@ def get_supabase_admin_singleton() -> Client:
         raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
 
     if _supabase_admin_singleton is None:
-        _supabase_admin_singleton = create_client(
+        _supabase_admin_singleton = _with_truncation_canary(create_client(
             Config.SUPABASE_URL,
             Config.SUPABASE_SERVICE_ROLE_KEY,
-        )
+        ))
         _get_logger().info(f"[DATABASE] Created admin singleton client with connection pool (size={Config.SUPABASE_POOL_SIZE}, timeout={Config.SUPABASE_POOL_TIMEOUT}s)")
 
     return _supabase_admin_singleton
@@ -159,10 +181,10 @@ def get_supabase_admin_client() -> Client:
     # This prevents HTTP/2 stream exhaustion from singleton pattern
     # while still limiting to one client per request
     if not hasattr(g, '_admin_client'):
-        g._admin_client = create_client(
+        g._admin_client = _with_truncation_canary(create_client(
             Config.SUPABASE_URL,
             Config.SUPABASE_SERVICE_ROLE_KEY,
-        )
+        ))
         _get_logger().debug(f"[DATABASE] Created request-scoped admin client with connection pool")
 
     return g._admin_client
@@ -256,10 +278,10 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # We must use postgrest.auth() to set the token for RLS policies
             # P1-SEC-4: Move sensitive logging to DEBUG level
             _get_logger().debug(f"[GET_USER_CLIENT] Creating client with JWT token for RLS")
-            client = create_client(
+            client = _with_truncation_canary(create_client(
                 Config.SUPABASE_URL,
                 Config.SUPABASE_ANON_KEY,
-            )
+            ))
             # Set auth token on postgrest client for RLS to work with auth.uid()
             # This is the correct way to enable RLS in supabase-py
             client.postgrest.auth(token)

@@ -23,20 +23,23 @@ Paging correctness notes:
   non-uniquely-ordered) query can skip or repeat rows between pages, so the
   ordering is part of the correctness, not presentation.
 - `page_size` must not exceed the server's `db-max-rows`, because a short page is
-  what tells us we've reached the end. `PAGE_SIZE` matches Supabase's default of
-  1000; if that setting is ever lowered for this project, lower this to match or
-  reads start truncating again for exactly the reason documented above.
+  what tells us we've reached the end. It therefore comes from
+  `Config.POSTGREST_MAX_ROWS` — the same single source the truncation canary
+  watches (`utils/db_truncation_canary.py`), so the two cannot drift apart. Keep
+  that setting in step with Supabase Settings -> API -> "Max rows".
 """
 
 from typing import Any, Callable, Dict, List
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Matches Supabase's default db-max-rows. Requesting more than the server allows
-# is harmless — the first response tells us the real ceiling.
-PAGE_SIZE = 1000
+# Deliberately read at call time, not import time, so tests and config changes
+# take effect without a reimport.
+def _default_page_size() -> int:
+    return Config.POSTGREST_MAX_ROWS or 1000
 
 # Backstop against an unbounded loop if a server ever returns full pages forever.
 # 500 pages x 1000 rows is far beyond any legitimate org-scoped read.
@@ -44,7 +47,7 @@ MAX_PAGES = 500
 
 
 def fetch_all_rows(build_query: Callable[[], Any], *, order_by: str = 'id',
-                   page_size: int = PAGE_SIZE) -> List[Dict[str, Any]]:
+                   page_size: int = None) -> List[Dict[str, Any]]:
     """Every row `build_query` matches, read in pages.
 
     Args:
@@ -52,11 +55,13 @@ def fetch_all_rows(build_query: Callable[[], Any], *, order_by: str = 'id',
             builder (they are single-use once `.range()` is applied) with the
             filters applied but no ordering or range of its own.
         order_by: Unique column to page by (see the module note).
-        page_size: Rows to ask for per request; must be <= the server's row cap.
+        page_size: Rows per request; must be <= the server's row cap. Defaults to
+            `Config.POSTGREST_MAX_ROWS`.
 
     Returns:
         All matching rows, ordered by `order_by`.
     """
+    page_size = page_size or _default_page_size()
     rows: List[Dict[str, Any]] = []
     offset = 0
 
