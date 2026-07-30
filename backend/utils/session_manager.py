@@ -37,6 +37,26 @@ class SessionManager:
         # This provides an additional layer of security by enforcing absolute session timeouts
         self.SESSION_TIMEOUT = Config.SESSION_TIMEOUT_HOURS
 
+        # A refresh token that outlives the session-timeout window is a silent
+        # logout machine: verify_refresh_token() runs is_session_expired() on the
+        # `iat` claim, so the token is rejected while its own `exp` — and the
+        # Set-Cookie Max-Age derived from it — still say it is good. The client
+        # sees a 401 on the first refresh after a break and shows the login
+        # screen, which is indistinguishable from "the app logged me out".
+        # The defaults line up (720h == 30d); an env override on only one of the
+        # two silently breaks it, so say so loudly at boot rather than leaving it
+        # to be rediscovered from user reports.
+        refresh_hours = Config.REFRESH_TOKEN_EXPIRY_DAYS * 24
+        if refresh_hours > self.SESSION_TIMEOUT:
+            logger.error(
+                f"[SessionManager] MISCONFIGURED SESSION LIFETIME: "
+                f"REFRESH_TOKEN_EXPIRY_DAYS={Config.REFRESH_TOKEN_EXPIRY_DAYS} ({refresh_hours}h) "
+                f"exceeds SESSION_TIMEOUT_HOURS={self.SESSION_TIMEOUT}. Refresh tokens will be "
+                f"rejected after {self.SESSION_TIMEOUT}h even though the cookie lives "
+                f"{Config.REFRESH_TOKEN_EXPIRY_DAYS}d — users will be logged out early. "
+                f"Raise SESSION_TIMEOUT_HOURS to at least {refresh_hours}."
+            )
+
         # Log token versioning status
         if self.previous_secret_key:
             logger.info(f"[SessionManager] Token versioning enabled (version: {self.token_version}, supports old keys)")

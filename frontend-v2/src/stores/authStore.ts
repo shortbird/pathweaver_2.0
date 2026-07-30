@@ -84,7 +84,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       // Native: tokens persist in SecureStore. Web: tokens are memory-only — try
       // minting a fresh access token from the httpOnly refresh cookie before giving up.
-      let hasTokens = await tokenStore.restore();
+      let restored = await tokenStore.restoreDetailed();
+      if (restored === 'unavailable') {
+        // The keychain couldn't be read — most often because the process
+        // started while the device was still locked (a push notification is
+        // enough). That is not a logout, and rendering the login screen here is
+        // what users describe as "it signed me out on its own". Wait for the
+        // unlock and read again before deciding anything.
+        await new Promise((r) => setTimeout(r, 400));
+        restored = await tokenStore.restoreDetailed();
+      }
+      if (restored === 'unavailable') {
+        // Still unreadable. Leave SecureStore untouched and stay in the loading
+        // state's terminal branch without clearing anything, so the next launch
+        // (or the next unlock) restores the session intact.
+        set({ isLoading: false, isAuthenticated: false, user: null });
+        return;
+      }
+      let hasTokens = restored === 'restored';
       if (!hasTokens && Platform.OS === 'web') {
         try {
           const { data: refreshed } = await api.post('/api/auth/refresh', {});
@@ -133,14 +150,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (err) {
       const parsed = extractApiError(err);
-      // Only clear tokens on real auth failures. Transient network problems keep
-      // tokens so the next open tries again instead of forcing a fresh login.
-      if (parsed.isAuthError || !parsed.isNetworkError) {
+      // Only clear tokens on a real auth failure — a 401/403 from the backend,
+      // meaning the session is genuinely gone.
+      //
+      // This used to also clear on `!parsed.isNetworkError`, which swept in
+      // every *local* throw: extractApiError maps a plain Error (a keychain
+      // read that failed, a JSON parse blowing up) to
+      // isAuthError=false/isNetworkError=false, so one transient SecureStore
+      // hiccup wiped the tokens and logged the user out permanently. A 5xx from
+      // /me is likewise no reason to destroy a valid refresh token.
+      if (parsed.isAuthError) {
         await tokenStore.clearTokens();
         set({ user: null, isAuthenticated: false, isLoading: false });
       } else {
-        // Network error: if we already restored a cached user, leave that in place.
-        // Otherwise mark as not-loading so the auth gate can show the login screen.
+        // Recoverable (network, timeout, 5xx, local storage error): tokens stay
+        // put. If we already restored a cached user, leave that in place so the
+        // app opens normally. Otherwise mark as not-loading so the auth gate can
+        // show the login screen — but the session on disk survives for the next
+        // launch either way.
         set((s) => (s.isAuthenticated ? { isLoading: false } : { user: null, isAuthenticated: false, isLoading: false }));
       }
     }

@@ -1,8 +1,8 @@
 /**
  * authStore.loadUser web-platform tests (H2).
  *
- * On web, tokens are memory-only, so a hard reload leaves tokenStore.restore()
- * returning false. loadUser must then attempt a cookie-driven /api/auth/refresh
+ * On web, tokens are memory-only, so a hard reload leaves the token store
+ * empty. loadUser must then attempt a cookie-driven /api/auth/refresh
  * and stash the returned tokens before calling /me. Native path is covered in
  * authStore.test.ts.
  */
@@ -18,6 +18,9 @@ jest.mock('@/src/services/api', () =>
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
+    // loadUser reads the tri-state restoreDetailed() so it can tell an empty
+    // store (real logout) from an unreadable one (keychain locked -> retry).
+    restoreDetailed: jest.fn(),
     setTokens: jest.fn().mockResolvedValue(undefined),
     clearTokens: jest.fn().mockResolvedValue(undefined),
     getAccessToken: jest.fn(),
@@ -52,8 +55,8 @@ beforeEach(() => {
 });
 
 describe('authStore.loadUser (web cookie-refresh fallback)', () => {
-  it('refreshes via cookie and loads /me when restore returns false', async () => {
-    (tokenStore.restore as jest.Mock).mockResolvedValue(false);
+  it('refreshes via cookie and loads /me when the store is empty', async () => {
+    (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('empty');
     (api.post as jest.Mock).mockResolvedValue({
       data: { access_token: 'new-access', refresh_token: 'new-refresh' },
     });
@@ -72,7 +75,7 @@ describe('authStore.loadUser (web cookie-refresh fallback)', () => {
   });
 
   it('falls through to unauthenticated when refresh cookie is missing/invalid', async () => {
-    (tokenStore.restore as jest.Mock).mockResolvedValue(false);
+    (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('empty');
     (api.post as jest.Mock).mockRejectedValue(new Error('401'));
 
     await useAuthStore.getState().loadUser();
@@ -88,7 +91,7 @@ describe('authStore.loadUser (web cookie-refresh fallback)', () => {
   });
 
   it('skips cookie refresh when restore already returned tokens', async () => {
-    (tokenStore.restore as jest.Mock).mockResolvedValue(true);
+    (tokenStore.restoreDetailed as jest.Mock).mockResolvedValue('restored');
     (authAPI.me as jest.Mock).mockResolvedValue({ data: mockUser });
 
     await useAuthStore.getState().loadUser();

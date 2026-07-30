@@ -31,6 +31,22 @@ export interface RouteEntry {
   at: string;
 }
 
+/**
+ * A step the user took, or a stage the app reached, inside a multi-step native
+ * flow. Added for the evidence-attach pipeline, where every failure mode is a
+ * silent fallback: a picker that never presents, a picker that returns
+ * `canceled`, a compression fallback, an asset dropped by a size gate. Two iOS
+ * reports of "attaching doesn't work" (2026-07-12 video, 2026-07-30 photos)
+ * arrived with an empty console-error buffer, no Sentry event, and not one
+ * upload API call — there was simply nothing recorded between the tap and the
+ * user giving up. This buffer is what makes the next one diagnosable.
+ */
+export interface ActionEntry {
+  stage: string;
+  at: string;
+  detail?: Record<string, unknown>;
+}
+
 class RingBuffer<T> {
   private items: T[] = [];
   constructor(private readonly size: number) {}
@@ -51,6 +67,9 @@ class RingBuffer<T> {
 const apiCalls = new RingBuffer<ApiCallEntry>(RING_SIZE);
 const routes = new RingBuffer<RouteEntry>(RING_SIZE);
 const consoleErrors = new RingBuffer<string>(RING_SIZE);
+// Deliberately larger than RING_SIZE: one attach attempt emits several stages,
+// and the user often retries a few times before giving up and filing a report.
+const actions = new RingBuffer<ActionEntry>(40);
 
 function nowIso(): string {
   // new Date() with no args is fine at runtime; tests stub Date where needed.
@@ -59,6 +78,19 @@ function nowIso(): string {
 
 export function recordApiCall(entry: Omit<ApiCallEntry, 'at'> & { at?: string }): void {
   apiCalls.push({ ...entry, at: entry.at ?? nowIso() });
+}
+
+/**
+ * Record a step in a native flow. Never throws and never records user content —
+ * `detail` is for small scalars (counts, sizes, permission status, platform),
+ * never file paths, URIs, or anything the user typed.
+ */
+export function recordAction(stage: string, detail?: Record<string, unknown>): void {
+  try {
+    actions.push({ stage, at: nowIso(), ...(detail ? { detail } : {}) });
+  } catch {
+    // diagnostics must never break the flow they are observing
+  }
 }
 
 export function recordRoute(route: string): void {
@@ -145,6 +177,9 @@ export interface Diagnostics {
   breadcrumbs: RouteEntry[];
   recent_api_calls: ApiCallEntry[];
   recent_console_errors: string[];
+  /** Rides inside the existing `extra` jsonb column, so no migration or
+   *  backend allow-list change is needed to persist it. */
+  extra: { recent_actions: ActionEntry[] };
 }
 
 export function collectDiagnostics(): Diagnostics {
@@ -159,6 +194,7 @@ export function collectDiagnostics(): Diagnostics {
     breadcrumbs: routes.snapshot(),
     recent_api_calls: apiCalls.snapshot(),
     recent_console_errors: consoleErrors.snapshot(),
+    extra: { recent_actions: actions.snapshot() },
   };
 }
 
@@ -167,4 +203,5 @@ export function _resetDiagnostics(): void {
   apiCalls.clear();
   routes.clear();
   consoleErrors.clear();
+  actions.clear();
 }

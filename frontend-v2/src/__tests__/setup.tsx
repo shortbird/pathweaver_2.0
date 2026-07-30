@@ -33,6 +33,11 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn().mockResolvedValue(undefined),
   getItemAsync: jest.fn().mockResolvedValue(null),
   deleteItemAsync: jest.fn().mockResolvedValue(undefined),
+  // Keychain accessibility constants. tokenStore writes with AFTER_FIRST_UNLOCK
+  // so a launch while the device is locked (push notification, background
+  // fetch) can still read the session instead of looking logged out.
+  AFTER_FIRST_UNLOCK: 1,
+  WHEN_UNLOCKED: 0,
 }));
 
 // ── expo-image-picker ──

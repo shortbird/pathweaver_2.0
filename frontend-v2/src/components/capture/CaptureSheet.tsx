@@ -17,6 +17,7 @@ import { captureException, captureMessage } from '@/src/services/sentry';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
+import { recordAction } from '@/src/services/diagnostics';
 import { enqueueUpload } from '@/src/services/uploadQueue';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -157,7 +158,8 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   const [pickerSuspended, setPickerSuspended] = useState(false);
   const pendingPickerRef = useRef<null | (() => Promise<void>)>(null);
 
-  const runWithSheetHidden = (action: () => Promise<void>) => {
+  const runWithSheetHidden = (action: () => Promise<void>, label: string) => {
+    recordAction('capture:picker-tap', { source: label, platform: Platform.OS });
     // Android needs the Modal fully dismissed before launching a native picker,
     // or it crashes with "unregistered ActivityResultLauncher". iOS has no such
     // problem, and dismissing first there introduces a "no view controller to
@@ -260,6 +262,16 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   };
 
   const pickFiles = async () => {
+    // Read (never request) the permission — see the note in TaskEvidenceSheet.
+    try {
+      const perm = await ImagePicker.getMediaLibraryPermissionsAsync();
+      recordAction('capture:library-permission', {
+        status: perm.status,
+        accessPrivileges: (perm as { accessPrivileges?: string }).accessPrivileges,
+      });
+    } catch {
+      recordAction('capture:library-permission', { status: 'unknown' });
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       quality: 0.8,
@@ -267,6 +279,10 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       // Cap so a parent who taps "select all" in Photos can't queue 200
       // uploads at once. Practical evidence/moment ceiling.
       selectionLimit: 10,
+    });
+    recordAction('capture:library-result', {
+      canceled: result.canceled,
+      assetCount: result.canceled ? 0 : result.assets.length,
     });
     if (!result.canceled && result.assets.length > 0) {
       await processAndAdd(result.assets);
@@ -682,7 +698,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
             {/* Attach buttons */}
             <HStack className="gap-3">
               <Pressable
-                onPress={() => runWithSheetHidden(openCamera)}
+                onPress={() => runWithSheetHidden(openCamera, 'camera')}
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
@@ -708,7 +724,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
               </Pressable>
               <Pressable
-                onPress={() => runWithSheetHidden(pickFiles)}
+                onPress={() => runWithSheetHidden(pickFiles, 'library')}
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
@@ -716,7 +732,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
               </Pressable>
               <Pressable
-                onPress={() => runWithSheetHidden(scanDocument)}
+                onPress={() => runWithSheetHidden(scanDocument, 'scan')}
                 className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
                 style={{ minHeight: 44 }}
               >
