@@ -265,9 +265,12 @@ def get_student_group_messages(user_id, student_id, group_id):
         limit = min(int(request.args.get('limit', 50)), 100)
         offset = int(request.args.get('offset', 0))
 
-        # Get messages
+        # Get messages. The column is message_content; it is aliased to `content`
+        # so the response matches the direct-message endpoint above and the
+        # `message.content` the viewer renders. Selecting `content` directly is a
+        # 42703 (the column does not exist) — which is what this was doing.
         messages = supabase.table('group_messages').select('''
-            id, sender_id, content, created_at,
+            id, sender_id, content:message_content, created_at,
             sender:sender_id(id, display_name, first_name, last_name, avatar_url, role)
         ''').eq('group_id', group_id).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
