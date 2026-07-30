@@ -17,6 +17,7 @@ import api from '@/src/services/api';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { captureException, captureMessage } from '@/src/services/sentry';
+import { recordAction } from '@/src/services/diagnostics';
 import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCompression';
 import { scanDocumentToPdf } from '@/src/services/documentScanner';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -138,16 +139,24 @@ export function TaskEvidenceSheet({
   // Process picker results (compress + attach) with error surfacing. Runs with
   // the sheet visible so video-compression progress shows.
   const processPickerAssets = async (assets: ImagePicker.ImagePickerAsset[] | void) => {
-    if (!assets || assets.length === 0) return;
+    // Nothing picked. Indistinguishable at this point from a cancel and from a
+    // picker that never presented at all — which is exactly why the stage is
+    // recorded rather than silently returned.
+    if (!assets || assets.length === 0) {
+      recordAction('evidence:no-assets');
+      return;
+    }
     try {
       await processAndAdd(assets);
     } catch (err) {
+      recordAction('evidence:process-threw', { error: String(err).slice(0, 200) });
       captureException(err, { stage: 'task-evidence-process' });
       Alert.alert('Something went wrong', "That file couldn't be added. Please try again.");
     }
   };
 
-  const runWithSheetHidden = (action: PickerAction) => {
+  const runWithSheetHidden = (action: PickerAction, label: string) => {
+    recordAction('evidence:picker-tap', { source: label, platform: Platform.OS });
     // Android-only close-then-launch dance (avoids the unregistered
     // ActivityResultLauncher crash). On iOS, dismissing the Modal first makes
     // the picker silently fail to present, so launch directly there (the sheet
@@ -158,10 +167,12 @@ export function TaskEvidenceSheet({
         try {
           assets = await action();
         } catch (err) {
+          recordAction('evidence:picker-threw', { source: label, error: String(err).slice(0, 200) });
           captureException(err, { stage: 'task-evidence-picker-launch' });
           Alert.alert('Something went wrong', "That didn't work. Please try again.");
           return;
         }
+        recordAction('evidence:picker-returned', { source: label, assetCount: assets ? assets.length : 0 });
         await processPickerAssets(assets);
       })();
       return;
@@ -179,7 +190,9 @@ export function TaskEvidenceSheet({
       try {
         // Only the native picker launch runs while the sheet is hidden.
         assets = await action();
+        recordAction('evidence:picker-returned', { assetCount: assets ? assets.length : 0 });
       } catch (err) {
+        recordAction('evidence:picker-threw', { error: String(err).slice(0, 200) });
         captureException(err, { stage: 'task-evidence-picker-launch' });
         Alert.alert('Something went wrong', "That didn't work. Please try again.");
       } finally {
@@ -200,6 +213,7 @@ export function TaskEvidenceSheet({
       if (a.fileSize && a.fileSize > max) {
         const mb = (a.fileSize / (1024 * 1024)).toFixed(1);
         const maxMB = max / (1024 * 1024);
+        recordAction('evidence:rejected-size', { type: a.type, fileSize: a.fileSize, limit: max });
         captureMessage('Evidence media rejected: over size limit', {
           surface: 'task-evidence', type: a.type, fileSize: a.fileSize, limit: max,
         });
@@ -213,6 +227,7 @@ export function TaskEvidenceSheet({
         fileSize: a.fileSize,
       });
     }
+    recordAction('evidence:attached', { added: next.length, dropped: assets.length - next.length });
     if (next.length) setMedia((prev) => [...prev, ...next]);
   };
 
@@ -223,6 +238,7 @@ export function TaskEvidenceSheet({
       if (a.type === 'video' && a.duration && a.duration > MAX_VIDEO_DURATION_MS) {
         const mins = (a.duration / 60000).toFixed(1);
         const maxMins = MAX_VIDEO_DURATION_MS / 60000;
+        recordAction('evidence:rejected-duration', { durationMs: a.duration, limitMs: MAX_VIDEO_DURATION_MS });
         captureMessage('Evidence video rejected: over duration limit', {
           surface: 'task-evidence', durationMs: a.duration, fileSize: a.fileSize, limitMs: MAX_VIDEO_DURATION_MS,
         });
@@ -262,11 +278,29 @@ export function TaskEvidenceSheet({
   };
 
   const pickFiles = async (): Promise<ImagePicker.ImagePickerAsset[] | void> => {
+    // Read (never request) the current photo-library permission so the next bug
+    // report says whether the OS was actually blocking us. The modern iOS
+    // picker (PHPicker) needs no grant, so requesting here would add a prompt
+    // for nothing — but a user who reports "I gave Optio photo permission and
+    // it still doesn't work" is telling us this value matters.
+    try {
+      const perm = await ImagePicker.getMediaLibraryPermissionsAsync();
+      recordAction('evidence:library-permission', {
+        status: perm.status,
+        accessPrivileges: (perm as { accessPrivileges?: string }).accessPrivileges,
+      });
+    } catch {
+      recordAction('evidence:library-permission', { status: 'unknown' });
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: 10,
+    });
+    recordAction('evidence:library-result', {
+      canceled: result.canceled,
+      assetCount: result.canceled ? 0 : result.assets.length,
     });
     if (!result.canceled && result.assets.length > 0) {
       return result.assets;
@@ -298,6 +332,7 @@ export function TaskEvidenceSheet({
   const handleSave = async () => {
     if (!hasAnything || saving) return;
     setSaving(true);
+    recordAction('evidence:save-start', { mediaCount: media.length });
     try {
       // Upload media in parallel via the task's signed-upload endpoints.
       const uploadResults = await Promise.all(
@@ -327,6 +362,10 @@ export function TaskEvidenceSheet({
           } catch (uploadErr) {
             // Report instead of silently dropping, so a failed upload surfaces to
             // the user rather than vanishing ("uploads disappear" complaint).
+            recordAction('evidence:upload-failed', {
+              type: item.type,
+              error: String(uploadErr).slice(0, 200),
+            });
             captureException(uploadErr, {
               stage: 'task-evidence-upload',
               extra: { type: item.type, name: item.name },
@@ -337,6 +376,7 @@ export function TaskEvidenceSheet({
       );
       const uploaded = uploadResults.filter((x): x is { type: string; content: Record<string, any> } => Boolean(x));
       const failedUploads = uploadResults.length - uploaded.length;
+      recordAction('evidence:uploaded', { ok: uploaded.length, failed: failedUploads });
 
       // Assemble the new block list: existing + media + text + link.
       const startIdx = existingBlocks.length;
@@ -544,7 +584,7 @@ export function TaskEvidenceSheet({
         {/* Attach buttons */}
         <HStack className="gap-3">
           <Pressable
-            onPress={() => runWithSheetHidden(openCamera)}
+            onPress={() => runWithSheetHidden(openCamera, 'camera')}
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
@@ -567,7 +607,7 @@ export function TaskEvidenceSheet({
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Voice</UIText>
           </Pressable>
           <Pressable
-            onPress={() => runWithSheetHidden(pickFiles)}
+            onPress={() => runWithSheetHidden(pickFiles, 'library')}
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >
@@ -575,7 +615,7 @@ export function TaskEvidenceSheet({
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1 font-poppins-medium">Files</UIText>
           </Pressable>
           <Pressable
-            onPress={() => runWithSheetHidden(scanDocument)}
+            onPress={() => runWithSheetHidden(scanDocument, 'scan')}
             className="flex-1 items-center py-3.5 bg-surface-50 dark:bg-dark-surface-50 rounded-xl active:bg-surface-100"
             style={{ minHeight: 44 }}
           >

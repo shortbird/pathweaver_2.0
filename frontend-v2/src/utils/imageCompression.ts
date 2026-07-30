@@ -21,6 +21,8 @@
 
 import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
+import { captureMessage } from '@/src/services/sentry';
+import { recordAction } from '@/src/services/diagnostics';
 
 const MAX_LONG_EDGE = 2048;
 const COMPRESS_QUALITY = 0.8;
@@ -76,9 +78,22 @@ export async function compressImageAsset(asset: ImagePickerAsset): Promise<Image
       // post-compression size should stat the file themselves; almost none do.
       fileSize: undefined,
     };
-  } catch {
+  } catch (err) {
     // Manipulator can fail on certain HEIC variants. Falling back to the
     // raw asset is fine — we'll upload the original.
+    //
+    // Reported, unlike before: this was the one stage in the photo-attach
+    // pipeline that failed completely silently (the video path already reports
+    // its fallback). An iOS user reporting "photos won't attach" with an empty
+    // diagnostics buffer is exactly the case where knowing whether the HEIC
+    // re-encode blew up would have decided it.
+    recordAction('image-compression:failed', { error: String(err).slice(0, 200) });
+    captureMessage('Image compression failed; uploading raw', {
+      error: String(err),
+      width: asset.width,
+      height: asset.height,
+      fileSize: asset.fileSize,
+    });
     return asset;
   }
 }
