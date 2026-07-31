@@ -187,6 +187,84 @@ class TestStaleEntryCleanup:
 
 
 @pytest.mark.unit
+class TestNobodyWaitingReason:
+    """iCreate, 2026-07-31: "It says 'offer next seat' on brain games thurs for 1
+    on the waitlist, but when I click on it it says no one is waiting."
+
+    The class row's waitlist count is the whole live queue (waiting + offered),
+    but only a `waiting` entry can be offered — so the answer has to name the
+    state, not deny the queue exists."""
+
+    def _reason(self, entries):
+        with patch('services.sis_waitlist_service.list_for_class', return_value=entries):
+            return wl.nobody_waiting_reason('org-1', 'c1')
+
+    def test_an_outstanding_offer_is_named(self):
+        reason = self._reason([{'status': 'offered'}])
+        assert 'already' in reason and 'offer' in reason
+        assert 'Waitlist tab' in reason
+
+    def test_several_outstanding_offers_are_counted(self):
+        assert '2 students' in self._reason([{'status': 'offered'}, {'status': 'offered'}])
+
+    def test_only_lapsed_entries_say_so(self):
+        reason = self._reason([{'status': 'expired'}, {'status': 'declined'}])
+        assert 'lapsed' in reason
+
+    def test_a_genuinely_empty_waitlist_says_that(self):
+        assert self._reason([]) == 'No one is on this waitlist.'
+
+    def test_route_returns_the_reason_instead_of_no_one_waiting(self, client, auth_headers, mock_verify_token):
+        with staff(), patch('routes.sis.waitlist._class_in_org', return_value=True), \
+             patch('routes.sis.waitlist.waitlist.offer_next', return_value=None), \
+             patch('routes.sis.waitlist.waitlist.nobody_waiting_reason',
+                   return_value='1 student on this waitlist already has an offer out.'):
+            resp = client.post('/api/sis/classes/c1/waitlist/offer-next',
+                               headers=auth_headers, json={'organization_id': 'org-1'})
+        body = json.loads(resp.data)
+        assert resp.status_code == 200
+        assert body['entry'] is None
+        assert body['message'] == '1 student on this waitlist already has an offer out.'
+
+
+@pytest.mark.unit
+class TestWaitlistBreakdown:
+    """The class list must be able to tell 'waiting' from 'offered', or the count
+    and the Offer-next-seat button disagree."""
+
+    def _repo(self, rows):
+        from repositories.sis_class_repository import SisClassRepository
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'in_', 'eq', 'order', 'range', 'limit'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=rows)
+        return SisClassRepository(client=client)
+
+    def test_splits_waiting_from_offered(self):
+        repo = self._repo([
+            {'id': '1', 'class_id': 'c1', 'status': 'waiting'},
+            {'id': '2', 'class_id': 'c1', 'status': 'offered'},
+            {'id': '3', 'class_id': 'c2', 'status': 'offered'},
+        ])
+        out = repo.waitlist_breakdown_for_classes(['c1', 'c2'])
+        assert out['c1'] == {'waiting': 1, 'offered': 1}
+        assert out['c2'] == {'waiting': 0, 'offered': 1}
+
+    def test_total_still_matches_the_old_count(self):
+        repo = self._repo([
+            {'id': '1', 'class_id': 'c1', 'status': 'waiting'},
+            {'id': '2', 'class_id': 'c1', 'status': 'offered'},
+        ])
+        assert repo.waitlist_counts_for_classes(['c1']) == {'c1': 2}
+
+    def test_no_classes_is_empty(self):
+        repo = self._repo([])
+        assert repo.waitlist_breakdown_for_classes([]) == {}
+
+
+@pytest.mark.unit
 class TestStaffRoutes:
     def test_offer_entry_route(self, client, auth_headers, mock_verify_token):
         with staff(), patch('routes.sis.waitlist.waitlist.offer_entry',

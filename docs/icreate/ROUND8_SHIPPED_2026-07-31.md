@@ -233,14 +233,44 @@ you want and they're small.
 
 ---
 
+## Follow-on fix: "Offer next seat" on a waitlist with nobody waiting
+
+> "It says 'offer next seat' on brain games thurs for 1 on the waitlist, but when
+> I click on it it says no one is waiting." *(02:38, after the round-8 deploy)*
+
+Real, and older than round 8. A class row's **Waitlist** count is the whole live
+queue — `waiting` **plus** `offered` — but only a `waiting` entry can be handed a
+seat. Brain Games 8‑11 (Thu Block 2) had exactly one entry and it was already
+`offered`, so the row said *1*, the button appeared, and the answer was "no one
+is waiting". Three iCreate classes were in that state.
+
+Fixed on all three surfaces so the number and the button can't disagree:
+
+- The class list now knows the difference (`waitlist_waiting` /
+  `waitlist_offered`), and the row shortcut only appears when someone is
+  genuinely waiting.
+- The count says what it's made of: **1 offered**, or **3 · 1 offered** for a
+  mixed queue.
+- When there is nothing to offer, the API explains rather than denying the queue:
+  *"1 student on this waitlist already has an offer out. Open the Waitlist tab to
+  enroll them now or offer again."* The Waitlist tab's own button is disabled
+  with the same explanation.
+
+The way forward in that state is round 8's per-entry buttons — **Enroll now** or
+**Offer again** — which is exactly what the message points at.
+
+---
+
 ## Tests
 
-- Frontend: **980 passing** (37 new — waitlist staff actions, People export and
+- Frontend: **982 passing** (39 new — waitlist staff actions, People export and
   removal, curriculum table, calendar categories, roster alerts, quest-picker
-  delete, CLP lenses / open requests / school toggle).
+  delete, CLP lenses / open requests / school toggle, and the waiting-vs-offered
+  split on the class list).
 - Backend: **new suites** `test_sis_waitlist_staff_actions.py` (19),
   `test_sis_person_removal.py` (19), `test_blank_values.py` (40),
-  `test_sis_clp_open_requests.py` (10), plus 7 added to the calendar suite. The
+  `test_sis_clp_open_requests.py` (10), plus 7 added to the calendar suite and 8
+  covering the waiting-vs-offered split. The
   pre-existing failures in the backend suite (repositories, xp/atomic-quest
   services, transcription, rate limiting) are unchanged by this build — verified
   by running them against a clean tree.

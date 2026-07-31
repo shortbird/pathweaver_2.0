@@ -78,7 +78,11 @@ def offer_next(user_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     entry = waitlist.offer_next(org_id, class_id)
     if not entry:
-        return jsonify({'success': True, 'entry': None, 'message': 'No one waiting'})
+        # Say WHY nobody could be offered — the class row's waitlist count
+        # includes students who already have an offer out, so a bare
+        # "No one waiting" reads as a bug.
+        return jsonify({'success': True, 'entry': None,
+                        'message': waitlist.nobody_waiting_reason(org_id, class_id)})
     return jsonify({'success': True, 'entry': entry})
 
 

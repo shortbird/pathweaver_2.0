@@ -318,11 +318,15 @@ const ClassesPage = () => {
 
   // Offer the open seat to the next waiting student, straight from a class row —
   // no need to open the class and switch to the Waitlist tab. Only surfaced on
-  // rows that actually have an open seat AND a waitlist (see ClassesTable).
+  // rows with an open seat AND someone actually waiting (see ClassesTable).
   const offerNextSeat = async (c) => {
     try {
       const r = await api.post(`/api/sis/classes/${c.id}/waitlist/offer-next`, { organization_id: orgId })
-      toast.success(r.data?.entry ? 'Seat offered to next student' : 'No one waiting')
+      if (r.data?.entry) toast.success('Seat offered to next student')
+      // Nobody to offer to: the API says why (usually "they already have an
+      // offer out"), which beats a bare "No one waiting" next to a row that
+      // reads Waitlist 1.
+      else toast(r.data?.message || 'No one is waiting for this class', { icon: 'ℹ️' })
       load(true)  // silent — refresh the counts without collapsing the table
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not offer seat')
@@ -943,10 +947,15 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   const offerNext = async () => {
     try {
       const r = await api.post(`/api/sis/classes/${classId}/waitlist/offer-next`, { organization_id: orgId })
-      toast.success(r.data?.entry ? 'Seat offered to next student' : 'No one waiting')
+      if (r.data?.entry) toast.success('Seat offered to next student')
+      else toast(r.data?.message || 'No one is waiting for this class', { icon: 'ℹ️' })
       reload()
     } catch { toast.error('Could not offer seat') }
   }
+
+  // Nobody to offer to when every live entry already has an offer out — the
+  // per-entry Offer again / Enroll now buttons are the way forward there.
+  const waitingCount = entries.filter((e) => e.status === 'waiting').length
 
   // Admit the student now. The school already decided — this doesn't wait for
   // the family to click Claim, and it isn't blocked by a full class.
@@ -993,8 +1002,12 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     <div className="border-t border-gray-100 mt-3 pt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-neutral-700">Waitlist ({entries.length})</span>
-        <Button size="sm" variant="secondary" onClick={offerNext} disabled={isFull}
-          title={isFull ? 'The class is full — free a seat or raise the capacity to offer one' : undefined}>
+        <Button size="sm" variant="secondary" onClick={offerNext} disabled={isFull || !waitingCount}
+          title={isFull
+            ? 'The class is full — free a seat or raise the capacity to offer one'
+            : (!waitingCount
+              ? 'Nobody is waiting — everyone here already has an offer out. Use Offer again or Enroll now.'
+              : undefined)}>
           Offer next seat
         </Button>
       </div>

@@ -139,17 +139,30 @@ class SisClassRepository(BaseRepository):
     def waitlist_counts_for_classes(self, class_ids: List[str]) -> Dict[str, int]:
         """waiting/offered waitlist entries per class_id. Paged for the same
         reason as enrollment_counts_for_classes."""
+        return {cid: c['waiting'] + c['offered']
+                for cid, c in self.waitlist_breakdown_for_classes(class_ids).items()}
+
+    def waitlist_breakdown_for_classes(self, class_ids: List[str]) -> Dict[str, Dict[str, int]]:
+        """{class_id: {waiting, offered}} — the live queue, split by state.
+
+        The split matters because only a *waiting* entry can be offered a seat.
+        A class whose whole waitlist is already offered showed "Waitlist 1" next
+        to an Offer-next-seat button that answered "no one is waiting" (iCreate,
+        2026-07-31). Paged, like every other org-wide read here.
+        """
         if not class_ids:
             return {}
         rows = fetch_all_rows(lambda: (
             self.client.table('sis_waitlist_entries')
-            .select('id, class_id')
+            .select('id, class_id, status')
             .in_('class_id', class_ids)
             .in_('status', ['waiting', 'offered'])
         ))
-        counts: Dict[str, int] = {}
+        counts: Dict[str, Dict[str, int]] = {}
         for row in rows:
-            counts[row['class_id']] = counts.get(row['class_id'], 0) + 1
+            bucket = counts.setdefault(row['class_id'], {'waiting': 0, 'offered': 0})
+            key = 'offered' if row.get('status') == 'offered' else 'waiting'
+            bucket[key] += 1
         return counts
 
     # ── Meetings (class_meetings) ────────────────────────────────────────────

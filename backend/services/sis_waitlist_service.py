@@ -153,6 +153,31 @@ def offer_next(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
     return _mark_offered(org_id, class_id, nxt['id'])
 
 
+def nobody_waiting_reason(org_id: str, class_id: str) -> str:
+    """Why there was no one to offer the seat to.
+
+    "No one waiting" on a class whose row reads *Waitlist 1* is just confusing —
+    the count includes people who already have an offer out, and only a `waiting`
+    entry can be offered (iCreate, 2026-07-31: "it says offer next seat ... but
+    when I click on it it says no one is waiting"). Name the actual state.
+    """
+    try:
+        entries = list_for_class(org_id, class_id)
+    except Exception as e:  # noqa: BLE001 — this is only an explanation
+        logger.warning(f'[Waitlist] could not explain empty offer for {class_id}: {e}')
+        return 'No one is waiting for this class.'
+    offered = sum(1 for e in entries if e.get('status') == 'offered')
+    lapsed = sum(1 for e in entries if e.get('status') in ('expired', 'declined'))
+    if offered:
+        return (f'{offered} student{"" if offered == 1 else "s"} on this waitlist already '
+                f'{"has" if offered == 1 else "have"} an offer out. Open the Waitlist tab to '
+                'enroll them now or offer again.')
+    if lapsed:
+        return ('No one is waiting — every offer for this class has lapsed or been declined. '
+                'Open the Waitlist tab to offer again or enroll someone.')
+    return 'No one is on this waitlist.'
+
+
 def offer_entry(org_id: str, entry_id: str) -> Dict[str, Any]:
     """Offer (or re-offer) the seat to ONE named entry.
 

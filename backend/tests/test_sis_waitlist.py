@@ -81,12 +81,18 @@ class TestWaitlistRoutes:
         assert resp.status_code == 400
 
     def test_offer_next_when_empty(self, client, auth_headers, mock_verify_token):
+        # The response also explains WHY nobody could be offered (see
+        # TestNobodyWaitingReason in test_sis_waitlist_staff_actions.py).
         with staff(), patch('routes.sis.waitlist._class_in_org', return_value=True), \
-             patch('routes.sis.waitlist.waitlist.offer_next', return_value=None):
+             patch('routes.sis.waitlist.waitlist.offer_next', return_value=None), \
+             patch('routes.sis.waitlist.waitlist.nobody_waiting_reason',
+                   return_value='No one is on this waitlist.'):
             resp = client.post('/api/sis/classes/c1/waitlist/offer-next',
                                headers=auth_headers, json={'organization_id': 'org-1'})
         assert resp.status_code == 200
-        assert json.loads(resp.data)['entry'] is None
+        body = json.loads(resp.data)
+        assert body['entry'] is None
+        assert body['message'] == 'No one is on this waitlist.'
 
     def test_offer_next_success(self, client, auth_headers, mock_verify_token):
         with staff(), patch('routes.sis.waitlist._class_in_org', return_value=True), \

@@ -316,6 +316,50 @@ describe('ClassesPage', () => {
     )
   })
 
+  // iCreate, 2026-07-31: "It says 'offer next seat' on brain games thurs for 1 on
+  // the waitlist, but when I click on it it says no one is waiting." The count
+  // includes students who already have an offer out; only a WAITING entry can be
+  // offered, so the button must not appear for a queue that is entirely offered.
+  it('hides the row offer-seat button when the whole waitlist is already offered', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Brain Games', enrolled_count: 9, capacity: 12, is_full: false,
+            registration_status: 'open', waitlist_count: 1, waitlist_waiting: 0,
+            waitlist_offered: 1, meetings: [] },
+        ] } })
+      }
+      if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: [] } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<ClassesPage />)
+    await screen.findByText('Brain Games')
+    fireEvent.click(screen.getByTitle('Table view'))
+    await screen.findByText('Waitlist')
+    expect(screen.queryByRole('button', { name: 'Offer next seat' })).not.toBeInTheDocument()
+    // ...and the count says why, instead of looking like an unclicked button.
+    expect(screen.getByText('offered')).toBeInTheDocument()
+  })
+
+  it('marks how much of a mixed waitlist is already offered', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Brain Games', enrolled_count: 9, capacity: 12, is_full: false,
+            registration_status: 'open', waitlist_count: 3, waitlist_waiting: 2,
+            waitlist_offered: 1, meetings: [] },
+        ] } })
+      }
+      if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: [] } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<ClassesPage />)
+    await screen.findByText('Brain Games')
+    fireEvent.click(screen.getByTitle('Table view'))
+    expect(await screen.findByText('· 1 offered')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Offer next seat' })).toBeInTheDocument()
+  })
+
   it('hides the row offer-seat button when the class is full', async () => {
     api.get.mockImplementation((url) => {
       if (url.includes('/api/sis/classes')) {

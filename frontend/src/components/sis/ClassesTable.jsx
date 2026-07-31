@@ -256,13 +256,31 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
+                      {/* The count is the whole live queue; the parenthetical says
+                          how much of it is already spoken for, so the number and
+                          the button can't disagree. */}
                       {c.waitlist_count > 0
-                        ? <span className="text-amber-700 font-medium">{c.waitlist_count}</span>
+                        ? (
+                          <span className="text-amber-700 font-medium">
+                            {c.waitlist_count}
+                            {c.waitlist_offered > 0 && (
+                              <span className="ml-1 text-[11px] font-normal text-neutral-400">
+                                {c.waitlist_offered === c.waitlist_count
+                                  ? 'offered'
+                                  : `· ${c.waitlist_offered} offered`}
+                              </span>
+                            )}
+                          </span>
+                        )
                         : <span className="text-neutral-300">—</span>}
-                      {/* Offer the open seat to the next waiting student right here.
-                          Only when a seat is actually open (not full) and someone
-                          is waiting — offering into a full class over-enrolls. */}
-                      {onOfferSeat && c.waitlist_count > 0 && !c.is_full && c.status !== 'archived' && (
+                      {/* Offer the open seat to the next WAITING student right here.
+                          Only when a seat is actually open (not full) and someone is
+                          waiting — offering into a full class over-enrolls, and a
+                          queue that is entirely 'offered' has nobody left to offer
+                          to (which read as a bug: "it says offer next seat ... but
+                          it says no one is waiting"). Those go through the Waitlist
+                          tab, where the entries can be re-offered or enrolled. */}
+                      {onOfferSeat && (c.waitlist_waiting ?? c.waitlist_count) > 0 && !c.is_full && c.status !== 'archived' && (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); offerSeat(c) }}
