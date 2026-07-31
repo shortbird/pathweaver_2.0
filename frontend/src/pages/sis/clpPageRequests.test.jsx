@@ -11,7 +11,7 @@ import { MemoryRouter } from 'react-router-dom'
  *     And a list of everyone who needs their schedule approved still?"
  *  - "maybe we could check the box during the CLP" (school of record)
  *  - "What happens when we hit Approve Schedule? Does it take students off the
- *     waitlisted classes?" — it doesn't, and now it says so.
+ *     waitlisted classes?" — it asks, per family, and says which way it went.
  */
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
