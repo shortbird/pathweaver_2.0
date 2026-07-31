@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * MyClassesPage — the teacher's classes with meeting times and roster counts.
@@ -76,6 +77,7 @@ const MyClassesPage = () => {
 
   return (
     <div>
+      <BackToDashboard className="mb-1" />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">My Classes</h1>
         <div className="flex items-center gap-3">

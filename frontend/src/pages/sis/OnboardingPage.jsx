@@ -6,6 +6,7 @@ import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * OnboardingPage — role-switched.
@@ -462,9 +463,12 @@ const OnboardingPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-900">Onboarding</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+      <div>
+        <BackToDashboard className="mb-1" />
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-neutral-900">Onboarding</h1>
+          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+        </div>
       </div>
       {admin && !preview
         ? <AdminOnboarding orgId={orgId} />

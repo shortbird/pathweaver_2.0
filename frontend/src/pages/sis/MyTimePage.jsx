@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * MyTimePage — the hourly teacher's time clock: clock in/out, review the
@@ -68,9 +69,12 @@ const MyTimePage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-900">My Time</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+      <div>
+        <BackToDashboard className="mb-1" />
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-neutral-900">My Time</h1>
+          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+        </div>
       </div>
 
       {usesClock && preview && (

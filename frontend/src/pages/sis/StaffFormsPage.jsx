@@ -6,6 +6,7 @@ import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * StaffFormsPage — staff forms (incident, supply, maintenance, ...).
@@ -191,9 +192,12 @@ const StaffFormsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-900">Forms</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+      <div>
+        <BackToDashboard className="mb-1" />
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-neutral-900">Forms</h1>
+          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
+        </div>
       </div>
 
       {Object.keys(formTypes).length > 0 && (

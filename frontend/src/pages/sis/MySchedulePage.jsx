@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { withPreview, getPreviewTeacher } from './teacherPreview'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * MySchedulePage — the teacher's weekly view: recurring class meetings and
@@ -128,6 +129,7 @@ const MySchedulePage = () => {
   return (
     <div className="space-y-6">
       <div>
+        <BackToDashboard className="mb-1" />
         <h1 className="text-2xl font-bold text-neutral-900">My schedule</h1>
         <p className="text-neutral-500 mt-1">Your weekly classes and duties. Tap a class to take attendance or message it.</p>
       </div>

@@ -261,12 +261,32 @@ The way forward in that state is round 8's per-entry buttons — **Enroll now** 
 
 ---
 
+## Follow-on fix: no way back to the teacher dashboard
+
+> "No way to get back to the dashboard from this page." *(/my-classes)*
+> "No way to get to the teacher dashboard from this page." *(/forms, /onboarding)*
+
+Three reports in two minutes. The sidebar does carry a Dashboard link, but it is
+generic nav that sits behind a drawer on a narrow screen — the class page's own
+**← My Classes** is the pattern people actually find, and nobody has ever filed
+a report about that one.
+
+Every teacher-portal page now opens with the same back-link: My Classes, Forms,
+Onboarding, My Schedule, My Documents, My Time, My Profile, Directory.
+
+The label follows what `/` will actually render for the viewer. A teacher — or
+an admin previewing a teacher's portal — gets **← Teacher dashboard**. An admin
+who is *not* previewing lands on the School Dashboard, so they get **← Dashboard**
+rather than a promise the app won't keep.
+
+---
+
 ## Tests
 
-- Frontend: **982 passing** (39 new — waitlist staff actions, People export and
+- Frontend: **993 passing** (50 new — waitlist staff actions, People export and
   removal, curriculum table, calendar categories, roster alerts, quest-picker
   delete, CLP lenses / open requests / school toggle, and the waiting-vs-offered
-  split on the class list).
+  split on the class list, and the teacher-portal back-link on all eight pages).
 - Backend: **new suites** `test_sis_waitlist_staff_actions.py` (19),
   `test_sis_person_removal.py` (19), `test_blank_values.py` (40),
   `test_sis_clp_open_requests.py` (10), plus 7 added to the calendar suite and 8

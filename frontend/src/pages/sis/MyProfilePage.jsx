@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { withPreview, getPreviewTeacher } from './teacherPreview'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * MyProfilePage — the teacher's own staff profile. Employment details
@@ -73,6 +74,7 @@ const MyProfilePage = () => {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
+        <BackToDashboard className="mb-1" />
         <h1 className="text-2xl font-bold text-neutral-900">My profile</h1>
         <p className="text-neutral-500 mt-1">Your staff details and emergency contact.</p>
       </div>

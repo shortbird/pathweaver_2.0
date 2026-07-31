@@ -6,6 +6,7 @@ import {
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * MyDocumentsPage — a staff member's own documents.
@@ -109,6 +110,7 @@ const MyDocumentsPage = () => {
 
   return (
     <div>
+      <BackToDashboard className="mb-1" />
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-neutral-900">My Documents</h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />

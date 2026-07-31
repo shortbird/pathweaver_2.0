@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { RolePill } from '../../components/ui/RolePill'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
  * DirectoryPage — the staff directory teachers can browse: name, photo,
@@ -33,6 +34,7 @@ const DirectoryPage = () => {
 
   return (
     <div>
+      <BackToDashboard className="mb-1" />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Staff Directory</h1>
         <div className="flex items-center gap-3">
