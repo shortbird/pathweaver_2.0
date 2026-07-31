@@ -265,6 +265,87 @@ class TestWaitlistBreakdown:
 
 
 @pytest.mark.unit
+class TestSiblingSections:
+    """iCreate, 2026-07-31: "Could we offer other sections of classes to people
+    on a waitlist? ... there are 8 on the waitlist on tuesday at 10:30am, but we
+    have spots in the other ukelele classes." Sections are matched on the name
+    before the "(" — the school's own convention."""
+
+    CLASSES = [
+        {'id': 'c1', 'name': 'Ukelele Jam (Tue 10:30)', 'capacity': 8, 'enrolled_count': 8},
+        {'id': 'c2', 'name': 'Ukelele Jam (Thu 1:00)', 'capacity': 8, 'enrolled_count': 3},
+        {'id': 'c3', 'name': 'Ukelele Jam (Fri 9:00)', 'capacity': 8, 'enrolled_count': 8},
+        {'id': 'c4', 'name': 'Ukelele Jam (Mon 2:00)', 'capacity': None, 'enrolled_count': 40},
+        {'id': 'c5', 'name': 'Lego Lab (Tue 10:30)', 'capacity': 12, 'enrolled_count': 1},
+        {'id': 'c6', 'name': 'Ukelele Jam (Old)', 'capacity': 8, 'enrolled_count': 0,
+         'status': 'archived'},
+    ]
+
+    def test_base_name_strips_the_section(self):
+        assert wl.section_base_name('Ukelele Jam (Tue 10:30)') == 'ukelele jam'
+        assert wl.section_base_name('  Reading Workshop  ') == 'reading workshop'
+        assert wl.section_base_name(None) == ''
+
+    def _sections(self, class_id='c1'):
+        with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES):
+            return wl.sibling_sections('org-1', class_id)
+
+    def test_only_same_class_sections_with_room(self):
+        ids = [s['class_id'] for s in self._sections()]
+        assert ids == ['c4', 'c2']  # sorted by name: (Mon 2:00) then (Thu 1:00)
+
+    def test_a_full_section_is_not_offered(self):
+        assert 'c3' not in [s['class_id'] for s in self._sections()]
+
+    def test_a_different_class_is_never_a_section(self):
+        assert 'c5' not in [s['class_id'] for s in self._sections()]
+
+    def test_archived_sections_are_skipped(self):
+        assert 'c6' not in [s['class_id'] for s in self._sections()]
+
+    def test_unknown_class_has_no_siblings(self):
+        assert self._sections('nope') == []
+
+
+@pytest.mark.unit
+class TestEnrollInAnotherSection:
+    def test_enrolls_there_and_closes_the_original_place(self):
+        entry = {'id': 'w1', 'class_id': 'c1', 'status': 'waiting', 'student_user_id': 's1'}
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'in_', 'limit', 'update', 'upsert', 'delete'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=[{'id': 'w1', 'status': 'promoted'}])
+        with patch('services.sis_waitlist_service._entry', return_value=entry), \
+             patch('services.sis_waitlist_service.sibling_sections',
+                   return_value=[{'class_id': 'c2', 'name': 'Ukelele Jam (Thu 1:00)'}]), \
+             patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.class_group_sync_service.sync_class_group'), \
+             patch('services.sis_waitlist_service.clear_entry_for_enrollment') as clear:
+            result = wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1', class_id='c2')
+        assert result['enrolled'] is True
+        assert result['moved_to']['name'] == 'Ukelele Jam (Thu 1:00)'
+        # They must not end up enrolled in c2 AND queued for it.
+        clear.assert_called_once_with('org-1', 'c2', 's1')
+
+    def test_a_class_that_is_not_a_sibling_is_refused(self):
+        entry = {'id': 'w1', 'class_id': 'c1', 'status': 'waiting', 'student_user_id': 's1'}
+        with patch('services.sis_waitlist_service._entry', return_value=entry), \
+             patch('services.sis_waitlist_service.sibling_sections', return_value=[]):
+            result = wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1', class_id='elsewhere')
+        assert 'error' in result
+
+    def test_no_class_id_still_enrolls_in_the_original(self):
+        entry = {'id': 'w1', 'class_id': 'c1', 'status': 'offered', 'student_user_id': 's1'}
+        with patch('services.sis_waitlist_service._entry', return_value=entry), \
+             patch('services.sis_waitlist_service.respond_to_offer',
+                   return_value={'enrolled': True}) as respond:
+            assert wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1')['enrolled'] is True
+        respond.assert_called_once()
+
+
+@pytest.mark.unit
 class TestStaffRoutes:
     def test_offer_entry_route(self, client, auth_headers, mock_verify_token):
         with staff(), patch('routes.sis.waitlist.waitlist.offer_entry',
@@ -284,15 +365,41 @@ class TestStaffRoutes:
     def test_enroll_entry_route(self, client, auth_headers, mock_verify_token):
         captured = {}
 
-        def fake_enroll(org_id, entry_id, enrolled_by):
-            captured.update(entry=entry_id, by=enrolled_by)
+        def fake_enroll(org_id, entry_id, enrolled_by, class_id=None):
+            captured.update(entry=entry_id, by=enrolled_by, target=class_id)
             return {'entry': {'id': entry_id}, 'enrolled': True}
 
         with staff(), patch('routes.sis.waitlist.waitlist.enroll_entry', side_effect=fake_enroll):
             resp = client.post('/api/sis/waitlist/w1/enroll', headers=auth_headers,
                                json={'organization_id': 'org-1'})
         assert resp.status_code == 200
-        assert captured == {'entry': 'w1', 'by': 'test-user-123'}
+        assert captured == {'entry': 'w1', 'by': 'test-user-123', 'target': None}
+
+    def test_enroll_entry_route_passes_another_section(self, client, auth_headers, mock_verify_token):
+        """Placing a waitlisted student in a sibling section goes through the
+        same action, with the target class named."""
+        captured = {}
+
+        def fake_enroll(org_id, entry_id, enrolled_by, class_id=None):
+            captured['target'] = class_id
+            return {'enrolled': True, 'moved_to': {'class_id': class_id, 'name': 'Ukelele Jam (Thu 1:00)'}}
+
+        with staff(), patch('routes.sis.waitlist.waitlist.enroll_entry', side_effect=fake_enroll):
+            resp = client.post('/api/sis/waitlist/w1/enroll', headers=auth_headers,
+                               json={'organization_id': 'org-1', 'class_id': 'c2'})
+        assert resp.status_code == 200
+        assert captured['target'] == 'c2'
+        assert json.loads(resp.data)['moved_to']['name'] == 'Ukelele Jam (Thu 1:00)'
+
+    def test_sibling_sections_route(self, client, auth_headers, mock_verify_token):
+        with staff(), patch('routes.sis.waitlist._class_in_org', return_value=True), \
+             patch('routes.sis.waitlist.waitlist.sibling_sections',
+                   return_value=[{'class_id': 'c2', 'name': 'Ukelele Jam (Thu 1:00)',
+                                  'capacity': 8, 'enrolled_count': 3}]):
+            resp = client.get('/api/sis/classes/c1/sibling-sections?organization_id=org-1',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['sections'][0]['class_id'] == 'c2'
 
     def test_enroll_entry_is_staff_only(self, client, auth_headers, mock_verify_token):
         with patch('database.get_supabase_admin_client',

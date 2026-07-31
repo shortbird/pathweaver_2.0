@@ -194,7 +194,8 @@ def offer_entry(org_id: str, entry_id: str) -> Dict[str, Any]:
     return {'entry': offered}
 
 
-def enroll_entry(org_id: str, entry_id: str, enrolled_by: str) -> Dict[str, Any]:
+def enroll_entry(org_id: str, entry_id: str, enrolled_by: str,
+                 class_id: Optional[str] = None) -> Dict[str, Any]:
     """Staff admit a waitlisted student straight into the class.
 
     The school decides who gets the seat; requiring the family to click Claim
@@ -207,7 +208,42 @@ def enroll_entry(org_id: str, entry_id: str, enrolled_by: str) -> Dict[str, Any]
         return {'error': 'Waitlist entry not found'}
     if entry['status'] == 'promoted':
         return {'entry': entry, 'already_enrolled': True}
+    if class_id and class_id != entry['class_id']:
+        return _enroll_in_other_section(org_id, entry, class_id, enrolled_by)
     return respond_to_offer(org_id, entry_id, True, enrolled_by)
+
+
+def _enroll_in_other_section(org_id: str, entry: Dict[str, Any], class_id: str,
+                             enrolled_by: str) -> Dict[str, Any]:
+    """Place a waitlisted student in a DIFFERENT section of the same class.
+
+    The waitlist entry is closed as promoted — they got what they were queued
+    for, just at another time — and any entry they hold on the target section
+    is cleared too, so they never come out of this both enrolled and queued.
+    """
+    target = next((c for c in sibling_sections(org_id, entry['class_id'])
+                   if c['class_id'] == class_id), None)
+    if not target:
+        return {'error': 'That class is not another section of this one, or it has no room.'}
+
+    _admin().table('class_enrollments').upsert({
+        'class_id': class_id,
+        'student_id': entry['student_user_id'],
+        'status': 'active',
+        'enrolled_by': enrolled_by,
+    }, on_conflict='class_id,student_id').execute()
+    from services.class_group_sync_service import sync_class_group
+    sync_class_group(class_id, actor_id=enrolled_by)
+    clear_entry_for_enrollment(org_id, class_id, entry['student_user_id'])
+
+    resp = (
+        _admin().table('sis_waitlist_entries')
+        .update({'status': 'promoted', 'updated_at': _now().isoformat()})
+        .eq('id', entry['id']).execute()
+    )
+    logger.info(f"[Waitlist] moved waitlisted student into sibling section {class_id}")
+    return {'entry': resp.data[0] if resp.data else None, 'enrolled': True,
+            'moved_to': {'class_id': class_id, 'name': target['name']}}
 
 
 def _entry(org_id: str, entry_id: str) -> Optional[Dict[str, Any]]:
@@ -232,6 +268,56 @@ def _mark_offered(org_id: str, class_id: str, entry_id: str) -> Optional[Dict[st
     if offered:
         _notify_offer(org_id, class_id, offered)
     return offered
+
+
+def section_base_name(name: str) -> str:
+    """The class name with its section suffix stripped: "Ukelele Jam (Tue 10:30)"
+    -> "ukelele jam". iCreate names every section `Base (Day Block)`, so the
+    prefix is the course and the parenthetical is the section."""
+    return (str(name or '').split('(')[0]).strip().lower()
+
+
+def sibling_sections(org_id: str, class_id: str) -> List[Dict[str, Any]]:
+    """Other sections of the same class that still have room.
+
+    iCreate, 2026-07-31: "Could we offer other sections of classes to people on
+    a waitlist? For example, there are 8 on the waitlist on tuesday at 10:30am,
+    but we have spots in the other ukelele classes." Nine students were waiting
+    on one Ukelele Jam section while two others had seats; Reading Workshop had
+    twenty-three waiting across five sections with room.
+
+    Matching is on the name before the "(" — the school's own naming convention,
+    so nothing new has to be maintained. Archived classes and full sections are
+    left out; a section with no capacity set counts as having room.
+    """
+    from services import sis_catalog_service as catalog
+    classes = catalog.list_classes(org_id)
+    this = next((c for c in classes if c['id'] == class_id), None)
+    if not this:
+        return []
+    base = section_base_name(this.get('name'))
+    if not base:
+        return []
+    out = []
+    for c in classes:
+        if c['id'] == class_id or c.get('status') == 'archived':
+            continue
+        if section_base_name(c.get('name')) != base:
+            continue
+        capacity = c.get('capacity')
+        enrolled = c.get('enrolled_count') or 0
+        if capacity is not None and enrolled >= capacity:
+            continue
+        out.append({
+            'class_id': c['id'],
+            'name': c.get('name'),
+            'capacity': capacity,
+            'enrolled_count': enrolled,
+            'spots_left': c.get('spots_left'),
+            'meetings': c.get('meetings') or [],
+        })
+    out.sort(key=lambda c: (c['name'] or '').lower())
+    return out
 
 
 def clear_entry_for_enrollment(org_id: str, class_id: str, student_user_id: str) -> None:

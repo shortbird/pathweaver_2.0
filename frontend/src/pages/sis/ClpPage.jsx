@@ -247,7 +247,7 @@ const ClpPage = () => {
   // on, which is exactly the state a finished CLP meeting should leave behind.
   const [approvalBusy, setApprovalBusy] = useState(false)
   const [schoolBusy, setSchoolBusy] = useState(false)
-  const reviewSchedule = async (action) => {
+  const reviewSchedule = async (action, { dropWaitlists = false } = {}) => {
     let note
     if (action === 'reopen') {
       note = window.prompt('Anything to tell the family about what needs to change? (optional)')
@@ -256,16 +256,17 @@ const ClpPage = () => {
     setApprovalBusy(true)
     try {
       const { data } = await api.post(withOrg(`/api/sis/clp/students/${selectedId}/schedule-approval`, orgId),
-        { action, note, organization_id: orgId })
+        { action, note, organization_id: orgId, drop_waitlists: dropWaitlists })
       if (action === 'approve') {
-        // Approving answers the family's age-exception requests; it deliberately
-        // does NOT drop them from class waitlists (that would lose their place
-        // in line), so say what is still open instead of leaving staff guessing.
+        // Approving always closes the family's age-exception requests. What it
+        // does to their waitlist places is the approver's call, made above.
         const closed = data?.age_exceptions_closed
         const closedCount = (closed?.approved || 0) + (closed?.declined || 0)
         const waiting = data?.waitlist_still_open || 0
+        const dropped = data?.waitlist_dropped || 0
         toast.success(['Schedule approved',
           closedCount ? `${closedCount} age exception${closedCount === 1 ? '' : 's'} closed` : '',
+          dropped ? `removed from ${dropped} waitlist${dropped === 1 ? '' : 's'}` : '',
           waiting ? `still on ${waiting} waitlist${waiting === 1 ? '' : 's'}` : '',
         ].filter(Boolean).join(' · '))
       } else {
@@ -278,6 +279,23 @@ const ClpPage = () => {
     } finally {
       setApprovalBusy(false)
     }
+  }
+
+  // Approving is where the waitlist question gets answered — per family, not by
+  // a rule. iCreate asked for it both ways in the same sentence ("it would seem
+  // to make sense. However at the same time it doesn't make sense I guess"),
+  // which is what a case-by-case decision sounds like. Keeping is the default:
+  // a dropped place can't be un-dropped, the student's position in line is gone.
+  const approveSchedule = () => {
+    const n = openRequests.waitlist.length
+    if (!n) return reviewSchedule('approve')
+    const names = openRequests.waitlist.map((w) => w.class_name).join(', ')
+    const drop = window.confirm(
+      `${student?.student?.name || 'This student'} is still on ${n} waitlist${n === 1 ? '' : 's'}: ${names}.\n\n`
+      + 'OK — approve and TAKE THEM OFF those waitlists (they lose their place in line).\n'
+      + 'Cancel — approve and KEEP their place, so a seat can still be offered later.',
+    )
+    reviewSchedule('approve', { dropWaitlists: drop })
   }
 
   // Actions on the family's open requests, straight from the meeting screen.
@@ -484,7 +502,7 @@ const ClpPage = () => {
           </>
         ) : (
           <>
-            <Button size="sm" onClick={() => reviewSchedule('approve')} disabled={approvalBusy}>
+            <Button size="sm" onClick={() => approveSchedule()} disabled={approvalBusy}>
               {approvalBusy ? 'Approving…' : 'Approve schedule'}
             </Button>
             {approval.status === 'submitted' && (

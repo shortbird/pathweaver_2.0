@@ -883,6 +883,17 @@ def submit_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[str
     return submissions.submit(org_id, student_user_id, user_id)
 
 
+def withdraw_schedule_submission(user_id: str, org_id: str,
+                                 student_user_id: str) -> Dict[str, Any]:
+    """Take back a submission the school hasn't reviewed yet, so the family can
+    keep editing. Not subject to the first-day-of-school lock: submitting is
+    what locked them, and undoing it only returns them to where they were."""
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'Not authorized for this student'}
+    from services import sis_schedule_submission_service as submissions
+    return submissions.withdraw(org_id, student_user_id, user_id)
+
+
 # ── Age-exception requests ────────────────────────────────────────────────────
 def request_age_exception(user_id: str, org_id: str, student_user_id: str,
                           class_id: str, message: Optional[str] = None) -> Dict[str, Any]:

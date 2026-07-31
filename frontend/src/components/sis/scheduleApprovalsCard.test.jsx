@@ -43,7 +43,7 @@ describe('ScheduleApprovalsCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/schedule-submissions/sub1/review',
-      { action: 'approve', note: undefined, organization_id: 'org-1' },
+      { action: 'approve', note: undefined, organization_id: 'org-1', drop_waitlists: false },
     ))
   })
 
@@ -55,7 +55,7 @@ describe('ScheduleApprovalsCard', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Send back' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/schedule-submissions/sub1/review',
-      { action: 'send_back', note: 'Pick a Thursday class', organization_id: 'org-1' },
+      { action: 'send_back', note: 'Pick a Thursday class', organization_id: 'org-1', drop_waitlists: false },
     ))
   })
 

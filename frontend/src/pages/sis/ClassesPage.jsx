@@ -927,6 +927,11 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   const [entries, setEntries] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(null)
+  // Other sections of the same class that still have room. Nine students sat on
+  // one Ukelele Jam section's waitlist while two others had seats — the seat
+  // they want exists, just at another time (iCreate, 2026-07-31).
+  const [sections, setSections] = useState([])
+  const [movingId, setMovingId] = useState(null)   // entry whose section picker is open
 
   const reload = useCallback(() => {
     api.get(`/api/sis/classes/${classId}/waitlist?organization_id=${orgId}`)
@@ -936,6 +941,12 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   }, [classId, orgId])
 
   useEffect(() => { reload() }, [reload])
+
+  useEffect(() => {
+    api.get(withOrg(`/api/sis/classes/${classId}/sibling-sections`, orgId))
+      .then((r) => setSections(r.data?.sections || []))
+      .catch(() => setSections([]))
+  }, [classId, orgId])
 
   // A seat can only be offered when one is actually open. Offering into a full
   // class enrolls someone over capacity, so the button is disabled until a seat
@@ -969,6 +980,23 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
       onChanged?.()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not enroll the student')
+    } finally { setBusy(null) }
+  }
+
+  // Place them in a different section instead — they get the class they queued
+  // for, at a time that has room, and come off this waitlist.
+  const enrollInSection = async (e, section) => {
+    setBusy(e.id)
+    setMovingId(null)
+    try {
+      await api.post(`/api/sis/waitlist/${e.id}/enroll`, {
+        organization_id: orgId, class_id: section.class_id,
+      })
+      toast.success(`${e.student_name} enrolled in ${section.name}`)
+      reload()
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not move the student')
     } finally { setBusy(null) }
   }
 
@@ -1039,6 +1067,36 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
                     className="text-neutral-500 hover:underline disabled:opacity-50">
                     {e.status === 'waiting' ? 'Offer seat' : 'Offer again'}
                   </button>
+                  {sections.length > 0 && (
+                    <span className="relative">
+                      <button onClick={() => setMovingId(movingId === e.id ? null : e.id)}
+                        disabled={busy === e.id}
+                        className="text-neutral-500 hover:underline disabled:opacity-50">
+                        Other section ▾
+                      </button>
+                      {movingId === e.id && (
+                        <>
+                          <span className="fixed inset-0 z-10" onClick={() => setMovingId(null)} />
+                          <span className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left block">
+                            <span className="block px-3 py-1 text-[11px] uppercase tracking-wide text-neutral-400">
+                              Enroll in a section with room
+                            </span>
+                            {sections.map((sec) => (
+                              <button key={sec.class_id} onClick={() => enrollInSection(e, sec)}
+                                className="block w-full text-left px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-50">
+                                {sec.name}
+                                <span className="text-neutral-400">
+                                  {sec.capacity != null
+                                    ? ` · ${Math.max(0, sec.capacity - (sec.enrolled_count || 0))} seat(s)`
+                                    : ' · space available'}
+                                </span>
+                              </button>
+                            ))}
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  )}
                   <button onClick={() => remove(e)} disabled={busy === e.id}
                     className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">
                     Remove

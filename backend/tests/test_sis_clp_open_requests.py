@@ -12,9 +12,10 @@ iCreate, 2026-07-31:
   - "It would be helpful to have any waitlist or age exceptions that parents
      have requested listed here somewhere."
 
-Waitlist places are deliberately NOT dropped on approval — an approved schedule
-doesn't say the family stopped wanting the seat, and dropping them would lose
-their position. They're reported back instead, and actionable on the screen.
+Waitlist places are the approver's call, made per approval (iCreate asked for it
+both ways in one breath). Default is to KEEP: an approved schedule doesn't say
+the family stopped wanting the seat, and a dropped place can't be un-dropped.
+Either way the count comes back so the screen can say what happened.
 """
 
 from unittest.mock import Mock, patch
@@ -121,8 +122,9 @@ class TestApprovalReportsWhatIsLeft:
                    return_value={'approved': 0, 'declined': 0}):
             assert submissions._settle_open_requests('org-1', 's1', 'admin-1') == {}
 
-    def test_the_waitlist_is_never_cleared_by_an_approval(self):
-        """Guard against a future 'helpful' change: approval must not delete."""
+    def test_the_waitlist_is_never_cleared_unless_asked(self):
+        """Guard against a future 'helpful' default: approving must not delete
+        waitlist places on its own."""
         client = _table_client({'sis_waitlist_entries': [{'id': 'w1'}]})
         with patch('services.sis_schedule_submission_service._admin', return_value=client), \
              patch('services.sis_exception_service.resolve_on_schedule_approval',
@@ -133,6 +135,82 @@ class TestApprovalReportsWhatIsLeft:
         for b in builders:
             assert b.delete.called is False
             assert b.update.called is False
+
+
+@pytest.mark.unit
+class TestApprovalDropsWaitlistsWhenAsked:
+    """The approver decides, per family (iCreate, 2026-07-31: "does that mean the
+    students get dropped from waitlists? ... it would seem to make sense. However
+    at the same time it doesn't make sense I guess")."""
+
+    def test_dropping_removes_the_places_and_reports_the_count(self):
+        client = _table_client({'sis_waitlist_entries': [{'id': 'w1'}, {'id': 'w2'}]})
+        with patch('services.sis_schedule_submission_service._admin', return_value=client), \
+             patch('services.sis_exception_service.resolve_on_schedule_approval',
+                   return_value={'approved': 0, 'declined': 0}):
+            out = submissions._settle_open_requests('org-1', 's1', 'admin-1', drop_waitlists=True)
+        assert out == {'waitlist_dropped': 2}
+        assert any(b.delete.called for b in client.builders['sis_waitlist_entries'])
+
+    def test_not_dropping_leaves_them_alone(self):
+        client = _table_client({'sis_waitlist_entries': [{'id': 'w1'}]})
+        with patch('services.sis_schedule_submission_service._admin', return_value=client), \
+             patch('services.sis_exception_service.resolve_on_schedule_approval',
+                   return_value={'approved': 0, 'declined': 0}):
+            out = submissions._settle_open_requests('org-1', 's1', 'admin-1', drop_waitlists=False)
+        assert out == {'waitlist_still_open': 1}
+        assert not any(b.delete.called for b in client.builders['sis_waitlist_entries'])
+
+    def test_keeping_is_the_default(self):
+        """A dropped place can't be un-dropped, so the safe outcome is default."""
+        client = _table_client({'sis_waitlist_entries': [{'id': 'w1'}]})
+        with patch('services.sis_schedule_submission_service._admin', return_value=client), \
+             patch('services.sis_exception_service.resolve_on_schedule_approval',
+                   return_value={'approved': 0, 'declined': 0}):
+            out = submissions._settle_open_requests('org-1', 's1', 'admin-1')
+        assert 'waitlist_dropped' not in out
+
+    def test_nothing_queued_means_nothing_to_report(self):
+        client = _table_client({'sis_waitlist_entries': []})
+        with patch('services.sis_schedule_submission_service._admin', return_value=client), \
+             patch('services.sis_exception_service.resolve_on_schedule_approval',
+                   return_value={'approved': 0, 'declined': 0}):
+            assert submissions._settle_open_requests('org-1', 's1', 'a', drop_waitlists=True) == {}
+
+
+@pytest.mark.unit
+class TestWithdrawSubmission:
+    """iCreate: "they submit the schedule for approval, but then their schedule is
+    locked. So then I keep on having to unlock them because parents want to
+    change." A pending submission is the family's to take back."""
+
+    def _client(self, row):
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'limit', 'update'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=[row] if row else [])
+        return client, table
+
+    def test_a_pending_submission_unlocks(self):
+        client, table = self._client({'id': 'sub1', 'status': 'submitted'})
+        with patch('services.sis_schedule_submission_service._admin', return_value=client):
+            out = submissions.withdraw('org-1', 's1', 'parent-1')
+        assert out['withdrawn'] is True
+        assert table.update.call_args[0][0]['status'] == 'sent_back'
+
+    def test_an_approved_schedule_is_the_school_s(self):
+        client, _ = self._client({'id': 'sub1', 'status': 'approved'})
+        with patch('services.sis_schedule_submission_service._admin', return_value=client):
+            out = submissions.withdraw('org-1', 's1', 'parent-1')
+        assert 'error' in out
+        assert 'contact the school' in out['error']
+
+    def test_nothing_submitted_is_an_error_not_a_crash(self):
+        client, _ = self._client(None)
+        with patch('services.sis_schedule_submission_service._admin', return_value=client):
+            assert 'error' in submissions.withdraw('org-1', 's1', 'parent-1')
 
 
 @pytest.mark.unit

@@ -500,6 +500,21 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
+  // Take the schedule back while the school hasn't looked at it yet. Almost
+  // every "please unlock me" the office fields is a parent who changed their
+  // mind before review — that never needed to cross a desk.
+  const withdrawSubmission = async () => {
+    if (!window.confirm('Take this schedule back so you can make changes? You will need to submit it again when you are done.')) return
+    setBusy('withdraw')
+    try {
+      await api.delete(`/api/sis/parent/students/${studentId}/schedule-submission?organization_id=${orgId}`)
+      toast.success('Schedule unlocked — make your changes and submit again')
+      reload()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not take the schedule back')
+    } finally { setBusy(null) }
+  }
+
   if (loading) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" /></div>
   }
@@ -762,6 +777,10 @@ const ScheduleBuilderPage = () => {
                   Changes are locked while the school reviews it — they'll approve it or send it
                   back to you.
                 </p>
+                <button onClick={withdrawSubmission} disabled={busy === 'withdraw'}
+                  className="mt-2 text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
+                  {busy === 'withdraw' ? 'Unlocking…' : 'Need to change something? Take it back'}
+                </button>
               </div>
             </div>
           ) : submission?.status === 'approved' ? (

@@ -105,9 +105,15 @@ def review_clp_schedule(user_id, student_id):
         return jsonify({'success': False,
                         'error': "action must be 'approve' or 'reopen'"}), 400
     note = data.get('note')
-    fn = (submissions.approve_for_student if action == 'approve'
-          else submissions.reopen_for_student)
-    result = fn(org_id, student_id, reviewed_by=user_id, note=note)
+    if action == 'approve':
+        # The approver chooses whether to also clear the student's waitlist
+        # places (default: keep them — a dropped place can't be un-dropped).
+        result = submissions.approve_for_student(
+            org_id, student_id, reviewed_by=user_id, note=note,
+            drop_waitlists=bool(data.get('drop_waitlists')))
+    else:
+        result = submissions.reopen_for_student(org_id, student_id,
+                                                reviewed_by=user_id, note=note)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
     return jsonify({'success': True,

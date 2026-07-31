@@ -85,17 +85,28 @@ const ScheduleApprovalsCard = ({ orgId }) => {
 
   useEffect(() => { load() }, [load])
 
-  const toggleSchedule = async (s) => {
-    if (openId === s.id) { setOpenId(null); return }
-    setOpenId(s.id)
-    if (schedules[s.id] && schedules[s.id] !== 'error') return // already loaded
+  // Returns the schedule, loading it if this row was never expanded — approving
+  // has to know about the student's waitlist places whether or not staff opened
+  // the disclosure first.
+  const fetchSchedule = async (s) => {
+    const cached = schedules[s.id]
+    if (cached && cached !== 'error' && cached !== 'loading') return cached
     setSchedules((m) => ({ ...m, [s.id]: 'loading' }))
     try {
       const { data } = await api.get(withOrg(`/api/sis/schedule-submissions/${s.id}/schedule`, orgId))
-      setSchedules((m) => ({ ...m, [s.id]: { classes: data?.classes || [], waitlist: data?.waitlist || [] } }))
+      const loaded = { classes: data?.classes || [], waitlist: data?.waitlist || [] }
+      setSchedules((m) => ({ ...m, [s.id]: loaded }))
+      return loaded
     } catch {
       setSchedules((m) => ({ ...m, [s.id]: 'error' }))
+      return null
     }
+  }
+
+  const toggleSchedule = async (s) => {
+    if (openId === s.id) { setOpenId(null); return }
+    setOpenId(s.id)
+    await fetchSchedule(s)
   }
 
   const review = async (s, action) => {
@@ -104,10 +115,27 @@ const ScheduleApprovalsCard = ({ orgId }) => {
       note = window.prompt(`Why is ${s.student_name}'s schedule being sent back? (shared with the family)`)
       if (note === null) return // cancelled
     }
+    // Approving is where the waitlist question gets answered, per family: this
+    // student may have settled for a fallback class and still want the seat
+    // they're queued for, or may be done. Keeping is the default — a dropped
+    // place can't be un-dropped. Only asked when they're actually on one, and
+    // only when the expanded schedule has told us so.
+    let dropWaitlists = false
+    if (action === 'approve') {
+      const wl = (await fetchSchedule(s))?.waitlist || []
+      if (wl.length) {
+        const names = wl.map((w) => w.name || w.class_name).filter(Boolean).join(', ')
+        dropWaitlists = window.confirm(
+          `${s.student_name} is still on ${wl.length} waitlist${wl.length === 1 ? '' : 's'}: ${names}.\n\n`
+          + 'OK — approve and TAKE THEM OFF those waitlists (they lose their place in line).\n'
+          + 'Cancel — approve and KEEP their place, so a seat can still be offered later.',
+        )
+      }
+    }
     setBusyId(s.id)
     try {
       await api.post(`/api/sis/schedule-submissions/${s.id}/review`,
-        { action, note, organization_id: orgId })
+        { action, note, organization_id: orgId, drop_waitlists: dropWaitlists })
       toast.success(action === 'approve'
         ? `${s.student_name}'s schedule is approved`
         : 'Sent back to the family')

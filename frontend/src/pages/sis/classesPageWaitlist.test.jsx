@@ -54,6 +54,11 @@ beforeEach(() => {
   orgState = { organization: { id: 'org-1', name: 'Org' } }
   vi.clearAllMocks()
   api.get.mockImplementation((url) => {
+    if (url.includes('/sibling-sections')) {
+      return Promise.resolve({ data: { sections: [
+        { class_id: 'c2', name: 'Lego Robotics (Thu 1:00)', capacity: 12, enrolled_count: 9 },
+      ] } })
+    }
     if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: WAITLIST } })
     if (url.includes('/api/sis/classes')) {
       return Promise.resolve({ data: { classes: [
@@ -141,5 +146,40 @@ describe('class waitlist — staff actions', () => {
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Enroll now' })[0])
     expect(api.post).not.toHaveBeenCalled()
+  })
+
+  // iCreate, 2026-07-31: "Could we offer other sections of classes to people on a
+  // waitlist? For example, there are 8 on the waitlist on tuesday at 10:30am, but
+  // we have spots in the other ukelele classes."
+  it('offers a section that still has room', async () => {
+    await openWaitlistTab()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: /Lego Robotics \(Thu 1:00\)/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/waitlist/w1/enroll',
+      { organization_id: 'org-1', class_id: 'c2' },
+    ))
+  })
+
+  it('shows how many seats the other section has left', async () => {
+    await openWaitlistTab()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
+    expect(await screen.findByText(/3 seat\(s\)/)).toBeInTheDocument()
+  })
+
+  it('offers no other-section picker when every sibling is full', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/sibling-sections')) return Promise.resolve({ data: { sections: [] } })
+      if (url.includes('/waitlist')) return Promise.resolve({ data: { waitlist: WAITLIST } })
+      if (url.includes('/api/sis/classes')) {
+        return Promise.resolve({ data: { classes: [
+          { id: 'c1', name: 'Lego Robotics', enrolled_count: 15, capacity: 15, is_full: true,
+            waitlist_count: 3, meetings: [], registration_status: 'closed' },
+        ] } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    await openWaitlistTab()
+    expect(screen.queryByRole('button', { name: 'Other section ▾' })).not.toBeInTheDocument()
   })
 })

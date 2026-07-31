@@ -81,6 +81,41 @@ def submit(org_id: str, student_user_id: str, guardian_user_id: str) -> Dict[str
     return {'submission': row}
 
 
+def withdraw(org_id: str, student_user_id: str, guardian_user_id: str) -> Dict[str, Any]:
+    """A family takes back a submission staff haven't reviewed yet.
+
+    iCreate, 2026-07-31: "they submit the schedule for approval, but then their
+    schedule is locked. So then I keep on having to unlock them because parents
+    want to change." Almost all of those unlocks are a parent who changed their
+    mind before anyone looked at it — there is no reason that has to cross the
+    office's desk.
+
+    Only while `submitted`. Once staff have APPROVED it the schedule is theirs
+    to change (that is the whole point of approval), so this refuses and the
+    family is pointed at the school. Lands in `sent_back`, the state a
+    staff-side reopen already produces, so nothing new has to be understood
+    downstream.
+    """
+    cur = current(org_id, student_user_id)
+    if not cur or cur.get('status') != 'submitted':
+        if cur and cur.get('status') == 'approved':
+            return {'error': 'Your schedule has already been approved — contact the school to change it.'}
+        return {'error': 'There is no schedule waiting for approval.'}
+    now = datetime.now(timezone.utc).isoformat()
+    row = (
+        _admin().table(TABLE).update({
+            'status': 'sent_back',
+            'review_note': None,
+            'reviewed_by': None,
+            'reviewed_at': None,
+            'updated_at': now,
+        }).eq('id', cur['id']).execute()
+    ).data
+    logger.info(f'schedule submission withdrawn by guardian for {student_user_id[:8]}')
+    return {'submission': row[0] if row else {**cur, 'status': 'sent_back'},
+            'withdrawn': True}
+
+
 def _student_name(student_user_id: str) -> str:
     rows = (
         _admin().table('users')
@@ -228,7 +263,7 @@ def submission_schedule(org_id: str, submission_id: str) -> Dict[str, Any]:
 
 
 def review(org_id: str, submission_id: str, action: str, *, reviewed_by: str,
-           note: Optional[str] = None) -> Dict[str, Any]:
+           note: Optional[str] = None, drop_waitlists: bool = False) -> Dict[str, Any]:
     """Approve (schedule stays locked, staff-managed from here) or send back
     (unlocks self-service for the family) a submitted schedule."""
     if action not in REVIEW_ACTIONS:
@@ -256,19 +291,25 @@ def review(org_id: str, submission_id: str, action: str, *, reviewed_by: str,
     _notify_guardian(row)
     result = {'submission': row}
     if REVIEW_ACTIONS[action] == 'approved':
-        result.update(_settle_open_requests(org_id, sub['student_user_id'], reviewed_by))
+        result.update(_settle_open_requests(org_id, sub['student_user_id'], reviewed_by,
+                                            drop_waitlists=drop_waitlists))
     return result
 
 
-def _settle_open_requests(org_id: str, student_user_id: str, reviewed_by: str) -> Dict[str, Any]:
+def _settle_open_requests(org_id: str, student_user_id: str, reviewed_by: str,
+                          drop_waitlists: bool = False) -> Dict[str, Any]:
     """What approving a schedule does to the family's outstanding requests.
 
-    Age-exception requests are CLOSED against the approved schedule (they were
-    the question this approval answers). Waitlist entries are deliberately left
-    alone — an approved schedule doesn't tell us whether the family still wants
-    the seat they're queued for, and silently dropping them would lose their
-    place in line. They are reported back instead, so the CLP screen can say
-    "still waiting on N" rather than the office wondering.
+    Age-exception requests are always CLOSED against the approved schedule —
+    they were the question this approval answers.
+
+    Waitlist places are the approver's call, made per approval rather than by a
+    rule (iCreate, 2026-07-31: "it would seem to make sense. However at the same
+    time it doesn't make sense I guess" — which is what a per-family decision
+    sounds like). A family that settled for a fallback class may still want the
+    10:30 seat; another is done. Default is to KEEP, because a dropped place
+    can't be un-dropped: position in line is gone. Either way the count comes
+    back so the screen can say what happened.
     """
     out: Dict[str, Any] = {}
     try:
@@ -284,10 +325,18 @@ def _settle_open_requests(org_id: str, student_user_id: str, reviewed_by: str) -
             .eq('organization_id', org_id).eq('student_user_id', student_user_id)
             .in_('status', ['waiting', 'offered']).execute()
         ).data or []
-        if rows:
+        if not rows:
+            return out
+        if drop_waitlists:
+            _admin().table('sis_waitlist_entries').delete() \
+                .in_('id', [r['id'] for r in rows]).execute()
+            out['waitlist_dropped'] = len(rows)
+            logger.info(f'schedule approval dropped {len(rows)} waitlist place(s) '
+                        f'for {student_user_id[:8]}')
+        else:
             out['waitlist_still_open'] = len(rows)
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'schedule approval: waitlist count skipped: {e}')
+        logger.warning(f'schedule approval: waitlist step skipped: {e}')
     return out
 
 
@@ -311,7 +360,8 @@ def _household_guardian_ids(org_id: str, student_user_id: str) -> List[str]:
 
 
 def approve_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,
-                        note: Optional[str] = None) -> Dict[str, Any]:
+                        note: Optional[str] = None,
+                        drop_waitlists: bool = False) -> Dict[str, Any]:
     """Approve a student's schedule from the CLP meeting screen.
 
     Same end state as approving from the Registration review queue, but keyed by
@@ -325,7 +375,8 @@ def approve_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,
     if cur and cur.get('status') == 'approved':
         return {'already': True, 'submission': cur}
     if cur and cur.get('status') == 'submitted':
-        return review(org_id, cur['id'], 'approve', reviewed_by=reviewed_by, note=note)
+        return review(org_id, cur['id'], 'approve', reviewed_by=reviewed_by, note=note,
+                      drop_waitlists=drop_waitlists)
 
     now = datetime.now(timezone.utc).isoformat()
     row = (
@@ -345,7 +396,8 @@ def approve_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,
     ).data[0]
     _notify_guardian(row, fallback_user_ids=_household_guardian_ids(org_id, student_user_id))
     return {'submission': row,
-            **_settle_open_requests(org_id, student_user_id, reviewed_by)}
+            **_settle_open_requests(org_id, student_user_id, reviewed_by,
+                                    drop_waitlists=drop_waitlists)}
 
 
 def reopen_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,

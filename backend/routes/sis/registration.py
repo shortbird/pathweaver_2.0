@@ -211,8 +211,11 @@ def review_schedule_submission(user_id, submission_id):
     if action not in submissions.REVIEW_ACTIONS:
         return jsonify({'success': False,
                         'error': "action must be 'approve' or 'send_back'"}), 400
+    # drop_waitlists: the approver decides, per family, whether approving also
+    # takes the student off the class waitlists they're still queued for.
     result = submissions.review(org_id, submission_id, action,
-                                reviewed_by=user_id, note=data.get('note'))
+                                reviewed_by=user_id, note=data.get('note'),
+                                drop_waitlists=bool(data.get('drop_waitlists')))
     if result.get('error'):
         code = 404 if result['error'] == 'Submission not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code

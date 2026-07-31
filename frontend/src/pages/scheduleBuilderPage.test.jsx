@@ -405,6 +405,37 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.queryByText(/Classes at/)).not.toBeInTheDocument()
   })
 
+  // iCreate, 2026-07-31: "they submit the schedule for approval, but then their
+  // schedule is locked. So then I keep on having to unlock them because parents
+  // want to change." A pending submission is the family's to take back.
+  it('a family can take back a submission the school has not reviewed', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [POTTERY], approval_enabled: true,
+        submission: { status: 'submitted', submitted_at: '2026-07-21T10:00:00Z' },
+      },
+    }))
+    api.delete.mockResolvedValue({ data: { success: true, withdrawn: true } })
+    window.confirm = vi.fn(() => true)
+    render(<ScheduleBuilderPage />)
+    fireEvent.click(await screen.findByRole('button', { name: /Take it back/ }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
+      '/api/sis/parent/students/s1/schedule-submission?organization_id=org1',
+    ))
+  })
+
+  it('an approved schedule offers no take-back — the school owns it now', async () => {
+    api.get.mockImplementation(mockApi({
+      schedule: {
+        classes: [POTTERY], approval_enabled: true,
+        submission: { status: 'approved', reviewed_at: '2026-07-22T10:00:00Z' },
+      },
+    }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/Approved by Micro School/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Take it back/ })).not.toBeInTheDocument()
+  })
+
   it('a sent-back schedule shows the note and offers resubmit', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {

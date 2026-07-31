@@ -65,7 +65,7 @@ def resolve_org_id(user_id: str, requested_org_id: Optional[str]) -> Optional[st
 def _org_users(org_id: str) -> List[Dict[str, Any]]:
     resp = (
         _admin().table('users')
-        .select('id, first_name, last_name, display_name, email, username, '
+        .select('id, first_name, last_name, display_name, email, username, phone_number, '
                 'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth, '
                 'preferred_name, gender, allergies, medications, sis_tuition_plan, avatar_url')
         .eq('organization_id', org_id)
@@ -261,6 +261,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'allergies': s.get('allergies'),
             'medications': s.get('medications'),
             'email': s.get('email'),
+            'phone_number': s.get('phone_number'),
             'username': s.get('username'),
             'avatar_url': s.get('avatar_url'),
             'total_xp': s.get('total_xp'),
@@ -1083,6 +1084,9 @@ def student_in_org(student_id: str, org_id: str) -> bool:
 
 _PROFILE_FIELDS = ('first_name', 'last_name', 'email', 'date_of_birth',
                    'preferred_name', 'gender', 'allergies', 'medications',
+                   # A parent's phone was reachable only by opening their CHILD
+                   # and scrolling to emergency contacts (iCreate, 2026-07-31).
+                   'phone_number',
                    'sis_tuition_plan')
 
 

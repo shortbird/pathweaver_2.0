@@ -380,6 +380,22 @@ def submit_schedule(user_id, student_id):
     return jsonify({'success': True, **result}), 201
 
 
+@bp.route('/students/<student_id>/schedule-submission', methods=['DELETE'])
+@require_auth
+def withdraw_schedule(user_id, student_id):
+    """Take back a schedule the school hasn't reviewed yet, unlocking the
+    builder. Refused once staff have approved it — from then on the school
+    makes the changes."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.withdraw_schedule_submission(user_id, org_id, student_id)
+    if result.get('error'):
+        code = 403 if 'authorized' in result['error'] else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
 # ── Family portal: checklists a school assigns to the guardian ────────────────
 # These reuse the onboarding template/assignment machinery (family-audience
 # templates). A guardian only ever sees checklists assigned to their own user id.

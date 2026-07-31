@@ -112,10 +112,28 @@ def enroll_entry(user_id, entry_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    result = waitlist.enroll_entry(org_id, entry_id, enrolled_by=user_id)
+    # An optional class_id enrolls them in ANOTHER section of the same class —
+    # the seat they wanted, at a time that has room.
+    data = request.get_json(silent=True) or {}
+    result = waitlist.enroll_entry(org_id, entry_id, enrolled_by=user_id,
+                                   class_id=data.get('class_id'))
     if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 404
+        code = 404 if result['error'] == 'Waitlist entry not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, **result})
+
+
+@bp.route('/classes/<class_id>/sibling-sections', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def sibling_sections(user_id, class_id):
+    """Other sections of this class that still have room, so a waitlisted
+    student can be offered a different time instead of just waiting."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if not _class_in_org(org_id, class_id):
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    return jsonify({'success': True, 'sections': waitlist.sibling_sections(org_id, class_id)})
 
 
 @bp.route('/waitlist/<entry_id>/respond', methods=['POST'])

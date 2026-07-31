@@ -281,12 +281,94 @@ rather than a promise the app won't keep.
 
 ---
 
+## Round 9 — the 2026-07-31 evening batch
+
+Six more reports. Two were waitlist questions Tanner ruled on before this was
+built; the rest are here except the in-house-course idea (see below).
+
+### 13. Approving a schedule now ASKS about waitlist places
+
+> "When the schedule is approved, does that mean the students get dropped from
+> waitlists? I can't remember if I said that yet, but it would seem to make
+> sense. However at the same time it doesn't make sense I guess."
+
+Being torn is the right instinct — it varies per family. A student who settled
+for a fallback class may still want the 10:30 seat; another is done. So the
+approver decides, at the moment of approval, on both surfaces (the CLP meeting
+screen and the Registration review queue):
+
+> Alice is still on 1 waitlist: Miniatures.
+> **OK** — approve and take them off those waitlists (they lose their place in line).
+> **Cancel** — approve and keep their place, so a seat can still be offered later.
+
+Keeping is the default and what happens if the question is dismissed, because a
+dropped place cannot be un-dropped — position in line is gone. The prompt only
+appears when the student actually holds a place, and the approval toast reports
+which way it went. **Timing note:** 53 iCreate students were sitting in
+`submitted` when this shipped, so the question lands on the batch that matters.
+
+### 14. Offering a waitlisted student a different section
+
+> "Could we offer other sections of classes to people on a waitlist? For example,
+> there are 8 on the waitlist on tuesday at 10:30am, but we have spots in the
+> other ukelele classes."
+
+Each waitlist row now has **Other section ▾**, listing the sections of the same
+class that still have room, with seats left. Picking one enrolls the student
+there and closes their place on this list — they got the class they queued for,
+at a time that exists.
+
+Sections are matched on the class name before the "(" — iCreate names every
+section `Base (Day Block)`, so no new field to maintain. Archived and full
+sections never appear.
+
+The opportunity is bigger than one class: at the time of writing, Ukelele Jam had
+9 waiting with 2 sections that had room, Reading Workshop 23 waiting across 5,
+Elementary Microschool 11 across 2.
+
+### 15. Families can take back a schedule the school hasn't looked at
+
+> "Right now they submit the schedule for approval, but then their schedule is
+> locked. So then I keep on having to unlock them because parents want to change
+> or I had schedule changes."
+
+The full flow rework (finalize-after-CLP, CLP opt-out) is still a conversation —
+see the open questions. What shipped is the relief: while a submission is still
+`submitted`, the family sees **"Need to change something? Take it back"**, which
+unlocks their builder without anyone in the office touching it. Once staff have
+**approved** it, they can't — from that point the schedule is the school's, which
+is the whole meaning of approval, and they're pointed at the office.
+
+### 16. All classes on the teacher dashboard
+
+> "I think it'd be nice just to show ALL the classes on the dashboard instead of
+> having to click to see all?"
+
+The My classes card showed the first six with a "See all" link. It shows every
+class now, with the count in the title; the link goes to the weekly view.
+
+### 17. Phone numbers where you look for them
+
+> "It would be nice if there was easier access to the parent phone numbers. Phone
+> # doesn't show up when you click on the parent. I only was able to find it by
+> clicking on the student and then scrolling down to find that student's
+> emergency contacts. I feel like it should also be easier to locate the
+> emergency contact info on the student's end ... if there is an emergency."
+
+- A person's phone is now on their own record — editable in Manage, shown under
+  their name in the People list, and included in the CSV export.
+- A student's record opens with a **Who to call** strip: their emergency contacts,
+  phone numbers tappable, above the profile fields instead of below them.
+
+---
+
 ## Tests
 
-- Frontend: **993 passing** (50 new — waitlist staff actions, People export and
+- Frontend: **1001 passing** (58 new — waitlist staff actions, People export and
   removal, curriculum table, calendar categories, roster alerts, quest-picker
   delete, CLP lenses / open requests / school toggle, and the waiting-vs-offered
-  split on the class list, and the teacher-portal back-link on all eight pages).
+  split on the class list, the teacher-portal back-link on all eight pages, the approve-time waitlist
+  choice, cross-section offers, and the family take-back).
 - Backend: **new suites** `test_sis_waitlist_staff_actions.py` (19),
   `test_sis_person_removal.py` (19), `test_blank_values.py` (40),
   `test_sis_clp_open_requests.py` (10), plus 7 added to the calendar suite and 8
@@ -294,6 +376,27 @@ rather than a promise the app won't keep.
   pre-existing failures in the backend suite (repositories, xp/atomic-quest
   services, transcription, rate limiting) are unchanged by this build — verified
   by running them against a clean tree.
+
+## Not built, and open questions
+
+### The in-house course tied to curriculum (2026-07-31)
+
+> "I like the idea of quests in here, but I'm wondering if we can add the ability
+> to add an in-house course that is tied to the curriculum. That way we don't
+> have to start anew with the quests every year? And maybe some teachers want to
+> fill it in in advance."
+
+Not built — it's a real feature, not a fix. It needs a decision about what the
+reusable thing is: a course that owns a term's quests and can be cloned into next
+year's class, or a curriculum entry that carries them. Worth a design pass with
+Molly before any code.
+
+### The schedule flow
+
+The take-back above is relief, not the redesign. Still open: finalize-after-CLP
+instead of submit-for-approval, and letting some families skip the CLP ("some
+people we could easily just finalize without a CLP, especially if only taking 1
+class"). Her words: "something we need to talk over."
 
 ## Follow-ups not done, and open questions for iCreate
 
@@ -303,7 +406,7 @@ rather than a promise the app won't keep.
 - A family whose offered seat is filled before they claim it still can't claim
   it; the office is notified instead. Reserving the seat for the length of the
   offer would be the fuller fix.
-- **Should approving a schedule drop the student's waitlist places?** Today it
-  keeps them and tells you. Answer this and it changes in a line.
+- ~~Should approving a schedule drop the student's waitlist places?~~ **Answered
+  2026-07-31: the approver chooses per family, defaulting to keeping them.**
 - **Private-school status:** add it to the registration funnel for next year,
   and/or let parents set it in their portal? The CLP toggle covers today.

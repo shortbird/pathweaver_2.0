@@ -268,10 +268,15 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       </div>
 
       {/* My classes — the core of the portal */}
-      <Card title="My classes" action={<Link to="/my-classes" className="text-sm text-optio-purple hover:underline">See all</Link>}>
+      {/* Every class, not the first six. A teacher with seven classes had to
+          click through to find the seventh, which is the opposite of a
+          dashboard (iCreate, 2026-07-31: "it'd be nice just to show ALL the
+          classes on the dashboard instead of having to click to see all"). */}
+      <Card title={`My classes${classes.length ? ` (${classes.length})` : ''}`}
+        action={<Link to="/my-classes" className="text-sm text-optio-purple hover:underline">Weekly view</Link>}>
         {!classes.length && <p className="text-sm text-neutral-500">No classes assigned yet — talk to your administrator.</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {classes.slice(0, 6).map((c) => (
+          {classes.map((c) => (
             <div key={c.id}
               className="rounded-lg border border-gray-200 p-3 hover:border-optio-purple/50 transition-colors">
               <Link to={`/my-classes/${c.id}`} className="block">

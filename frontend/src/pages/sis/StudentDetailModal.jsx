@@ -43,6 +43,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
     preferred_name: student.preferred_name || '',
     gender: student.gender || '',
     email: student.email || '',
+    phone_number: student.phone_number || '',
     date_of_birth: student.date_of_birth || '',
     status: student.enrollment_status === 'unassigned' ? 'enrolled' : student.enrollment_status,
     grade_level: student.grade_level || '',
@@ -60,7 +61,8 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         first_name: form.first_name, last_name: form.last_name,
         preferred_name: form.preferred_name || null, gender: form.gender || null,
         allergies: form.allergies || null, medications: form.medications || null,
-        email: form.email || null, date_of_birth: form.date_of_birth || null,
+        email: form.email || null, phone_number: form.phone_number || null,
+        date_of_birth: form.date_of_birth || null,
         sis_tuition_plan: form.sis_tuition_plan || null, organization_id: orgId,
       })]
       if (form.roles.length) {
@@ -116,6 +118,11 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         <div className="p-5 overflow-y-auto">
           {tab === 'profile' && (
             <div className="space-y-5">
+              {/* Who to call, above the fold. It used to sit under the profile
+                  fields and the family block — "it should be easier to locate
+                  the emergency contact info ... if there is an emergency"
+                  (iCreate, 2026-07-31). Editing still happens below. */}
+              {isStudent && <EmergencyStrip student={student} orgId={orgId} />}
               <ProfileFields form={form} set={setField} isStudent={isStudent} schoolName={schoolName} />
               {isStudent && <FamilySection student={student} orgId={orgId} onSaved={onSaved} />}
               {isStudent && <ContactsSection student={student} orgId={orgId} />}
@@ -173,9 +180,18 @@ const ProfileFields = ({ form, set, isStudent, schoolName }) => (
         <input value={form.last_name} onChange={(e) => set('last_name', e.target.value)} className={field} />
       </label>
     </div>
-    <label className="text-xs text-neutral-500 block">Email
-      <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} className={field} />
-    </label>
+    <div className="grid grid-cols-2 gap-3">
+      <label className="text-xs text-neutral-500">Email
+        <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} className={field} />
+      </label>
+      {/* A parent's phone number was only reachable by opening their CHILD and
+          scrolling to emergency contacts (iCreate, 2026-07-31). It lives on the
+          person now, where you look for it. */}
+      <label className="text-xs text-neutral-500">Phone
+        <input type="tel" value={form.phone_number} onChange={(e) => set('phone_number', e.target.value)}
+          className={field} placeholder="e.g. 801-555-0142" />
+      </label>
+    </div>
     <div className="grid grid-cols-2 gap-3">
       <label className="text-xs text-neutral-500">Date of birth
         <input type="date" value={form.date_of_birth || ''} onChange={(e) => set('date_of_birth', e.target.value)} className={field} />
@@ -304,6 +320,47 @@ const FamilySection = ({ student, orgId, onSaved }) => {
             <Button size="sm" onClick={assign} loading={busy}>Assign</Button>
           </div>
         )}
+    </section>
+  )
+}
+
+/**
+ * The numbers you want when something has gone wrong, at the top of the record
+ * instead of a scroll away — "it should be easier to locate the emergency
+ * contact info on the student's end by not having to scroll for it if there is
+ * an emergency" (iCreate, 2026-07-31). Read-only; editing is the section
+ * further down. Renders nothing when there is nothing to show, so it never adds
+ * an empty box.
+ */
+const EmergencyStrip = ({ student }) => {
+  const [contacts, setContacts] = useState([])
+
+  useEffect(() => {
+    let live = true
+    api.get(`/api/sis/students/${student.student_id}/emergency-contacts`)
+      .then((r) => { if (live) setContacts(r.data?.contacts || []) })
+      .catch(() => { /* non-fatal: the editable section below still loads */ })
+    return () => { live = false }
+  }, [student.student_id])
+
+  const rows = contacts.filter((c) => c.phone || c.email)
+  if (!rows.length) return null
+
+  return (
+    <section className="rounded-lg border border-red-200 bg-red-50/60 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700 mb-1.5">
+        Who to call
+      </p>
+      <ul className="space-y-1">
+        {rows.slice(0, 6).map((c, i) => (
+          <li key={`${c.name}-${i}`} className="text-sm text-neutral-800 flex flex-wrap items-center gap-x-2">
+            <span className="font-medium">{c.name}</span>
+            {c.relationship && <span className="text-xs text-neutral-500">{c.relationship}</span>}
+            {c.phone && <a href={`tel:${c.phone}`} className="text-optio-purple hover:underline">{c.phone}</a>}
+            {c.email && <span className="text-xs text-neutral-500">{c.email}</span>}
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

@@ -64,7 +64,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
     const rows = visibleRoster
     if (!rows.length) { toast.error('Nothing to export'); return }
     const header = ['Name', 'First Name', 'Last Name', 'Age', 'Date of Birth', 'Role',
-                    'Email', 'Username', 'Enrollment Status', 'Grade Level', 'Family',
+                    'Email', 'Phone', 'Username', 'Enrollment Status', 'Grade Level', 'Family',
                     'Total XP', 'Last Active']
     const cell = (v) => {
       const s = v == null ? '' : String(v)
@@ -73,7 +73,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
     const body = rows.map((s) => [
       s.name, s.first_name, s.last_name, s.age, s.date_of_birth,
       (s.roles?.length ? s.roles : [s.role]).filter(Boolean).join(' / '),
-      s.email, s.username, s.enrollment_status, s.grade_level, s.household_name,
+      s.email, s.phone_number, s.username, s.enrollment_status, s.grade_level, s.household_name,
       s.total_xp ?? 0, s.last_active,
     ].map(cell).join(','))
     const csv = [header.join(','), ...body].join('\r\n')
@@ -250,7 +250,9 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
                       )}
                       <div className="min-w-0">
                         <div className="font-medium text-neutral-900">{s.name}</div>
-                        <div className="text-xs text-neutral-400 truncate">{s.email || s.username}</div>
+                        <div className="text-xs text-neutral-400 truncate">
+                          {[s.email || s.username, s.phone_number].filter(Boolean).join(' · ')}
+                        </div>
                       </div>
                     </div>
                   </td>

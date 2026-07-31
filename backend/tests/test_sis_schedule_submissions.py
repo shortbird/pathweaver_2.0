@@ -289,8 +289,11 @@ class TestApproveFromClp:
              patch('services.sis_schedule_submission_service.review') as review:
             review.return_value = {'submission': {**_SUBMITTED, 'status': 'approved'}}
             out = subs.approve_for_student('org1', 'stu1', reviewed_by='staff1')
+        # drop_waitlists is the approver's per-family choice, threaded through
+        # from the CLP screen; not passing it keeps their places (the default).
         review.assert_called_once_with('org1', 'sub1', 'approve',
-                                       reviewed_by='staff1', note=None)
+                                       reviewed_by='staff1', note=None,
+                                       drop_waitlists=False)
         assert out['submission']['status'] == 'approved'
 
     def test_records_a_staff_approval_when_the_family_never_submitted(self):

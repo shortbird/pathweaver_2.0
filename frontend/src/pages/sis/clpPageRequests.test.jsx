@@ -128,6 +128,48 @@ describe('CLP open requests', () => {
     )
   })
 
+  // iCreate asked for it both ways in one sentence, so the approver decides per
+  // family. Keeping is the default — a dropped place can't be un-dropped.
+  it('asks whether to drop the waitlist places, and drops them on OK', async () => {
+    window.confirm = vi.fn(() => true)
+    await openStudent()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve schedule' }))
+    expect(window.confirm.mock.calls[0][0]).toMatch(/still on 1 waitlist: Miniatures/)
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/clp/students/s1/schedule-approval?organization_id=org-1',
+      expect.objectContaining({ action: 'approve', drop_waitlists: true }),
+    ))
+  })
+
+  it('keeps the waitlist places when the approver cancels', async () => {
+    window.confirm = vi.fn(() => false)
+    await openStudent()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve schedule' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/clp/students/s1/schedule-approval?organization_id=org-1',
+      expect.objectContaining({ action: 'approve', drop_waitlists: false }),
+    ))
+  })
+
+  it('does not ask when the student holds no waitlist places', async () => {
+    window.confirm = vi.fn(() => true)
+    api.get.mockImplementation((url) => {
+      if (url.includes('/clp/directory')) return Promise.resolve({ data: DIRECTORY })
+      if (url.includes('/clp/students/')) {
+        return Promise.resolve({ data: {
+          ...STUDENT,
+          open_requests: { waitlist: [], age_exceptions: [] },
+        } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    render(<ClpPage />)
+    fireEvent.click(await screen.findByText('Alice Ant'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve schedule' }))
+    expect(window.confirm).not.toHaveBeenCalled()
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+  })
+
   it('says what approval did and did not settle', async () => {
     const { toast } = await import('react-hot-toast')
     api.post.mockImplementation((url) => (
