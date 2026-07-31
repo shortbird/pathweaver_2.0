@@ -129,6 +129,26 @@ const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel }) => {
   )
 }
 
+// A curriculum's age span is the span of the classes teaching it — the library
+// itself has no ages, and an entry nobody teaches this term has none to show.
+const ageRange = (classes = []) => {
+  const mins = classes.map((c) => c.min_age).filter((a) => a != null)
+  const maxes = classes.map((c) => c.max_age).filter((a) => a != null)
+  if (!mins.length && !maxes.length) return '—'
+  if (!maxes.length) return `${Math.min(...mins)}+`
+  if (!mins.length) return `Up to ${Math.max(...maxes)}`
+  return `${Math.min(...mins)}–${Math.max(...maxes)}`
+}
+
+const SortHeader = ({ label, col, sort, onSort }) => (
+  <th className="px-4 py-3 font-medium">
+    <button onClick={() => onSort(col)}
+      className={`inline-flex items-center hover:text-neutral-800 ${sort.key === col ? 'text-neutral-800' : ''}`}>
+      {label}{sort.key === col ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+    </button>
+  </th>
+)
+
 const CurriculumPage = () => {
   const { user } = useAuth()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
@@ -138,6 +158,8 @@ const CurriculumPage = () => {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null) // null | 'new' | entry
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState({ key: 'title', dir: 'asc' })
+  const [expanded, setExpanded] = useState(null) // entry id whose detail row is open
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -164,17 +186,38 @@ const CurriculumPage = () => {
     }
   }
 
-  const grouped = useMemo(() => {
+  // Sorted, flat rows. The library outgrew the grouped card list fast — iCreate
+  // asked for it to read like the class list: one row per entry, sortable by the
+  // things they scan for, with the detail behind a disclosure.
+  const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
     const filtered = q
       ? entries.filter((e) => `${e.title} ${e.subject || ''} ${e.description || ''}`.toLowerCase().includes(q))
       : entries
-    return filtered.reduce((acc, e) => {
-      const key = e.subject || 'Other'
-      ;(acc[key] = acc[key] || []).push(e)
-      return acc
-    }, {})
-  }, [entries, search])
+    const dir = sort.dir === 'asc' ? 1 : -1
+    const value = (e) => {
+      if (sort.key === 'subject') return (e.subject || '').toLowerCase()
+      if (sort.key === 'ages') {
+        const mins = (e.classes || []).map((c) => c.min_age).filter((a) => a != null)
+        return mins.length ? Math.min(...mins) : 999   // no age info sorts last
+      }
+      if (sort.key === 'classes') return (e.classes || []).length
+      if (sort.key === 'folder') return e.drive_url ? 0 : 1
+      return (e.title || '').toLowerCase()
+    }
+    return [...filtered].sort((a, b) => {
+      const av = value(a); const bv = value(b)
+      let cmp = 0
+      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv
+      else cmp = String(av).localeCompare(String(bv))
+      if (cmp === 0) cmp = (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase())
+      return cmp * dir
+    })
+  }, [entries, search, sort])
+
+  const toggleSort = (key) => setSort((prev) => (
+    prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+  ))
 
   return (
     <div>
@@ -223,55 +266,91 @@ const CurriculumPage = () => {
         </div>
       )}
 
-      <div className="space-y-6">
-        {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([subject, items]) => (
-          <div key={subject}>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-2">{subject}</h2>
-            <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-              {items.map((e) => (
-                <div key={e.id} className="p-4 flex items-start gap-3">
-                  <BookOpenIcon className="w-5 h-5 text-optio-purple shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-neutral-900">{e.title}</span>
-                      {!(e.classes || []).length && (
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
-                          Not taught this term
+      {!loading && rows.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-50 text-neutral-500 text-left">
+              <tr>
+                <SortHeader label="Title" col="title" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Ages" col="ages" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Subject" col="subject" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Classes" col="classes" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Folder" col="folder" sort={sort} onSort={toggleSort} />
+                <th className="px-4 py-3 font-medium" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((e) => {
+                const open = expanded === e.id
+                const classes = e.classes || []
+                const hasDetail = Boolean(e.description || (admin && e.notes) || classes.length)
+                return (
+                  <React.Fragment key={e.id}>
+                    <tr className={`hover:bg-neutral-50 ${hasDetail ? 'cursor-pointer' : ''}`}
+                      onClick={() => hasDetail && setExpanded(open ? null : e.id)}>
+                      <td className="px-4 py-3">
+                        <span className="flex items-center gap-2">
+                          <BookOpenIcon className="w-4 h-4 text-optio-purple shrink-0" />
+                          <span className="font-medium text-neutral-900">{e.title}</span>
+                          {hasDetail && <span className="text-neutral-300 text-xs">{open ? '▾' : '▸'}</span>}
                         </span>
-                      )}
-                    </div>
-                    {e.description && <p className="text-sm text-neutral-500 mt-0.5">{e.description}</p>}
-                    {e.drive_url && (
-                      <a href={e.drive_url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm text-optio-purple hover:underline mt-1">
-                        <LinkIcon className="w-4 h-4" /> Open the folder
-                      </a>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{ageRange(classes)}</td>
+                      <td className="px-4 py-3 text-neutral-600">{e.subject || <span className="text-neutral-300">—</span>}</td>
+                      <td className="px-4 py-3 text-neutral-600">
+                        {classes.length || (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
+                            Not taught this term
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+                        {e.drive_url ? (
+                          <a href={e.drive_url} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-optio-purple hover:underline">
+                            <LinkIcon className="w-4 h-4" /> Open
+                          </a>
+                        ) : <span className="text-neutral-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(ev) => ev.stopPropagation()}>
+                        {admin && (
+                          <span className="inline-flex items-center gap-1">
+                            <button onClick={() => setEditing(e)} className="p-1.5 text-gray-400 hover:text-optio-purple"
+                              aria-label={`Edit ${e.title}`}>
+                              <PencilSquareIcon className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => remove(e)} className="p-1.5 text-gray-400 hover:text-red-500"
+                              aria-label={`Remove ${e.title}`}>
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                    {open && hasDetail && (
+                      <tr className="bg-neutral-50/60">
+                        <td colSpan={6} className="px-4 py-3">
+                          {e.description && <p className="text-sm text-neutral-600">{e.description}</p>}
+                          {classes.length > 0 && (
+                            <p className="text-xs text-neutral-500 mt-1">
+                              Used by {classes.map((c) => c.name).join(' · ')}
+                            </p>
+                          )}
+                          {admin && e.notes && <p className="text-xs text-amber-700 mt-1">Note: {e.notes}</p>}
+                        </td>
+                      </tr>
                     )}
-                    {(e.classes || []).length > 0 && (
-                      <p className="text-xs text-neutral-400 mt-1">
-                        Used by {e.classes.map((c) => c.name).join(' · ')}
-                      </p>
-                    )}
-                    {admin && e.notes && <p className="text-xs text-amber-700 mt-1">Note: {e.notes}</p>}
-                  </div>
-                  {admin && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => setEditing(e)} className="p-1.5 text-gray-400 hover:text-optio-purple"
-                        aria-label={`Edit ${e.title}`}>
-                        <PencilSquareIcon className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => remove(e)} className="p-1.5 text-gray-400 hover:text-red-500"
-                        aria-label={`Remove ${e.title}`}>
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!loading && entries.length > 0 && !rows.length && (
+        <p className="text-neutral-500">No curriculum matches your search.</p>
+      )}
     </div>
   )
 }

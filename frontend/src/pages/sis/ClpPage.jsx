@@ -129,7 +129,12 @@ const SeatsPill = ({ cls }) => {
 const ClpPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
 
-  const [directory, setDirectory] = useState({ families: [], students: [] })
+  const [directory, setDirectory] = useState({ families: [], students: [], counts: null })
+  // Directory lens: everyone / CLP still to do / CLP done / schedule not yet
+  // approved. iCreate asked for "a list of who has completed their CLP" and
+  // "a list of everyone who needs their schedule approved still" — same list,
+  // filtered, so the picker you already work from answers both.
+  const [lens, setLens] = useState('all')
   const [dirLoading, setDirLoading] = useState(true)
   const [search, setSearch] = useState('')
 
@@ -157,7 +162,10 @@ const ClpPage = () => {
     if (!orgId) { setDirLoading(false); return }
     setDirLoading(true)
     api.get(withOrg('/api/sis/clp/directory', orgId))
-      .then((r) => setDirectory({ families: r.data?.families || [], students: r.data?.students || [] }))
+      .then((r) => setDirectory({
+        families: r.data?.families || [], students: r.data?.students || [],
+        counts: r.data?.counts || null,
+      }))
       .catch(() => toast.error('Failed to load students'))
       .finally(() => setDirLoading(false))
     // Class-level overview for the landing view (waitlisted + low-enrollment).
@@ -238,6 +246,7 @@ const ClpPage = () => {
   // Approving locks the family's Schedule Builder — staff make changes from here
   // on, which is exactly the state a finished CLP meeting should leave behind.
   const [approvalBusy, setApprovalBusy] = useState(false)
+  const [schoolBusy, setSchoolBusy] = useState(false)
   const reviewSchedule = async (action) => {
     let note
     if (action === 'reopen') {
@@ -246,15 +255,65 @@ const ClpPage = () => {
     }
     setApprovalBusy(true)
     try {
-      await api.post(withOrg(`/api/sis/clp/students/${selectedId}/schedule-approval`, orgId),
+      const { data } = await api.post(withOrg(`/api/sis/clp/students/${selectedId}/schedule-approval`, orgId),
         { action, note, organization_id: orgId })
-      toast.success(action === 'approve' ? 'Schedule approved' : 'Schedule reopened for the family')
+      if (action === 'approve') {
+        // Approving answers the family's age-exception requests; it deliberately
+        // does NOT drop them from class waitlists (that would lose their place
+        // in line), so say what is still open instead of leaving staff guessing.
+        const closed = data?.age_exceptions_closed
+        const closedCount = (closed?.approved || 0) + (closed?.declined || 0)
+        const waiting = data?.waitlist_still_open || 0
+        toast.success(['Schedule approved',
+          closedCount ? `${closedCount} age exception${closedCount === 1 ? '' : 's'} closed` : '',
+          waiting ? `still on ${waiting} waitlist${waiting === 1 ? '' : 's'}` : '',
+        ].filter(Boolean).join(' · '))
+      } else {
+        toast.success('Schedule reopened for the family')
+      }
       loadStudent(selectedId)
+      loadDirectory()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not update the schedule approval')
     } finally {
       setApprovalBusy(false)
     }
+  }
+
+  // Actions on the family's open requests, straight from the meeting screen.
+  const enrollFromWaitlist = (w) => runAction(
+    w.entry_id,
+    () => api.post(`/api/sis/waitlist/${w.entry_id}/enroll`, { organization_id: orgId }),
+    `Enrolled in ${w.class_name}`,
+  )
+  const removeWaitlistEntry = (w) => runAction(
+    w.entry_id,
+    () => api.delete(withOrg(`/api/sis/waitlist/${w.entry_id}`, orgId)),
+    `Removed from the ${w.class_name} waitlist`,
+  )
+  const resolveException = (r, action) => runAction(
+    r.request_id,
+    () => api.post(`/api/sis/age-exception-requests/${r.request_id}/resolve`,
+      { action, organization_id: orgId }),
+    action === 'approve' ? `Age exception approved for ${r.class_name}` : 'Request declined',
+  )
+
+  // School of record, toggled from the meeting screen. Stored on the household,
+  // the same field the Families page edits, so the two never disagree.
+  const togglePrivateSchool = async () => {
+    const hh = student?.family?.household_id
+    if (!hh) { toast.error('Group this student into a family first'); return }
+    const next = !student.family.enrolled_private_school
+    setSchoolBusy(true)
+    try {
+      await api.patch(`/api/sis/households/${hh}`, {
+        enrolled_private_school: next, organization_id: orgId,
+      })
+      toast.success(next ? `Marked as ${student.family.school_name}` : 'School of record cleared')
+      loadStudent(selectedId)
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not update the school of record')
+    } finally { setSchoolBusy(false) }
   }
 
   // Mark the CLP finished (or reopen it) — reflected as a check in the directory.
@@ -309,19 +368,30 @@ const ClpPage = () => {
   )
 
   // ── Derived data ───────────────────────────────────────────────────────────
+  const matchesLens = useCallback((s) => {
+    if (lens === 'clp_todo') return !s.clp_finished
+    if (lens === 'clp_done') return !!s.clp_finished
+    // Never-submitted counts as "needs approval": in a CLP meeting the schedule
+    // is built live and never goes through the family's builder.
+    if (lens === 'needs_approval') return s.schedule_status !== 'approved'
+    return true
+  }, [lens])
+
   const filteredFamilies = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return directory.families
     return directory.families
       .map((f) => {
-        const famMatch = (f.name || '').toLowerCase().includes(q)
-        const students = famMatch ? f.students : f.students.filter((s) => (s.name || '').toLowerCase().includes(q))
-        return students.length ? { ...f, students } : null
+        const famMatch = !q || (f.name || '').toLowerCase().includes(q)
+        const students = f.students
+          .filter((s) => famMatch || (s.name || '').toLowerCase().includes(q))
+          .filter(matchesLens)
+        return students.length ? { ...f, students, student_count: students.length } : null
       })
       .filter(Boolean)
-  }, [directory.families, search])
+  }, [directory.families, search, matchesLens])
 
   const schedule = student?.schedule || []
+  const openRequests = student?.open_requests || { waitlist: [], age_exceptions: [] }
   const scheduleDays = useMemo(() => {
     const days = new Set(DEFAULT_DAYS)
     for (const c of schedule) for (const m of c.meetings) if (m.day_of_week != null) days.add(m.day_of_week)
@@ -586,10 +656,29 @@ const ClpPage = () => {
             <div className="text-neutral-500 mt-0.5 text-sm">
               {student.family?.name && <span>{student.family.name}</span>}
             </div>
-            {student.family?.enrolled_private_school && student.family?.school_name && (
+            {/* School of record. Read-only with the screen turned to the family;
+                staff can set it right here during the meeting, which is what
+                iCreate asked for ("maybe we could check the box during the
+                CLP") — it used to be editable only on the Families page. */}
+            {student.family?.school_name && (student.family?.enrolled_private_school || !presentation) && (
               <div className="flex items-center gap-1.5 flex-wrap mt-2">
                 <span className="text-xs text-neutral-400">School:</span>
-                <Pill className="bg-emerald-100 text-emerald-700">{student.family.school_name}</Pill>
+                {presentation ? (
+                  <Pill className="bg-emerald-100 text-emerald-700">{student.family.school_name}</Pill>
+                ) : (
+                  <button type="button" onClick={togglePrivateSchool} disabled={schoolBusy}
+                    className={`text-[11px] font-medium rounded-full px-2 py-0.5 shadow-sm transition-colors disabled:opacity-50 ${
+                      student.family.enrolled_private_school
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}
+                    title={student.family.enrolled_private_school
+                      ? `Enrolled in ${student.family.school_name} — click to unset`
+                      : `Not enrolled in ${student.family.school_name} — click to set`}>
+                    {student.family.enrolled_private_school
+                      ? `✓ ${student.family.school_name}`
+                      : `Not ${student.family.school_name}`}
+                  </button>
+                )}
               </div>
             )}
             {(student.family?.funding_source || student.family?.payment_intent?.length > 0 || student.family?.ufa_private) && (
@@ -679,6 +768,53 @@ const ClpPage = () => {
           </div>
         )}
 
+        {/* What the family has asked for and is still waiting on. These lived on
+            two other pages, so a CLP meeting could finish without anyone
+            noticing an open request (iCreate, 2026-07-31). */}
+        {!presentation && (openRequests.waitlist.length > 0 || openRequests.age_exceptions.length > 0) && (
+          <div className="bg-white rounded-xl border border-amber-200 p-4 mb-6">
+            <h3 className="font-semibold text-neutral-900 text-sm mb-2">
+              Open requests <span className="text-xs font-normal text-neutral-400">· staff only</span>
+            </h3>
+            <div className="space-y-1.5">
+              {openRequests.waitlist.map((w) => (
+                <div key={w.entry_id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-neutral-700 min-w-0 truncate">
+                    Waitlist · {w.class_name}
+                    <span className="ml-1.5 text-xs text-neutral-400">
+                      {w.status === 'offered' ? 'seat offered' : `#${w.position}`}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0 text-xs">
+                    <button onClick={() => enrollFromWaitlist(w)} disabled={busyId === w.entry_id}
+                      className="text-optio-purple hover:underline disabled:opacity-50">Enroll now</button>
+                    <button onClick={() => removeWaitlistEntry(w)} disabled={busyId === w.entry_id}
+                      className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">Remove</button>
+                  </span>
+                </div>
+              ))}
+              {openRequests.age_exceptions.map((r) => (
+                <div key={r.request_id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-neutral-700 min-w-0 truncate">
+                    Age exception · {r.class_name}
+                    {r.message && <span className="ml-1.5 text-xs text-neutral-400">“{r.message}”</span>}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0 text-xs">
+                    <button onClick={() => resolveException(r, 'approve')} disabled={busyId === r.request_id}
+                      className="text-optio-purple hover:underline disabled:opacity-50">Approve</button>
+                    <button onClick={() => resolveException(r, 'decline')} disabled={busyId === r.request_id}
+                      className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">Decline</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-neutral-400">
+              Approving the schedule closes any age exceptions left here; waitlist places are kept
+              until you enroll or remove them.
+            </p>
+          </div>
+        )}
+
         {/* Weekly schedule */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
           <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
@@ -755,8 +891,24 @@ const ClpPage = () => {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search students or families…"
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple mb-3"
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple mb-2"
       />
+      <div className="flex flex-wrap gap-1 mb-3">
+        {[
+          ['all', 'Everyone', directory.counts?.total],
+          ['clp_todo', 'CLP to do', directory.counts?.clp_todo],
+          ['clp_done', 'CLP done', directory.counts?.clp_finished],
+          ['needs_approval', 'Needs approval', directory.counts?.awaiting_approval],
+        ].map(([key, label, count]) => (
+          <button key={key} type="button" onClick={() => setLens(key)}
+            className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${
+              lens === key
+                ? 'bg-optio-purple/10 border-optio-purple/40 text-optio-purple font-semibold'
+                : 'border-gray-200 text-neutral-500 hover:bg-neutral-50'}`}>
+            {label}{count != null ? ` · ${count}` : ''}
+          </button>
+        ))}
+      </div>
       <div className="bg-white rounded-xl border border-gray-200 max-h-[calc(100vh-220px)] overflow-y-auto">
         {dirLoading && <p className="text-sm text-neutral-400 p-3">Loading…</p>}
         {!dirLoading && !filteredFamilies.length && <p className="text-sm text-neutral-400 p-3">No students found.</p>}

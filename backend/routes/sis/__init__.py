@@ -72,6 +72,43 @@ def roster(user_id):
     return jsonify({'success': True, 'roster': sis_service.get_roster(org_id)})
 
 
+@bp.route('/people/<target_id>/removal-preview', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def person_removal_preview(user_id, target_id):
+    """What removing this person would affect — and whether their records rule
+    out deleting the account outright. Works for students and guardians as well
+    as staff (staff delegate to the staff path)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_person_service
+    result = sis_person_service.removal_preview(org_id, target_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/people/<target_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def remove_person(user_id, target_id):
+    """Remove a person from the org: archive (default) or ?mode=delete.
+
+    Deleting a family never deleted the accounts inside it, so duplicate
+    registrations left orphaned people in the People list with no way out. This
+    is that way out."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    mode = (request.args.get('mode') or 'archive').strip().lower()
+    from services import sis_person_service
+    result = sis_person_service.remove_person(org_id, target_id, actor_id=user_id, mode=mode)
+    if result.get('error'):
+        status = 404 if 'not found' in result['error'] else 409
+        return jsonify({'success': False, 'error': result['error'],
+                        'blocking': result.get('blocking')}), status
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/members', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def org_members(user_id):

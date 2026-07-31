@@ -64,6 +64,21 @@ const colorFor = (category, categories) => {
   return i >= 0 ? CATEGORY_COLORS[i % CATEGORY_COLORS.length] : DEFAULT_COLOR
 }
 
+// An event can carry several categories ("Field trip" AND "No school"). The
+// first is primary — it colours the chip; the rest show as dots after the title
+// so a shared event is still visible as belonging to both.
+const eventCategories = (e) => (
+  (e.categories && e.categories.length) ? e.categories : (e.category ? [e.category] : [])
+)
+const DOT_COLORS = [
+  'bg-blue-500', 'bg-green-500', 'bg-amber-500',
+  'bg-rose-500', 'bg-teal-500', 'bg-indigo-500',
+]
+const dotFor = (category, categories) => {
+  const i = categories.indexOf(category)
+  return i >= 0 ? DOT_COLORS[i % DOT_COLORS.length] : 'bg-optio-purple'
+}
+
 const CalendarPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const now = new Date()
@@ -99,7 +114,7 @@ const CalendarPage = () => {
   }
 
   const visible = useMemo(() => (
-    filter ? events.filter((e) => e.category === filter) : events
+    filter ? events.filter((e) => eventCategories(e).includes(filter)) : events
   ), [events, filter])
 
   // Multi-day events appear on every day they span (capped defensively).
@@ -187,10 +202,12 @@ const CalendarPage = () => {
                   <div className="space-y-1">
                     {dayEvents.map((e) => {
                       const { time, date: startDate } = splitStamp(e.start_at)
+                      const cats = eventCategories(e)
                       return (
                         <button key={e.id} type="button"
+                          title={cats.length > 1 ? cats.join(' · ') : undefined}
                           onClick={(ev) => { ev.stopPropagation(); setModal({ event: e }) }}
-                          className={`block w-full text-left rounded px-1.5 py-0.5 transition-colors ${colorFor(e.category, categories)}`}>
+                          className={`block w-full text-left rounded px-1.5 py-0.5 transition-colors ${colorFor(cats[0], categories)}`}>
                           <span className="text-[11px] font-semibold leading-tight block truncate">
                             {e.audience && e.audience !== 'school' && (
                               <span className="text-[9px] font-bold uppercase opacity-70 mr-0.5"
@@ -199,6 +216,9 @@ const CalendarPage = () => {
                               </span>
                             )}
                             {e.title}
+                            {cats.slice(1).map((c) => (
+                              <span key={c} className={`inline-block w-1.5 h-1.5 rounded-full ml-1 align-middle ${dotFor(c, categories)}`} />
+                            ))}
                           </span>
                           {!e.all_day && startDate === key && <span className="text-[10px] opacity-80">{fmtTime(time)}</span>}
                         </button>
@@ -256,7 +276,7 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
     title: seed?.title ? (copyFrom ? `${seed.title} (copy)` : seed.title) : '',
     description: seed?.description || '',
     location: seed?.location || '',
-    category: seed?.category || '',
+    categories: seed ? eventCategories(seed) : [],
     audience: seed?.audience || 'school',
     all_day: seed ? !!seed.all_day : false,
     date: start.date || defaultDate,
@@ -294,7 +314,7 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
       title: form.title.trim(),
       description: form.description.trim(),
       location: form.location.trim(),
-      category: form.category || null,
+      categories: form.categories,
       audience: form.audience || 'school',
       all_day: form.all_day,
       start_at: joinStamp(form.date, form.all_day ? '00:00' : (form.start_time || '00:00')),
@@ -376,11 +396,35 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
           </div>
           {categories.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-neutral-500 mb-1">Category (optional)</label>
-              <select className={field} value={form.category} onChange={(e) => set({ category: e.target.value })}>
-                <option value="">—</option>
-                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <label className="block text-xs font-medium text-neutral-500 mb-1">
+                Categories (optional)
+              </label>
+              {/* Multi-select: some events genuinely belong in two places (a
+                  field trip that is also a no-school day). The first one picked
+                  colours the event on the grid. */}
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map((c) => {
+                  const on = form.categories.includes(c)
+                  return (
+                    <button key={c} type="button"
+                      onClick={() => set({
+                        categories: on
+                          ? form.categories.filter((x) => x !== c)
+                          : [...form.categories, c],
+                      })}
+                      className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${on
+                        ? `${colorFor(c, categories)} border-transparent font-semibold`
+                        : 'border-gray-300 text-neutral-500 hover:bg-gray-50'}`}>
+                      {on && '✓ '}{c}
+                    </button>
+                  )
+                })}
+              </div>
+              {form.categories.length > 1 && (
+                <p className="mt-1 text-[11px] text-neutral-400">
+                  Shown in {form.categories[0]}'s colour, with a dot for the others.
+                </p>
+              )}
             </div>
           )}
           <div>

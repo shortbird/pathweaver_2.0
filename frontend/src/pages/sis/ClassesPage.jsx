@@ -525,6 +525,7 @@ const ClassesPage = () => {
           onToggleRegistration={toggleRegistration}
           onArchive={() => archiveClass(classes.find((c) => c.id === editing.id) || editing)}
           onRestore={() => restoreClass(classes.find((c) => c.id === editing.id) || editing)}
+          onRosterChanged={() => load(true)}
         />
       )}
       {viewingCourse && (
@@ -770,7 +771,7 @@ const CLASS_TABS = [
 // editable (the embedded CreateClassModal form), plus registration + archive.
 // "Preview" renders the exact read-only modal parents and students see in the
 // Schedule Builder.
-const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore }) => {
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged }) => {
   const [tab, setTab] = useState(initialTab)
   const [previewing, setPreviewing] = useState(false)
   const isOpen = cls.registration_status === 'open'
@@ -842,7 +843,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], orgId, initialTab = 'de
           )}
 
           {tab === 'roster' && <ClassRoster classId={cls.id} orgId={orgId} />}
-          {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} />}
+          {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}
         </div>
       </div>
     </ModalOverlay>
@@ -897,9 +898,31 @@ const ClassRoster = ({ classId, orgId }) => {
   )
 }
 
-const ClassWaitlist = ({ classId, orgId, cls }) => {
+// Status label + tone for a waitlist row. 'expired' is deliberately not a dead
+// end any more — staff can re-offer it or admit the student outright.
+const WAITLIST_STATUS = {
+  waiting: { label: 'Waiting', tone: 'text-neutral-400' },
+  offered: { label: 'Offered', tone: 'text-green-600' },
+  expired: { label: 'Offer expired', tone: 'text-amber-600' },
+  declined: { label: 'Declined', tone: 'text-neutral-400' },
+  promoted: { label: 'Enrolled', tone: 'text-neutral-400' },
+}
+
+const offerExpiryText = (e) => {
+  if (e.status !== 'offered' || !e.offer_expires_at) return null
+  const ms = new Date(e.offer_expires_at) - Date.now()
+  if (Number.isNaN(ms)) return null
+  if (ms <= 0) return 'offer lapsed'
+  const days = Math.floor(ms / 86400000)
+  if (days >= 1) return `${days} day${days === 1 ? '' : 's'} left`
+  const hours = Math.max(1, Math.round(ms / 3600000))
+  return `${hours} hour${hours === 1 ? '' : 's'} left`
+}
+
+const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   const [entries, setEntries] = useState([])
   const [loaded, setLoaded] = useState(false)
+  const [busy, setBusy] = useState(null)
 
   const reload = useCallback(() => {
     api.get(`/api/sis/classes/${classId}/waitlist?organization_id=${orgId}`)
@@ -925,6 +948,43 @@ const ClassWaitlist = ({ classId, orgId, cls }) => {
     } catch { toast.error('Could not offer seat') }
   }
 
+  // Admit the student now. The school already decided — this doesn't wait for
+  // the family to click Claim, and it isn't blocked by a full class.
+  const enroll = async (e) => {
+    if (!window.confirm(`Enroll ${e.student_name} in ${cls?.name || 'this class'} now?`)) return
+    setBusy(e.id)
+    try {
+      await api.post(`/api/sis/waitlist/${e.id}/enroll`, { organization_id: orgId })
+      toast.success(`${e.student_name} enrolled`)
+      reload()
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not enroll the student')
+    } finally { setBusy(null) }
+  }
+
+  const offer = async (e) => {
+    setBusy(e.id)
+    try {
+      await api.post(`/api/sis/waitlist/${e.id}/offer`, { organization_id: orgId })
+      toast.success(`Seat offered to ${e.student_name}`)
+      reload()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not offer the seat')
+    } finally { setBusy(null) }
+  }
+
+  const remove = async (e) => {
+    if (!window.confirm(`Remove ${e.student_name} from this waitlist?`)) return
+    setBusy(e.id)
+    try {
+      await api.delete(`/api/sis/waitlist/${e.id}?organization_id=${orgId}`)
+      toast.success('Removed from the waitlist')
+      reload()
+      onChanged?.()
+    } catch { toast.error('Could not remove the entry') } finally { setBusy(null) }
+  }
+
   if (loaded && !entries.length) {
     return <div className="border-t border-gray-100 mt-3 pt-3 text-sm text-neutral-400">No one on the waitlist.</div>
   }
@@ -944,16 +1004,43 @@ const ClassWaitlist = ({ classId, orgId, cls }) => {
         </p>
       )}
       <div className="space-y-1">
-        {entries.map((e) => (
-          <div key={e.id} className="flex items-center justify-between text-sm">
-            <span className="text-neutral-700">
-              #{e.position} · {e.student_name}
-              {e.student_age != null && <span className="ml-1.5 text-xs text-neutral-400">age {e.student_age}</span>}
-            </span>
-            <span className="text-neutral-400">{e.status}</span>
-          </div>
-        ))}
+        {entries.map((e) => {
+          const meta = WAITLIST_STATUS[e.status] || { label: e.status, tone: 'text-neutral-400' }
+          const expiry = offerExpiryText(e)
+          const done = e.status === 'promoted'
+          return (
+            <div key={e.id} className="flex items-center justify-between gap-3 text-sm py-0.5">
+              <span className="text-neutral-700 min-w-0 truncate">
+                #{e.position} · {e.student_name}
+                {e.student_age != null && <span className="ml-1.5 text-xs text-neutral-400">age {e.student_age}</span>}
+                <span className={`ml-2 text-xs ${meta.tone}`}>{meta.label}</span>
+                {expiry && <span className="ml-1.5 text-xs text-neutral-400">({expiry})</span>}
+              </span>
+              {!done && (
+                <span className="flex items-center gap-2 shrink-0 text-xs">
+                  <button onClick={() => enroll(e)} disabled={busy === e.id}
+                    className="text-optio-purple hover:underline disabled:opacity-50">
+                    Enroll now
+                  </button>
+                  <button onClick={() => offer(e)} disabled={busy === e.id}
+                    className="text-neutral-500 hover:underline disabled:opacity-50">
+                    {e.status === 'waiting' ? 'Offer seat' : 'Offer again'}
+                  </button>
+                  <button onClick={() => remove(e)} disabled={busy === e.id}
+                    className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">
+                    Remove
+                  </button>
+                </span>
+              )}
+            </div>
+          )
+        })}
       </div>
+      <p className="mt-2 text-xs text-neutral-400">
+        <strong>Enroll now</strong> puts the student in the class immediately — use it when the school has
+        already decided. <strong>Offer</strong> asks the family to claim the seat themselves, and can be
+        sent again if the first offer lapsed.
+      </p>
     </div>
   )
 }

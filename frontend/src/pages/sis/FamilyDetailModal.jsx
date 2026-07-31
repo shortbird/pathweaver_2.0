@@ -76,7 +76,15 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
   }
 
   const deleteFamily = async () => {
-    if (!window.confirm(`Delete ${household.name}? This removes the family and its member links. Students and guardians keep their accounts.`)) return
+    // Say plainly where the accounts end up: deleting a duplicate family and
+    // then not finding the people it grouped is exactly how this confused
+    // iCreate. People › Everyone › ⋯ › Remove from school is the follow-up.
+    if (!window.confirm(
+      `Delete ${household.name}? This removes the family and its member links.\n\n`
+      + 'Students and guardians keep their accounts — they stay in People › Everyone, '
+      + 'just without a family. To remove an account as well (e.g. a duplicate '
+      + 'registration), use ⋯ › Remove from school on that person.'
+    )) return
     try {
       await api.delete(`/api/sis/households/${household.id}?organization_id=${orgId}`)
       toast.success('Family deleted')

@@ -359,6 +359,10 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
             }, on_conflict='class_id,student_id').execute()
             from services.class_group_sync_service import sync_class_group
             sync_class_group(item['class_id'], actor_id=completed_by)
+            # Re-registering into a class they were queued for clears the queue
+            # entry — otherwise the family sees enrolled and waitlisted at once.
+            from services import sis_waitlist_service
+            sis_waitlist_service.clear_entry_for_enrollment(org_id, item['class_id'], student_id)
             new_status = 'enrolled'
         _admin().table('sis_registration_items').update(
             {'status': new_status, 'updated_at': _now()}

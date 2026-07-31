@@ -277,6 +277,20 @@ export default function ClassQuestsManager({ classId }) {
     }
   }
 
+  // Same delete, reached from the assign picker — for a quest that isn't on any
+  // class (a teacher's abandoned draft from last year, iCreate 2026-07-30).
+  const destroyUnassigned = async (q) => {
+    if (!window.confirm(
+      `Delete "${q.title}" for good?\n\nThis removes it from your school's library. It can't be undone.`)) return
+    try {
+      await api.delete(`/api/sis/classes/${classId}/quests/${q.quest_id}/delete`)
+      setAvailable((prev) => prev.filter((x) => x.quest_id !== q.quest_id))
+      toast.success('Quest deleted')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not delete the quest')
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
@@ -324,6 +338,17 @@ export default function ClassQuestsManager({ classId }) {
                         {q.template_task_count ? ` · ${q.template_task_count} preset task${q.template_task_count === 1 ? '' : 's'}` : ' · no preset tasks'}
                       </p>
                     </div>
+                    {/* A quest created by mistake and never assigned had no way
+                        out: delete only existed on assigned quests. It's the
+                        school's own quest, so it can be deleted from here too
+                        (the API still refuses if a student has started it). */}
+                    {q.source === 'organization' && (
+                      <button onClick={() => destroyUnassigned(q)}
+                        className="shrink-0 text-sm text-neutral-400 hover:text-red-500 hover:underline"
+                        title="Delete it from your school's library for good">
+                        Delete
+                      </button>
+                    )}
                     <button onClick={() => assignExisting(q.quest_id)}
                       className="shrink-0 px-3 py-1.5 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-semibold hover:bg-optio-purple/5">
                       Assign

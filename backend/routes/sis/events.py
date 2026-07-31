@@ -19,8 +19,10 @@ logger = get_logger(__name__)
 
 bp = Blueprint('sis_events', __name__, url_prefix='/api/sis')
 
-EVENT_FIELDS = ('title', 'description', 'location', 'start_at', 'end_at', 'all_day', 'category', 'audience')
+EVENT_FIELDS = ('title', 'description', 'location', 'start_at', 'end_at', 'all_day',
+                'category', 'categories', 'audience')
 AUDIENCES = ('school', 'teachers', 'admins')
+MAX_CATEGORIES = 8
 
 
 def _clean(data):
@@ -34,6 +36,18 @@ def _clean(data):
             fields[k] = bool(v)
         elif k == 'audience':
             fields[k] = v if v in AUDIENCES else 'school'
+        elif k == 'categories':
+            # An event can sit in several categories ("Field trip" AND "No school").
+            # The first one is also written to `category`, which stays the event's
+            # primary: it drives the colour and the per-category ICS feeds.
+            seen, cats = set(), []
+            for c in (v or []):
+                label = sanitize_text(str(c or '')).strip()
+                if label and label.lower() not in seen:
+                    seen.add(label.lower())
+                    cats.append(label)
+            fields['categories'] = cats[:MAX_CATEGORIES]
+            fields['category'] = fields['categories'][0] if fields['categories'] else None
         elif k in ('title', 'description', 'location', 'category'):
             # Text fields are rendered AS TEXT (React escapes; ICS has its own
             # escaper), so store raw — html-escaping here shows entities literally
@@ -46,6 +60,10 @@ def _clean(data):
             fields[k] = None
         else:  # start_at / end_at — ISO timestamps (Postgres validates)
             fields[k] = str(v).strip() or None
+    # A caller that only knows about the single `category` (an older client, the
+    # ICS importer) still gets a consistent array — the two never disagree.
+    if 'category' in fields and 'categories' not in fields:
+        fields['categories'] = [fields['category']] if fields['category'] else []
     return fields
 
 
@@ -198,8 +216,9 @@ def build_ics(org_name, events):
             lines.append(f"DESCRIPTION:{_ics_escape(e['description'])}")
         if e.get('location'):
             lines.append(f"LOCATION:{_ics_escape(e['location'])}")
-        if e.get('category'):
-            lines.append(f"CATEGORIES:{_ics_escape(e['category'])}")
+        cats = e.get('categories') or ([e['category']] if e.get('category') else [])
+        if cats:
+            lines.append('CATEGORIES:' + ','.join(_ics_escape(c) for c in cats))
         lines.append('END:VEVENT')
     lines.append('END:VCALENDAR')
     return '\r\n'.join(lines) + '\r\n'
@@ -249,9 +268,14 @@ def calendar_ics(org_id):
          # The token can be shared with families, so never leak admin-only events
          # through the subscribable feed (school + teacher events only).
          .neq('audience', 'admins'))
-    if request.args.get('category'):
-        q = q.eq('category', request.args['category'])
     events = (q.order('start_at').execute()).data or []
+    # A per-category feed keeps every event that CARRIES that category, not only
+    # the ones where it happens to be primary.
+    wanted = (request.args.get('category') or '').strip()
+    if wanted:
+        events = [e for e in events
+                  if wanted in (e.get('categories') or [])
+                  or e.get('category') == wanted]
     from flask import Response
     return Response(build_ics(org.get('name') or 'School calendar', events),
                     mimetype='text/calendar',

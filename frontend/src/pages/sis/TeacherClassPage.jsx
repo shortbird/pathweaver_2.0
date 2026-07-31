@@ -44,6 +44,9 @@ const TeacherClassPage = () => {
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   const [saving, setSaving] = useState(false)
+  // Which student's health alert is expanded. Hover-only tooltips were
+  // unreadable on touch and unreliable on desktop, so the badge is a button.
+  const [alertFor, setAlertFor] = useState(null)
   // Deep links (e.g. the home "Message" shortcut) can preselect a tab via ?tab=.
   const requestedTab = TAB_ALIASES[searchParams.get('tab')] || searchParams.get('tab')
   const initialTab = VALID_TABS.includes(requestedTab) ? requestedTab : 'roster'
@@ -238,10 +241,9 @@ const TeacherClassPage = () => {
                           {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
                         </span>
                         {s.has_alert && (
-                          <span className="inline-flex items-center gap-1 mt-0.5 text-[11px] font-semibold text-red-700"
-                            title={[s.allergies && `Allergies: ${s.allergies}`, s.medications && `Medical: ${s.medications}`].filter(Boolean).join(' | ')}>
-                            <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Alert
-                          </span>
+                          <HealthAlert student={s}
+                            open={alertFor === s.student_id}
+                            onToggle={() => setAlertFor(alertFor === s.student_id ? null : s.student_id)} />
                         )}
                       </span>
                       <div className="flex gap-1 shrink-0">
@@ -300,5 +302,28 @@ const TeacherClassPage = () => {
     </div>
   )
 }
+
+/**
+ * A student's health alert on the roster: a badge that opens the detail on
+ * click. It used to be a `title` tooltip, which never appears on a tablet — the
+ * device teachers actually take attendance on — and is easy to miss with a
+ * mouse. The detail is rendered inline (spans, not divs: the badge lives inside
+ * a span) so it also survives the print stylesheet.
+ */
+const HealthAlert = ({ student, open, onToggle }) => (
+  <>
+    <button type="button" onClick={onToggle} aria-expanded={open}
+      className="inline-flex items-center gap-1 mt-0.5 text-[11px] font-semibold text-red-700 hover:text-red-800 hover:underline">
+      <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Alert
+      <span className="text-red-400">{open ? '▾' : '▸'}</span>
+    </button>
+    {open && (
+      <span className="block mt-1 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] leading-snug text-red-900">
+        {student.allergies && <span className="block"><strong>Allergies:</strong> {student.allergies}</span>}
+        {student.medications && <span className="block"><strong>Medical:</strong> {student.medications}</span>}
+      </span>
+    )}
+  </>
+)
 
 export default TeacherClassPage

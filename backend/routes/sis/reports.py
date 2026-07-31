@@ -239,19 +239,10 @@ def registration_questions(user_id):
 
 # Values that mean "nothing to report" — a report should show only the
 # students/families it is actually about, so these are treated as no answer.
-_BLANK_VALUES = {'', 'none', 'no', 'n/a', 'na', 'n.a.', 'n.a', 'nope', 'nan',
-                 'null', '-', '--', 'none.', 'no.', 'not applicable'}
-
-
-def _has_value(v) -> bool:
-    """True when v is a real, non-empty, non-'none' answer."""
-    if v is None:
-        return False
-    if isinstance(v, (list, tuple, set)):
-        return any(_has_value(x) for x in v)
-    if isinstance(v, dict):
-        return any(_has_value(x) for x in v.values())
-    return str(v).strip().lower() not in _BLANK_VALUES
+# Shared with the class roster's health alerts (utils/blank_values.py) so a
+# student whose parent typed "None" isn't flagged in one place and skipped in
+# the other.
+from utils.blank_values import has_value as _has_value  # noqa: E402
 
 
 @bp.route('/reports/registration-answers', methods=['GET'])

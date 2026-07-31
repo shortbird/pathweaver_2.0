@@ -29,6 +29,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const [selected, setSelected] = useState(null)   // Manage modal (tabbed)
   const [showNewUser, setShowNewUser] = useState(false)  // + New User modal
   const [menuFor, setMenuFor] = useState(null)      // open actions menu (student_id)
+  const [removing, setRemoving] = useState(null)    // person being removed from the org
   const [search, setSearch] = useState('')
   const [hideInactive, setHideInactive] = useState(true)
   const [studentsOnly, setStudentsOnly] = useState(false)
@@ -54,18 +55,35 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roster])
 
-  const exportCsv = async () => {
-    try {
-      const res = await api.get(withOrg('/api/sis/reports/roster.csv', orgId), { responseType: 'blob' })
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'roster.csv'
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      toast.error('Export failed')
+  // Export exactly what the table is showing — same filters, same search, same
+  // sort — and include Age, which is the column schools that don't track grade
+  // levels actually filter on. The old export hit a server endpoint that dumped
+  // the whole org: filtering to students still exported parents, and Grade Level
+  // came back empty for anyone without a school_enrollments row.
+  const exportCsv = () => {
+    const rows = visibleRoster
+    if (!rows.length) { toast.error('Nothing to export'); return }
+    const header = ['Name', 'First Name', 'Last Name', 'Age', 'Date of Birth', 'Role',
+                    'Email', 'Username', 'Enrollment Status', 'Grade Level', 'Family',
+                    'Total XP', 'Last Active']
+    const cell = (v) => {
+      const s = v == null ? '' : String(v)
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
     }
+    const body = rows.map((s) => [
+      s.name, s.first_name, s.last_name, s.age, s.date_of_birth,
+      (s.roles?.length ? s.roles : [s.role]).filter(Boolean).join(' / '),
+      s.email, s.username, s.enrollment_status, s.grade_level, s.household_name,
+      s.total_xp ?? 0, s.last_active,
+    ].map(cell).join(','))
+    const csv = [header.join(','), ...body].join('\r\n')
+    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `people${studentsOnly ? '-students' : ''}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Exported ${rows.length} ${rows.length === 1 ? 'person' : 'people'}`)
   }
 
   // ── Administrative actions (dropdown = navigate-away; the rest live in Manage) ─
@@ -89,6 +107,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
     { label: 'Manage', onClick: () => setSelected(s) },
     s.is_student && { label: 'Overview', onClick: () => goOverview(s) },
     s.is_student && isSuperadmin && { label: 'View as student', onClick: () => viewAsStudent(s) },
+    { label: 'Remove from school…', danger: true, onClick: () => setRemoving(s) },
   ].filter(Boolean)
 
   const toggleSort = (key) => setSort((prev) => (
@@ -136,7 +155,8 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
         // In the People tab shell: buttons live on the tab row (via the toolbar slot).
         toolbarEl && createPortal(
           <>
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!visibleRoster.length}
+              title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
             <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
           </>,
           toolbarEl,
@@ -146,7 +166,8 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
           <h1 className="text-2xl font-bold text-neutral-900">Users</h1>
           <div className="flex items-center gap-3">
             <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!roster.length}>Export CSV</Button>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!visibleRoster.length}
+              title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
             <Button size="sm" onClick={() => setShowNewUser(true)} disabled={!orgId}>+ New User</Button>
           </div>
         </div>
@@ -283,6 +304,15 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
           onCreated={load}
         />
       )}
+
+      {removing && (
+        <RemovePersonModal
+          person={removing}
+          orgId={orgId}
+          onClose={() => setRemoving(null)}
+          onDone={() => { setRemoving(null); load() }}
+        />
+      )}
     </div>
   )
 }
@@ -297,6 +327,110 @@ const SortHeader = ({ label, col, sort, onSort, arrow }) => (
     </button>
   </th>
 )
+
+const HISTORY_LABELS = {
+  class_enrollments: 'active class',
+  attendance: 'attendance record',
+  completed_work: 'completed task',
+  registrations: 'registration',
+  forms: 'submitted form',
+  dependents: 'linked student',
+  classes: 'class taught',
+  time_entries: 'time entry',
+  onboarding: 'onboarding task',
+}
+
+const historyLine = (history = {}) => Object.entries(history)
+  .filter(([, n]) => n > 0)
+  .map(([k, n]) => `${n} ${HISTORY_LABELS[k] || k.replace(/_/g, ' ')}${n === 1 ? '' : 's'}`)
+  .join(' · ')
+
+/**
+ * Removing a person from the school. Two outcomes, and which one is available
+ * depends on what they're attached to: an account with records is archived
+ * (hidden, history intact), a clean duplicate can be deleted outright. Deleting
+ * a family never removed the accounts inside it — that left iCreate with three
+ * ghost Swensons and no way to clear them.
+ */
+const RemovePersonModal = ({ person, orgId, onClose, onDone }) => {
+  const [preview, setPreview] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    api.get(`/api/sis/people/${person.student_id}/removal-preview?organization_id=${orgId}`)
+      .then((r) => setPreview(r.data))
+      .catch((e) => { setFailed(true); toast.error(e?.response?.data?.error || 'Could not check this account') })
+  }, [person.student_id, orgId])
+
+  const run = async (mode) => {
+    setBusy(true)
+    try {
+      const { data } = await api.delete(`/api/sis/people/${person.student_id}?organization_id=${orgId}&mode=${mode}`)
+      toast.success(data?.deleted
+        ? `${person.name} deleted`
+        : `${person.name} removed from the school${data?.seats_released ? ` · ${data.seats_released} class seat(s) freed` : ''}`)
+      onDone()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not remove this person')
+    } finally { setBusy(false) }
+  }
+
+  const attached = preview ? historyLine(preview.history) : ''
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-neutral-900">Remove {person.name}?</h2>
+
+        {!preview && !failed && <p className="mt-3 text-sm text-neutral-500">Checking what they're attached to…</p>}
+        {failed && <p className="mt-3 text-sm text-neutral-500">Couldn't load this account's records.</p>}
+
+        {preview && (
+          <>
+            <p className="mt-3 text-sm text-neutral-600">
+              {attached
+                ? <>They have {attached} on file.</>
+                : <>They have no school records — nothing would be orphaned.</>}
+            </p>
+            <div className="mt-4 space-y-3 text-sm">
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="font-medium text-neutral-800">Archive</p>
+                <p className="text-neutral-500 mt-0.5">
+                  {preview.kind === 'student'
+                    ? 'Marks them withdrawn and frees their class seats. Their history stays.'
+                    : 'Removes them from this school. The account itself is kept.'}
+                </p>
+                <button onClick={() => run('archive')} disabled={busy}
+                  className="mt-2 px-3 py-1.5 rounded-lg border border-gray-300 text-neutral-700 hover:bg-gray-50 disabled:opacity-50">
+                  Archive
+                </button>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="font-medium text-neutral-800">Delete permanently</p>
+                <p className="text-neutral-500 mt-0.5">
+                  {preview.can_delete
+                    ? 'For duplicates and typos — the account is gone for good.'
+                    : 'Not available: deleting would orphan the records above.'}
+                </p>
+                <button onClick={() => run('delete')} disabled={busy || !preview.can_delete}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const RowActions = ({ open, onOpen, onClose, actions }) => (
   <div className="relative inline-block text-left">

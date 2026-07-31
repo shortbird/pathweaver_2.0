@@ -114,6 +114,51 @@ def list_requests(org_id: str, status: Optional[str] = None) -> List[Dict[str, A
     return rows
 
 
+def resolve_on_schedule_approval(org_id: str, student_user_id: str,
+                                 resolved_by: str) -> Dict[str, int]:
+    """Close out a student's pending age-exception requests when their schedule
+    is approved.
+
+    iCreate, 2026-07-31: "If someone's schedule is approved, then I think it
+    should also remove the age exception requests." An approved schedule is the
+    decision — so each pending request is recorded against what the approved
+    schedule actually says: the student is in that class (staff let them in, in
+    the meeting or otherwise) → approved; they are not → declined. Nothing is
+    enrolled or dropped here, because approval already settled the roster; this
+    only stops answered questions from sitting in the pending queue forever.
+
+    Best-effort: never raises, so it can't fail an approval.
+    """
+    out = {'approved': 0, 'declined': 0}
+    try:
+        pending = (
+            _admin().table(TABLE).select('id, class_id')
+            .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+            .eq('status', 'pending').execute()
+        ).data or []
+        if not pending:
+            return out
+        enrolled = {
+            r['class_id'] for r in (
+                _admin().table('class_enrollments').select('class_id')
+                .eq('student_id', student_user_id).eq('status', 'active').execute()
+            ).data or []
+        }
+        now = datetime.now(timezone.utc).isoformat()
+        for req in pending:
+            granted = req['class_id'] in enrolled
+            _admin().table(TABLE).update({
+                'status': 'approved' if granted else 'declined',
+                'resolved_by': resolved_by,
+                'resolved_at': now,
+            }).eq('id', req['id']).execute()
+            out['approved' if granted else 'declined'] += 1
+        logger.info(f'[Exceptions] schedule approval closed {out} for {student_user_id[:8]}')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[Exceptions] could not close requests on approval: {e}')
+    return out
+
+
 def _same_time_conflicts(student_user_id: str, class_id: str) -> List[Dict[str, Any]]:
     """The student's other active enrollments whose meetings collide with the
     target class's meetings. Returns [{class_id, class_name}]."""

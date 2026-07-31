@@ -85,22 +85,29 @@ def _owned(org_id, curriculum_id):
 
 
 def _attachments(curriculum_ids):
-    """{curriculum_id: [{class_id, name}]} for the given curricula."""
+    """{curriculum_id: [{class_id, name, min_age, max_age}]} for the given curricula.
+
+    The ages come along because the library list is sorted and scanned by age
+    range — a curriculum has no age of its own, it inherits the span of the
+    classes that teach it.
+    """
     if not curriculum_ids:
         return {}
     links = (_admin().table('sis_curriculum_classes')
              .select('curriculum_id, class_id')
              .in_('curriculum_id', curriculum_ids).execute()).data or []
     class_ids = list({l['class_id'] for l in links})
-    names = {}
+    classes = {}
     if class_ids:
-        rows = (_admin().table('org_classes').select('id, name')
+        rows = (_admin().table('org_classes').select('id, name, min_age, max_age')
                 .in_('id', class_ids).execute()).data or []
-        names = {r['id']: r.get('name') for r in rows}
+        classes = {r['id']: r for r in rows}
     out = {}
     for l in links:
+        c = classes.get(l['class_id']) or {}
         out.setdefault(l['curriculum_id'], []).append({
-            'class_id': l['class_id'], 'name': names.get(l['class_id']) or 'Untitled class',
+            'class_id': l['class_id'], 'name': c.get('name') or 'Untitled class',
+            'min_age': c.get('min_age'), 'max_age': c.get('max_age'),
         })
     for entries in out.values():
         entries.sort(key=lambda c: (c['name'] or '').lower())

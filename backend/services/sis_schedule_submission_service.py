@@ -254,7 +254,41 @@ def review(org_id: str, submission_id: str, action: str, *, reviewed_by: str,
     ).data
     row = updated[0] if updated else {**sub, 'status': REVIEW_ACTIONS[action]}
     _notify_guardian(row)
-    return {'submission': row}
+    result = {'submission': row}
+    if REVIEW_ACTIONS[action] == 'approved':
+        result.update(_settle_open_requests(org_id, sub['student_user_id'], reviewed_by))
+    return result
+
+
+def _settle_open_requests(org_id: str, student_user_id: str, reviewed_by: str) -> Dict[str, Any]:
+    """What approving a schedule does to the family's outstanding requests.
+
+    Age-exception requests are CLOSED against the approved schedule (they were
+    the question this approval answers). Waitlist entries are deliberately left
+    alone — an approved schedule doesn't tell us whether the family still wants
+    the seat they're queued for, and silently dropping them would lose their
+    place in line. They are reported back instead, so the CLP screen can say
+    "still waiting on N" rather than the office wondering.
+    """
+    out: Dict[str, Any] = {}
+    try:
+        from services import sis_exception_service as exceptions
+        closed = exceptions.resolve_on_schedule_approval(org_id, student_user_id, reviewed_by)
+        if closed.get('approved') or closed.get('declined'):
+            out['age_exceptions_closed'] = closed
+    except Exception as e:  # noqa: BLE001 — never fail an approval over this
+        logger.warning(f'schedule approval: exception cleanup skipped: {e}')
+    try:
+        rows = (
+            _admin().table('sis_waitlist_entries').select('id')
+            .eq('organization_id', org_id).eq('student_user_id', student_user_id)
+            .in_('status', ['waiting', 'offered']).execute()
+        ).data or []
+        if rows:
+            out['waitlist_still_open'] = len(rows)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'schedule approval: waitlist count skipped: {e}')
+    return out
 
 
 def _household_guardian_ids(org_id: str, student_user_id: str) -> List[str]:
@@ -310,7 +344,8 @@ def approve_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,
         }, on_conflict='organization_id,student_user_id').execute()
     ).data[0]
     _notify_guardian(row, fallback_user_ids=_household_guardian_ids(org_id, student_user_id))
-    return {'submission': row}
+    return {'submission': row,
+            **_settle_open_requests(org_id, student_user_id, reviewed_by)}
 
 
 def reopen_for_student(org_id: str, student_user_id: str, *, reviewed_by: str,

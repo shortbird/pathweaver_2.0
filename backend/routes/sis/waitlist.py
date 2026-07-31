@@ -82,6 +82,38 @@ def offer_next(user_id, class_id):
     return jsonify({'success': True, 'entry': entry})
 
 
+@bp.route('/waitlist/<entry_id>/offer', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def offer_entry(user_id, entry_id):
+    """Offer (or re-offer) the seat to one named student, resetting the clock.
+
+    'Offer next seat' can only reach the front of the queue; this is how an
+    expired or declined offer gets handed back out."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = waitlist.offer_entry(org_id, entry_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Waitlist entry not found' else 409
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/waitlist/<entry_id>/enroll', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def enroll_entry(user_id, entry_id):
+    """Admit a waitlisted student into the class directly, without waiting for
+    the family to claim the offer. Capacity is not enforced — an admin doing
+    this by hand is the override."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = waitlist.enroll_entry(org_id, entry_id, enrolled_by=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/waitlist/<entry_id>/respond', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def respond(user_id, entry_id):

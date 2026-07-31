@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_notifications
+from utils import blank_values
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
@@ -419,8 +420,12 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
         u = users.get(e['student_id']) or {}
         hh_id = hh_by_student.get(e['student_id'])
         hh = households.get(hh_id) or {}
-        allergies = (u.get('allergies') or '').strip()
-        medications = (u.get('medications') or '').strip()
+        # "None", "N/A", "-" are how families say *no* allergy. Treating them as
+        # content flagged a red Alert on students with nothing to report, which
+        # is worse than useless on a roster — it teaches teachers to ignore the
+        # badge that matters (iCreate, 2026-07-30).
+        allergies = blank_values.clean(u.get('allergies'))
+        medications = blank_values.clean(u.get('medications'))
         students.append({
             'student_id': e['student_id'],
             'name': _full_name(u),
@@ -431,8 +436,8 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
             'household_name': hh.get('name'),
             'household_phone': hh.get('phone'),
             'guardians': guardians_by_hh.get(hh_id, []),
-            'allergies': allergies or None,
-            'medications': medications or None,
+            'allergies': allergies,
+            'medications': medications,
             'has_alert': bool(allergies or medications),
             'attendance': att.get(e['student_id']),
             'enrolled_at': e.get('enrolled_at'),

@@ -15,12 +15,39 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-OFFER_TTL_HOURS = 48
+# How long a family has to claim an offered seat. Was 48h, which iCreate kept
+# losing to a weekend: the offer lapsed before the office could follow up, and
+# an expired entry then sat there un-offerable. Seven days by default, and an
+# org can set its own via feature_flags.sis_settings.waitlist_offer_ttl_hours.
+DEFAULT_OFFER_TTL_HOURS = 168
+OFFER_TTL_HOURS = DEFAULT_OFFER_TTL_HOURS  # back-compat for existing callers/tests
 WAITLIST_STATUSES = ('waiting', 'offered', 'accepted', 'expired', 'declined', 'promoted')
+# Statuses staff can re-offer or admit from: someone who is waiting, whose offer
+# lapsed, or who declined and changed their mind. 'promoted' is already enrolled.
+OFFERABLE_STATUSES = ('waiting', 'offered', 'expired', 'declined')
 
 
 def _admin():
     return get_supabase_admin_client()
+
+
+def offer_ttl_hours(org_id: str) -> int:
+    """The org's offer window in hours (default 7 days). Best-effort: any lookup
+    problem falls back to the default rather than failing the offer."""
+    try:
+        row = (
+            _admin().table('organizations').select('feature_flags')
+            .eq('id', org_id).limit(1).execute()
+        ).data or []
+        flags = (row[0].get('feature_flags') or {}) if row else {}
+        raw = (flags.get('sis_settings') or {}).get('waitlist_offer_ttl_hours')
+        hours = int(raw)
+        return hours if 1 <= hours <= 24 * 90 else DEFAULT_OFFER_TTL_HOURS
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return DEFAULT_OFFER_TTL_HOURS
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[Waitlist] TTL lookup failed for org {org_id[:8]}: {e}")
+        return DEFAULT_OFFER_TTL_HOURS
 
 
 def _now():
@@ -82,7 +109,19 @@ def _age_from_dob(dob):
 
 
 def add_to_waitlist(org_id: str, class_id: str, student_user_id: str) -> Dict[str, Any]:
-    """Append a student to a class waitlist (idempotent on class+student)."""
+    """Append a student to a class waitlist (idempotent on class+student).
+
+    A student who is already actively enrolled is never queued — a child on the
+    roster *and* on the waitlist is the state that made iCreate's counts look
+    haunted."""
+    active = (
+        _admin().table('class_enrollments').select('id')
+        .eq('class_id', class_id).eq('student_id', student_user_id)
+        .eq('status', 'active').limit(1).execute()
+    ).data or []
+    if active:
+        clear_entry_for_enrollment(org_id, class_id, student_user_id)
+        return {'already_enrolled': True}
     existing = (
         _admin().table('sis_waitlist_entries')
         .select('*').eq('class_id', class_id).execute()
@@ -111,17 +150,88 @@ def offer_next(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
     nxt = pick_next_to_offer(entries)
     if not nxt:
         return None
-    expires = (_now() + timedelta(hours=OFFER_TTL_HOURS)).isoformat()
+    return _mark_offered(org_id, class_id, nxt['id'])
+
+
+def offer_entry(org_id: str, entry_id: str) -> Dict[str, Any]:
+    """Offer (or re-offer) the seat to ONE named entry.
+
+    'Offer next seat' only ever reaches the front of the queue, so an entry
+    whose offer lapsed was stranded: not waiting, so never picked again, and
+    with no way to hand it back. Staff pick the person here — including someone
+    who expired or declined."""
+    entry = _entry(org_id, entry_id)
+    if not entry:
+        return {'error': 'Waitlist entry not found'}
+    if entry['status'] not in OFFERABLE_STATUSES:
+        return {'error': f"That student is already {entry['status']}"}
+    offered = _mark_offered(org_id, entry['class_id'], entry_id)
+    return {'entry': offered}
+
+
+def enroll_entry(org_id: str, entry_id: str, enrolled_by: str) -> Dict[str, Any]:
+    """Staff admit a waitlisted student straight into the class.
+
+    The school decides who gets the seat; requiring the family to click Claim
+    (and only inside the offer window) meant an office that had already agreed
+    to admit a child had no way to finish the job. Deliberately not blocked by
+    capacity — an admin doing this by hand is the override, the same rule
+    approving an age exception already follows."""
+    entry = _entry(org_id, entry_id)
+    if not entry:
+        return {'error': 'Waitlist entry not found'}
+    if entry['status'] == 'promoted':
+        return {'entry': entry, 'already_enrolled': True}
+    return respond_to_offer(org_id, entry_id, True, enrolled_by)
+
+
+def _entry(org_id: str, entry_id: str) -> Optional[Dict[str, Any]]:
+    rows = (
+        _admin().table('sis_waitlist_entries').select('*')
+        .eq('id', entry_id).eq('organization_id', org_id).limit(1).execute()
+    ).data or []
+    return rows[0] if rows else None
+
+
+def _mark_offered(org_id: str, class_id: str, entry_id: str) -> Optional[Dict[str, Any]]:
+    """Flip one entry to 'offered' with a fresh expiry and notify the family."""
+    now_iso = _now().isoformat()
+    expires = (_now() + timedelta(hours=offer_ttl_hours(org_id))).isoformat()
     resp = (
         _admin().table('sis_waitlist_entries')
-        .update({'status': 'offered', 'offered_at': _now().isoformat(),
-                 'offer_expires_at': expires, 'updated_at': _now().isoformat()})
-        .eq('id', nxt['id']).execute()
+        .update({'status': 'offered', 'offered_at': now_iso,
+                 'offer_expires_at': expires, 'updated_at': now_iso})
+        .eq('id', entry_id).execute()
     )
     offered = resp.data[0] if resp.data else None
     if offered:
         _notify_offer(org_id, class_id, offered)
     return offered
+
+
+def clear_entry_for_enrollment(org_id: str, class_id: str, student_user_id: str) -> None:
+    """Mark a student's live waitlist entry for this class as promoted, because
+    they were enrolled some other way (staff added them from the roster, the CLP
+    meeting, a re-registration). Without this the family keeps seeing 'Waitlist
+    #2' in the Schedule Builder for a class their child is already in — exactly
+    the "idk what's happening here" iCreate hit on 2026-07-29."""
+    try:
+        rows = (
+            _admin().table('sis_waitlist_entries').select('id, status')
+            .eq('organization_id', org_id).eq('class_id', class_id)
+            .eq('student_user_id', student_user_id).execute()
+        ).data or []
+        live = [r['id'] for r in rows if r.get('status') in ('waiting', 'offered')]
+        if not live:
+            return
+        (
+            _admin().table('sis_waitlist_entries')
+            .update({'status': 'promoted', 'updated_at': _now().isoformat()})
+            .in_('id', live).execute()
+        )
+        logger.info(f"[Waitlist] cleared {len(live)} entry(ies) for enrolled student in class {class_id}")
+    except Exception as e:  # noqa: BLE001 — never break an enrollment over this
+        logger.warning(f"[Waitlist] could not clear entries for class {class_id}: {e}")
 
 
 def expire_stale_offers() -> Dict[str, Any]:

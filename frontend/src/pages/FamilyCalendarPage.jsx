@@ -200,9 +200,10 @@ const FamilyCalendarPage = () => {
                   <div key={e.id} className="rounded-lg border border-gray-200 p-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-neutral-900">{e.title}</span>
-                      {e.category && (
-                        <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">{e.category}</span>
-                      )}
+                      {/* An event can carry several categories — show them all. */}
+                      {((e.categories && e.categories.length ? e.categories : [e.category]).filter(Boolean)).map((c) => (
+                        <span key={c} className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">{c}</span>
+                      ))}
                     </div>
                     <p className="text-sm text-neutral-500 mt-0.5">{when}{e.location ? ` · ${e.location}` : ''}</p>
                     {e.description && <p className="text-sm text-neutral-600 mt-1">{e.description}</p>}

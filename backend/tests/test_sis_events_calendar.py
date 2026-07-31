@@ -75,3 +75,45 @@ class TestBuildIcs:
         ics = build_ics('iCreate', [{'id': 'e4', 'title': 'Broken', 'start_at': None}])
         assert 'BEGIN:VEVENT' not in ics
         assert ics.startswith('BEGIN:VCALENDAR')
+
+    def test_all_categories_are_exported(self):
+        ics = build_ics('iCreate', [{
+            'id': 'e5', 'title': 'Museum day', 'all_day': True,
+            'start_at': '2026-08-24T00:00:00Z', 'end_at': None,
+            'category': 'Field trips', 'categories': ['Field trips', 'No school'],
+            'created_at': '2026-07-10T00:00:00+00:00',
+        }])
+        assert 'CATEGORIES:Field trips,No school' in ics
+
+
+@pytest.mark.unit
+class TestMultipleCategories:
+    """iCreate, 2026-07-30: "can we make it so that we can choose more than one
+    category? Some things will belong in more than one category." `category`
+    stays the primary (colour + per-category feeds) and mirrors categories[0]."""
+
+    def test_categories_set_the_primary(self):
+        fields = _clean({'categories': ['Field trips', 'No school']})
+        assert fields['categories'] == ['Field trips', 'No school']
+        assert fields['category'] == 'Field trips'
+
+    def test_blank_and_duplicate_entries_are_dropped(self):
+        fields = _clean({'categories': ['Camps', '  ', 'camps', 'Camps ', None]})
+        assert fields['categories'] == ['Camps']
+
+    def test_clearing_categories_clears_the_primary(self):
+        fields = _clean({'categories': []})
+        assert fields['categories'] == []
+        assert fields['category'] is None
+
+    def test_a_legacy_single_category_payload_fills_the_array(self):
+        fields = _clean({'category': 'Camps'})
+        assert fields['categories'] == ['Camps']
+
+    def test_a_legacy_cleared_category_clears_the_array(self):
+        fields = _clean({'category': ''})
+        assert fields['categories'] == []
+
+    def test_the_list_is_capped(self):
+        fields = _clean({'categories': [f'C{i}' for i in range(20)]})
+        assert len(fields['categories']) == 8

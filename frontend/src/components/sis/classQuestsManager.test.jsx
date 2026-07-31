@@ -89,4 +89,37 @@ describe('ClassQuestsManager unassign vs delete', () => {
     // Still listed — a failed delete must not look like it worked.
     expect(screen.getByText('Bridge Building')).toBeInTheDocument()
   })
+
+  // iCreate, 2026-07-30: a teacher wanted a quest she started last year gone.
+  // Delete only existed on quests attached to a class, so an abandoned draft
+  // that was never assigned had no way out.
+  it('deletes an unassigned quest from the assign picker', async () => {
+    api.get.mockImplementation((url) => (
+      url.includes('assignable')
+        ? Promise.resolve({ data: { quests: [{ ...OWN_QUEST, source: 'organization' }] } })
+        : Promise.resolve({ data: { quests: [] } })
+    ))
+    api.delete.mockResolvedValue({ data: { success: true } })
+    render(<ClassQuestsManager classId="c1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign a quest' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('/api/sis/classes/c1/quests/q1/delete'))
+    await waitFor(() => expect(screen.queryByText('Bridge Building')).not.toBeInTheDocument())
+  })
+
+  it('offers no delete for library quests in the picker', async () => {
+    api.get.mockImplementation((url) => (
+      url.includes('assignable')
+        ? Promise.resolve({ data: { quests: [{ ...LIBRARY_QUEST, source: 'library' }] } })
+        : Promise.resolve({ data: { quests: [] } })
+    ))
+    render(<ClassQuestsManager classId="c1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign a quest' }))
+    expect(await screen.findByRole('button', { name: 'Assign' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  })
 })

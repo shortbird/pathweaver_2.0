@@ -693,6 +693,8 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
             return {'error': 'This class is full'}
         from services import sis_waitlist_service
         entry = sis_waitlist_service.add_to_waitlist(org_id, class_id, student_user_id)
+        if (entry or {}).get('already_enrolled'):
+            return {'enrolled': True, 'already': True}
         return {'waitlisted': True, 'position': (entry or {}).get('position')}
 
     _admin().table('class_enrollments').upsert({
@@ -745,6 +747,44 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
     return {'ok': True, 'dropped': dropped}
 
 
+def _alert_admins_blocked_claim(org_id: str, class_id: str, student_user_id: str,
+                                class_name: Optional[str]) -> None:
+    """Tell the org admins a family tried to claim an offered seat that had just
+    been filled. Best-effort — never break the claim response."""
+    try:
+        from services import sis_notifications
+        stu = (
+            _admin().table('users')
+            .select('first_name, last_name, display_name, username')
+            .eq('id', student_user_id).limit(1).execute()
+        ).data or []
+        name = 'A student'
+        if stu:
+            u = stu[0]
+            name = (u.get('display_name')
+                    or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                    or u.get('username') or name)
+        admins = (
+            _admin().table('users').select('id, org_role, org_roles')
+            .eq('organization_id', org_id).execute()
+        ).data or []
+        for a in admins:
+            roles = set(a.get('org_roles') or [])
+            if a.get('org_role'):
+                roles.add(a['org_role'])
+            if 'org_admin' not in roles:
+                continue
+            sis_notifications.notify(
+                a['id'],
+                'A waitlist offer could not be claimed',
+                f'{name} tried to claim the offered seat in {class_name or "a class"}, '
+                'but it was already full. Use Enroll now on the class Waitlist tab to admit them.',
+                link='/classes', organization_id=org_id,
+            )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[Waitlist] blocked-claim alert skipped for {class_id}: {e}')
+
+
 def claim_offered_spot(user_id: str, org_id: str, student_user_id: str,
                        class_id: str) -> Dict[str, Any]:
     """A guardian accepts a per-class waitlist offer the school made: if the seat
@@ -791,7 +831,14 @@ def claim_offered_spot(user_id: str, org_id: str, student_user_id: str,
             .eq('class_id', class_id).eq('status', 'active').execute()
         ).count or 0
         if active >= capacity:
-            return {'error': 'That spot was just filled. You are still on the waitlist.'}
+            # The school offered this seat and then the class filled up. The
+            # family did nothing wrong, so don't leave them staring at a dead
+            # button — tell the office, who can admit them over cap from the
+            # class's Waitlist tab ("Enroll now").
+            _alert_admins_blocked_claim(org_id, class_id, student_user_id, klass.get('name'))
+            return {'error': 'That spot was just filled while you were claiming it. '
+                             'The school has been notified and will be in touch — '
+                             'you are still on the waitlist.'}
 
     from services import sis_waitlist_service
     result = sis_waitlist_service.respond_to_offer(org_id, entry['id'], True, enrolled_by=user_id)

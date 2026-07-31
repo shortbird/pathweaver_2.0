@@ -438,10 +438,12 @@ def enroll_student(user_id, class_id):
         .eq('class_id', class_id).eq('student_id', student_id).limit(1).execute()
     ).data
     from services.class_group_sync_service import sync_class_group
+    from services import sis_waitlist_service
     if existing:
         if existing[0].get('status') != 'active':
             supabase.table('class_enrollments').update({'status': 'active'}).eq('id', existing[0]['id']).execute()
             sync_class_group(class_id, actor_id=user_id)
+            sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)
         return jsonify({'success': True, 'already_enrolled': True})
 
     supabase.table('class_enrollments').insert({
@@ -449,6 +451,9 @@ def enroll_student(user_id, class_id):
         'enrolled_by': user_id, 'status': 'active',
     }).execute()
     sync_class_group(class_id, actor_id=user_id)
+    # They're in the class now — don't leave them queued for it as well, or the
+    # family keeps seeing "Waitlist #2" for a class their child already attends.
+    sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)
     return jsonify({'success': True}), 201
 
 
