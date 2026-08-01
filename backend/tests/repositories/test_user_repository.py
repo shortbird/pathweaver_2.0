@@ -37,7 +37,7 @@ def test_find_by_id():
     user_id = str(uuid.uuid4())
     repo = UserRepository()
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_user = Mock()
         mock_user.data = [{
             'id': user_id,
@@ -45,7 +45,7 @@ def test_find_by_id():
             'display_name': 'Test User',
             'role': 'student'
         }]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_user
+        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_user
 
         user = repo.find_by_id(user_id)
 
@@ -60,14 +60,14 @@ def test_find_by_email():
     email = 'test@example.com'
     repo = UserRepository()
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_user = Mock()
         mock_user.data = [{
             'id': str(uuid.uuid4()),
             'email': email,
             'display_name': 'Test User'
         }]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_user
+        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_user
 
         user = repo.find_by_email(email)
 
@@ -90,10 +90,10 @@ def test_create_user():
         'role': 'student'
     }
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_result = Mock()
         mock_result.data = [user_data]
-        mock_supabase.table.return_value.insert.return_value.execute.return_value = mock_result
+        mock_client.table.return_value.insert.return_value.execute.return_value = mock_result
 
         created_user = repo.create(user_data)
 
@@ -112,13 +112,13 @@ def test_update_user():
         'bio': 'Updated bio'
     }
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_result = Mock()
         mock_result.data = [{
             'id': user_id,
             **update_data
         }]
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_result
+        mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_result
 
         updated_user = repo.update(user_id, update_data)
 
@@ -132,10 +132,10 @@ def test_delete_user():
     user_id = str(uuid.uuid4())
     repo = UserRepository()
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_result = Mock()
         mock_result.data = [{'id': user_id}]
-        mock_supabase.table.return_value.delete.return_value.eq.return_value.execute.return_value = mock_result
+        mock_client.table.return_value.delete.return_value.eq.return_value.execute.return_value = mock_result
 
         result = repo.delete(user_id)
 
@@ -152,11 +152,11 @@ def test_rls_enforcement():
     # User-scoped repository (RLS enabled)
     repo = UserRepository(user_id=user_id)
 
-    with patch.object(repo, 'get_user_supabase') as mock_user_supabase:
-        # Mock RLS blocking access to other user's data
+    with patch.object(repo, '_client') as mock_client:
+        # RLS blocks the row, so the query comes back empty.
         mock_result = Mock()
-        mock_result.data = []  # RLS returns empty result
-        mock_user_supabase.return_value.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_result
+        mock_result.data = []
+        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_result
 
         # Try to access other user's data
         other_user = repo.find_by_id(other_user_id)
@@ -170,16 +170,21 @@ def test_list_users_with_filters():
     """Test listing users with filters"""
     repo = UserRepository()
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_users = Mock()
         mock_users.data = [
             {'id': str(uuid.uuid4()), 'email': 'student1@example.com', 'role': 'student'},
             {'id': str(uuid.uuid4()), 'email': 'student2@example.com', 'role': 'student'},
         ]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_users
+        mock_users.count = 2
+        mock_client.table.return_value.select.return_value.eq.return_value \
+            .range.return_value.order.return_value.execute.return_value = mock_users
+        mock_client.table.return_value.select.return_value.eq.return_value \
+            .order.return_value.range.return_value.execute.return_value = mock_users
 
-        users = repo.list(filters={'role': 'student'})
+        result = repo.get_users_paginated(filters={'role': 'student'})
 
+        users = result['users']
         assert len(users) == 2
         assert all(u['role'] == 'student' for u in users)
 
@@ -189,13 +194,16 @@ def test_find_by_role():
     """Test finding users by role"""
     repo = UserRepository()
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_admins = Mock()
         mock_admins.data = [
             {'id': str(uuid.uuid4()), 'role': 'admin', 'display_name': 'Admin 1'},
             {'id': str(uuid.uuid4()), 'role': 'admin', 'display_name': 'Admin 2'},
         ]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_admins
+        mock_client.table.return_value.select.return_value.eq.return_value \
+            .limit.return_value.execute.return_value = mock_admins
+        mock_client.table.return_value.select.return_value.eq.return_value \
+            .order.return_value.limit.return_value.execute.return_value = mock_admins
 
         admins = repo.find_by_role('admin')
 
@@ -208,9 +216,9 @@ def test_error_handling_on_database_failure():
     """Test proper error handling when database operations fail"""
     repo = UserRepository()
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         # Mock database error
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.side_effect = Exception("Database error")
+        mock_client.table.return_value.select.return_value.eq.return_value.execute.side_effect = Exception("Database error")
 
         # Should handle error gracefully
         with pytest.raises(Exception):
@@ -224,18 +232,19 @@ def test_query_optimization_batch_load():
 
     user_ids = [str(uuid.uuid4()) for _ in range(5)]
 
-    with patch.object(repo, 'supabase') as mock_supabase:
+    with patch.object(repo, '_client') as mock_client:
         mock_users = Mock()
         mock_users.data = [
             {'id': uid, 'email': f'user{i}@example.com'}
             for i, uid in enumerate(user_ids)
         ]
-        mock_supabase.table.return_value.select.return_value.in_.return_value.execute.return_value = mock_users
+        mock_client.table.return_value.select.return_value.in_.return_value.execute.return_value = mock_users
 
         users = repo.find_by_ids(user_ids)
 
-        # Should load all users in single query
+        # Should load all users in single query. find_by_ids returns a
+        # mapping of user_id -> record (that is the N+1 fix), so iterate values.
         assert len(users) == 5
-        # Verify all IDs are present
-        loaded_ids = [u['id'] for u in users]
+        loaded_ids = [u['id'] for u in users.values()]
         assert set(loaded_ids) == set(user_ids)
+        assert set(users.keys()) == set(user_ids)

@@ -61,7 +61,7 @@ class TestQuestRepository:
         repo = QuestRepository()
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [
                 {
@@ -87,7 +87,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch('backend.database.get_supabase_admin_client') as mock_get_admin:
+        with patch('database.get_supabase_admin_client') as mock_get_admin:
             mock_admin = Mock()
 
             # Mock no existing enrollment
@@ -121,7 +121,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch('backend.database.get_supabase_admin_client') as mock_get_admin:
+        with patch('database.get_supabase_admin_client') as mock_get_admin:
             mock_admin = Mock()
 
             # Mock existing but inactive enrollment
@@ -159,7 +159,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch('backend.database.get_supabase_admin_client') as mock_get_admin:
+        with patch('database.get_supabase_admin_client') as mock_get_admin:
             mock_admin = Mock()
 
             # Mock existing active enrollment
@@ -187,7 +187,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [{
                 'id': str(uuid.uuid4()),
@@ -207,7 +207,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = []
             mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_response
@@ -220,7 +220,7 @@ class TestQuestRepository:
         repo = QuestRepository()
         search_term = 'science'
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [
                 {'id': str(uuid.uuid4()), 'title': 'Science Quest 1', 'is_active': True},
@@ -237,7 +237,7 @@ class TestQuestRepository:
         repo = QuestRepository()
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [
                 {'id': str(uuid.uuid4()), 'user_id': user_id, 'quest_id': str(uuid.uuid4()), 'is_active': True},
@@ -255,7 +255,7 @@ class TestQuestRepository:
         repo = QuestRepository()
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [
                 {'id': str(uuid.uuid4()), 'user_id': user_id, 'is_active': True},
@@ -277,7 +277,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [{
                 'id': str(uuid.uuid4()),
@@ -299,7 +299,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = []
             mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_response
@@ -314,7 +314,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [{
                 'id': str(uuid.uuid4()),
@@ -335,7 +335,7 @@ class TestQuestRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = []
             mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_response
@@ -348,7 +348,7 @@ class TestQuestRepository:
         repo = QuestRepository()
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = [
                 {
@@ -375,7 +375,7 @@ class TestQuestRepository:
         repo = QuestRepository()
         user_id = str(uuid.uuid4())
 
-        with patch('backend.database.get_supabase_admin_client') as mock_get_admin:
+        with patch('database.get_supabase_admin_client') as mock_get_admin:
             mock_admin = Mock()
 
             # Mock user with no organization
@@ -390,10 +390,11 @@ class TestQuestRepository:
             ]
             mock_quests.count = 1
 
-            # Setup complex mock chain for query
-            mock_query = Mock()
-            mock_query.is_.return_value.range.return_value.execute.return_value = mock_quests
-            mock_admin.table.return_value.select.return_value.eq.return_value.eq.return_value = mock_query
+            # Chain the implementation actually builds for a user with no org:
+            #   table('quests').select('*', count='exact').eq('is_active', True)
+            #     .or_(<global public OR own quests>).range(...).execute()
+            mock_admin.table.return_value.select.return_value.eq.return_value \
+                .or_.return_value.range.return_value.execute.return_value = mock_quests
 
             mock_get_admin.return_value = mock_admin
 
@@ -408,7 +409,7 @@ class TestQuestRepository:
         repo = QuestRepository()
         user_id = str(uuid.uuid4())
 
-        with patch('backend.database.get_supabase_admin_client') as mock_get_admin:
+        with patch('database.get_supabase_admin_client') as mock_get_admin:
             mock_admin = Mock()
 
             # Mock user
@@ -423,10 +424,11 @@ class TestQuestRepository:
             ]
             mock_quests.count = 1
 
-            # Complex mock chain
-            mock_query = Mock()
-            mock_query.is_.return_value.eq.return_value.eq.return_value.range.return_value.execute.return_value = mock_quests
-            mock_admin.table.return_value.select.return_value.eq.return_value.eq.return_value = mock_query
+            # Same chain as above, plus one .eq() per filter (pillar, quest_type)
+            # applied after the visibility .or_().
+            mock_admin.table.return_value.select.return_value.eq.return_value \
+                .or_.return_value.eq.return_value.eq.return_value \
+                .range.return_value.execute.return_value = mock_quests
 
             mock_get_admin.return_value = mock_admin
 
@@ -450,12 +452,17 @@ class TestQuestRepositoryEdgeCases:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch('backend.database.get_supabase_admin_client') as mock_get_admin:
+        with patch('database.get_supabase_admin_client') as mock_get_admin:
             mock_admin = Mock()
 
-            # Mock database error during check
+            # Mock database error during check. postgrest's APIError takes a
+            # dict, not a string -- APIError("...") raises inside the test
+            # itself before the repository is ever called.
             from postgrest.exceptions import APIError
-            mock_admin.table.return_value.select.side_effect = APIError("Database connection error")
+            mock_admin.table.return_value.select.side_effect = APIError(
+                {'message': 'Database connection error', 'code': '500',
+                 'hint': None, 'details': None}
+            )
 
             mock_get_admin.return_value = mock_admin
 
@@ -466,7 +473,7 @@ class TestQuestRepositoryEdgeCases:
         """Test searching quests returns empty list when no matches"""
         repo = QuestRepository()
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_response = Mock()
             mock_response.data = []
             mock_client.table.return_value.select.return_value.eq.return_value.or_.return_value.limit.return_value.execute.return_value = mock_response

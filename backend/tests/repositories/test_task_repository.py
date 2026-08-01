@@ -32,7 +32,7 @@ class TestTaskRepository:
         repo = TaskRepository()
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_tasks = Mock()
             mock_tasks.data = [
                 {'id': str(uuid.uuid4()), 'quest_id': quest_id, 'title': 'Task 1', 'order_index': 1},
@@ -52,7 +52,7 @@ class TestTaskRepository:
         quest_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_tasks = Mock()
             mock_tasks.data = [
                 {'id': str(uuid.uuid4()), 'quest_id': quest_id, 'user_id': user_id, 'title': 'Task 1'},
@@ -72,7 +72,7 @@ class TestTaskRepository:
         """Test find_by_quest returns empty list on database error"""
         repo = TaskRepository()
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.select.side_effect = Exception("Database error")
 
             tasks = repo.find_by_quest(str(uuid.uuid4()))
@@ -84,7 +84,7 @@ class TestTaskRepository:
         repo = TaskRepository()
         user_quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_tasks = Mock()
             mock_tasks.data = [
                 {'id': str(uuid.uuid4()), 'user_quest_id': user_quest_id, 'title': 'Task 1', 'order_index': 1},
@@ -104,7 +104,7 @@ class TestTaskRepository:
         task_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_task = Mock()
             mock_task.data = {
                 'id': task_id,
@@ -128,7 +128,7 @@ class TestTaskRepository:
         task_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = None
             mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.single.return_value.execute.return_value = mock_result
@@ -149,7 +149,7 @@ class TestTaskRepository:
             'xp_value': 100,
         }
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = [{**task_data, 'id': str(uuid.uuid4())}]
             mock_client.table.return_value.insert.return_value.execute.return_value = mock_result
@@ -183,7 +183,7 @@ class TestTaskRepository:
             'title': 'New Task',
         }
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.insert.side_effect = Exception("Database error")
 
             with pytest.raises(Exception):
@@ -199,7 +199,7 @@ class TestTaskRepository:
             'description': 'Updated description',
         }
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = [{
                 'id': task_id,
@@ -217,7 +217,7 @@ class TestTaskRepository:
         repo = TaskRepository()
         task_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = None
             mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_result
@@ -230,7 +230,7 @@ class TestTaskRepository:
         repo = TaskRepository()
         task_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = [{'id': task_id}]
             mock_client.table.return_value.delete.return_value.eq.return_value.execute.return_value = mock_result
@@ -244,7 +244,7 @@ class TestTaskRepository:
         repo = TaskRepository()
         task_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.delete.side_effect = Exception("Database error")
 
             with pytest.raises(Exception):
@@ -267,7 +267,7 @@ class TestTaskCompletionRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_completions = Mock()
             mock_completions.data = [
                 {
@@ -296,7 +296,7 @@ class TestTaskCompletionRepository:
         repo = TaskCompletionRepository()
         task_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_completions = Mock()
             mock_completions.data = [
                 {
@@ -318,7 +318,7 @@ class TestTaskCompletionRepository:
         task_id = str(uuid.uuid4())
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_completions = Mock()
             mock_completions.data = [
                 {
@@ -344,7 +344,7 @@ class TestTaskCompletionRepository:
         user_id = str(uuid.uuid4())
         task_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = [{'id': str(uuid.uuid4())}]
             mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
@@ -359,7 +359,7 @@ class TestTaskCompletionRepository:
         user_id = str(uuid.uuid4())
         task_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = []
             mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_result
@@ -380,7 +380,7 @@ class TestTaskCompletionRepository:
             'evidence_text': 'Completed the task',
         }
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = [{
                 **completion_data,
@@ -429,7 +429,7 @@ class TestTaskCompletionRepository:
             'xp_awarded': 100,
         }
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             # First insert fails with a 23505-style unique violation.
             mock_client.table.return_value.insert.return_value.execute.side_effect = Exception(
                 'duplicate key value violates unique constraint '
@@ -448,7 +448,7 @@ class TestTaskCompletionRepository:
         repo = TaskCompletionRepository()
         user_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.count = 5
             mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_result
@@ -463,7 +463,7 @@ class TestTaskCompletionRepository:
         user_id = str(uuid.uuid4())
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.count = 3
 
@@ -480,7 +480,7 @@ class TestTaskCompletionRepository:
         """Test get_completion_count returns 0 on database error"""
         repo = TaskCompletionRepository()
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.select.side_effect = Exception("Database error")
 
             count = repo.get_completion_count(str(uuid.uuid4()))
@@ -492,7 +492,7 @@ class TestTaskCompletionRepository:
         repo = TaskCompletionRepository()
         completion_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_result = Mock()
             mock_result.data = [{'id': completion_id}]
             mock_client.table.return_value.delete.return_value.eq.return_value.execute.return_value = mock_result
@@ -506,7 +506,7 @@ class TestTaskCompletionRepository:
         repo = TaskCompletionRepository()
         completion_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             mock_client.table.return_value.delete.side_effect = Exception("Database error")
 
             with pytest.raises(Exception):
@@ -522,7 +522,7 @@ class TestTaskRepositoryIntegration:
         repo = TaskRepository()
         quest_id = str(uuid.uuid4())
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             # Tasks in wrong order
             mock_tasks = Mock()
             mock_tasks.data = [
@@ -549,7 +549,7 @@ class TestTaskRepositoryIntegration:
             'user_quest_task_id': str(uuid.uuid4()),
         }
 
-        with patch.object(repo, 'client') as mock_client:
+        with patch.object(repo, '_client') as mock_client:
             # Mock no existing
             mock_existing = Mock()
             mock_existing.data = []

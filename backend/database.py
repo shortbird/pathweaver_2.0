@@ -1,7 +1,7 @@
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 from app_config import Config
-from flask import request, g
+from flask import request, g, has_app_context
 from typing import Optional
 import httpx
 import atexit
@@ -173,9 +173,19 @@ def get_supabase_admin_client() -> Client:
 
     NOTE: Uses Flask's g context to cache per-request to prevent HTTP/2 stream exhaustion
     while avoiding resource exhaustion from creating too many clients.
+
+    Outside an application context -- maintenance scripts under backend/scripts,
+    background threads, scheduled jobs, unit tests -- there is no `g` to cache
+    on, and touching it raised "Working outside of application context". Those
+    callers now get the thread-safe singleton, which is what
+    get_supabase_admin_singleton() exists to hand out. Request handling is
+    unchanged: inside a context the per-request cache still applies.
     """
     if not Config.SUPABASE_URL or not Config.SUPABASE_SERVICE_ROLE_KEY:
         raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
+
+    if not has_app_context():
+        return get_supabase_admin_singleton()
 
     # Cache admin client in Flask's g context for this request
     # This prevents HTTP/2 stream exhaustion from singleton pattern
