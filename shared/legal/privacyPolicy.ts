@@ -8,11 +8,18 @@ import type { LegalDocument } from './types';
  * Meta to build custom and lookalike audiences, the corresponding opt-out, the
  * CCPA/CPRA "sharing" opt-out, and a statement that children's and students'
  * data is never used for advertising audiences.
+ *
+ * v1.2 (2026-08-01): Portfolios are private by default and parents hold the
+ * controls. The previous text said visibility was the student's own choice,
+ * which understated a parent's authority and, for the default state, was not
+ * accurate at all. Added who can read a private portfolio, transcript share
+ * links, and the org-administrator approver for students with no linked
+ * parent.
  */
 export const privacyPolicy: LegalDocument = {
   title: 'Privacy Policy',
-  effectiveDate: 'June 16, 2026',
-  version: '1.1',
+  effectiveDate: 'August 1, 2026',
+  version: '1.2',
   sections: [
     {
       heading: '1. Introduction',
@@ -254,15 +261,29 @@ export const privacyPolicy: LegalDocument = {
             },
           ],
         },
-        { type: 'subheading', text: 'Public Information You Control' },
+        { type: 'subheading', text: 'Portfolio Visibility' },
         {
           type: 'paragraph',
-          text: 'Your diploma page and portfolio may be publicly visible if you choose to share them. You control the visibility settings for your portfolio. Activity shared with connections is visible only to those specific users.',
+          text: 'Diploma pages and portfolios are private by default. Nothing a student creates is published to the internet unless someone with the authority to decide chooses to publish it, and that decision can be reversed at any time.',
+        },
+        {
+          type: 'paragraph',
+          text: 'For a student under 18, that authority belongs to their parent or guardian — a student can ask, and their parent decides. A student aged 18 or over decides for themselves. For a student in a school or program with no parent account linked, their organization administrator decides; where nobody holds that responsibility, the portfolio cannot be published at all. Activity shared with connections remains visible only to those specific users.',
+        },
+        { type: 'subheading', text: 'Who Can See a Private Portfolio' },
+        {
+          type: 'paragraph',
+          text: 'Private means not public. It does not mean hidden from the people responsible for a student\'s education. A private portfolio can be viewed by the student, their parents or guardians, advisors assigned to them, teachers of classes they are enrolled in, observers the family has invited, administrators of their organization, and Optio staff. Evidence marked confidential is withheld from these views too.',
+        },
+        { type: 'subheading', text: 'Transcript Links' },
+        {
+          type: 'paragraph',
+          text: 'A parent, guardian, or organization administrator can issue a link that lets a named recipient — a college, a receiving school — view a student\'s transcript without an Optio account. These links expire, record how often they have been viewed, and can be revoked at any time with immediate effect. Transcripts shared this way do not include the student\'s date of birth.',
         },
         { type: 'subheading', text: 'Parents and Guardians' },
         {
           type: 'paragraph',
-          text: 'Parents with linked student accounts can access their student\'s learning data, progress, evidence, and AI Tutor conversations through the Parent Dashboard. Parents of children under 13 have full access to manage their child\'s account.',
+          text: 'Parents with linked student accounts can access their student\'s learning data, progress, evidence, and AI Tutor conversations through the Parent Dashboard. They also control who else can see that work: they can publish or unpublish a portfolio, revoke transcript links, and withdraw permission for promotional use. Parents of children under 13 have full access to manage their child\'s account.',
         },
         { type: 'subheading', text: 'We May Share Information In These Situations:' },
         {
@@ -388,7 +409,9 @@ export const privacyPolicy: LegalDocument = {
             'Update or correct inaccurate information',
             'Delete your account and personal information',
             'Export your data in a portable format',
-            'Control portfolio and diploma visibility settings',
+            'Control portfolio and diploma visibility, or — for a student under 18 — have their parent or guardian control it on their behalf',
+            'Revoke a transcript share link at any time, with immediate effect',
+            'Withdraw permission for promotional use of a student\'s work or likeness',
           ],
         },
         { type: 'subheading', text: 'Communication and Advertising Preferences' },

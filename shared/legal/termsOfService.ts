@@ -3,11 +3,22 @@ import type { LegalDocument } from './types';
 /**
  * Terms of Service — canonical content shared by v1 web and v2 mobile.
  * Keep `version` in sync with CURRENT_TOS_VERSION in backend/legal_versions.py.
+ *
+ * v1.1 (2026-08-01): Portfolios are private by default and parents control
+ * publication. Replaced the "your portfolio is PUBLIC by default" warning,
+ * which the platform no longer does — and, because a database trigger had been
+ * overriding the private default since January, describes what now actually
+ * happens rather than what was intended. Added who can see a private
+ * portfolio, transcript share links, and the org-administrator approver for
+ * students with no linked parent. Rewrote Section 9 so promotional use is
+ * opt-in, itemized, and parent-revocable, matching the consent the platform
+ * has always enforced in code; the User Content license in Section 4 no longer
+ * claims promotional rights.
  */
 export const termsOfService: LegalDocument = {
   title: 'Terms of Service',
-  effectiveDate: 'June 16, 2026',
-  version: '1.0',
+  effectiveDate: 'August 1, 2026',
+  version: '1.1',
   sections: [
     {
       heading: '1. Acceptance of Terms',
@@ -85,28 +96,43 @@ export const termsOfService: LegalDocument = {
           type: 'list',
           items: [
             'You retain ownership of all content you submit to the Service ("User Content")',
-            'By submitting User Content, you grant us a worldwide, non-exclusive, royalty-free license to use, display, and distribute your content as part of the Service for educational and promotional purposes',
+            'By submitting User Content, you grant us a worldwide, non-exclusive, royalty-free license to use, display, and distribute your content as needed to operate the Service for you — for example, showing your evidence on your own portfolio and to the people entitled to see it. This license does not permit promotional or marketing use, which is covered separately in Section 9 and requires your specific agreement',
             'You are responsible for ensuring your User Content does not violate any laws or third-party rights',
             'Students working on business ventures retain all intellectual property rights to their businesses',
           ],
         },
-        { type: 'paragraph', text: 'Public Portfolio Visibility:', emphasis: true },
+        { type: 'paragraph', text: 'Portfolio Visibility:', emphasis: true },
         {
           type: 'callout',
-          variant: 'warning',
-          title: 'IMPORTANT: Your learning portfolio is PUBLIC by default.',
+          variant: 'success',
+          title: 'Your learning portfolio is PRIVATE by default.',
           blocks: [
             {
               type: 'list',
               items: [
-                'Your learning portfolio (including quests, evidence, achievements, and diplomas) is visible to anyone with your portfolio URL',
-                'Portfolio content may be indexed by search engines and shared on social media',
-                'Anyone on the internet can view your educational content and progress',
-                'You can change your privacy settings at any time on your Profile page',
-                'Privacy controls allow you to make your portfolio private or limit what information is publicly visible',
+                'Your learning portfolio — quests, evidence, achievements, and diplomas — is private when you create it. It is not published anywhere, and it is not indexed by search engines',
+                'A portfolio only becomes publicly visible if someone with the authority to decide chooses to publish it, and it can be made private again at any time',
+                'For a student under 18, that decision belongs to their parent or guardian. A student under 18 can ask for their work to be shared, and their parent decides',
+                'A student aged 18 or over decides for themselves',
+                'For a student in a school or program who has no parent or guardian account linked, their organization administrator makes that decision. If nobody holds that responsibility, the portfolio cannot be published',
+                'A parent or guardian can make their child\'s portfolio private at any time, including work they previously agreed to publish',
               ],
             },
           ],
+        },
+        {
+          type: 'paragraph',
+          text: 'If a portfolio is published, it becomes visible to anyone with its address and may be indexed by search engines or shared on social media. Making it private again removes it from public view, but we cannot recall copies that other people or search engines made while it was public.',
+        },
+        { type: 'paragraph', text: 'Who Can See a Private Portfolio:', emphasis: true },
+        {
+          type: 'paragraph',
+          text: 'A private portfolio is not visible to the public, but it is not hidden from the people responsible for a student\'s education. The student, their parents or guardians, advisors assigned to them, teachers of classes they are enrolled in, observers the family has invited, administrators of their organization, and Optio staff can view it. Individual pieces of evidence marked confidential are hidden from these views as well.',
+        },
+        { type: 'paragraph', text: 'Transcript Links:', emphasis: true },
+        {
+          type: 'paragraph',
+          text: 'A parent, guardian, or organization administrator can create a link that lets a specific recipient — such as a college or a receiving school — view a student\'s transcript without an Optio account. These links expire, can be revoked at any time, and revoking one takes effect immediately. The person who created a link can see how many times it has been viewed.',
         },
         { type: 'paragraph', text: 'Educational Credentials:', emphasis: true },
         {
@@ -211,19 +237,46 @@ export const termsOfService: LegalDocument = {
     {
       heading: '9. Media Release and Promotional Use',
       blocks: [
-        { type: 'paragraph', text: 'By using Optio, you grant us permission to:' },
         {
-          type: 'list',
-          items: [
-            'Use student images, voices, and work in promotional and educational materials',
-            'Showcase student portfolios and diplomas as examples of learning outcomes',
-            'Feature student projects in demonstrations and presentations',
-            'Share anonymized learning data for research and improvement purposes',
+          type: 'callout',
+          variant: 'success',
+          title: 'We do not use student work or likeness in marketing unless you have specifically agreed to it.',
+          blocks: [
+            {
+              type: 'paragraph',
+              text: 'Using Optio does not grant us promotional rights over a student\'s work, image, or voice. Permission is given separately, in writing, and can be withdrawn.',
+            },
           ],
         },
         {
           type: 'paragraph',
-          text: 'All such use will be for non-commercial educational purposes and will respect student privacy. You may opt out of promotional use by contacting us at support@optioeducation.com.',
+          text: 'If you choose to give that permission, you tell us exactly how far it goes. Each of the following is a separate choice, and you may agree to some and refuse others:',
+        },
+        {
+          type: 'list',
+          items: [
+            [{ bold: 'Student work' }, ' - showing a student\'s project, evidence, or portfolio as an example of learning'],
+            [{ bold: 'First name' }, ' - naming the student, rather than showing the work anonymously'],
+            [{ bold: 'Image and voice' }, ' - showing a student\'s face or voice in photos, video, or audio'],
+            [{ bold: 'Age' }, ' - stating how old the student is'],
+          ],
+        },
+        {
+          type: 'paragraph',
+          text: 'For a student under 18, this permission is given by their parent or guardian. We record who gave it and when, against a signed consent form.',
+        },
+        { type: 'paragraph', text: 'Withdrawing Permission:', emphasis: true },
+        {
+          type: 'paragraph',
+          text: 'A parent or guardian can withdraw this permission at any time, from their own account, without contacting support and without giving a reason. Withdrawal stops all future promotional use immediately, and anything already published is queued for removal. Where material has been posted to a platform we do not control, we will request its removal, though we cannot guarantee a third party will comply.',
+        },
+        {
+          type: 'paragraph',
+          text: 'Separately from the above, we may use aggregated and anonymized learning data — information that does not identify any individual student — for research and to improve the Service.',
+        },
+        {
+          type: 'paragraph',
+          text: 'All promotional use is for educational purposes and respects student privacy. Questions about promotional use can be sent to support@optioeducation.com.',
         },
       ],
     },
