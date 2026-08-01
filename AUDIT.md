@@ -297,10 +297,37 @@ restore from the C2 backup table) republishes their work to the internet through
 `can_view_portfolio` never sees. The application and the database disagree about who may read
 student work, and the database is the one facing the internet.
 
-**Severity: High.** Not fixed — it needs a product decision about whether public-portfolio
-evidence should be Data-API readable at all. Both `bounties` (leaks `allowed_student_ids`,
-`moderation_notes`) and `curriculum_attachments` (leaks `file_url`, including soft-deleted rows)
-are flagged by the same scan and want the same decision.
+**Severity: High.** Fix proposed but **not applied**:
+`supabase/migrations/PROPOSED_20260802_revoke_data_api_on_student_work.sql` (prefixed so
+`supabase db push` ignores it until adopted).
+
+**Investigation result — nothing depends on this access.** Three independent checks:
+
+1. **No client code queries these tables.** Both Supabase clients are built for OAuth only with
+   `persistSession: false` (`frontend/src/services/supabaseClient.js:17-26`,
+   `frontend-v2/src/services/supabaseClient.ts:11-19`). Grepping both frontends for these table
+   names returns only comments.
+2. **Realtime cannot depend on them.** The `supabase_realtime` publication is *empty* — zero
+   tables published (verified live).
+3. **Every product read goes through Flask on the service-role client**, which bypasses RLS.
+   The public portfolio is `routes/portfolio.py:21` → `PortfolioService`, whose constructor
+   defaults to `get_supabase_admin_client()` (`services/portfolio_service.py:29`).
+
+The corollary is the strongest part: the `user_id = auth.uid()` branches are dead too. The app
+issues its own HS256 tokens and never gives the browser a Supabase JWT for data access, so
+`auth.uid()` is NULL on every Data API request. The **only** branch of these five policies that
+can ever evaluate true is the `is_public` one — which is the exposure itself. The entire policy
+set is vestigial: it protects a client-side data path that does not exist.
+
+So the proposed fix is to drop the policies and revoke the grants, matching what
+`organization_secrets` and `portfolio_visibility_reset_20260801` already do. The one thing the
+repo cannot answer, and the team must: whether any third party (an embed, a partner, a school
+dashboard) has been pointed at these tables with the anon key. If so, give it a Flask endpoint
+first.
+
+`bounties` (leaks `allowed_student_ids`, `moderation_notes`) and `curriculum_attachments`
+(leaks `file_url` for rows with `is_deleted = true`) are the same defect and are noted at the
+foot of that migration as separate decisions.
 
 ---
 
@@ -602,10 +629,10 @@ new table must deploy together, or the iCreate card-payment step breaks.
 | Finding | Status | Where |
 |---|---|---|
 | **C1** Stripe key readable by anon | Fixed, not yet deployed | Secrets moved to `organization_secrets` (RLS on, no policies, grants revoked) by `supabase/migrations/20260801_org_secrets_and_rls_gaps.sql`; column-level `GRANT` on `organizations` stops anon seeing `feature_flags` at all; reads go through `backend/utils/org_secrets.py` |
-| **C2** `portfolio_visibility_reset_20260801` | Fixed, not yet deployed | RLS + `REVOKE` added to the migration that creates it (`backend/migrations/20260801_private_by_default_parent_control.sql`) and to the remediation migration for the existing prod row set |
+| **C2** `portfolio_visibility_reset_20260801` | **APPLIED to production 2026-08-01** | RLS + `REVOKE` applied live (anon now gets `42501 permission denied`; all 718 rows intact for the backend). Also added to the migration that creates it, `backend/migrations/20260801_private_by_default_parent_control.sql`, so a rebuild is secure |
 | **C3** `/me` leaks `feature_flags` | Fixed, not yet deployed | `backend/routes/auth/login/core.py` strips known credentials; the durable guarantee is that the column no longer holds any |
-| **H3** `sis_billing_audit` | Fixed, not yet deployed | RLS + `REVOKE` added to `supabase/migrations/20260727_billing_processing_fee.sql`. Same one-line defect as C2; fixed alongside it rather than left as a known hole |
-| **H4** Student evidence via stale RLS | **Open** | Needs a product decision (see H4) |
+| **H3** `sis_billing_audit` | **APPLIED to production 2026-08-01** | Same one-line defect as C2, applied in the same statement; also added to `supabase/migrations/20260727_billing_processing_fee.sql` |
+| **H4** Student evidence via stale RLS | Fix proposed, not applied | `supabase/migrations/PROPOSED_20260802_revoke_data_api_on_student_work.sql` — investigation found nothing depends on the access (see H4) |
 | H1, H2, M1–M6, L1–L5 | Open | Not in the requested scope |
 
 **Deploy order.** Ship the backend code first (it tolerates both storage locations on read),
