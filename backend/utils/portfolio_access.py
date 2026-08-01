@@ -163,6 +163,42 @@ def is_observer_of(caller_id: str, student_id: str) -> bool:
     return bool(rows)
 
 
+def teaches_student(caller_id: str, student_id: str) -> bool:
+    """Does the caller teach a class this student is actively enrolled in?
+
+    Formal advisor assignment is not the only real teaching relationship. A
+    class has a primary_instructor_id and may have co-teachers in
+    class_advisors, and neither implies a row in advisor_student_assignments.
+    Without this, a teacher would lose sight of their own students' work the
+    moment portfolios went private -- which is precisely the failure mode that
+    pushes schools to ask families to publish everything.
+
+    Mirrors the gate in routes/sis/class_materials.py::_access.
+    """
+    if not caller_id or not student_id:
+        return False
+
+    admin = _admin()
+    enrollments = admin.table('class_enrollments').select('class_id') \
+        .eq('student_id', student_id).eq('status', 'active').execute().data or []
+    class_ids = [e['class_id'] for e in enrollments if e.get('class_id')]
+    if not class_ids:
+        return False
+
+    # Primary instructor of any of those classes.
+    taught = admin.table('org_classes').select('id') \
+        .in_('id', class_ids).eq('primary_instructor_id', caller_id) \
+        .limit(1).execute().data or []
+    if taught:
+        return True
+
+    # Active co-teacher on any of those classes.
+    co_taught = admin.table('class_advisors').select('id') \
+        .in_('class_id', class_ids).eq('advisor_id', caller_id) \
+        .eq('is_active', True).limit(1).execute().data or []
+    return bool(co_taught)
+
+
 def is_org_admin_over(caller: Dict[str, Any], student: Dict[str, Any]) -> bool:
     if not caller or not student:
         return False
@@ -181,23 +217,38 @@ def is_org_admin_over(caller: Dict[str, Any], student: Dict[str, Any]) -> bool:
 def can_view_portfolio(caller_id: Optional[str], student_id: str) -> bool:
     """May this caller read the student's portfolio, public or not?
 
-    Grants: the student, a superadmin, a parent, an assigned advisor, a linked
-    observer, and an org admin of the student's organization.
+    Grants, in full:
+      * the student themselves
+      * Optio staff (superadmin by role, plus designated staff by email)
+      * a parent, by either linking mechanism
+      * an assigned advisor
+      * a teacher of a class the student is actively enrolled in, including
+        co-teachers
+      * a linked observer
+      * an org admin of the student's organization
 
     This is what makes private-by-default survivable. Without it, flipping
-    portfolios private would leave advisors and parents with no way to see
+    portfolios private would leave parents and teachers with no way to see
     student work at all, and families would be pushed back toward publishing
     to the whole internet just so one person could look.
+
+    Note this is strictly wider than can_manage_privacy. Being able to see a
+    student's work is not the same as being able to decide who else may: a
+    class teacher reads the portfolio but does not get to publish it.
     """
     if not caller_id:
         return False
     if caller_id == student_id:
         return True
 
-    caller = _fetch_user(caller_id, 'id, role, org_role, org_roles, organization_id')
+    caller = _fetch_user(caller_id, 'id, email, role, org_role, org_roles, organization_id')
     if not caller:
         return False
-    if caller.get('role') == 'superadmin':
+
+    # Optio staff. Superadmin qualifies by role; designated staff qualify by
+    # email without holding full superadmin powers (see utils.platform_staff).
+    from utils.platform_staff import is_optio_platform_user
+    if is_optio_platform_user(caller):
         return True
 
     if is_parent_of(caller_id, student_id):
@@ -205,6 +256,8 @@ def can_view_portfolio(caller_id: Optional[str], student_id: str) -> bool:
     if is_advisor_of(caller_id, student_id):
         return True
     if is_observer_of(caller_id, student_id):
+        return True
+    if teaches_student(caller_id, student_id):
         return True
 
     student = _fetch_user(student_id, 'id, organization_id')

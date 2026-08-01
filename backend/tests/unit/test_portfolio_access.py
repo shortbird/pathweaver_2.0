@@ -229,6 +229,55 @@ def test_connected_adults_may_view_a_private_portfolio(relation):
         assert portfolio_access.can_view_portfolio('v1', 's1') is True
 
 
+def test_class_teacher_may_view_without_a_formal_advisor_assignment():
+    """A teacher's relationship to a student is the class they teach, which
+    implies no advisor_student_assignments row. Requiring one would blind
+    teachers to their own students' work."""
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': 't1', 'role': 'advisor', 'organization_id': 'org-A'}), \
+         patch.object(portfolio_access, 'is_parent_of', return_value=False), \
+         patch.object(portfolio_access, 'is_advisor_of', return_value=False), \
+         patch.object(portfolio_access, 'is_observer_of', return_value=False), \
+         patch.object(portfolio_access, 'teaches_student', return_value=True):
+        assert portfolio_access.can_view_portfolio('t1', 's1') is True
+
+
+def test_optio_staff_may_view_without_being_superadmin():
+    """Designated staff are Optio for feed purposes without holding superadmin
+    powers; they must not lose portfolio access to a role check."""
+    from utils import portfolio_access
+    from utils.platform_staff import OPTIO_STAFF_EMAILS
+
+    staff_email = next(e for e in OPTIO_STAFF_EMAILS if e != 'tannerbowman@gmail.com')
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': 'st1', 'email': staff_email,
+                                    'role': 'parent', 'organization_id': None}):
+        assert portfolio_access.can_view_portfolio('st1', 's1') is True
+
+
+def test_teaching_a_student_does_not_confer_control_over_publishing():
+    """Reading is wider than deciding. A class teacher sees the work; they do
+    not get to publish it to the internet."""
+    from utils import portfolio_access
+
+    def fetch(uid, cols):
+        return {
+            't1': {'id': 't1', 'role': 'advisor', 'organization_id': 'org-A'},
+            's1': {'id': 's1', 'organization_id': 'org-A'},
+        }.get(uid)
+
+    with patch.object(portfolio_access, '_fetch_user', side_effect=fetch), \
+         patch.object(portfolio_access, 'is_parent_of', return_value=False), \
+         patch.object(portfolio_access, 'teaches_student', return_value=True), \
+         patch.object(portfolio_access, 'is_advisor_of', return_value=False):
+        allowed, _ = portfolio_access.can_manage_privacy('t1', 's1')
+
+    assert allowed is False
+
+
 def test_stranger_may_not_view_a_private_portfolio():
     """The IDOR this replaces: any signed-in account could read any other
     user's portfolio summary, curated picks and evidence snippets included."""
@@ -237,7 +286,8 @@ def test_stranger_may_not_view_a_private_portfolio():
     with patch.object(portfolio_access, '_fetch_user') as fetch, \
          patch.object(portfolio_access, 'is_parent_of', return_value=False), \
          patch.object(portfolio_access, 'is_advisor_of', return_value=False), \
-         patch.object(portfolio_access, 'is_observer_of', return_value=False):
+         patch.object(portfolio_access, 'is_observer_of', return_value=False), \
+         patch.object(portfolio_access, 'teaches_student', return_value=False):
         fetch.side_effect = lambda uid, cols: {
             'x1': {'id': 'x1', 'role': 'student', 'organization_id': None},
             's1': {'id': 's1', 'organization_id': 'org-A'},
