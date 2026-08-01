@@ -125,34 +125,68 @@ def admin_user():
 
 @pytest.fixture(scope='session')
 def test_supabase():
-    """Get Supabase client configured for test schema"""
-    from supabase import create_client
+    """Get Supabase client configured for test schema.
+
+    These are true integration tests: they need a live Supabase project holding
+    a `test_schema`. Two things were wrong here.
+
+    First, get_supabase_admin_client() caches on Flask's `g`, so it needs an
+    application context -- which this session-scoped fixture never created, and
+    cannot get from the function-scoped `app` fixture. It now pushes its own.
+
+    Second, with no database configured the fixture raised, which pytest reports
+    as an ERROR. CI has no Supabase credentials, so that was 158 permanent
+    errors -- exactly the noise that let real breakage hide (and that the
+    `|| true` in release.yml was papering over). It now SKIPs, which is the
+    truthful result: not run, as opposed to broken.
+
+    The gate is an explicit opt-in rather than "are credentials set", because
+    unit tests need placeholder credentials just to construct a client against
+    mocks. Only RUN_DB_INTEGRATION_TESTS=1 means "there is a real database here
+    and I mean to write to it".
+    """
     from database import get_supabase_admin_client
+    from app_config import Config
 
-    # Use existing database but test_schema
-    client = get_supabase_admin_client()
+    if os.getenv('RUN_DB_INTEGRATION_TESTS', '').lower() not in ('1', 'true', 'yes'):
+        pytest.skip(
+            'Set RUN_DB_INTEGRATION_TESTS=1 (with SUPABASE_URL, '
+            'SUPABASE_SERVICE_ROLE_KEY and a test_schema) to run tests that '
+            'read and write a real database.'
+        )
 
-    # Set search path to test schema for this session
-    test_schema = os.getenv('TEST_SCHEMA', 'test_schema')
-    client.postgrest.session.headers['X-Supabase-Schema'] = test_schema
+    if not Config.SUPABASE_URL or not Config.SUPABASE_SERVICE_ROLE_KEY:
+        pytest.skip(
+            'RUN_DB_INTEGRATION_TESTS is set but SUPABASE_URL / '
+            'SUPABASE_SERVICE_ROLE_KEY are missing.'
+        )
 
-    yield client
+    from app import app as flask_app
 
-    # Cleanup: Clear all test data after session
-    try:
-        # Delete test data from all tables (in reverse dependency order)
-        tables = [
-            'quest_task_completions', 'user_quest_tasks', 'user_quests',
-            'user_skill_xp',
-            'parent_student_links', 'parent_invitations', 'login_attempts',
-            'tutor_messages', 'tutor_conversations', 'badges', 'quests', 'users'
-        ]
-        for table in tables:
-            client.rpc('execute_sql', {
-                'query': f'DELETE FROM test_schema.{table}'
-            })
-    except Exception as e:
-        logger.warning(f"Cleanup warning: {e}")
+    with flask_app.app_context():
+        client = get_supabase_admin_client()
+
+        # Set search path to test schema for this session
+        test_schema = os.getenv('TEST_SCHEMA', 'test_schema')
+        client.postgrest.session.headers['X-Supabase-Schema'] = test_schema
+
+        yield client
+
+        # Cleanup: Clear all test data after session
+        try:
+            # Delete test data from all tables (in reverse dependency order)
+            tables = [
+                'quest_task_completions', 'user_quest_tasks', 'user_quests',
+                'user_skill_xp',
+                'parent_student_links', 'parent_invitations', 'login_attempts',
+                'tutor_messages', 'tutor_conversations', 'badges', 'quests', 'users'
+            ]
+            for table in tables:
+                client.rpc('execute_sql', {
+                    'query': f'DELETE FROM test_schema.{table}'
+                })
+        except Exception as e:
+            logger.warning(f"Cleanup warning: {e}")
 
 @pytest.fixture
 def test_user(test_supabase):

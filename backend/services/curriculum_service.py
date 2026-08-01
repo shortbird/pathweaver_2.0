@@ -9,10 +9,14 @@ from typing import Dict, List, Optional, Any, Union
 from utils.logger import get_logger
 from middleware.error_handler import ValidationError
 import re
+from urllib.parse import urlparse
 
 logger = get_logger(__name__)
 
-# Whitelist of allowed iframe domains for security
+# Whitelist of allowed iframe domains for security. Matched against the parsed
+# HOST -- exactly, or as a parent domain on a dot boundary -- never as a
+# substring of the whole URL. `www.` variants are therefore redundant but kept
+# so the list reads as the set of sites we embed.
 ALLOWED_IFRAME_DOMAINS = [
     'youtube.com',
     'www.youtube.com',
@@ -47,20 +51,54 @@ class CurriculumService(BaseService):
             True if all iframes are valid
 
         Raises:
-            ValidationError: If any iframe contains non-whitelisted domain
+            ValidationError: If any iframe uses a disallowed scheme or domain
+
+        Security note: this used to be `any(domain in url.lower() for domain in
+        ALLOWED_IFRAME_DOMAINS)` -- a substring test against the whole URL,
+        which accepted all of:
+
+            javascript:alert(document.cookie)//youtube.com   (stored XSS)
+            https://evil-youtube.com.malicious.com/video     (lookalike host)
+            https://attacker.test/?ref=youtube.com           (allowlisted string in the query)
+            http://www.youtube.com/embed/abc                 (plaintext, MITM-able)
+
+        Curriculum content is authored by staff and rendered to students, so a
+        single crafted src ran script in every student's browser. Validation is
+        now scheme-first, then an exact/parent-domain match on the parsed host.
         """
         # Extract iframe src attributes
         iframe_pattern = r'<iframe[^>]+src=["\']([^"\']+)["\']'
         matches = re.findall(iframe_pattern, content, re.IGNORECASE)
 
         for url in matches:
-            url_lower = url.lower()
-            is_allowed = any(domain in url_lower for domain in ALLOWED_IFRAME_DOMAINS)
+            parsed = urlparse(url.strip())
+            scheme = (parsed.scheme or '').lower()
+
+            # Anything that isn't http(s) is rejected by name, so the message
+            # tells the author what they actually pasted.
+            if scheme not in ('http', 'https'):
+                raise ValidationError(
+                    f"Iframe URL scheme '{scheme}:' is not allowed. Embeds must be "
+                    f"https:// links to YouTube, Vimeo, Google Drive, SlideShare, or Loom."
+                )
+
+            if scheme != 'https':
+                raise ValidationError(
+                    f"Iframe URL must use https://: {url}"
+                )
+
+            # hostname is already lowercased and strips any userinfo/port, so
+            # "https://youtube.com@evil.test/" resolves to host evil.test.
+            host = parsed.hostname or ''
+            is_allowed = any(
+                host == domain or host.endswith('.' + domain)
+                for domain in ALLOWED_IFRAME_DOMAINS
+            )
 
             if not is_allowed:
                 raise ValidationError(
-                    f"Iframe URL not allowed: {url}. Only YouTube, Vimeo, Google Drive, "
-                    f"SlideShare, and Loom embeds are permitted."
+                    f"Iframe URL domain not allowed: {url}. Only YouTube, Vimeo, "
+                    f"Google Drive, SlideShare, and Loom embeds are permitted."
                 )
 
         return True
