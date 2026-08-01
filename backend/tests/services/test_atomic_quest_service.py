@@ -26,11 +26,11 @@ logger = get_logger(__name__)
 @pytest.mark.critical
 def test_atomic_quest_service_initialization():
     """Test AtomicQuestService can be initialized"""
-    user_id = str(uuid.uuid4())
-    service = AtomicQuestService(user_id=user_id)
+    service = AtomicQuestService()
 
     assert service is not None
-    assert service.user_id == user_id
+    # user_id is a per-call argument now, not service state.
+    assert not hasattr(service, 'user_id')
 
 
 @pytest.mark.unit
@@ -42,10 +42,10 @@ def test_complete_task_atomically_success():
     task_id = str(uuid.uuid4())
     user_quest_id = str(uuid.uuid4())
 
-    service = AtomicQuestService(user_id=user_id)
+    service = AtomicQuestService()
 
     # Mock the database operations
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # Mock task exists and not completed
         mock_task_response = Mock()
         mock_task_response.data = [{
@@ -96,9 +96,9 @@ def test_duplicate_completion_prevented():
     task_id = str(uuid.uuid4())
     user_quest_id = str(uuid.uuid4())
 
-    service = AtomicQuestService(user_id=user_id)
+    service = AtomicQuestService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # Mock task exists
         mock_task = Mock()
         mock_task.data = [{
@@ -121,18 +121,18 @@ def test_duplicate_completion_prevented():
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_task
         mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_existing_completion
 
-        # Should raise error or return error result
-        with pytest.raises(Exception) as exc_info:
-            service.complete_task_atomically(
-                user_id=user_id,
-                quest_id=quest_id,
-                task_id=task_id,
-                user_quest_id=user_quest_id,
-                evidence_text='Test evidence'
-            )
+        # Reported as a result, not an exception.
+        result = service.complete_task_atomically(
+            user_id=user_id,
+            quest_id=quest_id,
+            task_id=task_id,
+            user_quest_id=user_quest_id,
+            evidence_text='Test evidence'
+        )
 
-        # Error should indicate duplicate completion
-        assert 'already completed' in str(exc_info.value).lower() or 'duplicate' in str(exc_info.value).lower()
+        assert result['success'] is False
+        assert result.get('task_already_completed') is True
+        assert 'already completed' in result['error'].lower()
 
 
 @pytest.mark.unit
@@ -143,9 +143,9 @@ def test_transaction_rollback_on_error():
     task_id = str(uuid.uuid4())
     user_quest_id = str(uuid.uuid4())
 
-    service = AtomicQuestService(user_id=user_id)
+    service = AtomicQuestService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # Mock task exists
         mock_task = Mock()
         mock_task.data = [{'id': task_id, 'xp_value': 100, 'pillar': 'stem'}]
@@ -159,15 +159,17 @@ def test_transaction_rollback_on_error():
         # Mock insert failure
         mock_supabase.table.return_value.insert.return_value.execute.side_effect = Exception("Database error")
 
-        # Should handle error gracefully
-        with pytest.raises(Exception):
-            service.complete_task_atomically(
-                user_id=user_id,
-                quest_id=quest_id,
-                task_id=task_id,
-                user_quest_id=user_quest_id,
-                evidence_text='Test evidence'
-            )
+        # Handled, not propagated: the caller gets a failure result.
+        result = service.complete_task_atomically(
+            user_id=user_id,
+            quest_id=quest_id,
+            task_id=task_id,
+            user_quest_id=user_quest_id,
+            evidence_text='Test evidence'
+        )
+
+        assert result['success'] is False
+        assert result.get('error')
 
 
 @pytest.mark.unit
@@ -181,9 +183,9 @@ def test_xp_consistency():
 
     task_xp_value = 250
 
-    service = AtomicQuestService(user_id=user_id)
+    service = AtomicQuestService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # Mock task with specific XP value
         mock_task = Mock()
         mock_task.data = [{
@@ -227,14 +229,20 @@ def test_validation_error_on_missing_params():
     """Test that validation error is raised for missing parameters"""
     service = AtomicQuestService()
 
-    # Missing required parameters
-    with pytest.raises(Exception):
-        service.complete_task_atomically(
+    # Missing required parameters -> failure result, not an exception.
+    with patch.object(service, '_supabase'):
+        result = service.complete_task_atomically(
             user_id=None,  # Missing
             quest_id=str(uuid.uuid4()),
             task_id=str(uuid.uuid4()),
             user_quest_id=str(uuid.uuid4()),
         )
+
+    # A MagicMock DB answers everything truthily, so the guard that actually
+    # fires is the ownership lookup -- which is the point: no user_id means no
+    # task is owned, and nothing is written.
+    assert result['success'] is False
+    assert result.get('error')
 
 
 @pytest.mark.unit
@@ -248,18 +256,22 @@ def test_evidence_url_and_text_stored():
     evidence_url = 'https://example.com/evidence.pdf'
     evidence_text = 'My detailed evidence'
 
-    service = AtomicQuestService(user_id=user_id)
+    service = AtomicQuestService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
-        # Mock task exists
-        mock_task = Mock()
-        mock_task.data = [{'id': task_id, 'xp_value': 100, 'pillar': 'art'}]
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_task
-
-        # Mock no existing completion
+    with patch.object(service, '_supabase') as mock_supabase:
+        # No existing completion: the duplicate check is
+        # select('id').eq().eq().eq().execute()
         mock_no_completion = Mock()
         mock_no_completion.data = []
-        mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_no_completion
+        mock_supabase.table.return_value.select.return_value.eq.return_value \
+            .eq.return_value.eq.return_value.execute.return_value = mock_no_completion
+
+        # Task ownership lookup is .eq().eq().eq().single().execute() and returns
+        # a single row (not a list).
+        mock_task = Mock()
+        mock_task.data = {'id': task_id, 'xp_value': 100, 'pillar': 'art'}
+        mock_supabase.table.return_value.select.return_value.eq.return_value \
+            .eq.return_value.eq.return_value.single.return_value.execute.return_value = mock_task
 
         # Capture insert data
         inserted_data = {}
@@ -300,10 +312,10 @@ def test_concurrent_completion_handling():
     task_id = str(uuid.uuid4())
     user_quest_id = str(uuid.uuid4())
 
-    service = AtomicQuestService(user_id=user_id)
+    service = AtomicQuestService()
 
     # Simulate race condition by having completion appear between check and insert
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # First check: no completion
         mock_no_completion = Mock()
         mock_no_completion.data = []

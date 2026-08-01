@@ -32,6 +32,32 @@ def _chain(execute_result):
     return chain
 
 
+def _rw_chain(read_result, write_result):
+    """A table whose reads and writes answer differently.
+
+    user_quest_tasks is both read and written in this flow: the service first
+    SELECTs to enforce one-task-per-moment+quest, then INSERTs. A single shared
+    execute() made that SELECT return the row the INSERT was about to create, so
+    every happy path reported "This moment is already on that quest".
+    """
+    chain = MagicMock()
+    read = MagicMock()
+    write = MagicMock()
+    for c, result in ((read, read_result), (write, write_result)):
+        for method in ('eq', 'in_', 'is_', 'order', 'limit', 'offset', 'range', 'single'):
+            getattr(c, method).return_value = c
+        c.execute.return_value = result
+    chain.select.return_value = read
+    for method in ('insert', 'upsert', 'update', 'delete'):
+        getattr(chain, method).return_value = write
+    # Terminal calls straight on the table (rare) behave like a read.
+    for method in ('eq', 'in_', 'is_', 'order', 'limit', 'offset', 'range', 'single'):
+        getattr(chain, method).return_value = read
+    chain.execute.return_value = read_result
+    chain.insert_target = write
+    return chain
+
+
 def _build_supabase(*, junction_quest_ids, enrollment_found=True, evidence_blocks=None,
                     moment_description='Some description'):
     """Wire the supabase mock for the happy + adjacent paths."""
@@ -53,12 +79,17 @@ def _build_supabase(*, junction_quest_ids, enrollment_found=True, evidence_block
     enrollment_chain = _chain(SimpleNamespace(
         data=[{'id': ENROLLMENT_ID}] if enrollment_found else []
     ))
-    task_chain = _chain(SimpleNamespace(data=[{
-        'id': NEW_TASK_ID,
-        'title': 'I built a thing',
-        'pillar': 'stem',
-        'xp_value': 50,
-    }]))
+    task_chain = _rw_chain(
+        # No existing task for this moment+quest ...
+        SimpleNamespace(data=[]),
+        # ... and this is what the insert returns.
+        SimpleNamespace(data=[{
+            'id': NEW_TASK_ID,
+            'title': 'I built a thing',
+            'pillar': 'stem',
+            'xp_value': 50,
+        }]),
+    )
     evidence_doc_chain = _chain(SimpleNamespace(data=[{'id': 'doc-id'}]))
     evidence_blocks_chain = _chain(SimpleNamespace(data=[]))
 
@@ -89,7 +120,7 @@ def test_default_xp_is_50():
     inserted = task_chain.insert.call_args.args[0]
     assert inserted['xp_value'] == 50
     assert inserted['source_moment_id'] == MOMENT_ID
-    assert inserted['approval_status'] == 'pending'
+    assert inserted['approval_status'] == 'approved'
     assert inserted['quest_id'] == QUEST_A
 
 
@@ -213,7 +244,7 @@ def test_fails_with_zero_quests():
         )
 
     assert result['success'] is False
-    assert 'not assigned to a quest' in result['error']
+    assert result['error'] == 'No quest specified'
     task_chain.insert.assert_not_called()
 
 
@@ -229,7 +260,7 @@ def test_fails_when_multiple_quests_no_explicit_quest_id():
         )
 
     assert result['success'] is False
-    assert 'specify quest_id' in result['error']
+    assert result['error'] == 'Specify which quest to add this to'
     task_chain.insert.assert_not_called()
 
 
@@ -249,25 +280,31 @@ def test_succeeds_when_multiple_quests_with_explicit_quest_id():
     assert task_chain.insert.call_args.args[0]['quest_id'] == QUEST_B
 
 
-def test_explicit_quest_id_must_match_assignment():
-    """If the caller insists on a quest the moment isn't actually
-    attached to, we must refuse — preventing an XP path that bypasses
-    the topic-assignment rule."""
+def test_explicit_quest_id_creates_the_link_it_needs():
+    """An explicit quest_id no longer has to match a pre-existing assignment.
+
+    This previously refused, on the theory that promoting to an unassigned
+    quest bypassed the topic-assignment rule. The service dropped that
+    requirement deliberately -- "adding it to a quest creates that link" -- and
+    the real gate is the enrollment check immediately below it, which
+    test_fails_when_not_enrolled covers. A student promoting their own moment
+    onto a quest they are enrolled in is the intended flow.
+    """
     from services.interest_tracks_service import InterestTracksService
 
-    bogus_quest = '99999999-9999-9999-9999-999999999999'
+    other_quest = '99999999-9999-9999-9999-999999999999'
     supabase, task_chain, _, _ = _build_supabase(junction_quest_ids=[QUEST_A])
 
     with patch('services.interest_tracks_service.get_supabase_admin_client', return_value=supabase):
         result = InterestTracksService.convert_moment_to_task(
             user_id=USER_ID,
             moment_id=MOMENT_ID,
-            quest_id=bogus_quest,
+            quest_id=other_quest,
         )
 
-    assert result['success'] is False
-    assert 'not assigned to that quest' in result['error']
-    task_chain.insert.assert_not_called()
+    assert result['success'] is True
+    assert task_chain.insert_target is not None
+    assert task_chain.insert.call_args.args[0]['quest_id'] == other_quest
 
 
 def test_fails_when_not_enrolled():

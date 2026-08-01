@@ -26,10 +26,11 @@ logger = get_logger(__name__)
 def test_xp_service_initialization():
     """Test XPService can be initialized"""
     user_id = str(uuid.uuid4())
-    service = XPService(user_id=user_id)
+    service = XPService()
 
     assert service is not None
-    assert service.user_id == user_id
+    # user_id is passed per call now, not held on the service.
+    assert not hasattr(service, 'user_id')
 
 
 @pytest.mark.unit
@@ -37,12 +38,12 @@ def test_xp_service_initialization():
 def test_xp_award_by_pillar():
     """Test XP is correctly awarded to specific pillar"""
     user_id = str(uuid.uuid4())
-    service = XPService(user_id=user_id)
+    service = XPService()
 
     pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
 
     for pillar in pillars:
-        with patch.object(service, 'supabase') as mock_supabase:
+        with patch.object(service, '_supabase') as mock_supabase:
             # Mock existing XP
             mock_current_xp = Mock()
             mock_current_xp.data = [{'pillar': pillar, 'xp_amount': 100}]
@@ -64,9 +65,9 @@ def test_xp_award_by_pillar():
 def test_xp_total_calculation():
     """Test total XP calculation across all pillars"""
     user_id = str(uuid.uuid4())
-    service = XPService(user_id=user_id)
+    service = XPService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # Mock XP in all pillars
         mock_xp_data = Mock()
         mock_xp_data.data = [
@@ -78,19 +79,20 @@ def test_xp_total_calculation():
         ]
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_xp_data
 
-        total_xp = service.get_total_xp(user_id=user_id)
+        breakdown = service.get_user_total_xp(user_id=user_id)
 
-        # Total should be 1400
-        assert total_xp == 1400
+        # get_user_total_xp returns pillar -> xp; callers sum it themselves.
+        assert sum(breakdown.values()) == 1400
 
 
 @pytest.mark.unit
+@pytest.mark.skip(reason="XPService has no check_badge_unlocks; badge awarding lives outside this service. Point this at whatever owns it, or drop it.")
 def test_badge_unlock_threshold():
     """Test badge unlock detection when XP threshold is reached"""
     user_id = str(uuid.uuid4())
-    service = XPService(user_id=user_id)
+    service = XPService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # Mock user's XP in STEM pillar
         mock_xp_data = Mock()
         mock_xp_data.data = [{'pillar': 'stem', 'xp_amount': 1000}]
@@ -118,9 +120,9 @@ def test_badge_unlock_threshold():
 def test_xp_consistency_after_update():
     """Test XP remains consistent after update operations"""
     user_id = str(uuid.uuid4())
-    service = XPService(user_id=user_id)
+    service = XPService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         # Mock current XP
         mock_current = Mock()
         mock_current.data = [{'pillar': 'stem', 'xp_amount': 500}]
@@ -133,12 +135,17 @@ def test_xp_consistency_after_update():
         mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_current
         mock_supabase.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_updated
 
-        # Award 200 XP
+        # Award 200 XP. award_xp returns a bool -- the increment happens
+        # DB-side via the increment_user_xp RPC (atomic, so concurrent
+        # completions can't lose XP), so there is no record to inspect here.
         result = service.award_xp(user_id=user_id, pillar='stem', xp_amount=200)
 
-        # Updated XP should be 700 (500 + 200)
-        if result and 'xp_amount' in result:
-            assert result['xp_amount'] == 700
+        assert result is True
+        mock_supabase.rpc.assert_called_once()
+        rpc_name, rpc_args = mock_supabase.rpc.call_args.args
+        assert rpc_name == 'increment_user_xp'
+        assert rpc_args['p_pillar'] == 'stem'
+        assert rpc_args['p_amount'] == 200
 
 
 @pytest.mark.unit
@@ -155,7 +162,8 @@ def test_xp_validation_invalid_pillar():
     """Test that invalid pillar names are rejected"""
     service = XPService()
 
-    invalid_pillars = ['invalid', 'science', 'math', 'STEM', 'Wellness']
+    # 'STEM'/'Wellness' are ACCEPTED: normalize_pillar_name is case-insensitive.
+    invalid_pillars = ['invalid', 'science', 'math']
 
     for invalid_pillar in invalid_pillars:
         with pytest.raises(ValidationError):
@@ -163,6 +171,7 @@ def test_xp_validation_invalid_pillar():
 
 
 @pytest.mark.unit
+@pytest.mark.skip(reason="XPService.round_to_nearest_50 no longer exists. XP is stored as-is; the nearest-5 rounding that remains lives in routes/tasks/xp_helpers.py.")
 def test_xp_round_to_nearest_50():
     """Test XP rounding to nearest 50"""
     service = XPService()
@@ -192,9 +201,9 @@ def test_xp_round_to_nearest_50():
 def test_get_xp_breakdown_by_pillar():
     """Test retrieving XP breakdown by pillar"""
     user_id = str(uuid.uuid4())
-    service = XPService(user_id=user_id)
+    service = XPService()
 
-    with patch.object(service, 'supabase') as mock_supabase:
+    with patch.object(service, '_supabase') as mock_supabase:
         mock_xp_data = Mock()
         mock_xp_data.data = [
             {'pillar': 'stem', 'xp_amount': 500},
@@ -205,10 +214,10 @@ def test_get_xp_breakdown_by_pillar():
         ]
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_xp_data
 
-        breakdown = service.get_xp_breakdown(user_id=user_id)
+        breakdown = service.get_user_total_xp(user_id=user_id)
 
-        # Should return breakdown for all pillars
+        # Always seeded with all five pillars, zeros included; no 'total' key.
         assert len(breakdown) == 5
         assert breakdown['stem'] == 500
         assert breakdown['wellness'] == 300
-        assert breakdown['total'] == 1400
+        assert sum(breakdown.values()) == 1400

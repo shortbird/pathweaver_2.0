@@ -4,6 +4,7 @@ Unit tests for TranscriptionService.
 Tests Google Cloud STT integration and pillar suggestion from text.
 """
 
+import sys
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
@@ -30,7 +31,7 @@ class TestTranscriptionService:
 
         service._client.recognize.return_value = mock_response
 
-        with patch('services.transcription_service.speech_v1', create=True):
+        with patch.dict(sys.modules, {'google.cloud.speech_v1': Mock()}):
             result = service.transcribe_audio(b'fake_audio')
 
             assert result['transcription'] == 'I learned about photosynthesis today'
@@ -46,7 +47,7 @@ class TestTranscriptionService:
         mock_response.results = []
         service._client.recognize.return_value = mock_response
 
-        with patch('services.transcription_service.speech_v1', create=True):
+        with patch.dict(sys.modules, {'google.cloud.speech_v1': Mock()}):
             result = service.transcribe_audio(b'silence')
 
             assert result['transcription'] == ''
@@ -66,7 +67,7 @@ class TestTranscriptionService:
 
         service._client.recognize.return_value = mock_response
 
-        with patch('services.transcription_service.speech_v1', create=True):
+        with patch.dict(sys.modules, {'google.cloud.speech_v1': Mock()}):
             result = service.transcribe_audio(b'audio')
 
             assert 'First sentence.' in result['transcription']
@@ -77,7 +78,7 @@ class TestTranscriptionService:
         from services.transcription_service import TranscriptionService
         service = TranscriptionService()
 
-        with patch('services.transcription_service.SnapToLearnAIService') as mock_ai:
+        with patch('services.snap_to_learn_ai_service.SnapToLearnAIService') as mock_ai:
             mock_ai.return_value.generate_json.side_effect = Exception("AI error")
 
             result = service.suggest_pillar_from_text("some text")
