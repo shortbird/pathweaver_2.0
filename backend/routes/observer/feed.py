@@ -26,9 +26,9 @@ AUTO_EVIDENCE_DESCRIPTION_PREFIXES = (
 )
 
 
-def is_empty_auto_evidence_moment(title, description, media_items):
+def is_empty_auto_evidence_moment(title, description, has_evidence):
     """True when a learning moment is nothing but an auto-generated evidence
-    placeholder with no media to show.
+    placeholder — no media and no text the student wrote.
 
     These moments normally never reach the feed — the learning_events query
     skips anything with attached_task_id set, because the same evidence is
@@ -39,8 +39,11 @@ def is_empty_auto_evidence_moment(title, description, media_items):
     filter and renders as a card with no photo and no student-written text —
     just an italic "Evidence for: <task>" line. There is nothing to show, so
     don't emit it.
+
+    `has_evidence` covers both media blocks and text blocks: an orphan that
+    still carries the student's writing or photos is a real post and stays.
     """
-    if media_items:
+    if has_evidence:
         return False
     if title and title.strip().lower() not in ('', 'learning moment'):
         return False
@@ -684,13 +687,22 @@ def register_routes(bp):
                 # Collect all media items for this learning event
                 media_items = []
                 primary_evidence = None  # First media item for backwards compatibility
+                # Written evidence. Text blocks carry what the student actually
+                # wrote (a task-evidence moment is often text-only), and were
+                # previously dropped on the floor here — the card then fell back
+                # to the auto description and showed no student writing at all.
+                text_parts = []
 
                 if event_blocks:
                     for block in event_blocks:
                         content = block.get('content', {})
                         media_item = None
 
-                        if block['block_type'] == 'image':
+                        if block['block_type'] == 'text':
+                            text_val = (content.get('text') or content.get('value') or '').strip()
+                            if text_val:
+                                text_parts.append(text_val)
+                        elif block['block_type'] == 'image':
                             media_item = {
                                 'type': 'image',
                                 'url': content.get('url') or block.get('file_url'),
@@ -735,14 +747,17 @@ def register_routes(bp):
 
                 # Create single feed item for this learning event
                 description = event.get('description', '')
+                block_text = '\n\n'.join(text_parts)
 
                 # Orphaned task-evidence placeholder with nothing attached —
                 # would render as an empty "Evidence for: <task>" card.
-                if is_empty_auto_evidence_moment(event.get('title'), description, media_items):
+                if is_empty_auto_evidence_moment(
+                    event.get('title'), description, bool(media_items or block_text)
+                ):
                     continue
 
                 # Only add if we have media or description
-                if media_items or description:
+                if media_items or block_text or description:
                     raw_feed_items.append({
                         'id': f"le_{event['id']}",
                         'learning_event_id': event['id'],
@@ -757,9 +772,16 @@ def register_routes(bp):
                         'topic_name': event_track_label.get(event['id']),
                         'source_type': event.get('source_type', 'realtime'),
                         'captured_by_user_id': event.get('captured_by_user_id'),
-                        # Primary evidence for backwards compatibility
-                        'evidence_type': primary_evidence['type'] if primary_evidence else ('text' if description else None),
-                        'evidence_preview': primary_evidence['preview'] if primary_evidence else description,
+                        # Primary evidence for backwards compatibility. With no
+                        # media, the student's own text block wins over the
+                        # description — for a task-evidence moment the
+                        # description is only the "Evidence for: <task>"
+                        # placeholder, so showing it instead of what they wrote
+                        # made the post look empty.
+                        'evidence_type': primary_evidence['type'] if primary_evidence
+                            else ('text' if (block_text or description) else None),
+                        'evidence_preview': primary_evidence['preview'] if primary_evidence
+                            else (block_text or description),
                         'evidence_title': primary_evidence.get('title') if primary_evidence else None,
                         # All media items for carousel display
                         'media_items': media_items,
