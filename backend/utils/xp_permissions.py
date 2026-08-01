@@ -4,19 +4,20 @@ Who is allowed to set a task's XP value.
 Background: XP is student-editable by default -- "the process is the goal", and a
 learner sizing their own work is part of that. Schools running Optio as their SIS
 told us the default breaks down in a classroom: students were awarding themselves
-large XP for small tasks, and guides had to chase the numbers down afterward.
+large XP for small tasks, and teachers had to chase the numbers down afterward.
 
 So XP editing is now an *organization-level* capability, off by default:
 
     organizations.feature_flags.lock_xp_editing = true
 
 Absent or falsy (every org today, and every platform user, who has no org at all)
-keeps the current behavior exactly. When an org turns it on, only guides --
-advisor, org_admin, superadmin -- may choose or change a task's XP. Learners and
-parents can still create, edit, and complete tasks; the XP number is simply not
-theirs to set, and the server assigns a calibrated default instead.
+keeps the current behavior exactly. When an org turns it on, only advisor,
+org_admin, and superadmin may choose or change a task's XP -- "teachers" in every
+user-facing string, matching ROLE_DISPLAY_NAMES where advisor displays as
+Teacher. Learners and parents can still create, edit, and complete tasks; the XP
+number is simply not theirs to set, and the server assigns a calibrated default.
 
-Enforcement lives at every route where a non-guide can supply ``xp_value``:
+Enforcement lives at every route where a non-teacher can supply ``xp_value``:
 task edit (routes/tasks/crud.py), the personalization accept/manual-add paths,
 learning-moment promotion, and parent-created dependent tasks. Frontends hide the
 XP control using the same flag, but the server is the authority.
@@ -35,7 +36,9 @@ logger = get_logger(__name__)
 # change for any org that never opts in.
 XP_LOCK_FLAG = 'lock_xp_editing'
 
-# Roles a school would call "guides": they set XP regardless of the flag.
+# Roles that set XP regardless of the flag. Surfaced to users as "teachers"
+# (matching ROLE_DISPLAY_NAMES, where advisor displays as Teacher) -- keep any
+# user-facing copy on that word rather than the internal "guide".
 XP_GUIDE_ROLES = frozenset({'superadmin', 'org_admin', 'advisor'})
 
 # XP assigned to a learner-created task when the org has locked XP editing and
@@ -51,7 +54,7 @@ MAX_LEARNER_TASK_XP = 200
 # the student, not the developer -- this reaches the UI verbatim.
 XP_LOCKED_MESSAGE = (
     "Your school sets the XP for tasks. You can still edit everything else -- "
-    "ask your guide if this task's XP looks wrong."
+    "ask your teacher if this task's XP looks wrong."
 )
 
 

@@ -105,7 +105,7 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
   )
   const [savingBounties, setSavingBounties] = useState(false)
 
-  // Restrict task XP to guides. Off by default -- students sizing their own work
+  // Restrict task XP to teachers. Off by default -- students sizing their own work
   // is the platform default; schools opt in when self-awarded XP gets inflated.
   // Enforced server-side in backend/utils/xp_permissions.py.
   const [lockXpEditing, setLockXpEditing] = useState(
@@ -522,8 +522,8 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <h2 className="text-xl font-bold mb-2">XP</h2>
         <FeatureToggle
-          label="Only guides can set task XP"
-          description="Students keep creating and editing their own tasks, but the XP value is set by the platform and can only be changed by advisors and org admins. Leave off to let students size their own work."
+          label="Only teachers can set task XP"
+          description="Students keep creating and editing their own tasks, but the XP value is set by the platform and can only be changed by teachers and org admins. Leave off to let students size their own work."
           icon={SparklesIcon}
           enabled={lockXpEditing}
           onToggle={handleToggleLockXpEditing}

@@ -5,10 +5,11 @@ import { OrganizationContext } from '../contexts/OrganizationContext'
 /**
  * Whether the current user may choose or change a task's XP value.
  *
- * XP is learner-editable by default. Schools can restrict it to guides with the
+ * XP is learner-editable by default. Schools can restrict it to teachers with the
  * org toggle `organizations.feature_flags.lock_xp_editing` (Organization ->
- * Settings). When that flag is on, only advisors, org admins, and superadmins
- * see an XP control; everyone else sees the value read-only.
+ * Settings). When that flag is on, only teachers (the `advisor` role, which
+ * displays as Teacher), org admins, and superadmins see an XP control;
+ * everyone else sees the value read-only.
  *
  * The server enforces the same rule (backend/utils/xp_permissions.py) -- this
  * hook exists so a locked org never shows a control that would fail on save.

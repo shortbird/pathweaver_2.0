@@ -72,7 +72,7 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
 
     setLoading(true);
     try {
-      // Omit xp_value entirely when the org has locked XP to guides — sending an
+      // Omit xp_value entirely when the org has locked XP to teachers — sending an
       // unchanged value would still be a no-op server-side, but not sending it
       // keeps the request honest about what the student actually edited.
       const payload = canEditXp ? { pillar, xp_value: xp } : { pillar };
@@ -186,7 +186,7 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
                 {task?.xp_value ?? 0} XP
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                {XP_LOCKED_HINT} Ask your guide if this task&apos;s XP looks wrong.
+                {XP_LOCKED_HINT} Ask your teacher if this task&apos;s XP looks wrong.
               </p>
             </>
           )}

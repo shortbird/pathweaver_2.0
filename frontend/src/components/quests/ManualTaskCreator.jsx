@@ -278,7 +278,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
             </p>
           </div>
 
-          {/* XP Value Selection — hidden when the org restricts XP to guides;
+          {/* XP Value Selection — hidden when the org restricts XP to teachers;
               the server assigns the standard task XP instead. */}
           {canEditXp && (
             <div>

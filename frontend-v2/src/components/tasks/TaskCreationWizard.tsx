@@ -511,7 +511,7 @@ export function TaskCreationWizard({
                     </VStack>
 
                     {/* Task Size sets XP — hidden when the org restricts XP to
-                        guides; the server assigns the standard task XP instead. */}
+                        teachers; the server assigns the standard task XP instead. */}
                     {canEditXp && (
                       <VStack space="xs">
                         <UIText size="sm" className="font-poppins-medium">Task Size *</UIText>

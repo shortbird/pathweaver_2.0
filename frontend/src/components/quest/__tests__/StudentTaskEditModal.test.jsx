@@ -49,6 +49,13 @@ describe('StudentTaskEditModal XP lock', () => {
     expect(screen.getByText(/Your school sets the XP for tasks/)).toBeInTheDocument()
   })
 
+  it('names the role "teacher", never the internal word "guide"', () => {
+    // Student-facing copy uses ROLE_DISPLAY_NAMES wording (advisor -> Teacher).
+    renderModal({ featureFlags: { lock_xp_editing: true } })
+    expect(screen.getByText(/Ask your teacher/)).toBeInTheDocument()
+    expect(screen.queryByText(/guide/i)).not.toBeInTheDocument()
+  })
+
   it('omits xp_value from the payload when locked, so other edits still save', async () => {
     const onSave = renderModal({ featureFlags: { lock_xp_editing: true } })
     fireEvent.click(screen.getByText('Art'))

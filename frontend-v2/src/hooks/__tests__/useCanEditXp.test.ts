@@ -1,5 +1,5 @@
 /**
- * useCanEditXp — the org-level "only guides set XP" gate on mobile.
+ * useCanEditXp — the org-level "only teachers set XP" gate on mobile.
  */
 
 import { renderHook, act } from '@testing-library/react-native';

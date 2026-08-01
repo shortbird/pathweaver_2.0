@@ -11,10 +11,17 @@ import pytest
 from utils.xp_permissions import (
     DEFAULT_TASK_XP,
     MAX_LEARNER_TASK_XP,
+    XP_LOCKED_MESSAGE,
     can_set_task_xp,
     is_xp_guide,
     resolve_learner_task_xp,
 )
+
+
+def test_locked_message_says_teacher_not_guide():
+    """This string reaches students verbatim; the product word is "teacher"."""
+    assert 'teacher' in XP_LOCKED_MESSAGE
+    assert 'guide' not in XP_LOCKED_MESSAGE.lower()
 
 
 class TestIsXpGuide:

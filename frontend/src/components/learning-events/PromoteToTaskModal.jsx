@@ -165,7 +165,7 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
             )}
           </div>
 
-          {/* XP slider — hidden when the org restricts XP to guides; the server
+          {/* XP slider — hidden when the org restricts XP to teachers; the server
               assigns the standard promotion value instead. */}
           {canEditXp && (
           <div>
