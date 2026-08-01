@@ -250,13 +250,37 @@ def finalize_event_signed_upload(user_id, event_id):
 
 @learning_events_bp.route('/api/users/<target_user_id>/learning-events/public', methods=['GET'])
 def get_public_learning_events(target_user_id):
-    """Get learning events for public diploma view (no auth required)"""
+    """Learning events shown alongside a portfolio.
+
+    "public" in the path is historical. This endpoint used to return every
+    learning event for any user id, to anyone, with no authentication and --
+    worse -- without filtering the is_confidential flag that the student or
+    their parent had set on individual moments. It now answers only for a
+    portfolio the caller is actually entitled to see, and never returns
+    moments marked confidential.
+    """
     try:
         limit = request.args.get('limit', 50, type=int)
 
         # Validate limit
         if limit < 1 or limit > 100:
             return jsonify({'error': 'Limit must be between 1 and 100'}), 400
+
+        from utils.session_manager import session_manager
+        from utils.portfolio_access import can_view_portfolio
+        from services.portfolio_service import PortfolioService
+
+        viewer_id = session_manager.get_current_user_id()
+
+        allowed = bool(viewer_id) and can_view_portfolio(viewer_id, target_user_id)
+        if not allowed:
+            diploma = PortfolioService().get_diploma_by_user_id(target_user_id)
+            allowed = bool(diploma and diploma.get('is_public'))
+
+        if not allowed:
+            # Same shape as a student with no moments: don't confirm whether
+            # this user id exists or how much work they have.
+            return jsonify({'success': True, 'events': []}), 200
 
         result = LearningEventsService.get_public_learning_events(
             user_id=target_user_id,

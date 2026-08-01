@@ -678,7 +678,13 @@ class LearningEventsService(BaseService):
         user_id: str,
         limit: int = 50
     ) -> Dict[str, Any]:
-        """Get learning events for public diploma view."""
+        """Learning events for a portfolio view.
+
+        Callers MUST have established that the viewer is entitled to see this
+        student's portfolio -- this method does not check. It does enforce the
+        per-moment privacy flags, which are the student's and parent's own
+        choices and are not the caller's to override.
+        """
         try:
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
@@ -686,6 +692,7 @@ class LearningEventsService(BaseService):
             events_response = supabase.table('learning_events') \
                 .select('*') \
                 .eq('user_id', user_id) \
+                .eq('is_confidential', False) \
                 .order('created_at', desc=True) \
                 .limit(limit) \
                 .execute()

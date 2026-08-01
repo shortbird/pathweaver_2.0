@@ -80,7 +80,11 @@ vi.mock('@heroicons/react/24/outline', () => ({
   UserGroupIcon: (props) => <svg data-testid="group-icon" {...props} />,
   NewspaperIcon: (props) => <svg data-testid="newspaper-icon" {...props} />,
   RocketLaunchIcon: (props) => <svg data-testid="rocket-icon" {...props} />,
-  ChevronDownIcon: (props) => <svg data-testid="chevron-down-icon" {...props} />
+  ChevronDownIcon: (props) => <svg data-testid="chevron-down-icon" {...props} />,
+  // Used by ChildPrivacyCard, which the dashboard renders for the selected child.
+  GlobeAltIcon: (props) => <svg data-testid="globe-icon" {...props} />,
+  LockClosedIcon: (props) => <svg data-testid="lock-icon" {...props} />,
+  LinkIcon: (props) => <svg data-testid="link-icon" {...props} />
 }))
 
 import { parentAPI } from '../services/api'

@@ -677,19 +677,29 @@ def get_child_overview(user_id, student_id):
             'parent_approval_denied': False
         }
 
+        # Real visibility, from the table that actually holds it. This read
+        # used to target `user_portfolio_settings` -- a table with no migration
+        # anywhere in the repo. The query always raised, the exception was
+        # always swallowed, and the hardcoded default above was always what a
+        # parent saw. Parents were being told their child's portfolio was
+        # private when it may well have been public to the internet.
         try:
-            visibility_response = supabase.table('user_portfolio_settings').select('''
-                is_public, pending_parent_approval, parent_approval_denied
-            ''').eq('user_id', student_id).single().execute()
+            from services.portfolio_service import PortfolioService
 
-            if visibility_response.data:
+            status = PortfolioService().get_visibility_status(student_id)
+            if 'error' not in status:
                 visibility_status = {
-                    'is_public': visibility_response.data.get('is_public', False),
-                    'pending_parent_approval': visibility_response.data.get('pending_parent_approval', False),
-                    'parent_approval_denied': visibility_response.data.get('parent_approval_denied', False)
+                    'is_public': status.get('is_public', False),
+                    'pending_parent_approval': status.get('pending_parent_approval', False),
+                    'parent_approval_denied': status.get('parent_approval_denied', False),
+                    'consent_given_at': status.get('consent_given_at'),
                 }
         except Exception:
-            logger.debug("intentional swallow", exc_info=True)  # Table or record may not exist
+            # Still degrade to "private" on failure, but say so loudly -- a
+            # privacy indicator that silently guesses is worse than none.
+            logger.error("Failed to load visibility status for student %s",
+                         str(student_id)[:8], exc_info=True)
+            visibility_status['unknown'] = True
 
         # 9. Build pillars data for constellation
         seven_days_ago = (date.today() - timedelta(days=7)).isoformat()

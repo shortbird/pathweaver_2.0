@@ -186,9 +186,22 @@ const OptioAcademyHandbook = () => {
 
               <h3 className="text-xl font-semibold mb-3">What's Public, What's Not</h3>
               <p className="mb-4">
-                Your portfolio is public by default — that's how colleges, employers, and family can see
-                what you've learned. You can change visibility settings at any time on your Profile page.
-                Your mentor sessions, your private notes, and your AI tutor conversations are not public.
+                Your portfolio is private by default. Nothing you make is published to the internet
+                unless someone decides to publish it — and if you're under 18, that decision belongs to
+                your parent or guardian. You can ask them to share it, and they can make it private
+                again at any time. Once you turn 18, the choice is yours.
+              </p>
+              <p className="mb-4">
+                Private doesn't mean nobody can see your work. Your parents, your teachers, your advisor,
+                and anyone your family has invited to follow along can always see it — that's the point of
+                keeping a portfolio. What private means is that it isn't published for strangers or search
+                engines to find. Your mentor sessions, your private notes, and your AI tutor conversations
+                are never public.
+              </p>
+              <p className="mb-4">
+                When it's time to show your work to a college or an employer, your parent or your school
+                can publish your portfolio, or send a transcript link that works for just that recipient
+                and can be switched off afterwards.
               </p>
 
               <h3 className="text-xl font-semibold mb-3">The AI Study Buddy</h3>

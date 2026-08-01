@@ -27,15 +27,34 @@ def register_routes(bp):
         """
         Student generates a shareable invitation link for observers.
 
-        No email or name required - the link can be shared with anyone.
-        Cancels any existing pending link-based invitation from this student
-        before creating a new one.
+        Adults only. A minor cannot hand out access to their own learning
+        record: the link is bearer-authority over everything in their feed,
+        and until 2026-08 any student could mint one, share it anywhere, and
+        their parents would find out only from the notification sent after a
+        stranger had already accepted it.
+
+        Minors are redirected to their parent, who has an invite flow of their
+        own. In practice this costs nothing -- no student-generated link has
+        ever been accepted.
 
         Returns:
             200: shareable_link, expires_at
+            403: Caller is a minor; a parent must send the invitation
             429: Rate limit exceeded
         """
         try:
+            from utils.portfolio_access import is_minor_by_id, find_approver
+
+            if is_minor_by_id(user_id):
+                approver = find_approver(user_id)
+                who = approver['first_name'] if approver else 'a parent or guardian'
+                return jsonify({
+                    'error': 'parent_required',
+                    'message': f'Ask {who} to send this invitation. They can invite '
+                               'someone to follow your learning from their account.',
+                    'approver_kind': (approver or {}).get('kind'),
+                }), 403
+
             # admin client justified: student-side observer-invite mgmt; verifies caller is the student and writes observer_invitations / observer_invitation_students scoped to self
             supabase = get_supabase_admin_client()
 

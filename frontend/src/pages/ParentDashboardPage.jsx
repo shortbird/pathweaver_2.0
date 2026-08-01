@@ -19,6 +19,7 @@ import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSe
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
 import FamilySettingsModal from '../components/parent/FamilySettingsModal';
 import ChildOverviewContent from '../components/parent/ChildOverviewContent';
+import ChildPrivacyCard from '../components/parent/ChildPrivacyCard';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
 import ShowcaseFamilySection from '../components/parent/ShowcaseFamilySection';
 
@@ -453,6 +454,24 @@ const ParentDashboardPage = () => {
 
           {/* FERPA Compliance: Portfolio Visibility Approval Requests */}
           <VisibilityApprovalSection />
+
+          {/* Who can see this child's work, and the links that grant access.
+              Sits above the overview because it is the setting a parent is
+              most likely to have come here to check. */}
+          {selectedStudentId && (
+            <div className="mb-6">
+              <ChildPrivacyCard
+                key={`privacy-${selectedStudentId}-${overviewRefreshKey}`}
+                studentId={selectedStudentId}
+                studentName={(() => {
+                  const d = dependents.find((x) => x.id === selectedStudentId);
+                  if (d) return (`${d.first_name || ''}`.trim() || d.display_name || 'your child');
+                  const c = children.find((x) => x.student_id === selectedStudentId);
+                  return (c && (`${c.first_name || ''}`.trim() || c.display_name)) || 'your child';
+                })()}
+              />
+            </div>
+          )}
 
           {/* Child Overview Content - uses StudentOverviewPage components */}
           {selectedStudentId && (

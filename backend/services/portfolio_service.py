@@ -108,17 +108,21 @@ class PortfolioService:
                 'user_id': user_id,
                 'portfolio_slug': slug
             }).execute()
+            # is_public False in both fallbacks: a diploma we failed to write
+            # must not be described to the caller as published. The column
+            # default is FALSE, so this also matches what the row will say if
+            # the insert did in fact land.
             return result.data[0] if result.data else {
                 'portfolio_slug': slug,
                 'issued_date': None,
-                'is_public': True
+                'is_public': False
             }
         except Exception as e:
             logger.error(f"Error creating diploma: {e}")
             return {
                 'portfolio_slug': slug,
                 'issued_date': None,
-                'is_public': True
+                'is_public': False
             }
 
     # =========================================================================
@@ -611,34 +615,14 @@ class PortfolioService:
 
     @staticmethod
     def check_is_minor(user_data: Dict[str, Any]) -> bool:
+        """Is this user a minor for consent purposes?
+
+        Delegates to utils.portfolio_access.is_minor so there is exactly one
+        answer to this question across the codebase. Note that unknown age now
+        resolves to True -- see that module for why.
         """
-        Check if a user is considered a minor (under 18 OR is_dependent=true).
-        Used for FERPA parental consent requirements.
-
-        Args:
-            user_data: Dict containing user fields (is_dependent, date_of_birth)
-
-        Returns:
-            True if user is a minor, False otherwise
-        """
-        if user_data.get('is_dependent') is True:
-            return True
-
-        dob = user_data.get('date_of_birth')
-        if not dob:
-            return False
-
-        try:
-            if isinstance(dob, str):
-                dob = datetime.strptime(dob.split('T')[0], '%Y-%m-%d').date()
-            elif hasattr(dob, 'date'):
-                dob = dob.date()
-
-            age = (date.today() - dob).days / 365.25
-            return age < 18
-        except Exception as e:
-            logger.warning(f"Error parsing date_of_birth: {e}")
-            return False
+        from utils.portfolio_access import is_minor
+        return is_minor(user_data)
 
     def get_visibility_status(self, user_id: str) -> Dict[str, Any]:
         """
@@ -675,10 +659,16 @@ class PortfolioService:
             diploma_data['pending_parent_approval'] = False
             diploma_data['parent_approval_denied'] = False
 
-        # Get parent info if minor
+        # Who decides for this student? A parent, or -- for an organization
+        # student with no parent -- their org admin. None means nobody is
+        # accountable, and this student's work cannot be published at all.
+        from utils.portfolio_access import find_approver, minor_reason
+
         parent_info = None
+        approver = None
         if is_minor:
             parent_info = self._get_parent_info(user_id, user_data)
+            approver = find_approver(user_id)
 
         # Check for pending request
         pending_request = None
@@ -691,13 +681,16 @@ class PortfolioService:
             'consent_given_at': diploma_data.get('public_consent_given_at'),
             'portfolio_slug': diploma_data.get('portfolio_slug'),
             'is_minor': is_minor,
+            'minor_reason': minor_reason(user_data),
             'requires_parent_approval': is_minor,
             'pending_parent_approval': diploma_data.get('pending_parent_approval', False),
             'pending_request': pending_request,
             'parent_approval_denied': diploma_data.get('parent_approval_denied', False),
             'parent_approval_denied_at': diploma_data.get('parent_approval_denied_at'),
             'parent_info': parent_info,
-            'can_make_public': not is_minor or parent_info is not None
+            'approver': approver,
+            'approver_kind': (approver or {}).get('kind'),
+            'can_make_public': (not is_minor) or approver is not None,
         }
 
     def _get_parent_info(
@@ -809,38 +802,51 @@ class PortfolioService:
 
         return {'success': True, 'is_public': False}
 
-    def make_portfolio_public_adult(self, user_id: str) -> Dict[str, Any]:
-        """
-        Make portfolio public for an adult user (immediate consent).
+    def make_portfolio_public(
+        self, user_id: str, consented_by: str
+    ) -> Dict[str, Any]:
+        """Publish a portfolio, recording who consented.
 
-        Args:
-            user_id: User ID
-
-        Returns:
-            Result dict with success info
+        `consented_by` is the account that actually made the decision -- the
+        adult student, the parent, or the org approver. It is not assumed to
+        be the student: attributing a parent's decision to the child would
+        make the consent record useless as evidence of who agreed to what.
         """
+        # Ensure the row exists before updating; a student who never loaded
+        # their portfolio page has no diplomas row, and an update against zero
+        # rows would silently report failure.
+        self.get_or_create_diploma(user_id)
+
+        payload = {
+            'is_public': True,
+            'public_consent_given': True,
+            'public_consent_given_at': datetime.utcnow().isoformat(),
+            'public_consent_given_by': consented_by,
+            'pending_parent_approval': False,
+            'parent_approval_denied': False,
+            'parent_approval_denied_at': None,
+        }
+
         try:
-            result = self.client.table('diplomas').update({
-                'is_public': True,
-                'public_consent_given': True,
-                'public_consent_given_at': datetime.utcnow().isoformat(),
-                'public_consent_given_by': user_id,
-                'pending_parent_approval': False,
-                'parent_approval_denied': False
-            }).eq('user_id', user_id).execute()
-
+            result = self.client.table('diplomas').update(payload).eq(
+                'user_id', user_id
+            ).execute()
             if result.data:
                 return {'success': True, 'is_public': True, 'consent_given': True}
-        except Exception:
-            # Fall back if new columns don't exist
-            result = self.client.table('diplomas').update({
-                'is_public': True
-            }).eq('user_id', user_id).execute()
-
-            if result.data:
-                return {'success': True, 'is_public': True}
+        except Exception as e:
+            logger.error(f"Failed to record public consent for {user_id[:8]}: {e}")
+            # Deliberately no is_public-only fallback here. Publishing without
+            # writing the consent record would leave a public portfolio that
+            # nobody is on record as having agreed to -- exactly the state the
+            # 716-row backfill exists to clean up.
+            return {'success': False, 'error': 'Failed to record consent'}
 
         return {'success': False, 'error': 'Failed to update'}
+
+    # Retained for callers that predate the parent-controlled flow.
+    def make_portfolio_public_adult(self, user_id: str) -> Dict[str, Any]:
+        """Deprecated: use make_portfolio_public(user_id, consented_by)."""
+        return self.make_portfolio_public(user_id, consented_by=user_id)
 
     def create_parent_approval_request(
         self, user_id: str, parent_id: str
@@ -1012,12 +1018,19 @@ class PortfolioService:
         if not user_data:
             return {'error': 'User not found'}
 
-        # Check access
+        # Check access. A private portfolio is still readable by the people
+        # the family has already connected to the student -- their parent,
+        # their advisor, an observer they invited. Without that, making
+        # portfolios private by default would cut those people off entirely
+        # and push families to publish to the whole internet just so one
+        # person could look.
         diploma = self.get_diploma_by_user_id(user_id)
         is_public = diploma.get('is_public', False) if diploma else False
 
-        if not is_public and viewer_user_id != user_id and not lti_authorized:
-            return {'error': 'Portfolio not found or private'}
+        if not is_public and not lti_authorized:
+            from utils.portfolio_access import can_view_portfolio
+            if not can_view_portfolio(viewer_user_id, user_id):
+                return {'error': 'Portfolio not found or private'}
 
         # Fetch all data
         completed_quests = self.get_completed_quests(user_id)

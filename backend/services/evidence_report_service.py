@@ -697,35 +697,16 @@ class EvidenceReportService(BaseService):
             return {}
 
     def _check_is_minor(self, user_data: Dict[str, Any]) -> bool:
+        """Is this user a minor (FERPA compliance)?
+
+        Second copy of this logic, now delegating to the shared one so a
+        report and a portfolio cannot disagree about whether the same student
+        needs parental approval. This copy had the same fail-open bug: a
+        missing date_of_birth returned False, so a report by a student of
+        unknown age skipped the parent gate entirely.
         """
-        Check if user is a minor (FERPA compliance).
-
-        A user is considered a minor if:
-        - is_dependent = true, OR
-        - age < 18 (based on date_of_birth)
-        """
-        # If marked as dependent, always a minor
-        if user_data.get('is_dependent') is True:
-            return True
-
-        # Check date of birth
-        dob = user_data.get('date_of_birth')
-        if not dob:
-            return False
-
-        try:
-            from datetime import date
-            if isinstance(dob, str):
-                dob = datetime.strptime(dob.split('T')[0], '%Y-%m-%d').date()
-            elif hasattr(dob, 'date'):
-                dob = dob.date()
-
-            age = (date.today() - dob).days / 365.25
-            return age < 18
-
-        except Exception as e:
-            logger.warning(f"Error parsing date_of_birth: {e}")
-            return False
+        from utils.portfolio_access import is_minor
+        return is_minor(user_data)
 
     def _create_parent_approval_request(
         self,
