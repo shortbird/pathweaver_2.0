@@ -8,6 +8,7 @@ import gc
 import os
 import time
 import threading
+from app_config import Config
 from flask import request, g
 from datetime import datetime
 import logging
@@ -202,7 +203,7 @@ class MemoryMonitor:
         If preload is ever enabled, move this to gunicorn's post_fork hook so it
         runs in the worker, not the master.
         """
-        if os.getenv('MEMORY_WATCHDOG_ENABLED', 'true').lower() != 'true':
+        if not Config.MEMORY_WATCHDOG_ENABLED:
             return
         if getattr(self, '_watchdog_started', False):
             return
@@ -212,10 +213,10 @@ class MemoryMonitor:
         logger.info("Memory watchdog started")
 
     def _watchdog_loop(self):
-        interval = int(os.getenv('MEMORY_WATCHDOG_INTERVAL', '15'))
-        threshold = float(os.getenv('MEMORY_WATCHDOG_THRESHOLD', '0.85'))
-        cooldown = int(os.getenv('MEMORY_WATCHDOG_COOLDOWN', '300'))
-        fallback_cap = int(os.getenv('MEMORY_LIMIT_MB', '512')) * 1024 * 1024
+        interval = Config.MEMORY_WATCHDOG_INTERVAL
+        threshold = Config.MEMORY_WATCHDOG_THRESHOLD
+        cooldown = Config.MEMORY_WATCHDOG_COOLDOWN
+        fallback_cap = Config.MEMORY_LIMIT_MB * 1024 * 1024
         last_alert = 0.0
         over = False
         while True:

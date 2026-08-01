@@ -296,8 +296,26 @@ class Config:
     # E2: Gemini call timeout (seconds). Default 60s — aggressive enough to
     # free workers, generous enough for long-context prompts. Override per-env.
     AI_REQUEST_TIMEOUT = int(os.getenv('AI_REQUEST_TIMEOUT', '60'))
+    # Per-ATTEMPT timeout for BaseAIService, which retries. Distinct from
+    # AI_REQUEST_TIMEOUT above: base_ai_service budgets 2 x 45s + <=8s backoff
+    # = 98s to stay under the 120s gunicorn worker timeout, so it cannot inherit
+    # the 60s single-shot default (2 x 60 + 8 = 128s would SIGKILL the worker).
+    # Both honour AI_REQUEST_TIMEOUT when it is set, which is how they were
+    # already wired -- base_ai_service just read the env var directly. Set
+    # AI_ATTEMPT_TIMEOUT to tune the retrying path on its own.
+    AI_ATTEMPT_TIMEOUT = int(
+        os.getenv('AI_ATTEMPT_TIMEOUT', os.getenv('AI_REQUEST_TIMEOUT', '45'))
+    )
+    AI_MAX_RETRIES = int(os.getenv('AI_MAX_RETRIES', '2'))
     PEXELS_API_TIMEOUT = int(os.getenv('PEXELS_API_TIMEOUT', '5'))
     LTI_JWKS_TIMEOUT = int(os.getenv('LTI_JWKS_TIMEOUT', '5'))
+
+    # Memory watchdog (middleware/memory_monitor.py)
+    MEMORY_WATCHDOG_ENABLED = os.getenv('MEMORY_WATCHDOG_ENABLED', 'true').lower() == 'true'
+    MEMORY_WATCHDOG_INTERVAL = int(os.getenv('MEMORY_WATCHDOG_INTERVAL', '15'))
+    MEMORY_WATCHDOG_THRESHOLD = float(os.getenv('MEMORY_WATCHDOG_THRESHOLD', '0.85'))
+    MEMORY_WATCHDOG_COOLDOWN = int(os.getenv('MEMORY_WATCHDOG_COOLDOWN', '300'))
+    MEMORY_LIMIT_MB = int(os.getenv('MEMORY_LIMIT_MB', '512'))
 
     # Logging - CONFIGURABLE
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'WARNING')

@@ -129,10 +129,10 @@ class BaseAIService(BaseService):
     # SIGKILL and cascading 502s. Worst case here: 2 × 45s + ≤8s backoff = 98s
     # < 120s. Tunable via env if the worker timeout changes. In-request AI calls
     # should stay bounded; long generations run in background jobs instead.
-    DEFAULT_MAX_RETRIES = int(os.getenv('AI_MAX_RETRIES', '2'))
+    DEFAULT_MAX_RETRIES = Config.AI_MAX_RETRIES
     DEFAULT_RETRY_DELAY = 1.0  # seconds
     MAX_RETRY_DELAY = 8.0  # seconds
-    AI_REQUEST_TIMEOUT = int(os.getenv('AI_REQUEST_TIMEOUT', '45'))  # per-attempt, seconds
+    AI_REQUEST_TIMEOUT = Config.AI_ATTEMPT_TIMEOUT  # per-attempt, seconds
 
     def __init__(self, model_override: str = None):
         """
