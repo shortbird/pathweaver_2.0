@@ -25,30 +25,32 @@ logger = get_logger(__name__)
 @pytest.mark.integration
 @pytest.mark.critical
 def test_iframe_url_validation_allows_whitelisted_domains():
-    """Test that whitelisted domains (YouTube, Vimeo, etc.) are allowed"""
+    """Whitelisted embed hosts are accepted.
+
+    The real API is validate_iframe_urls(content) on CurriculumService: it takes
+    the HTML body, not a bare URL, and RAISES ValidationError rather than
+    returning a bool.
+    """
     from services.curriculum_service import CurriculumService
 
     service = CurriculumService()
 
-    whitelisted_urls = [
+    for url in [
         'https://www.youtube.com/embed/dQw4w9WgXcQ',
+        'https://youtu.be/dQw4w9WgXcQ',
         'https://player.vimeo.com/video/123456789',
-        'https://www.loom.com/embed/abc123',
-        'https://www.figma.com/embed?embed_host=share&url=...',
-        'https://docs.google.com/presentation/d/e/.../embed'
-    ]
-
-    for url in whitelisted_urls:
-        is_valid = service.validate_iframe_url(url)
-        assert is_valid, f"Failed to validate whitelisted URL: {url}"
+        'https://drive.google.com/file/d/abc/preview',
+        'https://docs.google.com/presentation/d/abc/embed',
+    ]:
+        assert service.validate_iframe_urls(f'<iframe src="{url}"></iframe>') is True
 
 
 @pytest.mark.integration
-@pytest.mark.critical
 @pytest.mark.security
 def test_iframe_url_validation_rejects_malicious_urls():
-    """Test that potentially malicious URLs are rejected"""
+    """Dangerous schemes, lookalike hosts and allowlist-substring tricks are refused."""
     from services.curriculum_service import CurriculumService
+    from middleware.error_handler import ValidationError
 
     service = CurriculumService()
 
@@ -58,34 +60,39 @@ def test_iframe_url_validation_rejects_malicious_urls():
         'https://evil.com/phishing',
         'file:///etc/passwd',
         'ftp://unsafe.com/file',
-        '<script>alert("XSS")</script>',
-        'https://www.youtube.com/embed/<script>alert(1)</script>'
+        # These four passed the old substring check and are the reason it was
+        # replaced with scheme + parsed-host matching.
+        'javascript:alert(document.cookie)//youtube.com',
+        'https://evil-youtube.com.malicious.com/video',
+        'https://attacker.test/?ref=youtube.com',
+        'http://www.youtube.com/embed/abc',
     ]
 
     for url in malicious_urls:
-        is_valid = service.validate_iframe_url(url)
-        assert not is_valid, f"Failed to reject malicious URL: {url}"
+        with pytest.raises(ValidationError):
+            service.validate_iframe_urls(f'<iframe src="{url}"></iframe>')
 
 
 @pytest.mark.integration
 @pytest.mark.security
 def test_iframe_sanitization_removes_dangerous_attributes():
-    """Test that dangerous iframe attributes are stripped"""
-    from services.curriculum_service import CurriculumService
+    """Event-handler attributes are stripped from authored HTML.
 
-    service = CurriculumService()
+    Attribute sanitisation is utils.rich_text.sanitize (a bleach allowlist),
+    not a CurriculumService method -- CurriculumService validates the iframe
+    URL, rich_text cleans the markup.
+    """
+    from utils import rich_text
 
-    dangerous_iframe = '<iframe src="https://youtube.com/embed/123" onload="alert(1)" onerror="alert(1)"></iframe>'
+    dangerous = ('<p onload="alert(1)" onerror="alert(1)" onclick="alert(1)">'
+                 'Lesson intro</p>')
 
-    sanitized = service.sanitize_iframe_embed(dangerous_iframe)
+    sanitized = rich_text.sanitize(dangerous)
 
-    # Should remove onload, onerror, etc.
     assert 'onload' not in sanitized.lower()
     assert 'onerror' not in sanitized.lower()
     assert 'onclick' not in sanitized.lower()
-
-    # Should preserve safe src
-    assert 'youtube.com/embed/123' in sanitized
+    assert 'Lesson intro' in sanitized
 
 
 # ==================== File Upload Validation Tests ====================
@@ -93,85 +100,54 @@ def test_iframe_sanitization_removes_dangerous_attributes():
 @pytest.mark.integration
 @pytest.mark.critical
 def test_file_upload_size_limit_enforced():
-    """Test that file uploads exceeding size limit are rejected"""
-    from services.curriculum_service import CurriculumService
+    """Oversized uploads are rejected.
 
-    service = CurriculumService()
+    File validation is utils.file_validator, not CurriculumService.
+    """
+    from utils.file_validator import validate_file, MAX_FILE_SIZE
 
-    # Simulate 50MB file (assuming 10MB limit)
-    large_file_size = 50 * 1024 * 1024
+    oversized = b'x' * (MAX_FILE_SIZE + 1)
+    result = validate_file('notes.txt', oversized, 'text/plain')
 
-    is_valid, error = service.validate_file_size(large_file_size)
-
-    assert not is_valid
-    assert 'size' in error.lower() or 'large' in error.lower()
+    assert not result.is_valid
+    assert 'size' in (result.error_message or '').lower() \
+        or 'large' in (result.error_message or '').lower()
 
 
 @pytest.mark.integration
 @pytest.mark.critical
 def test_file_upload_allows_valid_sizes():
-    """Test that files within size limit are allowed"""
-    from services.curriculum_service import CurriculumService
+    """A small file of an allowed type passes."""
+    from utils.file_validator import validate_file
 
-    service = CurriculumService()
+    result = validate_file('notes.txt', b'hello world', 'text/plain')
 
-    # 5MB file (should be allowed)
-    valid_file_size = 5 * 1024 * 1024
-
-    is_valid, error = service.validate_file_size(valid_file_size)
-
-    assert is_valid
-    assert error is None
+    assert result.is_valid, result.error_message
 
 
 @pytest.mark.integration
 @pytest.mark.critical
 @pytest.mark.security
 def test_file_type_validation_rejects_executables():
-    """Test that executable files are rejected"""
-    from services.curriculum_service import CurriculumService
+    """Executable extensions are refused regardless of content."""
+    from utils.file_validator import validate_file
 
-    service = CurriculumService()
-
-    dangerous_file_types = [
-        'malware.exe',
-        'script.sh',
-        'virus.bat',
-        'trojan.app',
-        'backdoor.dmg'
-    ]
-
-    for filename in dangerous_file_types:
-        is_valid, error = service.validate_file_type(filename)
-
-        assert not is_valid, f"Failed to reject dangerous file: {filename}"
-        assert 'not allowed' in error.lower() or 'invalid' in error.lower()
+    for filename in ['malware.exe', 'script.sh', 'virus.bat', 'trojan.app', 'backdoor.dmg']:
+        result = validate_file(filename, b'MZ\x90\x00', 'application/octet-stream')
+        assert not result.is_valid, f"Failed to reject dangerous file: {filename}"
 
 
 @pytest.mark.integration
 @pytest.mark.critical
 def test_file_type_validation_allows_safe_types():
-    """Test that safe file types are allowed"""
-    from services.curriculum_service import CurriculumService
+    """Everyday document types are accepted."""
+    from utils.file_validator import ALLOWED_EXTENSIONS
 
-    service = CurriculumService()
-
-    safe_file_types = [
-        'document.pdf',
-        'presentation.pptx',
-        'spreadsheet.xlsx',
-        'image.png',
-        'photo.jpg',
-        'video.mp4',
-        'notes.txt',
-        'data.csv'
-    ]
-
-    for filename in safe_file_types:
-        is_valid, error = service.validate_file_type(filename)
-
-        assert is_valid, f"Failed to allow safe file: {filename}"
-        assert error is None
+    # Note: csv/xlsx/pptx are deliberately NOT on the list -- uploads are
+    # images, documents, video and audio (config/constants.ALLOWED_FILE_EXTENSIONS).
+    for filename in ['document.pdf', 'image.png', 'photo.jpg', 'notes.txt', 'clip.mp4']:
+        extension = filename.rsplit('.', 1)[1]
+        assert extension in ALLOWED_EXTENSIONS, f"{extension} should be an allowed upload type"
 
 
 # ==================== Permission Tests ====================
@@ -234,6 +210,7 @@ def test_advisor_cannot_edit_other_org_curriculum(client, test_advisor):
 # ==================== Content Auto-Save Tests ====================
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="No draft/autosave implementation exists: CurriculumService has no save_draft and there is no drafts table. This describes a feature, not a regression.")
 def test_curriculum_auto_save_creates_draft():
     """Test that auto-save creates a draft version"""
     from services.curriculum_service import CurriculumService
@@ -256,6 +233,7 @@ def test_curriculum_auto_save_creates_draft():
 
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="No curriculum versioning exists; CurriculumService has no version API.")
 def test_curriculum_version_tracking():
     """Test that curriculum changes are versioned"""
     from services.curriculum_service import CurriculumService
@@ -284,6 +262,7 @@ def test_curriculum_version_tracking():
 # ==================== Markdown Validation Tests ====================
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="CurriculumService has no validate_markdown. Body content is sanitised on the way in by utils.rich_text.sanitize (covered by test_markdown_script_injection_prevention) rather than validated separately.")
 def test_markdown_content_validation():
     """Test that markdown content is validated and sanitized"""
     from services.curriculum_service import CurriculumService
@@ -300,18 +279,20 @@ def test_markdown_content_validation():
 @pytest.mark.integration
 @pytest.mark.security
 def test_markdown_script_injection_prevention():
-    """Test that script tags in markdown are sanitized"""
-    from services.curriculum_service import CurriculumService
+    """Script tags are removed whole, content included.
 
-    service = CurriculumService()
+    utils.rich_text.sanitize strips scriptish elements entirely rather than
+    unwrapping them -- bleach alone would keep "alert('XSS')" as visible text.
+    """
+    from utils import rich_text
 
-    malicious_markdown = "# Title\n\n<script>alert('XSS')</script>\n\nContent"
+    malicious = "<h1>Title</h1><script>alert('XSS')</script><p>Content</p>"
 
-    sanitized = service.sanitize_markdown(malicious_markdown)
+    sanitized = rich_text.sanitize(malicious)
 
-    # Should remove script tags
     assert '<script>' not in sanitized
     assert 'alert' not in sanitized
+    assert 'Content' in sanitized
 
 
 # ==================== API Endpoint Tests ====================

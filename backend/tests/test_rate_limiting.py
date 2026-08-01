@@ -7,11 +7,15 @@ Tests the enhanced rate_limit decorator with:
 - Auto-detection from endpoint names
 - Different limits for different endpoints
 """
+from unittest.mock import patch
+
 import pytest
 import time
 import os
 from flask import Flask, jsonify
 from middleware.rate_limiter import rate_limit, rate_limiter, add_rate_limit_headers
+from app_config import Config
+
 
 @pytest.fixture
 def app():
@@ -72,11 +76,23 @@ def reset_rate_limiter():
     rate_limiter.requests.clear()
     rate_limiter.blocked_ips.clear()
 
-    # Set development environment for all tests
+    # Set development environment for all tests.
+    #
+    # Setting os.environ alone does NOT work: app_config reads
+    # FLASK_ENV = os.getenv('FLASK_ENV', 'development') once, at class-definition
+    # time, so by the time a test runs Config.FLASK_ENV is already frozen at
+    # whatever the process started with ('testing' under pytest). The rate
+    # limiter then resolves PRODUCTION limits -- 3 logins per 15 minutes instead
+    # of the 10 per 5 minutes these tests assert -- and every count-based test
+    # 429s early. Patch the attribute the middleware actually reads.
     old_env = os.environ.get('FLASK_ENV')
     os.environ['FLASK_ENV'] = 'development'
+    env_patch = patch.object(Config, 'FLASK_ENV', 'development')
+    env_patch.start()
 
     yield
+
+    env_patch.stop()
 
     # Cleanup after test
     rate_limiter.requests.clear()
