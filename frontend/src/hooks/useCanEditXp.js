@@ -1,6 +1,7 @@
 import { useContext } from 'react'
 import { AuthContext } from '../contexts/AuthContext'
 import { OrganizationContext } from '../contexts/OrganizationContext'
+import { isStaffUser } from '../utils/userRoles'
 
 /**
  * Whether the current user may choose or change a task's XP value.
@@ -19,8 +20,6 @@ import { OrganizationContext } from '../contexts/OrganizationContext'
  * the safe answer is the platform default: XP stays editable.
  */
 
-const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'advisor']
-
 export const XP_LOCKED_HINT = 'Your school sets the XP for tasks.'
 
 export default function useCanEditXp() {
@@ -30,8 +29,8 @@ export default function useCanEditXp() {
   const locked = Boolean(org?.organization?.feature_flags?.lock_xp_editing)
   if (!locked) return true
 
-  // Effective role: org_managed users carry their real role in org_role.
-  const user = auth?.user
-  const role = user?.role === 'org_managed' ? user?.org_role : user?.role
-  return XP_GUIDE_ROLES.includes(role)
+  // isStaffUser covers every shape a role arrives in -- `role`, the `org_roles`
+  // array, and legacy `org_role` -- so an org teacher who is also a parent keeps
+  // the XP control. A plain `role === 'advisor'` check would miss them.
+  return isStaffUser(auth?.user)
 }

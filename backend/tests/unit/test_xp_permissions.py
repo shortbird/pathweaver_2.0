@@ -34,6 +34,41 @@ class TestIsXpGuide:
         assert is_xp_guide(role) is False
 
 
+class TestIsXpGuideUser:
+    """Role checks must consider EVERY role a user holds, not just the primary."""
+
+    def test_platform_advisor(self):
+        from utils.xp_permissions import is_xp_guide_user
+        assert is_xp_guide_user({'role': 'advisor'}) is True
+
+    def test_org_advisor_via_legacy_org_role(self):
+        from utils.xp_permissions import is_xp_guide_user
+        assert is_xp_guide_user({'role': 'org_managed', 'org_role': 'advisor'}) is True
+
+    def test_teacher_who_is_also_a_parent(self):
+        """org_roles=['parent','advisor'] resolves to 'parent' as PRIMARY role."""
+        from utils.xp_permissions import is_xp_guide_user
+        user = {'role': 'org_managed', 'org_role': 'parent', 'org_roles': ['parent', 'advisor']}
+        assert is_xp_guide_user(user) is True
+
+    def test_parent_who_only_parents(self):
+        from utils.xp_permissions import is_xp_guide_user
+        user = {'role': 'org_managed', 'org_role': 'parent', 'org_roles': ['parent']}
+        assert is_xp_guide_user(user) is False
+
+    def test_org_student(self):
+        from utils.xp_permissions import is_xp_guide_user
+        assert is_xp_guide_user({'role': 'org_managed', 'org_roles': ['student']}) is False
+
+    def test_superadmin(self):
+        from utils.xp_permissions import is_xp_guide_user
+        assert is_xp_guide_user({'role': 'superadmin'}) is True
+
+    def test_missing_user(self):
+        from utils.xp_permissions import is_xp_guide_user
+        assert is_xp_guide_user(None) is False
+
+
 class TestCanSetTaskXp:
     def test_guide_allowed_even_when_locked(self):
         with patch('utils.xp_permissions.xp_locked_for_learner', return_value=True) as locked:

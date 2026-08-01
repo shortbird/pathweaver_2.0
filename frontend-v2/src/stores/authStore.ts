@@ -25,6 +25,9 @@ export interface User {
   last_name: string;
   role: string;
   org_role: string | null;
+  // Multi-role org users carry every org role here; `org_role` is the legacy
+  // single-value field. Role checks must consider both.
+  org_roles?: string[] | null;
   organization_id: string | null;
   total_xp: number;
   avatar_url: string | null;

@@ -43,4 +43,30 @@ describe('useCanEditXp', () => {
   it('still allows superadmin when the flag is on', () => {
     expect(canEdit({ role: 'superadmin', org_role: null }, { lock_xp_editing: true })).toBe(true)
   })
+
+  it('allows a teacher who is also a parent (multi-role org user)', () => {
+    // org_roles is the real shape for iCreate staff; a primary-role check would
+    // read org_role='parent' and wrongly hide the XP control from a teacher.
+    expect(
+      canEdit(
+        { role: 'org_managed', org_role: 'parent', org_roles: ['parent', 'advisor'] },
+        { lock_xp_editing: true }
+      )
+    ).toBe(true)
+  })
+
+  it('allows a guardian flagged as advising students', () => {
+    expect(
+      canEdit({ role: 'parent', has_advisor_assignments: true }, { lock_xp_editing: true })
+    ).toBe(true)
+  })
+
+  it('still blocks a parent who only parents', () => {
+    expect(
+      canEdit(
+        { role: 'org_managed', org_role: 'parent', org_roles: ['parent'] },
+        { lock_xp_editing: true }
+      )
+    ).toBe(false)
+  })
 })

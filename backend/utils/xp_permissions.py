@@ -63,31 +63,67 @@ def is_xp_guide(role: Optional[str]) -> bool:
     return role in XP_GUIDE_ROLES
 
 
+def is_xp_guide_user(user: Optional[dict]) -> bool:
+    """
+    True if any of `user`'s roles may always set XP.
+
+    Takes an already-fetched user row so callers don't re-query. Checks ALL
+    roles, not just the primary one -- an org teacher who is also a parent has
+    ``org_roles = ['parent', 'advisor']``, and a primary-role check would treat
+    them as a parent and withhold the XP control they should have.
+    """
+    if not user:
+        return False
+
+    try:
+        from utils.roles import get_effective_roles
+
+        return any(role in XP_GUIDE_ROLES for role in (get_effective_roles(user) or []))
+    except Exception as e:
+        logger.warning(f"Could not resolve XP roles for user row: {e}")
+        return False
+
+
 def get_effective_role_for(user_id: Optional[str]) -> Optional[str]:
     """
-    Look up a user's effective role (unwrapping ``org_managed`` -> ``org_role``).
+    Look up a role for `user_id` that `is_xp_guide` can act on.
 
-    Convenience for routes that only carry a user_id. Returns None if the user
-    can't be read, which `is_xp_guide` treats as "not a guide" -- fail closed on
-    the privilege, since the surrounding checks then fall back to the org policy.
+    Deliberately uses ``get_effective_roles`` (plural) rather than
+    ``get_effective_role``: the singular helper returns only the PRIMARY role, so
+    an org teacher who is also a parent (``org_roles = ['parent', 'advisor']``)
+    resolves to 'parent' and would be denied the XP control they are entitled to.
+    When any of a user's roles grants XP, that role is the one returned.
+
+    Returns None if the user can't be read, which `is_xp_guide` treats as "not a
+    teacher" -- fail closed on the privilege, since the surrounding checks then
+    fall back to the org policy.
     """
     if not user_id:
         return None
 
     try:
-        from utils.roles import get_effective_role
+        from utils.roles import get_effective_roles
 
         # admin client justified: reads the caller's own role for an
-        # authorization decision; single-row, two-column self read.
+        # authorization decision; single-row, few-column self read.
         supabase = get_supabase_admin_client()
         result = supabase.table('users')\
-            .select('role, org_role')\
+            .select('role, org_role, org_roles')\
             .eq('id', user_id)\
             .maybe_single()\
             .execute()
 
         data = getattr(result, 'data', None)
-        return get_effective_role(data) if data else None
+        if not data:
+            return None
+
+        roles = get_effective_roles(data) or []
+        # Prefer whichever role actually grants XP; otherwise report the primary
+        # one so callers still see a sensible value.
+        for role in roles:
+            if role in XP_GUIDE_ROLES:
+                return role
+        return roles[0] if roles else None
 
     except Exception as e:
         logger.warning(f"Could not resolve effective role for user {user_id}: {e}")

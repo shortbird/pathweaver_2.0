@@ -53,7 +53,7 @@ def update_task(user_id: str, task_id: str):
 
         # Get user data for permission check
         user_result = supabase.table('users')\
-            .select('role, org_role, organization_id')\
+            .select('role, org_role, org_roles, organization_id')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -165,15 +165,21 @@ def update_task(user_id: str, task_id: str):
                     'error': 'XP value must be a valid number'
                 }), 400
 
-            # Org-level lock: schools can restrict XP to guides
+            # Org-level lock: schools can restrict XP to teachers
             # (organizations.feature_flags.lock_xp_editing). Only reject when the
             # value actually changes -- the edit modal submits pillar, subjects,
             # and XP together, so an unchanged XP must not block a pillar edit.
-            if is_owner_only and xp_value != (task_data.get('xp_value') or 0):
-                from utils.xp_permissions import (
-                    XP_LOCKED_MESSAGE,
-                    xp_locked_for_learner,
-                )
+            #
+            # Deliberately NOT keyed off is_owner_only: that comes from
+            # get_effective_role, which reports only the PRIMARY role, so a
+            # teacher who is also a parent would be denied their own XP control.
+            # is_xp_guide_user checks every role the user holds.
+            from utils.xp_permissions import (
+                XP_LOCKED_MESSAGE,
+                is_xp_guide_user,
+                xp_locked_for_learner,
+            )
+            if not is_xp_guide_user(user) and xp_value != (task_data.get('xp_value') or 0):
                 if xp_locked_for_learner(task_data.get('user_id')):
                     logger.info(
                         f"User {user_id} blocked from changing XP on task {task_id} "

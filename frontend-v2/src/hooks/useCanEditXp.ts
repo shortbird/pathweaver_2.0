@@ -23,9 +23,17 @@ export function useCanEditXp(): boolean {
   const locked = Boolean(user?.organization?.feature_flags?.lock_xp_editing);
   if (!locked) return true;
 
-  // Effective role: org_managed users carry their real role in org_role.
-  const role = user?.role === 'org_managed' ? user?.org_role : user?.role;
-  return XP_GUIDE_ROLES.includes(role || '');
+  // A role can arrive in three shapes: the platform `role` column, the
+  // `org_roles` array (multi-role org users), or the legacy `org_role`. Check
+  // all three -- an org teacher who is also a parent has role='org_managed' with
+  // 'advisor' in org_roles, and a primary-role check would withhold their XP
+  // control. Mirrors userHasRole in the web app's utils/userRoles.
+  return XP_GUIDE_ROLES.some(
+    (role) =>
+      user?.role === role ||
+      (Array.isArray(user?.org_roles) && user.org_roles.includes(role)) ||
+      user?.org_role === role,
+  );
 }
 
 export default useCanEditXp;
