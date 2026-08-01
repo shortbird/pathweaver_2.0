@@ -143,13 +143,21 @@ class BaseAIService(BaseService):
                            Use for services that need more capable models.
         """
         super().__init__()
-        self._ensure_model_initialized()
         self._safety_service = None  # Lazy-loaded
         self._model_override = model_override
 
-        # Initialize alternative model if specified
-        if model_override and model_override != self._model_name:
-            self._ensure_alt_model_initialized(model_override)
+        # NOTE: the Gemini model is deliberately NOT initialized here. Six
+        # services instantiate themselves at module scope (task_steps_service,
+        # personalization_service, atomic_quest_service, ...), and those modules
+        # are imported by register_all(), so raising for a missing
+        # GEMINI_API_KEY in __init__ took down the ENTIRE Flask app at import
+        # time -- not just the AI features, which already gate themselves behind
+        # require_ai_access. It also broke every app-fixture test in CI, where
+        # no Gemini key is set.
+        #
+        # The `model` property below does the initialization on first real use,
+        # so a missing key still raises the same clear AIServiceError -- just at
+        # the point where the model is actually needed.
 
     @classmethod
     def _ensure_model_initialized(cls):
@@ -203,9 +211,15 @@ class BaseAIService(BaseService):
 
     @property
     def model(self):
-        """Get the Gemini model instance (uses override if specified)."""
+        """Get the Gemini model instance (uses override if specified).
+
+        Initializes on first access -- including the override, which __init__
+        used to set up eagerly. Both are class-level singletons, so this costs
+        one guarded check per call after the first.
+        """
         self._ensure_model_initialized()
-        if self._model_override and self._model_override in self._alt_models:
+        if self._model_override and self._model_override != self._model_name:
+            self._ensure_alt_model_initialized(self._model_override)
             return self._alt_models[self._model_override]
         return self._model
 

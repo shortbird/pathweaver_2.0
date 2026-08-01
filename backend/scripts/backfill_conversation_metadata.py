@@ -81,8 +81,7 @@ def backfill_conversation_metadata():
             error_count += 1
             logger.error(f"[{idx}/{total}] ERROR updating conversation {conversation_id}: {e}")
 
-    logger.info(f"
-Backfill complete!")
+    logger.info(f"\nBackfill complete!")
     logger.info(f"Successfully updated: {updated_count}")
     logger.error(f"Errors: {error_count}")
     logger.info(f"Total processed: {total}")

@@ -27,8 +27,7 @@ def apply_migration():
 
         logger.info("[OK] Migration file loaded successfully")
         logger.info(f"Path: {migration_path}")
-        logger.info(f"Size: {len(migration_sql)} characters
-")
+        logger.info(f"Size: {len(migration_sql)} characters\n")
 
         # Get Supabase admin client
         supabase = get_supabase_admin_client()
@@ -41,23 +40,18 @@ def apply_migration():
         # Split migration into individual statements for execution
         statements = [stmt.strip() for stmt in migration_sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
 
-        logger.info(f"
-Found {len(statements)} SQL statements to execute
-")
+        logger.info(f"\nFound {len(statements)} SQL statements to execute\n")
 
         # Try to execute via RPC (this might not work for DDL)
         # Alternative: Use psycopg2 or asyncpg with connection string
 
         # For now, we'll provide the migration SQL for manual execution
         logger.info("[NOTE] Supabase Python client does not support direct SQL execution.")
-        logger.info("Please execute this migration in one of the following ways:
-")
+        logger.info("Please execute this migration in one of the following ways:\n")
         logger.info("   1. Supabase Dashboard -> SQL Editor")
         logger.info("   2. psql command line with connection string")
-        logger.info("   3. Any PostgreSQL client (DBeaver, pgAdmin, etc.)
-")
-        logger.info(f"Migration file location: {migration_path}
-")
+        logger.info("   3. Any PostgreSQL client (DBeaver, pgAdmin, etc.)\n")
+        logger.info(f"Migration file location: {migration_path}\n")
 
         # Try to get database connection info for psql command
         supabase_url = os.getenv('SUPABASE_URL', '')
@@ -68,8 +62,7 @@ Found {len(statements)} SQL statements to execute
             if match:
                 project_ref = match.group(1)
                 logger.info(f"[INFO] Your Supabase project: {project_ref}")
-                logger.info(f"   Dashboard: https://supabase.com/dashboard/project/{project_ref}/editor
-")
+                logger.info(f"   Dashboard: https://supabase.com/dashboard/project/{project_ref}/editor\n")
 
         return True
 
@@ -92,14 +85,12 @@ if __name__ == '__main__':
 
     if success:
         logger.info("[SUCCESS] Migration preparation complete")
-        logger.info("
-Next Steps:")
+        logger.info("\nNext Steps:")
         logger.info("   1. Go to Supabase SQL Editor")
         logger.info("   2. Copy and paste the migration SQL")
         logger.info("   3. Execute the migration")
         logger.info("   4. Verify tables were created successfully")
         sys.exit(0)
     else:
-        logger.error("
-[FAILED] Migration preparation failed")
+        logger.error("\n[FAILED] Migration preparation failed")
         sys.exit(1)

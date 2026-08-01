@@ -97,8 +97,7 @@ def main():
     routes_dir = Path(__file__).parent.parent / 'routes'
     route_files = list(routes_dir.rglob('*.py'))
 
-    logger.info(f"Scanning {len(route_files)} route files...
-")
+    logger.info(f"Scanning {len(route_files)} route files...\n")
 
     for route_file in route_files:
         if route_file.name == '__init__.py':
@@ -204,9 +203,7 @@ def main():
     with open(output_file, 'w') as f:
         json.dump(results, f, indent=2)
 
-    logger.info(f"
-
-Detailed results saved to: {output_file}")
+    logger.info(f"\n\nDetailed results saved to: {output_file}")
 
     # Calculate pass/fail
     critical_issues = len([e for e in results['missing_auth']

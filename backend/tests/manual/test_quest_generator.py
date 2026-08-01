@@ -17,8 +17,7 @@ def test_quest_concept_generation():
     service = QuestAIService()
 
     # Test 1: Generate without avoid list
-    logger.info("
-Test 1: Basic generation")
+    logger.info("\nTest 1: Basic generation")
     result1 = service.generate_quest_concept()
 
     if result1.get('success'):
@@ -29,8 +28,7 @@ Test 1: Basic generation")
         print(f"✗ Failed: {result1.get('error')}")
 
     # Test 2: Generate with avoid list
-    logger.info("
-Test 2: Generation with avoid list")
+    logger.info("\nTest 2: Generation with avoid list")
     avoid_titles = [
         "Build a Treehouse",
         "Learn to Surf",
@@ -54,8 +52,7 @@ Test 2: Generation with avoid list")
         print(f"✗ Failed: {result2.get('error')}")
 
     # Test 3: Generate 5 concepts
-    logger.info("
-Test 3: Generate 5 unique concepts")
+    logger.info("\nTest 3: Generate 5 unique concepts")
     generated_titles = []
 
     for i in range(5):

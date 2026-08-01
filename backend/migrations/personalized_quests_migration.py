@@ -40,28 +40,23 @@ def run_migration():
     create_new_tables(supabase)
 
     # Step 2: Migrate quest_tasks to user_quest_tasks
-    logger.info("
-Step 2: Migrating quest_tasks to user_quest_tasks...")
+    logger.info("\nStep 2: Migrating quest_tasks to user_quest_tasks...")
     migrate_quest_tasks(supabase)
 
     # Step 3: Migrate quest_collaborations to task_collaborations
-    logger.info("
-Step 3: Migrating quest_collaborations to task_collaborations...")
+    logger.info("\nStep 3: Migrating quest_collaborations to task_collaborations...")
     migrate_collaborations(supabase)
 
     # Step 4: Update quest_task_completions
-    logger.info("
-Step 4: Updating quest_task_completions FK references...")
+    logger.info("\nStep 4: Updating quest_task_completions FK references...")
     update_task_completions(supabase)
 
     # Step 5: Update user_quests table
-    logger.info("
-Step 5: Updating user_quests table...")
+    logger.info("\nStep 5: Updating user_quests table...")
     update_user_quests(supabase)
 
     # Step 6: Archive old tables
-    logger.info("
-Step 6: Archiving old tables...")
+    logger.info("\nStep 6: Archiving old tables...")
     archive_old_tables(supabase)
 
     print("\n" + "=" * 80)
@@ -426,8 +421,7 @@ def archive_old_tables(supabase):
         except Exception as e:
             logger.error(f"    ⚠ Error archiving {table}: {e}")
 
-    logger.info("
-    IMPORTANT: Monitor the system for 1 week.")
+    logger.info("\n    IMPORTANT: Monitor the system for 1 week.")
     logger.info("    If everything works correctly, you can drop the archived tables:")
     logger.info("      DROP TABLE quest_tasks_archived;")
     logger.info("      DROP TABLE quest_collaborations_archived;")
@@ -437,8 +431,7 @@ if __name__ == "__main__":
     try:
         run_migration()
     except Exception as e:
-        logger.error(f"
-❌ MIGRATION FAILED: {e}")
+        logger.error(f"\n❌ MIGRATION FAILED: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

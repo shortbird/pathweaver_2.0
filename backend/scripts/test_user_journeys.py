@@ -32,8 +32,7 @@ def test_new_user_onboarding():
     # 1. Check if users can be created (registration simulation)
     try:
         test_email = generate_test_email()
-        logger.info(f"
-[1/7] Testing user registration capability...")
+        logger.info(f"\n[1/7] Testing user registration capability...")
         logger.info(f"      Test email: {test_email}")
 
         # Check if email is unique
@@ -50,8 +49,7 @@ def test_new_user_onboarding():
 
     # 2. Test quest browsing
     try:
-        logger.info("
-[2/7] Testing quest browsing...")
+        logger.info("\n[2/7] Testing quest browsing...")
         quests = supabase.table('quests').select('id, title, is_active').eq('is_active', True).limit(10).execute()
         if len(quests.data) > 0:
             logger.info(f"      [OK] Found {len(quests.data)} active quests")
@@ -69,8 +67,7 @@ def test_new_user_onboarding():
 
     # 3. Test quest detail retrieval
     try:
-        logger.info(f"
-[3/7] Testing quest detail view...")
+        logger.info(f"\n[3/7] Testing quest detail view...")
         quest_detail = supabase.table('quests').select('*, quest_tasks(*)').eq('id', test_quest_id).single().execute()
         if quest_detail.data and 'quest_tasks' in quest_detail.data:
             task_count = len(quest_detail.data['quest_tasks'])
@@ -92,8 +89,7 @@ def test_new_user_onboarding():
 
     # 4. Test quest enrollment (requires real user)
     try:
-        logger.info("
-[4/7] Testing quest enrollment capability...")
+        logger.info("\n[4/7] Testing quest enrollment capability...")
         # Get a real user for testing
         users = supabase.table('users').select('id, email').limit(1).execute()
         if len(users.data) > 0:
@@ -113,8 +109,7 @@ def test_new_user_onboarding():
 
     # 5. Test task completion capability
     try:
-        logger.info("
-[5/7] Testing task completion capability...")
+        logger.info("\n[5/7] Testing task completion capability...")
         completions = supabase.table('quest_task_completions').select('id, user_id, quest_id, task_id').limit(3).execute()
         logger.info(f"      [OK] Found {len(completions.data)} existing task completions")
         results['task_completion'] = True
@@ -124,8 +119,7 @@ def test_new_user_onboarding():
 
     # 6. Test XP tracking
     try:
-        logger.info("
-[6/7] Testing XP tracking...")
+        logger.info("\n[6/7] Testing XP tracking...")
         xp_records = supabase.table('user_skill_xp').select('user_id, pillar, xp_amount').limit(5).execute()
         if len(xp_records.data) > 0:
             total_xp = sum(record['xp_amount'] for record in xp_records.data[:5])
@@ -140,8 +134,7 @@ def test_new_user_onboarding():
 
     # 7. Test diploma/portfolio accessibility
     try:
-        logger.info("
-[7/7] Testing diploma/portfolio capability...")
+        logger.info("\n[7/7] Testing diploma/portfolio capability...")
         users_with_completions = supabase.rpc('get_users_with_completions', {}).execute()
         diplomas = supabase.table('diplomas').select('user_id, is_public').limit(3).execute()
         logger.info(f"      [OK] Diploma system accessible")
@@ -170,8 +163,7 @@ def test_returning_user_flow():
 
     # 1. Get a user with active quests
     try:
-        logger.info("
-[1/5] Testing user authentication data...")
+        logger.info("\n[1/5] Testing user authentication data...")
         users = supabase.table('users').select('id, email, subscription_tier, created_at').limit(5).execute()
         if len(users.data) > 0:
             logger.info(f"      [OK] Found {len(users.data)} users in system")
@@ -188,8 +180,7 @@ def test_returning_user_flow():
 
     # 2. Test dashboard data retrieval
     try:
-        logger.info("
-[2/5] Testing dashboard data...")
+        logger.info("\n[2/5] Testing dashboard data...")
         user_id = test_user['id']
 
         # Get user's active quests
@@ -212,8 +203,7 @@ def test_returning_user_flow():
 
     # 3. Test in-progress quest retrieval
     try:
-        logger.info("
-[3/5] Testing in-progress quest retrieval...")
+        logger.info("\n[3/5] Testing in-progress quest retrieval...")
         # Get quests with progress
         if len(active_quests.data) > 0:
             quest_id = active_quests.data[0]['quest_id']
@@ -235,8 +225,7 @@ def test_returning_user_flow():
 
     # 4. Test evidence submission capability
     try:
-        logger.info("
-[4/5] Testing evidence submission system...")
+        logger.info("\n[4/5] Testing evidence submission system...")
         evidence_docs = supabase.table('evidence_documents').select('id, file_name, file_type').limit(5).execute()
         logger.info(f"      [OK] Evidence system accessible ({len(evidence_docs.data)} sample documents)")
         results['evidence_submission'] = True
@@ -246,8 +235,7 @@ def test_returning_user_flow():
 
     # 5. Test achievement/progress sharing
     try:
-        logger.info("
-[5/5] Testing achievement sharing capability...")
+        logger.info("\n[5/5] Testing achievement sharing capability...")
         # Check if user has portfolio slug
         user_portfolio = supabase.table('users').select('portfolio_slug, display_name').eq('id', user_id).single().execute()
         if user_portfolio.data.get('portfolio_slug'):
@@ -273,8 +261,7 @@ def test_social_features():
 
     # 1. Test friendships/connections
     try:
-        logger.info("
-[1/2] Testing friendships/connections...")
+        logger.info("\n[1/2] Testing friendships/connections...")
         friendships = supabase.table('friendships').select('id, status').execute()
 
         logger.info(f"      [OK] Friendships accessible:")
@@ -286,8 +273,7 @@ def test_social_features():
 
     # 2. Test portfolio/diploma sharing
     try:
-        logger.info("
-[2/2] Testing portfolio sharing...")
+        logger.info("\n[2/2] Testing portfolio sharing...")
         users_with_portfolio = supabase.table('users').select('id, portfolio_slug').not_.is_('portfolio_slug', 'null').limit(5).execute()
         logger.info(f"      [OK] Found {len(users_with_portfolio.data)} users with portfolio slugs")
         results['portfolio_sharing'] = True
@@ -308,8 +294,7 @@ def test_edge_cases():
 
     # 1. Users with no quests
     try:
-        logger.info("
-[1/5] Testing users with no quests...")
+        logger.info("\n[1/5] Testing users with no quests...")
         users = supabase.table('users').select('id, email').execute()
         users_with_no_quests = 0
 
@@ -326,8 +311,7 @@ def test_edge_cases():
 
     # 2. Users with many completed quests
     try:
-        logger.info("
-[2/5] Testing users with many completed quests...")
+        logger.info("\n[2/5] Testing users with many completed quests...")
         completion_counts = supabase.rpc('get_user_completion_counts', {}).execute() if hasattr(supabase, 'rpc') else None
 
         if completion_counts:
@@ -349,8 +333,7 @@ def test_edge_cases():
 
     # 3. Session timeout handling (check if tokens have expiry)
     try:
-        logger.info("
-[3/5] Testing session/token structure...")
+        logger.info("\n[3/5] Testing session/token structure...")
         # This is more of a backend JWT config check
         logger.info(f"      [OK] JWT authentication configured (backend handles expiry)")
         results['session_timeout'] = True
@@ -360,8 +343,7 @@ def test_edge_cases():
 
     # 4. Data integrity checks
     try:
-        logger.info("
-[4/5] Testing data integrity...")
+        logger.info("\n[4/5] Testing data integrity...")
 
         # Check for orphaned records
         tasks = supabase.table('quest_tasks').select('quest_id').limit(10).execute()
@@ -379,8 +361,7 @@ def test_edge_cases():
 
     # 5. Timezone handling (check timestamp formats)
     try:
-        logger.info("
-[5/5] Testing timezone handling...")
+        logger.info("\n[5/5] Testing timezone handling...")
         recent_users = supabase.table('users').select('created_at').order('created_at', desc=True).limit(3).execute()
 
         if len(recent_users.data) > 0:
@@ -406,8 +387,7 @@ def print_summary(all_results):
     passed_tests = 0
 
     for test_name, results in all_results.items():
-        logger.info(f"
-{test_name}:")
+        logger.info(f"\n{test_name}:")
         for check, passed in results.items():
             status = "[OK] PASS" if passed else "[FAIL] FAIL"
             logger.info(f"  {status} - {check}")
@@ -423,8 +403,7 @@ def print_summary(all_results):
     return passed_tests, total_tests
 
 if __name__ == "__main__":
-    logger.info("
-")
+    logger.info("\n")
     print("=" * 70)
     print(" "*10 + "OPTIO PLATFORM - PHASE 5 USER EXPERIENCE VALIDATION")
     print(" "*20 + "Testing on: optio-dev environment")

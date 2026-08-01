@@ -40,17 +40,13 @@ def run_migration():
         # Note: Supabase Python client doesn't have direct SQL execution
         # We need to use the REST API or pgAdmin/SQL Editor in Supabase Dashboard
 
-        logger.info("
-⚠️  IMPORTANT:")
+        logger.info("\n⚠️  IMPORTANT:")
         logger.info("The migration SQL needs to be executed in the Supabase SQL Editor.")
-        logger.info("
-Steps:")
+        logger.info("\nSteps:")
         logger.info("1. Go to https://supabase.com/dashboard/project/YOUR_PROJECT/sql")
         logger.info("2. Copy the SQL from: backend/migrations/add_ai_jobs_tables.sql")
         print("3. Paste into SQL Editor and click 'Run'")
-        logger.info("
-Or use this SQL directly:
-")
+        logger.info("\nOr use this SQL directly:\n")
         print("=" * 80)
         print(sql)
         print("=" * 80)

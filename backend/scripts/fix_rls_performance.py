@@ -156,19 +156,16 @@ def main():
             error_count += 1
             continue
 
-    logger.info(f"
-RLS Optimization Results:")
+    logger.info(f"\nRLS Optimization Results:")
     logger.info(f"   Successful optimizations: {success_count}")
     logger.error(f"   Failed optimizations: {error_count}")
 
     if error_count == 0:
-        logger.info(f"
-All RLS policies have been optimized for performance!")
+        logger.info(f"\nAll RLS policies have been optimized for performance!")
         logger.info(f"   Auth function calls are now cached instead of re-evaluated per row.")
         logger.info(f"   This should significantly improve query performance at scale.")
     else:
-        logger.error(f"
-Some optimizations failed. Please review the errors above.")
+        logger.error(f"\nSome optimizations failed. Please review the errors above.")
 
     return success_count > 0
 

@@ -36,8 +36,7 @@ def update_logo():
             }).execute()
             logger.info(f"✓ Created new settings with logo: {result.data}")
 
-        logger.info(f"
-Logo updated successfully to: {new_logo_url}")
+        logger.info(f"\nLogo updated successfully to: {new_logo_url}")
 
     except Exception as e:
         logger.error(f"Error updating logo: {e}")

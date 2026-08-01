@@ -25,8 +25,7 @@ def test_database_integrity():
 
     # 1. All users have valid emails
     try:
-        logger.info("
-[1/7] Testing user email validity...")
+        logger.info("\n[1/7] Testing user email validity...")
         users = supabase.table('users').select('id, email').execute()
 
         email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -61,8 +60,7 @@ def test_database_integrity():
 
     # 2. All quests have at least one task
     try:
-        logger.info("
-[2/7] Testing quest-task relationships...")
+        logger.info("\n[2/7] Testing quest-task relationships...")
         quests = supabase.table('quests').select('id, title').eq('is_active', True).execute()
 
         quests_without_tasks = []
@@ -89,8 +87,7 @@ def test_database_integrity():
 
     # 3. All tasks have valid XP and pillar values
     try:
-        logger.info("
-[3/7] Testing task XP and pillar values...")
+        logger.info("\n[3/7] Testing task XP and pillar values...")
         tasks = supabase.table('quest_tasks').select('id, title, xp_amount, pillar').execute()
 
         valid_pillars = ['stem_logic', 'life_wellness', 'language_communication',
@@ -129,8 +126,7 @@ def test_database_integrity():
 
     # 4. No orphaned records (already tested in Phase 5, verify again)
     try:
-        logger.info("
-[4/7] Testing for orphaned records...")
+        logger.info("\n[4/7] Testing for orphaned records...")
 
         # Check orphaned quest_tasks (tasks without valid quest)
         tasks = supabase.table('quest_tasks').select('quest_id').limit(50).execute()
@@ -162,8 +158,7 @@ def test_database_integrity():
 
     # 5. Foreign key constraints enforced
     try:
-        logger.info("
-[5/7] Testing foreign key relationships...")
+        logger.info("\n[5/7] Testing foreign key relationships...")
 
         # Test that quest_tasks reference valid quests
         tasks_sample = supabase.table('quest_tasks').select('quest_id').limit(10).execute()
@@ -186,8 +181,7 @@ def test_database_integrity():
 
     # 6. Unique constraints working
     try:
-        logger.info("
-[6/7] Testing unique constraints...")
+        logger.info("\n[6/7] Testing unique constraints...")
 
         # Check email uniqueness
         users = supabase.table('users').select('email').execute()
@@ -213,8 +207,7 @@ def test_database_integrity():
 
     # 7. Default values set correctly
     try:
-        logger.info("
-[7/7] Testing default values...")
+        logger.info("\n[7/7] Testing default values...")
 
         # Check users have default subscription_tier
         users_no_tier = supabase.table('users').select('id').is_('subscription_tier', 'null').execute()
@@ -247,8 +240,7 @@ def test_business_logic():
 
     # 1. XP calculations match formula
     try:
-        logger.info("
-[1/5] Testing XP calculation formula...")
+        logger.info("\n[1/5] Testing XP calculation formula...")
 
         # Get a completed quest
         completions = supabase.table('quest_task_completions').select('quest_id, user_id, xp_awarded').limit(10).execute()
@@ -271,8 +263,7 @@ def test_business_logic():
 
     # 2. Tier features properly restricted
     try:
-        logger.info("
-[2/5] Testing tier-based feature restrictions...")
+        logger.info("\n[2/5] Testing tier-based feature restrictions...")
 
         # Check friendships (paid tier only)
         friendships = supabase.table('friendships').select('requester_id').execute()
@@ -297,8 +288,7 @@ def test_business_logic():
 
     # 3. Completion bonuses correct
     try:
-        logger.info("
-[3/5] Testing completion bonus calculation...")
+        logger.info("\n[3/5] Testing completion bonus calculation...")
 
         # Check if users who completed all tasks got bonus XP
         # This requires finding completed quests and verifying bonus was applied
@@ -319,8 +309,7 @@ def test_business_logic():
 
     # 4. XP tracking validation
     try:
-        logger.info("
-[4/5] Testing XP tracking validation...")
+        logger.info("\n[4/5] Testing XP tracking validation...")
 
         # Get users with XP
         users_with_xp = supabase.table('users').select('total_xp').not_.is_('total_xp', 'null').limit(10).execute()
@@ -345,8 +334,7 @@ def test_business_logic():
 
     # 5. Subscription status synced with Stripe
     try:
-        logger.info("
-[5/5] Testing Stripe subscription sync...")
+        logger.info("\n[5/5] Testing Stripe subscription sync...")
 
         # Check users with Stripe data
         users_with_stripe = supabase.table('users').select(
@@ -386,8 +374,7 @@ def print_summary(all_results):
     passed_tests = 0
 
     for test_name, results in all_results.items():
-        logger.info(f"
-{test_name}:")
+        logger.info(f"\n{test_name}:")
         for check, passed in results.items():
             status = "[OK] PASS" if passed else "[FAIL] FAIL"
             logger.info(f"  {status} - {check}")
@@ -403,8 +390,7 @@ def print_summary(all_results):
     return passed_tests, total_tests
 
 if __name__ == "__main__":
-    logger.info("
-")
+    logger.info("\n")
     print("=" * 70)
     print(" "*10 + "OPTIO PLATFORM - PHASE 6 DATA VALIDATION")
     print(" "*20 + "Testing on: optio-dev environment")
