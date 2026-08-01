@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
+from utils import rich_text
 from utils.logger import get_logger
 from utils.validation import sanitize_text
 
@@ -41,6 +42,20 @@ def _text(v: Optional[str]) -> Optional[str]:
         return None
     cleaned = sanitize_text(str(v)).strip()
     return cleaned or None
+
+
+def _body(v: Optional[str]) -> Optional[str]:
+    """A post body, which may have been written with the editor.
+
+    Formatted bodies are kept as sanitized HTML (see utils/rich_text); anything
+    typed plain still goes through the plain-text path, where tags are stripped.
+    """
+    if v is None:
+        return None
+    if rich_text.is_html(str(v)):
+        cleaned = rich_text.sanitize(str(v)).strip()
+        return cleaned or None
+    return _text(v)
 
 
 # ── Announcements ─────────────────────────────────────────────────────────────
@@ -85,7 +100,7 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     fields = {
         'organization_id': org_id,
         'title': title,
-        'body': _text(data.get('body')),
+        'body': _body(data.get('body')),
         'pinned': bool(data.get('pinned')),
         'priority': priority,
         'publish_at': (str(data['publish_at']).strip() or None) if data.get('publish_at') else None,
@@ -109,7 +124,7 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
             audiences = announcement_service.normalize_audiences(audiences)
             if audiences:
                 sent = announcement_service.publish(
-                    org_id, user_id, title, _text(data.get('body')) or title, audiences)
+                    org_id, user_id, title, _body(data.get('body')) or title, audiences)
                 result['notified'] = {**sent, 'audiences': audiences}
         except Exception as e:  # noqa: BLE001
             logger.error(f'Community announcement fan-out failed: {e}', exc_info=True)
@@ -127,7 +142,7 @@ def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any])
             return {'error': 'A title is required'}
         fields['title'] = title
     if 'body' in data:
-        fields['body'] = _text(data.get('body'))
+        fields['body'] = _body(data.get('body'))
     if 'pinned' in data:
         fields['pinned'] = bool(data.get('pinned'))
     if 'priority' in data:

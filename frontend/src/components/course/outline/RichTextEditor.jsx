@@ -7,12 +7,18 @@ import TextAlign from '@tiptap/extension-text-align'
 /**
  * RichTextEditor - Simplified WYSIWYG editor for project descriptions
  * Supports headings (H1-H3), bold, italic, lists, and text alignment
+ *
+ * `alignment` is opt-out because alignment is carried by a style attribute, and
+ * the announcement pipeline (sanitized HTML through email and the family page)
+ * deliberately allows no style attributes. Offering buttons whose effect
+ * silently disappears on save is worse than not offering them.
  */
 const RichTextEditor = ({
   value = '',
   onChange,
   placeholder = 'Enter description...',
   minHeight = '200px',
+  alignment = true,
 }) => {
   const isInternalUpdate = useRef(false)
 
@@ -26,9 +32,9 @@ const RichTextEditor = ({
       Placeholder.configure({
         placeholder,
       }),
-      TextAlign.configure({
+      ...(alignment ? [TextAlign.configure({
         types: ['heading', 'paragraph'],
-      }),
+      })] : []),
     ],
     content: value,
     onUpdate: ({ editor }) => {
@@ -125,9 +131,10 @@ const RichTextEditor = ({
           <span className="italic">I</span>
         </MenuButton>
 
-        <Divider />
+        {alignment && <Divider />}
 
         {/* Alignment */}
+        {alignment && (<>
         <MenuButton
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
           isActive={editor.isActive({ textAlign: 'left' })}
@@ -155,6 +162,7 @@ const RichTextEditor = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M10 12h10M4 18h16" />
           </svg>
         </MenuButton>
+        </>)}
 
         <Divider />
 

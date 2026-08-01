@@ -21,6 +21,7 @@ from utils.auth.decorators import require_role
 from utils.roles import get_effective_role
 from database import get_supabase_admin_client
 from services import announcement_service
+from utils import rich_text
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -45,7 +46,9 @@ def create_announcement(user_id):
         content = (data.get('content') or data.get('message') or '').strip()
         org_id = data.get('organization_id')
 
-        if not title or not content:
+        # An empty editor still posts markup ("<p></p>"), so emptiness is judged
+        # on the text, not the string.
+        if not title or not rich_text.to_text(content).strip():
             return jsonify({'success': False, 'error': 'Title and message are required'}), 400
 
         audiences = announcement_service.normalize_audiences(

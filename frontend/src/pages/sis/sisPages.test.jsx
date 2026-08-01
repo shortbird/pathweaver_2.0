@@ -14,6 +14,15 @@ vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   default: { success: vi.fn(), error: vi.fn() },
 }))
+// The announcement composer writes through TipTap, whose contenteditable can't
+// be typed into in jsdom. Stand in a textarea with the same placeholder so
+// these tests keep testing the page, not the editor.
+vi.mock('../../components/course/outline/RichTextEditor', () => ({
+  default: ({ value, onChange, placeholder }) => (
+    <textarea value={value} placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)} />
+  ),
+}))
 
 // Hoisted so the mock factory (which runs at import time, before module-body
 // consts initialize) can reference it.

@@ -9,6 +9,8 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
+import RichTextEditor from '../../components/course/outline/RichTextEditor'
+import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -272,7 +274,7 @@ const AnnouncementsTab = ({ orgId, admin }) => {
                   {a.priority === 'urgent' && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-100 text-red-700">Urgent</span>}
                   <h3 className="text-base font-semibold text-neutral-900">{a.title}</h3>
                 </div>
-                {a.body && <p className="text-sm text-neutral-600 mt-1 whitespace-pre-wrap">{a.body}</p>}
+                {a.body && <AnnouncementBody text={a.body} className="text-sm text-neutral-600 mt-1" />}
                 <div className="text-xs text-neutral-400 mt-2">
                   {fmtDate(a.created_at)}
                   {a.publish_at && new Date(a.publish_at) > new Date() ? ` · Scheduled for ${fmtDateTime(a.publish_at)}` : ''}
@@ -341,9 +343,18 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       <label className="text-xs text-neutral-500 block">Title
         <input value={f.title} onChange={(e) => set('title', e.target.value)} className={field} placeholder="Early dismissal Friday" autoFocus />
       </label>
-      <label className="text-xs text-neutral-500 block">Message <span className="text-neutral-400">(optional)</span>
-        <textarea value={f.body} onChange={(e) => set('body', e.target.value)} className={`${field} min-h-[90px]`} placeholder="Share the details…" />
-      </label>
+      <div className="text-xs text-neutral-500">
+        Message <span className="text-neutral-400">(optional)</span>
+        <div className="mt-1">
+          <RichTextEditor
+            value={f.body}
+            onChange={(v) => set('body', v)}
+            placeholder="Share the details…"
+            minHeight="110px"
+            alignment={false}
+          />
+        </div>
+      </div>
       {/* The Community Hub is a staff noticeboard — nothing posted here reaches
           families on its own, which is not what anyone expects the first time
           (iCreate, 2026-08-01). Say so, and offer to send it out. */}

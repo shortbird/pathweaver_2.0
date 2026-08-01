@@ -448,20 +448,52 @@ email to the existing card instead of making a second one. The old version of
 that warning said the same thing in prose and sent the admin to another screen to
 act on it.
 
+### 22. Writing an announcement with formatting
+
+> "A rich text editor would be nice on the announcements and on the messages."
+
+Every announcement composer — the SIS **Messaging** page, the Community Hub post
+form, and the org admin tab — now has the editor: headings, bold, italic, lists,
+quotes. (Alignment is deliberately absent: it travels as a `style` attribute,
+which the email and family-page pipeline strips, and a button whose effect
+vanishes on save is worse than no button.)
+
+The editor was the easy half. A body stops being plain text everywhere it is
+*read*, so each of those places was taught what to do with it:
+
+| Where | What it does now |
+|-------|------------------|
+| Family Announcements page | Renders the formatting, sanitized at render as well as on the way in |
+| Notification bell (web + mobile) | Preview and "Read more" both show the **text** — react-markdown escapes raw HTML and React Native has no notion of it |
+| Email fan-out | The HTML body is passed through instead of escaped (this is the one that would have put literal `<p>` tags in a parent's inbox); the plain-text part is the flattened body |
+| Composer validation | "Empty" is judged on the text, because an empty editor still emits `<p></p>` — otherwise a blank announcement goes to the whole school |
+| Everything posted before today | Still plain text, still rendered with its line breaks |
+
+Two matching helpers do the work and are the only place this logic lives:
+`backend/utils/rich_text.py` (`sanitize` / `to_text` / `preview`) and
+`frontend/src/utils/richText.js` (`isHtml` / `htmlToText` / `isBlank`). Storage
+is sanitized on the way in — an allow-list of the tags the editor can produce, no
+`style`, no `img`, no `javascript:` links — so a renderer that forgets to
+sanitize is a formatting bug rather than a hole.
+
+Chat messages are **not** included: they are rendered by the mobile app as plain
+strings, so HTML there would show as tags on a phone. Announcements were what
+the request was about.
+
 ---
 
 ## Tests
 
-- Frontend: **1021 passing** (78 new — waitlist staff actions, People export and
+- Frontend: **1032 passing** (89 new — waitlist staff actions, People export and
   removal, curriculum table, calendar categories, roster alerts, quest-picker
   delete, CLP lenses / open requests / school toggle, and the waiting-vs-offered
   split on the class list, the teacher-portal back-link on all eight pages, the approve-time waitlist
   choice, cross-section offers, the family take-back, the announcement audience
-  block, and the staff directory / duplicate merge).
+  block, the staff directory / duplicate merge, and formatted-vs-plain bodies).
 - Backend: **new suites** `test_sis_waitlist_staff_actions.py` (45),
   `test_sis_person_removal.py` (19), `test_blank_values.py` (40),
   `test_sis_clp_open_requests.py` (10), `test_announcement_publish.py` (17),
-  `test_sis_staff_directory.py` (13), plus 7 added to the calendar suite and 8
+  `test_sis_staff_directory.py` (13), `test_rich_text.py` (25), plus 7 added to the calendar suite and 8
   covering the waiting-vs-offered split. The
   pre-existing failures in the backend suite (113 failures, 31 collection errors —
   repositories, xp/atomic-quest services, transcription, rate limiting) are
@@ -519,18 +551,6 @@ students ("found Anna's jacket"), and recognition written for staff eyes reads
 differently when a parent can read it too. Ask before building: should families
 see a read-only feed of these, and should staff be able to mark a post
 family-visible per item?
-
-### A rich text editor on announcements and messages (2026-08-01)
-
-> "A rich text editor would be nice on the announcements and on the messages."
-
-Not built in this pass. The editor component exists already
-(`components/course/outline/RichTextEditor.jsx`, TipTap, HTML in and out), so the
-work is not the editor — it is that a message body stops being plain text
-everywhere it is consumed: the family-facing page, the notification preview, the
-email fan-out, and any place that truncates. Each of those needs to either render
-sanitized HTML or strip it, and getting one wrong shows a parent raw
-`<p>` tags. Worth doing next, deliberately.
 
 ### The schedule flow
 

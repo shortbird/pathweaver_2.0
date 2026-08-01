@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
+import AnnouncementBody from '../components/announcements/AnnouncementBody'
+import { htmlToText } from '../utils/richText'
 
 const PAGE_SIZE = 20
 
@@ -134,7 +136,9 @@ export default function AnnouncementsArchivePage() {
           {announcements.map((a) => {
             const isExpanded = expanded.has(a.id)
             const body = a.content || a.message || ''
-            const isLong = body.length > 280
+            // Length is judged on the words, not the markup, so a formatted
+            // announcement doesn't collapse itself for two lines of tags.
+            const isLong = htmlToText(body).length > 280
             return (
               <article key={a.id} className="bg-white border border-gray-200 rounded-xl p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -144,13 +148,12 @@ export default function AnnouncementsArchivePage() {
                   </time>
                 </div>
                 {orgName && <p className="text-xs text-gray-400 mt-0.5">{orgName}</p>}
-                <p
-                  className={`text-sm text-gray-700 mt-3 whitespace-pre-wrap leading-relaxed ${
+                <AnnouncementBody
+                  text={body}
+                  className={`text-sm text-gray-700 mt-3 leading-relaxed ${
                     !isExpanded && isLong ? 'line-clamp-4' : ''
                   }`}
-                >
-                  {body}
-                </p>
+                />
                 {isLong && (
                   <button
                     onClick={() => toggleExpanded(a.id)}

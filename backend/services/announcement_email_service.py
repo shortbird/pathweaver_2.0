@@ -21,6 +21,7 @@ fire-and-forget pattern, e.g. routes/quest/classes.py).
 import html as html_lib
 
 from app_config import Config
+from utils import rich_text
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,18 +47,26 @@ def _fresh_admin_client():
 
 
 def render_announcement_html(message: str) -> str:
-    """Announcement body as simple escaped HTML paragraphs + footer link."""
-    paragraphs = [
-        f"<p style=\"margin: 0 0 1em 0; line-height: 1.5;\">{html_lib.escape(line.strip())}</p>"
-        for line in (message or '').split('\n')
-        if line.strip()
-    ]
+    """Announcement body as HTML paragraphs + footer link.
+
+    A body written with the editor is already HTML — escaping it would put
+    literal `<p>` tags in a parent's inbox — so it is sanitized and passed
+    through. A plain-text body is escaped and split into paragraphs as before.
+    """
+    if rich_text.is_html(message):
+        body = rich_text.sanitize(message)
+    else:
+        body = ''.join(
+            f"<p style=\"margin: 0 0 1em 0; line-height: 1.5;\">{html_lib.escape(line.strip())}</p>"
+            for line in (message or '').split('\n')
+            if line.strip()
+        )
     footer = (
         f'<p style="margin: 1.5em 0 0 0; font-size: 14px; color: #6b7280;">'
         f'Read in Optio: <a href="{Config.FRONTEND_URL}/announcements" '
         f'style="color: #6D469B;">{Config.FRONTEND_URL}/announcements</a></p>'
     )
-    return ''.join(paragraphs) + footer
+    return body + footer
 
 
 def send_announcement_emails(org_id, title, message, recipient_ids):
@@ -67,7 +76,7 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
     Args:
         org_id: Organization the announcement belongs to
         title: Announcement title
-        message: Full announcement body (plain text)
+        message: Full announcement body (plain text or sanitized editor HTML)
         recipient_ids: Iterable of user ids that received the in-app notification
 
     Returns:
@@ -132,7 +141,8 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
 
         subject = f"{org_name}: {title}"
         html_body = render_announcement_html(message)
-        text_body = f"{message}\n\nRead in Optio: {Config.FRONTEND_URL}/announcements"
+        text_body = (f"{rich_text.to_text(message)}\n\n"
+                     f"Read in Optio: {Config.FRONTEND_URL}/announcements")
 
         from services.email_service import email_service
 

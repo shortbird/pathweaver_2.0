@@ -20,6 +20,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set
 from flask import current_app
 
 from database import get_supabase_admin_client
+from utils import rich_text
 from utils.logger import get_logger
 from utils.roles import get_effective_role
 
@@ -84,7 +85,12 @@ def publish(org_id: str, author_id: str, title: str, content: str,
     The durable row is what the family-facing Announcements page reads, so it is
     written first and its failure is logged rather than raised — delivery still
     happens either way.
+
+    A body written with the editor is stored as sanitized HTML; everything that
+    reads it as text (the notification preview, the plain half of the email)
+    flattens it first. See utils/rich_text.py.
     """
+    content = rich_text.sanitize(content)
     announcement_id = None
     try:
         ins = _admin().table('announcements').insert({
@@ -103,7 +109,7 @@ def publish(org_id: str, author_id: str, title: str, content: str,
 
     from services.notification_service import NotificationService
     notifier = NotificationService()
-    preview = (content[:200] + '…') if len(content) > 200 else content
+    preview = rich_text.preview(content)
     sent = 0
     for rid in recipient_ids:
         try:
@@ -113,7 +119,13 @@ def publish(org_id: str, author_id: str, title: str, content: str,
                 title=title,
                 message=preview,
                 link='/notifications',
-                metadata={'announcement_id': announcement_id, 'audiences': audiences},
+                # full_content is what the notification expands to, on web and
+                # mobile alike — both render it as text (react-markdown escapes
+                # raw HTML; React Native has no notion of it), so it is the
+                # flattened body. The formatted version lives on the
+                # announcements page the notification links to.
+                metadata={'announcement_id': announcement_id, 'audiences': audiences,
+                          'full_content': rich_text.to_text(content)},
                 organization_id=org_id,
             )
             sent += 1
