@@ -36,7 +36,8 @@ const STUDENT = {
   classes: [],
   schedule_approval: { status: 'submitted', submitted_by_name: 'Erin' },
   open_requests: {
-    waitlist: [{ entry_id: 'w1', class_id: 'c9', class_name: 'Miniatures', status: 'offered' }],
+    waitlist: [{ entry_id: 'w1', class_id: 'c9', class_name: 'Miniatures', status: 'offered',
+                 sections: [{ class_id: 'c10', name: 'Miniatures (Thu 1:00)', capacity: 12, enrolled_count: 8 }] }],
     age_exceptions: [{ request_id: 'x1', class_id: 'c4', class_name: 'Teen Lab', message: 'She is 10' }],
   },
 }
@@ -168,6 +169,18 @@ describe('CLP open requests', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Approve schedule' }))
     expect(window.confirm).not.toHaveBeenCalled()
     await waitFor(() => expect(api.post).toHaveBeenCalled())
+  })
+
+  // iCreate, 2026-08-01: "Maybe on Open requests it can show if there are other
+  // sections available for a waitlisted class?"
+  it('names other sections with room, and offers one to the family', async () => {
+    await openStudent()
+    expect(screen.getByText(/Other sections with room/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /offer Miniatures \(Thu 1:00\)/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/waitlist/w1/offer-section',
+      { organization_id: 'org-1', class_id: 'c10' },
+    ))
   })
 
   it('says what approval did and did not settle', async () => {

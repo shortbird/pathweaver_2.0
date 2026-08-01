@@ -265,6 +265,6 @@ schedule change).
 6. **Attendance** (+ teacher quick entry).
 7. **Portals polish + reporting + notification event types.**
 
-Every step ships behind `sis_enabled` and does not touch the learning app for
+Every step ships behind `sis_enabled` and does not touch the web platform for
 non-SIS orgs. Tests accompany each step (v1 vitest + backend). Coverage gate on
 `main` still applies; we stay on this branch and on `develop` for dev deploys.

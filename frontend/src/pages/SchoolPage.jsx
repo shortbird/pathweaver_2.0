@@ -1,18 +1,31 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Navigate } from 'react-router-dom'
 import { MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
+import { useOrganization } from '../contexts/OrganizationContext'
+import AnnouncementBody from '../components/announcements/AnnouncementBody'
+import SchoolCommunity, { hasCommunityContent } from '../components/announcements/SchoolCommunity'
+import { htmlToText } from '../utils/richText'
 
 const PAGE_SIZE = 20
 
 /**
- * AnnouncementsArchivePage - the communications archive at /announcements.
+ * SchoolPage — everything a family gets from their school, in one place, titled
+ * with the school's name (/school; /announcements still lands here so older
+ * emails and notifications keep working).
  *
- * Every member of an org (students, parents, advisors, org admins) can re-read
- * past announcements their school sent them: searchable, newest first, with
- * expandable full bodies and a "Load more" pager.
- * Backed by GET /api/announcements/archive?limit=&offset=&q=.
+ * Two tabs:
+ * - Announcements — the searchable archive of what the school has sent them
+ *   (GET /api/announcements/archive), newest first, with a "Load more" pager.
+ * - Community — the school's board: noticeboard posts, what's on, lost & found,
+ *   shout-outs (GET /api/sis/community/feed). iCreate, 2026-08-01: "I can't see
+ *   the shoutouts or lost and found or other things from the non-admin side."
+ *
+ * Only for people who are in a school. Someone with no school has nothing this
+ * page could show, so they are sent home rather than shown an empty shell — and
+ * the nav item is hidden for them too.
  */
-export default function AnnouncementsArchivePage() {
+export default function SchoolPage() {
   const [announcements, setAnnouncements] = useState([])
   const [orgName, setOrgName] = useState(null)
   const [total, setTotal] = useState(0)
@@ -22,6 +35,9 @@ export default function AnnouncementsArchivePage() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(() => new Set())
+  const { school, loading: orgLoading } = useOrganization()
+  const [feed, setFeed] = useState(null)
+  const [tab, setTab] = useState('sent')
   const debounceRef = useRef(null)
 
   const fetchPage = useCallback(async (offset, q, append) => {
@@ -52,6 +68,20 @@ export default function AnnouncementsArchivePage() {
     fetchPage(0, query, false)
   }, [query, fetchPage])
 
+  // The community board, loaded once. A failure here is silent: the archive is
+  // the page, the board is the extra.
+  useEffect(() => {
+    let active = true
+    api.get('/api/sis/community/feed')
+      .then(({ data }) => {
+        if (!active || !data?.success) return
+        setFeed(data.feed)
+        if (data.organization_name) setOrgName(data.organization_name)
+      })
+      .catch(() => { /* no board for this user */ })
+    return () => { active = false }
+  }, [])
+
   const onSearchChange = (value) => {
     setSearch(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -80,6 +110,11 @@ export default function AnnouncementsArchivePage() {
   }
 
   const hasMore = announcements.length < total
+  const schoolName = school?.name || orgName
+
+  // Wait for /me before deciding — redirecting on a not-yet-loaded context
+  // would bounce every member of a school on a hard refresh.
+  if (!orgLoading && !school) return <Navigate to="/" replace />
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -89,14 +124,36 @@ export default function AnnouncementsArchivePage() {
           <MegaphoneIcon className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Announcements</h1>
-          {orgName && <p className="text-sm text-gray-500">From {orgName}</p>}
+          <h1 className="text-2xl font-bold text-gray-900">{schoolName || 'My school'}</h1>
+          <p className="text-sm text-gray-500">
+            {tab === 'sent'
+              ? 'Every announcement your school has sent, newest first.'
+              : 'What is happening around school right now.'}
+          </p>
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-6">
-        Every announcement your school has sent, newest first.
-      </p>
 
+      {hasCommunityContent(feed) && (
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-6 mt-6">
+          {[['sent', 'Announcements'], ['community', 'Community']].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              aria-pressed={tab === key}
+              className={`px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                tab === key ? 'bg-optio-purple text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!hasCommunityContent(feed) && <div className="mb-6" />}
+
+      {tab === 'community' && <SchoolCommunity feed={feed} orgName={schoolName} />}
+
+      {tab === 'sent' && (<>
       {/* Search */}
       <div className="relative mb-6">
         <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -134,7 +191,9 @@ export default function AnnouncementsArchivePage() {
           {announcements.map((a) => {
             const isExpanded = expanded.has(a.id)
             const body = a.content || a.message || ''
-            const isLong = body.length > 280
+            // Length is judged on the words, not the markup, so a formatted
+            // announcement doesn't collapse itself for two lines of tags.
+            const isLong = htmlToText(body).length > 280
             return (
               <article key={a.id} className="bg-white border border-gray-200 rounded-xl p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -143,14 +202,13 @@ export default function AnnouncementsArchivePage() {
                     {formatDate(a.created_at)}
                   </time>
                 </div>
-                {orgName && <p className="text-xs text-gray-400 mt-0.5">{orgName}</p>}
-                <p
-                  className={`text-sm text-gray-700 mt-3 whitespace-pre-wrap leading-relaxed ${
+                {schoolName && <p className="text-xs text-gray-400 mt-0.5">{schoolName}</p>}
+                <AnnouncementBody
+                  text={body}
+                  className={`text-sm text-gray-700 mt-3 leading-relaxed ${
                     !isExpanded && isLong ? 'line-clamp-4' : ''
                   }`}
-                >
-                  {body}
-                </p>
+                />
                 {isLong && (
                   <button
                     onClick={() => toggleExpanded(a.id)}
@@ -179,6 +237,7 @@ export default function AnnouncementsArchivePage() {
           )}
         </div>
       )}
+      </>)}
     </div>
   )
 }

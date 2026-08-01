@@ -12,7 +12,7 @@ const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:
 /**
  * SIS Resources — the org's document library (family guidebook, student
  * contract, links). Staff add documents or links here; the org's families see
- * them on the learning app's Resources page any time after registration.
+ * them on the web platform's Resources page any time after registration.
  */
 const ResourcesPage = () => {
   const { user } = useAuth()

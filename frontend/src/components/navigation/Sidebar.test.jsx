@@ -160,3 +160,42 @@ describe('Sidebar — SIS carve-out (org feature flag)', () => {
     expect(screen.getByText('School Admin')).toBeInTheDocument()
   })
 })
+
+describe('Sidebar — the school item', () => {
+  // The old "Announcements" item was a name for a page, not a place. It is now
+  // the school's own page, named after the school, and only for people who are
+  // in one.
+  beforeEach(() => {
+    localStorage.clear()
+    authState = { user: { id: 'u1', role: 'student', email: 's@example.com' }, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null, school: null }
+  })
+
+  it('names the item after the school and links to its page', () => {
+    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate' } }
+    renderSidebar()
+    const link = screen.getByRole('link', { name: /icreate/i })
+    expect(link).toHaveAttribute('href', '/school')
+  })
+
+  it('shows nothing for someone who is in no school', () => {
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /^announcements$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /my school/i })).not.toBeInTheDocument()
+  })
+
+  it('shows it to a parent who belongs through their child', () => {
+    // A platform parent has no organization_id, so `organization` is null and
+    // only `school` (resolved by /me through membership) says they belong.
+    authState.user = { id: 'p1', role: 'parent', email: 'p@example.com' }
+    orgState = { organization: null, school: { id: 'org-1', name: 'iCreate' } }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /icreate/i })).toBeInTheDocument()
+  })
+
+  it('falls back to a plain label when the school has no name yet', () => {
+    orgState = { organization: null, school: { id: 'org-1' } }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /my school/i })).toBeInTheDocument()
+  })
+})

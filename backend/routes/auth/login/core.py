@@ -31,6 +31,26 @@ from .security import (
 logger = get_logger(__name__)
 
 
+def _member_school(admin_client, user_id):
+    """{'id', 'name'} of the school this user belongs to, or None.
+
+    Only reached for users with no organization_id of their own — in practice
+    parents, who are members through their children. Best-effort: a failure here
+    means the school page is hidden, never that /me fails.
+    """
+    try:
+        from services import sis_service
+        org_id = sis_service.member_org_id(user_id)
+        if not org_id:
+            return None
+        row = (admin_client.table('organizations').select('id, name')
+               .eq('id', org_id).maybe_single().execute()).data
+        return {'id': org_id, 'name': (row or {}).get('name')} if row else None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not resolve school for {mask_user_id(user_id)}: {e}")
+        return None
+
+
 def register_routes(bp):
     """Register routes on the blueprint."""
     @bp.route('/me', methods=['GET'])
@@ -135,8 +155,23 @@ def register_routes(bp):
                                     org_row.get('feature_flags')
                                 )
                                 response_data['organization'] = org_row
+                                # `school` is derived from the STRIPPED row, not
+                                # the raw one, so the credential-removal above
+                                # can't be routed around by a second reference.
+                                # (Only id/name are used, but keeping one source
+                                # means a future field added here stays clean.)
+                                response_data['school'] = {'id': org_row['id'],
+                                                           'name': org_row.get('name')}
                         except Exception as org_error:
                             logger.warning(f"Could not fetch organization for user {mask_user_id(user_id)}: {org_error}")
+                    else:
+                        # A parent is usually a platform user with no
+                        # organization_id — they belong to a school through their
+                        # child. `school` is what the web platform uses to decide
+                        # whether to show the school's page at all, so it has to
+                        # be resolved that way or every parent in a school looks
+                        # like they are in no school.
+                        response_data['school'] = _member_school(admin_client, user_id)
 
                     # Check for parent relationships (dependents and linked students)
                     # This allows users to access parent features regardless of their role

@@ -3,6 +3,9 @@ import { toast } from 'react-hot-toast'
 import { MegaphoneIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import TemplateControls from '../announcements/TemplateControls'
+import RichTextEditor from '../course/outline/RichTextEditor'
+import AnnouncementBody from '../announcements/AnnouncementBody'
+import { isBlank } from '../../utils/richText'
 
 const ROLE_OPTIONS = [
   { value: 'students', label: 'Students' },
@@ -45,7 +48,7 @@ export default function AnnouncementsTab({ orgId }) {
   }
 
   const send = async () => {
-    if (!title.trim() || !content.trim()) {
+    if (!title.trim() || isBlank(content)) {
       toast.error('Title and message are required')
       return
     }
@@ -58,7 +61,7 @@ export default function AnnouncementsTab({ orgId }) {
       const { data } = await api.post('/api/announcements', {
         organization_id: orgId,
         title: title.trim(),
-        content: content.trim(),
+        content,
         audiences,
       })
       if (data.success) {
@@ -102,12 +105,12 @@ export default function AnnouncementsTab({ orgId }) {
           placeholder="Title"
           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
         />
-        <textarea
+        <RichTextEditor
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={4}
+          onChange={setContent}
           placeholder="Write your announcement…"
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-y"
+          minHeight="140px"
+          alignment={false}
         />
         <div className="flex flex-wrap items-center gap-4">
           <span className="text-sm text-gray-600">Send to</span>
@@ -124,7 +127,7 @@ export default function AnnouncementsTab({ orgId }) {
           ))}
           <button
             onClick={send}
-            disabled={sending || !title.trim() || !content.trim() || audiences.length === 0}
+            disabled={sending || !title.trim() || isBlank(content) || audiences.length === 0}
             className="ml-auto px-5 py-2 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-opacity disabled:opacity-40"
           >
             {sending ? 'Sending…' : 'Send announcement'}
@@ -152,7 +155,7 @@ export default function AnnouncementsTab({ orgId }) {
                     {new Date(a.created_at).toLocaleString()}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{a.content}</p>
+                <AnnouncementBody text={a.content} className="text-sm text-gray-600 mt-1" />
                 <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-optio-purple/10 text-optio-purple rounded capitalize">
                   {a.target_audience}
                 </span>

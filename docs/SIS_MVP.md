@@ -1,7 +1,7 @@
 # Optio SIS — MVP (build + test + deploy)
 
 Microschool Student Information System. One codebase, two surfaces:
-`www.optioeducation.com` (learning app) and `sis.optioeducation.com` (admin console),
+`www.optioeducation.com` (web platform) and `sis.optioeducation.com` (admin console),
 sharing `api.optioeducation.com` and the same login session.
 
 > **⚠️ Superseded (2026-06-30):** this doc describes the original 4-table MVP. The
@@ -24,7 +24,7 @@ or via the local `?app=sis` override.
 - `src/utils/appSurface.js` — surface detection + cross-surface navigation + the local
   `?app=sis` / `?sisflag=1` dev overrides.
 - `src/App.jsx` — branches at the top of the route tree: SIS host → `<SisRoutes />`,
-  else the existing learning app (unchanged).
+  else the existing web platform (unchanged).
 - `src/sis/SisRoutes.jsx` — SIS route tree (new pages + carved-out admin pages at their
   original paths).
 - `src/components/sis/SisLayout.jsx` + `SisSidebar.jsx` — staff-gated console chrome.
@@ -75,7 +75,7 @@ dev points at prod), so the console has live data immediately.
    - **Messaging** → compose to Families/Students/Advisors (sends via the existing
      `/api/announcements` → notification bell + push).
 
-3. **The carve-out (learning app)** — Test-Org has `sis_enabled=true`. To see the
+3. **The carve-out (web platform)** — Test-Org has `sis_enabled=true`. To see the
    learning sidebar with admin items removed + the "School Admin" launcher:
    - Easiest: log in as the **Test-Org org_admin** at `http://localhost:3000` (normal
      learning surface). Organization / Advisor / Credit Review are gone from the sidebar;
@@ -84,7 +84,7 @@ dev points at prod), so the console has live data immediately.
      `http://localhost:3000/?sisflag=1` (clear with `?sisflag=0`).
 
 4. **No-regression check (the important one)** — for any **other** org (sis_enabled
-   off) or a platform student/parent, confirm the learning app is **unchanged**: same
+   off) or a platform student/parent, confirm the web platform is **unchanged**: same
    sidebar, same admin pages, no SIS anything. This is what protects every existing
    school. (`?sisflag=0` and remove the `optio_surface` override / use a fresh browser.)
 

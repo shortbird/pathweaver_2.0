@@ -84,28 +84,53 @@ describe('TeacherModal email-only add', () => {
     expect(screen.getByLabelText(/bio/i)).toHaveValue('Coach')
   })
 
-  it('warns about unlinked placeholders so their classes are not stranded', async () => {
-    // The old name-match guard cannot fire without a name, so this note is what
-    // stops an admin creating a duplicate and orphaning a placeholder's classes.
+  it('offers the unlinked placeholders by name so their classes are not stranded', async () => {
+    // The old name-match guard cannot fire without a name, so this picker is
+    // what stops an admin creating a duplicate and orphaning a placeholder's
+    // classes — the mistake iCreate made with Julia on 2026-08-01.
     render(
       <TeacherModal
         orgId="org-1"
         onClose={vi.fn()}
         onSaved={vi.fn()}
-        placeholders={[{ id: 'ph-1', name: 'Liz Smith' }, { id: 'ph-2', name: 'Ray Ng' }]}
+        placeholders={[{ id: 'ph-1', name: 'Liz Smith', class_count: 4 },
+                       { id: 'ph-2', name: 'Ray Ng' }]}
       />,
     )
     await screen.findByText('Employee onboarding (employee)')
 
-    expect(screen.getByText(/Replacing a teacher who already has classes/i)).toBeInTheDocument()
-    expect(screen.getByText(/Liz Smith, Ray Ng/)).toBeInTheDocument()
-    expect(screen.getByText(/Link their account/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/already on the staff list/i)).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Liz Smith — 4 classes' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Ray Ng' })).toBeInTheDocument()
+    expect(screen.getByText(/2 teachers are set up without a login/i)).toBeInTheDocument()
+  })
+
+  it('links to the chosen placeholder instead of adding a second record', async () => {
+    const onSaved = vi.fn()
+    api.post.mockResolvedValueOnce({ data: { linked: 'merged', staff_id: 'real-1' } })
+    render(
+      <TeacherModal
+        orgId="org-1"
+        onClose={vi.fn()}
+        onSaved={onSaved}
+        placeholders={[{ id: 'ph-1', name: 'Liz Smith', class_count: 4 }]}
+      />,
+    )
+    await screen.findByText('Employee onboarding (employee)')
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'liz@gmail.com' } })
+    fireEvent.change(screen.getByLabelText(/already on the staff list/i), { target: { value: 'ph-1' } })
+    fireEvent.click(screen.getByRole('button', { name: /Link Liz Smith account/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/staff/ph-1/link', {
+      email: 'liz@gmail.com', organization_id: 'org-1',
+    }))
+    // Never also creates the duplicate it was there to prevent.
+    expect(api.post.mock.calls.some(([url]) => url === '/api/sis/staff')).toBe(false)
   })
 
   it('says nothing about placeholders when the org has none', async () => {
     render(<TeacherModal orgId="org-1" onClose={vi.fn()} onSaved={vi.fn()} placeholders={[]} />)
     await screen.findByText('Employee onboarding (employee)')
 
-    expect(screen.queryByText(/Replacing a teacher who already has classes/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/already on the staff list/i)).not.toBeInTheDocument()
   })
 })

@@ -362,20 +362,189 @@ class now, with the count in the title; the link goes to the weekly view.
 
 ---
 
+## Round 10 — the 2026-08-01 batch
+
+Five reports, two of them following up on what shipped the day before.
+
+### 18. An announcement that reaches families
+
+> "I just posted an announcement from the admin side and it doesn't show up in
+> the announcements on the non-admin side of things. Perhaps that isn't yet
+> functional?"
+
+It was functional — two different things share a word. The SIS **Community Hub**
+is a staff noticeboard (staff-only by design, with lost & found and recognition
+beside it); the family-facing **Announcements** page reads a different table,
+which had zero rows for iCreate because nothing had ever been posted through it.
+
+So the Community composer can now do both. A **Who sees this** block on the post
+form offers Families / Students / Teachers; tick any of them and the post is also
+published as a real announcement — a durable row the family page reads, an in-app
+notification, and an email to people who never open the app. Leave them unticked
+and it stays a noticeboard post, which is what the board is for.
+
+The delivery path was extracted into `services/announcement_service.py`, so the
+web platform's composer and the SIS composer now publish through exactly one
+function. A delivery failure never loses the post: the noticeboard row is written
+first and the composer reports what did or didn't go out.
+
+### 19. Offer the other section, don't enroll into it
+
+> "You added the option to enroll in another section — but I'm wondering if we
+> can OFFER them the seat since we don't know what their schedule is? If we
+> enroll them, then they'll be enrolled in two sections at the same time. (I'm
+> thinking ukelele here again.)"
+
+Right, and the direct enroll from yesterday was the wrong default. **Offer it** is
+now the primary action on every other-section row: the family gets a claimable
+offer for that section, decides against their own schedule, and claims it (or
+doesn't) — the same offer/claim flow as a seat on the list they're already on.
+
+**Enroll directly** is still there for when the office knows the time works, and
+it no longer double-books anyone: enrolling a student into a section that clashes
+with a class they already have now names the clash and asks first.
+
+> Van already has Art Expeditions at that time. Enroll anyway?
+
+### 20. Other sections, on the CLP meeting screen
+
+> "This is great to have the open requests shown! Maybe on 'Open requests' it can
+> show if there are other sections available for a waitlisted class?"
+
+Each waitlisted row under **Open requests** now lists the sibling sections that
+still have room, with a one-click offer per section — the same offer the class
+Waitlist tab sends, without leaving the meeting.
+
+### 21. The staff list, and Julia twice
+
+> "It'd be nice to have a list view for staff. And I also would like a list of
+> teachers I've invited but haven't accepted yet. And I also messed up and
+> invited Julia 'ADD TEACHER' instead of inviting her from her card that was
+> already created!"
+
+Three things:
+
+- **List view.** A toggle beside the cards, with a row per person: email, role,
+  status, classes taught, last active. The choice is remembered.
+- **Invited, not accepted.** A filter chip with a live count, next to *Signed in*
+  and *No login yet* — placeholders imported from the schedule sheet are a
+  different kind of incomplete, so they count separately. Each pending invite
+  says how long it has been sitting there ("invited 3 days ago").
+- **Julia.** Her placeholder card holds **12 classes**; the account invited under
+  her real email holds none. The staff list now says so, at the top:
+
+  > Julia Connor is on the list twice: a card with no login holding 12 classes,
+  > and an invited account (juliaconnor03@gmail.com). Merging keeps the invited
+  > account and moves the classes onto it. **[Merge into invited account]**
+
+  Detection is a name match across the placeholder boundary only, so two real
+  teachers who happen to share a name are never proposed for a merge. The merge
+  itself is the linking that already existed — it just had to be findable.
+
+And so it doesn't happen again: **Add teacher** now asks "Is this someone already
+on the staff list?" with the unlinked people named and their class counts shown.
+Choose one and the button becomes *Link Julia Connor account*, which attaches the
+email to the existing card instead of making a second one. The old version of
+that warning said the same thing in prose and sent the admin to another screen to
+act on it.
+
+### 22. Writing an announcement with formatting
+
+> "A rich text editor would be nice on the announcements and on the messages."
+
+Every announcement composer — the SIS **Messaging** page, the Community Hub post
+form, and the org admin tab — now has the editor: headings, bold, italic, lists,
+quotes. (Alignment is deliberately absent: it travels as a `style` attribute,
+which the email and family-page pipeline strips, and a button whose effect
+vanishes on save is worse than no button.)
+
+The editor was the easy half. A body stops being plain text everywhere it is
+*read*, so each of those places was taught what to do with it:
+
+| Where | What it does now |
+|-------|------------------|
+| Family Announcements page | Renders the formatting, sanitized at render as well as on the way in |
+| Notification bell (web + mobile) | Preview and "Read more" both show the **text** — react-markdown escapes raw HTML and React Native has no notion of it |
+| Email fan-out | The HTML body is passed through instead of escaped (this is the one that would have put literal `<p>` tags in a parent's inbox); the plain-text part is the flattened body |
+| Composer validation | "Empty" is judged on the text, because an empty editor still emits `<p></p>` — otherwise a blank announcement goes to the whole school |
+| Everything posted before today | Still plain text, still rendered with its line breaks |
+
+Two matching helpers do the work and are the only place this logic lives:
+`backend/utils/rich_text.py` (`sanitize` / `to_text` / `preview`) and
+`frontend/src/utils/richText.js` (`isHtml` / `htmlToText` / `isBlank`). Storage
+is sanitized on the way in — an allow-list of the tags the editor can produce, no
+`style`, no `img`, no `javascript:` links — so a renderer that forgets to
+sanitize is a formatting bug rather than a hole.
+
+Chat messages are **not** included: they are rendered by the mobile app as plain
+strings, so HTML there would show as tags on a phone. Announcements were what
+the request was about.
+
+### 23. The Community Hub, family-side
+
+> "Also I can't see the shoutouts or lost and found or other things from the
+> non-admin side of things."
+
+Asked, and answered by Molly the same day: *"community hub is intended for
+families as well. lost and found won't have student names, just the item that was
+lost so parents can see it and know to come pick it up."*
+
+So the board is now family-readable, and it arrived with a rename. What used to
+be an **Announcements** page in the web platform is now the **school's own page**,
+titled with the school's name (iCreate, not "Announcements") and carrying its
+school-specific features: an **Announcements** tab (what the school has sent you,
+searchable) and a **Community** tab (noticeboard, what's on, lost & found,
+shout-outs). The Community tab appears only once the school has posted something.
+
+The nav item is the school's name too, and **only people in a school see any of
+it** — no item, and the route itself sends everyone else home rather than
+rendering an empty shell. `/school` is the path; `/announcements` still lands
+there, because emails and notifications sent before the rename link to it.
+
+Read-only, and a projection rather than a pass-through: `family_feed()` sends an
+explicit field list per module, so a column added to one of those tables later
+cannot quietly become public. What does not cross over:
+
+- **`claimed_by`** — who collected an item. The board exists to find an owner,
+  not to announce who came for it. Claimed items are dropped entirely.
+- **The author of a post** and a shout-out's account id — plumbing, not content.
+- **Scheduled and expired announcements** — not published yet, or over.
+- **Admin/teacher-only calendar events**, and **birthdays** — a staff
+  convenience, not a broadcast of children's birthdays to every family.
+
+Lost & found leads with the item, where it was found, and how long before it is
+donated, which is the part a parent acts on.
+
+One consequence worth knowing: a parent's school is resolved through
+**membership**, not `organization_id` — most parents are platform users with no
+org of their own, and are members through their child. That resolution
+(dependents, then approved parent-student links) is now shared by the feed, the
+announcements archive, and `/api/auth/me`, which is what lets the web platform
+decide whether this user has a school at all.
+
+Not on the **mobile app** yet: v2 has no announcements or community surface
+today, only the notification bell. Worth its own pass.
+
+---
+
 ## Tests
 
-- Frontend: **1001 passing** (58 new — waitlist staff actions, People export and
+- Frontend: **1049 passing** (106 new — waitlist staff actions, People export and
   removal, curriculum table, calendar categories, roster alerts, quest-picker
   delete, CLP lenses / open requests / school toggle, and the waiting-vs-offered
   split on the class list, the teacher-portal back-link on all eight pages, the approve-time waitlist
-  choice, cross-section offers, and the family take-back).
-- Backend: **new suites** `test_sis_waitlist_staff_actions.py` (19),
+  choice, cross-section offers, the family take-back, the announcement audience
+  block, the staff directory / duplicate merge, formatted-vs-plain bodies, and the
+  family-side community board, and who gets a school page at all).
+- Backend: **new suites** `test_sis_waitlist_staff_actions.py` (45),
   `test_sis_person_removal.py` (19), `test_blank_values.py` (40),
-  `test_sis_clp_open_requests.py` (10), plus 7 added to the calendar suite and 8
+  `test_sis_clp_open_requests.py` (10), `test_announcement_publish.py` (17),
+  `test_sis_staff_directory.py` (13), `test_rich_text.py` (25),
+  `test_sis_community_family_feed.py` (20), plus 7 added to the calendar suite and 8
   covering the waiting-vs-offered split. The
-  pre-existing failures in the backend suite (repositories, xp/atomic-quest
-  services, transcription, rate limiting) are unchanged by this build — verified
-  by running them against a clean tree.
+  pre-existing failures in the backend suite (113 failures, 31 collection errors —
+  repositories, xp/atomic-quest services, transcription, rate limiting) are
+  unchanged by this build — verified by running them against a clean tree.
 
 ## Not built, and open questions
 
@@ -390,6 +559,32 @@ Not built — it's a real feature, not a fix. It needs a decision about what the
 reusable thing is: a course that owns a term's quests and can be cloned into next
 year's class, or a curriculum entry that carries them. Worth a design pass with
 Molly before any code.
+
+### A campus coordinator role (2026-08-01)
+
+> "I think we will need a campus coordinator role. Right now Kate is an admin,
+> but it'll probably make more sense to have this as a role because we don't want
+> the cc's to have access to all the financial stuff and maybe block other things
+> too. So I'm not sure if the cc will have access to things within the admin or if
+> we should have her own portal where we add things! We also will have Julia as a
+> campus coordinator too."
+
+Not built — Molly is asking the design question out loud, and the two answers
+lead to very different builds:
+
+1. **A restricted org_admin.** The same SIS console with modules hidden
+   (Billing first). Cheapest, and it lands as soon as the module list becomes
+   per-role instead of per-user-type. Risk: "hidden" is not "denied" unless every
+   route also checks, so the work is mostly backend authorization, not UI.
+2. **Its own portal.** A coordinator surface built around what they actually do
+   (their campus's rosters, attendance, families, day-to-day comms) rather than
+   admin-minus-things. More work, better fit, and it needs a list of what the job
+   is before anything is designed.
+
+Either way it is a seventh role in a system that documents exactly six, so it
+touches `get_effective_role`, every `@require_role` list, and the org-role picker.
+Worth a call with Molly: what must a coordinator never see, and what do they do
+every day?
 
 ### The schedule flow
 

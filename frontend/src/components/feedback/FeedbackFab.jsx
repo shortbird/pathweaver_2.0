@@ -13,7 +13,7 @@ import { useOrganization } from '../../contexts/OrganizationContext'
  * crash from an idea from a confusion.
  *
  * Mounted on both staff surfaces so a teacher can report from wherever they hit
- * the problem: the SIS console (SisLayout, `surface="sis"`) and the learning app
+ * the problem: the SIS console (SisLayout, `surface="sis"`) and the web platform
  * (Layout, `surface="learning"` — teacher portal, class messaging, curriculum).
  * `surface` lands on the report so triage knows which product the report is about.
  */
@@ -41,7 +41,7 @@ const TYPES = {
 const FeedbackFab = ({
   surface = 'sis',
   platform,
-  // The learning app already has bottom-right FABs of its own (moment capture,
+  // The web platform already has bottom-right FABs of its own (moment capture,
   // quick capture, tutor widget), so its feedback button stacks above them
   // instead of sitting on top of them.
   buttonPosition = 'bottom-4 right-4',

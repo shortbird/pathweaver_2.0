@@ -135,7 +135,7 @@ const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
-const AnnouncementsArchivePage = lazy(() => import('./pages/AnnouncementsArchivePage'))
+const SchoolPage = lazy(() => import('./pages/SchoolPage'))
 const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 // Evidence Reports (February 2026 - Shareable evidence reports with PDF download)
 const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
@@ -566,7 +566,11 @@ function App() {
                 {/* LMS Features */}
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="announcements" element={<AnnouncementsArchivePage />} />
+                {/* The school's own page: announcements + community board. The
+                    old /announcements path still lands here, because emails and
+                    notifications sent before the rename link to it. */}
+                <Route path="school" element={<SchoolPage />} />
+                <Route path="announcements" element={<SchoolPage />} />
                 {/* Observer Feedback */}
                 <Route path="feedback" element={<StudentFeedbackPage />} />
                 {/* Observer pages */}

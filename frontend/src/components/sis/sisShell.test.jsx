@@ -68,7 +68,7 @@ describe('SisLayout gate', () => {
     expect(screen.getByLabelText('Send beta feedback')).toBeInTheDocument()
   })
 
-  it('bounces non-staff (students) back to the learning app', () => {
+  it('bounces non-staff (students) back to the web platform', () => {
     authState = { isAuthenticated: true, effectiveRole: 'student', user: { role: 'student' }, loading: false }
     renderLayout()
     expect(nav.goToLearningSurface).toHaveBeenCalledWith('/')
@@ -77,7 +77,7 @@ describe('SisLayout gate', () => {
 })
 
 describe('SisSidebar', () => {
-  it('shows the Users nav and links back to the learning app', () => {
+  it('shows the Users nav and links back to the web platform', () => {
     authState = { isAuthenticated: true, effectiveRole: 'superadmin', user: { role: 'superadmin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
     expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()

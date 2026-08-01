@@ -195,7 +195,7 @@ def offer_entry(org_id: str, entry_id: str) -> Dict[str, Any]:
 
 
 def enroll_entry(org_id: str, entry_id: str, enrolled_by: str,
-                 class_id: Optional[str] = None) -> Dict[str, Any]:
+                 class_id: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
     """Staff admit a waitlisted student straight into the class.
 
     The school decides who gets the seat; requiring the family to click Claim
@@ -209,12 +209,12 @@ def enroll_entry(org_id: str, entry_id: str, enrolled_by: str,
     if entry['status'] == 'promoted':
         return {'entry': entry, 'already_enrolled': True}
     if class_id and class_id != entry['class_id']:
-        return _enroll_in_other_section(org_id, entry, class_id, enrolled_by)
+        return _enroll_in_other_section(org_id, entry, class_id, enrolled_by, force=force)
     return respond_to_offer(org_id, entry_id, True, enrolled_by)
 
 
 def _enroll_in_other_section(org_id: str, entry: Dict[str, Any], class_id: str,
-                             enrolled_by: str) -> Dict[str, Any]:
+                             enrolled_by: str, force: bool = False) -> Dict[str, Any]:
     """Place a waitlisted student in a DIFFERENT section of the same class.
 
     The waitlist entry is closed as promoted — they got what they were queued
@@ -225,6 +225,13 @@ def _enroll_in_other_section(org_id: str, entry: Dict[str, Any], class_id: str,
                    if c['class_id'] == class_id), None)
     if not target:
         return {'error': 'That class is not another section of this one, or it has no room.'}
+
+    # Another section means another time, and the family's week isn't visible
+    # from here. Refuse the first attempt when it collides with something they
+    # already attend; the caller re-sends with force once a human has looked.
+    conflicts = schedule_conflicts(entry['student_user_id'], class_id)
+    if conflicts and not force:
+        return {'conflicts': conflicts, 'section': target['name']}
 
     _admin().table('class_enrollments').upsert({
         'class_id': class_id,
@@ -318,6 +325,70 @@ def sibling_sections(org_id: str, class_id: str) -> List[Dict[str, Any]]:
         })
     out.sort(key=lambda c: (c['name'] or '').lower())
     return out
+
+
+def schedule_conflicts(student_user_id: str, class_id: str) -> List[Dict[str, Any]]:
+    """The student's active classes that meet at the same time as `class_id`.
+
+    Placing a waitlisted student in a different section moves them to a
+    different TIME, and the office can't see the family's week (iCreate,
+    2026-08-01: "If we enroll them, then they'll be enrolled in two sections at
+    the same time"). Same rule the age-exception approval already uses.
+    """
+    from services.sis_exception_service import _same_time_conflicts
+    try:
+        return _same_time_conflicts(student_user_id, class_id)
+    except Exception as e:  # noqa: BLE001 — a failed check must not block staff
+        logger.warning(f'[Waitlist] conflict check failed for {class_id}: {e}')
+        return []
+
+
+def offer_other_section(org_id: str, entry_id: str, class_id: str) -> Dict[str, Any]:
+    """Offer a waitlisted student a seat in a DIFFERENT section of the same class.
+
+    The school can see the open seat; only the family can see whether that time
+    works ("can we OFFER them the seat since we don't know what their
+    schedule is?"). So this hands them the same claimable offer the normal
+    waitlist flow produces — in-app notification, email, Claim spot in the
+    Schedule Builder — for the section that has room.
+
+    Their place on the original section's list is left alone: being offered a
+    Thursday seat is not a decision to give up on Tuesday. Claiming closes the
+    target entry; staff can remove the original if the family is settled.
+    """
+    entry = _entry(org_id, entry_id)
+    if not entry:
+        return {'error': 'Waitlist entry not found'}
+    target = next((c for c in sibling_sections(org_id, entry['class_id'])
+                   if c['class_id'] == class_id), None)
+    if not target:
+        return {'error': 'That class is not another section of this one, or it has no room.'}
+
+    student_id = entry['student_user_id']
+    active = (
+        _admin().table('class_enrollments').select('id')
+        .eq('class_id', class_id).eq('student_id', student_id)
+        .eq('status', 'active').limit(1).execute()
+    ).data or []
+    if active:
+        return {'error': f"They are already enrolled in {target['name']}."}
+
+    existing = (
+        _admin().table('sis_waitlist_entries').select('id, status')
+        .eq('organization_id', org_id).eq('class_id', class_id)
+        .eq('student_user_id', student_id).limit(1).execute()
+    ).data or []
+    if existing:
+        target_entry_id = existing[0]['id']
+    else:
+        created = add_to_waitlist(org_id, class_id, student_id)
+        target_entry_id = (created or {}).get('id')
+    if not target_entry_id:
+        return {'error': 'Could not create the offer'}
+
+    offered = _mark_offered(org_id, class_id, target_entry_id)
+    logger.info(f'[Waitlist] offered sibling section {class_id} to a student waiting on {entry["class_id"]}')
+    return {'entry': offered, 'offered_section': {'class_id': class_id, 'name': target['name']}}
 
 
 def clear_entry_for_enrollment(org_id: str, class_id: str, student_user_id: str) -> None:

@@ -304,6 +304,15 @@ const ClpPage = () => {
     () => api.post(`/api/sis/waitlist/${w.entry_id}/enroll`, { organization_id: orgId }),
     `Enrolled in ${w.class_name}`,
   )
+  // Hand the family a claimable seat in a section that has room. They know
+  // whether that time works; the office doesn't.
+  const offerOtherSection = (w, section) => runAction(
+    w.entry_id,
+    () => api.post(`/api/sis/waitlist/${w.entry_id}/offer-section`,
+      { organization_id: orgId, class_id: section.class_id }),
+    `${section.name} offered to the family`,
+  )
+
   const removeWaitlistEntry = (w) => runAction(
     w.entry_id,
     () => api.delete(withOrg(`/api/sis/waitlist/${w.entry_id}`, orgId)),
@@ -796,19 +805,37 @@ const ClpPage = () => {
             </h3>
             <div className="space-y-1.5">
               {openRequests.waitlist.map((w) => (
-                <div key={w.entry_id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-neutral-700 min-w-0 truncate">
-                    Waitlist · {w.class_name}
-                    <span className="ml-1.5 text-xs text-neutral-400">
-                      {w.status === 'offered' ? 'seat offered' : `#${w.position}`}
+                <div key={w.entry_id}>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-neutral-700 min-w-0 truncate">
+                      Waitlist · {w.class_name}
+                      <span className="ml-1.5 text-xs text-neutral-400">
+                        {w.status === 'offered' ? 'seat offered' : `#${w.position}`}
+                      </span>
                     </span>
-                  </span>
-                  <span className="flex items-center gap-2 shrink-0 text-xs">
-                    <button onClick={() => enrollFromWaitlist(w)} disabled={busyId === w.entry_id}
-                      className="text-optio-purple hover:underline disabled:opacity-50">Enroll now</button>
-                    <button onClick={() => removeWaitlistEntry(w)} disabled={busyId === w.entry_id}
-                      className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">Remove</button>
-                  </span>
+                    <span className="flex items-center gap-2 shrink-0 text-xs">
+                      <button onClick={() => enrollFromWaitlist(w)} disabled={busyId === w.entry_id}
+                        className="text-optio-purple hover:underline disabled:opacity-50">Enroll now</button>
+                      <button onClick={() => removeWaitlistEntry(w)} disabled={busyId === w.entry_id}
+                        className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">Remove</button>
+                    </span>
+                  </div>
+                  {/* The answer to a waitlist place is often a seat at another
+                      time — say so here, where the meeting is happening. */}
+                  {(w.sections || []).length > 0 && (
+                    <div className="mt-0.5 ml-3 text-xs text-neutral-500">
+                      Other sections with room:{' '}
+                      {w.sections.map((sec, i) => (
+                        <span key={sec.class_id}>
+                          {i > 0 && ', '}
+                          <button onClick={() => offerOtherSection(w, sec)} disabled={busyId === w.entry_id}
+                            className="text-optio-purple hover:underline disabled:opacity-50">
+                            offer {sec.name}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               {openRequests.age_exceptions.map((r) => (

@@ -8,12 +8,17 @@ the existing sis_events calendar and upcoming birthdays from users.date_of_birth
 All three tables (sis_announcements, sis_lost_found, sis_recognition) are deny-all
 RLS — reached only through the service-role admin client here; the route layer
 (routes/sis/community.py) enforces role + org scoping. No user client is ever used.
+
+Staff-managed, but not staff-only to read: `family_feed()` is the same board seen
+from the family side, projected onto a narrower set of columns (see the comment
+above it).
 """
 
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
+from utils import rich_text
 from utils.logger import get_logger
 from utils.validation import sanitize_text
 
@@ -41,6 +46,20 @@ def _text(v: Optional[str]) -> Optional[str]:
         return None
     cleaned = sanitize_text(str(v)).strip()
     return cleaned or None
+
+
+def _body(v: Optional[str]) -> Optional[str]:
+    """A post body, which may have been written with the editor.
+
+    Formatted bodies are kept as sanitized HTML (see utils/rich_text); anything
+    typed plain still goes through the plain-text path, where tags are stripped.
+    """
+    if v is None:
+        return None
+    if rich_text.is_html(str(v)):
+        cleaned = rich_text.sanitize(str(v)).strip()
+        return cleaned or None
+    return _text(v)
 
 
 # ── Announcements ─────────────────────────────────────────────────────────────
@@ -85,7 +104,7 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     fields = {
         'organization_id': org_id,
         'title': title,
-        'body': _text(data.get('body')),
+        'body': _body(data.get('body')),
         'pinned': bool(data.get('pinned')),
         'priority': priority,
         'publish_at': (str(data['publish_at']).strip() or None) if data.get('publish_at') else None,
@@ -93,7 +112,28 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         'created_by': user_id,
     }
     row = (_admin().table('sis_announcements').insert(fields).execute()).data
-    return {'announcement': row[0] if row else None}
+    created = row[0] if row else None
+
+    # Posting puts it on the board, which families can now read (see
+    # family_feed). Sending is the louder, separate act iCreate expected the
+    # first time ("I just posted an announcement from the admin side and it
+    # doesn't show up ... on the non-admin side"): the family-facing
+    # announcement path — durable row, in-app notification, email. Best-effort —
+    # a delivery problem must not lose the post that already succeeded.
+    result = {'announcement': created}
+    audiences = data.get('notify_audiences')
+    if audiences:
+        try:
+            from services import announcement_service
+            audiences = announcement_service.normalize_audiences(audiences)
+            if audiences:
+                sent = announcement_service.publish(
+                    org_id, user_id, title, _body(data.get('body')) or title, audiences)
+                result['notified'] = {**sent, 'audiences': audiences}
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Community announcement fan-out failed: {e}', exc_info=True)
+            result['notify_error'] = 'The post was saved, but sending it to families failed.'
+    return result
 
 
 def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -106,7 +146,7 @@ def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any])
             return {'error': 'A title is required'}
         fields['title'] = title
     if 'body' in data:
-        fields['body'] = _text(data.get('body'))
+        fields['body'] = _body(data.get('body'))
     if 'pinned' in data:
         fields['pinned'] = bool(data.get('pinned'))
     if 'priority' in data:
@@ -346,4 +386,52 @@ def highlights(org_id: str) -> Dict[str, Any]:
         'lost_found': lost_found,
         'recognition': recognition,
         'birthdays': upcoming_birthdays(org_id, days=7),
+    }
+
+
+# ── The family-facing view of the same hub ────────────────────────────────────
+#
+# iCreate, 2026-08-01: "I can't see the shoutouts or lost and found or other
+# things from the non-admin side of things." Answered by Molly the same day —
+# the Community Hub is meant for families too, and lost & found carries the item
+# rather than the child ("just the item that was lost so parents can see it and
+# know to come pick it up").
+#
+# The board is family-readable; the office's working notes on it are not. Each
+# module is therefore projected onto an explicit field list rather than passed
+# through, so a column added to a table later cannot quietly become public.
+
+# claimed_by names the family who collected an item, and created_by is the staff
+# member who logged it. Neither is a parent's business.
+_FAMILY_LOST_FOUND = ('id', 'description', 'image_url', 'category', 'date_found',
+                      'location_found', 'created_at', 'donation_deadline',
+                      'days_until_donation')
+# The name written on a shout-out is the point of it; the account ids are not.
+_FAMILY_RECOGNITION = ('id', 'type', 'recipient_name', 'message', 'created_at')
+_FAMILY_ANNOUNCEMENT = ('id', 'title', 'body', 'pinned', 'priority', 'created_at')
+_FAMILY_EVENT = ('id', 'title', 'description', 'location', 'start_at', 'end_at',
+                 'all_day', 'category', 'categories')
+
+
+def _project(rows: List[Dict[str, Any]], fields) -> List[Dict[str, Any]]:
+    return [{k: r.get(k) for k in fields} for r in rows]
+
+
+def family_feed(org_id: str) -> Dict[str, Any]:
+    """The Community Hub as a family sees it.
+
+    Same posts, fewer columns, and three things left out entirely: scheduled or
+    expired announcements (not published yet, or over), claimed lost & found (not
+    yours to collect, and the claim names a family), and admin/teacher-only
+    events. Birthdays stay in the office — a staff convenience, not a broadcast.
+    """
+    return {
+        'announcements': _project(
+            list_announcements(org_id, include_hidden=False)[:20], _FAMILY_ANNOUNCEMENT),
+        'lost_found': _project(
+            list_lost_found(org_id, status='unclaimed')[:50], _FAMILY_LOST_FOUND),
+        'recognition': _project(list_recognition(org_id)[:20], _FAMILY_RECOGNITION),
+        'events': _project(
+            [e for e in upcoming_events(org_id, limit=20) if e.get('audience') == 'school'],
+            _FAMILY_EVENT),
     }

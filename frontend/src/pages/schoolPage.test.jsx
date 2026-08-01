@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import AnnouncementsArchivePage from './AnnouncementsArchivePage'
+import SchoolPage from './SchoolPage'
 
+vi.mock('../contexts/OrganizationContext', () => ({
+  useOrganization: () => ({ school: { id: 'org-1', name: 'iCreate' }, loading: false }),
+}))
 vi.mock('../services/api', () => ({
   default: {
     get: vi.fn(),
@@ -55,12 +58,12 @@ function mockArchiveResponse(overrides = {}) {
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/announcements']}>
-      <AnnouncementsArchivePage />
+      <SchoolPage />
     </MemoryRouter>
   )
 }
 
-describe('AnnouncementsArchivePage', () => {
+describe('SchoolPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     api.get.mockResolvedValue(mockArchiveResponse())
@@ -75,10 +78,10 @@ describe('AnnouncementsArchivePage', () => {
   })
 
   describe('rendering', () => {
-    it('renders the page heading', async () => {
+    it('is titled with the school, not with "Announcements"', async () => {
       renderPage()
       await waitFor(() => {
-        expect(screen.getByText('Announcements')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'iCreate' })).toBeInTheDocument()
       })
     })
 
@@ -103,10 +106,10 @@ describe('AnnouncementsArchivePage', () => {
       })
     })
 
-    it('shows the organization name', async () => {
+    it('attributes each announcement to the school', async () => {
       renderPage()
       await waitFor(() => {
-        expect(screen.getByText('From Gryffin Microschool')).toBeInTheDocument()
+        expect(screen.getAllByText('iCreate').length).toBeGreaterThan(1)
       })
     })
 

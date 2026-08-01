@@ -3,6 +3,9 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import TemplateControls from '../../components/announcements/TemplateControls'
+import RichTextEditor from '../../components/course/outline/RichTextEditor'
+import AnnouncementBody from '../../components/announcements/AnnouncementBody'
+import { isBlank } from '../../utils/richText'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 
@@ -42,14 +45,14 @@ const FamilyMessagingPage = () => {
   useEffect(() => { loadHistory() }, [loadHistory])
 
   const send = async () => {
-    if (!title.trim() || !message.trim()) { toast.error('Title and message are required'); return }
+    if (!title.trim() || isBlank(message)) { toast.error('Title and message are required'); return }
     if (!audiences.length) { toast.error('Pick at least one audience'); return }
     if (!orgId) { toast.error('No organization selected'); return }
     setSending(true)
     try {
       await api.post('/api/announcements', {
         title: title.trim(),
-        message: message.trim(),
+        message,
         audiences,
         organization_id: orgId,
       })
@@ -100,7 +103,15 @@ const FamilyMessagingPage = () => {
         <input value={title} onChange={(e) => setTitle(e.target.value)} className={`${field} mb-4`} placeholder="Subject line" />
 
         <label className="block text-xs font-medium text-neutral-500 mb-1">Message</label>
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className={`${field} mb-5`} placeholder="Write your announcement…" />
+        <div className="mb-5">
+          <RichTextEditor
+            value={message}
+            onChange={setMessage}
+            placeholder="Write your announcement…"
+            minHeight="140px"
+            alignment={false}
+          />
+        </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <Button onClick={send} loading={sending}>Send announcement</Button>
@@ -133,7 +144,7 @@ const FamilyMessagingPage = () => {
                     {new Date(a.created_at).toLocaleString()}
                   </span>
                 </div>
-                <p className="text-sm text-neutral-600 mt-1 whitespace-pre-wrap">{a.content}</p>
+                <AnnouncementBody text={a.content} className="text-sm text-neutral-600 mt-1" />
                 <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-optio-purple/10 text-optio-purple rounded capitalize">
                   {(a.target_audience || '').replace(/,/g, ', ')}
                 </span>

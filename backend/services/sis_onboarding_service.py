@@ -56,7 +56,7 @@ def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
 
 
 # A template targets either staff (the SIS console "My checklists") or families
-# (their portal in the learning app). Defaults to staff to preserve existing rows.
+# (their portal in the web platform). Defaults to staff to preserve existing rows.
 AUDIENCES = ('staff', 'family')
 
 

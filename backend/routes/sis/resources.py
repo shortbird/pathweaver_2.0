@@ -1,6 +1,6 @@
 """
 SIS org resources — staff-managed document library (family guidebook, student
-contract, links) that org families read back in the learning app.
+contract, links) that org families read back in the web platform.
 
 NEW, additive (/api/sis/resources), staff-gated, org-scoped. Families read via
 /api/sis/parent/resources (guardian-authorized in sis_parent_service).
