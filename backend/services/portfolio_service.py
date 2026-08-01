@@ -662,7 +662,7 @@ class PortfolioService:
         # Who decides for this student? A parent, or -- for an organization
         # student with no parent -- their org admin. None means nobody is
         # accountable, and this student's work cannot be published at all.
-        from utils.portfolio_access import find_approver
+        from utils.portfolio_access import find_approver, minor_reason
 
         parent_info = None
         approver = None
@@ -681,6 +681,7 @@ class PortfolioService:
             'consent_given_at': diploma_data.get('public_consent_given_at'),
             'portfolio_slug': diploma_data.get('portfolio_slug'),
             'is_minor': is_minor,
+            'minor_reason': minor_reason(user_data),
             'requires_parent_approval': is_minor,
             'pending_parent_approval': diploma_data.get('pending_parent_approval', False),
             'pending_request': pending_request,

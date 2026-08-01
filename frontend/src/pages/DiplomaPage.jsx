@@ -1207,7 +1207,14 @@ const DiplomaPage = () => {
           onClose={() => setShowConsentModal(false)}
           onConfirm={handleConsentConfirm}
           isMinor={visibilityStatus?.is_minor}
-          parentName={visibilityStatus?.parent_info?.first_name || 'your parent or guardian'}
+          parentName={
+            visibilityStatus?.approver?.first_name
+            || visibilityStatus?.parent_info?.first_name
+            || 'your parent or guardian'
+          }
+          approverKind={visibilityStatus?.approver_kind}
+          minorReason={visibilityStatus?.minor_reason}
+          canMakePublic={visibilityStatus?.can_make_public !== false}
           loading={privacyLoading}
         />
       </div>

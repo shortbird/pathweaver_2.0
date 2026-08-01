@@ -113,6 +113,23 @@ def is_minor_by_id(user_id: str) -> bool:
     return is_minor(_fetch_user(user_id, 'id, is_dependent, date_of_birth'))
 
 
+def minor_reason(user_row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Why is this user treated as a minor? None if they are not.
+
+    The UI needs to distinguish these: 'unknown_age' is the only one the
+    student can resolve themselves, by telling us their birth date. Showing
+    someone the under-18 explanation when we simply have no date on file is
+    confusing and makes the gate look arbitrary.
+    """
+    if not user_row:
+        return 'unknown_age'
+    if user_row.get('is_dependent') is True:
+        return 'dependent'
+    if not user_row.get('date_of_birth'):
+        return 'unknown_age'
+    return 'under_18' if is_minor(user_row) else None
+
+
 # ---------------------------------------------------------------------------
 # Relationships
 # ---------------------------------------------------------------------------

@@ -13,8 +13,12 @@ import { GlobeAltIcon, EyeIcon, ShieldCheckIcon, UserGroupIcon } from '@heroicon
  * @param {boolean} isOpen - Controls modal visibility
  * @param {function} onClose - Close handler (cancels the action)
  * @param {function} onConfirm - Confirm handler (user consents)
- * @param {boolean} isMinor - Whether user is under 18 or is_dependent
- * @param {string} parentName - First name of linked parent (for minors)
+ * @param {boolean} isMinor - Whether user is under 18, a dependent, or of unknown age
+ * @param {string} parentName - First name of the approver (for minors)
+ * @param {string} approverKind - 'parent' | 'org_admin' | undefined
+ * @param {string} minorReason - 'dependent' | 'under_18' | 'unknown_age'
+ * @param {boolean} canMakePublic - False when no approver exists at all
+ * @param {function} onAddBirthdate - Opens the birthdate prompt (unknown_age only)
  * @param {boolean} loading - Whether the request is in progress
  */
 const PublicConsentModal = ({
@@ -23,9 +27,20 @@ const PublicConsentModal = ({
   onConfirm,
   isMinor = false,
   parentName = 'your parent or guardian',
+  approverKind,
+  minorReason,
+  canMakePublic = true,
+  onAddBirthdate,
   loading = false
 }) => {
   const [consentChecked, setConsentChecked] = useState(false);
+
+  // A minor with nobody accountable for them cannot publish at all. Saying so
+  // plainly is better than offering a button that will always fail.
+  const blocked = isMinor && !canMakePublic;
+  const approverLabel = approverKind === 'org_admin'
+    ? `${parentName} (your school administrator)`
+    : parentName;
 
   const handleConfirm = () => {
     if (consentChecked) {
@@ -61,15 +76,17 @@ const PublicConsentModal = ({
           >
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            onClick={handleConfirm}
-            disabled={!consentChecked || loading}
-            loading={loading}
-            className="w-full sm:w-auto"
-          >
-            {isMinor ? 'Request Parent Approval' : 'Make Public'}
-          </Button>
+          {!blocked && (
+            <Button
+              variant="primary"
+              onClick={handleConfirm}
+              disabled={!consentChecked || loading}
+              loading={loading}
+              className="w-full sm:w-auto"
+            >
+              {isMinor ? 'Request Approval' : 'Make Public'}
+            </Button>
+          )}
         </div>
       }
     >
@@ -98,19 +115,61 @@ const PublicConsentModal = ({
           </ul>
         </div>
 
-        {/* Minor notice */}
-        {isMinor && (
+        {/* Nobody can approve: say so, and say what would change it. */}
+        {blocked && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex gap-3">
               <ShieldCheckIcon className="h-6 w-6 text-amber-600 flex-shrink-0" />
               <div>
                 <h4 className="font-medium text-amber-800">
-                  Parent/Guardian Approval Required
+                  A parent or guardian needs to approve this
                 </h4>
                 <p className="text-amber-700 text-sm mt-1">
-                  Because you are under 18, {parentName} will need to approve this request
-                  before your portfolio becomes public. They will be notified of your request.
+                  {minorReason === 'unknown_age'
+                    ? 'We don\'t have your date of birth, so we treat your account as a student under 18. '
+                    : ''}
+                  There isn’t a parent or guardian linked to your account yet, so
+                  there’s nobody who can approve sharing your work publicly. Ask a
+                  parent to link their account, and then you can request this again.
                 </p>
+                {minorReason === 'unknown_age' && onAddBirthdate && (
+                  <button
+                    type="button"
+                    onClick={onAddBirthdate}
+                    className="text-sm font-medium text-optio-purple hover:underline mt-2"
+                  >
+                    I&rsquo;m 18 or older &mdash; add my date of birth
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Minor with an approver */}
+        {isMinor && !blocked && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex gap-3">
+              <ShieldCheckIcon className="h-6 w-6 text-amber-600 flex-shrink-0" />
+              <div>
+                <h4 className="font-medium text-amber-800">
+                  Approval Required
+                </h4>
+                <p className="text-amber-700 text-sm mt-1">
+                  {minorReason === 'unknown_age'
+                    ? `We don’t have your date of birth on file, so we treat your account as a student under 18. ${approverLabel} will need to approve this request before your portfolio becomes public.`
+                    : `Because you are under 18, ${approverLabel} will need to approve this request before your portfolio becomes public.`}
+                  {' '}They will be notified of your request.
+                </p>
+                {minorReason === 'unknown_age' && onAddBirthdate && (
+                  <button
+                    type="button"
+                    onClick={onAddBirthdate}
+                    className="text-sm font-medium text-optio-purple hover:underline mt-2"
+                  >
+                    I&rsquo;m 18 or older &mdash; add my date of birth
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -124,8 +183,8 @@ const PublicConsentModal = ({
           </p>
         </div>
 
-        {/* Consent checkbox */}
-        <div className="border-t border-gray-200 pt-4">
+        {/* Consent checkbox — pointless to show when nobody can approve. */}
+        <div className={`border-t border-gray-200 pt-4 ${blocked ? 'hidden' : ''}`}>
           <label className="flex items-start gap-3 cursor-pointer group">
             <div className="relative flex items-center justify-center mt-0.5">
               <input

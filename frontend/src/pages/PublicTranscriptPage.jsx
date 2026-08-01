@@ -63,7 +63,13 @@ const PublicTranscriptPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await api.get(`/api/public/transcript/${userId}`);
+        // The share token travels in the query string. A recipient with no
+        // Optio account is authorized by the token alone; a signed-in parent
+        // or advisor is authorized by their relationship and needs no token.
+        const token = new URLSearchParams(window.location.search).get('token');
+        const response = await api.get(
+          `/api/public/transcript/${userId}${token ? `?token=${encodeURIComponent(token)}` : ''}`
+        );
         setData(response.data?.data || response.data);
       } catch (err) {
         setError(err.response?.status === 404 ? 'Transcript not found' : 'Failed to load transcript');

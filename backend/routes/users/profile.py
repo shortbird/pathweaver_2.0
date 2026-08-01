@@ -89,6 +89,34 @@ def update_profile(user_id):
                     'Accounts for children under 13 must be managed by a parent. '
                     'Please contact support to correct this date of birth.'
                 )
+
+            # Date of birth now decides whether this account needs a parent's
+            # approval to publish its work, which makes it worth more than a
+            # profile field. A parent-managed account must not be able to
+            # rewrite its own age out of that requirement.
+            # admin client justified: reads the caller's own dependency flag to
+            # decide whether they may edit their own date of birth.
+            _admin = get_supabase_admin_client()
+            _rows = _admin.table('users').select(
+                'is_dependent, date_of_birth'
+            ).eq('id', user_id).limit(1).execute().data or []
+            _current = _rows[0] if _rows else {}
+
+            if _current.get('is_dependent'):
+                raise ValidationError(
+                    'Your parent or guardian manages your date of birth. '
+                    'Ask them to update it from their account.'
+                )
+
+            # A self-service edit that crosses into adulthood removes the
+            # parental gate, so it is recorded rather than applied silently.
+            if age >= 18 and not _current.get('date_of_birth'):
+                logger.warning(
+                    "[FERPA] User %s set an adult date of birth on an account "
+                    "that previously had none; parental approval no longer "
+                    "applies to their portfolio.", str(user_id)[:8]
+                )
+
             update_data['date_of_birth'] = dob.isoformat()
 
     # Derive display_name from first + last so there's a single source of truth.
