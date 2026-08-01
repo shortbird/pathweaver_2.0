@@ -42,6 +42,9 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
   const [templates, setTemplates] = useState([])
   const [onboardingTemplateId, setOnboardingTemplateId] = useState('')
   const [placeholderMatch, setPlaceholderMatch] = useState(null)
+  // Placeholder chosen on the add form: submitting links to them instead of
+  // creating a second record for the same person.
+  const [linkTarget, setLinkTarget] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -136,13 +139,14 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
     }
   }
 
-  // Link the entered email to the matched placeholder instead of creating a new
-  // account, so the placeholder's classes carry over.
-  const linkToPlaceholder = async () => {
+  // Link the entered email to a placeholder instead of creating a new account,
+  // so the placeholder's classes carry over. Called from the decision screen
+  // (backend name match) and from the picker on the add form.
+  const linkToPlaceholder = async (ph = placeholderMatch) => {
     setSubmitting(true)
     setError('')
     try {
-      const r = await api.post(`/api/sis/staff/${placeholderMatch.id}/link`, {
+      const r = await api.post(`/api/sis/staff/${ph.id}/link`, {
         email: formData.email.trim(), organization_id: orgId,
       })
       const data = r.data || {}
@@ -152,12 +156,12 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
           toast('Linked to their existing account, but the old placeholder row could not be removed — refresh and remove it if it lingers.',
             { icon: '⚠️', duration: 9000 })
         } else {
-          toast.success(`${placeholderMatch.name} is now linked to their existing Optio account`)
+          toast.success(`${ph.name} is now linked to their existing Optio account`)
         }
       } else if (data.email_sent === false) {
         toast.error('Account linked, but the set-password email could not be sent. Ask them to use "Forgot password" on the login page.', { duration: 8000 })
       } else {
-        toast.success(`Invite sent — ${placeholderMatch.name} will get an email with setup instructions`)
+        toast.success(`Invite sent — ${ph.name} will get an email with setup instructions`)
       }
       onSaved()
     } catch (err) {
@@ -197,6 +201,14 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
         setError(err?.response?.data?.error || 'Could not save teacher')
         setSubmitting(false)
       }
+      return
+    }
+    // The admin named who this is on the staff list — link rather than create,
+    // which is the whole difference between Julia keeping her twelve classes
+    // and a second Julia starting from zero.
+    const chosen = placeholders.find((p) => p.id === linkTarget)
+    if (chosen) {
+      linkToPlaceholder(chosen)
       return
     }
     createTeacher(false)
@@ -303,19 +315,34 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
             </div>
 
             {/* Replaces the old name-match guard: with no name typed we can't
-                detect the duplicate, so we say plainly when placeholders exist
-                and where the linking lives. */}
+                detect the duplicate, so the people it could be are offered
+                here. iCreate, 2026-08-01: "I messed up and invited Julia 'ADD
+                TEACHER' instead of inviting her from her card that was already
+                created!" — the previous version of this said the same thing in
+                prose and sent the admin to another screen to act on it. Now the
+                choice is on the form that would otherwise make the duplicate. */}
             {!isEdit && placeholders.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-sm font-medium text-amber-900">
-                  Replacing a teacher who already has classes?
-                </p>
-                <p className="text-sm text-amber-800 mt-0.5">
-                  {placeholders.slice(0, 4).map((p) => p.name).join(', ')}
-                  {placeholders.length > 4 ? `, and ${placeholders.length - 4} more` : ''}
-                  {placeholders.length === 1 ? ' is' : ' are'} set up without a login.
-                  Adding a new teacher here leaves their classes unassigned — instead, open that
-                  person on the Staff list and choose <span className="font-medium">Link their account</span>.
+                <label htmlFor="link-placeholder" className="block text-sm font-medium text-amber-900 mb-1">
+                  Is this someone already on the staff list?
+                </label>
+                <select
+                  id="link-placeholder"
+                  value={linkTarget}
+                  onChange={(e) => setLinkTarget(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">No — this is a new teacher</option>
+                  {placeholders.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{p.class_count ? ` — ${p.class_count} class${p.class_count === 1 ? '' : 'es'}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-amber-800 mt-1.5">
+                  {linkTarget
+                    ? 'This email will be attached to their existing card, so their classes come with them.'
+                    : `${placeholders.length === 1 ? 'One teacher is' : `${placeholders.length} teachers are`} set up without a login. Adding a second record for one of them would leave their classes on the old card.`}
                 </p>
               </div>
             )}
@@ -390,7 +417,10 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
             </button>
             <button type="submit" disabled={submitting}
               className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
-              {submitting ? 'Saving...' : isEdit ? 'Save changes' : 'Add Teacher'}
+              {submitting ? 'Saving...'
+                : isEdit ? 'Save changes'
+                : linkTarget ? `Link ${placeholders.find((p) => p.id === linkTarget)?.name || 'their'} account`
+                : 'Add Teacher'}
             </button>
           </div>
         </form>

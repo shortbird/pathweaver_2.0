@@ -983,19 +983,47 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
     } finally { setBusy(null) }
   }
 
-  // Place them in a different section instead — they get the class they queued
-  // for, at a time that has room, and come off this waitlist.
-  const enrollInSection = async (e, section) => {
+  // Hand the other section's seat to the FAMILY to claim. The office can see
+  // the open seat; only they can see whether that time works — "can we OFFER
+  // them the seat since we don't know what their schedule is?" (iCreate).
+  const offerSection = async (e, section) => {
+    setBusy(e.id)
+    setMovingId(null)
+    try {
+      await api.post(`/api/sis/waitlist/${e.id}/offer-section`, {
+        organization_id: orgId, class_id: section.class_id,
+      })
+      toast.success(`${section.name} offered to ${e.student_name}`)
+      reload()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not offer that section')
+    } finally { setBusy(null) }
+  }
+
+  // Put them in it outright — for when the office already knows the time works.
+  // A clash with something they already attend comes back as a 409 and is
+  // confirmed before forcing.
+  const enrollInSection = async (e, section, force = false) => {
     setBusy(e.id)
     setMovingId(null)
     try {
       await api.post(`/api/sis/waitlist/${e.id}/enroll`, {
-        organization_id: orgId, class_id: section.class_id,
+        organization_id: orgId, class_id: section.class_id, force,
       })
       toast.success(`${e.student_name} enrolled in ${section.name}`)
       reload()
       onChanged?.()
     } catch (err) {
+      const clash = err?.response?.status === 409 && err.response.data?.conflicts
+      if (clash) {
+        const names = clash.map((c) => c.class_name || c.name).filter(Boolean).join(', ')
+        if (window.confirm(
+          `${e.student_name} already has ${names} at that time.\n\n`
+          + `Enroll in ${section.name} anyway? They'll be in both.`)) {
+          return enrollInSection(e, section, true)
+        }
+        return
+      }
       toast.error(err?.response?.data?.error || 'Could not move the student')
     } finally { setBusy(null) }
   }
@@ -1079,18 +1107,33 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
                           <span className="fixed inset-0 z-10" onClick={() => setMovingId(null)} />
                           <span className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left block">
                             <span className="block px-3 py-1 text-[11px] uppercase tracking-wide text-neutral-400">
-                              Enroll in a section with room
+                              Sections with room
+                            </span>
+                            <span className="block px-3 pb-1 text-[11px] text-neutral-400 leading-snug">
+                              Offer it lets the family claim the seat — they know
+                              whether that time works.
                             </span>
                             {sections.map((sec) => (
-                              <button key={sec.class_id} onClick={() => enrollInSection(e, sec)}
-                                className="block w-full text-left px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-50">
-                                {sec.name}
-                                <span className="text-neutral-400">
-                                  {sec.capacity != null
-                                    ? ` · ${Math.max(0, sec.capacity - (sec.enrolled_count || 0))} seat(s)`
-                                    : ' · space available'}
+                              <span key={sec.class_id} className="block px-3 py-1.5 hover:bg-neutral-50">
+                                <span className="block text-xs text-neutral-700">
+                                  {sec.name}
+                                  <span className="text-neutral-400">
+                                    {sec.capacity != null
+                                      ? ` · ${Math.max(0, sec.capacity - (sec.enrolled_count || 0))} seat(s)`
+                                      : ' · space available'}
+                                  </span>
                                 </span>
-                              </button>
+                                <span className="flex items-center gap-2 mt-0.5">
+                                  <button onClick={() => offerSection(e, sec)}
+                                    className="text-xs font-medium text-optio-purple hover:underline">
+                                    Offer it
+                                  </button>
+                                  <button onClick={() => enrollInSection(e, sec)}
+                                    className="text-xs text-neutral-500 hover:underline">
+                                    Enroll directly
+                                  </button>
+                                </span>
+                              </span>
                             ))}
                           </span>
                         </>

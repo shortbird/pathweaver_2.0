@@ -346,6 +346,114 @@ class TestEnrollInAnotherSection:
 
 
 @pytest.mark.unit
+class TestOfferOtherSection:
+    """iCreate, 2026-08-01, on the first cut of cross-section placement: "can we
+    OFFER them the seat since we don't know what their schedule is? If we enroll
+    them, then they'll be enrolled in two sections at the same time."
+
+    So the family gets a claimable offer for the section that has room, and a
+    direct enroll refuses once when it would double-book them."""
+
+    ENTRY = {'id': 'w1', 'class_id': 'c1', 'status': 'waiting', 'student_user_id': 's1'}
+    SECTION = {'class_id': 'c2', 'name': 'Ukelele Jam (Thu 1:00)'}
+
+    def _client(self, by_table=None):
+        """Answers per table name — the enrollment probe and the waitlist probe
+        hit the same builder shape, so one flat mock conflates them."""
+        by_table = by_table or {}
+        client = Mock()
+
+        def _table(name):
+            t = Mock()
+            for chained in ('select', 'eq', 'limit', 'in_', 'update', 'upsert', 'delete'):
+                getattr(t, chained).return_value = t
+            t.execute.side_effect = lambda: Mock(data=list(by_table.get(name, [])))
+            return t
+
+        client.table.side_effect = _table
+        return client
+
+    def test_offers_the_other_section_to_the_family(self):
+        with patch('services.sis_waitlist_service._entry', return_value=self.ENTRY), \
+             patch('services.sis_waitlist_service.sibling_sections', return_value=[self.SECTION]), \
+             patch('services.sis_waitlist_service._admin', return_value=self._client()), \
+             patch('services.sis_waitlist_service.add_to_waitlist',
+                   return_value={'id': 'w9', 'status': 'waiting'}), \
+             patch('services.sis_waitlist_service._mark_offered',
+                   return_value={'id': 'w9', 'status': 'offered'}) as mark:
+            out = wl.offer_other_section('org-1', 'w1', 'c2')
+        assert out['offered_section']['name'] == 'Ukelele Jam (Thu 1:00)'
+        mark.assert_called_once_with('org-1', 'c2', 'w9')
+
+    def test_reuses_an_existing_entry_on_the_target_section(self):
+        with patch('services.sis_waitlist_service._entry', return_value=self.ENTRY), \
+             patch('services.sis_waitlist_service.sibling_sections', return_value=[self.SECTION]), \
+             patch('services.sis_waitlist_service._admin', return_value=self._client(
+                   {'sis_waitlist_entries': [{'id': 'w5', 'status': 'expired'}]})), \
+             patch('services.sis_waitlist_service.add_to_waitlist') as add, \
+             patch('services.sis_waitlist_service._mark_offered',
+                   return_value={'id': 'w5', 'status': 'offered'}):
+            out = wl.offer_other_section('org-1', 'w1', 'c2')
+        assert 'error' not in out
+        add.assert_not_called()   # no second row for the same student+class
+
+    def test_a_class_that_is_not_a_sibling_is_refused(self):
+        with patch('services.sis_waitlist_service._entry', return_value=self.ENTRY), \
+             patch('services.sis_waitlist_service.sibling_sections', return_value=[]):
+            assert 'error' in wl.offer_other_section('org-1', 'w1', 'elsewhere')
+
+    def test_someone_already_in_that_section_is_not_offered_it(self):
+        with patch('services.sis_waitlist_service._entry', return_value=self.ENTRY), \
+             patch('services.sis_waitlist_service.sibling_sections', return_value=[self.SECTION]), \
+             patch('services.sis_waitlist_service._admin', return_value=self._client(
+                   {'class_enrollments': [{'id': 'enr-1'}]})):
+            out = wl.offer_other_section('org-1', 'w1', 'c2')
+        assert 'already enrolled' in out['error']
+
+
+@pytest.mark.unit
+class TestCrossSectionClashGuard:
+    """Another section means another time, and the family's week isn't visible
+    from the office."""
+
+    ENTRY = {'id': 'w1', 'class_id': 'c1', 'status': 'waiting', 'student_user_id': 's1'}
+
+    def test_a_clash_is_reported_instead_of_double_booking(self):
+        with patch('services.sis_waitlist_service._entry', return_value=self.ENTRY), \
+             patch('services.sis_waitlist_service.sibling_sections',
+                   return_value=[{'class_id': 'c2', 'name': 'Ukelele Jam (Thu 1:00)'}]), \
+             patch('services.sis_waitlist_service.schedule_conflicts',
+                   return_value=[{'class_id': 'cX', 'class_name': 'Art Expeditions'}]):
+            out = wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1', class_id='c2')
+        assert out['conflicts'][0]['class_name'] == 'Art Expeditions'
+        assert out['section'] == 'Ukelele Jam (Thu 1:00)'
+        assert 'enrolled' not in out
+
+    def test_force_goes_through(self):
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'limit', 'in_', 'update', 'upsert'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=[{'id': 'w1', 'status': 'promoted'}])
+        with patch('services.sis_waitlist_service._entry', return_value=self.ENTRY), \
+             patch('services.sis_waitlist_service.sibling_sections',
+                   return_value=[{'class_id': 'c2', 'name': 'Ukelele Jam (Thu 1:00)'}]), \
+             patch('services.sis_waitlist_service.schedule_conflicts',
+                   return_value=[{'class_id': 'cX', 'class_name': 'Art Expeditions'}]), \
+             patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.class_group_sync_service.sync_class_group'), \
+             patch('services.sis_waitlist_service.clear_entry_for_enrollment'):
+            out = wl.enroll_entry('org-1', 'w1', enrolled_by='admin-1', class_id='c2', force=True)
+        assert out['enrolled'] is True
+
+    def test_a_failed_conflict_lookup_never_blocks_staff(self):
+        with patch('services.sis_exception_service._same_time_conflicts',
+                   side_effect=RuntimeError('boom')):
+            assert wl.schedule_conflicts('s1', 'c2') == []
+
+
+@pytest.mark.unit
 class TestStaffRoutes:
     def test_offer_entry_route(self, client, auth_headers, mock_verify_token):
         with staff(), patch('routes.sis.waitlist.waitlist.offer_entry',
@@ -365,7 +473,7 @@ class TestStaffRoutes:
     def test_enroll_entry_route(self, client, auth_headers, mock_verify_token):
         captured = {}
 
-        def fake_enroll(org_id, entry_id, enrolled_by, class_id=None):
+        def fake_enroll(org_id, entry_id, enrolled_by, class_id=None, force=False):
             captured.update(entry=entry_id, by=enrolled_by, target=class_id)
             return {'entry': {'id': entry_id}, 'enrolled': True}
 
@@ -380,7 +488,7 @@ class TestStaffRoutes:
         same action, with the target class named."""
         captured = {}
 
-        def fake_enroll(org_id, entry_id, enrolled_by, class_id=None):
+        def fake_enroll(org_id, entry_id, enrolled_by, class_id=None, force=False):
             captured['target'] = class_id
             return {'enrolled': True, 'moved_to': {'class_id': class_id, 'name': 'Ukelele Jam (Thu 1:00)'}}
 

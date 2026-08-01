@@ -113,10 +113,38 @@ def enroll_entry(user_id, entry_id):
     if err:
         return err
     # An optional class_id enrolls them in ANOTHER section of the same class —
-    # the seat they wanted, at a time that has room.
+    # the seat they wanted, at a time that has room. That moves them to a
+    # different time, so a clash with something they already attend comes back
+    # as `conflicts` (409) until the caller re-sends with force.
     data = request.get_json(silent=True) or {}
     result = waitlist.enroll_entry(org_id, entry_id, enrolled_by=user_id,
-                                   class_id=data.get('class_id'))
+                                   class_id=data.get('class_id'),
+                                   force=bool(data.get('force')))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Waitlist entry not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    if result.get('conflicts'):
+        return jsonify({'success': False, 'conflicts': result['conflicts'],
+                        'section': result.get('section')}), 409
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/waitlist/<entry_id>/offer-section', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def offer_other_section(user_id, entry_id):
+    """Offer a waitlisted student a seat in a different section of the same class.
+
+    The office can see the open seat; only the family can see whether that time
+    works, so this hands them a claimable offer instead of enrolling them into a
+    slot that may already be taken."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    class_id = data.get('class_id')
+    if not class_id:
+        return jsonify({'success': False, 'error': 'class_id is required'}), 400
+    result = waitlist.offer_other_section(org_id, entry_id, class_id)
     if result.get('error'):
         code = 404 if result['error'] == 'Waitlist entry not found' else 400
         return jsonify({'success': False, 'error': result['error']}), code

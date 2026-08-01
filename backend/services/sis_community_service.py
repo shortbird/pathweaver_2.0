@@ -93,7 +93,28 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         'created_by': user_id,
     }
     row = (_admin().table('sis_announcements').insert(fields).execute()).data
-    return {'announcement': row[0] if row else None}
+    created = row[0] if row else None
+
+    # The Community Hub is a staff noticeboard — nothing here reaches families.
+    # That surprised iCreate ("I just posted an announcement from the admin side
+    # and it doesn't show up ... on the non-admin side"), so the composer can now
+    # send the same words out through the family-facing announcement path:
+    # durable row, in-app notification, email. Best-effort — a delivery problem
+    # must not lose the noticeboard post that already succeeded.
+    result = {'announcement': created}
+    audiences = data.get('notify_audiences')
+    if audiences:
+        try:
+            from services import announcement_service
+            audiences = announcement_service.normalize_audiences(audiences)
+            if audiences:
+                sent = announcement_service.publish(
+                    org_id, user_id, title, _text(data.get('body')) or title, audiences)
+                result['notified'] = {**sent, 'audiences': audiences}
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Community announcement fan-out failed: {e}', exc_info=True)
+            result['notify_error'] = 'The post was saved, but sending it to families failed.'
+    return result
 
 
 def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:

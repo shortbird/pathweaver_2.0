@@ -301,6 +301,8 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     priority: announcement?.priority || 'normal',
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
+    // Who to SEND it to, beyond the staff noticeboard. Empty = noticeboard only.
+    notify: [],
   })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
@@ -316,10 +318,18 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       priority: f.priority,
       publish_at: f.publish_at ? new Date(f.publish_at).toISOString() : null,
       expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
+      notify_audiences: f.notify,
     }
     try {
       if (announcement) await api.patch(`/api/sis/community/announcements/${announcement.id}`, payload)
-      else await api.post('/api/sis/community/announcements', payload)
+      else {
+        const { data } = await api.post('/api/sis/community/announcements', payload)
+        if (data?.notify_error) toast.error(data.notify_error)
+        else if (data?.notified?.sent) {
+          toast.success(`Posted and sent to ${data.notified.sent} ${data.notified.sent === 1 ? 'person' : 'people'}`)
+          return onDone()
+        }
+      }
       toast.success(announcement ? 'Announcement updated' : 'Announcement posted')
       onDone()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
@@ -334,6 +344,31 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       <label className="text-xs text-neutral-500 block">Message <span className="text-neutral-400">(optional)</span>
         <textarea value={f.body} onChange={(e) => set('body', e.target.value)} className={`${field} min-h-[90px]`} placeholder="Share the details…" />
       </label>
+      {/* The Community Hub is a staff noticeboard — nothing posted here reaches
+          families on its own, which is not what anyone expects the first time
+          (iCreate, 2026-08-01). Say so, and offer to send it out. */}
+      {!announcement && (
+        <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            Who sees this
+          </p>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            The Community board is staff-only. Tick a group to also send this as an
+            announcement they'll see in the app and by email.
+          </p>
+          <div className="flex flex-wrap gap-3 mt-2">
+            {[['parents', 'Families'], ['students', 'Students'], ['advisors', 'Teachers']].map(([key, label]) => (
+              <label key={key} className="flex items-center gap-1.5 text-sm text-neutral-700">
+                <input type="checkbox" checked={f.notify.includes(key)}
+                  onChange={() => set('notify', f.notify.includes(key)
+                    ? f.notify.filter((x) => x !== key)
+                    : [...f.notify, key])} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2 text-sm text-neutral-700">
           <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} />

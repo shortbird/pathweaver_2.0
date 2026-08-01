@@ -151,14 +151,65 @@ describe('class waitlist — staff actions', () => {
   // iCreate, 2026-07-31: "Could we offer other sections of classes to people on a
   // waitlist? For example, there are 8 on the waitlist on tuesday at 10:30am, but
   // we have spots in the other ukelele classes."
-  it('offers a section that still has room', async () => {
+  // iCreate, 2026-08-01, on the first cut of this: "can we OFFER them the seat
+  // since we don't know what their schedule is? If we enroll them, then they'll
+  // be enrolled in two sections at the same time." Offering is the primary
+  // action; the family claims it.
+  it('offers the other section to the family to claim', async () => {
     await openWaitlistTab()
     fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
-    fireEvent.click(await screen.findByRole('button', { name: /Lego Robotics \(Thu 1:00\)/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Offer it' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/waitlist/w1/enroll',
+      '/api/sis/waitlist/w1/offer-section',
       { organization_id: 'org-1', class_id: 'c2' },
     ))
+  })
+
+  it('still allows a direct enroll when the office knows the time works', async () => {
+    await openWaitlistTab()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Enroll directly' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/waitlist/w1/enroll',
+      { organization_id: 'org-1', class_id: 'c2', force: false },
+    ))
+  })
+
+  it('names the clash before double-booking a student, and forces on confirm', async () => {
+    api.post.mockImplementation((url, body) => {
+      if (url.includes('/enroll') && !body.force) {
+        return Promise.reject({ response: { status: 409, data: {
+          conflicts: [{ class_id: 'cX', class_name: 'Art Expeditions' }],
+          section: 'Lego Robotics (Thu 1:00)',
+        } } })
+      }
+      return Promise.resolve({ data: { success: true } })
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await openWaitlistTab()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Enroll directly' }))
+    await waitFor(() => expect(window.confirm).toHaveBeenCalled())
+    expect(window.confirm.mock.calls[0][0]).toMatch(/already has Art Expeditions at that time/)
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/waitlist/w1/enroll',
+      { organization_id: 'org-1', class_id: 'c2', force: true },
+    ))
+  })
+
+  it('leaves the student alone when the clash confirm is dismissed', async () => {
+    api.post.mockImplementation((url, body) => (
+      url.includes('/enroll') && !body.force
+        ? Promise.reject({ response: { status: 409, data: {
+            conflicts: [{ class_id: 'cX', class_name: 'Art Expeditions' }] } } })
+        : Promise.resolve({ data: { success: true } })
+    ))
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await openWaitlistTab()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Other section ▾' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Enroll directly' }))
+    await waitFor(() => expect(window.confirm).toHaveBeenCalled())
+    expect(api.post).toHaveBeenCalledTimes(1)   // never re-sent with force
   })
 
   it('shows how many seats the other section has left', async () => {

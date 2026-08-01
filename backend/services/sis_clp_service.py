@@ -380,12 +380,24 @@ def open_requests(org_id: str, student_id: str,
             .eq('organization_id', org_id).eq('student_user_id', student_id)
             .in_('status', ['waiting', 'offered']).execute()
         ).data or []
-        waitlist = [{
-            'entry_id': r['id'], 'class_id': r['class_id'],
-            'class_name': names.get(r['class_id']) or 'Class',
-            'status': r.get('status'), 'position': r.get('position'),
-            'offer_expires_at': r.get('offer_expires_at'),
-        } for r in rows]
+        from services import sis_waitlist_service as waitlist_service
+        waitlist = []
+        for r in rows:
+            entry = {
+                'entry_id': r['id'], 'class_id': r['class_id'],
+                'class_name': names.get(r['class_id']) or 'Class',
+                'status': r.get('status'), 'position': r.get('position'),
+                'offer_expires_at': r.get('offer_expires_at'),
+                'sections': [],
+            }
+            # "Maybe on Open requests it can show if there are other sections
+            # available for a waitlisted class?" (iCreate, 2026-08-01) — the
+            # answer to a waitlist place is often a seat at another time.
+            try:
+                entry['sections'] = waitlist_service.sibling_sections(org_id, r['class_id'])
+            except Exception as e:  # noqa: BLE001 — decoration, never a blocker
+                logger.warning(f'CLP: sibling sections failed for {r["class_id"]}: {e}')
+            waitlist.append(entry)
     except Exception as e:  # noqa: BLE001
         logger.warning(f'CLP: waitlist lookup failed for {student_id[:8]}: {e}')
     try:

@@ -668,10 +668,77 @@ def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str
             # "Resend setup email" action; the backend re-checks properly.
             'login_pending': (not is_placeholder_staff_email(u.get('email'))
                               and not u.get('last_active')),
+            # When the invite went out, so "invited but hasn't accepted" can say
+            # how long it has been sitting there.
+            'created_at': u.get('created_at'),
         })
     # Org admins first, then advisors; alphabetical within.
     out.sort(key=lambda r: ('org_admin' not in r['roles'], r['name'].lower()))
+    _annotate_class_counts(org_id, out)
+    _annotate_duplicates(out)
     return out
+
+
+def _annotate_class_counts(org_id: str, staff: List[Dict[str, Any]]) -> None:
+    """How many classes each staff member teaches. Best-effort: a directory that
+    can't count classes is still a directory."""
+    for s in staff:
+        s['class_count'] = 0
+    try:
+        from utils.db_fetch import fetch_all_rows
+        rows = fetch_all_rows(lambda: (
+            _admin().table('org_classes').select('primary_instructor_id')
+            .eq('organization_id', org_id)
+        ))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'list_org_staff: class counts unavailable: {e}')
+        return
+    counts: Dict[str, int] = {}
+    for r in rows:
+        iid = r.get('primary_instructor_id')
+        if iid:
+            counts[iid] = counts.get(iid, 0) + 1
+    for s in staff:
+        s['class_count'] = counts.get(s['id'], 0)
+
+
+def _name_key(name: Optional[str]) -> str:
+    return ' '.join((name or '').lower().split())
+
+
+def _annotate_duplicates(staff: List[Dict[str, Any]]) -> None:
+    """Flag a placeholder and a real account that are plainly the same person.
+
+    iCreate, 2026-08-01: "I messed up and invited Julia 'ADD TEACHER' instead of
+    inviting her from her card that was already created!" — which left the
+    placeholder holding twelve classes and the new account holding none. The
+    fix already exists (link the placeholder to the real email, which merges);
+    what was missing was anything telling the office the two rows were the same
+    person. Matched on name, and only across the placeholder boundary, so two
+    genuine teachers who share a login are never proposed for a merge.
+    """
+    by_name: Dict[str, List[Dict[str, Any]]] = {}
+    for s in staff:
+        by_name.setdefault(_name_key(s.get('name')), []).append(s)
+    for name, group in by_name.items():
+        if not name or len(group) < 2:
+            continue
+        placeholders = [s for s in group if s['is_placeholder']]
+        real = [s for s in group if not s['is_placeholder']]
+        if not placeholders or not real:
+            continue
+        for p in placeholders:
+            for r in real:
+                # Each side points at the other; the merge always runs from the
+                # placeholder (its id) toward the real account (its email).
+                p['duplicate_of'] = _dup_ref(r)
+                r['duplicate_of'] = _dup_ref(p)
+
+
+def _dup_ref(s: Dict[str, Any]) -> Dict[str, Any]:
+    return {'id': s['id'], 'name': s['name'], 'email': s.get('email'),
+            'is_placeholder': s['is_placeholder'],
+            'class_count': s.get('class_count', 0)}
 
 
 # Invites sit in inboxes for days; password resets expire in an hour.
