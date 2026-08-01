@@ -1,0 +1,100 @@
+name: DB Exposure Audit
+
+# Catches Data API exposures in the LIVE database.
+#
+# The 2026-08-01 audit found three critical exposures that no amount of code
+# review would have caught, because the offending objects were created outside
+# the migration history -- through the dashboard and the SQL editor (AUDIT.md
+# C1/C2, L2). A live Stripe secret key and 718 rows of student minor/consent
+# flags were readable with the public anon key.
+#
+# Static guards live in backend/tests/test_secret_exposure_guard.py and gate every
+# push. This job covers the half that static analysis structurally cannot: what
+# production is actually serving right now.
+#
+# Scheduled rather than PR-blocking on purpose -- drift arrives from the
+# dashboard, not from pull requests, so time-based detection is what matters, and
+# an unrelated PR should not be blocked by a pre-existing exposure.
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 13:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: 'Supabase project ref to audit'
+        required: false
+        default: 'vvfgxcykxjybtvpfzwyx'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: Data API exposure scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Scan for Data API exposures
+        id: scan
+        env:
+          # Repo secret. A Supabase personal access token with read access to the
+          # project. The script exits 2 (not 0) when it is missing -- a silent
+          # skip is precisely how C1 and C2 survived for months.
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ github.event.inputs.project_ref || 'vvfgxcykxjybtvpfzwyx' }}
+        run: |
+          set -o pipefail
+          python scripts/audit_db_exposure.py 2>&1 | tee scan-output.txt
+
+      - name: Open or update an issue when the scan fails
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = 'The scan failed before producing output.';
+            try {
+              body = fs.readFileSync('scan-output.txt', 'utf8');
+            } catch (e) { /* fall through to the default message */ }
+
+            const title = 'DB exposure audit failed';
+            const marker = '<!-- db-exposure-audit -->';
+            // Truncate: issue bodies cap at 65536 chars.
+            const trimmed = body.length > 55000 ? body.slice(0, 55000) + '\n...(truncated)' : body;
+            const text = [
+              marker,
+              '`scripts/audit_db_exposure.py` reported one or more Data API exposures',
+              `in the live database ([run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})).`,
+              '',
+              'Context for what these checks encode: `AUDIT.md`.',
+              '',
+              '```',
+              trimmed,
+              '```',
+            ].join('\n');
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'security',
+            });
+            const match = existing.data.find(i => i.title === title);
+
+            if (match) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: match.number, body: text,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body: text, labels: ['security'],
+              });
+            }

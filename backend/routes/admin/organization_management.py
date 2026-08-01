@@ -228,15 +228,61 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         if not update_data:
             return jsonify({'error': 'No valid fields to update'}), 400
 
+        # The Stripe secret key is submitted through the same feature_flags blob
+        # the settings UI round-trips, but it must never be STORED there:
+        # organizations.feature_flags is anon-readable by row policy (RLS filters
+        # rows, not columns) and is echoed to clients, which is how a live key
+        # reached the public internet -- AUDIT.md C1. Divert it to
+        # organization_secrets and strip it from the blob before any write.
+        #
+        # `absent` vs `empty string` matters: the settings UI PUTs the whole blob
+        # back, and it does not receive the key (by design), so a plain PUT must
+        # LEAVE the stored key alone. Only an explicit empty string clears it.
+        from utils.org_secrets import (
+            STRIPE_SECRET_KEY, secret_shaped_keys, set_org_secret,
+            strip_secrets_from_feature_flags,
+        )
+
+        incoming_flags = update_data.get('feature_flags')
+        submitted_key = None
+        if isinstance(incoming_flags, dict):
+            icreate = incoming_flags.get('icreate_registration')
+            if isinstance(icreate, dict) and STRIPE_SECRET_KEY in icreate:
+                submitted_key = (icreate.get(STRIPE_SECRET_KEY) or '').strip()
+
         # A malformed Stripe key breaks the iCreate registration funnel at the
         # "Pay securely" step, so reject it at save time. Secret keys are sk_…
         # (or restricted rk_…); loose enough for legacy keys without live/test.
-        stripe_key = (((update_data.get('feature_flags') or {}).get('icreate_registration') or {})
-                      .get('stripe_secret_key') or '').strip()
-        if stripe_key and not re.match(r'^(sk|rk)_[A-Za-z0-9_]{20,}$', stripe_key):
+        if submitted_key and not re.match(r'^(sk|rk)_[A-Za-z0-9_]{20,}$', submitted_key):
             return jsonify({'error': "That doesn't look like a Stripe secret key — it should start with "
                                      "sk_live_ or rk_live_. Copy the full key from Stripe Dashboard -> "
                                      "Developers -> API keys."}), 400
+
+        # Always strip, even when nothing was submitted: a stale tab can PUT back
+        # a blob that still carries the pre-migration nested key.
+        if isinstance(incoming_flags, dict):
+            cleaned_flags = strip_secrets_from_feature_flags(incoming_flags)
+
+            # Refuse to store any OTHER credential-shaped key. This is the guard
+            # that stops the next stripe_secret_key: feature_flags is anon-readable
+            # by row policy and is echoed to every org member, so a credential in
+            # here is public by construction. Named explicitly so the admin knows
+            # what to remove rather than seeing a generic 400.
+            suspicious = secret_shaped_keys(cleaned_flags)
+            if suspicious:
+                return jsonify({
+                    'error': 'Credentials cannot be stored in organization settings.',
+                    'message': (
+                        'These fields look like secrets and would be readable by '
+                        'everyone in the organization: '
+                        + ', '.join(suspicious)
+                        + '. Secrets belong in organization_secrets — ask an Optio '
+                          'admin to add a dedicated field for this credential.'
+                    ),
+                    'fields': suspicious,
+                }), 400
+
+            update_data['feature_flags'] = cleaned_flags
 
         service = OrganizationService()
         org = None
@@ -270,6 +316,20 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
             from repositories.organization_repository import OrganizationRepository
             repo = OrganizationRepository()
             org = repo.find_by_id(org_id)
+
+        # Persist the credential only after the org row itself saved cleanly, so a
+        # failed update never leaves a key pointing at a state that was rolled back.
+        # submitted_key is None when the field was absent (leave as-is) and '' when
+        # the admin explicitly cleared it (delete).
+        if submitted_key is not None:
+            set_org_secret(org_id, STRIPE_SECRET_KEY, submitted_key or None,
+                           updated_by=current_user_id)
+
+        # Never echo the config blob back with a secret in it. The stored blob is
+        # already clean; this guards the case where `org` came from a code path
+        # that read a row written before this migration.
+        if isinstance(org, dict) and isinstance(org.get('feature_flags'), dict):
+            org = {**org, 'feature_flags': strip_secrets_from_feature_flags(org['feature_flags'])}
 
         return jsonify(org), 200
     except ValueError as e:

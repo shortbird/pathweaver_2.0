@@ -99,9 +99,17 @@ def _reg(**over):
 
 
 def _call(client, admin, path, reg, cfg=_CFG_STRIPE, directive=None, token='tok'):
+    # The Stripe key moved out of feature_flags into organization_secrets on
+    # 2026-08-01 (AUDIT.md C1), so "is card payment configured?" is answered by
+    # _org_stripe_key/_org_stripe_enabled rather than by the config blob. The
+    # fixtures still express it as cfg['stripe_secret_key'], which stays the
+    # readable way to say "this school takes cards" -- translate it here.
+    key = cfg.get('stripe_secret_key') or None
     with patch('routes.icreate_registration._admin', return_value=admin), \
          patch('routes.icreate_registration._load_registration', return_value=reg), \
          patch('routes.icreate_registration._org_config', return_value=cfg), \
+         patch('routes.icreate_registration._org_stripe_key', return_value=key), \
+         patch('routes.icreate_registration._org_stripe_enabled', return_value=bool(key)), \
          patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
          patch('routes.icreate_registration._family_directive', return_value=directive):
         return client.post(path, json={'access_token': token})

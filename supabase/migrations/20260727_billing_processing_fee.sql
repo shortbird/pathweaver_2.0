@@ -30,3 +30,14 @@ CREATE TABLE IF NOT EXISTS sis_billing_audit (
 );
 CREATE INDEX IF NOT EXISTS sis_billing_audit_org_idx ON sis_billing_audit (organization_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS sis_billing_audit_invoice_idx ON sis_billing_audit (invoice_id);
+
+-- An audit trail that the public can rewrite is worse than no audit trail, since
+-- it will still be relied on in a billing dispute. Without these statements this
+-- table is anon INSERT/UPDATE/DELETE/TRUNCATE-able, because
+-- 20260527_restore_default_data_api_grants.sql grants anon ALL on every new
+-- public table and RLS is the only backstop -- AUDIT.md H3.
+-- Written only by the backend's service-role client, which bypasses RLS.
+ALTER TABLE sis_billing_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sis_billing_audit FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON sis_billing_audit FROM anon, authenticated, PUBLIC;
+GRANT  ALL ON sis_billing_audit TO service_role;

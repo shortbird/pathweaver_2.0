@@ -99,8 +99,16 @@ that funnel are the ultimate victims. The same mechanism exposes Gryffin Learnin
 
 #### C2. `portfolio_visibility_reset_20260801` — RLS disabled, 718 rows of minor/consent data readable and deletable by anyone
 
-**Location:** `public.portfolio_visibility_reset_20260801` (live table; created by the
-2026-08-01 privacy migration, not present in any migration file in this repo)
+**Location:** `backend/migrations/20260801_private_by_default_parent_control.sql:210-218`
+(`CREATE TABLE` with no `ENABLE ROW LEVEL SECURITY`)
+
+> **Correction (2026-08-01, post-remediation):** the first version of this report
+> said this table was "not present in any migration file in this repo." That was
+> wrong — it is created by the migration cited above, in `backend/migrations/`
+> rather than `supabase/migrations/`. The error came from checking only the
+> `supabase/migrations/` tree. The static guard added during remediation
+> (`backend/tests/test_secret_exposure_guard.py`) found the real source
+> immediately. The exposure itself, and its severity, are unchanged.
 
 **Description.** The table has `relrowsecurity = false` and holds grants
 `SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER` for the `anon` role — inherited
@@ -240,6 +248,59 @@ child's account with no way for the platform to cut it off short of rotating `JW
 for every user.
 
 **Severity: High.**
+
+---
+
+#### H4. Student evidence is readable over the public anon key, under the pre-2026-08-01 privacy rule
+
+**Found during remediation, not in the original pass.** The first sweep spot-checked 16
+hand-picked tables and found them correctly locked. The exposure scan added as part of the fix
+(`scripts/audit_db_exposure.py`) probes *all 210* tables with the real anon key, and immediately
+surfaced this. Recording it here because it says something about the original method: manual
+table selection is exactly the kind of sampling that misses things.
+
+**Location:** live RLS policies `evidence_document_blocks_select`,
+`user_task_evidence_documents_select`, `user_skill_xp_select`, `diplomas_select`
+(none of them defined in any migration in this repo — see L2)
+
+**Description.** All four policies gate on `diplomas.is_public = true`:
+
+```
+user_task_evidence_documents_select:
+  user_id = auth.uid()
+  OR (status = 'completed' AND EXISTS (SELECT 1 FROM diplomas
+                                       WHERE diplomas.user_id = ... AND is_public = true))
+```
+
+That is the privacy model as it existed *before* 2026-08-01. The private-by-default work moved
+the real decision into `backend/utils/portfolio_access.py`, where `can_view_portfolio` requires a
+consent record, treats unknown age as minor, and gives parents revocation. The RLS policies were
+never updated to match, so the Data API still answers the old, weaker question — and it answers
+it for unauthenticated callers.
+
+**Concrete failure mode.** *Verified live* with the public anon key, no login:
+
+| table | rows returned to `anon` | of total |
+|---|---|---|
+| `evidence_document_blocks` | 239 | 1,545 |
+| `user_task_evidence_documents` | 211 | 1,121 |
+| `user_skill_xp` | 38 | 1,881 |
+| `diplomas` | 4 | 731 |
+
+`evidence_document_blocks` includes the `content` column — the student's actual submitted work.
+`diplomas` exposes `portfolio_slug`, `public_consent_given`, and `pending_parent_approval`.
+
+**Who gets hurt.** Today, the 4 students whose diplomas are still `is_public = true` after the
+reset — their evidence content is world-readable with no consent check. Structurally, every
+student: anything that sets `is_public` (a bug, a legacy row, a future "share" feature, a
+restore from the C2 backup table) republishes their work to the internet through a path that
+`can_view_portfolio` never sees. The application and the database disagree about who may read
+student work, and the database is the one facing the internet.
+
+**Severity: High.** Not fixed — it needs a product decision about whether public-portfolio
+evidence should be Data-API readable at all. Both `bounties` (leaks `allowed_student_ids`,
+`moderation_notes`) and `curriculum_attachments` (leaks `file_url`, including soft-deleted rows)
+are flagged by the same scan and want the same decision.
 
 ---
 
@@ -532,8 +593,59 @@ is plausibly why the exposure went unnoticed.
 
 ---
 
+## 2b. Remediation status
+
+Fixes for C1, C2 and C3 were written after the report above and live on the same branch. Nothing
+has been applied to the production database yet — the migration and the code that reads from the
+new table must deploy together, or the iCreate card-payment step breaks.
+
+| Finding | Status | Where |
+|---|---|---|
+| **C1** Stripe key readable by anon | Fixed, not yet deployed | Secrets moved to `organization_secrets` (RLS on, no policies, grants revoked) by `supabase/migrations/20260801_org_secrets_and_rls_gaps.sql`; column-level `GRANT` on `organizations` stops anon seeing `feature_flags` at all; reads go through `backend/utils/org_secrets.py` |
+| **C2** `portfolio_visibility_reset_20260801` | Fixed, not yet deployed | RLS + `REVOKE` added to the migration that creates it (`backend/migrations/20260801_private_by_default_parent_control.sql`) and to the remediation migration for the existing prod row set |
+| **C3** `/me` leaks `feature_flags` | Fixed, not yet deployed | `backend/routes/auth/login/core.py` strips known credentials; the durable guarantee is that the column no longer holds any |
+| **H3** `sis_billing_audit` | Fixed, not yet deployed | RLS + `REVOKE` added to `supabase/migrations/20260727_billing_processing_fee.sql`. Same one-line defect as C2; fixed alongside it rather than left as a known hole |
+| **H4** Student evidence via stale RLS | **Open** | Needs a product decision (see H4) |
+| H1, H2, M1–M6, L1–L5 | Open | Not in the requested scope |
+
+**Deploy order.** Ship the backend code first (it tolerates both storage locations on read),
+then apply `20260801_org_secrets_and_rls_gaps.sql`. Applying the migration against the old
+backend removes the Stripe key from `feature_flags` before anything knows to look in
+`organization_secrets`, which breaks the iCreate payment step for the 296-user org.
+
+**Rotate regardless.** The iCreate Stripe key was readable unauthenticated for an unknown
+period. Moving it does not un-disclose it.
+
+### Preventing and detecting the next one
+
+Both halves of the failure are now covered, because each half was invisible to the other:
+
+- **Static, enforcing on every push** — `backend/tests/test_secret_exposure_guard.py` (42 tests),
+  wired into `release.yml` as its own step. It fails the build if a migration creates a table
+  without enabling RLS, if any code reads a credential out of `feature_flags`, if `/me` stops
+  stripping, or if the org-update route stops diverting secrets. This runs as a *separate* step
+  because the existing backend pytest job ends in `|| true` — every test in it is advisory, which
+  is worth knowing independently of this audit.
+- **A rejection at the write path** — `secret_shaped_keys()` refuses to store any newly-added
+  credential-shaped key in `feature_flags`, naming the offending field. The original mistake was
+  not choosing a bad column; it was that nothing objected.
+- **Live, scheduled** — `scripts/audit_db_exposure.py` + `.github/workflows/db-exposure-audit.yml`
+  run daily against production and open a `security` issue on failure. This is the half that
+  matters most: C1 and C2 both entered through the dashboard/SQL editor, so no repo-based check
+  could ever have seen them. Its strongest check is empirical — it asks PostgREST, with the real
+  public anon key, what every table actually returns, and that is what found H4.
+
+The scan currently **exits non-zero** on the open findings above. That is intended: a green
+check that was made green by allowlisting real exposures is worse than no check.
+
+---
+
 ## 3. What I could not verify
 
+- **That the C1/C2/C3 fixes work against production.** They are verified by 42 static tests and
+  a full-suite regression diff (zero new failures vs. the base commit), but the migration has not
+  been applied and the code has not run against the live database. In particular the iCreate
+  card-payment path is covered only by its existing unit tests with the new accessors stubbed.
 - **Whether the exposed Stripe key is live or test.** The validation regex at
   `organization_management.py:238` accepts both `sk_`/`rk_` with no live/test discrimination, and
   the error copy tells admins to paste `sk_live_`. I deliberately did not retrieve the key value,

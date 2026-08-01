@@ -68,7 +68,8 @@ def _clean(data):
 
 
 def _org_calendar_settings(org_id):
-    """(feature_flags, sis_settings) for the org — categories + feed token live here."""
+    """(feature_flags, sis_settings) for the org — calendar categories live here.
+    The feed TOKEN does not: it is a credential and lives in organization_secrets."""
     org = (get_supabase_admin_client().table('organizations')
            .select('feature_flags').eq('id', org_id).single().execute()).data or {}
     flags = org.get('feature_flags') or {}
@@ -170,7 +171,7 @@ def delete_event(user_id, event_id):
 
 # ── ICS feed — subscribe from Google Calendar / Outlook / iPhone ─────────────
 # The feed is a public GET (calendar apps can't authenticate), protected by a
-# per-org random token stored in feature_flags.sis_settings.calendar_feed_token.
+# per-org random token stored in organization_secrets (name='calendar_feed_token').
 # Staff fetch the subscribe URLs (token generated lazily) from /events/feed.
 
 def _ics_escape(v):
@@ -232,14 +233,15 @@ def feed_info(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    flags, settings = _org_calendar_settings(org_id)
-    token = settings.get('calendar_feed_token')
+    from utils.org_secrets import get_org_secret, set_org_secret, CALENDAR_FEED_TOKEN
+    _, settings = _org_calendar_settings(org_id)
+    # The token is the ONLY credential on the public .ics feed, so it lives in
+    # organization_secrets rather than feature_flags -- the latter is anon-readable
+    # by row policy and echoed to clients, which leaked this token (AUDIT.md C1).
+    token = get_org_secret(org_id, CALENDAR_FEED_TOKEN)
     if not token:
         token = secrets.token_urlsafe(24)
-        get_supabase_admin_client().table('organizations').update({
-            'feature_flags': {**flags,
-                              'sis_settings': {**settings, 'calendar_feed_token': token}},
-        }).eq('id', org_id).execute()
+        set_org_secret(org_id, CALENDAR_FEED_TOKEN, token, updated_by=user_id)
     base = request.host_url.rstrip('/')
     url = f'{base}/api/sis/calendar/{org_id}.ics?token={token}'
     categories = settings.get('calendar_categories') or []
@@ -255,12 +257,12 @@ def calendar_ics(org_id):
     so access is the per-org token alone. Optional ?category= narrows the feed."""
     import secrets as _secrets
     token = (request.args.get('token') or '').strip()
+    from utils.org_secrets import get_org_secret, CALENDAR_FEED_TOKEN
     org = (get_supabase_admin_client().table('organizations')
            .select('name, feature_flags').eq('id', org_id).single().execute()).data
     if not org:
         return 'Not found', 404
-    settings = ((org.get('feature_flags') or {}).get('sis_settings') or {})
-    expected = settings.get('calendar_feed_token')
+    expected = get_org_secret(org_id, CALENDAR_FEED_TOKEN)
     if not expected or not token or not _secrets.compare_digest(str(expected), token):
         return 'Not authorized', 403
     q = (get_supabase_admin_client().table('sis_events').select('*')

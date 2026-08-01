@@ -99,10 +99,16 @@ def _reg(**over):
     return {**base, **over}
 
 
+_KEY = _CFG['stripe_secret_key']
+
+
 def _call(client, admin, path, reg, directive):
+    # Stripe key now lives in organization_secrets, not feature_flags -- AUDIT.md C1.
     with patch('routes.icreate_registration._admin', return_value=admin), \
          patch('routes.icreate_registration._load_registration', return_value=reg), \
          patch('routes.icreate_registration._org_config', return_value=_CFG), \
+         patch('routes.icreate_registration._org_stripe_key', return_value=_KEY), \
+         patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
          patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
          patch('routes.icreate_registration._family_directive', return_value=directive):
         return client.post(path, json={'access_token': 'tok'})
@@ -147,6 +153,8 @@ class TestPrepaidDirectiveFee:
         with patch('routes.icreate_registration._admin', return_value=admin), \
              patch('routes.icreate_registration._load_registration', return_value=_reg()), \
              patch('routes.icreate_registration._org_config', return_value=_CFG), \
+             patch('routes.icreate_registration._org_stripe_key', return_value=_KEY), \
+             patch('routes.icreate_registration._org_stripe_enabled', return_value=True), \
              patch('routes.icreate_registration._parent_row', return_value=_PARENT), \
              patch('routes.icreate_registration._family_directive',
                    return_value={'fee_prepaid': True}):

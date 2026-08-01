@@ -222,6 +222,17 @@ COMMENT ON TABLE portfolio_visibility_reset_20260801 IS
   'switched from public to private. notified_at is stamped once the family '
   'has been told.';
 
+-- This table holds per-student minor/consent flags, so it must never reach the
+-- Data API. Without these two statements it does: 20260527_restore_default_data_
+-- api_grants.sql grants anon ALL on every new public table, and RLS was the only
+-- thing meant to hold it back. It shipped without RLS, and 718 rows were readable
+-- (and TRUNCATE-able) with the public anon key until 2026-08-01 -- AUDIT.md C2.
+-- Written only by the backend's service-role client, which bypasses RLS.
+ALTER TABLE portfolio_visibility_reset_20260801 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portfolio_visibility_reset_20260801 FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON portfolio_visibility_reset_20260801 FROM anon, authenticated, PUBLIC;
+GRANT  ALL ON portfolio_visibility_reset_20260801 TO service_role;
+
 INSERT INTO portfolio_visibility_reset_20260801
   (user_id, portfolio_slug, was_public, had_consent, was_minor)
 SELECT d.user_id,

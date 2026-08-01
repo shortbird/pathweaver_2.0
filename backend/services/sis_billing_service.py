@@ -834,16 +834,15 @@ def invoice_document(org_id: str, invoice_id: str) -> Dict[str, Any]:
 
 # ── Online payment (Stripe Checkout on the school's own account) ─────────────
 # Mirrors the registration-fee flow: a Checkout Session is created on the org's
-# own Stripe account (feature_flags.icreate_registration.stripe_secret_key) and
-# verified by POLLING (no webhook infra), so a paid session is never missed.
+# own Stripe account (organization_secrets.stripe_secret_key) and verified by
+# POLLING (no webhook infra), so a paid session is never missed.
+#
+# The key moved out of organizations.feature_flags on 2026-08-01: that column is
+# anon-readable by row policy and is echoed to clients, so it leaked the key to
+# the public internet (AUDIT.md C1).
 def _org_stripe_secret(org_id: str) -> Optional[str]:
-    try:
-        row = (_admin().table('organizations').select('feature_flags')
-               .eq('id', org_id).limit(1).execute()).data
-        ff = (row[0].get('feature_flags') if row else None) or {}
-        return (ff.get('icreate_registration') or {}).get('stripe_secret_key') or None
-    except Exception:  # noqa: BLE001
-        return None
+    from utils.org_secrets import get_org_secret, STRIPE_SECRET_KEY
+    return get_org_secret(org_id, STRIPE_SECRET_KEY)
 
 
 def _guardian_invoice(user_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
