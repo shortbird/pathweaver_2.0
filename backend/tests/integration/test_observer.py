@@ -709,7 +709,8 @@ def test_unauthenticated_requests_fail(client):
     fake_id = str(uuid.uuid4())
 
     endpoints = [
-        ('POST', '/api/observers/invite', {'observer_email': 'test@example.com', 'observer_name': 'Test'}),
+        # /api/observers/invite was replaced by /api/observers/family-invite.
+        ('POST', '/api/observers/family-invite', {'observer_email': 'test@example.com', 'observer_name': 'Test'}),
         ('GET', '/api/observers/my-invitations', None),
         ('DELETE', f'/api/observers/invitations/{fake_id}/cancel', None),
         ('GET', '/api/observers/my-observers', None),

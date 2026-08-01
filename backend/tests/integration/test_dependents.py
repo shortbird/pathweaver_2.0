@@ -590,7 +590,9 @@ def test_unauthenticated_requests_fail(client):
         ('PUT', f'/api/dependents/{fake_id}', {'display_name': 'Updated'}),
         ('DELETE', f'/api/dependents/{fake_id}', None),
         ('POST', f'/api/dependents/{fake_id}/promote', {'email': 'test@example.com', 'password': 'Test123!'}),
-        ('POST', f'/api/dependents/{fake_id}/act-as', None),
+        # Needs a JSON body: the content-type gate answers 400 before
+        # @require_auth is reached, which would mask the 401 under test.
+        ('POST', f'/api/dependents/{fake_id}/act-as', {}),
     ]
 
     for method, endpoint, data in endpoints:

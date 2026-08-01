@@ -40,7 +40,7 @@ def test_send_parental_consent_success(client, test_supabase):
     with patch('services.email_service.email_service.send_parental_consent_email') as mock_email:
         mock_email.return_value = True
 
-        response = client.post('/parental-consent/send', json={
+        response = client.post('/api/parental-consent/send', json={
             'user_id': user_id,
             'parent_email': 'parent@example.com',
             'child_email': 'child@example.com'
@@ -56,21 +56,21 @@ def test_send_parental_consent_success(client, test_supabase):
 def test_send_parental_consent_missing_fields(client):
     """Test sending consent without required fields fails"""
     # Missing user_id
-    response = client.post('/parental-consent/send', json={
+    response = client.post('/api/parental-consent/send', json={
         'parent_email': 'parent@example.com',
         'child_email': 'child@example.com'
     })
     assert response.status_code == 400
 
     # Missing parent_email
-    response = client.post('/parental-consent/send', json={
+    response = client.post('/api/parental-consent/send', json={
         'user_id': str(uuid.uuid4()),
         'child_email': 'child@example.com'
     })
     assert response.status_code == 400
 
     # Missing child_email
-    response = client.post('/parental-consent/send', json={
+    response = client.post('/api/parental-consent/send', json={
         'user_id': str(uuid.uuid4()),
         'parent_email': 'parent@example.com'
     })
@@ -82,7 +82,7 @@ def test_send_parental_consent_user_not_found(client):
     """Test sending consent for non-existent user fails"""
     fake_id = str(uuid.uuid4())
 
-    response = client.post('/parental-consent/send', json={
+    response = client.post('/api/parental-consent/send', json={
         'user_id': fake_id,
         'parent_email': 'parent@example.com',
         'child_email': 'child@example.com'
@@ -104,7 +104,7 @@ def test_send_parental_consent_not_required(client, test_supabase):
         """
     })
 
-    response = client.post('/parental-consent/send', json={
+    response = client.post('/api/parental-consent/send', json={
         'user_id': user_id,
         'parent_email': 'parent@example.com',
         'child_email': 'adult@example.com'
@@ -135,7 +135,7 @@ def test_verify_parental_consent_success(client, test_supabase):
         """
     })
 
-    response = client.post('/parental-consent/verify', json={
+    response = client.post('/api/parental-consent/verify', json={
         'token': test_token
     })
 
@@ -146,7 +146,7 @@ def test_verify_parental_consent_success(client, test_supabase):
 @pytest.mark.integration
 def test_verify_parental_consent_invalid_token(client):
     """Test verifying with invalid token fails"""
-    response = client.post('/parental-consent/verify', json={
+    response = client.post('/api/parental-consent/verify', json={
         'token': 'invalid_token_xyz'
     })
 
@@ -157,7 +157,7 @@ def test_verify_parental_consent_invalid_token(client):
 @pytest.mark.integration
 def test_verify_parental_consent_missing_token(client):
     """Test verifying without token fails"""
-    response = client.post('/parental-consent/verify', json={})
+    response = client.post('/api/parental-consent/verify', json={})
 
     assert response.status_code == 400
 
@@ -180,7 +180,7 @@ def test_verify_parental_consent_already_verified(client, test_supabase):
         """
     })
 
-    response = client.post('/parental-consent/verify', json={
+    response = client.post('/api/parental-consent/verify', json={
         'token': test_token
     })
 
@@ -239,7 +239,7 @@ def test_resend_parental_consent_success(client, test_supabase):
     with patch('services.email_service.email_service.send_parental_consent_email') as mock_email:
         mock_email.return_value = True
 
-        response = client.post('/parental-consent/resend', json={
+        response = client.post('/api/parental-consent/resend', json={
             'user_id': user_id
         })
 
@@ -263,7 +263,7 @@ def test_resend_parental_consent_already_verified(client, test_supabase):
         """
     })
 
-    response = client.post('/parental-consent/resend', json={
+    response = client.post('/api/parental-consent/resend', json={
         'user_id': user_id
     })
 
@@ -284,7 +284,7 @@ def test_resend_parental_consent_not_required(client, test_supabase):
         """
     })
 
-    response = client.post('/parental-consent/resend', json={
+    response = client.post('/api/parental-consent/resend', json={
         'user_id': user_id
     })
 
@@ -306,7 +306,7 @@ def test_resend_parental_consent_no_email_on_file(client, test_supabase):
         """
     })
 
-    response = client.post('/parental-consent/resend', json={
+    response = client.post('/api/parental-consent/resend', json={
         'user_id': user_id
     })
 
@@ -350,7 +350,7 @@ def test_submit_consent_documents_success(client, test_supabase):
 
         # Mock email service
         with patch('services.email_service.email_service.send_templated_email'):
-            response = client.post('/parental-consent/submit-documents',
+            response = client.post('/api/parental-consent/submit-documents',
                 data={
                     'id_document': id_file,
                     'signed_consent_form': consent_file
@@ -381,7 +381,7 @@ def test_submit_consent_documents_non_parent_fails(client, test_supabase):
     id_file = (BytesIO(b'fake_id_content'), 'id_card.jpg')
     consent_file = (BytesIO(b'fake_consent_content'), 'consent_form.pdf')
 
-    response = client.post('/parental-consent/submit-documents',
+    response = client.post('/api/parental-consent/submit-documents',
         data={
             'id_document': id_file,
             'signed_consent_form': consent_file
@@ -410,14 +410,14 @@ def test_submit_consent_documents_missing_files(client, test_supabase):
         session['user_id'] = parent_id
 
     # Missing id_document
-    response = client.post('/parental-consent/submit-documents',
+    response = client.post('/api/parental-consent/submit-documents',
         data={'signed_consent_form': (BytesIO(b'content'), 'form.pdf')},
         content_type='multipart/form-data'
     )
     assert response.status_code == 400
 
     # Missing signed_consent_form
-    response = client.post('/parental-consent/submit-documents',
+    response = client.post('/api/parental-consent/submit-documents',
         data={'id_document': (BytesIO(b'content'), 'id.jpg')},
         content_type='multipart/form-data'
     )
@@ -452,7 +452,7 @@ def test_get_pending_consent_reviews_admin(client, test_supabase):
     with client.session_transaction() as session:
         session['user_id'] = admin_id
 
-    response = client.get('/admin/parental-consent/pending')
+    response = client.get('/api/admin/parental-consent/pending')
 
     assert response.status_code == 200
     assert 'pending_reviews' in response.json
@@ -473,7 +473,7 @@ def test_get_pending_consent_reviews_non_admin_fails(client, test_supabase):
     with client.session_transaction() as session:
         session['user_id'] = student_id
 
-    response = client.get('/admin/parental-consent/pending')
+    response = client.get('/api/admin/parental-consent/pending')
 
     assert response.status_code == 403
 
@@ -663,7 +663,7 @@ def test_unauthenticated_requests_to_protected_endpoints(client):
     consent_file = (BytesIO(b'fake_consent'), 'form.pdf')
 
     # Submit documents requires auth
-    response = client.post('/parental-consent/submit-documents',
+    response = client.post('/api/parental-consent/submit-documents',
         data={
             'id_document': id_file,
             'signed_consent_form': consent_file
@@ -673,7 +673,7 @@ def test_unauthenticated_requests_to_protected_endpoints(client):
     assert response.status_code == 401
 
     # Admin endpoints require auth
-    response = client.get('/admin/parental-consent/pending')
+    response = client.get('/api/admin/parental-consent/pending')
     assert response.status_code == 401
 
     response = client.post(f'/admin/parental-consent/approve/{fake_id}')

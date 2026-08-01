@@ -18,6 +18,32 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 os.environ['FLASK_ENV'] = 'testing'
 os.environ['TEST_SCHEMA'] = 'test_schema'
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter_state():
+    """Stop rate-limit counters leaking between tests.
+
+    middleware.rate_limiter keeps an in-memory defaultdict keyed by
+    "<ip-or-user>:<endpoint>". It is module-level, so without clearing it a
+    test that exercises an endpoint N times leaves those counts in place and
+    the NEXT test touching the same endpoint starts partway to its limit --
+    which shows up as an unrelated test asserting 404 and getting 429. Order
+    dependent, and only visible once the suite actually runs.
+    """
+    try:
+        from middleware.rate_limiter import rate_limiter
+    except Exception:  # middleware unavailable in a stripped test env
+        yield
+        return
+
+    rate_limiter.requests.clear()
+    if hasattr(rate_limiter, 'blocked_ips'):
+        rate_limiter.blocked_ips.clear()
+    yield
+    rate_limiter.requests.clear()
+    if hasattr(rate_limiter, 'blocked_ips'):
+        rate_limiter.blocked_ips.clear()
+
+
 @pytest.fixture
 def app():
     """Create and configure a test app instance"""
