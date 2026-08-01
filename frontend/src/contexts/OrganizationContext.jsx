@@ -2,7 +2,10 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from './AuthContext';
 
-const OrganizationContext = createContext(null);
+// Exported for the same reason as AuthContext: capability hooks read it
+// directly so a component rendered without the provider degrades instead of
+// throwing.
+export const OrganizationContext = createContext(null);
 
 export const useOrganization = () => {
   const context = useContext(OrganizationContext);

@@ -577,6 +577,17 @@ def convert_moment_to_task(user_id, moment_id):
         if not isinstance(xp_value, int) or xp_value < 10 or xp_value > 500:
             return jsonify({'error': 'XP value must be between 10 and 500'}), 400
 
+        # Org XP lock: when a school restricts XP to guides, a promoted moment
+        # takes the platform's standard promotion value instead of the student's
+        # pick. Everything else about the promotion is unchanged.
+        from utils.xp_permissions import (
+            get_effective_role_for,
+            is_xp_guide,
+            xp_locked_for_learner,
+        )
+        if not is_xp_guide(get_effective_role_for(user_id)) and xp_locked_for_learner(user_id):
+            xp_value = InterestTracksService.DEFAULT_PROMOTED_TASK_XP
+
         # Optional diploma credit. For a class quest the backend ignores this and
         # forces the class's subject, so we only validate it when provided.
         if diploma_subject is not None:

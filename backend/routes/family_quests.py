@@ -267,6 +267,12 @@ def create_task_for_dependent(user_id, quest_id):
         if xp_value <= 0:
             return jsonify({'success': False, 'error': 'XP value must be greater than 0'}), 400
 
+        # A parent is not a guide: if the child's school has locked XP editing
+        # (organizations.feature_flags.lock_xp_editing), the value is replaced by
+        # the platform default below. persist_accepted_task applies the policy --
+        # and the 200 XP ceiling -- against the CHILD's org, not the parent's.
+        from utils.xp_permissions import get_effective_role_for
+
         # Persist via the SHARED helper so a parent-added task stores exactly what
         # a student self-accepted task does — including success_criteria (the
         # Definition of Done) and AI subject classification. `child_id` is the
@@ -284,7 +290,8 @@ def create_task_for_dependent(user_id, quest_id):
         }
 
         inserted = persist_accepted_task(
-            supabase, SubjectClassificationService(), child_id, quest_id, task
+            supabase, SubjectClassificationService(), child_id, quest_id, task,
+            caller_role=get_effective_role_for(user_id),
         )
         if inserted is None:
             return jsonify({'success': False, 'error': 'Failed to create task'}), 500

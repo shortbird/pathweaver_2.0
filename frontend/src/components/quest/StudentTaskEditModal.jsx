@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Alert, FormFooter } from '../ui';
 import { DIPLOMA_PILLARS } from '../../utils/pillarMappings';
+import useCanEditXp, { XP_LOCKED_HINT } from '../../hooks/useCanEditXp';
 
 const PILLAR_OPTIONS = Object.entries(DIPLOMA_PILLARS).map(([value, p]) => ({
   value,
@@ -36,6 +37,7 @@ const subjectsFromTask = (task) => {
 };
 
 export default function StudentTaskEditModal({ task, onClose, onSave, isClassQuest = false }) {
+  const canEditXp = useCanEditXp();
   const [pillar, setPillar] = useState('stem');
   const [xpValue, setXpValue] = useState(100);
   const [subjects, setSubjects] = useState([]);
@@ -59,7 +61,7 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
     setError('');
 
     const xp = parseInt(xpValue, 10);
-    if (!Number.isFinite(xp) || xp < 1 || xp > MAX_STUDENT_XP) {
+    if (canEditXp && (!Number.isFinite(xp) || xp < 1 || xp > MAX_STUDENT_XP)) {
       setError(`XP must be between 1 and ${MAX_STUDENT_XP}`);
       return;
     }
@@ -70,7 +72,10 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
 
     setLoading(true);
     try {
-      const payload = { pillar, xp_value: xp };
+      // Omit xp_value entirely when the org has locked XP to guides — sending an
+      // unchanged value would still be a no-op server-side, but not sending it
+      // keeps the request honest about what the student actually edited.
+      const payload = canEditXp ? { pillar, xp_value: xp } : { pillar };
       // Class quests lock credit to the class subject; don't send subjects.
       if (!isClassQuest) payload.diploma_subjects = subjects;
       await onSave(payload);
@@ -155,20 +160,36 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
           <label htmlFor="xp_value" className="block text-sm font-semibold text-gray-700 mb-2">
             XP Value
           </label>
-          <input
-            type="number"
-            id="xp_value"
-            value={xpValue}
-            onChange={(e) => setXpValue(e.target.value)}
-            min="1"
-            max={MAX_STUDENT_XP}
-            step="1"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px]"
-            required
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Maximum {MAX_STUDENT_XP} XP per task. Final credit values are confirmed during diploma review.
-          </p>
+          {canEditXp ? (
+            <>
+              <input
+                type="number"
+                id="xp_value"
+                value={xpValue}
+                onChange={(e) => setXpValue(e.target.value)}
+                min="1"
+                max={MAX_STUDENT_XP}
+                step="1"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px]"
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Maximum {MAX_STUDENT_XP} XP per task. Final credit values are confirmed during diploma review.
+              </p>
+            </>
+          ) : (
+            <>
+              <div
+                className="w-full px-4 py-2 rounded-md bg-gray-50 border border-gray-200 text-gray-900 font-semibold min-h-[44px] flex items-center"
+                data-testid="xp-value-readonly"
+              >
+                {task?.xp_value ?? 0} XP
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {XP_LOCKED_HINT} Ask your guide if this task&apos;s XP looks wrong.
+              </p>
+            </>
+          )}
         </div>
 
         <FormFooter

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import api from '../../services/api';
+import useCanEditXp from '../../hooks/useCanEditXp';
 
 /**
  * ManualTaskCreator Component
@@ -12,6 +13,7 @@ import api from '../../services/api';
  * - No AI assistance - pure student-driven task creation
  */
 const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => {
+  const canEditXp = useCanEditXp();
   const [currentTask, setCurrentTask] = useState({
     title: '',
     description: '',
@@ -276,22 +278,25 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
             </p>
           </div>
 
-          {/* XP Value Selection */}
-          <div>
-            <label htmlFor="task-xp" className="block text-sm font-semibold text-gray-700 mb-2">
-              Task Size *
-            </label>
-            <select
-              id="task-xp"
-              value={currentTask.xp_value}
-              onChange={(e) => handleInputChange('xp_value', parseInt(e.target.value))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              {xpOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
+          {/* XP Value Selection — hidden when the org restricts XP to guides;
+              the server assigns the standard task XP instead. */}
+          {canEditXp && (
+            <div>
+              <label htmlFor="task-xp" className="block text-sm font-semibold text-gray-700 mb-2">
+                Task Size *
+              </label>
+              <select
+                id="task-xp"
+                value={currentTask.xp_value}
+                onChange={(e) => handleInputChange('xp_value', parseInt(e.target.value))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                {xpOptions.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Add Task Button */}
           <button

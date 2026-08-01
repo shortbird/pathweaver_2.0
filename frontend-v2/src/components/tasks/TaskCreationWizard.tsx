@@ -12,6 +12,7 @@ import {
   VStack, HStack, Heading, UIText, Button, ButtonText, Divider, Card,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { useCanEditXp } from '@/src/hooks/useCanEditXp';
 import { getSubject } from '@/src/components/class/SUBJECTS';
 
 const pillarColors: Record<string, { bg: string; text: string }> = {
@@ -93,6 +94,7 @@ export function TaskCreationWizard({
   classSubject = null,
 }: TaskCreationWizardProps) {
   const c = useThemeColors();
+  const canEditXp = useCanEditXp();
   const classSubjectMeta = isClassQuest ? getSubject(classSubject) : null;
   const [step, setStep] = useState<'choose' | 'manual' | 'ai-personalize' | 'ai-review' | 'browse'>('choose');
   const [error, setError] = useState<string | null>(null);
@@ -508,20 +510,24 @@ export function TaskCreationWizard({
                       </HStack>
                     </VStack>
 
-                    <VStack space="xs">
-                      <UIText size="sm" className="font-poppins-medium">Task Size *</UIText>
-                      <HStack className="flex-wrap gap-2">
-                        {XP_OPTIONS.map((opt) => (
-                          <Pressable key={opt.value} onPress={() => setManualXP(opt.value)}>
-                            <View className={`px-3 py-1.5 rounded-full ${manualXP === opt.value ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                              <UIText size="xs" className={`font-poppins-medium ${manualXP === opt.value ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
-                                {opt.label}
-                              </UIText>
-                            </View>
-                          </Pressable>
-                        ))}
-                      </HStack>
-                    </VStack>
+                    {/* Task Size sets XP — hidden when the org restricts XP to
+                        guides; the server assigns the standard task XP instead. */}
+                    {canEditXp && (
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">Task Size *</UIText>
+                        <HStack className="flex-wrap gap-2">
+                          {XP_OPTIONS.map((opt) => (
+                            <Pressable key={opt.value} onPress={() => setManualXP(opt.value)}>
+                              <View className={`px-3 py-1.5 rounded-full ${manualXP === opt.value ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                                <UIText size="xs" className={`font-poppins-medium ${manualXP === opt.value ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
+                                  {opt.label}
+                                </UIText>
+                              </View>
+                            </Pressable>
+                          ))}
+                        </HStack>
+                      </VStack>
+                    )}
                   </VStack>
 
                   {manualAdded > 0 && (

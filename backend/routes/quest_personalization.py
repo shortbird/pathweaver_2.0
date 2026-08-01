@@ -30,7 +30,6 @@ from routes.personalization_validators import (
     validate_skip_task_request,
     validate_manual_tasks_batch,
     validate_adjust_task_request,
-    clamp_xp_value,
     VALID_CHALLENGE_LEVELS
 )
 from utils.personalization_helpers import (
@@ -72,8 +71,48 @@ def _class_subject_override(supabase, quest_id: str, xp_value: int):
     return None, None
 
 
+def _session_task_xp(supabase, session_id: str, title: str):
+    """The XP the AI itself proposed for `title`, read back off the session.
+
+    Only consulted when an org has locked XP editing to guides: the value the
+    client posts is then untrusted, but the generated tasks stored on
+    quest_personalization_sessions.ai_generated_tasks were produced server-side,
+    so they are a safe source of a per-task XP that still reflects task size.
+
+    Returns None when there's no session, no match (the student renamed the task
+    via edit-task), or the row can't be read -- callers fall back to the default.
+    """
+    if not session_id or not title:
+        return None
+
+    try:
+        result = supabase.table('quest_personalization_sessions')\
+            .select('ai_generated_tasks')\
+            .eq('id', session_id)\
+            .maybe_single()\
+            .execute()
+
+        generated = (getattr(result, 'data', None) or {}).get('ai_generated_tasks') or {}
+        tasks = generated.get('tasks') if isinstance(generated, dict) else None
+        if not isinstance(tasks, list):
+            return None
+
+        wanted = title.strip().lower()
+        for candidate in tasks:
+            if not isinstance(candidate, dict):
+                continue
+            if (candidate.get('title') or '').strip().lower() == wanted:
+                xp = candidate.get('xp_value')
+                return int(xp) if isinstance(xp, (int, float)) and xp > 0 else None
+    except Exception:
+        logger.debug('session XP lookup failed', exc_info=True)
+
+    return None
+
+
 def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_id: str,
-                          task: dict, *, save_to_library: bool = True):
+                          task: dict, *, save_to_library: bool = True,
+                          caller_role: str = None, server_xp: int = None):
     """Shared persistence for an accepted/created quest task.
 
     Single source of truth for turning a task dict (AI-suggested or hand-built)
@@ -84,18 +123,32 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
     subjects, and the class-XP override. `target_user_id` is whose enrollment the
     task is written to (self, or the managed child); callers own authorization.
 
+    `caller_role` is the acting user's effective role and `server_xp` the
+    platform-generated XP for this task (the AI's suggestion), both used to apply
+    the org's XP policy: when a school has locked XP editing to guides, a
+    non-guide's `xp_value` is discarded in favour of `server_xp`.
+
     Returns the inserted row dict, or None if the insert returned no data.
     """
     from services.task_library_service import TaskLibraryService
     from utils.pillar_utils import normalize_pillar_name
+    from utils.xp_permissions import resolve_learner_task_xp
 
-    # Clamp the (client-controlled) xp_value before it's persisted and copied
-    # into the shared task library. min_xp=1 matches the UI's validated floor.
-    try:
-        _raw_xp = int(task.get('xp_value', 100))
-    except (TypeError, ValueError):
-        _raw_xp = 100
-    task['xp_value'] = clamp_xp_value(_raw_xp, min_xp=1)
+    # Resolve the (client-controlled) xp_value before it's persisted and copied
+    # into the shared task library: clamped to 1..200 for non-guides always, and
+    # replaced outright when the learner's org locked XP editing.
+    resolved_xp, overridden = resolve_learner_task_xp(
+        task.get('xp_value', 100),
+        caller_role=caller_role,
+        learner_id=target_user_id,
+        server_xp=server_xp,
+    )
+    if overridden:
+        logger.info(
+            f"Task XP for user {target_user_id} adjusted from "
+            f"{task.get('xp_value')} to {resolved_xp} by org XP policy"
+        )
+    task['xp_value'] = resolved_xp
 
     user_quest_id = get_or_create_enrollment(target_user_id, quest_id)
 
@@ -601,20 +654,33 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
         # Create user_quest_tasks entries
         created_tasks = []
 
+        # Resolve the org XP policy once for the whole batch rather than per task.
+        from utils.xp_permissions import (
+            get_effective_role_for,
+            resolve_learner_task_xp,
+            xp_locked_for_learner,
+        )
+        caller_role = get_effective_role_for(user_id)
+        xp_locked = xp_locked_for_learner(user_id)
+
         for idx, task in enumerate(tasks):
             # QP-1 fix: xp_value is student-controlled and these tasks are
             # auto-approved (approval_status='approved'), so an uncapped value
             # would let a student self-award arbitrary XP and corrupt
             # leaderboards + badge thresholds. Coerce to int and clamp to the
             # allowed range BEFORE it flows into distribution/credit below.
-            try:
-                _raw_xp = int(task.get('xp_value', 100))
-            except (TypeError, ValueError):
-                _raw_xp = 100
             # min_xp=1 matches the UI's validated floor (ManualTaskCreator
             # offers a 25 XP quick task; the default floor of 50 silently
             # rewrote it). QP-1's security concern was only the upper cap.
-            task['xp_value'] = clamp_xp_value(_raw_xp, min_xp=1)
+            #
+            # These are hand-written tasks, so there is no AI suggestion to fall
+            # back on: under an org XP lock they all take the platform default
+            # and a guide sizes them afterward.
+            task['xp_value'], _ = resolve_learner_task_xp(
+                task.get('xp_value', 100),
+                caller_role=caller_role,
+                locked=xp_locked,
+            )
 
             # Normalize pillar name
             try:
@@ -938,10 +1004,21 @@ def accept_task_immediate(user_id: str, quest_id: str):
         session_id = data['session_id']
         task = data['task']
 
+        # Under an org XP lock the client's xp_value is not trusted, but the AI's
+        # own suggestion is -- it was generated server-side and stored on the
+        # session. Recover it by title so a locked org keeps calibrated XP instead
+        # of flattening every task to the default.
+        from utils.xp_permissions import get_effective_role_for
+        server_xp = _session_task_xp(supabase, session_id, task.get('title'))
+
         # Shared persistence: writes success_criteria, AI subject classification,
         # diploma subjects, class override, and the task library entry. Same helper
         # the parent on-behalf-of-child path uses, so both stay identical.
-        inserted = persist_accepted_task(supabase, subject_service, user_id, quest_id, task)
+        inserted = persist_accepted_task(
+            supabase, subject_service, user_id, quest_id, task,
+            caller_role=get_effective_role_for(user_id),
+            server_xp=server_xp,
+        )
         if inserted is None:
             return jsonify({
                 'success': False,

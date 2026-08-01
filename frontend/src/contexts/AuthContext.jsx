@@ -14,7 +14,10 @@ import { setSentryUser } from '../services/sentry'
 import { isSimplifiedPartnerOrg } from '../config/partnerOrgs'
 import { getPostLoginPath } from '../utils/postLoginPath'
 
-const AuthContext = createContext()
+// Exported so hooks that must not hard-fail outside a provider (e.g.
+// useCanEditXp, used by modals rendered bare in tests) can read the context
+// directly instead of going through the throwing useAuth() wrapper.
+export const AuthContext = createContext()
 
 export const useAuth = () => {
   const context = useContext(AuthContext)

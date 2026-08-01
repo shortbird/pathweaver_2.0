@@ -164,6 +164,27 @@ def update_task(user_id: str, task_id: str):
                     'success': False,
                     'error': 'XP value must be a valid number'
                 }), 400
+
+            # Org-level lock: schools can restrict XP to guides
+            # (organizations.feature_flags.lock_xp_editing). Only reject when the
+            # value actually changes -- the edit modal submits pillar, subjects,
+            # and XP together, so an unchanged XP must not block a pillar edit.
+            if is_owner_only and xp_value != (task_data.get('xp_value') or 0):
+                from utils.xp_permissions import (
+                    XP_LOCKED_MESSAGE,
+                    xp_locked_for_learner,
+                )
+                if xp_locked_for_learner(task_data.get('user_id')):
+                    logger.info(
+                        f"User {user_id} blocked from changing XP on task {task_id} "
+                        f"(org has lock_xp_editing enabled)"
+                    )
+                    return jsonify({
+                        'success': False,
+                        'error': XP_LOCKED_MESSAGE,
+                        'code': 'xp_editing_locked'
+                    }), 403
+
             # Owner edits are capped at 200 XP per task. Privileged roles can
             # still set higher values during quest authoring / credit review.
             max_xp = 200 if is_owner_only else 1000

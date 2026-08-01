@@ -4,6 +4,7 @@ import { SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { SUBJECTS, getSubject } from '../../constants/subjects';
+import useCanEditXp from '../../hooks/useCanEditXp';
 
 export const DEFAULT_PROMOTED_TASK_XP = 50;
 
@@ -26,6 +27,7 @@ const PILLAR_CONFIG = {
  * (File name kept as PromoteToTaskModal for import stability.)
  */
 const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
+  const canEditXp = useCanEditXp();
   const isClass = quest?.quest_type === 'class';
   const classSubject = isClass ? (quest?.transcript_subject || null) : null;
 
@@ -163,6 +165,9 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
             )}
           </div>
 
+          {/* XP slider — hidden when the org restricts XP to guides; the server
+              assigns the standard promotion value instead. */}
+          {canEditXp && (
           <div>
             <label
               htmlFor="add-quest-xp"
@@ -187,6 +192,7 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
               Default {DEFAULT_PROMOTED_TASK_XP} XP. You can edit the task's title, pillar, and XP later from the quest page.
             </p>
           </div>
+          )}
         </div>
 
         <div className="p-5 pt-0 flex gap-3">

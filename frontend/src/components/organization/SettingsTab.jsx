@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { getProgramForSlug } from '../../programs/registry'
 import SchoolLoginLinkCard from './SchoolLoginLinkCard'
@@ -104,6 +104,30 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
     orgData?.organization?.feature_flags?.hide_public_bounties ?? false
   )
   const [savingBounties, setSavingBounties] = useState(false)
+
+  // Restrict task XP to guides. Off by default -- students sizing their own work
+  // is the platform default; schools opt in when self-awarded XP gets inflated.
+  // Enforced server-side in backend/utils/xp_permissions.py.
+  const [lockXpEditing, setLockXpEditing] = useState(
+    orgData?.organization?.feature_flags?.lock_xp_editing ?? false
+  )
+  const [savingXpLock, setSavingXpLock] = useState(false)
+
+  const handleToggleLockXpEditing = async () => {
+    const newValue = !lockXpEditing
+    setSavingXpLock(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        feature_flags: { ...(orgData?.organization?.feature_flags || {}), lock_xp_editing: newValue },
+      })
+      setLockXpEditing(newValue)
+      onUpdate()
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to update XP setting')
+    } finally {
+      setSavingXpLock(false)
+    }
+  }
 
   // Program getting-started video (diploma programs opt in via the program
   // registry's helpVideoConfigurable flag). Parents see the video card on the
@@ -491,6 +515,19 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange }) 
           enabled={hidePublicBounties}
           onToggle={handleToggleHidePublicBounties}
           disabled={savingBounties}
+        />
+      </div>
+
+      {/* XP policy */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 className="text-xl font-bold mb-2">XP</h2>
+        <FeatureToggle
+          label="Only guides can set task XP"
+          description="Students keep creating and editing their own tasks, but the XP value is set by the platform and can only be changed by advisors and org admins. Leave off to let students size their own work."
+          icon={SparklesIcon}
+          enabled={lockXpEditing}
+          onToggle={handleToggleLockXpEditing}
+          disabled={savingXpLock}
         />
       </div>
 

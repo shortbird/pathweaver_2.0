@@ -37,6 +37,15 @@ export interface User {
   // Remembered AI task generation challenge level ('easier'|'standard'|'challenge').
   // Null means Standard.
   preferred_challenge_level?: string | null;
+  // The user's organization, when they belong to one. /api/auth/me embeds it so
+  // per-org capability flags (organizations.feature_flags) are available client
+  // side without a second request.
+  organization?: {
+    id: string;
+    name?: string;
+    slug?: string;
+    feature_flags?: Record<string, any> | null;
+  } | null;
 }
 
 interface AuthState {
