@@ -16,6 +16,37 @@ from services.observer_audit_service import ObserverAuditService
 
 logger = logging.getLogger(__name__)
 
+# Auto-generated descriptions given to the learning_event that pairs with a
+# task's evidence document (evidence_documents._sync_paired_learning_event) and
+# to helper-uploaded evidence (helper_evidence._create_helper_learning_event).
+# They are placeholders, not something a student wrote.
+AUTO_EVIDENCE_DESCRIPTION_PREFIXES = (
+    'Evidence for: ',
+    'Evidence uploaded for task: ',
+)
+
+
+def is_empty_auto_evidence_moment(title, description, media_items):
+    """True when a learning moment is nothing but an auto-generated evidence
+    placeholder with no media to show.
+
+    These moments normally never reach the feed — the learning_events query
+    skips anything with attached_task_id set, because the same evidence is
+    already surfaced by the evidence_document_blocks path. But the FK is
+    ON DELETE SET NULL, so deleting the task (quest "start fresh", course
+    unenroll, admin/parent task delete) orphans the paired moment, as does
+    attaching a different moment to the same task. The orphan then passes the
+    filter and renders as a card with no photo and no student-written text —
+    just an italic "Evidence for: <task>" line. There is nothing to show, so
+    don't emit it.
+    """
+    if media_items:
+        return False
+    if title and title.strip().lower() not in ('', 'learning moment'):
+        return False
+    desc = (description or '').strip()
+    return any(desc.startswith(p) for p in AUTO_EVIDENCE_DESCRIPTION_PREFIXES)
+
 
 def register_routes(bp):
     """Register routes on the blueprint."""
@@ -704,6 +735,11 @@ def register_routes(bp):
 
                 # Create single feed item for this learning event
                 description = event.get('description', '')
+
+                # Orphaned task-evidence placeholder with nothing attached —
+                # would render as an empty "Evidence for: <task>" card.
+                if is_empty_auto_evidence_moment(event.get('title'), description, media_items):
+                    continue
 
                 # Only add if we have media or description
                 if media_items or description:

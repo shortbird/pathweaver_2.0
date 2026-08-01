@@ -83,6 +83,25 @@ describe('FeedCard', () => {
     expect(getByText('Discovered a Fossil')).toBeTruthy();
   });
 
+  it('shows a task-evidence moment as a heading, not an "Evidence for:" quote box', () => {
+    const item = createMockFeedItem({
+      type: 'learning_moment',
+      id: 'le_moment-2',
+      task: undefined,
+      moment: {
+        title: 'Learning Moment',
+        description: 'Evidence for: Plan the trip',
+        pillars: ['stem'],
+      },
+      media: [{ type: 'image', url: 'https://example.com/photo.jpg' }],
+      evidence: { type: 'image', url: 'https://example.com/photo.jpg' },
+    } as any);
+
+    const { getByText, queryByText } = render(<FeedCard item={item} />);
+    expect(getByText('Plan the trip')).toBeTruthy();
+    expect(queryByText('Evidence for: Plan the trip')).toBeNull();
+  });
+
   it('shows student name when showStudent is true', () => {
     const item = createMockFeedItem();
     const { getByText } = render(<FeedCard item={item} showStudent />);
