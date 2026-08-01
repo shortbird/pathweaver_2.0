@@ -20,7 +20,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from utils.roles import get_effective_role
 from database import get_supabase_admin_client
-from services import announcement_service
+from services import announcement_service, sis_service
 from utils import rich_text
 from utils.logger import get_logger
 
@@ -102,44 +102,6 @@ def list_announcements(user_id):
         return jsonify({'success': False, 'error': 'Failed to load announcements'}), 500
 
 
-def _resolve_member_org(admin, user_id, user_row):
-    """
-    Resolve which org's announcements a user may read.
-
-    Org members carry organization_id directly. Platform parents (organization_id
-    NULL) are members-by-proxy of their children's org: check dependents
-    (managed_by_parent_id) and approved parent_student_links.
-    Returns an org id or None.
-    """
-    if user_row and user_row.get('organization_id'):
-        return user_row['organization_id']
-
-    # Parent path: find a child who belongs to an org.
-    try:
-        deps = admin.table('users').select('organization_id')\
-            .eq('managed_by_parent_id', user_id)\
-            .not_.is_('organization_id', 'null').limit(1).execute().data
-        if deps:
-            return deps[0]['organization_id']
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Archive org resolution (dependents) failed for {user_id[:8]}: {e}")
-
-    try:
-        links = admin.table('parent_student_links').select('student_user_id')\
-            .eq('parent_user_id', user_id).eq('status', 'approved').execute().data or []
-        student_ids = [l['student_user_id'] for l in links if l.get('student_user_id')]
-        if student_ids:
-            students = admin.table('users').select('organization_id')\
-                .in_('id', student_ids[:100])\
-                .not_.is_('organization_id', 'null').limit(1).execute().data
-            if students:
-                return students[0]['organization_id']
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Archive org resolution (links) failed for {user_id[:8]}: {e}")
-
-    return None
-
-
 @bp.route('/api/announcements/archive', methods=['GET'])
 @require_role('org_admin', 'advisor', 'superadmin', 'student', 'parent')
 def announcements_archive(user_id):
@@ -158,7 +120,9 @@ def announcements_archive(user_id):
             .eq('id', user_id).single().execute().data
         effective_role = get_effective_role(user_row) if user_row else None
 
-        member_org = _resolve_member_org(admin, user_id, user_row)
+        # Platform parents have no organization_id of their own; they are
+        # members through their children (shared with the Community feed).
+        member_org = sis_service.member_org_id(user_id)
         requested_org = request.args.get('organization_id')
         if effective_role == 'superadmin':
             org_id = requested_org or member_org

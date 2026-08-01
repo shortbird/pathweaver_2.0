@@ -6,10 +6,11 @@ watching nothing reach families is exactly what happened to iCreate on
 2026-08-01 ("I just posted an announcement from the admin side and it doesn't
 show up in the announcements on the non-admin side of things").
 
-The Community Hub is staff-only by design — a noticeboard for the office, with
-lost & found and recognition beside it. This is the other thing: a message that
-goes OUT, with a durable row families can read, an in-app notification, and an
-email to people who never open the app.
+The Community Hub is the board: families and students read it in the app, but
+only if they go and look. This is the other thing — a message that goes OUT,
+with a durable row families can read, an in-app notification, and an email to
+people who never open the app. Posting and sending are separate acts on purpose;
+the composer offers both.
 
 Extracted from routes/announcements.py; the route is now a thin caller.
 """

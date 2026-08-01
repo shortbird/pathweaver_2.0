@@ -223,6 +223,38 @@ def delete_recognition(user_id, recognition_id):
 
 
 # ── Members (recipient picker for Recognition) ────────────────────────────────
+# ── The family-facing feed ────────────────────────────────────────────────────
+@bp.route('/feed', methods=['GET'])
+@require_role('student', 'parent', 'observer', 'advisor', 'org_admin', 'superadmin')
+def family_feed(user_id):
+    """The Community Hub as families and students see it.
+
+    Separate from the staff endpoints above on purpose: this one resolves the
+    org through membership (a platform parent has no organization_id of their
+    own — they are a member through their child), and the service projects each
+    module onto a family-safe field list rather than returning the row.
+    """
+    from services import sis_service
+    org_id = sis_service.member_org_id(user_id)
+    if not org_id:
+        # Not in a school — an empty board, not an error.
+        return jsonify({'success': True, 'feed': {'announcements': [], 'lost_found': [],
+                                                  'recognition': [], 'events': []},
+                        'organization_name': None})
+    return jsonify({'success': True, 'feed': community.family_feed(org_id),
+                    'organization_name': _org_name(org_id)})
+
+
+def _org_name(org_id):
+    try:
+        row = (get_supabase_admin_client().table('organizations').select('name')
+               .eq('id', org_id).limit(1).execute()).data
+        return (row[0].get('name') if row else None)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'community feed: org name lookup failed: {e}')
+        return None
+
+
 @bp.route('/members', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_members(user_id):

@@ -62,6 +62,45 @@ def resolve_org_id(user_id: str, requested_org_id: Optional[str]) -> Optional[st
     return own
 
 
+def member_org_id(user_id: str) -> Optional[str]:
+    """The org whose family-facing content this user may read.
+
+    Students and staff carry organization_id directly. A parent usually does
+    NOT — platform parents sit outside the org entirely — so they are members by
+    proxy of their children: dependents first (managed_by_parent_id), then
+    approved parent_student_links. Without this, every parent in the school
+    reads an empty announcements page.
+    """
+    ctx = get_user_org_context(user_id)
+    if ctx.get('organization_id'):
+        return ctx['organization_id']
+
+    admin = _admin()
+    try:
+        deps = (admin.table('users').select('organization_id')
+                .eq('managed_by_parent_id', user_id)
+                .not_.is_('organization_id', 'null').limit(1).execute()).data
+        if deps:
+            return deps[0]['organization_id']
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'member_org_id: dependent lookup failed for {user_id[:8]}: {e}')
+
+    try:
+        links = (admin.table('parent_student_links').select('student_user_id')
+                 .eq('parent_user_id', user_id).eq('status', 'approved').execute()).data or []
+        student_ids = [l['student_user_id'] for l in links if l.get('student_user_id')]
+        if student_ids:
+            students = (admin.table('users').select('organization_id')
+                        .in_('id', student_ids[:100])
+                        .not_.is_('organization_id', 'null').limit(1).execute()).data
+            if students:
+                return students[0]['organization_id']
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'member_org_id: link lookup failed for {user_id[:8]}: {e}')
+
+    return None
+
+
 def _org_users(org_id: str) -> List[Dict[str, Any]]:
     resp = (
         _admin().table('users')

@@ -355,17 +355,17 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           />
         </div>
       </div>
-      {/* The Community Hub is a staff noticeboard — nothing posted here reaches
-          families on its own, which is not what anyone expects the first time
-          (iCreate, 2026-08-01). Say so, and offer to send it out. */}
+      {/* Posting to the board publishes it — families and students read the same
+          board in the app. Sending is the separate, louder act: a notification
+          and an email that arrive whether or not anyone opens the board. */}
       {!announcement && (
         <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
             Who sees this
           </p>
           <p className="text-xs text-neutral-500 mt-0.5">
-            The Community board is staff-only. Tick a group to also send this as an
-            announcement they'll see in the app and by email.
+            Families and students see the board in the app. Tick a group to also send
+            this to them as an announcement — a notification and an email.
           </p>
           <div className="flex flex-wrap gap-3 mt-2">
             {[['parents', 'Families'], ['students', 'Students'], ['advisors', 'Teachers']].map(([key, label]) => (

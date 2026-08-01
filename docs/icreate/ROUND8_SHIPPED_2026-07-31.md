@@ -480,20 +480,56 @@ Chat messages are **not** included: they are rendered by the mobile app as plain
 strings, so HTML there would show as tags on a phone. Announcements were what
 the request was about.
 
+### 23. The Community Hub, family-side
+
+> "Also I can't see the shoutouts or lost and found or other things from the
+> non-admin side of things."
+
+Asked, and answered by Molly the same day: *"community hub is intended for
+families as well. lost and found won't have student names, just the item that was
+lost so parents can see it and know to come pick it up."*
+
+So the board is now family-readable. It rides on the existing **Announcements**
+page in the learning app as a second tab, **School community**, holding the
+noticeboard, what's on, lost & found, and shout-outs. The tab only appears when
+the school has actually posted something — a family outside a school sees exactly
+the page they saw before.
+
+Read-only, and a projection rather than a pass-through: `family_feed()` sends an
+explicit field list per module, so a column added to one of those tables later
+cannot quietly become public. What does not cross over:
+
+- **`claimed_by`** — who collected an item. The board exists to find an owner,
+  not to announce who came for it. Claimed items are dropped entirely.
+- **The author of a post** and a shout-out's account id — plumbing, not content.
+- **Scheduled and expired announcements** — not published yet, or over.
+- **Admin/teacher-only calendar events**, and **birthdays** — a staff
+  convenience, not a broadcast of children's birthdays to every family.
+
+Lost & found leads with the item, where it was found, and how long before it is
+donated, which is the part a parent acts on.
+
+One consequence worth knowing: a parent's org is resolved through **membership**,
+not `organization_id` — most parents are platform users with no org of their own,
+and are members through their child. That resolution (dependents, then approved
+parent-student links) is now shared by the feed and the announcements archive.
+
 ---
 
 ## Tests
 
-- Frontend: **1032 passing** (89 new — waitlist staff actions, People export and
+- Frontend: **1041 passing** (98 new — waitlist staff actions, People export and
   removal, curriculum table, calendar categories, roster alerts, quest-picker
   delete, CLP lenses / open requests / school toggle, and the waiting-vs-offered
   split on the class list, the teacher-portal back-link on all eight pages, the approve-time waitlist
   choice, cross-section offers, the family take-back, the announcement audience
-  block, the staff directory / duplicate merge, and formatted-vs-plain bodies).
+  block, the staff directory / duplicate merge, formatted-vs-plain bodies, and the
+  family-side community board).
 - Backend: **new suites** `test_sis_waitlist_staff_actions.py` (45),
   `test_sis_person_removal.py` (19), `test_blank_values.py` (40),
   `test_sis_clp_open_requests.py` (10), `test_announcement_publish.py` (17),
-  `test_sis_staff_directory.py` (13), `test_rich_text.py` (25), plus 7 added to the calendar suite and 8
+  `test_sis_staff_directory.py` (13), `test_rich_text.py` (25),
+  `test_sis_community_family_feed.py` (17), plus 7 added to the calendar suite and 8
   covering the waiting-vs-offered split. The
   pre-existing failures in the backend suite (113 failures, 31 collection errors —
   repositories, xp/atomic-quest services, transcription, rate limiting) are
@@ -538,19 +574,6 @@ Either way it is a seventh role in a system that documents exactly six, so it
 touches `get_effective_role`, every `@require_role` list, and the org-role picker.
 Worth a call with Molly: what must a coordinator never see, and what do they do
 every day?
-
-### The rest of the Community Hub, family-side (2026-08-01)
-
-> "Also I can't see the shoutouts or lost and found or other things from the
-> non-admin side of things."
-
-Announcements now cross over (item 18), but recognition and lost & found are
-still staff-only. That was deliberate — the board is the office's — so opening it
-is a product decision, not a fix. Lost & found in particular tends to name
-students ("found Anna's jacket"), and recognition written for staff eyes reads
-differently when a parent can read it too. Ask before building: should families
-see a read-only feed of these, and should staff be able to mark a post
-family-visible per item?
 
 ### The schedule flow
 

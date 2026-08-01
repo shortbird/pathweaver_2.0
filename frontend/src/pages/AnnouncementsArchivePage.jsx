@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
+import SchoolCommunity, { hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import { htmlToText } from '../utils/richText'
 
 const PAGE_SIZE = 20
@@ -13,6 +14,12 @@ const PAGE_SIZE = 20
  * past announcements their school sent them: searchable, newest first, with
  * expandable full bodies and a "Load more" pager.
  * Backed by GET /api/announcements/archive?limit=&offset=&q=.
+ *
+ * A second tab shows the school's Community board — noticeboard posts, what's
+ * on, lost & found, shout-outs (GET /api/sis/community/feed). It appears only
+ * when the school has posted something, so a family outside a school still sees
+ * exactly the page they saw before. iCreate, 2026-08-01: "I can't see the
+ * shoutouts or lost and found or other things from the non-admin side."
  */
 export default function AnnouncementsArchivePage() {
   const [announcements, setAnnouncements] = useState([])
@@ -24,6 +31,8 @@ export default function AnnouncementsArchivePage() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(() => new Set())
+  const [feed, setFeed] = useState(null)
+  const [tab, setTab] = useState('sent')
   const debounceRef = useRef(null)
 
   const fetchPage = useCallback(async (offset, q, append) => {
@@ -53,6 +62,20 @@ export default function AnnouncementsArchivePage() {
   useEffect(() => {
     fetchPage(0, query, false)
   }, [query, fetchPage])
+
+  // The community board, loaded once. A failure here is silent: the archive is
+  // the page, the board is the extra.
+  useEffect(() => {
+    let active = true
+    api.get('/api/sis/community/feed')
+      .then(({ data }) => {
+        if (!active || !data?.success) return
+        setFeed(data.feed)
+        if (data.organization_name) setOrgName(data.organization_name)
+      })
+      .catch(() => { /* no board for this user */ })
+    return () => { active = false }
+  }, [])
 
   const onSearchChange = (value) => {
     setSearch(value)
@@ -96,9 +119,30 @@ export default function AnnouncementsArchivePage() {
         </div>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        Every announcement your school has sent, newest first.
+        {tab === 'sent'
+          ? 'Every announcement your school has sent, newest first.'
+          : 'What is happening around school right now.'}
       </p>
 
+      {hasCommunityContent(feed) && (
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-6">
+          {[['sent', 'Announcements'], ['community', 'School community']].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              aria-pressed={tab === key}
+              className={`px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                tab === key ? 'bg-optio-purple text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'community' && <SchoolCommunity feed={feed} orgName={orgName} />}
+
+      {tab === 'sent' && (<>
       {/* Search */}
       <div className="relative mb-6">
         <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -182,6 +226,7 @@ export default function AnnouncementsArchivePage() {
           )}
         </div>
       )}
+      </>)}
     </div>
   )
 }
