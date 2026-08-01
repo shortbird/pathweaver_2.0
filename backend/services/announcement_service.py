@@ -1,6 +1,6 @@
 """Publishing an announcement to a school's families.
 
-One path, two callers. The learning app's announcements composer has always
+One path, two callers. The web platform's announcements composer has always
 posted here; the SIS Community Hub now can too, because posting there and
 watching nothing reach families is exactly what happened to iCreate on
 2026-08-01 ("I just posted an announcement from the admin side and it doesn't

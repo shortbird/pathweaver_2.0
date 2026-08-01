@@ -15,6 +15,11 @@ export const useOrganization = () => {
 export const OrganizationProvider = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
   const [organization, setOrganization] = useState(null);
+  // The school this user belongs to, which is NOT the same question as
+  // `organization`: a parent is usually a platform user with no
+  // organization_id and belongs to a school through their child. /me resolves
+  // it that way; the school's page is shown only when this is set.
+  const [school, setSchool] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,6 +30,7 @@ export const OrganizationProvider = ({ children }) => {
       } else {
         // Not authenticated - no organization to fetch
         setOrganization(null);
+        setSchool(null);
         setLoading(false);
       }
     }
@@ -40,6 +46,7 @@ export const OrganizationProvider = ({ children }) => {
         // Fallback: set minimal organization data
         setOrganization({ id: data.organization_id });
       }
+      setSchool(data.school || null);
     } catch (error) {
       // 401 is expected for unauthenticated users - don't log as error
       if (error.response?.status !== 401) {
@@ -52,6 +59,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const value = {
     organization,
+    school,
     loading,
     refreshOrganization: fetchOrganization
   };

@@ -187,3 +187,37 @@ class TestWhichSchoolsBoard:
         client = Mock()
         client.table.side_effect = RuntimeError('db down')
         assert self._resolve({'organization_id': None}, client) is None
+
+
+@pytest.mark.unit
+class TestTheSchoolOnTheProfile:
+    """/me carries `school`, which is what the web platform uses to decide
+    whether this user has a school page at all. For a parent that answer cannot
+    come from organization_id."""
+
+    def _school(self, org_id, org_row):
+        from unittest.mock import Mock
+        from routes.auth.login.core import _member_school
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'maybe_single'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=org_row)
+        with patch('services.sis_service.member_org_id', return_value=org_id):
+            return _member_school(client, 'user-1')
+
+    def test_a_member_gets_their_school_by_name(self):
+        assert self._school('org-1', {'id': 'org-1', 'name': 'iCreate'}) == {
+            'id': 'org-1', 'name': 'iCreate'}
+
+    def test_no_school_means_no_school_page(self):
+        assert self._school(None, None) is None
+
+    def test_a_lookup_failure_hides_the_page_rather_than_breaking_the_profile(self):
+        from unittest.mock import Mock
+        from routes.auth.login.core import _member_school
+        client = Mock()
+        client.table.side_effect = RuntimeError('db down')
+        with patch('services.sis_service.member_org_id', return_value='org-1'):
+            assert _member_school(client, 'user-1') is None

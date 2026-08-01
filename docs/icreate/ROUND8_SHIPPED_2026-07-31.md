@@ -384,7 +384,7 @@ notification, and an email to people who never open the app. Leave them unticked
 and it stays a noticeboard post, which is what the board is for.
 
 The delivery path was extracted into `services/announcement_service.py`, so the
-learning app's composer and the SIS composer now publish through exactly one
+web platform's composer and the SIS composer now publish through exactly one
 function. A delivery failure never loses the post: the noticeboard row is written
 first and the composer reports what did or didn't go out.
 
@@ -489,11 +489,17 @@ Asked, and answered by Molly the same day: *"community hub is intended for
 families as well. lost and found won't have student names, just the item that was
 lost so parents can see it and know to come pick it up."*
 
-So the board is now family-readable. It rides on the existing **Announcements**
-page in the learning app as a second tab, **School community**, holding the
-noticeboard, what's on, lost & found, and shout-outs. The tab only appears when
-the school has actually posted something — a family outside a school sees exactly
-the page they saw before.
+So the board is now family-readable, and it arrived with a rename. What used to
+be an **Announcements** page in the web platform is now the **school's own page**,
+titled with the school's name (iCreate, not "Announcements") and carrying its
+school-specific features: an **Announcements** tab (what the school has sent you,
+searchable) and a **Community** tab (noticeboard, what's on, lost & found,
+shout-outs). The Community tab appears only once the school has posted something.
+
+The nav item is the school's name too, and **only people in a school see any of
+it** — no item, and the route itself sends everyone else home rather than
+rendering an empty shell. `/school` is the path; `/announcements` still lands
+there, because emails and notifications sent before the rename link to it.
 
 Read-only, and a projection rather than a pass-through: `family_feed()` sends an
 explicit field list per module, so a column added to one of those tables later
@@ -509,27 +515,32 @@ cannot quietly become public. What does not cross over:
 Lost & found leads with the item, where it was found, and how long before it is
 donated, which is the part a parent acts on.
 
-One consequence worth knowing: a parent's org is resolved through **membership**,
-not `organization_id` — most parents are platform users with no org of their own,
-and are members through their child. That resolution (dependents, then approved
-parent-student links) is now shared by the feed and the announcements archive.
+One consequence worth knowing: a parent's school is resolved through
+**membership**, not `organization_id` — most parents are platform users with no
+org of their own, and are members through their child. That resolution
+(dependents, then approved parent-student links) is now shared by the feed, the
+announcements archive, and `/api/auth/me`, which is what lets the web platform
+decide whether this user has a school at all.
+
+Not on the **mobile app** yet: v2 has no announcements or community surface
+today, only the notification bell. Worth its own pass.
 
 ---
 
 ## Tests
 
-- Frontend: **1041 passing** (98 new — waitlist staff actions, People export and
+- Frontend: **1049 passing** (106 new — waitlist staff actions, People export and
   removal, curriculum table, calendar categories, roster alerts, quest-picker
   delete, CLP lenses / open requests / school toggle, and the waiting-vs-offered
   split on the class list, the teacher-portal back-link on all eight pages, the approve-time waitlist
   choice, cross-section offers, the family take-back, the announcement audience
   block, the staff directory / duplicate merge, formatted-vs-plain bodies, and the
-  family-side community board).
+  family-side community board, and who gets a school page at all).
 - Backend: **new suites** `test_sis_waitlist_staff_actions.py` (45),
   `test_sis_person_removal.py` (19), `test_blank_values.py` (40),
   `test_sis_clp_open_requests.py` (10), `test_announcement_publish.py` (17),
   `test_sis_staff_directory.py` (13), `test_rich_text.py` (25),
-  `test_sis_community_family_feed.py` (17), plus 7 added to the calendar suite and 8
+  `test_sis_community_family_feed.py` (20), plus 7 added to the calendar suite and 8
   covering the waiting-vs-offered split. The
   pre-existing failures in the backend suite (113 failures, 31 collection errors —
   repositories, xp/atomic-quest services, transcription, rate limiting) are

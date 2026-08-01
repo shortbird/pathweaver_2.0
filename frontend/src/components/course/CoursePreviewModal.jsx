@@ -11,7 +11,7 @@ import CourseHomepage from '../../pages/courses/CourseHomepage'
  * CoursePreviewModal - opens a course in the real student view for school staff.
  *
  * This is deliberately NOT a second rendering of the course: it mounts the same
- * CourseHomepage component students land on from the learning app's "View"
+ * CourseHomepage component students land on from the web platform's "View"
  * button, so what an org admin reviews is exactly what their students get --
  * same projects, lessons, lesson player and tasks.
  *

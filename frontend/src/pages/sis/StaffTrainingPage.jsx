@@ -16,7 +16,7 @@ import { switchSurfaceInApp } from '../../utils/appSurface'
  * Teachers see what they need to do and how far they've got; admins also see
  * who has finished what. The content itself is an ordinary quest, so it is
  * written in the normal curriculum editor (videos included) and completed in
- * the learning app — this page is the staff-facing door to it.
+ * the web platform — this page is the staff-facing door to it.
  */
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
@@ -156,7 +156,7 @@ const StaffTrainingPage = () => {
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-6">
-        Courses to work through at your own pace. Open one to start it in the learning app —
+        Courses to work through at your own pace. Open one to start it on the web platform —
         your progress shows up here automatically.
       </p>
 

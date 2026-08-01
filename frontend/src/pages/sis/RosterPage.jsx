@@ -93,7 +93,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
     try {
       const res = await startMasquerade(s.student_id, 'SIS admin view', api)
       if (res?.success === false) { toast.error(res.error || 'Could not view as student'); return }
-      // Switch to the learning app surface as the masqueraded student.
+      // Switch to the web platform surface as the masqueraded student.
       switchSurfaceInApp('learning', '/dashboard')
     } catch {
       toast.error('Could not view as student')

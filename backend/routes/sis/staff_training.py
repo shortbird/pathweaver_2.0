@@ -9,7 +9,7 @@ completion back from the ordinary quest tables — so training content is author
 in the normal curriculum editor, videos and all.
 
 A teacher completing training is a learner like any other: they enrol in the
-quest and finish its tasks in the learning app. This module only answers "which
+quest and finish its tasks in the web platform. This module only answers "which
 quests are training, and how far has each teacher got".
 
 NEW, additive (/api/sis/training). Admin manages the catalog; teachers read

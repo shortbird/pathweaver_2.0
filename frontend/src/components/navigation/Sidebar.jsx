@@ -15,7 +15,7 @@ import { getProgramNavItem } from '../../programs/registry'
 const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
   const { user, logout, isAuthenticated, effectiveRole } = useAuth()
-  const { organization } = useOrganization()
+  const { organization, school } = useOrganization()
   const { actingAsDependent, clearActingAs } = useActingAs()
   // SIS carve-out: when the user's org has sis_enabled (or the local dev override
   // is set), the school-management surfaces move to the SIS console — so hide them
@@ -132,15 +132,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     },
-    {
-      name: 'Announcements',
-      path: '/announcements',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-        </svg>
-      )
-    },
+
     // Journal is a student learning surface. Parents don't keep a personal
     // journal -- they capture for a child from the Family dashboard -- so it's
     // hidden from parents (added conditionally below).
@@ -158,6 +150,23 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   // Start with base navigation items
   let navItems = [...baseNavItems]
+
+  // The school's own page — announcements and the community board — named after
+  // the school itself. Only for people who are in one: `school` is resolved
+  // through membership, so a parent with no organization_id of their own still
+  // gets it through their child, and everyone else never sees the item.
+  if (school?.name || school?.id) {
+    navItems.push({
+      name: school.name || 'My school',
+      path: '/school',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+        </svg>
+      )
+    })
+  }
 
   // Org admins reach bounties (view + create for their org's students) from a
   // tab inside /organization, so it's kept out of their sidebar.

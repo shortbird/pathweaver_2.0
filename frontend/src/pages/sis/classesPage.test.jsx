@@ -196,7 +196,7 @@ describe('ClassesPage', () => {
   })
 
   // Org admins review an Optio course by opening it in the real student view
-  // (the same CourseHomepage the learning app's "View" button opens), so what
+  // (the same CourseHomepage the web platform's "View" button opens), so what
   // they review and demo is exactly what students get.
   it('opens the course in the student view from the card', async () => {
     await renderCards()

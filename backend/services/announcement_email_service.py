@@ -63,8 +63,8 @@ def render_announcement_html(message: str) -> str:
         )
     footer = (
         f'<p style="margin: 1.5em 0 0 0; font-size: 14px; color: #6b7280;">'
-        f'Read in Optio: <a href="{Config.FRONTEND_URL}/announcements" '
-        f'style="color: #6D469B;">{Config.FRONTEND_URL}/announcements</a></p>'
+        f'Read in Optio: <a href="{Config.FRONTEND_URL}/school" '
+        f'style="color: #6D469B;">{Config.FRONTEND_URL}/school</a></p>'
     )
     return body + footer
 
@@ -142,7 +142,7 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
         subject = f"{org_name}: {title}"
         html_body = render_announcement_html(message)
         text_body = (f"{rich_text.to_text(message)}\n\n"
-                     f"Read in Optio: {Config.FRONTEND_URL}/announcements")
+                     f"Read in Optio: {Config.FRONTEND_URL}/school")
 
         from services.email_service import email_service
 

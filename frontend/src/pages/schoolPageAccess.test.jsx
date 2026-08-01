@@ -1,0 +1,74 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+
+/**
+ * Who gets a school page at all.
+ *
+ * The page is a school's own — its announcements and its community board —
+ * titled with the school's name. Someone in no school has nothing it could
+ * show, so they never see it: no nav item, and the route itself sends them home
+ * rather than rendering an empty shell.
+ *
+ * The subtlety is who counts as "in a school". Most parents are platform users
+ * with no organization_id of their own; they belong through their child, which
+ * is why this reads `school` (resolved by /me through membership) and not
+ * `organization`.
+ */
+
+let orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, loading: false }
+vi.mock('../contexts/OrganizationContext', () => ({
+  useOrganization: () => orgState,
+}))
+vi.mock('../services/api', () => ({
+  default: { get: vi.fn(() => Promise.resolve({ data: { success: true, announcements: [], total: 0 } })) },
+}))
+vi.mock('@heroicons/react/24/outline', () => ({
+  MegaphoneIcon: (props) => <svg {...props} />,
+  MagnifyingGlassIcon: (props) => <svg {...props} />,
+  ChevronDownIcon: (props) => <svg {...props} />,
+}))
+
+import SchoolPage from './SchoolPage'
+
+const renderAt = (path = '/school') => render(
+  <MemoryRouter initialEntries={[path]}>
+    <Routes>
+      <Route path="/" element={<div>Dashboard</div>} />
+      <Route path="/school" element={<SchoolPage />} />
+      <Route path="/announcements" element={<SchoolPage />} />
+    </Routes>
+  </MemoryRouter>,
+)
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  orgState = { school: { id: 'org-1', name: 'iCreate' }, organization: null, loading: false }
+})
+
+describe('who the school page is for', () => {
+  it('shows a member their school by name', async () => {
+    renderAt()
+    expect(await screen.findByRole('heading', { name: 'iCreate' })).toBeInTheDocument()
+  })
+
+  it('sends someone with no school home', () => {
+    orgState = { school: null, organization: null, loading: false }
+    renderAt()
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
+  })
+
+  it('waits for the profile before deciding', () => {
+    // Redirecting while /me is still in flight would bounce every member of a
+    // school on a hard refresh.
+    orgState = { school: null, organization: null, loading: true }
+    renderAt()
+    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument()
+  })
+
+  it('still answers on the old /announcements link', async () => {
+    // Emails and notifications sent before the rename point there.
+    renderAt('/announcements')
+    expect(await screen.findByRole('heading', { name: 'iCreate' })).toBeInTheDocument()
+  })
+})

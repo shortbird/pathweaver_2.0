@@ -8,7 +8,7 @@ import { isPathHidden, isCommunityEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 
 /**
- * SIS console sidebar. Distinct from the learning app's Sidebar — this is the
+ * SIS console sidebar. Distinct from the web platform's Sidebar — this is the
  * staff-facing microschool management nav. Items are grouped into labeled sections
  * (People, Academics, Operations, Settings); the carved-out admin surfaces
  * (Organization, Advisor, Credit Review, Enroll Students, People) are folded into

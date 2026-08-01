@@ -10,11 +10,15 @@ import { MemoryRouter } from 'react-router-dom'
  * "just the item that was lost so parents can see it and know to come pick it
  * up."
  *
- * It rides on the existing /announcements page as a second tab, which only
- * appears when the school has actually posted something. A family that isn't in
- * a school sees exactly the page they saw before.
+ * It is the second tab of the school's own page (/school, titled with the
+ * school's name), and appears only when the school has actually posted
+ * something. Someone who is in no school never reaches this page at all — see
+ * schoolPageAccess.test.jsx.
  */
 
+vi.mock('../contexts/OrganizationContext', () => ({
+  useOrganization: () => ({ school: { id: 'org-1', name: 'iCreate' }, loading: false }),
+}))
 vi.mock('../services/api', () => ({ default: { get: vi.fn() } }))
 vi.mock('@heroicons/react/24/outline', () => ({
   MegaphoneIcon: (props) => <svg {...props} />,
@@ -23,7 +27,7 @@ vi.mock('@heroicons/react/24/outline', () => ({
 }))
 
 import api from '../services/api'
-import AnnouncementsArchivePage from './AnnouncementsArchivePage'
+import SchoolPage from './SchoolPage'
 
 const FEED = {
   announcements: [
@@ -65,12 +69,12 @@ const mockApi = (feed) => {
 }
 
 const renderPage = () => render(
-  <MemoryRouter initialEntries={['/announcements']}><AnnouncementsArchivePage /></MemoryRouter>,
+  <MemoryRouter initialEntries={['/announcements']}><SchoolPage /></MemoryRouter>,
 )
 
 const openCommunity = async () => {
   const view = renderPage()
-  fireEvent.click(await screen.findByRole('button', { name: 'School community' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Community' }))
   return view
 }
 
@@ -79,14 +83,14 @@ beforeEach(() => { vi.clearAllMocks(); mockApi(FEED) })
 describe('the school community tab', () => {
   it('is offered once the school has posted something', async () => {
     renderPage()
-    expect(await screen.findByRole('button', { name: 'School community' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Community' })).toBeInTheDocument()
   })
 
   it('stays hidden for a family whose school posts nothing', async () => {
     mockApi(EMPTY_FEED)
     renderPage()
     await screen.findByText('Fall Newsletter')
-    expect(screen.queryByRole('button', { name: 'School community' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Community' })).not.toBeInTheDocument()
   })
 
   it('stays hidden for someone who is not in a school at all', async () => {
@@ -97,7 +101,7 @@ describe('the school community tab', () => {
     ))
     renderPage()
     await screen.findByText('Fall Newsletter')
-    expect(screen.queryByRole('button', { name: 'School community' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Community' })).not.toBeInTheDocument()
   })
 
   it('shows the noticeboard post, formatting and all', async () => {

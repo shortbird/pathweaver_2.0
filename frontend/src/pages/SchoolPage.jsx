@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Navigate } from 'react-router-dom'
 import { MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
+import { useOrganization } from '../contexts/OrganizationContext'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import SchoolCommunity, { hasCommunityContent } from '../components/announcements/SchoolCommunity'
 import { htmlToText } from '../utils/richText'
@@ -8,20 +10,22 @@ import { htmlToText } from '../utils/richText'
 const PAGE_SIZE = 20
 
 /**
- * AnnouncementsArchivePage - the communications archive at /announcements.
+ * SchoolPage — everything a family gets from their school, in one place, titled
+ * with the school's name (/school; /announcements still lands here so older
+ * emails and notifications keep working).
  *
- * Every member of an org (students, parents, advisors, org admins) can re-read
- * past announcements their school sent them: searchable, newest first, with
- * expandable full bodies and a "Load more" pager.
- * Backed by GET /api/announcements/archive?limit=&offset=&q=.
+ * Two tabs:
+ * - Announcements — the searchable archive of what the school has sent them
+ *   (GET /api/announcements/archive), newest first, with a "Load more" pager.
+ * - Community — the school's board: noticeboard posts, what's on, lost & found,
+ *   shout-outs (GET /api/sis/community/feed). iCreate, 2026-08-01: "I can't see
+ *   the shoutouts or lost and found or other things from the non-admin side."
  *
- * A second tab shows the school's Community board — noticeboard posts, what's
- * on, lost & found, shout-outs (GET /api/sis/community/feed). It appears only
- * when the school has posted something, so a family outside a school still sees
- * exactly the page they saw before. iCreate, 2026-08-01: "I can't see the
- * shoutouts or lost and found or other things from the non-admin side."
+ * Only for people who are in a school. Someone with no school has nothing this
+ * page could show, so they are sent home rather than shown an empty shell — and
+ * the nav item is hidden for them too.
  */
-export default function AnnouncementsArchivePage() {
+export default function SchoolPage() {
   const [announcements, setAnnouncements] = useState([])
   const [orgName, setOrgName] = useState(null)
   const [total, setTotal] = useState(0)
@@ -31,6 +35,7 @@ export default function AnnouncementsArchivePage() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(() => new Set())
+  const { school, loading: orgLoading } = useOrganization()
   const [feed, setFeed] = useState(null)
   const [tab, setTab] = useState('sent')
   const debounceRef = useRef(null)
@@ -105,6 +110,11 @@ export default function AnnouncementsArchivePage() {
   }
 
   const hasMore = announcements.length < total
+  const schoolName = school?.name || orgName
+
+  // Wait for /me before deciding — redirecting on a not-yet-loaded context
+  // would bounce every member of a school on a hard refresh.
+  if (!orgLoading && !school) return <Navigate to="/" replace />
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -114,19 +124,18 @@ export default function AnnouncementsArchivePage() {
           <MegaphoneIcon className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Announcements</h1>
-          {orgName && <p className="text-sm text-gray-500">From {orgName}</p>}
+          <h1 className="text-2xl font-bold text-gray-900">{schoolName || 'My school'}</h1>
+          <p className="text-sm text-gray-500">
+            {tab === 'sent'
+              ? 'Every announcement your school has sent, newest first.'
+              : 'What is happening around school right now.'}
+          </p>
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-6">
-        {tab === 'sent'
-          ? 'Every announcement your school has sent, newest first.'
-          : 'What is happening around school right now.'}
-      </p>
 
       {hasCommunityContent(feed) && (
-        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-6">
-          {[['sent', 'Announcements'], ['community', 'School community']].map(([key, label]) => (
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-6 mt-6">
+          {[['sent', 'Announcements'], ['community', 'Community']].map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -140,7 +149,9 @@ export default function AnnouncementsArchivePage() {
         </div>
       )}
 
-      {tab === 'community' && <SchoolCommunity feed={feed} orgName={orgName} />}
+      {!hasCommunityContent(feed) && <div className="mb-6" />}
+
+      {tab === 'community' && <SchoolCommunity feed={feed} orgName={schoolName} />}
 
       {tab === 'sent' && (<>
       {/* Search */}
@@ -191,7 +202,7 @@ export default function AnnouncementsArchivePage() {
                     {formatDate(a.created_at)}
                   </time>
                 </div>
-                {orgName && <p className="text-xs text-gray-400 mt-0.5">{orgName}</p>}
+                {schoolName && <p className="text-xs text-gray-400 mt-0.5">{schoolName}</p>}
                 <AnnouncementBody
                   text={body}
                   className={`text-sm text-gray-700 mt-3 leading-relaxed ${

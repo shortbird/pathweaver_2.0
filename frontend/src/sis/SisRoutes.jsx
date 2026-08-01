@@ -70,10 +70,10 @@ const TimesheetsPage = lazy(() => import('../pages/sis/TimesheetsPage'))
 
 // Carved-out admin surfaces — re-registered at their ORIGINAL paths so the moved
 // components' internal links keep working on the SIS host. Same lazy chunks as the
-// learning app (Vite dedupes); the files are not physically moved (low-risk MVP).
+// web platform (Vite dedupes); the files are not physically moved (low-risk MVP).
 // NOTE: the org-management page was retired from the SIS — its functionality now
 // lives natively in Settings, Users, Staff, Families, Classes, and Messaging. The
-// page still exists on the learning app (App.jsx /organization) for platform-only
+// page still exists on the web platform (App.jsx /organization) for platform-only
 // tabs (Quests, Bounties, Credit Review, credit-classes).
 const AdvisorCheckinPage = lazy(() => import('../pages/AdvisorCheckinPage'))
 const TeacherVerificationPage = lazy(() => import('../pages/TeacherVerificationPage'))
