@@ -83,7 +83,11 @@ jobs:
           status="$(supabase status -o json)"
           export SUPABASE_SERVICE_ROLE_KEY="$(printf '%s' "$status" | python -c 'import json,sys; print(json.load(sys.stdin)["SERVICE_ROLE_KEY"])')"
           export SUPABASE_ANON_KEY="$(printf '%s' "$status" | python -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
-          python -m pytest tests/ -m requires_db --tb=short -v -p no:cacheprovider
+          # --no-cov for the same reason as the guard step in release.yml:
+          # pytest.ini's --cov-fail-under=40 applies to any run, and a
+          # requires_db subset covers far less than that. Without it this job
+          # would fail with every test passing.
+          python -m pytest tests/ -m requires_db --tb=short -v -p no:cacheprovider --no-cov
 
       - name: Stop Supabase
         if: always()

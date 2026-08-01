@@ -76,8 +76,14 @@ jobs:
           FLASK_ENV: testing
           FLASK_SECRET_KEY: test-secret-key-for-ci-only
         run: |
+          # --no-cov is required, not cosmetic: pytest.ini sets
+          # --cov-fail-under=40 in addopts, which applies to THIS single-file
+          # run too. One file covers ~1.5% of the backend, so the step exited 1
+          # with all 42 guards passing -- reported as "Secret-exposure guard
+          # failed", which is the opposite of what happened. Coverage is
+          # measured by the full-suite step below; it is meaningless here.
           python -m pytest tests/test_secret_exposure_guard.py \
-            --tb=short -v --no-header -p no:cacheprovider \
+            --tb=short -v --no-header -p no:cacheprovider --no-cov \
             || { echo "::error::Secret-exposure guard failed -- see AUDIT.md"; exit 1; }
 
       - name: Run pytest (ENFORCING)
