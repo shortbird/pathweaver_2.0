@@ -214,10 +214,19 @@ def get_public_course_by_slug(slug: str):
 
 @bp.route('/transcript/<user_id>', methods=['GET'])
 def get_public_transcript(user_id):
-    """
-    Public transcript endpoint. Only returns data if a transcript
-    has been created for the student (transcript_overrides row exists).
-    No authentication required.
+    """Shared transcript view.
+
+    Reachable two ways: by a signed share token (`?token=`) that the student's
+    parent or org approver issued and can revoke, or by a signed-in caller who
+    already has a relationship to the student.
+
+    Until 2026-08 this endpoint required neither. The existence of a
+    transcript_overrides row -- an administrative act, not a decision to
+    publish -- was the only gate, so any transcript was readable by anyone who
+    had or guessed the user's UUID, permanently, with no way for a family to
+    switch it off. It also returned the student's date of birth, which has
+    been removed: a transcript establishes credits earned, and a receiving
+    school that needs to confirm identity can ask the family directly.
     """
     # Unauthenticated + linked from transcript emails, so scanners hit it with
     # mangled IDs. A non-UUID is a clean 404, not a Postgres 22P02 error.
@@ -225,6 +234,23 @@ def get_public_transcript(user_id):
         uuid.UUID(user_id)
     except (ValueError, AttributeError, TypeError):
         return jsonify({'error': 'Transcript not found'}), 404
+
+    from services.transcript_sharing_service import verify_transcript_token
+    from utils.portfolio_access import can_view_portfolio
+    from utils.session_manager import session_manager
+
+    token = request.args.get('token')
+    authorized = verify_transcript_token(token, user_id) if token else False
+
+    if not authorized:
+        viewer_id = session_manager.get_current_user_id()
+        authorized = bool(viewer_id) and can_view_portfolio(viewer_id, user_id)
+
+    if not authorized:
+        # Indistinguishable from "no such transcript" -- a caller without a
+        # grant learns nothing about whether this student exists.
+        return jsonify({'error': 'Transcript not found'}), 404
+
     try:
         # admin client justified: unauthenticated public catalog reads (courses, quests, marketing); RLS would have to permit anonymous reads which adds policy complexity
         client = get_supabase_admin_client()
@@ -238,9 +264,11 @@ def get_public_transcript(user_id):
 
         overrides = overrides_result.data[0].get('overrides', {})
 
-        # Student info
+        # Student info. date_of_birth is deliberately not selected -- see the
+        # docstring; a child's DOB alongside their full name and school is an
+        # identity-theft payload and the transcript does not need it.
         user_result = client.table('users').select(
-            'id, first_name, last_name, created_at, organization_id, date_of_birth'
+            'id, first_name, last_name, created_at, organization_id'
         ).eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'Student not found'}), 404
@@ -392,7 +420,6 @@ def get_public_transcript(user_id):
                 'student': {
                     'first_name': student.get('first_name'),
                     'last_name': student.get('last_name'),
-                    'date_of_birth': student.get('date_of_birth'),
                     'enrolled_date': student.get('created_at'),
                     'organization_name': org_name
                 },

@@ -519,19 +519,24 @@ def get_student_overview(user_id, student_id):
             'parent_approval_denied': False
         }
 
+        # See the matching note in routes/parent/child_overview.py: this read
+        # targeted `user_portfolio_settings`, which does not exist, so the
+        # advisor's privacy indicator was a constant rather than a fact.
         try:
-            visibility_response = supabase.table('user_portfolio_settings').select('''
-                is_public, pending_parent_approval, parent_approval_denied
-            ''').eq('user_id', student_id).single().execute()
+            from services.portfolio_service import PortfolioService
 
-            if visibility_response.data:
+            status = PortfolioService().get_visibility_status(student_id)
+            if 'error' not in status:
                 visibility_status = {
-                    'is_public': visibility_response.data.get('is_public', False),
-                    'pending_parent_approval': visibility_response.data.get('pending_parent_approval', False),
-                    'parent_approval_denied': visibility_response.data.get('parent_approval_denied', False)
+                    'is_public': status.get('is_public', False),
+                    'pending_parent_approval': status.get('pending_parent_approval', False),
+                    'parent_approval_denied': status.get('parent_approval_denied', False),
+                    'consent_given_at': status.get('consent_given_at'),
                 }
         except Exception:
-            logger.debug("intentional swallow", exc_info=True)
+            logger.error("Failed to load visibility status for student %s",
+                         str(student_id)[:8], exc_info=True)
+            visibility_status['unknown'] = True
 
         # 9. Build pillars data for constellation
         seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
