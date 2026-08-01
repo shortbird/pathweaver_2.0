@@ -1113,6 +1113,15 @@ def _sync_paired_learning_event(supabase, document_id: str):
         .limit(1)\
         .execute()
 
+    if not existing_event.data and not student_blocks:
+        # Nothing to mirror yet (empty doc, or every block is private / helper
+        # -uploaded). Creating the paired event anyway leaves a moment whose
+        # only content is the auto description "Evidence for: <task>" — which
+        # shows up as a blank card in the journal, and in the feed too if the
+        # task is later deleted and the attached_task_id FK nulls out. Wait for
+        # a real block; this function runs again on every document save.
+        return
+
     if existing_event.data:
         event_id = existing_event.data[0]['id']
         supabase.table('learning_events')\

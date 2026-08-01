@@ -122,8 +122,22 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
   // instead of looking like two (bug #6).
   const getLinkUrl = (b: any) => getBlockUrl(b) || b?.content?.url || b?.content?.value;
   const linkBlocks = event.evidence_blocks?.filter((b) => b.block_type === 'link' && getLinkUrl(b)) || [];
+  // Written evidence lives in a text block, and a task-evidence moment's
+  // description is only the auto "Evidence for: <task>" placeholder — so
+  // reducing text blocks to a tiny type icon hid everything the student wrote.
+  // Render the text itself; drop anything that just repeats the title/description.
+  // Same key fallbacks EditMomentModal uses when rendering a text block.
+  const getBlockText = (b: any) => (b?.content?.text || b?.content?.body || b?.content?.value || '').trim();
+  const evidenceText = Array.from(
+    new Set(
+      (event.evidence_blocks || [])
+        .filter((b) => b.block_type === 'text')
+        .map(getBlockText)
+        .filter((t: string) => !!t && t !== event.description?.trim() && t !== event.title?.trim())
+    )
+  ).join('\n\n');
   const otherEvidence = event.evidence_blocks?.filter(
-    (b) => b.block_type !== 'image' && b !== videoBlock && b.block_type !== 'audio' && b.block_type !== 'document' && b.block_type !== 'link',
+    (b) => b.block_type !== 'image' && b !== videoBlock && b.block_type !== 'audio' && b.block_type !== 'document' && b.block_type !== 'link' && b.block_type !== 'text',
   ) || [];
   // Primary attachment for a card tap: open it full-screen ("tapping the item
   // should bring up the full view of the attachment"; the 3-dot button is the
@@ -481,6 +495,15 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
           {event.description && event.title && event.description !== event.title ? (
             <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={2}>
               {event.description}
+            </UIText>
+          ) : null}
+
+          {/* Written evidence — what the student actually typed. Clamped like
+              the description; the full text is in the moment's edit/detail
+              sheet, which renders every block. */}
+          {evidenceText ? (
+            <UIText size="xs" className="text-typo-600 dark:text-dark-typo-700" numberOfLines={4}>
+              {evidenceText}
             </UIText>
           ) : null}
 

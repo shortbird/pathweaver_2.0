@@ -83,6 +83,44 @@ describe('FeedCard', () => {
     expect(getByText('Discovered a Fossil')).toBeTruthy();
   });
 
+  it('shows a task-evidence moment as a heading, not an "Evidence for:" quote box', () => {
+    const item = createMockFeedItem({
+      type: 'learning_moment',
+      id: 'le_moment-2',
+      task: undefined,
+      moment: {
+        title: 'Learning Moment',
+        description: 'Evidence for: Plan the trip',
+        pillars: ['stem'],
+      },
+      media: [{ type: 'image', url: 'https://example.com/photo.jpg' }],
+      evidence: { type: 'image', url: 'https://example.com/photo.jpg' },
+    } as any);
+
+    const { getByText, queryByText } = render(<FeedCard item={item} />);
+    expect(getByText('Plan the trip')).toBeTruthy();
+    expect(queryByText('Evidence for: Plan the trip')).toBeNull();
+  });
+
+  it('shows the written evidence of a text-only task-evidence moment', () => {
+    const item = createMockFeedItem({
+      type: 'learning_moment',
+      id: 'le_moment-3',
+      task: undefined,
+      moment: {
+        title: 'Learning Moment',
+        description: 'Evidence for: Locate Destinations',
+        pillars: ['stem'],
+      },
+      evidence: { type: 'text', preview_text: 'I helped my mom with maps and with the destinations' },
+    } as any);
+
+    const { getByText, queryByText } = render(<FeedCard item={item} />);
+    expect(getByText('Locate Destinations')).toBeTruthy();
+    expect(getByText('I helped my mom with maps and with the destinations')).toBeTruthy();
+    expect(queryByText('Evidence for: Locate Destinations')).toBeNull();
+  });
+
   it('shows student name when showStudent is true', () => {
     const item = createMockFeedItem();
     const { getByText } = render(<FeedCard item={item} showStudent />);

@@ -413,6 +413,15 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const canShare = item.can_share !== false;
   const title = isTask ? item.task?.title : item.moment?.title;
   const description = isTask ? null : item.moment?.description;
+  // A moment paired to a task's evidence carries the auto description
+  // "Evidence for: <task>" and no real title. Rendered as-is it reads as a
+  // stray quote box instead of a heading, so show the task name as the card
+  // title (same treatment the journal's LearningEventCard gives it).
+  const EVIDENCE_PREFIX = 'Evidence for: ';
+  const isAutoEvidence = !isTask && !!description?.startsWith(EVIDENCE_PREFIX) &&
+    (!title || title.toLowerCase() === 'learning moment');
+  const displayTitle = isAutoEvidence ? description!.slice(EVIDENCE_PREFIX.length) : title;
+  const displayDescription = isAutoEvidence ? null : description;
   const pillars = isTask ? [item.task?.pillar].filter(Boolean) : (item.moment?.pillars || []);
   const questTitle = isTask ? item.quest?.title : item.moment?.topic_name;
 
@@ -607,9 +616,9 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
               {title || 'Untitled'}
             </UIText>
           )}
-          {!isTask && title && title.toLowerCase() !== 'learning moment' && title !== description && (
+          {!isTask && displayTitle && displayTitle.toLowerCase() !== 'learning moment' && displayTitle !== description && (
             <UIText size="sm" className="font-poppins-semibold">
-              {title}
+              {displayTitle}
             </UIText>
           )}
 
@@ -622,9 +631,9 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
           )}
 
           {/* Description - expandable, skip default/generic learning moment descriptions */}
-          {description && description !== title &&
-            !description.toLowerCase().startsWith('learning moment') && (
-            <ExpandableText text={description} />
+          {displayDescription && displayDescription !== title &&
+            !displayDescription.toLowerCase().startsWith('learning moment') && (
+            <ExpandableText text={displayDescription} />
           )}
 
           {/* Evidence */}
