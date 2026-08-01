@@ -1,3 +1,4 @@
+import pytest
 """C5 regression: /test-config must not exist.
 
 The old /test-config route was unauthenticated, leaked configuration metadata
@@ -12,6 +13,7 @@ def test_test_config_route_does_not_exist(client):
     assert response.status_code == 404
 
 
+@pytest.mark.requires_db
 def test_health_route_still_exists(client):
     """Sanity: removing /test-config must not have broken /api/health."""
     response = client.get('/api/health')

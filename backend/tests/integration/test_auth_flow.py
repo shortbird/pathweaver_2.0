@@ -15,6 +15,11 @@ from datetime import datetime, timedelta
 
 from utils.logger import get_logger
 
+# Every test here drives the real app end-to-end: /api/health pings the
+# database, login and profile reads go through PostgREST. They need a live
+# stack, not mocks.
+pytestmark = pytest.mark.requires_db
+
 logger = get_logger(__name__)
 
 

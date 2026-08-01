@@ -349,6 +349,7 @@ def test_accept_invitation_expired_fails(client, test_supabase):
 
 
 @pytest.mark.integration
+@pytest.mark.requires_db
 def test_accept_invitation_not_found(client):
     """Test accepting non-existent invitation fails"""
     response = client.post('/api/observers/accept/invalid_code_12345', json={

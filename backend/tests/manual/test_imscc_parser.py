@@ -1,3 +1,4 @@
+import pytest
 """
 Quick test script to parse IMSCC file locally
 """
@@ -5,6 +6,10 @@ Quick test script to parse IMSCC file locally
 from services.imscc_parser_service import IMSCCParserService
 import json
 
+@pytest.mark.skip(
+    reason="Manual test: reads a .imscc export from a hardcoded local path "
+           "(a Windows desktop). Point file_path at a sample and unskip to run."
+)
 def test_parse():
     parser = IMSCCParserService()
 

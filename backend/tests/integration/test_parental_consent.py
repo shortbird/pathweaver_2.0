@@ -78,6 +78,7 @@ def test_send_parental_consent_missing_fields(client):
 
 
 @pytest.mark.integration
+@pytest.mark.requires_db
 def test_send_parental_consent_user_not_found(client):
     """Test sending consent for non-existent user fails"""
     fake_id = str(uuid.uuid4())
@@ -144,6 +145,7 @@ def test_verify_parental_consent_success(client, test_supabase):
 
 
 @pytest.mark.integration
+@pytest.mark.requires_db
 def test_verify_parental_consent_invalid_token(client):
     """Test verifying with invalid token fails"""
     response = client.post('/api/parental-consent/verify', json={
@@ -655,6 +657,7 @@ def test_consent_token_hashing(client):
 
 
 @pytest.mark.integration
+@pytest.mark.requires_db
 def test_unauthenticated_requests_to_protected_endpoints(client):
     """Test protected endpoints require authentication"""
     fake_id = str(uuid.uuid4())

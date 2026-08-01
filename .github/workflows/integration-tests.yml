@@ -1,0 +1,90 @@
+name: Integration Tests (live database)
+
+# Runs the `requires_db` tests -- the ones that drive the real Flask app end to
+# end, where /api/health pings the database and login/profile reads go through
+# PostgREST. They cannot pass against mocks, so release.yml skips them and this
+# workflow supplies a real Supabase stack instead.
+#
+# NOT WIRED INTO THE DEPLOY GATE YET, on purpose. It has never run: it was
+# authored in an environment with no Docker daemon, so `supabase start` and the
+# 106 migrations behind it are unverified. Prove it green here first, then add
+# this job to release.yml's `needs:` list. Until then release.yml skips these
+# tests rather than pretending they passed.
+#
+# To promote it:
+#   1. Run it manually (Actions -> this workflow -> Run workflow) until green.
+#   2. Add `integration` to the `deploy` job's `needs:` in release.yml.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - 'backend/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/integration-tests.yml'
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Backend integration (Supabase stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        # `supabase start` boots Postgres + PostgREST + GoTrue in Docker and
+        # applies everything in supabase/migrations/. The keys below are the
+        # CLI's fixed local development keys -- they are published in Supabase's
+        # own docs and grant access to nothing outside this runner.
+        run: |
+          supabase init --force || true
+          supabase start
+
+      - name: Show stack status
+        run: supabase status
+
+      - name: Run requires_db tests
+        working-directory: backend
+        env:
+          FLASK_ENV: testing
+          FLASK_SECRET_KEY: test-secret-key-for-ci-only
+          RUN_DB_INTEGRATION_TESTS: '1'
+          SUPABASE_URL: http://127.0.0.1:54321
+        run: |
+          # Read the keys the CLI just minted rather than hardcoding them --
+          # they are stable per CLI version, but pinning them here would break
+          # silently on the next bump.
+          set -euo pipefail
+          status="$(supabase status -o json)"
+          export SUPABASE_SERVICE_ROLE_KEY="$(printf '%s' "$status" | python -c 'import json,sys; print(json.load(sys.stdin)["SERVICE_ROLE_KEY"])')"
+          export SUPABASE_ANON_KEY="$(printf '%s' "$status" | python -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
+          python -m pytest tests/ -m requires_db --tb=short -v -p no:cacheprovider
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup || true

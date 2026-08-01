@@ -18,6 +18,29 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 os.environ['FLASK_ENV'] = 'testing'
 os.environ['TEST_SCHEMA'] = 'test_schema'
 
+def pytest_collection_modifyitems(config, items):
+    """Skip `requires_db` tests unless a real database is available.
+
+    These drive the real Flask app end-to-end -- /api/health pings Supabase,
+    login and profile reads hit PostgREST -- so they cannot pass against mocks
+    or an unreachable URL. Rather than leaving them permanently red (which is
+    what made the whole suite unreadable and kept `|| true` in release.yml),
+    they skip by default and run wherever RUN_DB_INTEGRATION_TESTS=1 is set
+    with a live stack behind it.
+    """
+    if os.getenv('RUN_DB_INTEGRATION_TESTS', '').lower() in ('1', 'true', 'yes'):
+        return
+
+    skip_db = pytest.mark.skip(
+        reason='Needs a live database. Set RUN_DB_INTEGRATION_TESTS=1 with '
+               'SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY pointing at a real stack '
+               '(see .github/workflows/integration-tests.yml).'
+    )
+    for item in items:
+        if 'requires_db' in item.keywords:
+            item.add_marker(skip_db)
+
+
 @pytest.fixture(autouse=True)
 def _reset_rate_limiter_state():
     """Stop rate-limit counters leaking between tests.
