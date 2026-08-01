@@ -13,9 +13,15 @@ import EnrollmentAgeGatesCard from '../../components/sis/EnrollmentAgeGatesCard'
 
 /**
  * SIS Settings page — org details, branding/logo, AI feature toggles, and School
- * Jobs visibility. Hosts the shared SettingsTab (same controls the legacy org
- * admin page used) but resolves the org through the SIS picker so superadmins can
- * operate across any organization, consistent with every other SIS page.
+ * Jobs visibility. Renders SisOrgSettings -- the native SIS replacement for the
+ * legacy org SettingsTab, NOT that component itself -- and resolves the org
+ * through the SIS picker so superadmins can operate across any organization,
+ * consistent with every other SIS page.
+ *
+ * Note for anyone adding an org setting: there are TWO surfaces. SIS orgs land
+ * here (SisOrgSettings); non-SIS orgs use the legacy SettingsTab under
+ * /admin/organizations/:orgId. A control added to only one is invisible to half
+ * the customers.
  *
  * Also hosts the registration CONFIG (Registration & enrollment): the parent
  * funnel (iCreate orgs only), the first day of school, and the waitlisted age

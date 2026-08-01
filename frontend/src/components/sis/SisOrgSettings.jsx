@@ -45,6 +45,10 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
   const [taskGen, setTaskGen] = useState(org.ai_task_generation_enabled ?? true)
   // Stored inverted (hide_public_bounties); presented positively as "Public bounties".
   const [showPublicJobs, setShowPublicJobs] = useState(!(org.feature_flags?.hide_public_bounties ?? false))
+  // Restrict task XP to teachers. Off by default; enforced server-side in
+  // backend/utils/xp_permissions.py. Mirrored on the legacy org SettingsTab --
+  // SIS orgs land here, not there, so both surfaces carry the control.
+  const [lockXpEditing, setLockXpEditing] = useState(org.feature_flags?.lock_xp_editing ?? false)
   // At-home learning: whether Optio platform courses appear in the family Schedule Builder.
   const [optioCourses, setOptioCourses] = useState(org.feature_flags?.sis_settings?.optio_courses_enabled ?? true)
   const [savingToggle, setSavingToggle] = useState(false)
@@ -290,6 +294,15 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
             onClick={() => toggleField(
               { feature_flags: { ...(org.feature_flags || {}), hide_public_bounties: showPublicJobs } },
               () => setShowPublicJobs(!showPublicJobs),
+            )}
+          />
+          <ToggleRow
+            label="Only teachers can set task XP"
+            description="Students keep creating and editing their own tasks, but the XP value is set by the platform and can only be changed by teachers and org admins. Leave off to let students size their own work."
+            on={lockXpEditing} disabled={savingToggle}
+            onClick={() => toggleField(
+              { feature_flags: { ...(org.feature_flags || {}), lock_xp_editing: !lockXpEditing } },
+              () => setLockXpEditing(!lockXpEditing),
             )}
           />
         </div>
