@@ -20,6 +20,40 @@ The `showcase_consent` subsystem (marketing) is the exception and is well built:
 
 ---
 
+---
+
+## Addendum, 2026-08-01: why none of this was working
+
+The audit below inspected application code. It missed a database trigger that
+turns out to be the root cause of the entire situation.
+
+`generate_portfolio_slug()`, fired by `generate_slug_trigger` on `users`
+(`AFTER INSERT OR UPDATE OF first_name, last_name, display_name`), creates the
+diploma row like this:
+
+```sql
+INSERT INTO public.diplomas (user_id, portfolio_slug, is_public)
+VALUES (NEW.id, final_slug, true)
+```
+
+`is_public` is hardcoded `true`, so the column default the January 2026
+migration so carefully set to `FALSE` **is never consulted for a real signup**.
+
+This reframes everything:
+
+- Private-by-default was never in effect. It was set at the column and
+  overridden at the trigger, and nothing in the application code revealed that.
+- The 716 unconsented public portfolios are not a legacy tail awaiting
+  cleanup. They are the steady state, replenished at every signup — all 11
+  diplomas created in the two days before this fix are public.
+- A backfill alone would have been undone within days, which is why the fix
+  ships as Phase 0 of the migration, ahead of the reset.
+
+The verified production numbers behind the remediation: 731 diplomas, 722
+public, 4 public *and* consented, 718 to reset.
+
+---
+
 ## What already works
 
 `backend/migrations/20260102_ferpa_private_by_default.sql` established the core:

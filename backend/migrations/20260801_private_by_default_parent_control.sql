@@ -16,6 +16,66 @@
 BEGIN;
 
 -- =============================================================================
+-- PHASE 0: Stop minting public portfolios at signup
+-- =============================================================================
+
+-- This is why the January migration never actually took effect. It set the
+-- column default to FALSE, but generate_portfolio_slug() -- a trigger on
+-- users, firing AFTER INSERT OR UPDATE OF first_name/last_name/display_name --
+-- inserts the diploma row with is_public hardcoded TRUE, so the default is
+-- never consulted for a real signup:
+--
+--     INSERT INTO public.diplomas (user_id, portfolio_slug, is_public)
+--     VALUES (NEW.id, final_slug, true)
+--
+-- Every account created since January got a public portfolio regardless. All
+-- 11 diplomas created in the two days before this migration are public. Fixing
+-- the trigger has to come before the backfill below, or new signups would
+-- start re-filling the set we are about to clear.
+--
+-- The INSERT now omits is_public entirely and lets the column default stand.
+-- The ON CONFLICT branch is unchanged and still only backfills a missing slug.
+
+CREATE OR REPLACE FUNCTION generate_portfolio_slug()
+RETURNS TRIGGER AS $$
+DECLARE
+    base_slug TEXT;
+    final_slug TEXT;
+    counter INTEGER := 0;
+BEGIN
+    IF NEW.first_name IS NOT NULL AND NEW.last_name IS NOT NULL THEN
+        base_slug := LOWER(REGEXP_REPLACE(NEW.first_name || '-' || NEW.last_name, '[^a-zA-Z0-9-]', '-', 'g'));
+    ELSIF NEW.display_name IS NOT NULL THEN
+        base_slug := LOWER(REGEXP_REPLACE(NEW.display_name, '[^a-zA-Z0-9]', '-', 'g'));
+    ELSIF NEW.email IS NOT NULL THEN
+        base_slug := LOWER(REGEXP_REPLACE(SPLIT_PART(NEW.email, '@', 1), '[^a-zA-Z0-9]', '-', 'g'));
+    ELSE
+        base_slug := 'user-' || SUBSTRING(NEW.id::TEXT, 1, 8);
+    END IF;
+
+    final_slug := base_slug;
+
+    WHILE EXISTS(SELECT 1 FROM public.diplomas WHERE portfolio_slug = final_slug AND user_id != NEW.id) LOOP
+        counter := counter + 1;
+        final_slug := base_slug || '-' || counter;
+    END LOOP;
+
+    -- is_public intentionally omitted: the column default (FALSE) decides.
+    INSERT INTO public.diplomas (user_id, portfolio_slug)
+    VALUES (NEW.id, final_slug)
+    ON CONFLICT (user_id)
+    DO UPDATE SET portfolio_slug = EXCLUDED.portfolio_slug
+    WHERE public.diplomas.portfolio_slug IS NULL;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION generate_portfolio_slug() IS
+  'Creates a portfolio slug on user insert/name change. Does NOT set '
+  'is_public — a new portfolio is private until someone consents.';
+
+-- =============================================================================
 -- PHASE 1: Revocable transcript share links
 -- =============================================================================
 
