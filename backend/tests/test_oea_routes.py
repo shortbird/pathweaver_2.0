@@ -13,6 +13,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from utils import oea_rules
+
 from routes.oea import _verify_manages_student
 from repositories.base_repository import (
     NotFoundError,
@@ -292,6 +294,8 @@ class TestCredits:
         mock_repo.get_evidence_counts.return_value = {}
         with patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea._is_oea_student', return_value=True), \
+             patch('routes.oea._settings_for_student',
+                   return_value=oea_rules.build_oea_settings({})), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.get(f'/api/oea/students/{self.STU}/credits', headers=auth_headers)
         assert resp.status_code == 200
@@ -306,6 +310,8 @@ class TestCredits:
         mock_repo.add_credit.return_value = {'id': 'c1', 'student_id': 'stu', 'requirement_key': 'math', 'course_name': 'Algebra I'}
         mock_repo.create_course_quest.return_value = 'quest-1'
         with patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea._settings_for_student',
+                   return_value=oea_rules.build_oea_settings({})), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/students/{self.STU}/credits', headers=auth_headers,
                                json={'requirement_key': 'math', 'course_name': 'Algebra I'})
@@ -418,6 +424,8 @@ class TestCredits:
         mock_repo.get_evidence_counts.return_value = {'c1': 2}
         with patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea._is_oea_student', return_value=True), \
+             patch('routes.oea._settings_for_student',
+                   return_value=oea_rules.build_oea_settings({})), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.get(f'/api/oea/students/{self.STU}/credits', headers=auth_headers)
         assert resp.status_code == 200

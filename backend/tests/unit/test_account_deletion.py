@@ -85,7 +85,7 @@ def test_request_account_deletion_requires_auth(client):
 def test_deletion_status_returns_none_for_active_user(client, mock_verify_token):
     user_row = {'deletion_status': 'none', 'deletion_requested_at': None, 'deletion_scheduled_for': None}
     supabase = _mock_db(user_row=user_row)
-    with patch('routes.account_deletion.get_user_client', return_value=supabase):
+    with patch('routes.account_deletion.get_supabase_admin_client', return_value=supabase):
         resp = client.get(
             '/api/users/deletion-status',
             headers={'Authorization': 'Bearer t'},

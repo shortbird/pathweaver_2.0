@@ -77,6 +77,10 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'icreate_registration.preview_checkout',
     'icreate_registration.confirm_payment',
     'icreate_registration.record_fee',
+    # Added 2026-08-01: fee_status shipped without an entry here, so the fee
+    # step 403'd for any parent arriving already signed in. Same protection as
+    # every sibling above -- it POSTs and checks _authz(reg, access_token).
+    'icreate_registration.fee_status',
     'icreate_registration.upload_photo',
     'icreate_registration.schedule_done',
     'icreate_registration.appointment_done',

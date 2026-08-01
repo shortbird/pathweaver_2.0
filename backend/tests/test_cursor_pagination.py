@@ -125,7 +125,11 @@ class TestBuildCursorMeta:
         limit = 2
         base_url = '/api/v1/quests'
 
-        data, meta, links = build_cursor_meta(items, limit, base_url)
+        # build_cursor_meta reads request.args to carry existing query params
+        # onto the next/self links, so it needs a request context.
+        from app import app
+        with app.test_request_context(base_url):
+            data, meta, links = build_cursor_meta(items, limit, base_url)
 
         assert links is not None
         assert 'self' in links
