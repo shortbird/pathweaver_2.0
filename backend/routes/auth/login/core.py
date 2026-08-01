@@ -107,7 +107,20 @@ def register_routes(bp):
                 if user_data and user_data.data:
                     response_data = user_data.data
 
-                    # Include organization data if user has an organization
+                    # Include organization data if user has an organization.
+                    #
+                    # feature_flags used to carry the org's Stripe secret key, so
+                    # /me handed that key to every student and parent in the org
+                    # (AUDIT.md C3). Credentials now live in organization_secrets.
+                    #
+                    # The blob itself still ships, and must: OrganizationContext
+                    # feeds `activeOrg` to the SIS console, whose settings cards
+                    # read-modify-write the whole object. Emitting a reduced blob
+                    # here would make the first save from that UI silently delete
+                    # every key we filtered out. So the guarantee is "this column
+                    # never holds a credential" -- enforced by the migration, by
+                    # the org-update write path, and by test_org_secrets.py --
+                    # rather than "the serializer remembers to hide one".
                     if response_data.get('organization_id'):
                         try:
                             org_data = admin_client.table('organizations')\
@@ -116,7 +129,12 @@ def register_routes(bp):
                                 .maybe_single()\
                                 .execute()
                             if org_data.data:
-                                response_data['organization'] = org_data.data
+                                from utils.org_secrets import strip_secrets_from_feature_flags
+                                org_row = dict(org_data.data)
+                                org_row['feature_flags'] = strip_secrets_from_feature_flags(
+                                    org_row.get('feature_flags')
+                                )
+                                response_data['organization'] = org_row
                         except Exception as org_error:
                             logger.warning(f"Could not fetch organization for user {mask_user_id(user_id)}: {org_error}")
 

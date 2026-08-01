@@ -451,9 +451,10 @@ class TestReject:
         return {
             ewl.TABLE: _chain([_WAITING], []),          # select entry, update rejected
             'icreate_registrations': _chain([reg], []),  # select reg, update refunded_cents
-            'organizations': _chain(
-                [{'feature_flags': {'icreate_registration': {'stripe_secret_key': 'sk'}}}],
-                [{'name': 'iCreate'}]),                  # stripe secret, then email org name
+            # The Stripe secret is no longer read from organizations.feature_flags
+            # (AUDIT.md C1) -- _icreate_stripe_secret is patched in the test below.
+            # This chain now only serves the email's org-name lookup.
+            'organizations': _chain([{'name': 'iCreate'}], [{'name': 'iCreate'}]),
             'users': _chain([{'email': 'mom@example.com', 'first_name': 'Mo'}],
                             [{'first_name': 'Kid', 'last_name': 'One'}]),
         }
@@ -465,6 +466,8 @@ class TestReject:
         with patch.dict('sys.modules', {'stripe': fake_stripe}), \
              patch('services.sis_enrollment_waitlist_service._admin',
                    return_value=_client(tables)), \
+             patch('services.sis_enrollment_waitlist_service._icreate_stripe_secret',
+                   return_value='sk'), \
              patch('services.email_service.email_service.send_email', return_value=True):
             result = ewl.reject('org1', 'w1', rejected_by='staff1')
         # 12500 / 3 kids = 4167 (rounded)
@@ -489,6 +492,8 @@ class TestReject:
         with patch.dict('sys.modules', {'stripe': fake_stripe}), \
              patch('services.sis_enrollment_waitlist_service._admin',
                    return_value=_client(tables)), \
+             patch('services.sis_enrollment_waitlist_service._icreate_stripe_secret',
+                   return_value='sk'), \
              patch('services.email_service.email_service.send_email', return_value=True):
             result = ewl.reject('org1', 'w1', rejected_by='staff1')
         assert result['refund_cents'] == 12500 - 8334  # capped at remaining

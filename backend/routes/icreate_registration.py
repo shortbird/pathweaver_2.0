@@ -207,8 +207,9 @@ def _public_config(org, cfg, paperwork_urls=None):
         # real final step.
         'scheduling_url': _abs_url(cfg.get('scheduling_url')),
         # Whether verified card payment (the org's own Stripe account) is on.
-        # The key itself is never exposed.
-        'stripe_enabled': bool(cfg.get('stripe_secret_key')),
+        # The key itself lives in organization_secrets and is never exposed --
+        # only this boolean, which discloses configuration, not a credential.
+        'stripe_enabled': _org_stripe_enabled(org.get('id')),
         'paperwork': [
             {'key': p.get('key'), 'label': p.get('label'),
              'doc_url': paperwork_urls.get(p.get('key')) or p.get('doc_url') or '',
@@ -574,8 +575,25 @@ def _authz(reg, token):
 def _org_config(admin, org_id):
     # maybe_single(): a missing org row returns {} instead of raising PGRST116
     # (which surfaced as a confirm_payment error in Sentry).
+    #
+    # This returns PUBLIC funnel config only. The Stripe secret key used to live
+    # in here (feature_flags.icreate_registration.stripe_secret_key) and was
+    # readable over the public anon key -- see AUDIT.md C1. It now lives in
+    # organization_secrets; fetch it explicitly with _org_stripe_key().
     r = admin.table('organizations').select('feature_flags').eq('id', org_id).maybe_single().execute()
     return (((r.data if r else None) or {}).get('feature_flags') or {}).get('icreate_registration') or {}
+
+
+def _org_stripe_key(org_id):
+    """The org's Stripe secret key. Server-side use only -- never serialize it.
+    Use _org_stripe_enabled() when a client just needs to know if card payment is on."""
+    from utils.org_secrets import get_org_secret, STRIPE_SECRET_KEY
+    return get_org_secret(org_id, STRIPE_SECRET_KEY)
+
+
+def _org_stripe_enabled(org_id):
+    from utils.org_secrets import has_org_secret, STRIPE_SECRET_KEY
+    return has_org_secret(org_id, STRIPE_SECRET_KEY)
 
 
 def _parent_row(admin, parent_id):
@@ -1638,7 +1656,7 @@ def _finish_fee_step(admin, reg, cfg, extra_fields=None):
 @rate_limit(max_requests=20, window_seconds=300)
 def create_checkout(reg_id):
     """Create a Stripe Checkout Session for the registration fee on the SCHOOL'S
-    own Stripe account (cfg.stripe_secret_key). Returns the hosted payment URL."""
+    own Stripe account (organization_secrets.stripe_secret_key). Returns the hosted payment URL."""
     body = request.get_json(silent=True) or {}
     reg = _load_registration(reg_id)
     if not _authz(reg, body.get('access_token')):
@@ -1648,7 +1666,7 @@ def create_checkout(reg_id):
 
     admin = _admin()
     cfg = _org_config(admin, reg['organization_id'])
-    secret = cfg.get('stripe_secret_key')
+    secret = _org_stripe_key(reg['organization_id'])
     # A stale tab could still show the card button after the school staged a
     # prepaid credit — never charge a family that already paid.
     reg = _apply_prepaid_directive(admin, reg)
@@ -1725,7 +1743,7 @@ def preview_checkout():
         return err
     org = data['organization']
     cfg = data['config']
-    secret = cfg.get('stripe_secret_key')
+    secret = _org_stripe_key(org.get('id'))
     if not secret:
         return jsonify({'error': 'Card payment is not set up for this school'}), 400
     return_url = (body.get('return_url') or '').strip()
@@ -1865,7 +1883,7 @@ def confirm_payment(reg_id):
         return jsonify({'success': True, 'status': reg['status'], 'already': True, 'paid': True,
                         'scheduling_url': _abs_url(cfg.get('scheduling_url')),
                         'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
-    secret = cfg.get('stripe_secret_key')
+    secret = _org_stripe_key(reg['organization_id'])
     if not secret or not (reg.get('stripe_session_id') or reg.get('stripe_session_ids')):
         return jsonify({'error': 'No payment to verify for this registration'}), 400
 
@@ -1916,7 +1934,7 @@ def fee_status(reg_id):
     reg = _apply_prepaid_directive(admin, reg)
     fee_cents = int(reg.get('fee_cents') or 0)
     fee_deferred = bool(reg.get('fee_deferred'))
-    stripe_enabled = bool(cfg.get('stripe_secret_key'))
+    stripe_enabled = _org_stripe_enabled(reg['organization_id'])
     # Mirrors the /fee 402 gate exactly.
     requires_card = stripe_enabled and fee_cents > 0 and not fee_deferred and not completed
     return jsonify({
@@ -1951,7 +1969,7 @@ def record_fee(reg_id):
     fee_cents = int(reg.get('fee_cents') or 0)  # computed per-family at the family step
     # Fee-deferred families (every kid on the enrollment waitlist) finish without
     # paying — the fee comes due when the school releases their first student.
-    if cfg.get('stripe_secret_key') and fee_cents > 0 and not reg.get('fee_deferred'):
+    if _org_stripe_enabled(reg['organization_id']) and fee_cents > 0 and not reg.get('fee_deferred'):
         # Return the authoritative fee so a client whose local feeCents went stale
         # (e.g. the fee was recomputed after a prepaid directive was removed, or a
         # tab loaded a $0 "finish" view before the fee was set) can self-correct

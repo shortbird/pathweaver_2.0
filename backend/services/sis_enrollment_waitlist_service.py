@@ -613,12 +613,9 @@ def _process_refund(entry: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _icreate_stripe_secret(org_id: str) -> Optional[str]:
-    row = (
-        _admin().table('organizations').select('feature_flags')
-        .eq('id', org_id).limit(1).execute()
-    ).data or []
-    flags = (row[0].get('feature_flags') or {}) if row else {}
-    return (flags.get('icreate_registration') or {}).get('stripe_secret_key')
+    # Lives in organization_secrets, not feature_flags -- see AUDIT.md C1.
+    from utils.org_secrets import get_org_secret, STRIPE_SECRET_KEY
+    return get_org_secret(org_id, STRIPE_SECRET_KEY)
 
 
 def _send_reject_email(entry: Dict[str, Any], refund_cents: int) -> bool:
