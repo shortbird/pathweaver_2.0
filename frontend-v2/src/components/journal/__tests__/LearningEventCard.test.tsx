@@ -54,6 +54,42 @@ describe('LearningEventCard', () => {
     expect(getByText('STEM')).toBeTruthy();
   });
 
+  it('renders the text a student wrote as evidence', () => {
+    const event = createMockLearningEvent({
+      id: 'evt-text',
+      title: '',
+      description: 'Evidence for: Locate Destinations',
+      pillars: ['stem'],
+      evidence_blocks: [
+        {
+          block_type: 'text',
+          content: { text: 'I helped my mom with maps and with the destinations' },
+          order_index: 0,
+        },
+      ],
+      topics: [],
+    } as any);
+
+    const { getByText } = render(<LearningEventCard event={event} />);
+    expect(getByText('I helped my mom with maps and with the destinations')).toBeTruthy();
+  });
+
+  it('does not repeat the description as written evidence', () => {
+    const event = createMockLearningEvent({
+      id: 'evt-dupe',
+      title: 'Nature walk',
+      description: 'Found an interesting fossil',
+      pillars: ['stem'],
+      evidence_blocks: [
+        { block_type: 'text', content: { text: 'Found an interesting fossil' }, order_index: 0 },
+      ],
+      topics: [],
+    } as any);
+
+    const { getAllByText } = render(<LearningEventCard event={event} />);
+    expect(getAllByText('Found an interesting fossil')).toHaveLength(1);
+  });
+
   it('renders topic tags', () => {
     const { getByText } = render(
       <LearningEventCard event={baseEvent} />

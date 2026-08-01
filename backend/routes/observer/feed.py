@@ -699,7 +699,10 @@ def register_routes(bp):
                         media_item = None
 
                         if block['block_type'] == 'text':
-                            text_val = (content.get('text') or content.get('value') or '').strip()
+                            # Same key fallbacks the mobile block renderers use.
+                            text_val = (
+                                content.get('text') or content.get('body') or content.get('value') or ''
+                            ).strip()
                             if text_val:
                                 text_parts.append(text_val)
                         elif block['block_type'] == 'image':
