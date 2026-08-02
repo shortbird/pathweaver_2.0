@@ -42,6 +42,7 @@ import {
   ComposerBanner,
   PendingAttachmentChips,
   usePendingAttachments,
+  COMPOSER_MIN_BOTTOM_PAD,
 } from './MessageParts';
 import { MessageActionsSheet } from './MessageActionsSheet';
 
@@ -462,7 +463,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
         {!editing && <PendingAttachmentChips items={pending} onRemove={removeAttachment} />}
         <View
           className="flex-row items-end gap-2 px-3"
-          style={{ paddingTop: 6, paddingBottom: isMobile ? Math.max(insets.bottom, 6) : 8 }}
+          style={{ paddingTop: 8, paddingBottom: isMobile ? Math.max(insets.bottom, COMPOSER_MIN_BOTTOM_PAD) : 8 }}
         >
           {!editing && (
             <Pressable

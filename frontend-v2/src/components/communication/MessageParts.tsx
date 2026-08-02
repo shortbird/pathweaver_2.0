@@ -25,6 +25,14 @@ import type { MessageReaction, ReplyPreview } from '@/src/hooks/useMessages';
 /** The only reactions the backend accepts (ALLOWED_REACTIONS). */
 export const REACTION_EMOJI = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
 
+/**
+ * Minimum breathing room under the composer on mobile. The safe-area inset
+ * covers the gesture bar when the keyboard is closed, but it collapses (or
+ * shrinks) once the soft keyboard is up — leaving the input hugging the top
+ * keyboard row. This floor keeps a visible gap in that state.
+ */
+export const COMPOSER_MIN_BOTTOM_PAD = 16;
+
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_MB = 25;
 
