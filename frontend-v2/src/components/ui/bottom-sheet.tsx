@@ -44,6 +44,12 @@ export interface BottomSheetProps {
    *  the "tap the drawer action twice" bug. Deterministic replacement for a
    *  fixed close-delay timeout. */
   onClosed?: () => void;
+  /** Set false when the content owns its own scrolling (a FlatList, say). A
+   *  VirtualizedList nested inside this ScrollView loses virtualization and the
+   *  two scroll containers fight over the same drags, which reads as choppy
+   *  scrolling. The content then has to fit — it can shrink, but it won't
+   *  scroll on the sheet's behalf. */
+  scrollable?: boolean;
 }
 
 export function BottomSheet({
@@ -52,6 +58,7 @@ export function BottomSheet({
   children,
   dismissOnBackdropPress = true,
   onClosed,
+  scrollable = true,
 }: BottomSheetProps) {
   const [mounted, setMounted] = useState(visible);
   const { isLargeScreen } = useBreakpoint();
@@ -154,6 +161,24 @@ export function BottomSheet({
 
   if (!mounted) return null;
 
+  const contentPadding = {
+    paddingHorizontal: 24,
+    paddingTop: isLargeScreen ? 20 : 16,
+    paddingBottom: isLargeScreen ? 24 : 32,
+  };
+  const renderContent = () =>
+    scrollable ? (
+      <ScrollView
+        contentContainerStyle={contentPadding}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {children}
+      </ScrollView>
+    ) : (
+      <View style={{ ...contentPadding, flexShrink: 1 }}>{children}</View>
+    );
+
   const Backdrop = (
     <Animated.View
       style={{
@@ -203,17 +228,7 @@ export function BottomSheet({
               elevation: 24,
             }}
           >
-            <ScrollView
-              contentContainerStyle={{
-                paddingHorizontal: 24,
-                paddingTop: 20,
-                paddingBottom: 24,
-              }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {children}
-            </ScrollView>
+            {renderContent()}
           </Animated.View>
         </View>
       </Modal>
@@ -246,17 +261,7 @@ export function BottomSheet({
             elevation: 16,
           }}
         >
-          <ScrollView
-            contentContainerStyle={{
-              paddingHorizontal: 24,
-              paddingTop: 16,
-              paddingBottom: 32,
-            }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {children}
-          </ScrollView>
+          {renderContent()}
         </Animated.View>
       </Animated.View>
     </Modal>

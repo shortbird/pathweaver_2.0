@@ -407,7 +407,10 @@ export function PageHeader({ title }: PageHeaderProps) {
     <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-          <Heading size="2xl">{title}</Heading>
+          {/* text-3xl ships a 36px line height, which is shorter than Poppins
+              Bold's 30px glyph box — descenders (the g in "Messages") were
+              shaved off the bottom. */}
+          <Heading size="2xl" style={{ lineHeight: 40 }}>{title}</Heading>
           <MasqueradeBadge />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

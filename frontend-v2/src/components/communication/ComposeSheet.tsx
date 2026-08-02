@@ -101,7 +101,11 @@ export function ComposeSheet({ visible, onClose, contacts, loading, onSelect }: 
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    // scrollable={false}: this sheet's contact list is a FlatList, and nesting
+    // it in the sheet's own ScrollView killed virtualization (every contact
+    // mounted, avatars and all) and left the two scroll containers fighting
+    // over each drag — the choppy scrolling on the contact picker.
+    <BottomSheet visible={visible} onClose={onClose} scrollable={false}>
       <View className="flex-row items-center justify-between px-4 pt-3 pb-2">
         <UIText size="md" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700">New message</UIText>
         <Pressable onPress={onClose} hitSlop={12}>
@@ -138,8 +142,12 @@ export function ComposeSheet({ visible, onClose, contacts, loading, onSelect }: 
           data={filtered}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          style={{ maxHeight: 480 }}
+          style={{ maxHeight: 480, flexShrink: 1 }}
           keyboardShouldPersistTaps="handled"
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          windowSize={9}
           ListEmptyComponent={
             <View className="items-center py-10 px-4">
               <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
