@@ -1,11 +1,16 @@
--- ============================================================================
--- PROPOSED -- NOT APPLIED. Filename is deliberately prefixed so `supabase db push`
--- will not pick it up. Rename to 20260802_revoke_data_api_on_student_work.sql to
--- adopt it.
--- ============================================================================
---
 -- Closes AUDIT.md H4: student evidence CONTENT is readable over the public anon
 -- key, under a privacy rule the application stopped using on 2026-08-01.
+--
+-- Every claim below was re-verified against production on 2026-08-02, one day
+-- after this was drafted: the five policies are unchanged, the
+-- `supabase_realtime` publication is still empty, neither frontend references
+-- these tables, and anon still holds
+-- SELECT/INSERT/UPDATE/DELETE/TRUNCATE on all of them. Row counts have drifted
+-- slightly with normal use (user_skill_xp 1881 -> 1886, diplomas 731 -> 732).
+--
+-- This closes the anon hole only. It does NOT re-privatize the portfolios that
+-- are public on a minor's own self-consent -- see
+-- 20260802_reprivatize_self_consented_minors.sql, which must be applied too.
 --
 -- THE PROBLEM
 -- -----------
@@ -117,14 +122,24 @@ commit;
 -- SAME REMEDY, SEPARATE DECISION -- left out of the transaction above because
 -- each needs its own product call. Both are flagged by the same scan.
 --
---   bounties                 17 rows visible to anon. Policy is
---                            `status = 'active' OR poster_id = auth.uid()`, and
---                            it exposes allowed_student_ids and moderation_notes.
---                            Every /api/bounties route is @require_role'd, so the
+--   bounties                 All 17 rows are status='active', and the policy is
+--                            `status = 'active' OR poster_id = auth.uid()`, so
+--                            the whole table is anon-readable -- including
+--                            allowed_student_ids and moderation_notes. Every
+--                            /api/bounties route is @require_role'd, so the
 --                            product does not need the anon path -- but confirm
 --                            no public bounty board is planned.
---   curriculum_attachments   21 rows. Exposes file_url for org curriculum
---                            uploads, INCLUDING rows with is_deleted = true.
---                            A soft delete that leaves the file linked and
---                            world-readable is not a delete.
+--   curriculum_attachments   All 21 rows anon-readable, exposing file_url for org
+--                            curriculum uploads. Corrected 2026-08-02: the drafted
+--                            version blamed soft-deleted rows, but there are
+--                            currently ZERO rows with is_deleted = true. The real
+--                            mechanism is the policy itself --
+--                            `curriculum_attachments_org_isolation` reads
+--                            `organization_id IS NULL OR organization_id IN
+--                            (<caller's org>)`, and every one of the 21 rows has a
+--                            NULL organization_id. So the first branch publishes
+--                            the entire table and the "org isolation" name
+--                            describes something the policy does not do. The
+--                            soft-delete exposure is real but latent: it becomes
+--                            live the moment anyone soft-deletes a row.
 -- ---------------------------------------------------------------------------

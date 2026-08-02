@@ -632,8 +632,43 @@ new table must deploy together, or the iCreate card-payment step breaks.
 | **C2** `portfolio_visibility_reset_20260801` | **APPLIED to production 2026-08-01** | RLS + `REVOKE` applied live (anon now gets `42501 permission denied`; all 718 rows intact for the backend). Also added to the migration that creates it, `backend/migrations/20260801_private_by_default_parent_control.sql`, so a rebuild is secure |
 | **C3** `/me` leaks `feature_flags` | Fixed, not yet deployed | `backend/routes/auth/login/core.py` strips known credentials; the durable guarantee is that the column no longer holds any |
 | **H3** `sis_billing_audit` | **APPLIED to production 2026-08-01** | Same one-line defect as C2, applied in the same statement; also added to `supabase/migrations/20260727_billing_processing_fee.sql` |
-| **H4** Student evidence via stale RLS | Fix proposed, not applied | `supabase/migrations/PROPOSED_20260802_revoke_data_api_on_student_work.sql` — investigation found nothing depends on the access (see H4) |
+| **H4** Student evidence via stale RLS | Migration ready, not applied | `supabase/migrations/20260802_revoke_data_api_on_student_work.sql` — investigation found nothing depends on the access (see H4). Every claim in it re-verified against production 2026-08-02; renamed off its `PROPOSED_` prefix so `db push` picks it up |
+| **H5** Reset accepted a minor's self-consent | Migration ready, not applied | `supabase/migrations/20260802_reprivatize_self_consented_minors.sql` — see below |
 | H1, H2, M1–M6, L1–L5 | Open | Not in the requested scope |
+
+#### H5. The 2026-08-01 reset checked that consent existed, not who gave it
+
+Found 2026-08-02 while verifying H4, and separate from it. The reset recorded in
+`portfolio_visibility_reset_20260801` flipped 718 public diplomas private in one statement; all 718
+carry `had_consent = false`, so the rule was "public without consent → private" and anyone holding a
+consent record was spared. It never asked **who** consented.
+
+`utils/portfolio_access.py::can_manage_privacy` does ask: a student may publish their own work only
+if `is_minor()` is false, and `is_minor()` treats a missing `date_of_birth` as a minor by design. So a
+minor who ticked the box themselves under the pre-2026-08-01 model produced a consent record the
+reset honoured and that the application would refuse to create today.
+
+Of the four diplomas still `is_public` on 2026-08-02:
+
+| user | role | age | consent given by | |
+|---|---|---|---|---|
+| `5c608928` | org student | 17 | `005602a3`, a linked parent | legitimate |
+| `9b716f2b` | platform student | unknown | themselves | **exposed on self-consent** |
+| `aa0f3d00` | org student | unknown | themselves | **exposed on self-consent** |
+| `ad8e119c` | superadmin | unknown | themselves | exempt — `can_manage_privacy` grants superadmin unconditionally |
+
+Across all diplomas, 4 of the 6 consent records are self-granted.
+
+H4 and H5 need each other. H4's migration stops the anon key reading these tables but does not touch
+`is_public`, so on its own the two portfolios stay public to every code path that still trusts the
+flag — and several do, e.g. `backend/routes/learning_events/evidence.py:278`.
+
+The fix re-privatizes by predicate rather than by UUID (so it stays correct between review and apply,
+and re-running is a no-op), records what it changed in `portfolio_visibility_reset_20260802`, and adds
+a `before insert or update` trigger on `diplomas` that refuses publication when the recorded consenter
+is the student themselves and that student is a minor. The guard has to be a trigger: every product
+write goes through Flask on the service-role client, which bypasses RLS entirely, so RLS cannot
+enforce this.
 
 **Deploy order.** Ship the backend code first (it tolerates both storage locations on read),
 then apply `20260801_org_secrets_and_rls_gaps.sql`. Applying the migration against the old
