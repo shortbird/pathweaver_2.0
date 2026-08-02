@@ -15,7 +15,16 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Keyboard, Platform } from 'react-native';
 
-export function useKeyboardPadding(): Animated.Value {
+/**
+ * @param extraWhenVisible Additional padding applied only while the keyboard is
+ *   up, on top of its reported height. Padding *inside* the bottom-anchored bar
+ *   is not a reliable gap on Android: the safe-area bottom inset collapses when
+ *   the IME opens, and the reported IME height can fall short of what the
+ *   keyboard actually covers, so that inner padding ends up under the keyboard.
+ *   Space added here sits between the keyboard and the whole bar, so it always
+ *   shows. Returns to exactly 0 on dismiss, like the base height.
+ */
+export function useKeyboardPadding(extraWhenVisible: number = 0): Animated.Value {
   const pad = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -28,14 +37,16 @@ export function useKeyboardPadding(): Animated.Value {
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start();
-    const subShow = Keyboard.addListener(showEvt, (e: any) =>
-      animateTo(e?.endCoordinates?.height ?? 0, e?.duration));
+    const subShow = Keyboard.addListener(showEvt, (e: any) => {
+      const height = e?.endCoordinates?.height ?? 0;
+      animateTo(height > 0 ? height + extraWhenVisible : 0, e?.duration);
+    });
     const subHide = Keyboard.addListener(hideEvt, (e: any) => animateTo(0, e?.duration));
     return () => {
       subShow.remove();
       subHide.remove();
     };
-  }, [pad]);
+  }, [pad, extraWhenVisible]);
 
   return pad;
 }

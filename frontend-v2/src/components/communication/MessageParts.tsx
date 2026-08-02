@@ -33,6 +33,13 @@ export const REACTION_EMOJI = ['👍', '❤️', '😂', '🎉', '😮', '😢']
  */
 export const COMPOSER_MIN_BOTTOM_PAD = 16;
 
+/**
+ * Gap held between the soft keyboard and the composer bar on Android, added
+ * outside the bar (see useKeyboardPadding). The padding inside the bar can end
+ * up beneath the IME, so this is what actually guarantees the buffer.
+ */
+export const COMPOSER_KEYBOARD_GAP = 12;
+
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_MB = 25;
 

@@ -43,6 +43,7 @@ import {
   PendingAttachmentChips,
   usePendingAttachments,
   COMPOSER_MIN_BOTTOM_PAD,
+  COMPOSER_KEYBOARD_GAP,
 } from './MessageParts';
 import { MessageActionsSheet } from './MessageActionsSheet';
 
@@ -99,7 +100,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
   } = usePendingAttachments();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
-  const keyboardPad = useKeyboardPadding();
+  const keyboardPad = useKeyboardPadding(COMPOSER_KEYBOARD_GAP);
   const insets = useSafeAreaInsets();
   const isMobile = !!onBack;
 
