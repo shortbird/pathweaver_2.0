@@ -153,7 +153,12 @@ export function MessageActionsSheet({
                   borderColor: '#6D469B',
                 }}
               >
-                <UIText style={{ fontSize: 22 }}>{emoji}</UIText>
+                {/* lineHeight must clear the glyph box — UIText's `text-base`
+                    class ships a 24px line height, which clips a 22px emoji
+                    top and bottom. */}
+                <UIText style={{ fontSize: 22, lineHeight: 30, textAlign: 'center' }}>
+                  {emoji}
+                </UIText>
               </Pressable>
             );
           })}

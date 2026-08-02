@@ -412,11 +412,21 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                     >
                       {msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}
                     </UIText>
-                    {isMine && !msg.isOptimistic && (
+                    {/* Read receipts: the sender sees them on their own messages;
+                        superadmin sees them on every message in the thread. */}
+                    {(isMine || isSuperadmin) && !msg.isOptimistic && (
                       <Ionicons
                         name={msg.read_at ? 'checkmark-done' : 'checkmark'}
                         size={12}
-                        color={msg.read_at ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.5)'}
+                        color={
+                          isMine
+                            ? msg.read_at
+                              ? 'rgba(255,255,255,0.8)'
+                              : 'rgba(255,255,255,0.5)'
+                            : msg.read_at
+                              ? '#6D469B'
+                              : c.textFaint
+                        }
                       />
                     )}
                   </View>
