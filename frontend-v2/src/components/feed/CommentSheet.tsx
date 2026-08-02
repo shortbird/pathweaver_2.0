@@ -2,7 +2,7 @@
  * CommentSheet - Bottom sheet for viewing and posting comments on feed items.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Modal, Pressable, TextInput, Keyboard, Animated,
   Platform, FlatList, ActivityIndicator,
@@ -25,6 +25,39 @@ interface Comment {
   // Superadmin comments are surfaced as "Optio" with the platform logo.
   is_platform?: boolean;
 }
+
+/** Memoized so typing in the composer — which re-renders the sheet on every
+ *  keystroke — doesn't repaint every comment row. */
+const CommentRow = React.memo(function CommentRow({
+  comment,
+  formatTime,
+}: {
+  comment: Comment;
+  formatTime: (ts: string) => string;
+}) {
+  const initials = comment.user_display_name
+    ?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+  return (
+    <HStack className="gap-3 py-2.5">
+      <Avatar size="xs">
+        {comment.is_platform ? (
+          <ExpoImage source={require('@/assets/images/icon.png')} style={{ width: '100%', height: '100%', backgroundColor: '#fff' }} contentFit="cover" />
+        ) : (
+          <AvatarFallbackText>{initials}</AvatarFallbackText>
+        )}
+      </Avatar>
+      <VStack className="flex-1">
+        <HStack className="items-center gap-2">
+          <UIText size="xs" className="font-poppins-semibold">
+            {comment.user_display_name || 'User'}
+          </UIText>
+          <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{formatTime(comment.created_at)}</UIText>
+        </HStack>
+        <UIText size="sm" className="text-typo-600 dark:text-dark-typo-700">{comment.comment_text}</UIText>
+      </VStack>
+    </HStack>
+  );
+});
 
 interface CommentSheetProps {
   visible: boolean;
@@ -107,11 +140,18 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
     }
   };
 
-  const formatTime = (ts: string) => {
+  const formatTime = useCallback((ts: string) => {
     const d = new Date(ts);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
       ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  };
+  }, []);
+
+  const renderComment = useCallback(
+    ({ item: comment }: { item: Comment }) => (
+      <CommentRow comment={comment} formatTime={formatTime} />
+    ),
+    [formatTime],
+  );
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -154,35 +194,23 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
               data={comments}
               keyExtractor={(c) => c.id}
               contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 8 }}
+              // flexShrink: the sheet is capped at 70% of the screen, and
+              // without this the list sizes to its content and pushes the
+              // composer below the sheet's edge once a thread gets long.
+              style={{ flexShrink: 1 }}
+              // Otherwise the first tap on the list while the composer has focus
+              // is swallowed by the keyboard dismiss.
+              keyboardShouldPersistTaps="handled"
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              windowSize={9}
               ListEmptyComponent={
                 <View className="items-center py-8">
                   <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">No comments yet. Be the first!</UIText>
                 </View>
               }
-              renderItem={({ item: c }) => {
-                const initials = c.user_display_name
-                  ?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
-                return (
-                  <HStack className="gap-3 py-2.5">
-                    <Avatar size="xs">
-                      {c.is_platform ? (
-                        <ExpoImage source={require('@/assets/images/icon.png')} style={{ width: '100%', height: '100%', backgroundColor: '#fff' }} contentFit="cover" />
-                      ) : (
-                        <AvatarFallbackText>{initials}</AvatarFallbackText>
-                      )}
-                    </Avatar>
-                    <VStack className="flex-1">
-                      <HStack className="items-center gap-2">
-                        <UIText size="xs" className="font-poppins-semibold">
-                          {c.user_display_name || 'User'}
-                        </UIText>
-                        <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{formatTime(c.created_at)}</UIText>
-                      </HStack>
-                      <UIText size="sm" className="text-typo-600 dark:text-dark-typo-700">{c.comment_text}</UIText>
-                    </VStack>
-                  </HStack>
-                );
-              }}
+              renderItem={renderComment}
             />
           )}
 
