@@ -327,7 +327,7 @@ first.
 
 `bounties` (leaks `allowed_student_ids`, `moderation_notes`) and `curriculum_attachments`
 (leaks `file_url` for rows with `is_deleted = true`) are the same defect and are noted at the
-foot of that migration as separate decisions.
+foot of that migration as separate decisions. Both were taken on 2026-08-03 — see **H6** below.
 
 ---
 
@@ -634,6 +634,7 @@ new table must deploy together, or the iCreate card-payment step breaks.
 | **H3** `sis_billing_audit` | **APPLIED to production 2026-08-01** | Same one-line defect as C2, applied in the same statement; also added to `supabase/migrations/20260727_billing_processing_fee.sql` |
 | **H4** Student evidence via stale RLS | **APPLIED to production 2026-08-02** | `supabase/migrations/20260802_revoke_data_api_on_student_work.sql`. The five policies are dropped, RLS is forced, anon/authenticated grants revoked. `scripts/audit_db_exposure.py` went from 7 findings to 2 — the 493 rows of student evidence content dropped out; `bounties` and `curriculum_attachments` remain, deliberately, as separate product calls. Rollback captured pre-apply in `ROLLBACK_20260802_revoke_data_api_on_student_work.sql` |
 | **H5** Reset accepted a minor's self-consent | **APPLIED to production 2026-08-02** | `supabase/migrations/20260802_reprivatize_self_consented_minors.sql`. Two portfolios re-privatized, recorded in `portfolio_visibility_reset_20260802`; trigger `trg_publication_consent_provenance` installed on `diplomas`. See below |
+| **H6** `bounties` + `curriculum_attachments` anon-readable | **Migration written 2026-08-03, NOT yet applied** | `supabase/migrations/20260803_revoke_data_api_on_bounties_and_attachments.sql`, rollback alongside it. These are the two the H4 migration deferred as separate product calls. Until it is applied the daily scan keeps failing on them. See below |
 | H1, H2, M1–M6, L1–L5 | Open | Not in the requested scope |
 
 #### H5. The 2026-08-01 reset checked that consent existed, not who gave it
@@ -678,6 +679,52 @@ backend removes the Stripe key from `feature_flags` before anything knows to loo
 **Rotate regardless.** The iCreate Stripe key was readable unauthenticated for an unknown
 period. Moving it does not un-disclose it.
 
+#### H6. `bounties` and `curriculum_attachments` — the two the H4 migration deferred
+
+Surfaced 2026-08-03 by the scheduled `DB Exposure Audit` run
+([run 30828120642](https://github.com/shortbird/pathweaver_2.0/actions/runs/30828120642)), which
+failed on exactly the two tables `20260802_revoke_data_api_on_student_work.sql` left at its foot
+as "same remedy, separate decision". Re-verified live on 2026-08-03; both still hold.
+
+**`bounties` — 17 of 17 rows anon-readable.** The policy `Anyone can view active bounties` is
+`USING (status = 'active' OR poster_id = auth.uid())`, and every row is active. The important
+detail is *which* column it keys on: the product's privacy control is `visibility`
+(`public` | `organization` | `family`), and the policy never mentions it. **15 of the 17 rows are
+`visibility='family'`** — a parent's bounty aimed at named children through `allowed_student_ids`
+— and all 15 are readable by anyone on the internet holding the anon key, along with
+`moderation_notes`, `cohort_class_id` and `sponsored_reward`.
+
+This one is easy to wave through, because a bounty *can* legitimately be public to the whole
+platform. But platform-public and internet-public are different things. Platform-public is
+enforced in Python for logged-in users — `BountyService.list_bounties` filters on `visibility`,
+and `_can_student_see` re-checks it so a direct link cannot bypass the list — and none of that
+runs on a PostgREST request.
+
+**`curriculum_attachments` — 21 of 21 rows anon-readable.** `curriculum_attachments_org_isolation`
+is `USING (organization_id IS NULL OR organization_id IN (<caller's org>))` and every row has a
+NULL `organization_id`, so the first branch publishes the whole table and the policy's name
+describes something it does not do. What leaks is `file_url` for org curriculum uploads. (The
+soft-delete concern noted on 2026-08-02 is latent, not live: `is_deleted` is true on zero rows,
+and the policy does not test it, so a soft-deleted file would stay readable.)
+
+**Nothing depends on the anon access.** Same four checks that cleared H4, re-run for these two:
+no `.from('bounties')` or `.from('curriculum_attachments')` in either frontend; the
+`supabase_realtime` publication is still empty; every backend read is on the service-role client
+(`BountyService` builds `BountyRepository()` with no `user_id`, so `BaseRepository` falls back to
+`get_supabase_admin_client()`, and every endpoint in `routes/curriculum/attachments.py` calls it
+directly); and all 15 routes in `routes/bounties.py` are `@require_role`'d, including the
+student-facing list. As with H4, every other branch of these policies is keyed on `auth.uid()`,
+which is NULL on every Data API request — so the only branches that can evaluate true are the
+exposures themselves.
+
+**Fix:** `supabase/migrations/20260803_revoke_data_api_on_bounties_and_attachments.sql` drops the
+anon/authenticated policies, forces RLS, and revokes the grants — matching what H4 did. The
+`Service role full access on bounties` policy is left in place. Rollback captured pre-apply in
+`ROLLBACK_20260803_...`. **Not yet applied to production**; applying it needs a Supabase PAT, and
+the daily scan keeps failing until it is. Verify after applying with
+`python scripts/audit_db_exposure.py` (expect zero findings) and by loading the bounty board and a
+quest's curriculum tab.
+
 ### Preventing and detecting the next one
 
 Both halves of the failure are now covered, because each half was invisible to the other:
@@ -699,6 +746,9 @@ Both halves of the failure are now covered, because each half was invisible to t
 
 The scan currently **exits non-zero** on the open findings above. That is intended: a green
 check that was made green by allowlisting real exposures is worse than no check.
+
+It has since done its job unprompted: the scheduled run on 2026-08-03 failed on H6, which is
+what surfaced the `bounties` exposure below.
 
 ---
 

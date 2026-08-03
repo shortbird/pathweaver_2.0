@@ -85,25 +85,34 @@ ANON_READABLE_BY_DESIGN = {
     'security_warnings_documentation',  # static help text
 }
 
-# Reviewed on 2026-08-01 and deliberately NOT allowlisted. Each returns rows to
-# the public anon key and carries personal or org data, so each needs an explicit
-# product decision rather than a line in the set above. Until they are resolved
-# this script exits non-zero, which is the intended behaviour -- the alternative
-# is a green check that means nothing.
+# Reviewed on 2026-08-01 and deliberately NOT allowlisted -- each returned rows to
+# the public anon key and carried personal or org data, so each needed an explicit
+# product decision rather than a line in the set above. All are now closed by
+# migration; the history is kept because the reasoning is what stops the same
+# shape being allowlisted next time.
 #
 #   diplomas / user_skill_xp / user_mastery / user_task_evidence_documents /
-#   evidence_document_blocks
+#   evidence_document_blocks              CLOSED 2026-08-02
 #       Readable when `diplomas.is_public = true`. That is the PRE-2026-08-01
 #       privacy rule. The private-by-default work moved the real decision into
 #       utils/portfolio_access.py (consent record + minor check + parent control),
 #       but these RLS policies were never updated to match, so the Data API still
-#       answers the old question. Anything that sets is_public -- a bug, a legacy
-#       row, a future feature -- publishes the student's evidence CONTENT to the
-#       internet without the consent gate the application enforces.
-#   bounties
-#       `status = 'active'` exposes allowed_student_ids and moderation_notes.
-#   curriculum_attachments
-#       Exposes file_url for org curriculum uploads, including soft-deleted rows.
+#       answered the old question -- publishing student evidence CONTENT without
+#       the consent gate the application enforces. Policies dropped and grants
+#       revoked by 20260802_revoke_data_api_on_student_work.sql.
+#   bounties                              CLOSED 2026-08-03
+#       The policy keyed on `status = 'active'`; the product's privacy control is
+#       `visibility`. Nothing connected the two, so all 17 rows were anon-readable
+#       -- 15 of them visibility='family', exposing the allowed_student_ids of
+#       bounties aimed at named children. A bounty may legitimately be public to
+#       the whole PLATFORM, but that is enforced in BountyService for logged-in
+#       users and never by PostgREST.
+#   curriculum_attachments                CLOSED 2026-08-03
+#       `organization_id IS NULL OR <caller's org>` in a policy named
+#       "org_isolation", with organization_id NULL on every row -- so the first
+#       branch published the whole table, exposing file_url for org curriculum
+#       uploads. Both closed by
+#       20260803_revoke_data_api_on_bounties_and_attachments.sql.
 
 
 def _get(url: str, token: str):
