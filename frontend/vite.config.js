@@ -119,6 +119,10 @@ export default defineConfig(({ mode }) => {
     // keep prod maps off entirely — no exposure.
     sourcemap: isProduction ? (process.env.SENTRY_AUTH_TOKEN ? 'hidden' : false) : true,
     chunkSizeWarningLimit: 600,
+    // Skip the gzip/brotli size report. It compresses every emitted chunk just
+    // to print a column, and this build runs close enough to the heap limit on
+    // Render's builder that it has OOM'd there while passing locally.
+    reportCompressedSize: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
