@@ -634,7 +634,7 @@ new table must deploy together, or the iCreate card-payment step breaks.
 | **H3** `sis_billing_audit` | **APPLIED to production 2026-08-01** | Same one-line defect as C2, applied in the same statement; also added to `supabase/migrations/20260727_billing_processing_fee.sql` |
 | **H4** Student evidence via stale RLS | **APPLIED to production 2026-08-02** | `supabase/migrations/20260802_revoke_data_api_on_student_work.sql`. The five policies are dropped, RLS is forced, anon/authenticated grants revoked. `scripts/audit_db_exposure.py` went from 7 findings to 2 — the 493 rows of student evidence content dropped out; `bounties` and `curriculum_attachments` remain, deliberately, as separate product calls. Rollback captured pre-apply in `ROLLBACK_20260802_revoke_data_api_on_student_work.sql` |
 | **H5** Reset accepted a minor's self-consent | **APPLIED to production 2026-08-02** | `supabase/migrations/20260802_reprivatize_self_consented_minors.sql`. Two portfolios re-privatized, recorded in `portfolio_visibility_reset_20260802`; trigger `trg_publication_consent_provenance` installed on `diplomas`. See below |
-| **H6** `bounties` + `curriculum_attachments` anon-readable | **Migration written 2026-08-03, NOT yet applied** | `supabase/migrations/20260803_revoke_data_api_on_bounties_and_attachments.sql`, rollback alongside it. These are the two the H4 migration deferred as separate product calls. Until it is applied the daily scan keeps failing on them. See below |
+| **H6** `bounties` + `curriculum_attachments` anon-readable | **APPLIED to production 2026-08-03** | `supabase/migrations/20260803_revoke_data_api_on_bounties_and_attachments.sql`. These are the two the H4 migration deferred as separate product calls. All anon/authenticated policies dropped, RLS forced, grants revoked; all 38 rows intact for the backend. `scripts/audit_db_exposure.py` now reports **zero findings** — the first fully clean run. Rollback in `ROLLBACK_20260803_...`. See below |
 | H1, H2, M1–M6, L1–L5 | Open | Not in the requested scope |
 
 #### H5. The 2026-08-01 reset checked that consent existed, not who gave it
@@ -720,10 +720,10 @@ exposures themselves.
 **Fix:** `supabase/migrations/20260803_revoke_data_api_on_bounties_and_attachments.sql` drops the
 anon/authenticated policies, forces RLS, and revokes the grants — matching what H4 did. The
 `Service role full access on bounties` policy is left in place. Rollback captured pre-apply in
-`ROLLBACK_20260803_...`. **Not yet applied to production**; applying it needs a Supabase PAT, and
-the daily scan keeps failing until it is. Verify after applying with
-`python scripts/audit_db_exposure.py` (expect zero findings) and by loading the bounty board and a
-quest's curriculum tab.
+`ROLLBACK_20260803_...`. **Applied to production 2026-08-03.** Verified after applying: the only
+policy left on either table is `Service role full access on bounties`, `anon` and `authenticated`
+hold no grants on either, `relforcerowsecurity` is true on both, and all 17 bounties and 21
+attachments are still there for the backend. `scripts/audit_db_exposure.py` reports zero findings.
 
 ### Preventing and detecting the next one
 
@@ -744,11 +744,15 @@ Both halves of the failure are now covered, because each half was invisible to t
   could ever have seen them. Its strongest check is empirical — it asks PostgREST, with the real
   public anon key, what every table actually returns, and that is what found H4.
 
-The scan currently **exits non-zero** on the open findings above. That is intended: a green
-check that was made green by allowlisting real exposures is worse than no check.
+As of 2026-08-03 the scan **passes clean** — zero findings — and every table it clears is cleared
+because its access was actually closed, not because it was allowlisted. That distinction is the
+whole value of the check: a green run that was made green by listing real exposures in
+`ANON_READABLE_BY_DESIGN` is worse than no run at all. Any future green should be read as "these
+exposures were fixed", and any addition to that set should be treated as a decision to publish.
 
-It has since done its job unprompted: the scheduled run on 2026-08-03 failed on H6, which is
-what surfaced the `bounties` exposure below.
+It has already done its job unprompted. The scheduled run on 2026-08-03 failed on H6, which is
+what surfaced the `bounties` exposure above — 15 family-private bounties that no one was looking
+for, found by a check nobody had to remember to run.
 
 ---
 
