@@ -33,7 +33,7 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-STAFF_ROLES = ('org_admin', 'advisor')
+STAFF_ROLES = ('org_admin', 'campus_coordinator', 'advisor')
 
 
 def _admin():

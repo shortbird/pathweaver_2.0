@@ -31,12 +31,12 @@ from utils.logger import get_logger
 from services import sis_service
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_gradebook', __name__, url_prefix='/api/sis/gradebook')
 
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 
 ASSIGNMENT_FIELDS = ('name', 'sort_order', 'date_scheduled', 'date_completed',
                      'score', 'max_score', 'notes')

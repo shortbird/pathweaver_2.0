@@ -34,6 +34,26 @@ PROFILE_FIELDS = ('position', 'staff_type', 'pay_type', 'payroll_id',
 # The subset a teacher may edit on their own profile.
 SELF_PROFILE_FIELDS = ('emergency_contact_name', 'emergency_contact_phone')
 
+# What someone is paid. A campus coordinator runs the campus but is not trusted
+# with the school's money (iCreate, 2026-08-01), and these three fields are the
+# only money on an otherwise operational record — the same profile carries the
+# emergency contact and work schedule, which coordinators do need. So the fields
+# are redacted, not the endpoint withheld.
+PAY_FIELDS = ('pay_type', 'payroll_id', 'hourly_rate_cents')
+
+
+def redact_pay(profile, redact=True):
+    """Strip pay fields from a staff profile (or list of them) when `redact`.
+
+    Returns the input unchanged when `redact` is False, so callers can pass the
+    caller's tier straight through: `redact_pay(profile, is_campus_coordinator(roles))`.
+    """
+    if not redact or not profile:
+        return profile
+    if isinstance(profile, list):
+        return [redact_pay(p, True) for p in profile]
+    return {k: v for k, v in profile.items() if k not in PAY_FIELDS}
+
 STAFF_TYPES = ('employee', 'contractor', 'family')
 PAY_TYPES = ('hourly', 'salaried', 'stipend', 'unpaid')
 ASSIGNMENT_TYPES = ('duty', 'event', 'meeting', 'substitute', 'other')

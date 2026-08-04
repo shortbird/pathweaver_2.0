@@ -20,12 +20,12 @@ from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
 from services import sis_supply_budget_service as supply_budget
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_staff_portal', __name__, url_prefix='/api/sis/teacher')
 
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 
 _STAFF_DOCS_BUCKET = 'staff-documents'  # PRIVATE bucket (onboarding uploads)
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}

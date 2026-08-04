@@ -597,8 +597,9 @@ def list_org_members(org_id: str) -> List[Dict[str, Any]]:
 
 
 # Org roles considered "staff" (people who run the school), in display precedence.
-STAFF_ORG_ROLES = ('org_admin', 'advisor')
-_STAFF_ROLE_LABEL = {'org_admin': 'Org Admin', 'advisor': 'Teacher'}
+STAFF_ORG_ROLES = ('org_admin', 'campus_coordinator', 'advisor')
+_STAFF_ROLE_LABEL = {'org_admin': 'Org Admin', 'campus_coordinator': 'Campus Coordinator',
+                     'advisor': 'Teacher'}
 
 # Staff rows imported from a schedule sheet before the real person had a login use
 # a synthetic address under this suffix (e.g. liz@icreate-staff.placeholder.optioeducation.com).
@@ -610,12 +611,27 @@ def is_placeholder_staff_email(email: Optional[str]) -> bool:
 
 
 def caller_is_admin(user_id: str) -> bool:
-    """True for superadmins and org_admins — the tier that sees the whole SIS.
-    Advisors (teachers) get the scoped teacher view instead."""
+    """True for the tier that sees the whole SIS: superadmins, org_admins, and
+    campus coordinators. Advisors (teachers) get the scoped teacher view instead.
+
+    A campus coordinator counts here because their restriction is financial, not
+    scope-based — they run every class and every family, they just don't see the
+    money. Where the money is, FINANCE_ROLES keeps them out (utils/sis_roles.py).
+    """
     ctx = get_user_org_context(user_id)
     if ctx.get('role') == 'superadmin':
         return True
-    return 'org_admin' in _user_org_roles(ctx)
+    from utils.sis_roles import CAMPUS_COORDINATOR
+    return bool({'org_admin', CAMPUS_COORDINATOR} & set(_user_org_roles(ctx)))
+
+
+def caller_sees_pay(user_id: str) -> bool:
+    """False for a campus coordinator — see sis_staff_service.PAY_FIELDS."""
+    from utils.sis_roles import is_campus_coordinator
+    ctx = get_user_org_context(user_id)
+    if ctx.get('role') == 'superadmin':
+        return True
+    return not is_campus_coordinator(_user_org_roles(ctx))
 
 
 def advisor_class_ids(user_id: str, org_id: str) -> List[str]:
@@ -1338,7 +1354,8 @@ def get_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     return next((r for r in get_roster(org_id) if r['student_id'] == student_id), None)
 
 
-ASSIGNABLE_ROLES = ('student', 'parent', 'advisor', 'org_admin', 'observer')
+ASSIGNABLE_ROLES = ('student', 'parent', 'advisor', 'campus_coordinator',
+                    'org_admin', 'observer')
 
 
 def update_user_role(org_id: str, user_id: str, role: str = None,

@@ -2,8 +2,14 @@
 SIS staff-operations admin routes — employment profiles, duties, form review,
 onboarding templates, timesheets, and the payroll CSV export.
 
-ADMIN-ONLY (org_admin/superadmin): this is the employer side of the teacher
-portal. Teachers reach their own slice via routes/sis/staff_portal.py.
+ADMIN-ONLY: this is the employer side of the teacher portal. Teachers reach
+their own slice via routes/sis/staff_portal.py.
+
+The payroll half (timesheets, time-entry edits, approvals, payroll.csv) is
+FINANCE_ROLES, so campus coordinators run onboarding and form review without
+seeing what anyone is paid. Pay fields on the employment profile are redacted
+for them rather than the whole profile withheld -- it also carries the
+emergency contact and work schedule, which they do need.
 """
 
 import csv
@@ -18,12 +24,11 @@ from services import sis_staff_service as staff
 from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
 from database import get_supabase_admin_client
+from utils.sis_roles import ADMIN_ROLES, FINANCE_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_staff_admin', __name__, url_prefix='/api/sis/staff-admin')
-
-ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):
@@ -47,7 +52,8 @@ def get_profile(user_id, staff_id):
     if err:
         return err
     return jsonify({'success': True,
-                    'profile': staff.get_staff_profile(org_id, staff_id),
+                    'profile': staff.redact_pay(staff.get_staff_profile(org_id, staff_id),
+                                                not sis_service.caller_sees_pay(user_id)),
                     'assignments': staff.list_assignments(org_id, staff_id)})
 
 
@@ -57,9 +63,18 @@ def put_profile(user_id, staff_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    result = staff.upsert_staff_profile(org_id, staff_id, request.get_json() or {})
+    payload = request.get_json() or {}
+    # A coordinator can't read a pay rate, so they must not be able to set one
+    # either — a blind write is the same leak in the other direction.
+    if not sis_service.caller_sees_pay(user_id) and any(f in payload for f in staff.PAY_FIELDS):
+        return jsonify({'success': False,
+                        'error': 'Pay details are managed by an organization admin.'}), 403
+    result = staff.upsert_staff_profile(org_id, staff_id, payload)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
+    if result.get('profile'):
+        result['profile'] = staff.redact_pay(result['profile'],
+                                             not sis_service.caller_sees_pay(user_id))
     return jsonify({'success': True, **result})
 
 
@@ -235,7 +250,7 @@ def _period_or_error():
 
 
 @bp.route('/timesheets', methods=['GET'])
-@require_role(*ADMIN_ROLES)
+@require_role(*FINANCE_ROLES)
 def timesheets(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -247,7 +262,7 @@ def timesheets(user_id):
 
 
 @bp.route('/time-entries/<entry_id>', methods=['PATCH'])
-@require_role(*ADMIN_ROLES)
+@require_role(*FINANCE_ROLES)
 def edit_time_entry(user_id, entry_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -260,7 +275,7 @@ def edit_time_entry(user_id, entry_id):
 
 
 @bp.route('/timesheets/approve', methods=['POST'])
-@require_role(*ADMIN_ROLES)
+@require_role(*FINANCE_ROLES)
 def approve_timesheet(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -274,7 +289,7 @@ def approve_timesheet(user_id):
 
 
 @bp.route('/payroll.csv', methods=['GET'])
-@require_role(*ADMIN_ROLES)
+@require_role(*FINANCE_ROLES)
 def payroll_csv(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -304,16 +319,22 @@ def staff_roster_csv(user_id):
         get_supabase_admin_client().table('sis_staff_profiles').select('*')
         .eq('organization_id', org_id).execute()
     ).data or []}
+    # Pay Type and Payroll ID are money. Drop the columns entirely for a campus
+    # coordinator rather than blanking them — an empty column reads as "nobody
+    # has a payroll ID", which is a different and wrong statement.
+    sees_pay = sis_service.caller_sees_pay(user_id)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(['Name', 'Email', 'Roles', 'Position', 'Staff Type', 'Pay Type',
-                     'Payroll ID', 'Start Date', 'End Date', 'Active', 'Last Active'])
+    writer.writerow(['Name', 'Email', 'Roles', 'Position', 'Staff Type']
+                    + (['Pay Type', 'Payroll ID'] if sees_pay else [])
+                    + ['Start Date', 'End Date', 'Active', 'Last Active'])
     for s in rows:
         p = profiles.get(s['id']) or {}
         writer.writerow([
             s['name'], s.get('email') or '', ', '.join(s.get('role_labels') or []),
-            p.get('position') or '', p.get('staff_type') or '', p.get('pay_type') or '',
-            p.get('payroll_id') or '', p.get('start_date') or '', p.get('end_date') or '',
+            p.get('position') or '', p.get('staff_type') or '',
+        ] + ([p.get('pay_type') or '', p.get('payroll_id') or ''] if sees_pay else []) + [
+            p.get('start_date') or '', p.get('end_date') or '',
             'No' if p.get('is_active') is False else 'Yes', s.get('last_active') or '',
         ])
     return Response(

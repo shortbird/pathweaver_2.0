@@ -241,7 +241,8 @@ const ProfileFields = ({ form, set, isStudent, schoolName }) => (
 )
 
 const ROLE_OPTIONS = [
-  ['student', 'Student'], ['parent', 'Parent'], ['advisor', 'Teacher'], ['org_admin', 'Admin'], ['observer', 'Observer'],
+  ['student', 'Student'], ['parent', 'Parent'], ['advisor', 'Teacher'],
+  ['campus_coordinator', 'Campus Coordinator'], ['org_admin', 'Admin'], ['observer', 'Observer'],
 ]
 
 const AccountSection = ({ student, orgId, onSaved, onClose }) => {

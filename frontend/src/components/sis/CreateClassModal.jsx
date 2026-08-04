@@ -102,6 +102,8 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
     description: initial?.description || '',
     primary_instructor_id: initial?.primary_instructor_id || '',
     assistant_instructor_ids: initial?.assistant_instructor_ids || [],
+    // Families see the assistant's name unless the school says otherwise.
+    show_assistants: initial ? initial.show_assistants !== false : true,
     location: initial?.location || '',
     days_of_week: seed?.days_of_week || [],
     start_time: seed?.start_time || '',
@@ -188,6 +190,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
       location: formData.location.trim() || null,
       primary_instructor_id: formData.primary_instructor_id || null,
       assistant_instructor_ids: (formData.assistant_instructor_ids || []).filter(Boolean),
+      show_assistants: !!formData.show_assistants,
       days_of_week: dow,                          // SIS day_of_week ints (0=Sun..6=Sat)
       start_time: formData.start_time || undefined,
       duration_minutes: numOrUndef(formData.duration_minutes),
@@ -312,6 +315,25 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
                   getLabel={(s) => s.name}
                   placeholder="Add an assistant…"
                 />
+                {/* Whether the catalog names them. Only worth asking once there
+                    is an assistant to hide. Staff views always show them. */}
+                {formData.assistant_instructor_ids.length > 0 && (
+                  <label className="mt-2 flex items-start gap-2 text-sm text-neutral-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.show_assistants}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, show_assistants: e.target.checked }))}
+                      className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                    />
+                    <span>
+                      Show the assistant to families
+                      <span className="block text-xs text-neutral-400">
+                        Uncheck to keep them off the class catalog and the schedule builder.
+                        Staff always see who is assigned.
+                      </span>
+                    </span>
+                  </label>
+                )}
               </div>
             )}
 

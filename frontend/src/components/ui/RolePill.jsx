@@ -11,6 +11,7 @@ const ROLES = {
   parent: { label: 'Parent', cls: 'bg-emerald-100 text-emerald-700' },
   advisor: { label: 'Teacher', cls: 'bg-violet-100 text-violet-700' },
   teacher: { label: 'Teacher', cls: 'bg-violet-100 text-violet-700' },
+  campus_coordinator: { label: 'Campus Coordinator', cls: 'bg-teal-100 text-teal-700' },
   org_admin: { label: 'Admin', cls: 'bg-amber-100 text-amber-700' },
   admin: { label: 'Admin', cls: 'bg-amber-100 text-amber-700' },
   observer: { label: 'Observer', cls: 'bg-neutral-100 text-neutral-600' },

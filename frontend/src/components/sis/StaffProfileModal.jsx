@@ -3,6 +3,8 @@ import { XMarkIcon, BriefcaseIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { ModalOverlay } from '../ui'
+import { useAuth } from '../../contexts/AuthContext'
+import { canSeeFinance } from '../../pages/sis/sisRole'
 
 /**
  * StaffProfileModal (admin) — the employment side of a staff member: position,
@@ -22,6 +24,8 @@ const Field = ({ label, children }) => (
 )
 
 export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
+  const { user } = useAuth()
+  const seesFinance = canSeeFinance(user)
   const [form, setForm] = useState(null)
   const [assignments, setAssignments] = useState([])
   const [duty, setDuty] = useState({ title: '', assignment_type: 'duty', day_of_week: '', start_time: '', end_time: '', location: '' })
@@ -69,8 +73,12 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
       await api.put(`/api/sis/staff-admin/profiles/${staff.id}`, {
         organization_id: orgId,
         position: form.position, staff_type: form.staff_type || null,
-        pay_type: form.pay_type || null, payroll_id: form.payroll_id,
-        hourly_rate_cents: rate,
+        // Omitted entirely, not sent as null: the API rejects any pay key from
+        // a coordinator, and sending nulls would also wipe an admin's values.
+        ...(seesFinance ? {
+          pay_type: form.pay_type || null, payroll_id: form.payroll_id,
+          hourly_rate_cents: rate,
+        } : {}),
         start_date: form.start_date || null, end_date: form.end_date || null,
         is_active: form.is_active, uses_time_clock: form.uses_time_clock,
         work_schedule: form.work_schedule,
@@ -144,21 +152,28 @@ export default function StaffProfileModal({ orgId, staff, onClose, onSaved }) {
                   <option value="family">Family</option>
                 </select>
               </Field>
-              <Field label="Pay type">
-                <select value={form.pay_type} onChange={set('pay_type')} className={inputClass}>
-                  <option value="">—</option>
-                  <option value="hourly">Hourly</option>
-                  <option value="salaried">Salaried</option>
-                  <option value="stipend">Stipend</option>
-                  <option value="unpaid">Unpaid / volunteer</option>
-                </select>
-              </Field>
-              <Field label="Payroll ID">
-                <input value={form.payroll_id} onChange={set('payroll_id')} className={inputClass} />
-              </Field>
-              <Field label="Hourly rate ($)">
-                <input type="number" min="0" step="0.01" value={form.hourly_rate} onChange={set('hourly_rate')} className={inputClass} />
-              </Field>
+              {/* Pay is admin-only. A campus coordinator can't read these
+                  (the API redacts them), so offering the inputs would show
+                  blanks and then 403 on save. */}
+              {seesFinance && (
+                <>
+                  <Field label="Pay type">
+                    <select value={form.pay_type} onChange={set('pay_type')} className={inputClass}>
+                      <option value="">—</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="salaried">Salaried</option>
+                      <option value="stipend">Stipend</option>
+                      <option value="unpaid">Unpaid / volunteer</option>
+                    </select>
+                  </Field>
+                  <Field label="Payroll ID">
+                    <input value={form.payroll_id} onChange={set('payroll_id')} className={inputClass} />
+                  </Field>
+                  <Field label="Hourly rate ($)">
+                    <input type="number" min="0" step="0.01" value={form.hourly_rate} onChange={set('hourly_rate')} className={inputClass} />
+                  </Field>
+                </>
+              )}
               <Field label="Regular schedule">
                 <input value={form.work_schedule} onChange={set('work_schedule')} placeholder="e.g. Tue & Thu 9–3" className={inputClass} />
               </Field>

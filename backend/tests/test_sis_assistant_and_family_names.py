@@ -78,6 +78,40 @@ class TestAssistantsReachTheirPortal:
         assert self._ids() == []
 
 
+@pytest.mark.unit
+class TestAssistantVisibilityToggle:
+    """"...and maybe a toggle to show the assistant or not." (iCreate, 2026-08-04)
+
+    Staff always see who is assigned; families see them only when the class says
+    so, because an aide or an undecided hire shouldn't be published.
+    """
+
+    PEOPLE = {'a1': {'id': 'a1', 'name': 'Julia Reed'}, 'a2': {'id': 'a2', 'name': 'Sam Vale'}}
+
+    def _visible(self, audience, show=True, ids=('a1', 'a2')):
+        cls = {'assistant_instructor_ids': list(ids), 'show_assistants': show}
+        from services import sis_catalog_service as catalog
+        return [p['name'] for p in catalog._visible_assistants(cls, self.PEOPLE, audience)]
+
+    def test_families_see_assistants_when_the_class_opts_in(self):
+        assert self._visible('family', show=True) == ['Julia Reed', 'Sam Vale']
+
+    def test_families_see_none_when_the_class_opts_out(self):
+        assert self._visible('family', show=False) == []
+
+    def test_staff_see_assistants_even_when_hidden_from_families(self):
+        assert self._visible('staff', show=False) == ['Julia Reed', 'Sam Vale']
+
+    def test_a_class_predating_the_column_still_shows_its_assistants(self):
+        """No `show_assistants` key at all must not silently hide people."""
+        from services import sis_catalog_service as catalog
+        cls = {'assistant_instructor_ids': ['a1']}
+        assert catalog._visible_assistants(cls, self.PEOPLE, 'family') == [self.PEOPLE['a1']]
+
+    def test_an_assistant_who_left_the_org_is_dropped_not_rendered_blank(self):
+        assert self._visible('family', ids=('a1', 'gone')) == ['Julia Reed']
+
+
 def _hh(hid, name, guardians=(), **over):
     row = {'id': hid, 'name': name,
            'members': [{'name': g, 'relationship': 'guardian', 'is_primary_guardian': i == 0}

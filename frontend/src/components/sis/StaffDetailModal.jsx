@@ -4,6 +4,8 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { RolePill } from '../../components/ui/RolePill'
+import { useAuth } from '../../contexts/AuthContext'
+import { canSeeFinance } from '../../pages/sis/sisRole'
 
 /**
  * StaffDetailModal — opens when a Staff card is clicked (same pattern as the
@@ -32,6 +34,7 @@ const Row = ({ label, value }) => (
 const actionBtn = 'px-3 py-2 rounded-lg text-sm font-medium transition-colors'
 
 export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmployment, onLink, onViewPortal, onRemoved }) {
+  const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [resending, setResending] = useState(false)
   const [removing, setRemoving] = useState(false)
@@ -99,10 +102,11 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
       .catch(() => setProfile({}))
   }, [orgId, staff.id])
 
+  const seesFinance = canSeeFinance(user)
   const employment = profile && [
     profile.position,
     profile.staff_type === 'contractor' ? 'Independent contractor' : profile.staff_type === 'employee' ? 'Employee' : null,
-    profile.pay_type,
+    seesFinance ? profile.pay_type : null,
   ].filter(Boolean).join(' · ')
 
   return (
@@ -141,7 +145,9 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
           {!staff.is_placeholder && <Row label="Email" value={staff.email} />}
           <Row label="Employment" value={employment} />
           <Row label="Schedule" value={profile?.work_schedule} />
-          <Row label="Payroll ID" value={profile?.payroll_id} />
+          {/* The API drops pay fields for a campus coordinator; an empty row
+              would read as "this person has no payroll ID". */}
+          {seesFinance && <Row label="Payroll ID" value={profile?.payroll_id} />}
           <Row label="Start date" value={profile?.start_date} />
           <Row label="Last active" value={fmtDate(staff.last_active)} />
           {profile && profile.is_active === false && (

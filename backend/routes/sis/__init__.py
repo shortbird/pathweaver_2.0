@@ -23,6 +23,7 @@ from services import sis_service
 from services import sis_staff_service
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
 logger = get_logger(__name__)
 
@@ -30,11 +31,9 @@ bp = Blueprint('sis', __name__, url_prefix='/api/sis')
 
 # All staff (admins see everything; advisors get the scoped teacher portal).
 # Imported by events.py for the read-only calendar endpoints.
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 # The admin tier: every endpoint in THIS file is org-management (households,
 # registration data, staff accounts, full roster) — teacher-scoped equivalents
 # live in routes/sis/staff_portal.py.
-ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):

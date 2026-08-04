@@ -15,15 +15,14 @@ from services import sis_service
 from services import sis_catalog_service as catalog
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_catalog', __name__, url_prefix='/api/sis')
 
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 # Class management is admin-only; teachers get scoped reads (list/detail/
 # meetings/roster) — advisor visibility is filtered via sis_service.class_scope.
-ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
 def _age_from_dob(dob):

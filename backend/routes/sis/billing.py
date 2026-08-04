@@ -12,13 +12,13 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_billing_service as billing
+# Finance tier: this module IS the money (tuition, invoices, Stripe), so it
+# is the one place campus coordinators are kept out of entirely.
+from utils.sis_roles import FINANCE_ROLES as STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_billing', __name__, url_prefix='/api/sis')
-
-# Admin tier: this whole module is org management, not teacher-facing.
-STAFF_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):

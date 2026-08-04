@@ -241,9 +241,17 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                   </td>
                   <td className="px-4 py-3 text-neutral-600">
                     {c.primary_instructor?.name || c.primary_instructor?.display_name || '—'}
+                    {/* Staff always see the assistant. Say when families don't,
+                        so "why isn't Julia on the catalog?" answers itself. */}
                     {c.assistant_instructors?.length > 0 && (
                       <span className="block text-xs text-neutral-400">
                         + {c.assistant_instructors.map((a) => a.name).join(', ')}
+                        {c.show_assistants === false && (
+                          <span className="ml-1 text-neutral-400"
+                            title="Families don't see the assistant on this class — change it in Edit class">
+                            (hidden from families)
+                          </span>
+                        )}
                       </span>
                     )}
                   </td>

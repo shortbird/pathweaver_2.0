@@ -4,6 +4,8 @@ import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface } from '../utils/appSurface'
 import { isPathHidden, isCommunityEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
+import { canSeeFinance } from '../pages/sis/sisRole'
+import { useAuth } from '../contexts/AuthContext'
 
 // Guards a route whose module the active org has hidden (feature_flags.
 // sis_settings.hidden_modules). A hidden module bounces to the SIS dashboard so
@@ -23,6 +25,16 @@ const ModuleRoute = ({ path, children }) => {
 const CommunityRoute = ({ children }) => {
   const { activeOrg } = useSisOrg()
   if (!isCommunityEnabled(activeOrg)) return <Navigate to="/" replace />
+  return children
+}
+
+// The money pages. A campus coordinator runs the console but not the finances
+// (iCreate, 2026-08-01), so a typed URL or a bookmark from when they were an
+// admin bounces to the dashboard rather than rendering a page whose every API
+// call will 403. The backend's FINANCE_ROLES is the real gate; this is chrome.
+const FinanceRoute = ({ children }) => {
+  const { user } = useAuth()
+  if (!canSeeFinance(user)) return <Navigate to="/" replace />
   return children
 }
 
@@ -102,7 +114,7 @@ const SisRoutes = () => (
       <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
       <Route path="classes" element={<ClassesPage />} />
       <Route path="clp" element={<ModuleRoute path="/clp"><ClpPage /></ModuleRoute>} />
-      <Route path="billing" element={<ModuleRoute path="/billing"><BillingPage /></ModuleRoute>} />
+      <Route path="billing" element={<FinanceRoute><ModuleRoute path="/billing"><BillingPage /></ModuleRoute></FinanceRoute>} />
       <Route path="attendance" element={<AttendancePage />} />
       <Route path="goals" element={<GoalsReviewPage />} />
       <Route path="submissions" element={<SubmissionsPage />} />
@@ -127,7 +139,7 @@ const SisRoutes = () => (
       <Route path="onboarding" element={<ModuleRoute path="/onboarding"><OnboardingPage /></ModuleRoute>} />
       <Route path="my-documents" element={<MyDocumentsPage />} />
       <Route path="time" element={<ModuleRoute path="/time"><MyTimePage /></ModuleRoute>} />
-      <Route path="timesheets" element={<ModuleRoute path="/timesheets"><TimesheetsPage /></ModuleRoute>} />
+      <Route path="timesheets" element={<FinanceRoute><ModuleRoute path="/timesheets"><TimesheetsPage /></ModuleRoute></FinanceRoute>} />
 
       {/* Carved-out admin surfaces (original paths preserved) */}
       <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />

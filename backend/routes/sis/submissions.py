@@ -20,12 +20,11 @@ from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
+from utils.sis_roles import STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_submissions', __name__, url_prefix='/api/sis')
-
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 
 
 def _org_or_error(user_id):

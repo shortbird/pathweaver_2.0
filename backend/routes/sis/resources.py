@@ -15,13 +15,12 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_resources', __name__, url_prefix='/api/sis')
 
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
-ADMIN_ROLES = ('org_admin', 'superadmin')
 
 _ORG_DOCS_BUCKET = 'org-documents'
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}

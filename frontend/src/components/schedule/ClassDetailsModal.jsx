@@ -65,6 +65,7 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd,
   const image = isCourse ? item.cover_image_url : item.image_url
   const isFull = !isCourse && item.is_full
   const teacher = item.primary_instructor
+  const assistants = (!isCourse && item.assistant_instructors) || []
   const ages = isCourse ? item.age_range : ageText(item.min_age, item.max_age)
   const tuition = money(isCourse ? item.tuition_cents : item.price_cents)
   const supplyFee = !isCourse && item.supply_fee != null ? `$${Number(item.supply_fee).toFixed(2)}` : null
@@ -139,6 +140,23 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd,
                   ? <img src={teacher.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                   : <span className="w-5 h-5 rounded-full bg-optio-purple/10 text-optio-purple text-[10px] font-bold inline-flex items-center justify-center">{(teacher.name || '?').charAt(0)}</span>}
                 {teacher.name}
+              </span>
+            </Fact>
+          )}
+          {/* The backend has already dropped these for a class whose school
+              chose to keep its assistants off the catalog — nothing to filter
+              here. */}
+          {assistants.length > 0 && (
+            <Fact label={assistants.length === 1 ? 'Assistant' : 'Assistants'}>
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                {assistants.map((a) => (
+                  <span key={a.id} className="inline-flex items-center gap-1.5">
+                    {a.avatar_url
+                      ? <img src={a.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      : <span className="w-5 h-5 rounded-full bg-optio-purple/10 text-optio-purple text-[10px] font-bold inline-flex items-center justify-center">{(a.name || '?').charAt(0)}</span>}
+                    {a.name}
+                  </span>
+                ))}
               </span>
             </Fact>
           )}

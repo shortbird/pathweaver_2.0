@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
-import { isSisAdmin } from '../../pages/sis/sisRole'
+import { isSisAdmin, canSeeFinance } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
 import { isPathHidden, isCommunityEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
@@ -23,7 +23,8 @@ const icon = (path) => (
 
 // Section-grouped nav. `end` forces exact matching (Dashboard). `superadmin: true`
 // items render only for superadmins; `adminOnly: true` for org admins (and
-// superadmins); `teacherOnly: true` only for advisors — the teacher portal.
+// superadmins); `teacherOnly: true` only for advisors — the teacher portal;
+// `financeOnly: true` for the money pages, which campus coordinators don't get.
 // Carved-out admin surfaces keep their original paths (registered in SisRoutes).
 const ICONS = {
   home: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
@@ -83,8 +84,8 @@ const NAV_SECTIONS = [
       { name: 'Secure Documents', path: '/secure-documents', adminOnly: true, d: ICONS.doc },
       { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
       { name: 'My Time', path: '/time', teacherOnly: true, d: ICONS.clock },
-      { name: 'Timesheets', path: '/timesheets', adminOnly: true, d: ICONS.clock },
-      { name: 'Billing', path: '/billing', adminOnly: true, d: ICONS.card },
+      { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock },
+      { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card },
       { name: 'Messaging', path: '/messaging', adminOnly: true, d: ICONS.chat },
     ],
   },
@@ -116,6 +117,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   // While an admin previews a teacher's portal, render the teacher nav so the
   // preview is faithful (the banner in SisLayout is the way back).
   const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
+  // Campus coordinators run the console but not the money (iCreate, 2026-08-01).
+  const seesFinance = canSeeFinance(user) && !getPreviewTeacher()
 
   return (
     // Below lg the sidebar is a drawer: off-canvas until the header's menu
@@ -149,6 +152,7 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             if (it.superadmin && !isSuperadmin) return false
             if (it.adminOnly && !isAdmin) return false
             if (it.teacherOnly && isAdmin) return false
+            if (it.financeOnly && !seesFinance) return false
             // Org opted out of this module (feature_flags.sis_settings.hidden_modules).
             if (isPathHidden(it.path, activeOrg)) return false
             // Goals tab is only for goals-mode orgs (schedule-mode orgs never set goals).

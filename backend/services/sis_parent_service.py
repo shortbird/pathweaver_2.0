@@ -165,7 +165,7 @@ def _owned_registration(user_id: str, org_id: str, reg_id: str) -> Optional[Dict
 def open_classes(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     if not _has_org_access(user_id, org_id):
         return None
-    return [c for c in catalog.list_classes(org_id)
+    return [c for c in catalog.list_classes(org_id, audience='family')
             if c.get('registration_status') == 'open']
 
 
@@ -464,7 +464,7 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
             .eq('student_id', student_user_id).eq('status', 'active').execute()
         ).data or []
     }
-    all_classes = catalog.list_classes(org_id)
+    all_classes = catalog.list_classes(org_id, audience='family')
     classes = [c for c in all_classes if c['id'] in enrolled_ids]
 
     waitlist_rows = (
@@ -562,7 +562,9 @@ def schedule_preview(org_id: str) -> Dict[str, Any]:
     a guardian relationship."""
     settings = _sis_settings(org_id)
     return {
-        'classes': [c for c in catalog.list_classes(org_id)
+        # audience='family': this previews the builder AS A FAMILY SEES IT, so
+        # a class with assistants hidden must look hidden here too.
+        'classes': [c for c in catalog.list_classes(org_id, audience='family')
                     if c.get('registration_status') == 'open'],
         'time_blocks': settings.get('time_blocks') or [],
         'block_pricing': settings.get('block_pricing') or None,

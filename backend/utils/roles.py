@@ -27,6 +27,12 @@ class OrgRole(Enum):
     ADVISOR = 'advisor'
     OBSERVER = 'observer'
     ORG_ADMIN = 'org_admin'
+    # Front-office staff who run the campus day to day but are not trusted with
+    # the school's money. iCreate asked for this on 2026-08-01: "we don't want
+    # the cc's to have access to all the financial stuff". Org-only -- there is
+    # no platform-level campus coordinator, so it is deliberately absent from
+    # UserRole and can never appear in users.role.
+    CAMPUS_COORDINATOR = 'campus_coordinator'
 
 # Role hierarchy for privilege checking
 ROLE_HIERARCHY = {
@@ -52,6 +58,7 @@ ROLE_DISPLAY_NAMES = {
     UserRole.ADVISOR.value: 'Teacher',
     UserRole.OBSERVER.value: 'Observer',
     UserRole.ORG_ADMIN.value: 'Organization Admin',
+    OrgRole.CAMPUS_COORDINATOR.value: 'Campus Coordinator',
     UserRole.ORG_MANAGED.value: 'Organization Managed',
     UserRole.SUPERADMIN.value: 'Super Admin'
 }
@@ -63,6 +70,10 @@ ROLE_DESCRIPTIONS = {
     UserRole.ADVISOR.value: 'Can manage student groups and view progress within their organization',
     UserRole.OBSERVER.value: 'View-only access to linked students, can comment on student work',
     UserRole.ORG_ADMIN.value: 'Organization-level admin with access to org management tools',
+    OrgRole.CAMPUS_COORDINATOR.value: (
+        'Runs the campus day to day: people, classes, registration, attendance '
+        'and paperwork. No access to billing, timesheets, payroll, or pay rates.'
+    ),
     UserRole.ORG_MANAGED.value: 'Role is controlled by the user\'s organization',
     UserRole.SUPERADMIN.value: 'Full system access to all organizations and features'
 }

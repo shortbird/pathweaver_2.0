@@ -14,12 +14,11 @@ from utils.logger import get_logger
 from services import sis_service
 from services import sis_engagement_service as engagement
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_engagement', __name__, url_prefix='/api/sis')
-
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 
 
 def _org_or_error(user_id):

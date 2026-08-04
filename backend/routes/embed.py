@@ -126,7 +126,7 @@ def _public_class(c):
 
 def _public_classes(org_id):
     """All active, non-archived classes for the org as public catalog dicts."""
-    classes = catalog.list_classes(org_id, include_archived=False)
+    classes = catalog.list_classes(org_id, include_archived=False, audience='family')
     return [_public_class(c) for c in classes]
 
 

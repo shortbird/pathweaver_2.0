@@ -28,12 +28,12 @@ from utils.logger import get_logger
 from utils.validation import sanitize_input
 from services import sis_service
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_student_records', __name__, url_prefix='/api/sis')
 
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 
 DEFAULT_ASSESSMENT_FIELDS = [
     {'key': 'math_cle', 'label': 'Math CLE Book'},

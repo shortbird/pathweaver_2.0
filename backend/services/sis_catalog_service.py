@@ -61,7 +61,23 @@ def _instructors_by_id(instructor_ids: List[str]) -> Dict[str, Dict[str, Any]]:
             for u in rows}
 
 
-def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
+def _visible_assistants(cls: Dict[str, Any], people: Dict[str, Any],
+                        audience: str) -> List[Dict[str, Any]]:
+    """The assistant teachers this audience is allowed to see.
+
+    Staff always see every assistant — the office needs to know who is assigned
+    whatever the class says. Families see them only when the class opts in, per
+    iCreate's ask on 2026-08-04 for "a toggle to show the assistant or not"
+    (an aide, a parent volunteer, or a still-undecided hire shouldn't be
+    published on the catalog).
+    """
+    if audience != 'staff' and not cls.get('show_assistants', True):
+        return []
+    return [people[a] for a in (cls.get('assistant_instructor_ids') or []) if a in people]
+
+
+def list_classes(org_id: str, include_archived: bool = False,
+                 audience: str = 'staff') -> List[Dict[str, Any]]:
     repo = _classes_repo()
     classes = repo.list_for_org(org_id, include_archived=include_archived)
     if not classes:
@@ -95,12 +111,13 @@ def list_classes(org_id: str, include_archived: bool = False) -> List[Dict[str, 
             'is_full': is_full(cap, enrolled),
             'meetings': meetings_by_class.get(c['id'], []),
             'primary_instructor': instructors.get(c.get('primary_instructor_id')),
-            'assistant_instructors': [instructors[a] for a in (c.get('assistant_instructor_ids') or []) if a in instructors],
+            'assistant_instructors': _visible_assistants(c, instructors, audience),
         })
     return out
 
 
-def get_class_detail(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
+def get_class_detail(org_id: str, class_id: str,
+                     audience: str = 'staff') -> Optional[Dict[str, Any]]:
     repo = _classes_repo()
     cls = repo.find_by_id(class_id)
     if not cls or cls.get('organization_id') != org_id:
@@ -115,7 +132,7 @@ def get_class_detail(org_id: str, class_id: str) -> Optional[Dict[str, Any]]:
     all_ids = [cls.get('primary_instructor_id')] + list(cls.get('assistant_instructor_ids') or [])
     people = _instructors_by_id(all_ids)
     cls['primary_instructor'] = people.get(cls.get('primary_instructor_id'))
-    cls['assistant_instructors'] = [people[a] for a in (cls.get('assistant_instructor_ids') or []) if a in people]
+    cls['assistant_instructors'] = _visible_assistants(cls, people, audience)
     return cls
 
 

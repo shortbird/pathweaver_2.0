@@ -25,12 +25,12 @@ from utils.logger import get_logger
 from utils.validation import sanitize_input
 from services import sis_service
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_goals', __name__, url_prefix='/api/sis/goals')
 
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
 
 DEFAULT_SUBJECTS = ['Math', 'Language Arts', 'Science', 'History', 'Life Skills']
 

@@ -15,13 +15,12 @@ from services import sis_registration_service as regs
 from services import sis_exception_service as exceptions
 from services import sis_enrollment_waitlist_service as enrollment_waitlist
 from services import sis_schedule_submission_service as submissions
+# Admin tier: this whole module is org management, not teacher-facing.
+from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_registration', __name__, url_prefix='/api/sis')
-
-# Admin tier: this whole module is org management, not teacher-facing.
-STAFF_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):

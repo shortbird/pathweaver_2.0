@@ -23,13 +23,11 @@ from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
 from database import get_supabase_admin_client
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_staff_training', __name__, url_prefix='/api/sis')
-
-STAFF_ROLES = ('org_admin', 'advisor', 'superadmin')
-ADMIN_ROLES = ('org_admin', 'superadmin')
 
 
 def _admin():

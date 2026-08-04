@@ -18,13 +18,13 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
+from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_secure_documents', __name__, url_prefix='/api/sis')
 
 # Sensitive-document store is org-management, not teacher-facing.
-STAFF_ROLES = ('org_admin', 'superadmin')
 
 _SECURE_DOCS_BUCKET = 'sis-secure-documents'  # PRIVATE bucket
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}

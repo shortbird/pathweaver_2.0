@@ -206,6 +206,7 @@ const ClassesPage = () => {
         location: c.location ?? null,
         primary_instructor_id: c.primary_instructor_id ?? null,
         assistant_instructor_ids: c.assistant_instructor_ids ?? [],
+        show_assistants: c.show_assistants !== false,
         capacity: c.capacity ?? null,
         price_cents: c.price_cents ?? null,
         supply_fee: c.supply_fee ?? null,

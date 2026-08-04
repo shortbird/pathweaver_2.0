@@ -22,13 +22,12 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_reports_service as reports
+# Admin tier: this whole module is org management, not teacher-facing.
+from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_reports', __name__, url_prefix='/api/sis')
-
-# Admin tier: this whole module is org management, not teacher-facing.
-STAFF_ROLES = ('org_admin', 'superadmin')
 
 
 def _org_or_error(user_id):

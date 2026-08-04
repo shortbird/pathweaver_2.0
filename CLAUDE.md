@@ -42,17 +42,44 @@ Users fall into two categories:
 
 **Use `get_effective_role(user)` to get the actual role** - this handles org_managed users automatically.
 
-### Valid Roles (6 total)
+### Valid Roles (7 total)
 | Role | Access Level |
 |------|-------------|
 | `superadmin` | Full access to everything (only tannerbowman@gmail.com) |
 | `org_admin` | Organization admin tools only |
+| `campus_coordinator` | **Org-only.** Everything `org_admin` has, minus the money — see below |
 | `advisor` | Advisor access (org-specific or platform) |
 | `parent` | Parent access (org-specific or platform) |
 | `student` | Student access (org-specific or platform) |
 | `observer` | View-only access to linked students, can comment on student work |
 
 **INVALID roles** (do NOT use): `admin`, `teacher`, `educator`, `school_admin`
+
+#### Campus coordinator (added 2026-08-04)
+
+`campus_coordinator` is an **org role only** — it is in `OrgRole` but deliberately
+NOT in `UserRole`, so it can never appear in `users.role`. It exists because
+iCreate needed front-office staff who run the campus without seeing the school's
+finances.
+
+The SIS access tiers now live in one place, [backend/utils/sis_roles.py](backend/utils/sis_roles.py)
+— **use these, don't re-declare a role tuple in a route module**:
+
+| Tier | Who | Use for |
+|------|-----|---------|
+| `STAFF_ROLES` | admin + coordinator + advisor + superadmin | Anything staff touch (class-scoped downstream for teachers) |
+| `ADMIN_ROLES` | admin + coordinator + superadmin | The front office: people, classes, registration, attendance, paperwork |
+| `FINANCE_ROLES` | admin + superadmin | **The money**: billing, tuition, Stripe, timesheets, payroll |
+
+Rules when adding SIS routes or fields:
+- Reach for `ADMIN_ROLES` by default. Use `FINANCE_ROLES` **only** for money.
+- `caller_is_admin()` is True for a coordinator — the restriction is financial,
+  not scope-based. Use `sis_service.caller_sees_pay(user_id)` for the money check.
+- Pay data on an otherwise-operational record is **redacted per-field**, not
+  hidden by withholding the endpoint (see `sis_staff_service.PAY_FIELDS` /
+  `redact_pay`). Adding a new pay column? Add it to `PAY_FIELDS` or it leaks.
+- Frontend mirrors this in [sisRole.js](frontend/src/pages/sis/sisRole.js):
+  `isSisAdmin` (chrome), `canSeeFinance` (money). Chrome only — the backend is the gate.
 
 ---
 
