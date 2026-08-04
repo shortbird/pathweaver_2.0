@@ -75,7 +75,7 @@ def _norm_pillar(value):
 def _load_org_class(admin, class_id):
     rows = (
         admin.table('org_classes')
-        .select('id, organization_id, name, primary_instructor_id, status')
+        .select('id, organization_id, name, primary_instructor_id, assistant_instructor_ids, status')
         .eq('id', class_id).limit(1).execute()
     ).data or []
     return rows[0] if rows else None
@@ -86,6 +86,13 @@ def _is_moderator(user_id, class_row, admin):
     if sis_service.caller_is_admin(user_id):
         return sis_service.resolve_org_id(user_id, org_id) == org_id
     if class_row.get('primary_instructor_id') == user_id:
+        return True
+    # A named assistant counts. They already see the class in their portal
+    # (sis_service.advisor_class_ids), so leaving them out here would render
+    # them a Quests tab where every button 403s. iCreate on the assistant role,
+    # 2026-08-04: "We may not need them to have all access to what the main
+    # teacher has (but for now we can)."
+    if user_id in (class_row.get('assistant_instructor_ids') or []):
         return True
     co_teacher = (
         admin.table('class_advisors').select('id')
@@ -266,6 +273,172 @@ def assign_quest(user_id, class_id):
         'added_by': user_id, 'sequence_order': next_order,
     }, on_conflict='class_id,quest_id').execute()
     return jsonify({'success': True})
+
+
+# ── The curriculum round trip ─────────────────────────────────────────────────
+# iCreate, 2026-07-31: "I like the idea of quests in here, but I'm wondering if
+# we can add the ability to add an in-house course that is tied to the
+# curriculum. That way we don't have to start anew with the quests every year?
+# And maybe some teachers want to fill it in in advance."
+#
+# class_quests hangs off a SECTION (this year's Tuesday 10:30 Reading Workshop).
+# sis_curriculum is the durable object — it already outlives the timetable and
+# already backs four sections at once. So the reusable set lives there, and a
+# section copies from it. Two directions, both explicit:
+#
+#   from-curriculum  seed this section from the saved set (start of a year)
+#   to-curriculum    save this section's set back (end of one, or a teacher
+#                    building next year's in advance)
+#
+# Copy, not a live view: a section's quests carry its own publish_at/due_date and
+# get individually removed, and a live union would silently change what enrolled
+# students see the moment someone edited a curriculum mid-semester.
+
+
+def _linked_curricula(admin, class_id):
+    """The curriculum entries attached to this class, active ones only."""
+    links = (admin.table('sis_curriculum_classes').select('curriculum_id')
+             .eq('class_id', class_id).execute()).data or []
+    ids = [l['curriculum_id'] for l in links]
+    if not ids:
+        return []
+    return (admin.table('sis_curriculum').select('id, title, is_active')
+            .in_('id', ids).eq('is_active', True).order('title').execute()).data or []
+
+
+def _assignable(admin, quest_ids, org_id):
+    """Of `quest_ids`, the ones this org may actually assign — its own, plus the
+    public Optio library. A curriculum can outlive a quest (deleted, archived, or
+    a school-owned quest whose org changed), so the set is re-checked on every
+    copy rather than trusted from when it was saved."""
+    if not quest_ids:
+        return []
+    rows = (admin.table('quests')
+            .select('id, organization_id, is_public, is_active')
+            .in_('id', list(quest_ids)).execute()).data or []
+    ok = set()
+    for q in rows:
+        if q.get('is_active') is False:
+            continue
+        if q.get('organization_id') == org_id or (
+                q.get('organization_id') is None and q.get('is_public')):
+            ok.add(q['id'])
+    return [qid for qid in quest_ids if qid in ok]
+
+
+@bp.route('/classes/<class_id>/curriculum-quests', methods=['GET'])
+@require_auth
+def class_curriculum_quests(user_id, class_id):
+    """What this class could inherit: each linked curriculum's saved quest set,
+    with the ones already on the class marked, so the UI can say "3 of 5 not
+    added yet" instead of offering a no-op button."""
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    curricula = _linked_curricula(admin, class_id)
+    if not curricula:
+        return jsonify({'success': True, 'curricula': []})
+
+    saved = (admin.table('sis_curriculum_quests')
+             .select('curriculum_id, quest_id, sequence_order, quests(id, title)')
+             .in_('curriculum_id', [c['id'] for c in curricula])
+             .order('sequence_order').execute()).data or []
+    on_class = {r['quest_id'] for r in (
+        admin.table('class_quests').select('quest_id')
+        .eq('class_id', class_row['id']).execute()).data or []}
+
+    by_curriculum = {}
+    for r in saved:
+        q = r.get('quests') or {}
+        by_curriculum.setdefault(r['curriculum_id'], []).append({
+            'quest_id': r['quest_id'],
+            'title': q.get('title'),
+            'already_on_class': r['quest_id'] in on_class,
+        })
+    out = []
+    for c in curricula:
+        quests = by_curriculum.get(c['id'], [])
+        out.append({
+            'curriculum_id': c['id'], 'title': c.get('title'),
+            'quests': quests,
+            'missing_count': sum(1 for q in quests if not q['already_on_class']),
+        })
+    return jsonify({'success': True, 'curricula': out})
+
+
+@bp.route('/classes/<class_id>/quests/from-curriculum', methods=['POST'])
+@require_auth
+def copy_quests_from_curriculum(user_id, class_id):
+    """Seed this class from a linked curriculum's saved quest set.
+
+    Additive and idempotent: quests already on the class are left exactly as they
+    are, dates and all. Running it twice does nothing the second time.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    curriculum_id = (data.get('curriculum_id') or '').strip()
+    if _bad_uuid(curriculum_id):
+        return jsonify({'success': False, 'error': 'Invalid curriculum id'}), 400
+    # Must be attached to THIS class — otherwise any teacher could pull any
+    # curriculum in the org into their section.
+    if curriculum_id not in {c['id'] for c in _linked_curricula(admin, class_id)}:
+        return jsonify({'success': False,
+                        'error': 'That curriculum is not attached to this class.'}), 404
+
+    saved = (admin.table('sis_curriculum_quests').select('quest_id, sequence_order')
+             .eq('curriculum_id', curriculum_id).order('sequence_order').execute()).data or []
+    wanted = _assignable(admin, [r['quest_id'] for r in saved],
+                         class_row['organization_id'])
+    existing = (admin.table('class_quests').select('quest_id, sequence_order')
+                .eq('class_id', class_row['id']).execute()).data or []
+    have = {r['quest_id'] for r in existing}
+    next_order = max([r.get('sequence_order') or 0 for r in existing], default=-1) + 1
+
+    rows = []
+    for qid in wanted:
+        if qid in have:
+            continue
+        rows.append({'class_id': class_row['id'], 'quest_id': qid,
+                     'added_by': user_id, 'sequence_order': next_order})
+        next_order += 1
+    if rows:
+        admin.table('class_quests').upsert(
+            rows, on_conflict='class_id,quest_id').execute()
+    return jsonify({'success': True, 'added': len(rows),
+                    'skipped_already_present': len(wanted) - len(rows),
+                    'skipped_unavailable': len(saved) - len(wanted)})
+
+
+@bp.route('/classes/<class_id>/quests/to-curriculum', methods=['POST'])
+@require_auth
+def save_quests_to_curriculum(user_id, class_id):
+    """Save this class's current quest list onto a linked curriculum, so next
+    year's section can start from it. Replaces the curriculum's set — the class
+    in front of you is the statement of what the curriculum should be."""
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    curriculum_id = (data.get('curriculum_id') or '').strip()
+    if _bad_uuid(curriculum_id):
+        return jsonify({'success': False, 'error': 'Invalid curriculum id'}), 400
+    if curriculum_id not in {c['id'] for c in _linked_curricula(admin, class_id)}:
+        return jsonify({'success': False,
+                        'error': 'That curriculum is not attached to this class.'}), 404
+
+    current = (admin.table('class_quests').select('quest_id, sequence_order')
+               .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
+    admin.table('sis_curriculum_quests').delete() \
+        .eq('curriculum_id', curriculum_id).execute()
+    rows = [{'curriculum_id': curriculum_id, 'quest_id': r['quest_id'],
+             'sequence_order': i, 'added_by': user_id}
+            for i, r in enumerate(current)]
+    if rows:
+        admin.table('sis_curriculum_quests').upsert(
+            rows, on_conflict='curriculum_id,quest_id').execute()
+    return jsonify({'success': True, 'saved': len(rows)})
 
 
 @bp.route('/classes/<class_id>/quests/<quest_id>', methods=['DELETE'])

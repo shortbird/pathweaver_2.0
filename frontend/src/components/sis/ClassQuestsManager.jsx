@@ -188,12 +188,21 @@ export default function ClassQuestsManager({ classId }) {
   const [newDesc, setNewDesc] = useState('')
   const [newTasks, setNewTasks] = useState([blankTask()])
   const [creating, setCreating] = useState(false)
+  // Curriculum attached to this class, each with its saved quest set.
+  const [curricula, setCurricula] = useState([])
+  const [syncing, setSyncing] = useState(null) // curriculum id mid-copy/save
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await api.get(`/api/sis/classes/${classId}/quests`)
-      setQuests(data?.quests || [])
+      const [q, c] = await Promise.all([
+        api.get(`/api/sis/classes/${classId}/quests`),
+        // Never fatal: a class with no curriculum attached simply has nothing
+        // to inherit, and that must not break the quest list.
+        api.get(`/api/sis/classes/${classId}/curriculum-quests`).catch(() => ({ data: {} })),
+      ])
+      setQuests(q.data?.quests || [])
+      setCurricula(c.data?.curricula || [])
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not load class quests')
     } finally {
@@ -220,6 +229,47 @@ export default function ClassQuestsManager({ classId }) {
     const t = setTimeout(() => loadAvailable(search), 250)
     return () => clearTimeout(t)
   }, [mode, search, loadAvailable])
+
+  // Seed this section from a curriculum's saved set. Additive — quests already
+  // here keep their dates.
+  const copyFromCurriculum = async (c) => {
+    setSyncing(c.curriculum_id)
+    try {
+      const { data } = await api.post(`/api/sis/classes/${classId}/quests/from-curriculum`,
+        { curriculum_id: c.curriculum_id })
+      const n = data?.added || 0
+      toast.success(n ? `Added ${n} quest${n === 1 ? '' : 's'} from ${c.title}`
+        : 'Everything from that curriculum is already on this class')
+      if (data?.skipped_unavailable) {
+        toast(`${data.skipped_unavailable} saved quest${data.skipped_unavailable === 1 ? ' is' : 's are'} no longer available`)
+      }
+      await load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not add the curriculum quests')
+    } finally {
+      setSyncing(null)
+    }
+  }
+
+  // Save this section's list back, so next year's section starts from it.
+  const saveToCurriculum = async (c) => {
+    if (!window.confirm(
+      `Save this class's ${quests.length} quest${quests.length === 1 ? '' : 's'} to "${c.title}"?\n\n`
+      + 'This replaces the curriculum\'s saved set. Classes that already copied from it keep what they have — '
+      + 'the change applies next time a class is set up from this curriculum.'
+    )) return
+    setSyncing(c.curriculum_id)
+    try {
+      const { data } = await api.post(`/api/sis/classes/${classId}/quests/to-curriculum`,
+        { curriculum_id: c.curriculum_id })
+      toast.success(`Saved ${data?.saved ?? 0} quest${data?.saved === 1 ? '' : 's'} to ${c.title}`)
+      await load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save to the curriculum')
+    } finally {
+      setSyncing(null)
+    }
+  }
 
   const assignExisting = async (questId) => {
     try {
@@ -305,6 +355,41 @@ export default function ClassQuestsManager({ classId }) {
           </button>
         )}
       </div>
+
+      {/* The curriculum round trip. Only rendered when a curriculum is actually
+          attached — the point is to make the reusable set obvious where the
+          teacher is already working, not to add a permanent empty panel. */}
+      {curricula.map((c) => (
+        <div key={c.curriculum_id}
+          className="rounded-xl border border-optio-purple/20 bg-optio-purple/5 p-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <AcademicCapIcon className="w-5 h-5 text-optio-purple shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-neutral-900 truncate">{c.title}</p>
+            <p className="text-xs text-neutral-500">
+              {c.quests.length === 0
+                ? 'No quests saved to this curriculum yet — save this class\u2019s list to reuse it next year.'
+                : c.missing_count > 0
+                  ? `${c.missing_count} of ${c.quests.length} saved quest${c.quests.length === 1 ? '' : 's'} not on this class yet`
+                  : `All ${c.quests.length} saved quest${c.quests.length === 1 ? '' : 's'} are on this class`}
+            </p>
+          </div>
+          {c.missing_count > 0 && (
+            <button type="button" disabled={syncing === c.curriculum_id}
+              onClick={() => copyFromCurriculum(c)}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-optio-purple/40 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 disabled:opacity-50">
+              {syncing === c.curriculum_id ? 'Adding\u2026' : `Add ${c.missing_count} to this class`}
+            </button>
+          )}
+          {quests.length > 0 && (
+            <button type="button" disabled={syncing === c.curriculum_id}
+              onClick={() => saveToCurriculum(c)}
+              title="Replaces the curriculum's saved set with this class's quests"
+              className="shrink-0 text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
+              {syncing === c.curriculum_id ? '\u2026' : 'Save this class\u2019s quests to the curriculum'}
+            </button>
+          )}
+        </div>
+      ))}
 
       {/* Assign panel */}
       {mode && (
