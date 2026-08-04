@@ -131,7 +131,7 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
                 onChange={(id) => setPicks((p) => ({ ...p, [s.id]: id }))}
                 options={households}
                 getId={(h) => h.id}
-                getLabel={(h) => h.name}
+                getLabel={(h) => h.display_name || h.name}
                 placeholder="Search families…"
                 className="w-56"
               />
@@ -156,7 +156,7 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
           placeholder="student@example.com" className={`${field} w-56`} />
         <SearchSelect value={emailPick} onChange={setEmailPick} options={households}
-          getId={(h) => h.id} getLabel={(h) => h.name} placeholder="Search families…" className="w-56" />
+          getId={(h) => h.id} getLabel={(h) => h.display_name || h.name} placeholder="Search families…" className="w-56" />
         <Button size="sm" variant="outline" disabled={busy === 'email' || !email.trim()}
           onClick={() => add('email', emailPick, { email: email.trim() })}>
           {busy === 'email' ? '…' : 'Connect'}
@@ -323,7 +323,7 @@ const HouseholdsPage = ({ embedded = false }) => {
               </div>
               <div className="p-4">
                 <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="font-semibold text-neutral-900 truncate">{h.name}</h3>
+                  <h3 className="font-semibold text-neutral-900 truncate">{h.display_name || h.name}</h3>
                   {h.registration_hold && (
                     <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700 flex-shrink-0"
                       title={h.registration_hold_reason || 'Registration on hold'}>Hold</span>

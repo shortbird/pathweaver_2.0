@@ -9,6 +9,7 @@ import ClassDiscussion from '../../components/discussion/ClassDiscussion'
 import ClassCurriculum from '../../components/discussion/ClassCurriculum'
 import ClassCurriculumLibrary from '../../components/sis/ClassCurriculumLibrary'
 import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
+import PersonPhoto from '../../components/sis/PersonPhoto'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -235,7 +236,10 @@ const TeacherClassPage = () => {
                 {students.map((s) => (
                   <div key={s.student_id} className={`rounded-lg border px-3 py-3 transition-colors ${CARD[markOf(s.student_id)]}`}>
                     <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0">
+                      {/* Photo first — the teacher's ask was to recognise the
+                          class, and a name alone doesn't do that. Tap to enlarge. */}
+                      <PersonPhoto src={s.avatar_url} name={s.name} size="w-10 h-10" textSize="text-xs" />
+                      <span className="min-w-0 mr-auto">
                         <span className="block text-sm font-medium text-neutral-800 truncate">
                           {s.name}
                           {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}

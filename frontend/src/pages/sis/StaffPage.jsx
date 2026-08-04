@@ -12,9 +12,8 @@ import TeacherModal from '../../components/sis/TeacherModal'
 import LinkStaffAccountModal from '../../components/sis/LinkStaffAccountModal'
 import StaffProfileModal from '../../components/sis/StaffProfileModal'
 import StaffDetailModal from '../../components/sis/StaffDetailModal'
+import PersonPhoto from '../../components/sis/PersonPhoto'
 import { setPreviewTeacher } from './teacherPreview'
-
-const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
 const fmtDate = (d) => {
   if (!d) return null
@@ -298,13 +297,8 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
             >
               {/* Avatar hero */}
               <div className="h-24 w-full bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 flex items-center justify-center">
-                {s.avatar_url ? (
-                  <img src={s.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-white shadow" />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-xl font-semibold">
-                    {initials(s.name)}
-                  </div>
-                )}
+                <PersonPhoto src={s.avatar_url} name={s.name} size="w-16 h-16" textSize="text-xl"
+                  className="border-2 border-white shadow" />
               </div>
 
               {/* Body */}

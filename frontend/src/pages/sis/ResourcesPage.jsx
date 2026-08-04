@@ -6,6 +6,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
+import BackToDashboard from '../../components/sis/BackToDashboard'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -84,16 +85,24 @@ const ResourcesPage = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Resources</h1>
+        <div>
+          <BackToDashboard className="mb-1" />
+          <h1 className="text-2xl font-bold text-neutral-900">Resources</h1>
+        </div>
         <div className="flex items-center gap-3">
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           {admin && !adding && <Button size="sm" onClick={() => setAdding(true)}>Add resource</Button>}
         </div>
       </div>
 
+      {/* Who this page is for. iCreate asked "are teachers adding resources for
+          their students here? Might this get too large?" — the answer is no, and
+          the copy has to say so, because the page name doesn't. */}
       <p className="text-sm text-neutral-500 mb-5 max-w-2xl">
-        Documents and links your families can refer back to any time — the family guidebook, student
+        School-wide documents and links every family can refer back to — the family guidebook, student
         contract, calendars, forms. Families find these under "Resources" in their app.
+        {' '}Material for one class goes on that class's <span className="font-medium text-neutral-600">Curriculum</span> tab
+        instead, so this list stays short and stays school-wide.
       </p>
 
       {(adding || editing) && (

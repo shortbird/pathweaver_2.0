@@ -323,7 +323,7 @@ const AddChargeModal = ({ orgId, households, onClose, onSaved }) => {
           <SearchSelect
             value={householdId}
             onChange={(id) => { setHouseholdId(id); setStudentId('') }}
-            options={households} getId={(h) => h.id} getLabel={(h) => h.name || 'Unnamed family'}
+            options={households} getId={(h) => h.id} getLabel={(h) => h.display_name || h.name || 'Unnamed family'}
             placeholder="Search families…"
           />
         </div>

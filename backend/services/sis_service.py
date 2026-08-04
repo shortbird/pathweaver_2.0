@@ -619,18 +619,37 @@ def caller_is_admin(user_id: str) -> bool:
 
 
 def advisor_class_ids(user_id: str, org_id: str) -> List[str]:
-    """Class ids this advisor teaches: primary instructor or active class_advisors row."""
+    """Class ids this advisor teaches: primary instructor, named assistant, or
+    active class_advisors row.
+
+    Assistants used to be missing here, which made "Assistant teacher(s)" on the
+    class form a label and nothing more: the assistant was listed in the catalog
+    but the class never reached their portal — not My Classes, not their weekly
+    schedule, not the roster. iCreate asked for exactly that on 2026-08-04
+    ("we would want to be able to add that class to their schedule in the teacher
+    portal"). Class scope keys off this function too, so an assistant now also
+    gets roster/attendance access for their own classes and nothing else.
+    """
     admin = _admin()
     primary = (
         admin.table('org_classes').select('id')
         .eq('organization_id', org_id).eq('primary_instructor_id', user_id)
         .execute()
     ).data or []
+    assisting = (
+        admin.table('org_classes').select('id')
+        .eq('organization_id', org_id).contains('assistant_instructor_ids', [user_id])
+        .execute()
+    ).data or []
     extra = (
         admin.table('class_advisors').select('class_id')
         .eq('advisor_id', user_id).eq('is_active', True).execute()
     ).data or []
-    return list(dict.fromkeys([r['id'] for r in primary] + [r['class_id'] for r in extra]))
+    return list(dict.fromkeys(
+        [r['id'] for r in primary]
+        + [r['id'] for r in assisting]
+        + [r['class_id'] for r in extra]
+    ))
 
 
 def class_scope(user_id: str, org_id: str) -> Optional[List[str]]:
@@ -1495,6 +1514,40 @@ def message_student(org_id: str, student_id: str, sender_id: str, subject: str, 
     return {'conversation_id': msg.get('conversation_id')}
 
 
+def _disambiguate_household_names(households: List[Dict[str, Any]]) -> None:
+    """Set `display_name` on each household, in place.
+
+    Households are auto-named "<Last> Family" at registration, so two unrelated
+    Scotts both read "Scott Family". iCreate hit the consequence on 2026-08-04:
+    "When we have two families with the same last name, we need to have them
+    identified differently... It caused some issues where the wrong kids were
+    connected to the wrong parent!" — the family picker showed two identical
+    options and staff picked the wrong one.
+
+    Only collisions get a suffix, so the common case stays clean. The suffix is
+    whatever actually tells them apart: the guardians' first names first (that's
+    how a school says it out loud — "Scott Family (Dan & Marie)"), then the city,
+    then the street. If nothing distinguishes them, the name is left alone rather
+    than decorated with something meaningless.
+    """
+    by_name: Dict[str, List[Dict[str, Any]]] = {}
+    for h in households:
+        by_name.setdefault((h.get('name') or '').strip().lower(), []).append(h)
+
+    for name_key, group in by_name.items():
+        if len(group) < 2 or not name_key:
+            for h in group:
+                h['display_name'] = h.get('name')
+            continue
+        for h in group:
+            guardians = [m for m in (h.get('members') or [])
+                         if m.get('relationship') == 'guardian' and m.get('name')]
+            guardians.sort(key=lambda m: (not m.get('is_primary_guardian'), m.get('name') or ''))
+            firsts = [(g['name'].split() or [''])[0] for g in guardians[:2]]
+            hint = ' & '.join([f for f in firsts if f]) or h.get('city') or h.get('address_line1')
+            h['display_name'] = f"{h.get('name')} ({hint})" if hint else h.get('name')
+
+
 def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     from repositories.household_repository import HouseholdRepository
     repo = HouseholdRepository(client=_admin())
@@ -1544,6 +1597,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
         for m in h['members']:
             for k in ('first_name', 'last_name', 'date_of_birth'):
                 m.pop(k, None)
+    _disambiguate_household_names(households)
     return households
 
 

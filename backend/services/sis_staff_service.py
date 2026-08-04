@@ -161,7 +161,8 @@ def _classes_by_ids(org_id: str, class_ids: List[str]) -> List[Dict[str, Any]]:
         return []
     return (
         _admin().table('org_classes')
-        .select('id, name, description, location, capacity, status, image_url')
+        .select('id, name, description, location, capacity, status, image_url, '
+                'primary_instructor_id, assistant_instructor_ids')
         .eq('organization_id', org_id).in_('id', class_ids)
         .neq('status', 'archived').execute()
     ).data or []
@@ -207,6 +208,12 @@ def teacher_classes(user_id: str, org_id: str) -> List[Dict[str, Any]]:
                                        key=lambda m: (m.get('day_of_week') is None,
                                                       m.get('day_of_week') or 0,
                                                       m.get('start_time') or '')),
+                    # Assistants see the class in their portal, but shouldn't
+                    # mistake it for one they lead.
+                    'my_role': ('assistant'
+                                if c.get('primary_instructor_id') != user_id
+                                and user_id in (c.get('assistant_instructor_ids') or [])
+                                else 'teacher'),
                     'enrolled_count': counts.get(c['id'], 0)})
     out.sort(key=lambda c: (c.get('name') or '').lower())
     return out
@@ -707,6 +714,10 @@ def staff_removal_preview(org_id: str, staff_id: str) -> Dict[str, Any]:
     classes = (_admin().table('org_classes').select('id, name')
                .eq('organization_id', org_id).eq('primary_instructor_id', staff_id)
                .execute()).data or []
+    assisting = (_admin().table('org_classes').select('id, name, assistant_instructor_ids')
+                 .eq('organization_id', org_id)
+                 .contains('assistant_instructor_ids', [staff_id])
+                 .execute()).data or []
     # Anything except the class assignment is history we must not orphan;
     # classes alone can be unassigned cleanly ("Teacher TBD").
     blocking = {k: v for k, v in history.items() if k != 'classes' and v}
@@ -714,10 +725,26 @@ def staff_removal_preview(org_id: str, staff_id: str) -> Dict[str, Any]:
         'staff': {'id': staff_id, 'name': staff['name'],
                   'is_placeholder': staff.get('is_placeholder')},
         'classes': [{'id': c['id'], 'name': c.get('name')} for c in classes],
+        # Classes where they are an assistant, not the teacher. Detached the same
+        # way — an assistant now carries portal access, so a stale id would leave
+        # a departed staff member listed on a class they no longer help with.
+        'assisting': [{'id': c['id'], 'name': c.get('name'),
+                       'assistant_instructor_ids': c.get('assistant_instructor_ids') or []}
+                      for c in assisting],
         'history': history,
         'can_delete': not blocking,
         'blocking': blocking,
     }
+
+
+def _detach_from_classes(preview: Dict[str, Any], staff_id: str) -> None:
+    """Clear a departing staff member off every class that names them."""
+    for c in preview.get('classes') or []:
+        _admin().table('org_classes').update({'primary_instructor_id': None}).eq('id', c['id']).execute()
+    for c in preview.get('assisting') or []:
+        remaining = [a for a in (c.get('assistant_instructor_ids') or []) if a != staff_id]
+        _admin().table('org_classes').update(
+            {'assistant_instructor_ids': remaining}).eq('id', c['id']).execute()
 
 
 def archive_staff(org_id: str, staff_id: str, actor_id: str) -> Dict[str, Any]:
@@ -732,8 +759,7 @@ def archive_staff(org_id: str, staff_id: str, actor_id: str) -> Dict[str, Any]:
     if preview.get('error'):
         return preview
     now = _now_iso()
-    for c in preview['classes']:
-        _admin().table('org_classes').update({'primary_instructor_id': None}).eq('id', c['id']).execute()
+    _detach_from_classes(preview, staff_id)
     existing = (_admin().table('sis_staff_profiles').select('id')
                 .eq('organization_id', org_id).eq('user_id', staff_id).limit(1).execute()).data
     payload = {'is_active': False, 'archived_at': now, 'archived_by': actor_id}
@@ -763,8 +789,7 @@ def delete_staff(org_id: str, staff_id: str) -> Dict[str, Any]:
                           f'({", ".join(sorted(preview["blocking"]))}). '
                           'Archive them instead — it hides them without losing history.'),
                 'blocking': preview['blocking']}
-    for c in preview['classes']:
-        _admin().table('org_classes').update({'primary_instructor_id': None}).eq('id', c['id']).execute()
+    _detach_from_classes(preview, staff_id)
     _admin().table('sis_staff_profiles').delete() \
         .eq('organization_id', org_id).eq('user_id', staff_id).execute()
     _admin().table('users').delete().eq('id', staff_id).eq('organization_id', org_id).execute()

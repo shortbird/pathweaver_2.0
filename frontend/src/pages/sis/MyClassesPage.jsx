@@ -105,7 +105,14 @@ const MyClassesPage = () => {
           {classes.map((c) => (
             <Link key={c.id} to={`/my-classes/${c.id}`}
               className="bg-white rounded-xl border border-gray-200 p-4 hover:border-optio-purple/50 transition-colors flex flex-col">
-              <h3 className="font-semibold text-neutral-900 truncate">{c.name}</h3>
+              <div className="flex items-start gap-2 min-w-0">
+                <h3 className="font-semibold text-neutral-900 truncate">{c.name}</h3>
+                {c.my_role === 'assistant' && (
+                  <span className="mt-0.5 flex-shrink-0 text-[11px] font-semibold rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">
+                    Assistant
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-neutral-500 mb-2">
                 {c.enrolled_count} student{c.enrolled_count === 1 ? '' : 's'}
                 {c.location ? ` · ${c.location}` : ''}

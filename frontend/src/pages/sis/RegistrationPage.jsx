@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -52,6 +53,21 @@ const RegistrationPage = () => {
         <p className="text-neutral-500">Organization not found.</p>
       ) : (
         <div className="grid gap-6">
+          {/* Where the funnel config went. iCreate came back here looking for
+              "the page where we entered in our links for people to go through
+              the registration process (like the tuition agreement)" and filed it
+              as a bug — the config moved to Settings and nothing said so. */}
+          <div className="rounded-xl border border-gray-200 bg-neutral-50 px-4 py-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm text-neutral-600">
+              Setting up the registration link, fees, or the paperwork families sign
+              (tuition agreement and friends)?
+            </span>
+            <Link to="/settings#registration" className="text-sm font-medium text-optio-purple hover:underline">
+              Settings → Registration &amp; enrollment
+            </Link>
+            <span className="text-sm text-neutral-500">— this page is the day-to-day queues.</span>
+          </div>
+
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
           <ScheduleApprovalsCard key={`subs-${orgId}`} orgId={orgId} />
           <AgeExceptionRequestsCard key={`aex-${orgId}`} orgId={orgId} />

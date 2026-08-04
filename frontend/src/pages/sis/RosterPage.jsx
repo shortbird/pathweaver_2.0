@@ -8,6 +8,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
+import PersonPhoto from '../../components/sis/PersonPhoto'
 import { RolePill } from '../../components/ui/RolePill'
 import { startMasquerade } from '../../services/masqueradeService'
 import { switchSurfaceInApp } from '../../utils/appSurface'
@@ -241,13 +242,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      {s.avatar_url ? (
-                        <img src={s.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                          {(s.name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')}
-                        </div>
-                      )}
+                      <PersonPhoto src={s.avatar_url} name={s.name} />
                       <div className="min-w-0">
                         <div className="font-medium text-neutral-900">{s.name}</div>
                         <div className="text-xs text-neutral-400 truncate">

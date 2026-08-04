@@ -6,6 +6,7 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { RolePill, PrimaryTag } from '../../components/ui/RolePill'
 import StudentDetailModal from './StudentDetailModal'
+import PersonPhoto from '../../components/sis/PersonPhoto'
 import { useSisOrg } from './useSisOrg'
 
 // Funding source options (school-of-record enrollment is tracked separately).
@@ -21,15 +22,8 @@ export const FUNDING_LABELS = {
   private_pay: 'Private Pay', other: 'Other',
 }
 
-const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 const Avatar = ({ name, src }) => (
-  src ? (
-    <img src={src} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-  ) : (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
-      {initials(name)}
-    </div>
-  )
+  <PersonPhoto src={src} name={name} size="w-8 h-8" textSize="text-[11px]" />
 )
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'

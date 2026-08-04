@@ -44,6 +44,15 @@ const SettingsPage = () => {
 
   useEffect(() => { fetchOrg() }, [fetchOrg])
 
+  // Deep link (/settings#registration, from the Registration page) — react-router
+  // doesn't restore hash targets, and the section only exists once the org has
+  // loaded, so scroll after the cards render.
+  useEffect(() => {
+    if (loading || !window.location.hash) return
+    const target = document.getElementById(window.location.hash.slice(1))
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loading])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -76,7 +85,9 @@ const SettingsPage = () => {
           {/* Registration & enrollment — how families register (funnel config,
               first day of school, waitlisted age groups). The enrollment queues
               themselves live on the Registration page. */}
-          <div className="pt-2">
+          {/* id: the Registration page links straight here — staff went looking
+              for the funnel config on /registration after it moved. */}
+          <div className="pt-2 scroll-mt-6" id="registration">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-3">
               Registration &amp; enrollment
             </h2>
