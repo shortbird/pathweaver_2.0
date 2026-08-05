@@ -684,8 +684,11 @@ def class_student_progress(user_id, class_id):
     } for r in assigned]
     quest_ids = [q['quest_id'] for q in quests]
 
+    # Active enrollments only. Without this filter a withdrawn student stayed on
+    # the progress grid forever, so this tab disagreed with the roster and the
+    # Messages tab about how many students are in the class.
     enrolled = (admin.table('class_enrollments').select('student_id')
-                .eq('class_id', class_row['id']).execute()).data or []
+                .eq('class_id', class_row['id']).eq('status', 'active').execute()).data or []
     student_ids = [e['student_id'] for e in enrolled if e.get('student_id')]
 
     if not student_ids:

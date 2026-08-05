@@ -75,6 +75,8 @@ const MyClassesPage = () => {
     return [...WEEKDAYS, ...extra.sort((a, b) => a - b)]
   }, [byDay])
 
+  const todayDow = new Date().getDay() // 0=Sun … 6=Sat, matches day_of_week
+
   return (
     <div>
       <BackToDashboard className="mb-1" />
@@ -118,9 +120,15 @@ const MyClassesPage = () => {
                 {c.location ? ` · ${c.location}` : ''}
               </p>
               <div className="mt-auto space-y-0.5">
-                {(c.meetings || []).slice(0, 4).map((m) => (
-                  <p key={m.id} className="text-xs text-neutral-500">{meetingLabel(m)}</p>
-                ))}
+                {(c.meetings || []).slice(0, 4).map((m) => {
+                  const isToday = !m.specific_date && m.day_of_week === todayDow
+                  return (
+                    <p key={m.id}
+                      className={`text-xs ${isToday ? 'text-optio-purple font-semibold' : 'text-neutral-500'}`}>
+                      {meetingLabel(m)}{isToday ? ' · today' : ''}
+                    </p>
+                  )
+                })}
               </div>
             </Link>
           ))}
@@ -131,8 +139,10 @@ const MyClassesPage = () => {
         <div className="bg-white rounded-xl border border-gray-200 p-4 overflow-x-auto">
           <div className="grid gap-3 min-w-[560px]" style={{ gridTemplateColumns: `repeat(${daysWithMeetings.length}, minmax(0, 1fr))` }}>
             {daysWithMeetings.map((d) => (
-              <div key={d} className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">{DAY_LABELS[d]}</div>
+              <div key={d} className={`min-w-0 rounded-lg ${d === todayDow ? 'bg-optio-purple/5 -mx-1 px-1 pb-1' : ''}`}>
+                <div className={`text-xs font-semibold uppercase tracking-wide mb-2 text-center ${d === todayDow ? 'text-optio-purple' : 'text-neutral-400'}`}>
+                  {DAY_LABELS[d]}{d === todayDow ? ' · Today' : ''}
+                </div>
                 <div className="space-y-2">
                   {(byDay[d] || []).map(({ cls, m }, i) => (
                     <button

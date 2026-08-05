@@ -153,7 +153,10 @@ const MessageInput = ({
         </div>
       )}
 
-      <div className="flex items-end space-x-2">
+      {/* One row: attach, write, send. The helper text sits UNDER the row — when
+          it lived inside the input column it stretched that column taller than
+          the buttons, and items-end left them visibly out of line. */}
+      <div className="flex items-end gap-2">
         {/* Attachment button */}
         <button
           type="button"
@@ -161,7 +164,7 @@ const MessageInput = ({
           disabled={disabled || uploading}
           title="Attach a file"
           aria-label="Attach a file"
-          className="p-3 text-gray-500 hover:text-optio-purple hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          className="h-10 w-10 flex items-center justify-center text-gray-500 hover:text-optio-purple hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
           <PaperClipIcon className="w-5 h-5" />
         </button>
@@ -175,37 +178,37 @@ const MessageInput = ({
           data-testid="message-file-input"
         />
 
-        <div className="flex-1">
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            className="w-full px-3.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
-            rows="1"
-            maxLength={2000}
-            style={{ minHeight: '38px', maxHeight: '120px' }}
-          />
-          {/* Quiet helper row: counter only when it matters; hint on larger screens */}
-          <div className="flex justify-between items-center mt-0.5 px-1">
-            <span className={`text-[11px] ${message.length > 1800 ? 'text-amber-600' : 'text-transparent'}`}>
-              {message.length}/2000
-            </span>
-            <span className="hidden sm:inline text-[11px] text-gray-300">
-              Enter to send
-            </span>
-          </div>
-        </div>
+        <textarea
+          ref={textareaRef}
+          value={message}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="flex-1 min-w-0 px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
+          rows="1"
+          maxLength={2000}
+          style={{ minHeight: '40px', maxHeight: '120px' }}
+        />
         <button
           type="submit"
           disabled={!canSend}
           aria-label="Send message"
-          className="bg-gradient-primary text-white p-3 rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          className="h-10 w-10 flex items-center justify-center bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
           <PaperAirplaneIcon className="w-5 h-5" />
         </button>
+      </div>
+
+      {/* Quiet helper line under the row: the counter only once it matters, and
+          the keyboard hint only where there is room for it. */}
+      <div className="flex justify-between items-center mt-1 px-1">
+        <span className={`text-[11px] ${message.length > 1800 ? 'text-amber-600' : 'text-transparent'}`}>
+          {message.length}/2000
+        </span>
+        <span className="hidden lg:inline text-[11px] text-gray-300">
+          Enter to send
+        </span>
       </div>
     </form>
   )

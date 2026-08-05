@@ -14,6 +14,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
+from services import class_membership_service as membership
 from services import sis_service
 from services import sis_staff_service as staff
 from services import sis_forms_service as forms
@@ -105,6 +106,103 @@ def class_roster(user_id, class_id):
                     'class': {'id': cls[0]['id'], 'name': cls[0]['name']},
                     'supply_budget': budget or None,
                     **data})
+
+
+@bp.route('/classes/<class_id>/messaging', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def class_messaging(user_id, class_id):
+    """Everything the class Messages tab needs: the class group chat and the
+    people a teacher can message one-to-one (students on the roster, plus any
+    co-teachers).
+
+    The group is synced from the roster on every call, so opening the tab both
+    creates the chat for a class that never had one and repairs membership after
+    an enrollment change. The caller is ensured into it as an admin — reading a
+    group requires membership, and staff who can reach this class administer
+    its chat.
+
+    Deliberately NOT the roster endpoint: this returns no health or guardian
+    data, so it does not belong in student_access_logs.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    scope = sis_service.class_scope(user_id, org_id)
+    if scope is not None and class_id not in scope:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+
+    admin = get_supabase_admin_client()
+    cls = (admin.table('org_classes')
+           .select('id, name, organization_id, primary_instructor_id, assistant_instructor_ids')
+           .eq('id', class_id).limit(1).execute()).data
+    if not cls or cls[0].get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    cls = cls[0]
+
+    from services.class_group_sync_service import sync_class_group
+    group_id = sync_class_group(class_id, actor_id=user_id)
+
+    if group_id:
+        me = (admin.table('group_members').select('id, role')
+              .eq('group_id', group_id).eq('user_id', user_id).limit(1).execute()).data
+        if not me:
+            admin.table('group_members').insert({
+                'group_id': group_id, 'user_id': user_id,
+                'role': 'admin', 'added_by': user_id,
+            }).execute()
+        elif me[0].get('role') != 'admin':
+            admin.table('group_members').update({'role': 'admin'}).eq('id', me[0]['id']).execute()
+
+    group = None
+    if group_id:
+        rows = (admin.table('group_conversations')
+                .select('id, name, announcement_only, last_message_at')
+                .eq('id', group_id).limit(1).execute()).data
+        group = rows[0] if rows else {'id': group_id, 'name': f"{cls.get('name')} Class Chat"}
+        group['source_class_id'] = class_id
+
+    student_ids = membership.class_student_ids(class_id)
+
+    # Co-teachers, and only for someone who actually teaches this class. An admin
+    # opening a teacher's class page is looking at that teacher's workspace, so
+    # listing its teacher there reads as "message yourself". The viewer is always
+    # excluded, and placeholder staff rows are too: they have no real login, so a
+    # DM to one is never read by anybody.
+    teacher_ids = set()
+    if user_id in membership.class_teacher_ids(class_id, class_row=cls):
+        teacher_ids = membership.class_teacher_ids(class_id, class_row=cls) - {user_id}
+
+    def _people(ids, relationship):
+        ids = [i for i in ids if i]
+        if not ids:
+            return []
+        out = []
+        for i in range(0, len(ids), 100):
+            rows = (admin.table('users')
+                    .select('id, email, first_name, last_name, display_name, preferred_name, avatar_url')
+                    .in_('id', ids[i:i + 100]).execute()).data or []
+            for u in rows:
+                if u['id'] == user_id or sis_service.is_placeholder_staff_email(u.get('email')):
+                    continue
+                name = (' '.join(filter(None, [u.get('first_name'), u.get('last_name')])).strip()
+                        or u.get('display_name') or 'Unknown')
+                out.append({
+                    'id': u['id'],
+                    'name': name,
+                    'preferred_name': u.get('preferred_name'),
+                    'avatar_url': u.get('avatar_url'),
+                    'relationship': relationship,
+                })
+        out.sort(key=lambda p: p['name'].lower())
+        return out
+
+    return jsonify({
+        'success': True,
+        'class': {'id': cls['id'], 'name': cls['name']},
+        'group': group,
+        'students': _people(student_ids, 'student'),
+        'teachers': _people(teacher_ids, 'teacher'),
+    })
 
 
 @bp.route('/schedule', methods=['GET'])

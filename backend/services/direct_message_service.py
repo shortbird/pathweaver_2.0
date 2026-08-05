@@ -101,6 +101,17 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Advisor-student assignment exists", file=sys.stderr, flush=True)
                 return True
 
+            # SIS class roster (bidirectional): a class's teacher and the students
+            # enrolled in it can message each other. SIS teachers are assigned on
+            # the class (primary/assistant instructor or class_advisors), not
+            # through advisor_student_assignments, so this is the check that makes
+            # teacher-student DMs work from the class Messages tab.
+            from services import class_membership_service as class_membership
+            if class_membership.shares_class(user_id, target_id) or \
+               class_membership.shares_class(target_id, user_id):
+                print(f"[can_message_user] ALLOWED: Shared class roster (teacher-student)", file=sys.stderr, flush=True)
+                return True
+
             # Friendship check removed (March 2026 - Feature pruning)
             # Students can no longer DM each other directly
 

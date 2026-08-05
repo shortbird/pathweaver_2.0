@@ -8,6 +8,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
+import CurriculumFields, { curriculumFieldsOf } from '../../components/sis/CurriculumFields'
 
 /**
  * CurriculumPage — the school's curriculum library.
@@ -22,21 +23,11 @@ import { isSisAdmin } from './sisRole'
  * class page; students never see it — that's what class materials are for.
  */
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
-
-const blankForm = () => ({
-  title: '', subject: '', description: '', drive_url: '', notes: '', class_ids: [],
-})
-
 const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel }) => {
   const [f, setF] = useState(() => (entry ? {
-    title: entry.title || '',
-    subject: entry.subject || '',
-    description: entry.description || '',
-    drive_url: entry.drive_url || '',
-    notes: entry.notes || '',
+    ...curriculumFieldsOf(entry),
     class_ids: (entry.classes || []).map((c) => c.class_id),
-  } : blankForm()))
+  } : { title: '', subject: '', description: '', drive_url: '', notes: '', class_ids: [] }))
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setF((prev) => ({ ...prev, [k]: v }))
 
@@ -78,18 +69,7 @@ const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel }) => {
 
   return (
     <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <input value={f.title} onChange={(e) => set('title', e.target.value)}
-          placeholder="Title (e.g. Reading Workshop)" className={inputClass} />
-        <input value={f.subject} onChange={(e) => set('subject', e.target.value)}
-          placeholder="Subject (optional — e.g. Language Arts)" className={inputClass} />
-      </div>
-      <input value={f.drive_url} onChange={(e) => set('drive_url', e.target.value)}
-        placeholder="Google Drive folder link (optional)" className={inputClass} />
-      <input value={f.description} onChange={(e) => set('description', e.target.value)}
-        placeholder="Short description teachers will see (optional)" className={inputClass} />
-      <textarea value={f.notes} onChange={(e) => set('notes', e.target.value)} rows={2}
-        placeholder="Staff notes (optional)" className={inputClass} />
+      <CurriculumFields f={f} set={set} />
 
       <div className="rounded-lg border border-gray-200 bg-white p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">

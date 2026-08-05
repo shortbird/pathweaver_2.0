@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
-  BookOpenIcon, DocumentTextIcon, LinkIcon, ArrowUpTrayIcon, TrashIcon,
+  DocumentTextIcon, LinkIcon, ArrowUpTrayIcon, EyeIcon,
 } from '@heroicons/react/24/outline'
+import { UserGroupIcon } from '@heroicons/react/24/solid'
 import api from '../../services/api'
 
 /**
@@ -15,7 +16,7 @@ import api from '../../services/api'
  * is not a participant (or the quest has no class) the backend returns 403/404
  * and this component renders nothing.
  */
-export default function ClassCurriculum({ classId, questId, className = '' }) {
+export default function ClassCurriculum({ classId, questId, className = '', refreshSignal = 0, onMaterialsLoaded }) {
   const base = questId
     ? `/api/sis/classes/by-quest/${questId}/materials`
     : `/api/sis/classes/${classId}/materials`
@@ -39,17 +40,23 @@ export default function ClassCurriculum({ classId, questId, className = '' }) {
     setLoading(true)
     try {
       const { data } = await api.get(base)
-      setMaterials(data?.materials || [])
+      const list = data?.materials || []
+      setMaterials(list)
       setCanManage(Boolean(data?.can_manage) && Boolean(writeBase))
+      onMaterialsLoaded?.(list)
     } catch (err) {
       const status = err?.response?.status
       if (status === 403 || status === 404) setHidden(true)
     } finally {
       setLoading(false)
     }
+    // onMaterialsLoaded is a stable setter from the parent; excluded to avoid churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, writeBase, classId, questId])
 
-  useEffect(() => { load() }, [load])
+  // refreshSignal lets a sibling (Your curriculum) force a reload after it shares
+  // an item into this class's materials.
+  useEffect(() => { load() }, [load, refreshSignal])
 
   const addLink = async (e) => {
     e.preventDefault()
@@ -91,7 +98,11 @@ export default function ClassCurriculum({ classId, questId, className = '' }) {
   const remove = async (id) => {
     try {
       await api.delete(`${writeBase}/${id}`)
-      setMaterials((prev) => prev.filter((m) => m.id !== id))
+      const next = materials.filter((m) => m.id !== id)
+      setMaterials(next)
+      // Keep the parent in sync so "Your curriculum" flips its Share button back
+      // to "Share with students" the moment a shared link is removed here.
+      onMaterialsLoaded?.(next)
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove this item')
     }
@@ -100,16 +111,23 @@ export default function ClassCurriculum({ classId, questId, className = '' }) {
   if (hidden) return null
 
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-6 ${className}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <BookOpenIcon className="w-5 h-5 text-optio-purple" />
-        <h2 className="text-lg font-bold text-gray-900">Curriculum</h2>
+    <div className={`bg-emerald-50/40 rounded-xl border-2 border-emerald-500/30 border-l-4 border-l-emerald-500 p-4 sm:p-6 ${className}`}>
+      <div className="flex items-center gap-2.5 mb-4 min-w-0">
+        <span className="shrink-0 w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+          <UserGroupIcon className="w-5 h-5 text-emerald-600" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-lg font-bold text-gray-900">Class materials</h2>
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+              <EyeIcon className="w-3 h-3" /> {canManage ? 'Students see these' : 'Shared with you'}
+            </span>
+          </div>
+          <p className="text-xs text-neutral-500">
+            {canManage ? 'What you share with your students.' : 'What your teacher shared with the class.'}
+          </p>
+        </div>
       </div>
-      <p className="text-sm text-neutral-500 mb-4">
-        {canManage
-          ? 'Documents and links for this class. Everything you add here is visible to enrolled students.'
-          : 'Documents and links your teacher shared with this class.'}
-      </p>
 
       {canManage && (
         <div className="mb-5 flex flex-wrap items-center gap-2">
@@ -169,9 +187,9 @@ export default function ClassCurriculum({ classId, questId, className = '' }) {
       )}
 
       {!loading && materials.length > 0 && (
-        <ul className="divide-y divide-gray-100">
+        <ul className="space-y-2">
           {materials.map((m) => (
-            <li key={m.id} className="py-2.5 flex items-center gap-3">
+            <li key={m.id} className="rounded-lg border border-gray-200 bg-white p-3 flex items-center gap-3">
               <span className="shrink-0 text-neutral-400">
                 {m.kind === 'link' ? <LinkIcon className="w-5 h-5" /> : <DocumentTextIcon className="w-5 h-5" />}
               </span>
@@ -183,9 +201,10 @@ export default function ClassCurriculum({ classId, questId, className = '' }) {
                 {m.kind === 'link' ? 'Link' : 'Document'}
               </span>
               {m.can_delete && (
-                <button onClick={() => remove(m.id)} className="shrink-0 p-1 text-gray-400 hover:text-red-500"
-                  aria-label="Remove" title="Remove">
-                  <TrashIcon className="w-4 h-4" />
+                <button onClick={() => remove(m.id)}
+                  className="shrink-0 text-xs font-medium text-neutral-400 hover:text-neutral-700 hover:underline"
+                  title="Remove from class materials — the original file stays untouched">
+                  Remove
                 </button>
               )}
             </li>

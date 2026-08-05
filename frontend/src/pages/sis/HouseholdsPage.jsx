@@ -13,45 +13,6 @@ const collageInitials = (name) =>
   (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
 /**
- * Card-hero fallback when a family hasn't uploaded a photo: the members' own
- * pictures as an overlapping row, sized down as the family grows. Guardians
- * first (they're likelier to have photos), at most six circles, then a +N
- * bubble for the rest.
- */
-const MemberCollage = ({ members = [] }) => {
-  const ordered = [...members].sort((a, b) =>
-    (a.relationship === 'guardian' ? 0 : 1) - (b.relationship === 'guardian' ? 0 : 1))
-  const shown = ordered.slice(0, 6)
-  const extra = ordered.length - shown.length
-  const size = shown.length <= 2 ? 'w-16 h-16 text-lg'
-    : shown.length <= 4 ? 'w-14 h-14 text-base'
-      : 'w-12 h-12 text-sm'
-  const overlap = shown.length <= 2 ? '' : shown.length <= 4 ? '-ml-3 first:ml-0' : '-ml-4 first:ml-0'
-  return (
-    <div className="w-full h-full flex items-center justify-center px-3">
-      <div className={`flex items-center ${shown.length <= 2 ? 'gap-2' : ''}`}>
-        {shown.map((m) => (
-          m.avatar_url ? (
-            <img key={m.user_id} src={m.avatar_url} alt="" title={m.name}
-              className={`${size} ${overlap} rounded-full object-cover border-2 border-white shadow-sm`} />
-          ) : (
-            <div key={m.user_id} title={m.name}
-              className={`${size} ${overlap} rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center font-semibold border-2 border-white shadow-sm`}>
-              {collageInitials(m.name)}
-            </div>
-          )
-        ))}
-        {extra > 0 && (
-          <div className={`${size} ${overlap} rounded-full bg-white/90 text-optio-purple flex items-center justify-center font-semibold border-2 border-white shadow-sm`}>
-            +{extra}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/**
  * Students in the org who aren't in any family yet (school imports, accounts
  * connected before households existed). Each row lets staff drop the student
  * into a family in place; the add endpoint also normalizes their account (org
@@ -296,45 +257,52 @@ const HouseholdsPage = ({ embedded = false }) => {
         />
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {visibleHouseholds.map((h) => {
-          const count = (h.members || []).length
-          return (
-            <button
-              key={h.id}
-              onClick={() => setSelected(h)}
-              className="text-left bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col hover:border-optio-purple hover:shadow-md transition-all"
-            >
-              <div className="relative h-28 bg-gradient-to-br from-optio-purple/10 to-optio-pink/10">
-                {h.image_url ? (
-                  <img src={h.image_url} alt="" className="w-full h-full object-cover" />
-                ) : count > 0 ? (
-                  <MemberCollage members={h.members} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-optio-purple/30">
-                    <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM3 21v-1a6 6 0 0112 0v1M16 3.13a4 4 0 010 7.75M21 21v-1a6 6 0 00-4-5.659" />
-                    </svg>
-                  </div>
-                )}
-                <span className="absolute top-2 right-2 text-[11px] font-medium rounded-full px-2 py-0.5 bg-white/90 text-optio-purple shadow-sm">
-                  {count} member{count === 1 ? '' : 's'}
-                </span>
-              </div>
-              <div className="p-4">
-                <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="font-semibold text-neutral-900 truncate">{h.display_name || h.name}</h3>
-                  {h.registration_hold && (
-                    <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700 flex-shrink-0"
-                      title={h.registration_hold_reason || 'Registration on hold'}>Hold</span>
-                  )}
-                </div>
-                <p className="text-sm text-neutral-500 truncate mt-0.5">{memberPreview(h.members)}</p>
-              </div>
-            </button>
-          )
-        })}
-      </div>
+      {visibleHouseholds.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-visible">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-50 text-neutral-500 text-left">
+              <tr>
+                <th className="px-4 py-3 font-medium">Family</th>
+                <th className="px-4 py-3 font-medium">Members</th>
+                <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Count</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {visibleHouseholds.map((h) => {
+                const count = (h.members || []).length
+                return (
+                  <tr key={h.id} onClick={() => setSelected(h)} className="hover:bg-neutral-50 cursor-pointer">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {h.image_url ? (
+                          <img src={h.image_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                            {collageInitials(h.display_name || h.name)}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium text-neutral-900 truncate">{h.display_name || h.name}</span>
+                          {h.registration_hold && (
+                            <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700 flex-shrink-0"
+                              title={h.registration_hold_reason || 'Registration on hold'}>Hold</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-500">
+                      <span className="block max-w-md truncate">{memberPreview(h.members)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-neutral-500 whitespace-nowrap">
+                      {count} member{count === 1 ? '' : 's'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {selected && (
         <FamilyDetailModal

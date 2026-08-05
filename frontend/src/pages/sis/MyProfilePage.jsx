@@ -1,17 +1,25 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
+import { ArrowUpTrayIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { withPreview, getPreviewTeacher } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 
 /**
- * MyProfilePage — the teacher's own staff profile. Employment details
- * (position, type, status) are read-only here (an admin maintains them on the
- * Staff page); the teacher can edit only their emergency contact — the
- * self-service subset the backend allows (SELF_PROFILE_FIELDS).
+ * MyProfilePage — the teacher's own staff profile.
+ *
+ * Public profile (photo + bio) is what families and students see in the staff
+ * directory; the teacher self-serves it here via the shared user endpoints
+ * (PUT /api/users/profile, POST /api/users/avatar) rather than needing an admin.
+ * Employment details (position, type, status) stay read-only (an admin maintains
+ * them on the Staff page); the teacher also edits their emergency contact — the
+ * self-service subset the SIS backend allows (SELF_PROFILE_FIELDS).
  * GET/PATCH /api/sis/teacher/profile.
  */
+
+const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
 const STAFF_TYPE_LABEL = { employee: 'Employee', contractor: 'Contractor', family: 'Family' }
 const PAY_TYPE_LABEL = { hourly: 'Hourly', salaried: 'Salaried', stipend: 'Stipend', unpaid: 'Unpaid' }
@@ -25,12 +33,20 @@ const ReadRow = ({ label, value }) => (
 
 const MyProfilePage = () => {
   const { orgId } = useSisOrg()
+  const { user, refreshUser } = useAuth()
   const preview = getPreviewTeacher()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [saving, setSaving] = useState(false)
+  // Public profile (photo + bio). In preview, an admin sees the previewed
+  // teacher's values read-only; otherwise it's the signed-in user's own.
+  const [bio, setBio] = useState('')
+  const [savingBio, setSavingBio] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const fileRef = useRef(null)
 
   useEffect(() => {
     if (!orgId) { setLoading(false); return }
@@ -46,6 +62,47 @@ const MyProfilePage = () => {
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, preview?.id])
+
+  // Seed the public-profile fields from the previewed teacher (read-only) or the
+  // signed-in user (editable).
+  useEffect(() => {
+    const src = preview || user || {}
+    setBio(src.bio || '')
+    setAvatarUrl(src.avatar_url || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview?.id, user?.id, user?.bio, user?.avatar_url])
+
+  const uploadAvatar = async (e) => {
+    const file = e.target.files?.[0]
+    if (file) e.target.value = '' // allow re-selecting the same file
+    if (!file) return
+    const form = new FormData()
+    form.append('avatar', file)
+    setUploading(true)
+    try {
+      const r = await api.post('/api/users/avatar', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      if (r.data?.avatar_url) setAvatarUrl(r.data.avatar_url)
+      await refreshUser()
+      toast.success('Photo updated')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not upload your photo')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const saveBio = async () => {
+    setSavingBio(true)
+    try {
+      await api.put('/api/users/profile', { bio: bio.trim() })
+      await refreshUser()
+      toast.success('Bio saved')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save your bio')
+    } finally {
+      setSavingBio(false)
+    }
+  }
 
   const save = async () => {
     setSaving(true)
@@ -77,6 +134,56 @@ const MyProfilePage = () => {
         <BackToDashboard className="mb-1" />
         <h1 className="text-2xl font-bold text-neutral-900">My profile</h1>
         <p className="text-neutral-500 mt-1">Your staff details and emergency contact.</p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 className="font-semibold text-neutral-900 mb-1">Public profile</h2>
+        <p className="text-xs text-neutral-400 mb-4">Your photo and bio, as families and students see them.</p>
+
+        <div className="flex items-start gap-4">
+          <div className="shrink-0">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover border border-gray-200" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink text-white flex items-center justify-center text-2xl font-semibold">
+                {initials(preview?.name || user?.display_name || user?.first_name)}
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            {preview ? (
+              <p className="text-sm text-neutral-500">
+                {bio || 'No bio yet.'} Editing is disabled in preview.
+              </p>
+            ) : (
+              <>
+                <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-neutral-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50">
+                  <ArrowUpTrayIcon className="w-4 h-4" />
+                  {uploading ? 'Uploading…' : avatarUrl ? 'Change photo' : 'Upload photo'}
+                </button>
+                <input ref={fileRef} type="file" className="hidden" onChange={uploadAvatar}
+                  accept=".png,.jpg,.jpeg,.webp,.gif,.heic,.heif" />
+                <p className="text-[11px] text-neutral-400 mt-1">JPEG, PNG, WebP, GIF or HEIC · up to 5MB</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {!preview && (
+          <>
+            <label className="block text-xs font-medium text-neutral-500 mt-5 mb-1">Bio</label>
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4}
+              className={`${field} resize-y`}
+              placeholder="A short introduction — your background, what you teach, what you're excited about." />
+            <div className="mt-3">
+              <button onClick={saveBio} disabled={savingBio || (bio.trim() === ((user?.bio || '').trim()))}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                {savingBio ? 'Saving…' : 'Save bio'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">

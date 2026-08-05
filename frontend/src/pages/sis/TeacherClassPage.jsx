@@ -5,8 +5,8 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import StudentProgressTab from '../../components/sis/StudentProgressTab'
-import ClassDiscussion from '../../components/discussion/ClassDiscussion'
 import ClassCurriculum from '../../components/discussion/ClassCurriculum'
+import ClassMessagesTab from '../../components/sis/ClassMessagesTab'
 import ClassCurriculumLibrary from '../../components/sis/ClassCurriculumLibrary'
 import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
 import PersonPhoto from '../../components/sis/PersonPhoto'
@@ -48,6 +48,10 @@ const TeacherClassPage = () => {
   // Which student's health alert is expanded. Hover-only tooltips were
   // unreadable on touch and unreliable on desktop, so the badge is a button.
   const [alertFor, setAlertFor] = useState(null)
+  // Curriculum tab: the class materials list is owned here so "Your curriculum"
+  // can know what's already shared and refresh the materials column after a share.
+  const [classMaterials, setClassMaterials] = useState([])
+  const [materialsRefresh, setMaterialsRefresh] = useState(0)
   // Deep links (e.g. the home "Message" shortcut) can preselect a tab via ?tab=.
   const requestedTab = TAB_ALIASES[searchParams.get('tab')] || searchParams.get('tab')
   const initialTab = VALID_TABS.includes(requestedTab) ? requestedTab : 'roster'
@@ -152,12 +156,21 @@ const TeacherClassPage = () => {
       )}
 
       {tab === 'curriculum' && (
-        <>
-          {/* School-provided curriculum (staff-only) sits above the materials the
-              teacher shares with students — different audiences, kept apart. */}
-          <ClassCurriculumLibrary classId={classId} />
-          <ClassCurriculum classId={classId} />
-        </>
+        // Two columns on wide screens (stack on narrow): staff-only curriculum on
+        // one side, the materials shared with students on the other — different
+        // audiences, side by side so the split reads at a glance.
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <ClassCurriculumLibrary
+            classId={classId}
+            sharedUrls={new Set(classMaterials.map((m) => m.url))}
+            onSharedToClass={() => setMaterialsRefresh((n) => n + 1)}
+          />
+          <ClassCurriculum
+            classId={classId}
+            refreshSignal={materialsRefresh}
+            onMaterialsLoaded={setClassMaterials}
+          />
+        </div>
       )}
 
       {tab === 'progress' && (
@@ -165,13 +178,7 @@ const TeacherClassPage = () => {
       )}
 
       {tab === 'messages' && (
-        <div>
-          <p className="text-sm text-neutral-500 mb-3">
-            Post updates and reminders to {cls?.name || 'this class'}. You and the enrolled students can see and reply here.
-            To reach families, use Announcements or the class group in the Learning app.
-          </p>
-          <ClassDiscussion classId={classId} />
-        </div>
+        <ClassMessagesTab classId={classId} orgId={orgId} className={cls?.name} />
       )}
 
       {/* Materials budget — a ceiling, never a target. The wording matters:
@@ -189,7 +196,7 @@ const TeacherClassPage = () => {
             {budget.allowance_per_student > 0 && ` · $${budget.allowance_per_student} each from tuition`}
             {budget.frozen
               ? ` · fixed at the roster on ${budget.as_of}`
-              : ' · updates as students enrol until the first day of school'}
+              : ' · updates as students enroll until the first day of school'}
           </p>
         </div>
       )}

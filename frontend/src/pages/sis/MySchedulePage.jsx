@@ -142,14 +142,29 @@ const MySchedulePage = () => {
         </div>
       )}
 
-      {weekly.map((d) => (
-        <div key={d.dow} className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-neutral-900 mb-3">{d.label}</h2>
-          <ul className="space-y-2">
-            {d.items.map((item, i) => <ItemRow key={i} item={item} />)}
-          </ul>
+      {weekly.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {weekly.map((d) => {
+            const isToday = d.dow === new Date().getDay()
+            return (
+              <div key={d.dow}
+                className={`rounded-xl border p-5 ${isToday
+                  ? 'bg-optio-purple/5 border-optio-purple'
+                  : 'bg-white border-gray-200'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <h2 className="font-semibold text-neutral-900">{d.label}</h2>
+                  {isToday && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-optio-purple text-white font-medium">Today</span>
+                  )}
+                </div>
+                <ul className="space-y-2">
+                  {d.items.map((item, i) => <ItemRow key={i} item={item} />)}
+                </ul>
+              </div>
+            )
+          })}
         </div>
-      ))}
+      )}
 
       {upcoming.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">

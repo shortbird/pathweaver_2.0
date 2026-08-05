@@ -17,6 +17,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from utils.auth.decorators import require_auth
+from services import class_membership_service as class_membership
 from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
 from utils.validation.validators import validate_required_fields, validate_string_length
@@ -80,6 +81,26 @@ def _get_parent_child_ids(supabase, parent_id):
     if links.data:
         child_ids.update(l['student_user_id'] for l in links.data)
     return list(child_ids)
+
+
+def _add_class_contacts(supabase, contacts, user_ids, relationship, user_id, user_org_id):
+    """Append SIS class contacts (a teacher's students, or a student's teachers)
+    to `contacts`, in place. Ids already in the list are skipped, and the same
+    organization isolation the other branches apply is applied here."""
+    already = {ct['id'] for ct in contacts} | {user_id}
+    wanted = [uid for uid in user_ids if uid and uid not in already]
+    if not wanted:
+        return
+
+    for i in range(0, len(wanted), 100):
+        rows = supabase.table('users').select(
+            'id, display_name, first_name, last_name, avatar_url, role, organization_id'
+        ).in_('id', wanted[i:i + 100]).execute()
+        for row in (rows.data or []):
+            if user_org_id is not None and row.get('organization_id') != user_org_id:
+                continue
+            row.pop('organization_id', None)
+            contacts.append({**row, 'relationship': relationship})
 
 
 def _append_support_contact(supabase, contacts, user_id):
@@ -370,6 +391,14 @@ def get_contacts(user_id: str):
                             'relationship': 'advisor'
                         })
 
+            # SIS classes: the teachers of every class this student is enrolled
+            # in. They are assigned on the class, not through
+            # advisor_student_assignments, so they need their own lookup.
+            _add_class_contacts(
+                supabase, contacts, class_membership.teachers_of_student(user_id),
+                'advisor', user_id, user_org_id
+            )
+
         # For org_admins: show ALL users in their organization
         if user_role == 'org_admin' and user_org_id:
             org_users = supabase.table('users').select(
@@ -415,6 +444,12 @@ def get_contacts(user_id: str):
                             **student,
                             'relationship': 'student'
                         })
+
+            # SIS classes: everyone on the roster of a class this teacher teaches.
+            _add_class_contacts(
+                supabase, contacts, class_membership.students_taught_by(user_id),
+                'student', user_id, user_org_id
+            )
 
         # For parents: their children, the advisors of those children, AND all
         # observers linked to those children.

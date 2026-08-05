@@ -1,8 +1,10 @@
 """
 Class messaging groups: keep one group chat per class, mirroring the roster.
 
-Members are the class's ACTIVE students (role: member) plus its advisors
-(role: admin — teachers administer their class group). Linked via
+Members are the class's ACTIVE students (role: member) plus its teachers
+(role: admin — teachers administer their class group). "Teacher" means any of
+the three sources class_membership_service knows about: the primary
+instructor, assistant instructors, and active class_advisors rows. Linked via
 group_conversations.source_class_id; idempotent, so every enrollment write path
 calls sync_class_group() best-effort after changing class_enrollments:
 
@@ -17,6 +19,7 @@ The group is created lazily on the first sync that finds any members.
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
+from services import class_membership_service as membership
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -32,24 +35,15 @@ def sync_class_group(class_id: str, actor_id: Optional[str] = None) -> Optional[
     try:
         admin = _admin()
         cls = (admin.table('org_classes')
-               .select('id, name, organization_id')
+               .select('id, name, organization_id, primary_instructor_id, '
+                       'assistant_instructor_ids')
                .eq('id', class_id).limit(1).execute()).data
         if not cls:
             return None
         cls = cls[0]
 
-        student_ids = {
-            r['student_id'] for r in (
-                admin.table('class_enrollments').select('student_id, status')
-                .eq('class_id', class_id).eq('status', 'active').execute()
-            ).data or [] if r.get('student_id')
-        }
-        advisor_ids = {
-            r['advisor_id'] for r in (
-                admin.table('class_advisors').select('advisor_id')
-                .eq('class_id', class_id).execute()
-            ).data or [] if r.get('advisor_id')
-        }
+        student_ids = membership.class_student_ids(class_id)
+        advisor_ids = membership.class_teacher_ids(class_id, class_row=cls)
 
         group_rows = (admin.table('group_conversations').select('id')
                       .eq('source_class_id', class_id).eq('is_active', True)

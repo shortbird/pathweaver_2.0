@@ -136,21 +136,25 @@ def _resolve_class_for_quest(user_id, quest_id):
     return None, False, (jsonify({'success': False, 'error': _FORBIDDEN}), 403)
 
 
-def _serialize(m, can_manage):
+def _serialize(m, can_manage, is_admin=False, user_id=None):
+    # A teacher may remove only the materials THEY added; anything an admin put on
+    # the class stays put for teachers (admins can remove anything). Students never
+    # get a delete control (can_manage is False for them).
+    can_delete = bool(can_manage) and (bool(is_admin) or m.get('created_by') == user_id)
     return {
         'id': m['id'],
         'kind': m.get('kind'),
         'title': m.get('title'),
         'url': m.get('url'),
         'created_at': m.get('created_at'),
-        'can_delete': bool(can_manage),
+        'can_delete': can_delete,
     }
 
 
 def _list_materials(admin, class_id):
     return (
         admin.table('class_materials')
-        .select('id, kind, title, url, created_at')
+        .select('id, kind, title, url, created_at, created_by')
         .eq('class_id', class_id)
         .order('created_at', desc=True)
         .execute()
@@ -167,9 +171,10 @@ def list_materials(user_id, class_id):
         return err
     admin = get_supabase_admin_client()
     rows = _list_materials(admin, class_row['id'])
+    is_admin = is_moderator and sis_service.caller_is_admin(user_id)
     return jsonify({'success': True,
                     'can_manage': is_moderator,
-                    'materials': [_serialize(m, is_moderator) for m in rows]})
+                    'materials': [_serialize(m, is_moderator, is_admin, user_id) for m in rows]})
 
 
 @bp.route('/classes/<class_id>/materials', methods=['POST'])
@@ -202,7 +207,7 @@ def add_link_material(user_id, class_id):
     }).execute().data
     if not row:
         return jsonify({'success': False, 'error': 'Could not add the link.'}), 500
-    return jsonify({'success': True, 'material': _serialize(row[0], True)})
+    return jsonify({'success': True, 'material': _serialize(row[0], True, user_id=user_id)})
 
 
 @bp.route('/classes/<class_id>/materials/upload', methods=['POST'])
@@ -264,7 +269,7 @@ def upload_material(user_id, class_id):
         'created_by': user_id,
         'created_at': _now_iso(),
     }).execute().data
-    return jsonify({'success': True, 'material': _serialize(row[0], True)}) if row \
+    return jsonify({'success': True, 'material': _serialize(row[0], True, user_id=user_id)}) if row \
         else (jsonify({'success': False, 'error': 'Uploaded, but could not save the material.'}), 500)
 
 
@@ -279,11 +284,16 @@ def delete_material(user_id, class_id, material_id):
     if _bad_uuid(material_id):
         return jsonify({'success': False, 'error': 'Invalid material id'}), 400
     admin = get_supabase_admin_client()
-    rows = (admin.table('class_materials').select('id, class_id, file_path')
+    rows = (admin.table('class_materials').select('id, class_id, file_path, created_by')
             .eq('id', material_id).limit(1).execute()).data
     material = rows[0] if rows else None
     if not material or material.get('class_id') != class_row['id']:
         return jsonify({'success': False, 'error': 'Material not found'}), 404
+    # A teacher can remove only what they added; admin-provided materials are
+    # theirs to remove. Admins may remove anything on their org's class.
+    if not sis_service.caller_is_admin(user_id) and material.get('created_by') != user_id:
+        return jsonify({'success': False,
+                        'error': 'Only an admin can remove a material the school added.'}), 403
     # Best-effort storage cleanup for uploaded files.
     if material.get('file_path'):
         try:
@@ -304,6 +314,7 @@ def list_materials_by_quest(user_id, quest_id):
         return err
     admin = get_supabase_admin_client()
     rows = _list_materials(admin, class_row['id'])
+    is_admin = is_moderator and sis_service.caller_is_admin(user_id)
     return jsonify({'success': True,
                     'can_manage': is_moderator,
-                    'materials': [_serialize(m, is_moderator) for m in rows]})
+                    'materials': [_serialize(m, is_moderator, is_admin, user_id) for m in rows]})

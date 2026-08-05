@@ -12,8 +12,10 @@ are shown to enrolled STUDENTS. Curriculum is staff-only — teachers see the
 curriculum for the classes they teach, students never see it at all. Keep that
 line: it is the reason this is a separate table rather than a flag.
 
-NEW, additive (/api/sis/curriculum). Admin writes; teachers get a read scoped
-to their own classes. Org scoping via sis_service.resolve_org_id on every route.
+NEW, additive (/api/sis/curriculum). Admins manage the org-wide library; teachers
+get the same form scoped to a class they teach (add/edit/remove their own entries
+on that class) via the /classes/<id>/curriculum routes. Org scoping via
+sis_service.resolve_org_id on every route.
 """
 
 from datetime import datetime, timezone
@@ -243,21 +245,28 @@ def set_curriculum_classes(user_id, curriculum_id):
 
 
 # ── Teacher: the curriculum for a class they teach ────────────────────────────
+#
+# Teachers get the SAME curriculum form admins do, scoped to their own classes:
+# they add/edit/remove curriculum on a class they teach, and edit/remove is
+# further limited to entries they created so one teacher can't rewrite another's
+# (or an admin's) shared curriculum. This deliberately pushes routine curriculum
+# upkeep onto teachers and keeps admin screens for admin-only work.
 
-@bp.route('/classes/<class_id>/curriculum', methods=['GET'])
-@require_auth
-def class_curriculum(user_id, class_id):
-    """Curriculum attached to one class. Staff only — a student enrolled in the
-    class must not see it (that's what the class Curriculum/materials tab is for).
+
+def _class_access(user_id, class_id):
+    """Resolve a caller's relationship to a class.
+
+    Returns (class_row, is_teacher, is_admin). class_row is None when the class
+    doesn't exist. is_teacher covers the primary instructor and active
+    co-teachers (class_advisors); is_admin covers org admins / superadmins whose
+    resolved org matches the class's org.
     """
-    if _bad_uuid(class_id):
-        return jsonify({'success': False, 'error': 'Invalid class id'}), 400
     admin = _admin()
     rows = (admin.table('org_classes')
             .select('id, organization_id, primary_instructor_id')
             .eq('id', class_id).limit(1).execute()).data or []
     if not rows:
-        return jsonify({'success': False, 'error': 'Class not found'}), 404
+        return None, False, False
     class_row = rows[0]
     org_id = class_row['organization_id']
 
@@ -269,16 +278,165 @@ def class_curriculum(user_id, class_id):
                       .eq('class_id', class_id).eq('advisor_id', user_id)
                       .eq('is_active', True).limit(1).execute()).data
         is_teacher = bool(co_teacher)
+    return class_row, is_teacher, is_admin
+
+
+def _attached_to_class(curriculum_id, class_id):
+    return bool((_admin().table('sis_curriculum_classes').select('curriculum_id')
+                 .eq('curriculum_id', curriculum_id).eq('class_id', class_id)
+                 .limit(1).execute()).data)
+
+
+@bp.route('/classes/<class_id>/curriculum', methods=['GET'])
+@require_auth
+def class_curriculum(user_id, class_id):
+    """Curriculum attached to one class. Staff only — a student enrolled in the
+    class must not see it (that's what the class Curriculum/materials tab is for).
+    """
+    if _bad_uuid(class_id):
+        return jsonify({'success': False, 'error': 'Invalid class id'}), 400
+    class_row, is_teacher, is_admin = _class_access(user_id, class_id)
+    if class_row is None:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
     if not (is_teacher or is_admin):
         return jsonify({'success': False, 'error': 'Not available'}), 403
 
-    links = (admin.table('sis_curriculum_classes').select('curriculum_id')
+    org_id = class_row['organization_id']
+    # can_manage lets the client show the add form and gate per-entry controls;
+    # any staffer with class access can add, edit/remove is created_by-scoped
+    # for teachers (enforced server-side below regardless of what the UI shows).
+    links = (_admin().table('sis_curriculum_classes').select('curriculum_id')
              .eq('class_id', class_id).execute()).data or []
     ids = [l['curriculum_id'] for l in links]
-    if not ids:
-        return jsonify({'success': True, 'curriculum': []})
-    entries = (admin.table('sis_curriculum')
-               .select('id, title, subject, description, drive_url, notes, is_active')
-               .in_('id', ids).eq('organization_id', org_id)
-               .eq('is_active', True).order('title').execute()).data or []
-    return jsonify({'success': True, 'curriculum': entries})
+    entries = []
+    if ids:
+        entries = (_admin().table('sis_curriculum')
+                   .select('id, title, subject, description, drive_url, notes, is_active, created_by')
+                   .in_('id', ids).eq('organization_id', org_id)
+                   .eq('is_active', True).order('title').execute()).data or []
+    return jsonify({
+        'success': True,
+        'curriculum': entries,
+        'can_manage': bool(is_teacher or is_admin),
+        'is_admin': bool(is_admin),
+    })
+
+
+@bp.route('/classes/<class_id>/curriculum', methods=['POST'])
+@require_auth
+def create_class_curriculum(user_id, class_id):
+    """Teacher (or admin) creates a curriculum entry and attaches it to this
+    class in one step. Same fields as the admin library form, minus the
+    multi-class selector — the class is implied.
+    """
+    if _bad_uuid(class_id):
+        return jsonify({'success': False, 'error': 'Invalid class id'}), 400
+    class_row, is_teacher, is_admin = _class_access(user_id, class_id)
+    if class_row is None:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    if not (is_teacher or is_admin):
+        return jsonify({'success': False, 'error': 'Not available'}), 403
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()[:_MAX_TITLE]
+    if not title:
+        return jsonify({'success': False, 'error': 'A title is required'}), 400
+    if data.get('drive_url') and not _normalize_url(data.get('drive_url')):
+        return jsonify({'success': False, 'error': 'The link must be a web address (http or https)'}), 400
+
+    org_id = class_row['organization_id']
+    row = (_admin().table('sis_curriculum').insert({
+        'organization_id': org_id,
+        'title': title,
+        'subject': (data.get('subject') or '').strip()[:_MAX_TITLE] or None,
+        'description': (data.get('description') or '').strip() or None,
+        'drive_url': _normalize_url(data.get('drive_url')),
+        'notes': (data.get('notes') or '').strip() or None,
+        'created_by': user_id,
+    }).execute()).data
+    entry = row[0] if row else None
+    if entry:
+        _admin().table('sis_curriculum_classes').insert(
+            {'curriculum_id': entry['id'], 'class_id': class_id}
+        ).execute()
+    return jsonify({'success': True, 'curriculum': entry}), 201
+
+
+@bp.route('/classes/<class_id>/curriculum/<curriculum_id>', methods=['PATCH'])
+@require_auth
+def update_class_curriculum(user_id, class_id, curriculum_id):
+    """Edit a curriculum entry from the class tab. Admins may edit any entry on
+    the class; teachers only entries they created (an admin's shared curriculum
+    stays read-only to them).
+    """
+    if _bad_uuid(class_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Invalid id'}), 400
+    class_row, is_teacher, is_admin = _class_access(user_id, class_id)
+    if class_row is None:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    if not (is_teacher or is_admin):
+        return jsonify({'success': False, 'error': 'Not available'}), 403
+
+    org_id = class_row['organization_id']
+    entry = _owned(org_id, curriculum_id)
+    if not entry or not _attached_to_class(curriculum_id, class_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    if not is_admin and entry.get('created_by') != user_id:
+        return jsonify({'success': False, 'error': 'Only the person who added this can edit it'}), 403
+
+    data = request.get_json(silent=True) or {}
+    fields = {}
+    if 'title' in data:
+        title = (data.get('title') or '').strip()[:_MAX_TITLE]
+        if not title:
+            return jsonify({'success': False, 'error': 'A title is required'}), 400
+        fields['title'] = title
+    for key in ('subject', 'description', 'notes'):
+        if key in data:
+            value = (data.get(key) or '').strip()
+            fields[key] = value[:_MAX_TITLE] if key == 'subject' else (value or None)
+    if 'drive_url' in data:
+        raw = (data.get('drive_url') or '').strip()
+        if raw and not _normalize_url(raw):
+            return jsonify({'success': False, 'error': 'The link must be a web address (http or https)'}), 400
+        fields['drive_url'] = _normalize_url(raw)
+    if not fields:
+        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+    fields['updated_at'] = datetime.now(timezone.utc).isoformat()
+    row = (_admin().table('sis_curriculum').update(fields)
+           .eq('id', curriculum_id).execute()).data
+    return jsonify({'success': True, 'curriculum': row[0] if row else None})
+
+
+@bp.route('/classes/<class_id>/curriculum/<curriculum_id>', methods=['DELETE'])
+@require_auth
+def remove_class_curriculum(user_id, class_id, curriculum_id):
+    """Detach a curriculum entry from this class. Admins may detach anything;
+    teachers only entries they created. If detaching leaves a teacher-created
+    entry attached to no classes at all, it's deleted so it doesn't linger as an
+    orphan — an admin-created entry is only ever detached, never deleted here
+    (the library page is where admins delete outright).
+    """
+    if _bad_uuid(class_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Invalid id'}), 400
+    class_row, is_teacher, is_admin = _class_access(user_id, class_id)
+    if class_row is None:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    if not (is_teacher or is_admin):
+        return jsonify({'success': False, 'error': 'Not available'}), 403
+
+    org_id = class_row['organization_id']
+    entry = _owned(org_id, curriculum_id)
+    if not entry or not _attached_to_class(curriculum_id, class_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    if not is_admin and entry.get('created_by') != user_id:
+        return jsonify({'success': False, 'error': 'Only the person who added this can remove it'}), 403
+
+    _admin().table('sis_curriculum_classes').delete().eq(
+        'curriculum_id', curriculum_id).eq('class_id', class_id).execute()
+
+    remaining = (_admin().table('sis_curriculum_classes').select('curriculum_id')
+                 .eq('curriculum_id', curriculum_id).limit(1).execute()).data
+    if not remaining and entry.get('created_by') == user_id:
+        _admin().table('sis_curriculum').delete().eq('id', curriculum_id).execute()
+    return jsonify({'success': True})
