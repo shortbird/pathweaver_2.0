@@ -13,7 +13,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Fall back to harmless placeholders when the env is absent (e.g. the test
+// runner) so createClient() doesn't throw "supabaseUrl is required" at import —
+// which would crash any test that transitively imports a supabase-using
+// component. In prod the real env vars are always set, so this never applies.
+export const supabase = createClient(
+  supabaseUrl || 'http://localhost:54321',
+  supabaseAnonKey || 'anon-placeholder-key',
+  {
   auth: {
     autoRefreshToken: false, // We handle token refresh in authService
     persistSession: false,   // We use our own session management
