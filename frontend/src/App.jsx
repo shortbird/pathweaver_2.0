@@ -29,6 +29,8 @@ import { toast } from 'react-hot-toast'
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import MetaPixelTracker from './components/MetaPixelTracker'
+import GaTracker from './components/GaTracker'
+import { initGa } from './services/googleAnalytics'
 import HomePage from './pages/marketing/HomePage'
 import LoginPage from './pages/LoginPage'
 import OrgLoginPage from './pages/auth/OrgLoginPage'
@@ -301,6 +303,7 @@ function AppContent() {
     <>
       <ScrollToTop />
       <MetaPixelTracker />
+      <GaTracker />
       {/* Masquerade Banner - Only show fixed version on mobile, sidebar handles desktop */}
       {masqueradeState && (
         <div className="lg:hidden">
@@ -390,6 +393,7 @@ function App() {
   // Patch toast.error so every error toast is auto-tracked in PostHog
   useEffect(() => {
     initPostHog()
+    initGa() // GA4 — no-ops off the prod host (services/googleAnalytics.js)
 
     const originalToastError = toast.error
     toast.error = (...args) => {

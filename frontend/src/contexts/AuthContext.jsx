@@ -10,6 +10,7 @@ import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCoo
 import { clearMasqueradeData } from '../services/masqueradeService'
 import logger from '../utils/logger'
 import { identifyUser, resetUser, captureEvent } from '../services/posthog'
+import { gaTrackEvent } from '../services/googleAnalytics'
 import { setSentryUser } from '../services/sentry'
 import { isSimplifiedPartnerOrg } from '../config/partnerOrgs'
 import { getPostLoginPath } from '../utils/postLoginPath'
@@ -434,6 +435,9 @@ export const AuthProvider = ({ children }) => {
           role: user.role,
           has_organization: !!user.organization_id,
         })
+        // GA4 acquisition conversion (aggregate, no PII / no user id) — mark
+        // sign_up as a Key Event in GA4 and import to Google Ads.
+        gaTrackEvent('sign_up', { method: userData.provider || 'email' })
 
         // Notify other tabs about the session change
         try {

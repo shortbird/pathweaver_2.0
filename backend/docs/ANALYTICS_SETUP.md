@@ -1,616 +1,107 @@
-# Google Analytics 4 Setup Guide
+# Analytics Setup (Optio)
 
-## Overview
-
-This guide covers setting up Google Analytics 4 (GA4) for the Optio platform to track user behavior, conversions, and key metrics.
-
-**Status**: Ready for Implementation
-**Estimated Time**: 2 hours
-**Cost**: Free
+**Last rewritten: 2026-08-05.** The previous version of this file described a
+`react-ga4`-based setup with event helpers for friends / collaboration /
+subscriptions. That library was removed in the March 2026 audit and those
+features no longer exist — the doc was stale. This reflects what is actually in
+the codebase.
 
 ---
 
-## Step 1: Create Google Analytics 4 Property
+## The stack
 
-### 1.1 Access Google Analytics
+Optio runs four measurement systems, each with a distinct job:
 
-1. Go to https://analytics.google.com/
-2. Sign in with your Google account (use Optio business account if available)
-3. Click **Admin** (gear icon in bottom left)
+| System | What it's for | Where | Gating |
+|---|---|---|---|
+| **PostHog** | Product analytics + session replay (the source of truth for logged-in behaviour, web **and** mobile) | `frontend/src/services/posthog.js`, `posthog-react-native` in v2 | `VITE_POSTHOG_KEY` — off in local dev |
+| **Google Analytics 4** | Acquisition funnel + Google Ads attribution (marketing site, logged-out) | `frontend/src/services/googleAnalytics.js` + `components/GaTracker.jsx` | **prod host only**, logged-out only |
+| **Meta Pixel** | Ad audiences / conversions (marketing site, logged-out) | `frontend/src/utils/metaPixel.js` + `components/MetaPixelTracker.jsx` | **prod host only**, logged-out only |
+| **Google Tag Manager** | Container for any other marketing tags | `frontend/index.html` | **prod host only** |
 
-### 1.2 Create Account (if needed)
-
-1. Click **Create Account**
-2. **Account Name**: "Optio Education"
-3. Configure data sharing settings (recommended: all enabled)
-4. Click **Next**
-
-### 1.3 Create Property
-
-1. **Property Name**: "Optio Platform"
-2. **Reporting Time Zone**: Your timezone (e.g., PST)
-3. **Currency**: USD
-4. Click **Next**
-
-### 1.4 Configure Business Details
-
-1. **Industry Category**: "Education"
-2. **Business Size**: Select appropriate size
-3. **How you plan to use Google Analytics**: Check relevant boxes
-4. Click **Create**
-5. Accept Terms of Service
-
-### 1.5 Set Up Data Stream
-
-1. **Platform**: Select **Web**
-2. **Website URL**: `https://www.optioeducation.com`
-3. **Stream Name**: "Optio Production"
-4. Click **Create Stream**
-
-### 1.6 Copy Measurement ID
-
-1. You'll see **Measurement ID**: `G-XXXXXXXXXX`
-2. **SAVE THIS** - you'll need it for frontend integration
-3. Keep this page open for configuration
+**Rule of thumb:** in-app product events go to **PostHog**. GA/Meta get only the
+handful of **acquisition conversions** (sign-up, lead) and pre-login pageviews.
+We never send user PII or identifiers to GA/Meta, and never track authenticated
+(potentially minor) sessions in ad tools.
 
 ---
 
-## Step 2: Configure Enhanced Measurements
+## Google Analytics 4 — how it works here
 
-In the data stream settings:
+GA4 is **initialized in-app**, not by a hardcoded snippet, so it can be gated and
+kept out of dev data:
 
-1. Scroll to **Enhanced measurement**
-2. Toggle **ON** (should be enabled by default)
-3. Ensure these are enabled:
-   - ✅ Page views
-   - ✅ Scrolls
-   - ✅ Outbound clicks
-   - ✅ Site search
-   - ✅ Form interactions
-   - ✅ Video engagement
-   - ✅ File downloads
+- `services/googleAnalytics.js`
+  - `initGa()` — called once at startup (`App.jsx`, next to `initPostHog()`).
+    No-ops unless the host is `www.optioeducation.com` / `optioeducation.com`.
+    Loads `gtag.js`, sets **Consent Mode v2** defaults (ad usage **denied**,
+    `analytics_storage` granted), and configures the property with
+    `send_page_view: false`.
+  - `gaTrackPageView(path)` — sends a `page_view`. Used by `GaTracker`.
+  - `gaTrackEvent(name, params)` — for acquisition conversions only. Never pass
+    PII (email/name).
+- `components/GaTracker.jsx` — mounted in `App.jsx`. Sends a `page_view` on every
+  React Router route change, **only while logged out** (mirrors
+  `MetaPixelTracker`). This is what makes SPA navigation measurable — a plain
+  `gtag('config')` only fires once, on hard load.
 
----
+### Events currently sent to GA4
 
-## Step 3: Frontend Integration
+| GA4 event | Fired from | Notes |
+|---|---|---|
+| `page_view` | `GaTracker` on route change | logged-out only |
+| `sign_up` | `contexts/AuthContext.jsx` (registration) | mark as Key Event → import to Ads |
+| `generate_lead` | `InlineContactForm.jsx`, `FreeClassModal.jsx` | marketing lead forms |
 
-### 3.1 Install Dependencies
+### Configuration
 
-```bash
-cd frontend
-npm install react-ga4
-```
-
-### 3.2 Create Analytics Service
-
-Create `frontend/src/services/analytics.js`:
-
-```javascript
-import ReactGA from 'react-ga4';
-
-const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
-
-// Initialize GA4
-export const initGA = () => {
-  if (MEASUREMENT_ID && import.meta.env.PROD) {
-    ReactGA.initialize(MEASUREMENT_ID, {
-      gaOptions: {
-        anonymize_ip: true, // GDPR compliance
-      },
-    });
-    console.log('Google Analytics initialized');
-  } else {
-    console.log('Google Analytics not initialized (dev mode or missing ID)');
-  }
-};
-
-// Track page views
-export const trackPageView = (path, title) => {
-  if (MEASUREMENT_ID && import.meta.env.PROD) {
-    ReactGA.send({ hitType: 'pageview', page: path, title });
-  }
-};
-
-// Track custom events
-export const trackEvent = (category, action, label = '', value = 0) => {
-  if (MEASUREMENT_ID && import.meta.env.PROD) {
-    ReactGA.event({
-      category,
-      action,
-      label,
-      value,
-    });
-  }
-};
-
-// User registration
-export const trackSignup = (method = 'email') => {
-  trackEvent('User', 'Sign Up', method);
-};
-
-// Quest events
-export const trackQuestStarted = (questId, questTitle) => {
-  trackEvent('Quest', 'Started', questTitle);
-};
-
-export const trackQuestCompleted = (questId, questTitle, xpEarned) => {
-  trackEvent('Quest', 'Completed', questTitle, xpEarned);
-};
-
-export const trackTaskCompleted = (taskId, questTitle, xpEarned) => {
-  trackEvent('Task', 'Completed', questTitle, xpEarned);
-};
-
-// Subscription events
-export const trackSubscriptionStarted = (tier) => {
-  trackEvent('Subscription', 'Started', tier);
-};
-
-export const trackSubscriptionCancelled = (tier) => {
-  trackEvent('Subscription', 'Cancelled', tier);
-};
-
-// Social features
-export const trackFriendRequest = () => {
-  trackEvent('Social', 'Friend Request Sent');
-};
-
-export const trackCollaboration = (questTitle) => {
-  trackEvent('Social', 'Collaboration Started', questTitle);
-};
-
-// Evidence submission
-export const trackEvidenceSubmitted = (type) => {
-  trackEvent('Evidence', 'Submitted', type);
-};
-
-// Diploma sharing
-export const trackDiplomaViewed = (userId, isOwner) => {
-  trackEvent('Diploma', 'Viewed', isOwner ? 'Own' : 'Public');
-};
-
-export const trackDiplomaShared = (platform) => {
-  trackEvent('Diploma', 'Shared', platform);
-};
-```
-
-### 3.3 Initialize in App
-
-Update `frontend/src/App.jsx`:
-
-```javascript
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { initGA, trackPageView } from './services/analytics';
-
-function App() {
-  const location = useLocation();
-
-  // Initialize GA on mount
-  useEffect(() => {
-    initGA();
-  }, []);
-
-  // Track page views on route change
-  useEffect(() => {
-    trackPageView(location.pathname + location.search, document.title);
-  }, [location]);
-
-  // ... rest of your App component
-}
-```
-
-### 3.4 Add Tracking to Key Actions
-
-**Registration** (`frontend/src/pages/RegisterPage.jsx`):
-```javascript
-import { trackSignup } from '../services/analytics';
-
-const handleSubmit = async (e) => {
-  // ... existing registration logic
-
-  if (response.ok) {
-    trackSignup('email');
-    // ... redirect logic
-  }
-};
-```
-
-**Quest Start** (`frontend/src/pages/QuestDetail.jsx`):
-```javascript
-import { trackQuestStarted } from '../services/analytics';
-
-const handleStartQuest = async () => {
-  // ... existing logic
-
-  if (response.ok) {
-    trackQuestStarted(quest.id, quest.title);
-    // ... update state
-  }
-};
-```
-
-**Task Completion** (`frontend/src/pages/QuestDetail.jsx`):
-```javascript
-import { trackTaskCompleted, trackQuestCompleted } from '../services/analytics';
-
-const handleTaskComplete = async (taskId) => {
-  // ... existing logic
-
-  if (response.ok) {
-    trackTaskCompleted(taskId, quest.title, task.xp_value);
-
-    // If quest completed
-    if (allTasksComplete) {
-      trackQuestCompleted(quest.id, quest.title, totalXP);
-    }
-  }
-};
-```
-
-**Subscription** (`frontend/src/pages/SubscriptionPage.jsx`):
-```javascript
-import { trackSubscriptionStarted } from '../services/analytics';
-
-const handleSubscribe = async (tier) => {
-  // ... existing Stripe logic
-
-  trackSubscriptionStarted(tier);
-  // ... redirect to Stripe
-};
-```
-
-**Diploma View** (`frontend/src/pages/DiplomaPage.jsx`):
-```javascript
-import { trackDiplomaViewed } from '../services/analytics';
-
-useEffect(() => {
-  if (portfolioData) {
-    const isOwner = user?.id === portfolioData.user_id;
-    trackDiplomaViewed(portfolioData.user_id, isOwner);
-  }
-}, [portfolioData]);
-```
-
-### 3.5 Add Environment Variable
-
-Update both dev and prod environments:
-
-**Development** (optio-dev-frontend service):
-```
-VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
-```
-
-**Production** (optio-prod-frontend service):
-```
-VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
-```
+- **Measurement ID**: `VITE_GA_MEASUREMENT_ID` (falls back to the live prod
+  property `G-KPKTXS36W3` if unset, since GA only runs on the prod host anyway).
+  Point a different property per environment by setting the env var.
+- **GTM container**: `GTM-P9TZN8P3`, gated to the prod host in `index.html`.
+  > ⚠️ GA4 is initialized in-app. If the GTM container **also** has a GA4
+  > Configuration / Google tag for `G-KPKTXS36W3`, disable it in the GTM UI or
+  > every pageview is double-counted.
 
 ---
 
-## Step 4: Configure Conversions in GA4
+## GA4 property setup (one-time, in the GA UI)
 
-### 4.1 Mark Events as Conversions
-
-1. In GA4, go to **Admin** → **Events**
-2. Wait 24 hours for events to appear (or test immediately)
-3. Mark these as conversions:
-   - ✅ `Sign Up` (User registration)
-   - ✅ `Completed` (Quest completed)
-   - ✅ `Started` (Subscription started)
-
-### 4.2 Set Up Custom Conversions
-
-1. Go to **Admin** → **Conversions**
-2. Click **New conversion event**
-3. Create conversion for first quest:
-   - **Event name**: `first_quest_completed`
-   - Mark as conversion
+1. **Enhanced Measurement**: leave on, but note SPA pageviews come from
+   `GaTracker`; you can turn off "Page changes based on browser history events"
+   to avoid any overlap.
+2. **Key Events**: mark `sign_up` and `generate_lead` as Key Events
+   (Admin → Events → mark as key event).
+3. **Google Ads**: link the Ads account and import the two Key Events as
+   conversions for campaign optimization.
+4. **Consent / Google Signals**: Consent Mode denies `ad_storage` /
+   `ad_user_data` / `ad_personalization` by default (see `initGa`). Keep Google
+   Signals **off** unless a real cookie-consent flow is added — Optio serves
+   K-12 minors and must not feed them to ad/remarketing features.
 
 ---
 
-## Step 5: Set Up Custom Dimensions
+## Privacy
 
-Track additional user properties:
+- GA/Meta run **prod + logged-out only**; authenticated (potentially minor)
+  sessions are never tracked in ad tools.
+- No user id / email / name is sent to GA or Meta.
+- PostHog session replay masks all inputs (`session_recording.maskAllInputs`).
+- There is **no cookie-consent banner** today; GA Consent Mode grants only
+  `analytics_storage` and denies all ad usage. If you later serve EU traffic at
+  scale or want stricter defaults, add a banner and flip `analytics_storage` to
+  `denied` until consent.
 
-1. Go to **Admin** → **Custom definitions**
-2. Click **Create custom dimension**
+---
 
-**Custom Dimension 1: User Tier**
-- Dimension name: `user_tier`
-- Scope: User
-- Description: Subscription tier (free/creator/visionary)
+## Environment variables
 
-**Custom Dimension 2: User Level**
-- Dimension name: `user_level`
-- Scope: User
-- Description: Achievement level (Explorer/Builder/etc)
-
-**Custom Dimension 3: Quest Pillar**
-- Dimension name: `quest_pillar`
-- Scope: Event
-- Description: Quest skill pillar
-
-### Update Analytics Service:
-
-```javascript
-// Set user properties
-export const setUserProperties = (user) => {
-  if (MEASUREMENT_ID && import.meta.env.PROD) {
-    ReactGA.set({
-      user_tier: user.subscription_tier,
-      user_level: user.level,
-      user_id: user.id, // For user-level analysis
-    });
-  }
-};
-
-// Call after login
-export const trackLogin = (user) => {
-  setUserProperties(user);
-  trackEvent('User', 'Login', user.subscription_tier);
-};
+```
+# frontend (.env / Render static site env)
+VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX   # optional; defaults to the prod property
+VITE_POSTHOG_KEY=phc_...              # required for PostHog (unset = off, e.g. dev)
+VITE_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
----
-
-## Step 6: Create Custom Reports
-
-### 6.1 User Acquisition Report
-
-1. Go to **Reports** → **Life Cycle** → **Acquisition**
-2. This shows where users are coming from
-3. Monitor:
-   - Traffic sources
-   - Landing pages
-   - Conversion rates by source
-
-### 6.2 Engagement Report
-
-1. Go to **Reports** → **Life Cycle** → **Engagement**
-2. Track:
-   - Active users
-   - Engagement rate
-   - Event counts
-   - User journey
-
-### 6.3 Conversion Funnel
-
-1. Go to **Explore**
-2. Create **Funnel exploration**
-3. Steps:
-   - Step 1: Page view (home)
-   - Step 2: Sign up
-   - Step 3: Quest started
-   - Step 4: Quest completed
-   - Step 5: Subscription started
-
----
-
-## Step 7: Set Up Alerts
-
-### 7.1 Custom Insights
-
-1. Go to **Admin** → **Custom Insights**
-2. Create alert: **Daily Active Users Drop**
-   - Condition: DAU decreases by >20%
-   - Alert via email
-
-### 7.2 Real-Time Monitoring
-
-1. Go to **Reports** → **Realtime**
-2. Monitor current users
-3. Check event activity
-4. Verify tracking is working
-
----
-
-## Key Metrics to Monitor
-
-### User Acquisition
-- **New Users**: Daily/weekly signups
-- **Traffic Sources**: Where users come from
-- **Landing Page Performance**: Which pages convert
-
-### User Engagement
-- **DAU/MAU**: Daily/Monthly Active Users
-- **Session Duration**: Average time on platform
-- **Pages per Session**: Engagement depth
-- **Return Rate**: User retention
-
-### Quest Metrics
-- **Quests Started**: Enrollment rate
-- **Quests Completed**: Completion rate
-- **Average XP per User**: Engagement level
-- **Task Completion Rate**: Success rate
-
-### Conversion Metrics
-- **Signup Conversion**: Landing → Registration
-- **Quest Activation**: Registration → First Quest
-- **Subscription Conversion**: Free → Paid
-- **Retention Rate**: Monthly user return
-
-### Diploma Metrics
-- **Diploma Views**: Public portfolio views
-- **Share Events**: Diploma sharing activity
-- **View Sources**: Where traffic comes from
-
----
-
-## Privacy & GDPR Compliance
-
-### Implemented Privacy Features
-
-1. **IP Anonymization**: Enabled in config
-2. **Production Only**: Analytics disabled in development
-3. **No PII Tracking**: Never track names, emails, etc.
-
-### Additional Requirements
-
-Add to Privacy Policy:
-
-```markdown
-## Analytics & Cookies
-
-Optio uses Google Analytics to understand how users interact with our platform.
-We collect:
-- Page views and navigation patterns
-- Feature usage and engagement
-- Anonymous demographic information
-- Device and browser information
-
-We do NOT collect:
-- Personal information (names, emails)
-- Full IP addresses (anonymized)
-- Authentication credentials
-
-You can opt-out of Google Analytics by installing the
-[Google Analytics Opt-out Browser Add-on](https://tools.google.com/dlpage/gaoptout).
-```
-
-### Cookie Consent (Optional for EU)
-
-If targeting EU users, add cookie consent banner:
-
-```javascript
-// frontend/src/components/CookieConsent.jsx
-import { useState, useEffect } from 'react';
-
-export default function CookieConsent() {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    const consent = localStorage.getItem('cookie_consent');
-    if (!consent) {
-      setShow(true);
-    }
-  }, []);
-
-  const handleAccept = () => {
-    localStorage.setItem('cookie_consent', 'accepted');
-    setShow(false);
-    // Initialize GA here if waiting for consent
-  };
-
-  if (!show) return null;
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 z-50">
-      <div className="container mx-auto flex items-center justify-between">
-        <p>
-          We use cookies to analyze site usage and improve your experience.
-          <a href="/privacy" className="underline ml-2">Learn more</a>
-        </p>
-        <button
-          onClick={handleAccept}
-          className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] px-6 py-2 rounded"
-        >
-          Accept
-        </button>
-      </div>
-    </div>
-  );
-}
-```
-
----
-
-## Testing Analytics
-
-### Local Testing
-
-1. Run frontend locally: `npm run dev`
-2. Open browser console
-3. Check for "Google Analytics initialized" message
-4. In GA4, go to **Reports** → **Realtime**
-5. Perform actions (signup, quest start, etc.)
-6. Verify events appear in Realtime report
-
-### Production Testing
-
-1. Deploy to production
-2. Test in incognito window
-3. Perform key user actions
-4. Check GA4 Realtime report
-5. Wait 24 hours for full data processing
-
----
-
-## Deployment Checklist
-
-### Frontend Changes
-
-- [ ] Install react-ga4 package
-- [ ] Create analytics service
-- [ ] Initialize GA in App.jsx
-- [ ] Add tracking to registration
-- [ ] Add tracking to quest actions
-- [ ] Add tracking to subscriptions
-- [ ] Add tracking to social features
-- [ ] Add tracking to diploma views
-
-### Environment Variables
-
-- [ ] Add VITE_GA_MEASUREMENT_ID to dev environment
-- [ ] Add VITE_GA_MEASUREMENT_ID to prod environment
-- [ ] Verify production-only tracking
-
-### Google Analytics
-
-- [ ] Create GA4 property
-- [ ] Configure enhanced measurements
-- [ ] Set up custom dimensions
-- [ ] Mark key conversions
-- [ ] Create custom reports
-- [ ] Set up alerts
-
-### Testing
-
-- [ ] Test locally (dev mode skips tracking)
-- [ ] Test in production
-- [ ] Verify Realtime events
-- [ ] Wait 24 hours for full data
-- [ ] Review all tracked events
-
----
-
-## Expected Results
-
-After 24 hours, you should see:
-
-- User counts (new vs returning)
-- Traffic sources
-- Page views and navigation
-- Custom events (signups, quest completions, etc.)
-- Conversion rates
-- User engagement metrics
-
-After 7 days, you'll have enough data for:
-
-- Trend analysis
-- User retention metrics
-- Funnel optimization
-- A/B test planning
-
----
-
-## Next Steps
-
-1. Create GA4 account and property
-2. Get Measurement ID
-3. Implement frontend tracking (2 hours)
-4. Deploy to development for testing
-5. Deploy to production
-6. Monitor for 24-48 hours
-7. Create custom reports based on data
-
----
-
-**Priority**: HIGH - Critical for understanding users
-**Estimated Time**: 2 hours implementation + 24 hours data collection
-**Cost**: $0 (Google Analytics is free)
-
----
-
-**Last Updated**: 2025-09-29
-**Status**: Ready for Implementation
+GA only fires on the prod host, so you do **not** need `VITE_GA_MEASUREMENT_ID`
+in dev — leave it unset there.

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import api from '../../services/api'
 import { captureEvent } from '../../services/posthog'
+import { gaTrackEvent } from '../../services/googleAnalytics'
 
 const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subheading = 'Drop your info and we\'ll reach out with everything you need.', placeholder = 'Tell us about your situation...' }) => {
   const [form, setForm] = useState({ name: '', email: '', message: '' })
@@ -22,6 +23,7 @@ const InlineContactForm = ({ source = 'general', heading = 'Get More Info', subh
       })
       setSubmitted(true)
       captureEvent('marketing_form_submitted', { source, has_message: !!form.message })
+      gaTrackEvent('generate_lead', { source }) // GA4 acquisition conversion (no PII)
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong. Try again.')
     } finally {
