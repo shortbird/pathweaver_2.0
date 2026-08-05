@@ -56,6 +56,23 @@ LEAD_TYPE_LISTS = {
     'academy': LIST_B2B,
 }
 
+# Brevo automations that are live in the dashboard, keyed by the list whose
+# "contact added" event triggers them (confirmed live 2026-08-05). Adding a
+# contact to one of these lists means an automated sequence follows; every
+# other list is manual follow-up by design — B2B #6 (CRM pipeline + personal
+# reply), POE Parents #7 (one post-camp send), Customers #8 (suppression only).
+#
+# This map is what the [COPY] banner in email_service reads to tell Tanner
+# whether an email needs a personal reply. If an automation is ever paused or
+# deleted in the Brevo dashboard, remove its entry here in the same pass, or
+# the banner will promise follow-up that isn't happening.
+LIST_AUTOMATIONS = {
+    LIST_FREE_CLASS_LEADS: 'Free Class Nurture',
+    LIST_FAMILIES: 'Families Nurture',
+    LIST_GENERAL_INTEREST: 'General Interest Nurture',
+    LIST_NEW_ACCOUNTS: 'New Account Welcome',
+}
+
 # A lead belongs to exactly one of these at a time. Someone who submits two
 # forms (e.g. free-class then demo, minutes apart) must not enter two nurture
 # sequences with near-identical copy, so the first list wins and later
@@ -64,6 +81,12 @@ EXCLUSIVE_LEAD_LISTS = [
     LIST_FREE_CLASS_LEADS, LIST_FAMILIES, LIST_B2B,
     LIST_CATCHUP_FREE_CLASS, LIST_GENERAL_INTEREST,
 ]
+
+
+def automation_for_list(list_id):
+    """Name of the live Brevo automation triggered by an add to this list, or
+    None when the list has no automation behind it."""
+    return LIST_AUTOMATIONS.get(list_id)
 
 
 def _enabled():
@@ -122,12 +145,18 @@ def sync_lead(email, contact_type, name=None):
     """Create/update a Brevo contact for a new lead and add it to the list
     matching its type (which starts that list's nurture automation). If the
     contact is already on another lead list, the first list wins and this
-    sync is skipped entirely, so one lead never runs two sequences."""
+    sync is skipped entirely, so one lead never runs two sequences.
+
+    Returns the name of the automation this add starts, or None when nothing
+    automated follows (no list for the type, sync skipped, list without an
+    automation, or the call failed). Callers hand that to the email service so
+    the [COPY] banner can say whether the lead needs a personal reply.
+    """
     if not _enabled():
-        return
+        return None
     list_id = LEAD_TYPE_LISTS.get(contact_type)
     if not list_id:
-        return
+        return None
 
     existing_lists = _existing_lead_lists(email)
     if existing_lists and list_id not in existing_lists:
@@ -135,7 +164,11 @@ def sync_lead(email, contact_type, name=None):
             f'Brevo lead already on list(s) {existing_lists}; '
             f'skipping add to {list_id} (one funnel per lead)'
         )
-        return
+        return None
+    # Automations trigger on "contact added to list" and exclude existing
+    # members, so a repeat submission from someone already on the target list
+    # starts nothing new — that one is a personal reply.
+    already_on_target = list_id in existing_lists
 
     attributes = {
         'LEAD_TYPE': contact_type,
@@ -153,16 +186,21 @@ def sync_lead(email, contact_type, name=None):
     try:
         if _upsert_contact(email, list_id, attributes):
             logger.info(f'Brevo lead synced: type={contact_type} list={list_id}')
+            return None if already_on_target else automation_for_list(list_id)
     except Exception as e:
         logger.warning(f'Brevo lead sync error: {e}')
+    return None
 
 
 def sync_poe_parent(parent_email, first_name=None, last_name=None):
     """Add a POE signup's parent to the POE Parents list. Marketing goes to
     parents only; student emails must never be synced (all POE signups are
-    minors)."""
+    minors).
+
+    Returns the automation this starts, or None — POE Parents has no automation
+    today (one manual post-camp send), so this is None in practice."""
     if not _enabled():
-        return
+        return None
     attributes = {
         'LEAD_TYPE': 'poe_parent',
         'LEAD_SOURCE': 'poe_signup',
@@ -177,8 +215,10 @@ def sync_poe_parent(parent_email, first_name=None, last_name=None):
     try:
         if _upsert_contact(parent_email, LIST_POE_PARENTS, attributes):
             logger.info('Brevo POE parent synced')
+            return automation_for_list(LIST_POE_PARENTS)
     except Exception as e:
         logger.warning(f'Brevo POE parent sync error: {e}')
+    return None
 
 
 def sync_new_account(email, first_name=None, last_name=None, role=None):
@@ -190,9 +230,12 @@ def sync_new_account(email, first_name=None, last_name=None, role=None):
 
     Callers gate eligibility (see routes/auth/registration.py): self-signups
     with an effective role of student or parent (platform or org), not
-    under-13. Ineligible registrants go through mark_converted instead."""
+    under-13. Ineligible registrants go through mark_converted instead.
+
+    Returns the automation this starts (New Account Welcome), or None if the
+    sync didn't happen."""
     if not _enabled():
-        return
+        return None
     attributes = {
         'CONVERTED': True,
         'SIGNUP_DATE': date.today().isoformat(),
@@ -206,7 +249,7 @@ def sync_new_account(email, first_name=None, last_name=None, role=None):
 
     try:
         if not _upsert_contact(email, [LIST_CUSTOMERS, LIST_NEW_ACCOUNTS], attributes):
-            return
+            return None
         # Second call: POST /contacts can't unlink lists, so drop any lead-list
         # memberships with a PUT (no-op for organic signups).
         resp = requests.put(
@@ -221,8 +264,10 @@ def sync_new_account(email, first_name=None, last_name=None, role=None):
             logger.warning(f'Brevo new-account unlink failed ({resp.status_code}): {resp.text[:200]}')
         else:
             logger.info('Brevo new account synced')
+        return automation_for_list(LIST_NEW_ACCOUNTS)
     except Exception as e:
         logger.warning(f'Brevo new-account sync error: {e}')
+    return None
 
 
 def mark_converted(email):

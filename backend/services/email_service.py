@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any
 import requests
 from services.base_service import BaseService
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
-from markupsafe import Markup
+from markupsafe import Markup, escape
 from services.email_copy_loader import email_copy_loader
 from app_config import Config
 
@@ -67,6 +67,33 @@ class EmailService(BaseService):
             logger.warning(f"Org lookup failed for {to_email}: {e}")
             return None
 
+    @staticmethod
+    def _funnel_banner(brevo_funnel: Optional[str]) -> tuple:
+        """Top-of-copy banner for the [COPY] sent to SUPPORT_COPY_EMAIL, saying
+        whether a Brevo automation follows this email. Returns (html, text).
+
+        Most Optio mail has no funnel behind it, so the no-funnel case is the
+        default and states plainly that any reply has to be a personal one.
+        """
+        if brevo_funnel:
+            name = escape(str(brevo_funnel))
+            return (
+                '<div style="background: #ecfdf5; padding: 12px; margin-bottom: 8px; '
+                'border-left: 4px solid #059669;"><strong>Brevo funnel:</strong> '
+                f'{name}. Automated follow-up is running &mdash; no reply needed '
+                'unless they write back.</div>',
+                f"[Brevo funnel: {brevo_funnel}. Automated follow-up is running - "
+                "no reply needed unless they write back.]",
+            )
+        return (
+            '<div style="background: #fef2f2; padding: 12px; margin-bottom: 8px; '
+            'border-left: 4px solid #dc2626;"><strong>No Brevo funnel.</strong> '
+            'Nothing automated follows this email &mdash; if it needs a reply, '
+            'reply to it yourself.</div>',
+            "[No Brevo funnel. Nothing automated follows this email - if it needs "
+            "a reply, reply to it yourself.]",
+        )
+
     def send_email(
         self,
         to_email: str,
@@ -78,7 +105,8 @@ class EmailService(BaseService):
         sender_name_override: Optional[str] = None,
         sender_email_override: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
-        reply_to: Optional[str] = None
+        reply_to: Optional[str] = None,
+        brevo_funnel: Optional[str] = None
     ) -> bool:
         """
         Send an email via the Brevo transactional API
@@ -95,6 +123,14 @@ class EmailService(BaseService):
             attachments: List of {'filename': str, 'content': bytes,
                 'mimetype': str} dicts (optional; Brevo infers the type from
                 the filename extension)
+            brevo_funnel: Name of the live Brevo automation this send hands the
+                recipient off to (e.g. 'Free Class Nurture'), or None when
+                nothing automated follows. Only affects the [COPY] to
+                SUPPORT_COPY_EMAIL, which is banner-flagged either way so the
+                reader knows whether a personal reply is needed. Pass the
+                return value of the brevo_service sync that ran alongside the
+                send — it reflects whether the automation actually started for
+                this recipient, not just which flow this is.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -159,7 +195,8 @@ class EmailService(BaseService):
                     and support_email not in cc
                     and to_email.lower() != support_copy_email.lower()):
                 try:
-                    html_context = f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; border-left: 4px solid #6D469B;"><strong>Copy:</strong> This email was sent to {to_email}</div>'
+                    funnel_html, funnel_text = self._funnel_banner(brevo_funnel)
+                    html_context = funnel_html + f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; border-left: 4px solid #6D469B;"><strong>Copy:</strong> This email was sent to {to_email}</div>'
                     # Inject the banner INSIDE <body> when the message is a full
                     # HTML document — prepending it before <!DOCTYPE>/<head> made
                     # Gmail drop the stylesheet, so copies arrived unstyled.
@@ -177,7 +214,9 @@ class EmailService(BaseService):
                         'htmlContent': copy_html,
                     }
                     if text_body:
-                        support_payload['textContent'] = f"[This is a copy of an email sent to: {to_email}]\n\n{text_body}"
+                        support_payload['textContent'] = (
+                            f"{funnel_text}\n\n[This is a copy of an email sent to: {to_email}]\n\n{text_body}"
+                        )
                     if attachments:
                         support_payload['attachment'] = payload['attachment']
                     if self._send_via_brevo(support_payload):
@@ -249,7 +288,8 @@ class EmailService(BaseService):
         cc: Optional[List[str]] = None,
         bcc: Optional[List[str]] = None,
         reply_to: Optional[str] = None,
-        attachments: Optional[List[Dict[str, Any]]] = None
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        brevo_funnel: Optional[str] = None
     ) -> bool:
         """
         Send an email using the template system (database overrides + YAML fallback)
@@ -266,6 +306,8 @@ class EmailService(BaseService):
                 unwatched support@ inbox.
             attachments: List of {'filename': str, 'content': bytes,
                 'mimetype': str} dicts (optional)
+            brevo_funnel: Live Brevo automation this send hands off to, if any
+                (see send_email) — drives the [COPY] banner only.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -301,7 +343,8 @@ class EmailService(BaseService):
                 bcc,
                 sender_name_override=sender_name,
                 reply_to=reply_to,
-                attachments=attachments
+                attachments=attachments,
+                brevo_funnel=brevo_funnel
             )
 
         except TemplateNotFound as e:
@@ -538,6 +581,12 @@ class EmailService(BaseService):
         """
         Send a welcome email to new users.
         Uses CRM template system (database override or YAML default).
+
+        Onboarding has one owner per account: signups that enter Brevo's New
+        Account Welcome automation are welcomed by that sequence and never get
+        this email (see routes/auth/google_oauth.py). This covers everyone the
+        automation doesn't take, so it is always un-funneled by definition and
+        its [COPY] correctly asks for a personal reply.
         """
         return self.send_templated_email(
             to_email=user_email,
@@ -996,7 +1045,8 @@ class EmailService(BaseService):
         self,
         user_name: str,
         user_email: str,
-        organization: str = None
+        organization: str = None,
+        brevo_funnel: Optional[str] = None
     ) -> bool:
         """
         Send demo request confirmation email to user.
@@ -1020,7 +1070,8 @@ class EmailService(BaseService):
             context={
                 'name': user_name,
                 'organization': organization or ''
-            }
+            },
+            brevo_funnel=brevo_funnel
         )
 
     def send_sales_inquiry_confirmation(
@@ -1064,7 +1115,8 @@ class EmailService(BaseService):
         self,
         user_name: str,
         user_email: str,
-        message: str = None
+        message: str = None,
+        brevo_funnel: Optional[str] = None
     ) -> bool:
         """Send family inquiry confirmation email from the for-families page."""
         return self.send_templated_email(
@@ -1074,7 +1126,8 @@ class EmailService(BaseService):
             context={
                 'name': user_name,
                 'message': message or ''
-            }
+            },
+            brevo_funnel=brevo_funnel
         )
 
     def send_academy_inquiry_confirmation(
@@ -1099,7 +1152,8 @@ class EmailService(BaseService):
         to_email: str,
         first_name: str,
         cohort_name: str,
-        cc: Optional[List[str]] = None
+        cc: Optional[List[str]] = None,
+        brevo_funnel: Optional[str] = None
     ) -> bool:
         """
         Confirm a Pipe Organ Encounter interest-list signup (public /poe page).
@@ -1184,11 +1238,13 @@ class EmailService(BaseService):
             html_body=html_body,
             text_body=text_body,
             cc=cc or None,
+            brevo_funnel=brevo_funnel,
         )
 
     def send_claim_free_class_confirmation(
         self,
-        user_email: str
+        user_email: str,
+        brevo_funnel: Optional[str] = None
     ) -> bool:
         """
         Send confirmation email for the 'first class free' modal on /classes.
@@ -1201,7 +1257,8 @@ class EmailService(BaseService):
             to_email=user_email,
             subject="Your free Optio class — here's what's next",
             template_name='claim_free_class_confirmation',
-            context={}
+            context={},
+            brevo_funnel=brevo_funnel
         )
 
     def send_promo_code_email(

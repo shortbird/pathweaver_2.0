@@ -210,10 +210,16 @@ def enroll_in_poe():
 
         # Marketing sync: parent email only, never the student's (all POE
         # signups are minors). Fire-and-forget.
+        # POE Parents has no automation behind it today, so brevo_funnel is
+        # normally None and the confirmation's [COPY] tells Tanner to reply
+        # himself. It picks one up automatically if an automation is ever added.
+        brevo_funnel = None
         if parent_email:
             try:
                 from services.brevo_service import sync_poe_parent
-                sync_poe_parent(parent_email, first_name=parent_first_name, last_name=parent_last_name)
+                brevo_funnel = sync_poe_parent(
+                    parent_email, first_name=parent_first_name, last_name=parent_last_name
+                )
             except Exception as brevo_err:
                 logger.warning(f"[POE] Brevo parent sync skipped: {brevo_err}")
 
@@ -227,6 +233,7 @@ def enroll_in_poe():
                 first_name=first_name,
                 cohort_name=cohort.get('display_name') or 'your Pipe Organ Encounter',
                 cc=cc,
+                brevo_funnel=brevo_funnel,
             )
             if email_sent:
                 client.table('poe_signups').update(

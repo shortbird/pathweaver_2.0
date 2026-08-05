@@ -150,31 +150,24 @@ def apple_oauth_callback():
             # Case C: Account linking - email-password or Google user signing in with Apple
             user_data = existing_by_email.data[0]
             original_user_id = user_data['id']
-            existing_auth_provider = user_data.get('auth_provider', 'email')
-            new_auth_provider = (
-                existing_auth_provider
-                if 'apple' in (existing_auth_provider or '')
-                else f"{existing_auth_provider},apple"
-            )
-
+            # `apple_user_id` IS the link record — there is no auth_provider
+            # column on `users` (writing one used to raise here, and the
+            # fallback below wrote it again, so the error escaped and this whole
+            # sign-in 500'd; fixed 2026-08-05).
             try:
                 admin_client.table('users').update({
                     'apple_user_id': apple_oauth_user_id,
-                    'auth_provider': new_auth_provider,
                     'last_active': datetime.utcnow().isoformat(),
                     'last_logout_at': None,
                 }).eq('id', original_user_id).execute()
                 user_data['apple_user_id'] = apple_oauth_user_id
-                user_data['auth_provider'] = new_auth_provider
                 logger.info(f"[APPLE_OAUTH] Account linked: {mask_user_id(original_user_id)} <- Apple {mask_user_id(apple_oauth_user_id)}")
             except Exception as link_error:
                 logger.warning(f"[APPLE_OAUTH] Could not fully link account (apple_user_id column may not exist): {link_error}")
                 admin_client.table('users').update({
-                    'auth_provider': new_auth_provider,
                     'last_active': datetime.utcnow().isoformat(),
                     'last_logout_at': None,
                 }).eq('id', original_user_id).execute()
-                user_data['auth_provider'] = new_auth_provider
 
             user_id = original_user_id
 

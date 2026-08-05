@@ -59,6 +59,44 @@ def verify_tos_acceptance_token(token: str):
         return None
 
 
+def _sync_oauth_signup_to_brevo(user_data, promo_role=None):
+    """Push a completed Google/Apple signup into Brevo, mirroring the gate in
+    routes/auth/registration.py: an effective role of student or parent and not
+    under-13 joins Customers plus New Account Welcome (which starts the welcome
+    automation); everyone else is only conversion-marked, so any nurture
+    sequence they were in exits without new marketing reaching them.
+
+    Returns the automation this started, or None — passed to the welcome email
+    so its [COPY] says whether the signup needs a personal reply. Best-effort:
+    a Brevo problem must never fail a sign-in.
+
+    `promo_role` is the role a valid promo code is setting in this same request;
+    user_data still holds the pre-update row, so it wins when present.
+    """
+    email = user_data.get('email')
+    if not email:
+        return None
+    try:
+        from services.brevo_service import mark_converted, sync_new_account
+        platform_role = promo_role or user_data.get('role') or 'student'
+        effective_role = (
+            user_data.get('org_role') if platform_role == 'org_managed' else platform_role
+        )
+        if user_data.get('requires_parental_consent') or effective_role not in ('student', 'parent'):
+            mark_converted(email)
+            return None
+        # OAuth gives us a placeholder 'User' when the provider withholds a
+        # name (Apple's hide-my-name option); don't write that into Brevo.
+        first_name = (user_data.get('first_name') or '').strip()
+        if first_name.lower() == 'user':
+            first_name = ''
+        last_name = (user_data.get('last_name') or '').strip()
+        return sync_new_account(email, first_name or None, last_name or None, role=effective_role)
+    except Exception as brevo_err:
+        logger.warning(f"[OAUTH] Brevo signup sync failed: {brevo_err}")
+        return None
+
+
 def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
     """Ensure user has diploma and skill categories initialized"""
     import re
@@ -232,28 +270,29 @@ def google_oauth_callback():
             user_data = existing_by_email.data[0]
             original_user_id = user_data['id']
 
-            # Link the Google OAuth identity to this existing account
+            # Link the Google OAuth identity to this existing account.
+            # `google_user_id` IS the link record — there is no auth_provider
+            # column on `users` (writing one used to raise here, and the
+            # fallback below wrote it again, so the error escaped and this whole
+            # sign-in 500'd; fixed 2026-08-05). The fallback now only drops
+            # google_user_id, which is all the original try/except was for.
             try:
                 admin_client.table('users').update({
                     'google_user_id': google_oauth_user_id,
-                    'auth_provider': 'email,google',
                     'avatar_url': avatar_url or user_data.get('avatar_url'),
                     'last_active': datetime.utcnow().isoformat(),
                     'last_logout_at': None  # Clear logout timestamp on login
                 }).eq('id', original_user_id).execute()
                 user_data['google_user_id'] = google_oauth_user_id
-                user_data['auth_provider'] = 'email,google'
                 logger.info(f"[GOOGLE_OAUTH] Account linked: {mask_user_id(original_user_id)} <- Google {mask_user_id(google_oauth_user_id)}")
             except Exception as link_error:
                 # If google_user_id column doesn't exist, just update what we can
                 logger.warning(f"[GOOGLE_OAUTH] Could not fully link account (google_user_id column may not exist): {link_error}")
                 admin_client.table('users').update({
-                    'auth_provider': 'email,google',
                     'avatar_url': avatar_url or user_data.get('avatar_url'),
                     'last_active': datetime.utcnow().isoformat(),
                     'last_logout_at': None  # Clear logout timestamp on login
                 }).eq('id', original_user_id).execute()
-                user_data['auth_provider'] = 'email,google'
                 logger.info(f"[GOOGLE_OAUTH] Account partially linked (no google_user_id): {mask_user_id(original_user_id)}")
 
             # Use the original user_id for session tokens (preserves all user data)
@@ -506,49 +545,73 @@ def accept_tos():
             except Exception as promo_update_error:
                 logger.error(f"[GOOGLE_OAUTH] Failed to mark promo code as redeemed: {promo_update_error}")
 
-        # Send welcome email for new OAuth users (Google/Apple). Use an atomic
-        # claim update so concurrent requests can't double-send: the UPDATE
-        # matches only when welcome_email_sent is still FALSE, and the winning
-        # caller (the one whose update actually affected a row) is the only
-        # one that goes on to send the email.
+        # Onboard a new OAuth user (Google/Apple), exactly once. The atomic
+        # claim update is what makes it once: it matches only while
+        # welcome_email_sent is still FALSE, so of any concurrent requests only
+        # the one whose UPDATE actually changed a row proceeds.
+        #
+        # Onboarding has a single owner per account. Eligible signups go into
+        # Brevo's New Account Welcome automation and that sequence does the
+        # welcoming — sending the transactional welcome too would greet them
+        # twice within the hour. The transactional email is the fallback for
+        # everyone the automation doesn't take: promo-code roles, under-13, and
+        # any signup where the Brevo sync failed. Nobody gets two, nobody gets
+        # none.
         if not user_data.get('welcome_email_sent'):
             try:
                 claim_result = admin_client.table('users').update({
                     'welcome_email_sent': True
                 }).eq('id', user_id).eq('welcome_email_sent', False).execute()
 
-                # Only send if we won the claim — `data` is the set of rows
-                # the UPDATE actually modified (empty if someone else got there first).
+                # `data` is the set of rows the UPDATE actually modified (empty
+                # if another request got there first).
                 if claim_result.data:
-                    from services.email_service import EmailService
-                    email_service = EmailService()
-                    # Leave user_name empty if we don't have a real one — the
-                    # template renders "Welcome to Optio!" instead of the
-                    # awkward "Welcome to Optio, there!".
-                    first_name_clean = (user_data.get('first_name') or '').strip()
-                    user_name = first_name_clean if first_name_clean.lower() not in ('', 'user') else ''
-                    if not user_name:
-                        user_name = (user_data.get('display_name') or '').strip()
-                    try:
-                        email_sent = email_service.send_welcome_email(
-                            user_email=user_data.get('email'),
-                            user_name=user_name
+                    # Marketing sync, same gate as email/password registration
+                    # (routes/auth/registration.py). A retry after a failed send
+                    # re-runs it, which is harmless (the list add is an upsert
+                    # and automations skip existing members, so no second
+                    # sequence). Until this existed, OAuth signups never reached
+                    # Brevo at all: they missed the welcome automation, and a
+                    # lead who converted with Google or Apple kept receiving
+                    # their nurture sequence because nothing ever marked them
+                    # converted.
+                    brevo_funnel = _sync_oauth_signup_to_brevo(user_data, new_role)
+
+                    if brevo_funnel:
+                        logger.info(
+                            f"[OAUTH] {brevo_funnel} owns onboarding for {mask_user_id(user_id)} — "
+                            "skipping the transactional welcome email"
                         )
-                        if email_sent:
-                            logger.info(f"[OAUTH] Welcome email sent to new user {mask_user_id(user_id)}")
-                        else:
-                            # Email failed: release the claim so a retry can try again.
-                            logger.warning(f"[OAUTH] Welcome email failed for user {mask_user_id(user_id)} — releasing claim")
+                    else:
+                        from services.email_service import EmailService
+                        email_service = EmailService()
+                        # Leave user_name empty if we don't have a real one — the
+                        # template renders "Welcome to Optio!" instead of the
+                        # awkward "Welcome to Optio, there!".
+                        first_name_clean = (user_data.get('first_name') or '').strip()
+                        user_name = first_name_clean if first_name_clean.lower() not in ('', 'user') else ''
+                        if not user_name:
+                            user_name = (user_data.get('display_name') or '').strip()
+                        try:
+                            email_sent = email_service.send_welcome_email(
+                                user_email=user_data.get('email'),
+                                user_name=user_name
+                            )
+                            if email_sent:
+                                logger.info(f"[OAUTH] Welcome email sent to new user {mask_user_id(user_id)}")
+                            else:
+                                # Email failed: release the claim so a retry can try again.
+                                logger.warning(f"[OAUTH] Welcome email failed for user {mask_user_id(user_id)} — releasing claim")
+                                admin_client.table('users').update({
+                                    'welcome_email_sent': False
+                                }).eq('id', user_id).execute()
+                        except Exception as send_error:
+                            logger.error(f"[OAUTH] Welcome email send raised: {send_error} — releasing claim")
                             admin_client.table('users').update({
                                 'welcome_email_sent': False
                             }).eq('id', user_id).execute()
-                    except Exception as send_error:
-                        logger.error(f"[OAUTH] Welcome email send raised: {send_error} — releasing claim")
-                        admin_client.table('users').update({
-                            'welcome_email_sent': False
-                        }).eq('id', user_id).execute()
                 else:
-                    logger.debug(f"[OAUTH] Welcome email already claimed for user {mask_user_id(user_id)} — skipping")
+                    logger.debug(f"[OAUTH] Welcome onboarding already claimed for user {mask_user_id(user_id)} — skipping")
             except Exception as email_error:
                 logger.error(f"[OAUTH] Welcome email claim logic raised: {email_error}")
 

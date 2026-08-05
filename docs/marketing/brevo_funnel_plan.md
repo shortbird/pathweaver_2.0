@@ -217,3 +217,68 @@ Onboarding funnel for organic registrations, which previously created no Brevo c
 
 ### Related cleanup (same change set)
 Dead promo-capture code deleted: v1 `pages/HomePage.jsx` (old unrouted homepage), `pages/PromoStudentPage.jsx`, `components/landing/*`, backend `routes/promo.py` (`POST /api/promo/interest`). The `promo_interest` table keeps its historical rows. The `philosophy` contact type still stores to `contact_submissions` but doesn't sync to Brevo — accepted, low priority (no live page submits it heavily; revisit if `/philosophy` lead volume appears).
+
+---
+
+## 12. Funnel flag on the [COPY] emails (built 2026-08-05)
+
+Every outgoing Optio email is copied to `SUPPORT_COPY_EMAIL` (tanner@) with a
+`[COPY]` subject. That copy now opens with a banner saying whether a Brevo
+automation follows the email:
+
+- **Red — "No Brevo funnel."** Nothing automated follows; if it needs a reply,
+  it's a personal one. This is the default for everything unmarked, which is
+  most of the platform's mail (transactional, SIS, B2B/sales, POE).
+- **Green — "Brevo funnel: <name>."** The recipient entered that automation, so
+  the sequence handles follow-up.
+
+How it's wired:
+- `brevo_service.LIST_AUTOMATIONS` maps trigger list → live automation name.
+  **This is the source of truth for the banner.** If an automation is paused or
+  deleted in the dashboard, remove its entry in the same pass or the banner will
+  promise follow-up that isn't happening.
+- `sync_lead` / `sync_poe_parent` / `sync_new_account` return the automation
+  they actually started, or `None`. It's per-recipient, not per-flow: a lead
+  already on the trigger list gets `None`, because Brevo automations exclude
+  existing list members, and so does one skipped by the one-funnel-per-lead rule
+  or by already having an Optio account.
+- Routes pass that return value into the confirmation email as `brevo_funnel=`
+  (`routes/contact.py`, `routes/poe.py`); `EmailService.send_email` /
+  `send_templated_email` take the same kwarg.
+
+Email/password registrations sync (`routes/auth/registration.py`) but send no
+transactional welcome email, so they generate no copy at all.
+
+Tests: `backend/tests/test_email_brevo_funnel_banner.py`.
+
+### OAuth signups now sync too (fixed 2026-08-05)
+
+Google/Apple signups previously never reached Brevo. Two consequences: they
+never entered New Account Welcome, and **a lead who converted by signing in with
+Google kept receiving their nurture sequence**, because only `mark_converted` /
+`sync_new_account` unlink the lead lists and nothing on the OAuth path called
+either.
+
+`_sync_oauth_signup_to_brevo` in `routes/auth/google_oauth.py` closes it, hooked
+into the `accept_tos` endpoint behind the existing `welcome_email_sent` claim
+(both providers finish through that endpoint — Apple reuses it). Same gate as
+registration: effective role student/parent and not under-13 → Customers #8 +
+New Account Welcome #13; everyone else → `mark_converted` only. A promo code's
+role wins over the pre-update row, and the OAuth placeholder name `User` (Apple
+hide-my-name) is dropped rather than written to `FIRSTNAME`.
+
+**Onboarding has one owner per account.** A signup the automation takes does not
+also get the transactional "Welcome to Optio!" — that would greet them twice
+inside an hour. The transactional email is now the fallback for everyone the
+automation skips (promo-code roles, under-13) and for any signup where the Brevo
+sync failed, so a Brevo outage still leaves someone welcoming them. The existing
+`welcome_email_sent` claim is what makes the whole thing fire once.
+
+Follow-up:
+- No backfill, and prod says it barely matters (checked 2026-08-05): 8 accounts
+  have `apple_user_id`, 0 have `google_user_id`, and **none** of them appear in
+  `contact_submissions` — so no ex-lead is stuck mid-nurture because of this
+  gap. The 8 Apple accounts are simply absent from Brevo; import them only if
+  the Customers list starts driving sends.
+
+Tests: `backend/tests/test_oauth_brevo_signup_sync.py`.
