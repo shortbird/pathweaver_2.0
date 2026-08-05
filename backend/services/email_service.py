@@ -19,6 +19,12 @@ logger = get_logger(__name__)
 BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email'
 BREVO_TIMEOUT = 15
 
+# Orgs whose transactional emails should NOT be copied to SUPPORT_COPY_EMAIL.
+# iCreate's system emails are high-volume and stable, so the owner asked to stop
+# receiving [COPY] duplicates of them (2026-08-05). Add a slug here to opt another
+# org out of the monitoring copy.
+SUPPORT_COPY_EXCLUDE_ORG_SLUGS = {'icreate'}
+
 
 class EmailService(BaseService):
     def __init__(self):
@@ -40,12 +46,12 @@ class EmailService(BaseService):
         # Load email copy loader for centralized copy management
         self.copy_loader = email_copy_loader
 
-    def _org_reply_to(self, to_email: str) -> Optional[str]:
-        """Reply-To for organization members, from the org's
-        feature_flags.email_reply_to (set for iCreate so replies go to the
-        school's inbox instead of Optio support). Platform users (no org) and
-        unknown addresses return None. Fail-open: any lookup problem just
-        means no Reply-To header.
+    def _recipient_org(self, to_email: str) -> Optional[Dict[str, Any]]:
+        """The recipient's organization ({slug, feature_flags}), or None for
+        platform users (no org) and unknown addresses. Used both for the org
+        Reply-To (feature_flags.email_reply_to, set for iCreate so replies reach
+        the school) and to decide whether to copy SUPPORT_COPY_EMAIL. Fail-open:
+        any lookup problem returns None.
         """
         try:
             from database import get_supabase_admin_client
@@ -55,12 +61,10 @@ class EmailService(BaseService):
             org_id = user[0].get('organization_id') if user else None
             if not org_id:
                 return None
-            org = (db.table('organizations').select('feature_flags')
-                   .eq('id', org_id).single().execute()).data or {}
-            value = (org.get('feature_flags') or {}).get('email_reply_to')
-            return value.strip() if isinstance(value, str) and value.strip() else None
+            return (db.table('organizations').select('slug, feature_flags')
+                    .eq('id', org_id).single().execute()).data or None
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"Org reply-to lookup failed for {to_email}: {e}")
+            logger.warning(f"Org lookup failed for {to_email}: {e}")
             return None
 
     def send_email(
@@ -101,11 +105,17 @@ class EmailService(BaseService):
             cc = cc or []
             bcc = bcc or []
 
+            # One org lookup drives two things: the Reply-To header and whether
+            # this org's mail is copied to SUPPORT_COPY_EMAIL for monitoring.
+            recipient_org = self._recipient_org(to_email)
+            org_flags = (recipient_org or {}).get('feature_flags') or {}
+
             # An explicit reply_to from the caller wins; otherwise recipients
             # who belong to an org with a configured reply-to (e.g. iCreate)
             # get their school's inbox so replies reach the school, not Optio.
             if not reply_to:
-                reply_to = self._org_reply_to(to_email)
+                value = org_flags.get('email_reply_to')
+                reply_to = value.strip() if isinstance(value, str) and value.strip() else None
 
             payload = {
                 'sender': {'name': sender_display_name, 'email': sender_email},
@@ -142,7 +152,12 @@ class EmailService(BaseService):
             # Use tanner@optioeducation.com directly to avoid email alias loops (support@ and admin@ redirect to tanner@)
             support_email = Config.SUPPORT_EMAIL
             support_copy_email = Config.SUPPORT_COPY_EMAIL
-            if support_email not in cc and to_email.lower() != support_copy_email.lower():
+            # Skip the monitoring copy for opted-out orgs (e.g. iCreate) so their
+            # high-volume, stable system mail doesn't flood the support inbox.
+            org_opted_out = (recipient_org or {}).get('slug') in SUPPORT_COPY_EXCLUDE_ORG_SLUGS
+            if (not org_opted_out
+                    and support_email not in cc
+                    and to_email.lower() != support_copy_email.lower()):
                 try:
                     html_context = f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; border-left: 4px solid #6D469B;"><strong>Copy:</strong> This email was sent to {to_email}</div>'
                     # Inject the banner INSIDE <body> when the message is a full

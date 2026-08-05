@@ -8,8 +8,9 @@ cron service instead of one-per-job:
                                  time-of-day sensitive; each org's school-hours
                                  window + per-day dedupe are enforced server-side,
                                  so off-hours runs no-op cheaply).
-  - Daily advisor summary     -> ONCE per day, in the 12:00 UTC window (preserves
-                                 the original "0 12 * * *" behaviour).
+
+(The daily advisor summary was dispatched here until 2026-08-05, when it was
+disabled at the owner's request — see the note by the SIS billing reminders.)
 
 Each job is isolated (a failure in one never blocks the other). Required env vars
 (already present on the existing cron service): BACKEND_URL, CRON_SECRET.
@@ -25,10 +26,6 @@ import requests
 # Import the backend program registry regardless of the cron's cwd (jobs/ -> backend/).
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from programs.registry import daily_cron_jobs
-
-# Daily jobs fire once/day in this UTC hour (the cron runs every 10 min, so the
-# first run of the hour — minute < 10 — is the single trigger).
-DAILY_SUMMARY_UTC_HOUR = 12
 
 
 def _post(url, secret):
@@ -79,9 +76,9 @@ def main():
     # nothing is expired, so running it each cycle is safe.
     _run("sis-waitlist-offer-sweep", f"{base}/api/sis/internal/waitlist-offer-sweep", cron_secret, failures)
 
-    # Once/day: daily advisor summary emails (first run of the 12:00 UTC hour).
-    if now.hour == DAILY_SUMMARY_UTC_HOUR and now.minute < 10:
-        _run("advisor-summary", f"{base}/api/admin/advisor-summary/trigger", cron_secret, failures)
+    # Daily advisor summary: DISABLED 2026-08-05 at the owner's request (too many
+    # emails; the summary isn't needed). Left as a note rather than deleted so the
+    # history is clear; the trigger endpoint still exists for manual/admin use.
 
     # Once/day: SIS tuition payment reminders (15:00 UTC; 25-day per-invoice
     # dedupe is enforced server-side, so daily firing is safe).
