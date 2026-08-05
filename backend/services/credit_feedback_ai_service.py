@@ -13,8 +13,6 @@ Uses the same lightweight Gemini pattern as student_ai_assistant_service.py.
 import json
 from typing import Any, Dict, List, Optional
 
-import google.generativeai as genai
-
 from app_config import Config
 from database import get_supabase_admin_client
 from prompts.components import (
@@ -45,6 +43,9 @@ class CreditFeedbackAIService(BaseService):
         self.supabase = get_supabase_admin_client()
         if not Config.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY environment variable not set")
+        # Lazy: see the note in topic_generation_service — genai costs ~31MB of
+        # RSS at import, and every service is imported at app boot.
+        import google.generativeai as genai
         genai.configure(api_key=Config.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
 

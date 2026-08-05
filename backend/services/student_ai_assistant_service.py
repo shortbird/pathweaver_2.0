@@ -12,7 +12,6 @@ Uses Gemini API for intelligent, context-aware feedback.
 Refactored (Jan 2026): Now uses shared prompt components for consistency.
 """
 
-import google.generativeai as genai
 import json
 from typing import Dict, List, Optional, Tuple
 from services.base_service import BaseService
@@ -47,6 +46,9 @@ class StudentAIAssistantService(BaseService):
         if not Config.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY environment variable not set")
 
+        # Lazy: see the note in topic_generation_service — genai costs ~31MB of
+        # RSS at import, and every service is imported at app boot.
+        import google.generativeai as genai
         genai.configure(api_key=Config.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
 

@@ -6,7 +6,6 @@ Uses Google Gemini to extract topics from quest title and big_idea.
 import json
 import re
 from typing import Dict, List, Optional, Any
-import google.generativeai as genai
 from app_config import Config
 
 from services.base_service import BaseService
@@ -54,6 +53,11 @@ class TopicGenerationService(BaseService):
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY not configured.")
 
+        # Imported here, not at module scope: google.generativeai drags in grpc
+        # and protobuf for ~31MB of RSS, and register_all() imports every route
+        # (and so every service) at boot. Paying that in workers that never call
+        # Gemini is what left no headroom under the 512MB container cap.
+        import google.generativeai as genai
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(self.model_name)
 

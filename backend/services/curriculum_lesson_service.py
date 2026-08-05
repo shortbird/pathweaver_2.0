@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Any
 from utils.logger import get_logger
 from middleware.error_handler import ValidationError
 import uuid
-import google.generativeai as genai
 from app_config import Config
 from services.ai_gen import generate_with_timeout
 
@@ -178,6 +177,9 @@ class CurriculumLessonService(BaseService):
         self.model_name = Config.GEMINI_MODEL
 
         if self.api_key:
+            # Lazy: see the note in topic_generation_service — genai costs ~31MB
+            # of RSS at import, and every service is imported at app boot.
+            import google.generativeai as genai
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(self.model_name)
         else:

@@ -11,10 +11,12 @@ external links are listed as references since they can't live inside a PDF.
 Built with PyMuPDF (fitz) Story rendering — already a deployed dependency
 (root requirements.txt), no new packages needed.
 """
+import gc
 import html as html_lib
 import io
 import re
 import threading
+from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -41,6 +43,28 @@ MAX_DOC_FETCH_BYTES = 25 * 1024 * 1024
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # keep the email under Brevo's limit
 MAX_DOCX_CHARS = 20000
 FETCH_TIMEOUT = 25
+
+# ── Memory ceilings ────────────────────────────────────────────────────────
+# The per-asset cap above was the only limit, and nothing capped the *number*
+# of assets: a build fetched every image and document a class had, held every
+# normalized JPEG in the fitz.Archive and every source PDF in `segments` for
+# the whole run, then copied the lot again in output.tobytes(). One approval
+# on a class with a lot of evidence could allocate several hundred MB — inside
+# a 512MB container whose baseline is already ~140MB. That OOM-killed prod on
+# 2026-08-05. Assets past the budget degrade to the same reference line an
+# unfetchable asset already got, so the portfolio stays complete in content.
+# 24MB against a 10MB attachment cap: 60 images at MAX_IMAGE_DIM/JPEG_QUALITY
+# come to ~15MB, so a normal portfolio never touches this. Budgeting higher
+# only bought oversized first passes that MAX_ATTACHMENT_BYTES then rejected,
+# paying for the whole build twice.
+MAX_EMBED_TOTAL_BYTES = 24 * 1024 * 1024  # embedded assets, whole build
+MAX_EMBEDDED_IMAGES = 60
+MAX_IMAGE_PIXELS = 40_000_000  # refuse to decode past this (~8000x5000)
+
+# Only one portfolio build at a time per worker. Each one is a background
+# thread, so without this two approvals in the same minute stack their peaks.
+_BUILD_SLOT = threading.BoundedSemaphore(1)
+_BUILD_WAIT_SECONDS = 300
 
 # Dependent accounts carry a login-less placeholder address — never email it.
 PLACEHOLDER_EMAIL_MARKERS = ('optio-internal-placeholder',)
@@ -191,6 +215,45 @@ def collect_class_credit_data(quest_id: str) -> Optional[Dict[str, Any]]:
 # Asset fetching / normalization
 # ---------------------------------------------------------------------------
 
+class _Budget:
+    """How much a single build is still allowed to hold in memory.
+
+    Replaces the old bare image counter. Everything embedded — normalized
+    JPEGs and merged source PDFs — draws from one pool, because they all stay
+    resident until the PDF is written.
+    """
+
+    def __init__(self) -> None:
+        self.bytes_used = 0
+        self.images = 0
+        self.skipped = 0
+
+    @property
+    def images_exhausted(self) -> bool:
+        return self.images >= MAX_EMBEDDED_IMAGES
+
+    def take(self, size: int) -> bool:
+        """Reserve `size` bytes, or return False if that would blow the pool."""
+        if self.bytes_used + size > MAX_EMBED_TOTAL_BYTES:
+            self.skipped += 1
+            return False
+        self.bytes_used += size
+        return True
+
+    def take_image(self, size: int) -> bool:
+        if self.images_exhausted:
+            self.skipped += 1
+            return False
+        if not self.take(size):
+            return False
+        self.images += 1
+        return True
+
+    def summary(self) -> str:
+        return (f'{self.images} images, {self.bytes_used / 1024 / 1024:.1f}MB embedded, '
+                f'{self.skipped} assets over budget')
+
+
 def _fetch_bytes(url: str) -> Optional[bytes]:
     try:
         resp = requests.get(url, timeout=FETCH_TIMEOUT, stream=True)
@@ -217,13 +280,30 @@ def _normalize_image(data: bytes) -> Optional[Tuple[bytes, int, int]]:
         except Exception:  # noqa: BLE001
             pass
         img = Image.open(io.BytesIO(data))
+        # Image.open() is lazy, so the dimensions are known before anything is
+        # decoded. A 12MP phone photo costs ~36MB as an RGB raster and every
+        # step below copies it; refuse the ones that would dominate the worker.
+        width, height = img.size
+        if width * height > MAX_IMAGE_PIXELS:
+            logger.warning(f"Portfolio image {width}x{height} exceeds decode limit, skipping embed")
+            img.close()
+            return None
+        # No-op for other formats, but lets JPEG decode straight to a reduced
+        # raster instead of full size and then shrinking — the decode is where
+        # the peak lives, not the thumbnail.
+        try:
+            img.draft('RGB', (MAX_IMAGE_DIM, MAX_IMAGE_DIM))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(f"Portfolio image draft-mode unavailable ({exc}); full decode")
         img = ImageOps.exif_transpose(img)
         if img.mode not in ('RGB', 'L'):
             img = img.convert('RGB')
         img.thumbnail((MAX_IMAGE_DIM, MAX_IMAGE_DIM))
         buf = io.BytesIO()
         img.save(buf, 'JPEG', quality=JPEG_QUALITY)
-        return buf.getvalue(), img.width, img.height
+        out = (buf.getvalue(), img.width, img.height)
+        img.close()
+        return out
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Portfolio image normalize failed: {e}")
         return None
@@ -284,15 +364,20 @@ def _block_items(content: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _image_fragment(item: Dict[str, Any], archive: fitz.Archive,
-                    image_counter: List[int]) -> Optional[str]:
+                    budget: '_Budget') -> Optional[str]:
+    if budget.images_exhausted:
+        budget.skipped += 1
+        return None  # don't even pay the fetch
     url = (item.get('url') or '').strip()
     raw = _fetch_bytes(url) if url else None
     normalized = _normalize_image(raw) if raw else None
+    del raw  # the source bytes are dead once re-encoded
     if not normalized:
         return None
     jpeg, w, h = normalized
-    image_counter[0] += 1
-    name = f'img_{image_counter[0]}.jpg'
+    if not budget.take_image(len(jpeg)):
+        return None
+    name = f'img_{budget.images}.jpg'
     archive.add(jpeg, name)
     disp_w = min(CONTENT_WIDTH_PX, w)
     disp_h = int(h * disp_w / max(w, 1))
@@ -304,7 +389,7 @@ def _image_fragment(item: Dict[str, Any], archive: fitz.Archive,
 
 
 def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
-                     image_counter: List[int], include_documents: bool
+                     budget: '_Budget', include_documents: bool
                      ) -> Tuple[str, List[bytes]]:
     """HTML for one evidence block, plus any PDF documents to merge after
     the task section. Falls back to a reference line whenever an asset
@@ -330,7 +415,7 @@ def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
         content_type = (item.get('content_type') or '').lower()
 
         if btype == 'image' or (btype == 'document' and ext in IMAGE_EXTENSIONS):
-            fragment = _image_fragment(item, archive, image_counter)
+            fragment = _image_fragment(item, archive, budget)
             fragments.append(fragment or f'<p class="ref">Image: {_esc(filename)} ({_esc(url)})</p>')
             continue
 
@@ -341,7 +426,9 @@ def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
                 raw = _fetch_bytes(url)
                 if raw and looks_pdf:
                     pdf_bytes = _openable_pdf(raw)
-                    if pdf_bytes:
+                    # Merged PDFs stay resident until the whole portfolio is
+                    # written, so they draw from the same pool as the images.
+                    if pdf_bytes and budget.take(len(pdf_bytes)):
                         fragments.append(f'<p class="doc-note">Uploaded document included '
                                          f'on the following pages: {_esc(filename)}</p>')
                         pdf_docs.append(pdf_bytes)
@@ -418,7 +505,7 @@ def build_class_credit_pdf(data: Dict[str, Any], include_documents: bool = True)
                  'submitted it; uploaded documents are included as full pages.</p>')
 
     archive = fitz.Archive()
-    image_counter = [0]
+    budget = _Budget()
     segments: List[Tuple[str, Any]] = []
     html_parts: List[str] = cover
 
@@ -438,7 +525,7 @@ def build_class_credit_pdf(data: Dict[str, Any], include_documents: bool = True)
             html_parts.append('<p class="evidence-label">EVIDENCE</p>')
         pending_pdfs: List[bytes] = []
         for block in blocks:
-            fragment, pdf_docs = _block_fragments(block, archive, image_counter, include_documents)
+            fragment, pdf_docs = _block_fragments(block, archive, budget, include_documents)
             if fragment:
                 html_parts.append(fragment)
             pending_pdfs.extend(pdf_docs)
@@ -452,28 +539,43 @@ def build_class_credit_pdf(data: Dict[str, Any], include_documents: bool = True)
     if html_parts:
         segments.append(('story', ''.join(html_parts)))
 
+    # Drained rather than iterated, so each source PDF's bytes are released as
+    # soon as its pages are merged instead of all of them living to the end.
+    pending = deque(segments)
+    segments.clear()
+    output = None
     try:
         output = fitz.open()
-        for kind, payload in segments:
+        while pending:
+            kind, payload = pending.popleft()
             if kind == 'story':
                 rendered = _story_to_pdf(f'<body>{payload}</body>', archive)
                 with fitz.open(stream=rendered, filetype='pdf') as part:
                     output.insert_pdf(part)
+                del rendered
             else:
                 with fitz.open(stream=payload, filetype='pdf') as part:
                     last = min(part.page_count, MAX_DOC_PAGES) - 1
                     output.insert_pdf(part, from_page=0, to_page=last)
+            del payload
         output.set_metadata({
             'title': f'{quest.get("title")} - Credit Portfolio',
             'author': student_name,
             'creator': 'Optio',
         })
         result = output.tobytes(garbage=3, deflate=True)
-        output.close()
+        logger.info(f"Portfolio built for {quest.get('id', '')[:8]}: "
+                    f"{len(result) / 1024 / 1024:.1f}MB out, {budget.summary()}")
         return result
     except Exception as e:  # noqa: BLE001
         logger.error(f"Portfolio PDF assembly failed: {e}", exc_info=True)
         return None
+    finally:
+        if output is not None:
+            output.close()
+        pending.clear()
+        del archive
+        gc.collect()
 
 
 def generate_class_credit_pdf(quest_id: str) -> Tuple[Optional[bytes], Optional[Dict[str, Any]]]:
@@ -485,6 +587,10 @@ def generate_class_credit_pdf(quest_id: str) -> Tuple[Optional[bytes], Optional[
     pdf = build_class_credit_pdf(data, include_documents=True)
     if pdf and len(pdf) > MAX_ATTACHMENT_BYTES:
         logger.info(f"Portfolio for {quest_id[:8]} is {len(pdf)} bytes; retrying without merged documents")
+        # Release the oversized first result before building the second one —
+        # otherwise both full portfolios are resident at the same time.
+        del pdf
+        gc.collect()
         pdf = build_class_credit_pdf(data, include_documents=False)
     if pdf and len(pdf) > MAX_ATTACHMENT_BYTES:
         logger.warning(f"Portfolio for {quest_id[:8]} still too large to attach; sending email without it")
@@ -553,13 +659,24 @@ def send_class_credit_awarded_notification(quest_id: str) -> bool:
 def notify_class_credit_awarded_async(quest_id: str) -> None:
     """Fire-and-forget: PDF assembly fetches every asset, so it can take a
     while — never block the approval response on it. The DB client helpers
-    require an app context, so the worker runs inside one."""
+    require an app context, so the worker runs inside one.
+
+    Builds are serialized through _BUILD_SLOT: a batch of approvals queues
+    instead of running concurrent builds that each hold a portfolio's worth of
+    assets in the same worker."""
     from flask import current_app
     app = current_app._get_current_object()
 
     def _run():
-        with app.app_context():
-            send_class_credit_awarded_notification(quest_id)
+        if not _BUILD_SLOT.acquire(timeout=_BUILD_WAIT_SECONDS):
+            logger.error(f"Credit award email for quest {quest_id[:8]} dropped: "
+                         f"portfolio builder busy for {_BUILD_WAIT_SECONDS}s")
+            return
+        try:
+            with app.app_context():
+                send_class_credit_awarded_notification(quest_id)
+        finally:
+            _BUILD_SLOT.release()
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
