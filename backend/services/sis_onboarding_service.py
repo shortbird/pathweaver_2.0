@@ -7,6 +7,17 @@ Teachers mark items complete and can attach a document; items flagged
 needs_approval wait for an admin. Sensitive documents (tax forms, background
 checks, direct deposit) are deliberately NOT collected here — items can link
 out to the appropriate external system instead.
+
+Items flagged `needs_signature` are signed in place: the person types their name
+and ticks that it counts as their signature, instead of downloading a document,
+printing it, signing it, scanning it and uploading the scan (iCreate,
+2026-08-06). Four of those five steps needed a printer, and the one artifact it
+produced — a photo of a signature — is no better evidence than a typed name with
+a timestamp behind a login.
+
+What we record for a signature is what makes it hold up: who was signed in, the
+name they typed, that they affirmed it, when, and from which address. See
+`_apply_signature`.
 """
 
 from datetime import datetime, timezone
@@ -46,6 +57,8 @@ def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
             'description': (item.get('description') or '').strip() or None,
             'required': bool(item.get('required', True)),
             'needs_document': bool(item.get('needs_document', False)),
+            # Signed in place by typing a name — see _apply_signature.
+            'needs_signature': bool(item.get('needs_signature', False)),
             'needs_approval': bool(item.get('needs_approval', False)),
             'due_date': item.get('due_date') or None,
             # Optional external link surfaced next to the item (e.g. a form to
@@ -145,7 +158,7 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     link = '/family/portal' if is_family else '/onboarding'
     items = [{**i, 'status': 'pending', 'document_url': None,
               'submitted_at': None, 'approved_by': None, 'approved_at': None,
-              'admin_notes': None}
+              'admin_notes': None, 'signature': None}
              for i in (template.get('items') or [])]
     row = (_admin().table('sis_onboarding_assignments').insert({
         'organization_id': org_id, 'user_id': user_id,
@@ -234,6 +247,9 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
         items = r.get('items') or []
         r['done_count'] = len([i for i in items if i.get('status') in ('complete', 'approved')])
         r['total_count'] = len(items)
+        # Sent so the checkbox shows the exact sentence that gets recorded,
+        # rather than the client and the server each keeping their own wording.
+        r['signature_statement'] = SIGNATURE_STATEMENT
     return rows
 
 
@@ -277,9 +293,53 @@ def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict
     return row[0] if row else {**assignment, 'items': items, 'status': status}
 
 
+# ── Typed signatures ─────────────────────────────────────────────────────────
+
+# The affirmation the signer ticks. Kept here rather than in the client so the
+# exact wording somebody agreed to is recorded server-side alongside the
+# signature, not reconstructed from whatever the UI happened to say that day.
+SIGNATURE_STATEMENT = ('I am typing my own name below, and I intend it to count '
+                       'as my official signature.')
+
+_MAX_SIGNATURE_NAME = 120
+
+
+def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
+                     actor_id: str) -> Optional[str]:
+    """Record a typed signature on an item, or return why it can't be.
+
+    A typed name is a valid electronic signature when you can show who typed it,
+    that they meant it to be a signature, and when. So all three are required and
+    all three are stored: the signed-in account, the affirmation they ticked (by
+    its full text, not a bare `true`), and the timestamp. The request address
+    rides along as corroboration.
+
+    Refusing an un-agreed signature matters more than it looks: a checklist that
+    accepts a name without the affirmation records something that is not a
+    signature while looking exactly like one that is.
+    """
+    if not target.get('needs_signature'):
+        return 'This item is not signed here'
+    name = (fields.get('signature_name') or '').strip()
+    if not name:
+        return 'Type your full name to sign'
+    if len(name) > _MAX_SIGNATURE_NAME:
+        return 'That name is too long'
+    if not fields.get('signature_agreed'):
+        return 'Tick the box to confirm this counts as your signature'
+    target['signature'] = {
+        'name': name,
+        'agreed_to': SIGNATURE_STATEMENT,
+        'signed_by': actor_id,
+        'signed_at': _now(),
+        'ip': (fields.get('signature_ip') or None),
+    }
+    return None
+
+
 def update_item(org_id: str, assignment_id: str, item_key: str,
                 fields: Dict[str, Any], actor_id: str, is_admin: bool) -> Dict[str, Any]:
-    """Teacher: mark complete / attach document. Admin: approve/reject/notes."""
+    """Teacher: mark complete / attach document / sign. Admin: approve/reject/notes."""
     assignment = _load_assignment(org_id, assignment_id)
     if not assignment:
         return {'error': 'Checklist not found'}
@@ -298,6 +358,23 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
 
     if 'document_url' in fields:
         target['document_url'] = fields.get('document_url') or None
+
+    # Signing is what completes a signature item, so it implies status=complete
+    # rather than needing the client to send both.
+    signing = 'signature_name' in fields or 'signature_agreed' in fields
+    if signing:
+        if is_admin and assignment.get('user_id') != actor_id:
+            return {'error': 'Only the person themselves can sign this'}
+        problem = _apply_signature(target, fields, actor_id)
+        if problem:
+            return {'error': problem}
+        status = 'complete'
+
+    # A signature item can't be ticked off like an ordinary one — the checkbox
+    # would produce a "complete" item with nothing signed on it.
+    if status == 'complete' and target.get('needs_signature') and not target.get('signature'):
+        return {'error': 'Sign this item to complete it'}
+
     if status:
         target['status'] = status
         if status == 'complete':

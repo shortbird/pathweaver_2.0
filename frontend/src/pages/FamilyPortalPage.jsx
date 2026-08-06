@@ -2,14 +2,16 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
+import ChecklistSignature from '../components/sis/ChecklistSignature'
 
 /**
  * Family portal (Learning app) — the checklists a school assigns to a guardian.
  *
  * Backed by /api/sis/parent/onboarding (authorized by family relationship). A
- * guardian marks items complete, follows any linked step, and can attach a
- * document to items that need one. Distinct from the staff SIS console, which is
- * where admins build the templates and assign them.
+ * guardian marks items complete, follows any linked step, attaches a document to
+ * items that need one, and signs items that need signing by typing their name.
+ * Distinct from the staff SIS console, which is where admins build the templates
+ * and assign them.
  */
 
 const ITEM_BADGE = {
@@ -115,7 +117,9 @@ const FamilyPortalPage = () => {
                   const done = ['complete', 'approved'].includes(item.status)
                   return (
                     <li key={item.key} className="py-3 flex items-start gap-3">
-                      <input type="checkbox" checked={done} disabled={busy || item.status === 'approved'}
+                      {/* Signature items complete by being signed, not ticked. */}
+                      <input type="checkbox" checked={done}
+                        disabled={busy || item.status === 'approved' || item.needs_signature}
                         onChange={(e) => patchItem(a.id, item.key, { status: e.target.checked ? 'complete' : 'pending' })}
                         className="mt-1 h-4 w-4 accent-purple-700" />
                       <div className="flex-1 min-w-0">
@@ -131,6 +135,14 @@ const FamilyPortalPage = () => {
                         </div>
                         {item.description && <p className="text-sm text-neutral-500 mt-0.5">{item.description}</p>}
                         {item.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {item.admin_notes}</p>}
+                        {item.needs_signature && (
+                          <ChecklistSignature
+                            item={item}
+                            statement={a.signature_statement}
+                            busy={busy}
+                            onSign={(fields) => patchItem(a.id, item.key, fields)}
+                          />
+                        )}
                         <div className="mt-1.5 flex items-center gap-3 flex-wrap">
                           {item.link && (
                             <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">

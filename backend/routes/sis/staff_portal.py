@@ -298,8 +298,11 @@ def update_onboarding_item(user_id, assignment_id, item_key):
     if err:
         return err
     is_admin = sis_service.caller_is_admin(user_id)
+    # The signing address is corroboration for a typed signature, so it comes
+    # from the request rather than from anything the client can set.
+    fields = {**(request.get_json() or {}), 'signature_ip': request.remote_addr}
     result = onboarding.update_item(org_id, assignment_id, item_key,
-                                    request.get_json() or {}, user_id, is_admin)
+                                    fields, user_id, is_admin)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
     return jsonify({'success': True, **result})

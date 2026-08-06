@@ -462,8 +462,9 @@ def update_family_checklist_item(user_id, assignment_id, item_key):
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     # is_admin=False: a guardian can mark their own items done / attach a doc, but
     # never approve. The service also verifies the assignment belongs to them.
+    fields = {**(request.get_json() or {}), 'signature_ip': request.remote_addr}
     result = onboarding.update_item(org_id, assignment_id, item_key,
-                                    request.get_json() or {}, actor_id=user_id, is_admin=False)
+                                    fields, actor_id=user_id, is_admin=False)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
     return jsonify({'success': True, **result})

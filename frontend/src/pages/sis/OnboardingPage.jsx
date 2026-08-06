@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import ChecklistSignature from '../../components/sis/ChecklistSignature'
 
 /**
  * OnboardingPage — role-switched.
@@ -110,7 +111,11 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
               const done = ['complete', 'approved'].includes(item.status)
               return (
                 <li key={item.key} className="py-3 flex items-start gap-3">
-                  <input type="checkbox" checked={done} disabled={busy || item.status === 'approved' || Boolean(preview)}
+                  {/* A signature item is completed by signing it, not by ticking
+                      it — the backend refuses a tick with nothing signed, so a
+                      live checkbox here would only ever produce an error. */}
+                  <input type="checkbox" checked={done}
+                    disabled={busy || item.status === 'approved' || Boolean(preview) || item.needs_signature}
                     onChange={(e) => patchItem(a.id, item.key, { status: e.target.checked ? 'complete' : 'pending' })}
                     className="mt-1 h-4 w-4 accent-purple-700" />
                   <div className="flex-1 min-w-0">
@@ -124,6 +129,15 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
                     </div>
                     {item.description && <p className="text-sm text-neutral-500 mt-0.5">{item.description}</p>}
                     {item.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {item.admin_notes}</p>}
+                    {item.needs_signature && (
+                      <ChecklistSignature
+                        item={item}
+                        statement={a.signature_statement}
+                        disabled={Boolean(preview)}
+                        busy={busy}
+                        onSign={(fields) => patchItem(a.id, item.key, fields)}
+                      />
+                    )}
                     {item.needs_document && (
                       <div className="mt-1.5 flex items-center gap-3">
                         {item.document_url ? (
@@ -151,7 +165,8 @@ const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = 
 
 // ── Admin view ────────────────────────────────────────────────────────────────
 
-const emptyItem = () => ({ title: '', description: '', link: '', required: true, needs_document: false, needs_approval: false })
+const emptyItem = () => ({ title: '', description: '', link: '', required: true,
+  needs_document: false, needs_signature: false, needs_approval: false })
 
 const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
   const [name, setName] = useState(template?.name || '')
@@ -213,6 +228,12 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
               <input type="checkbox" checked={!!it.needs_document} onChange={(e) => setItem(i, { needs_document: e.target.checked })} />
               They upload a document to us
             </label>
+            {/* The alternative to "print it, sign it, scan it, upload it". */}
+            <label className="flex items-center gap-1.5"
+              title="They type their name and confirm it counts as their signature — no printer, no scanner.">
+              <input type="checkbox" checked={!!it.needs_signature} onChange={(e) => setItem(i, { needs_signature: e.target.checked })} />
+              They sign it here
+            </label>
             <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={!!it.needs_approval} onChange={(e) => setItem(i, { needs_approval: e.target.checked })} /> Needs admin approval
             </label>
@@ -220,6 +241,13 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
           {it.needs_document && (
             <p className="text-xs text-neutral-400">
               They will see an Upload button on this item and the file comes back to you for review.
+            </p>
+          )}
+          {it.needs_signature && (
+            <p className="text-xs text-neutral-400">
+              They type their full name and confirm it counts as their signature. Their name, the
+              time and the account that signed are recorded. Put the thing they are agreeing to in
+              the link field above.
             </p>
           )}
         </div>
