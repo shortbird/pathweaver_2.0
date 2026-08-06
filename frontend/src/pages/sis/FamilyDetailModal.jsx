@@ -8,6 +8,8 @@ import { RolePill, PrimaryTag } from '../../components/ui/RolePill'
 import StudentDetailModal from './StudentDetailModal'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import { useSisOrg } from './useSisOrg'
+import { useAuth } from '../../contexts/AuthContext'
+import { canSeeFinance } from './sisRole'
 
 // Funding source options (school-of-record enrollment is tracked separately).
 const FUNDING_OPTIONS = [
@@ -154,7 +156,9 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
           {tab === 'details' && <DetailsPanel household={household} orgId={orgId} onSaved={onSaved} />}
           {tab === 'billing' && <BillingPanel householdId={household.id} orgId={orgId} />}
           {tab === 'contacts' && <FamilyContactsPanel householdId={household.id} orgId={orgId} />}
-          {tab === 'registration' && <RegistrationPanel householdId={household.id} orgId={orgId} />}
+          {tab === 'registration' && (
+            <RegistrationPanel household={household} orgId={orgId} onSaved={onSaved} />
+          )}
         </div>
       </div>
 
@@ -331,6 +335,7 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
 const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
   const { activeOrg } = useSisOrg()
   const schoolName = activeOrg?.branding_config?.private_school_name || 'Private School'
+  const directoryDefaultIn = activeOrg?.feature_flags?.sis_settings?.directory_default_in === true
   const [hold, setHold] = useState(!!household.registration_hold)
   const [reason, setReason] = useState(household.registration_hold_reason || '')
   const [busy, setBusy] = useState(false)
@@ -378,7 +383,7 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
         </label>
       )}
       <FundingRow household={household} orgId={orgId} schoolName={schoolName} onSaved={onSaved} />
-      <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} />
+      <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} defaultIn={directoryDefaultIn} />
     </section>
   )
 }
@@ -440,10 +445,14 @@ const FundingRow = ({ household, orgId, schoolName, onSaved }) => {
   )
 }
 
-// Directory visibility is the FAMILY's choice (opt-in on their Directory page);
-// staff see it here and can change it on a family's explicit request.
-const DirectoryRow = ({ household, orgId, onSaved }) => {
-  const [optIn, setOptIn] = useState(!!household.directory_opt_in)
+// Directory visibility is the FAMILY's choice (they set it on their Directory
+// page); staff see it here and can change it on a family's explicit request.
+// Under the school's default-listed setting a family is in unless they opted
+// out, so the switch reads that pair rather than the opt-in column alone.
+const DirectoryRow = ({ household, orgId, onSaved, defaultIn = false }) => {
+  const listed = household.directory_opt_in
+    || (defaultIn && !household.directory_opted_out)
+  const [optIn, setOptIn] = useState(!!listed)
   const [busy, setBusy] = useState(false)
 
   const toggle = async () => {
@@ -643,9 +652,12 @@ const FamilyContactsPanel = ({ householdId, orgId }) => {
 // ── Registration: what the family submitted in the iCreate registration funnel ─
 // (answers, signed paperwork, kids, fee). Empty state for households that were
 // created by staff rather than through the registration flow.
-const RegistrationPanel = ({ householdId, orgId }) => {
+const RegistrationPanel = ({ household, orgId, onSaved }) => {
+  const householdId = household.id
+  const { user } = useAuth()
   const [reg, setReg] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [waiving, setWaiving] = useState(false)
 
   useEffect(() => {
     api.get(`/api/sis/households/${householdId}/registration?organization_id=${orgId}`)
@@ -654,14 +666,65 @@ const RegistrationPanel = ({ householdId, orgId }) => {
       .finally(() => setLoading(false))
   }, [householdId, orgId])
 
+  // Waiving forgives money, so it follows the finance tier — a campus
+  // coordinator runs registration but doesn't decide who pays.
+  const feeOutstanding = reg ? (reg.fee_cents || 0) > 0 && !reg.fee_recorded_at : false
+  const canWaive = canSeeFinance(user) && (feeOutstanding || household.registration_hold)
+
+  const waiveFee = async () => {
+    if (!window.confirm(
+      `Waive the registration fee for ${household.name}?\n\n`
+      + 'They will owe nothing, their registration finishes at $0, and the fee hold '
+      + 'on their account is lifted so they can sign up for classes.')) return
+    setWaiving(true)
+    try {
+      const r = await api.post(`/api/sis/households/${householdId}/waive-fee`, {
+        organization_id: orgId,
+      })
+      const d = r.data || {}
+      toast.success(d.hold_cleared
+        ? 'Fee waived — the family is unlocked'
+        : 'Fee waived')
+      const fresh = await api.get(`/api/sis/households/${householdId}/registration?organization_id=${orgId}`)
+      setReg(fresh.data?.registration || null)
+      onSaved?.()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not waive the fee')
+    } finally { setWaiving(false) }
+  }
+
   if (loading) return <p className="text-sm text-neutral-400">Loading…</p>
-  if (!reg) return <p className="text-sm text-neutral-400">This family did not register through the online registration flow.</p>
 
   const fmtWhen = (d) => (d ? new Date(d).toLocaleString() : null)
   const answerText = (v) => (Array.isArray(v) ? v.join(', ') : (v || '—'))
 
+  const waiveButton = canWaive && (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-amber-900">
+          {feeOutstanding
+            ? <>This family still owes {money(reg.fee_cents)} in registration fees.</>
+            : <>This family is on hold: {household.registration_hold_reason || 'registration hold'}</>}
+        </div>
+        <Button variant="secondary" size="sm" disabled={waiving} onClick={waiveFee}>
+          {waiving ? 'Waiving…' : 'Waive the fee'}
+        </Button>
+      </div>
+    </div>
+  )
+
+  if (!reg) {
+    return (
+      <div className="space-y-4">
+        {waiveButton}
+        <p className="text-sm text-neutral-400">This family did not register through the online registration flow.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
+      {waiveButton}
       <section>
         <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Status</h4>
         <div className="flex flex-wrap items-center gap-2 text-sm">

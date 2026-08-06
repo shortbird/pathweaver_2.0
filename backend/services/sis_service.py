@@ -8,7 +8,7 @@ and roster assembly is a cross-table read that would otherwise need many overlap
 RLS policies for a single org-admin read (same justification the /me endpoint uses).
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Callable, Dict, List, Any, Optional
 
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -914,8 +914,11 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
       offer to link that account instead (pass force_new=True to override).
     - When onboarding_template_id is supplied, the matching checklist is assigned
       to the new teacher so they land in the portal with their onboarding ready.
+    - If the email already has an Optio account that could hold the teacher role
+      (typically a parent at this school), returns {'existing_account': {...}}
+      without creating anything, so the caller can offer to add the role to it.
 
-    Returns {'error': ...} on bad input or a duplicate email."""
+    Returns {'error': ...} on bad input or an email that can never be staff."""
     import secrets
 
     first = (fields.get('first_name') or '').strip()
@@ -935,9 +938,22 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
         if match:
             return {'placeholder_match': match}
     admin = _admin()
-    existing = admin.table('users').select('id').eq('email', email).limit(1).execute().data
+    existing = (
+        admin.table('users')
+        .select('id, email, role, org_role, org_roles, organization_id, is_dependent, '
+                'first_name, last_name, display_name')
+        .eq('email', email).limit(1).execute()
+    ).data
     if existing:
-        return {'error': 'A user with this email already exists'}
+        # A parent who also teaches is one person with one login, not a blocked
+        # duplicate. Report who the address belongs to so the caller can offer
+        # to add the teacher role to that account (reported 2026-08-05:
+        # "it just says a user with this email already exists but it won't let
+        # me add them as a teacher").
+        candidate = describe_staff_role_candidate(org_id, existing[0])
+        if candidate.get('error'):
+            return {'error': candidate['error']}
+        return {'existing_account': candidate['account']}
     try:
         auth = admin.auth.admin.create_user({
             'email': email,
@@ -1013,6 +1029,102 @@ _INSTRUCTOR_REF_COLUMNS = (
     ('class_advisors', 'advisor_id'),
     ('org_course_settings', 'teacher_id'),
 )
+
+
+def describe_staff_role_candidate(org_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
+    """Can this existing account be given the teacher role in this org?
+
+    Returns {'account': {...}} when yes, {'error': ...} when the address can
+    never become staff here. The refusals are the same ones the placeholder
+    merge applies — a student, a child account, a superadmin, or somebody who
+    belongs to another school stays off limits.
+    """
+    roles = (_user_org_roles(user) if user.get('organization_id')
+             else ([user['role']] if user.get('role') else []))
+    if user.get('role') == 'superadmin' or user.get('is_dependent'):
+        return {'error': 'This email cannot be used for a staff account'}
+    if user.get('organization_id') and user['organization_id'] != org_id:
+        return {'error': 'This email belongs to an account in another organization'}
+    if 'student' in roles:
+        return {'error': 'This email belongs to a student account'}
+    if 'advisor' in roles:
+        return {'error': 'This person is already a teacher here — they are on the staff list'}
+    return {'account': {
+        'id': user['id'],
+        'name': _full_name(user) or user.get('email'),
+        'email': user.get('email'),
+        # What they are today, so the UI can say "Marika is a parent here".
+        'roles': [r for r in roles if r != 'org_managed'],
+    }}
+
+
+def grant_teacher_role(org_id: str, user_id: str, fields: Dict[str, Any],
+                       actor_id: Optional[str] = None) -> Dict[str, Any]:
+    """Add the teacher role to an account that already exists.
+
+    The other half of "add a teacher who is also a parent": rather than creating
+    a second login for the same person, their existing one gains `advisor`
+    while keeping every role it already had, so they stay a parent in the family
+    portal and become a teacher in the console. No password email — they already
+    have a login; they get the access-added note instead.
+    """
+    admin = _admin()
+    rows = (
+        admin.table('users')
+        .select('id, email, role, org_role, org_roles, organization_id, is_dependent, '
+                'first_name, last_name, display_name, bio')
+        .eq('id', user_id).limit(1).execute()
+    ).data
+    if not rows:
+        return {'error': 'That account no longer exists'}
+    target = rows[0]
+    candidate = describe_staff_role_candidate(org_id, target)
+    if candidate.get('error'):
+        return {'error': candidate['error']}
+
+    existing_roles = (_user_org_roles(target) if target.get('organization_id')
+                      else ([target['role']] if target.get('role') else []))
+    # advisor leads (it decides the console they land in); everything else is kept.
+    merged_roles = list(dict.fromkeys(
+        ['advisor'] + [r for r in existing_roles if r not in ('advisor', 'org_managed')]))
+    updates: Dict[str, Any] = {
+        'organization_id': org_id, 'role': 'org_managed',
+        'org_role': 'advisor', 'org_roles': merged_roles,
+    }
+    bio = (fields.get('bio') or '').strip()
+    if bio and not target.get('bio'):
+        updates['bio'] = bio
+    admin.table('users').update(updates).eq('id', user_id).execute()
+
+    onboarding_assigned = False
+    template_id = (fields.get('onboarding_template_id') or '').strip() or None
+    if template_id:
+        try:
+            from services import sis_onboarding_service
+            res = sis_onboarding_service.assign(
+                org_id, template_id, user_id, assigned_by=actor_id or user_id)
+            onboarding_assigned = not res.get('error')
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'grant_teacher_role: onboarding assign failed: {e}')
+
+    email_sent = False
+    try:
+        from app_config import Config
+        from services.email_service import email_service
+        email_sent = bool(email_service.send_staff_access_added_email(
+            user_email=target.get('email'),
+            user_name=target.get('first_name') or 'there',
+            org_name=_org_name(org_id),
+            login_link=f'{Config.FRONTEND_URL}/login',
+        ))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'grant_teacher_role: access-added email failed: {e}')
+
+    return {'teacher': {'id': user_id,
+                        'name': _full_name(target) or target.get('email'),
+                        'email': target.get('email')},
+            'granted': True, 'roles': merged_roles,
+            'email_sent': email_sent, 'onboarding_assigned': onboarding_assigned}
 
 
 def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]:
@@ -1449,6 +1561,113 @@ def household_registration(org_id: str, household_id: str) -> Optional[Dict[str,
         .execute()
     ).data or []
     return rows[0] if rows else None
+
+
+def waive_registration_fee(org_id: str, household_id: str,
+                           actor_id: Optional[str] = None,
+                           finish_registration: Optional[Callable[[Dict[str, Any]], Any]] = None
+                           ) -> Dict[str, Any]:
+    """Waive a family's registration fee and let them through.
+
+    Asked for on 2026-08-05: "How do we waive the registration fee? I'd like to
+    unlock Katrine Myers family and not have her pay the fee." Three things have
+    to happen together, which is why this is one action rather than three
+    switches an admin has to find:
+
+    1. A `fee_prepaid` directive on the guardian's email, so the funnel computes
+       $0 for them now and on any later run (the same mechanism the legacy
+       already-paid list uses).
+    2. The in-flight registration, if any, finishes its fee step at $0 — that
+       completes the registration and sends the usual next-step email, so the
+       family lands exactly where a paying family lands.
+    3. The fee hold comes off the household, which is the part that actually
+       "unlocks" them for class signup.
+
+    Idempotent: waiving twice is harmless, and a family with nothing outstanding
+    still gets the directive so a future registration stays free.
+
+    `finish_registration` does step 2. It is injected rather than imported
+    because completing a funnel registration lives in the registration route,
+    and a service must not reach up into routes (tests/unit/test_import_layers).
+    Omit it and the waiver still does 1 and 3.
+    """
+    from datetime import datetime as _dt
+    admin = _admin()
+    hh = (admin.table('households')
+          .select('id, organization_id, name, primary_contact_user_id, '
+                  'registration_hold, registration_hold_reason')
+          .eq('id', household_id).limit(1).execute()).data
+    if not hh or hh[0].get('organization_id') != org_id:
+        return {'error': 'Family not found'}
+    household = hh[0]
+
+    members = (admin.table('household_members')
+               .select('user_id, is_primary_guardian, relationship')
+               .eq('household_id', household_id).execute()).data or []
+    guardian_ids = [m['user_id'] for m in members
+                    if m.get('is_primary_guardian')
+                    or m.get('relationship') in ('guardian', 'parent')]
+    if household.get('primary_contact_user_id'):
+        # Primary contact first: their email is the one the funnel keys on.
+        guardian_ids = ([household['primary_contact_user_id']]
+                        + [g for g in guardian_ids
+                           if g != household['primary_contact_user_id']])
+    if not guardian_ids:
+        return {'error': 'This family has no guardian to waive the fee for'}
+
+    emails = [u['email'] for u in (
+        admin.table('users').select('id, email').in_('id', guardian_ids).execute()
+    ).data or [] if u.get('email')]
+
+    # 1. Stage the directive so the funnel never charges this family again.
+    now = _dt.utcnow().isoformat()
+    if emails:
+        admin.table('sis_family_directives').upsert(
+            [{'organization_id': org_id, 'email': e.strip().lower(),
+              'fee_prepaid': True, 'registration_hold': False,
+              'notes': f'Registration fee waived by the school on {now[:10]}',
+              'updated_at': now} for e in emails],
+            on_conflict='organization_id,email').execute()
+
+    # 2. Finish the fee step at $0 on whatever registration is still open.
+    registration_completed, waived_cents = False, 0
+    regs = (admin.table('icreate_registrations').select('*')
+            .eq('organization_id', org_id).in_('parent_user_id', guardian_ids)
+            .order('created_at', desc=True).limit(1).execute()).data or []
+    reg = regs[0] if regs else None
+    if reg and finish_registration and reg.get('status') not in ('completed',):
+        waived_cents = int(reg.get('fee_cents') or 0)
+        try:
+            admin.table('icreate_registrations').update({
+                'fee_cents': 0, 'fee_deferred': False, 'updated_at': now,
+            }).eq('id', reg['id']).execute()
+            finish_registration({**reg, 'fee_cents': 0, 'fee_deferred': False})
+            registration_completed = True
+        except Exception as e:  # noqa: BLE001
+            # The waiver itself still stands (directive + hold below); only the
+            # funnel hand-off failed, and the family can finish it themselves.
+            logger.error(f'waive_registration_fee: fee step finish failed '
+                         f'for household {household_id[:8]}: {e}')
+
+    # 3. Lift the fee hold. Only OUR hold — a school-set hold for another reason
+    #    is somebody's deliberate decision and stays put.
+    hold_cleared = False
+    try:
+        from services.sis_enrollment_waitlist_service import FEE_HOLD_REASON
+        if (household.get('registration_hold')
+                and household.get('registration_hold_reason') == FEE_HOLD_REASON):
+            admin.table('households').update({
+                'registration_hold': False, 'registration_hold_reason': None,
+            }).eq('id', household_id).execute()
+            hold_cleared = True
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'waive_registration_fee: hold clear failed for {household_id[:8]}: {e}')
+
+    logger.info(f'waive_registration_fee: {household.get("name")} ({household_id[:8]}) '
+                f'waived {waived_cents}c by {(actor_id or "?")[:8]}')
+    return {'waived': True, 'waived_cents': waived_cents,
+            'registration_completed': registration_completed,
+            'hold_cleared': hold_cleared, 'guardian_emails': emails}
 
 
 # ── Org messaging identity ────────────────────────────────────────────────────

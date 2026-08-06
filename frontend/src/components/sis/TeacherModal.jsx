@@ -42,6 +42,8 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
   const [templates, setTemplates] = useState([])
   const [onboardingTemplateId, setOnboardingTemplateId] = useState('')
   const [placeholderMatch, setPlaceholderMatch] = useState(null)
+  // The entered email already has an Optio account (usually a parent here).
+  const [existingAccount, setExistingAccount] = useState(null)
   // Placeholder chosen on the add form: submitting links to them instead of
   // creating a second record for the same person.
   const [linkTarget, setLinkTarget] = useState('')
@@ -120,6 +122,12 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
       // Same-named placeholder found — pause and let the admin decide.
       if (data.placeholder_match) {
         setPlaceholderMatch(data.placeholder_match)
+        setSubmitting(false)
+        return
+      }
+      // One person, one login: offer the teacher role on the account they have.
+      if (data.existing_account) {
+        setExistingAccount(data.existing_account)
         setSubmitting(false)
         return
       }
@@ -212,6 +220,80 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
       return
     }
     createTeacher(false)
+  }
+
+  // Give the teacher role to the account this email already belongs to, rather
+  // than failing with "a user with this email already exists". Their existing
+  // roles are kept, so a parent who teaches stays a parent too.
+  const grantTeacherRole = async () => {
+    setSubmitting(true)
+    setError('')
+    try {
+      const r = await api.post('/api/sis/staff/grant-role', {
+        user_id: existingAccount.id,
+        bio: formData.bio,
+        onboarding_template_id: onboardingTemplateId || null,
+        organization_id: orgId,
+      })
+      const data = r.data || {}
+      if (photoFile) await uploadPhoto(existingAccount.id)
+      toast.success(`${existingAccount.name} is now a teacher here — they keep their existing login`
+        + (data.onboarding_assigned ? ', and their onboarding checklist is ready' : ''))
+      onSaved()
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Could not add the teacher role')
+      setSubmitting(false)
+    }
+  }
+
+  // ── Existing-account decision screen ─────────────────────────────────────
+  if (existingAccount) {
+    const roles = (existingAccount.roles || []).filter(Boolean)
+    // "a parent", "an admin", "a parent and an observer" — or nothing to name.
+    const roleLabel = roles.length
+      ? roles.map((r) => (r === 'org_admin' ? 'an admin' : `a ${r}`)).join(' and ')
+      : null
+    return (
+      <ModalOverlay onClose={onClose}>
+        <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+                <LinkIcon className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900">They already have an account</h2>
+            </div>
+            <button type="button" onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+              <span className="font-medium">{existingAccount.email}</span>
+              {roleLabel ? ` is already ${roleLabel} here.` : ' already has an Optio account.'}{' '}
+              Making <span className="font-semibold">{existingAccount.name}</span> a teacher adds the
+              role to that account: they keep everything they have now, sign in exactly as before,
+              and gain the teacher portal.
+            </div>
+            <p className="text-sm text-neutral-500">
+              No second account is created, so their family records and their teaching stay on one login.
+            </p>
+            {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+          </div>
+          <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
+            <button type="button" disabled={submitting} onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50">
+              Cancel
+            </button>
+            <button type="button" disabled={submitting} onClick={grantTeacherRole}
+              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+              {submitting ? 'Adding…' : 'Make them a teacher'}
+            </button>
+          </div>
+        </div>
+      </ModalOverlay>
+    )
   }
 
   // ── Placeholder decision screen ──────────────────────────────────────────

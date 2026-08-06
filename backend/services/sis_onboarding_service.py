@@ -150,6 +150,9 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     row = (_admin().table('sis_onboarding_assignments').insert({
         'organization_id': org_id, 'user_id': user_id,
         'template_id': template_id, 'template_name': template['name'],
+        # Snapshotted alongside the items: the portal a checklist belongs to must
+        # not change when someone edits or deletes the template it came from.
+        'audience': 'family' if is_family else 'staff',
         'items': items, 'assigned_by': assigned_by,
     }).execute()).data
     label = 'Checklist assigned' if is_family else 'Onboarding checklist assigned'
@@ -200,11 +203,22 @@ def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]
     return out
 
 
-def list_assignments(org_id: str, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_assignments(org_id: str, user_id: Optional[str] = None,
+                     audience: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Checklists in this org, optionally for one person and one portal.
+
+    `audience` matters because one person can hold both kinds: an org admin who
+    also has a child is staff in the SIS console and a guardian in the family
+    portal. Without the filter their teacher checklist showed up in the family
+    portal (reported 2026-08-05). The admin roll-up passes None on purpose — it
+    is the one view that should see everything it assigned.
+    """
     q = (_admin().table('sis_onboarding_assignments').select('*')
          .eq('organization_id', org_id).order('created_at', desc=True))
     if user_id:
         q = q.eq('user_id', user_id)
+    if audience:
+        q = q.eq('audience', _clean_audience(audience))
     rows = q.execute().data or []
     ids = list({r['user_id'] for r in rows})
     names = {}

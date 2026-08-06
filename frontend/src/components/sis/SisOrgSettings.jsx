@@ -76,6 +76,11 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
     } finally { setSavingTuition(false) }
   }
 
+  // Opt-out vs opt-in family directory. Off until a school turns it on: it
+  // publishes a family's details to other families without them acting.
+  const [directoryDefaultIn, setDirectoryDefaultIn] = useState(
+    org.feature_flags?.sis_settings?.directory_default_in === true)
+
   // School-wide materials allowance, in dollars per enrolled student per year,
   // on top of each class's supply fee. Individual classes can override it.
   const storedAllowance = org.feature_flags?.sis_settings?.supply_budget_per_student
@@ -287,6 +292,19 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange }) => {
               />
             </div>
           </div>
+          <ToggleRow
+            label="Family directory lists everyone by default"
+            description="On: every family appears in the family directory unless they choose to be left out. Off: a family only appears once they opt in. Either way, each family picks whether their email, phone and street address are shown."
+            on={directoryDefaultIn} disabled={savingToggle}
+            onClick={() => toggleField(
+              { feature_flags: {
+                ...(org.feature_flags || {}),
+                sis_settings: { ...(org.feature_flags?.sis_settings || {}),
+                                directory_default_in: !directoryDefaultIn },
+              } },
+              () => setDirectoryDefaultIn(!directoryDefaultIn),
+            )}
+          />
           <ToggleRow
             label="Public bounties"
             description="Students also see the platform-wide public bounty board. Bounties your organization posts always show."

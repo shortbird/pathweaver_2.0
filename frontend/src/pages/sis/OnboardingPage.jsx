@@ -34,7 +34,9 @@ const ItemBadge = ({ status }) => (
 
 // ── Teacher view ──────────────────────────────────────────────────────────────
 
-const MyChecklists = ({ orgId, preview = null }) => {
+// hideWhenEmpty: on the admin view this renders above the template manager, and
+// an admin with no checklist of their own shouldn't see an empty-state for it.
+const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = null }) => {
   const [assignments, setAssignments] = useState([])
   const [busyKey, setBusyKey] = useState(null)
 
@@ -85,6 +87,7 @@ const MyChecklists = ({ orgId, preview = null }) => {
   }
 
   if (!assignments.length) {
+    if (hideWhenEmpty) return null
     return (
       <p className="text-neutral-500">
         {preview ? `No onboarding checklist assigned to ${preview.name}.` : 'No onboarding checklist assigned to you.'}
@@ -94,6 +97,7 @@ const MyChecklists = ({ orgId, preview = null }) => {
 
   return (
     <div className="space-y-4">
+      {heading && <h2 className="text-lg font-semibold text-neutral-900">{heading}</h2>}
       {assignments.map((a) => (
         <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-3">
@@ -470,9 +474,17 @@ const OnboardingPage = () => {
           <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
       </div>
-      {admin && !preview
-        ? <AdminOnboarding orgId={orgId} />
-        : <MyChecklists orgId={orgId} preview={preview} />}
+      {admin && !preview ? (
+        <>
+          {/* An admin assigned a checklist of their own could only ever see the
+              template manager here, so they had no Upload button and no way to
+              complete their own items (reported 2026-08-05). */}
+          <MyChecklists orgId={orgId} hideWhenEmpty heading="Your checklist" />
+          <AdminOnboarding orgId={orgId} />
+        </>
+      ) : (
+        <MyChecklists orgId={orgId} preview={preview} />
+      )}
     </div>
   )
 }

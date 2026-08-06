@@ -23,7 +23,7 @@ from services import sis_service
 from services import sis_staff_service
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
-from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES
 
 logger = get_logger(__name__)
 
@@ -143,7 +143,29 @@ def create_teacher(user_id):
     # offer to link that account instead (or re-POST with force_new to override).
     if result.get('placeholder_match'):
         return jsonify({'success': True, 'placeholder_match': result['placeholder_match']}), 200
+    # The email already belongs to somebody here (usually a parent). Don't create
+    # a second login for one person — let the UI offer to add the teacher role.
+    if result.get('existing_account'):
+        return jsonify({'success': True, 'existing_account': result['existing_account']}), 200
     return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/staff/grant-role', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def grant_staff_role(user_id):
+    """Add the teacher role to an existing account (the parent-who-teaches case).
+    Body: {user_id, bio?, onboarding_template_id?}."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    target_id = (data.get('user_id') or '').strip()
+    if not target_id:
+        return jsonify({'success': False, 'error': 'user_id is required'}), 400
+    result = sis_service.grant_teacher_role(org_id, target_id, data, actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/staff/<staff_id>/link', methods=['POST'])
@@ -358,12 +380,18 @@ def update_household(user_id, household_id):
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
         'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
         'registration_hold', 'registration_hold_reason', 'registration_tier',
-        'directory_opt_in', 'ufa_private', 'funding_source', 'enrolled_private_school'
+        'directory_opt_in', 'directory_opted_out', 'carpool_interest',
+        'ufa_private', 'funding_source', 'enrolled_private_school'
     ) if k in data}
-    for flag in ('registration_hold', 'directory_opt_in', 'ufa_private',
-                 'enrolled_private_school'):
+    for flag in ('registration_hold', 'directory_opt_in', 'directory_opted_out',
+                 'carpool_interest', 'ufa_private', 'enrolled_private_school'):
         if flag in fields:
             fields[flag] = bool(fields[flag])
+    # Directory membership is one decision with two columns (an explicit opt-out
+    # has to outlive the school switching its default on), so staff setting it
+    # on a family's behalf writes both sides — the same as the family's own toggle.
+    if 'directory_opt_in' in fields and 'directory_opted_out' not in fields:
+        fields['directory_opted_out'] = not fields['directory_opt_in']
     # funding_source is the source of truth; keep the legacy ufa_private boolean
     # (which gates the learning-day feature) mirrored from it. Setting a funding
     # source of ufa_private also implies enrolled in the private school.
@@ -726,6 +754,31 @@ def get_household_registration(user_id, household_id):
     if err:
         return err
     return jsonify({'success': True, 'registration': sis_service.household_registration(org_id, household_id)})
+
+
+@bp.route('/households/<household_id>/waive-fee', methods=['POST'])
+@require_role(*FINANCE_ROLES)
+def waive_household_fee(user_id, household_id):
+    """Waive this family's registration fee: mark them prepaid, finish an open
+    registration at $0, and lift the fee hold. Finance-gated — it forgives money."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    # Completing a funnel registration belongs to the registration route, so the
+    # service is handed the step rather than importing it (services must not
+    # import routes — tests/unit/test_import_layers).
+    from routes.icreate_registration import _finish_fee_step, _org_config
+
+    def _finish(reg):
+        admin = get_supabase_admin_client()
+        return _finish_fee_step(admin, reg, _org_config(admin, org_id),
+                                extra_fields={'fee_cents': 0})
+
+    result = sis_service.waive_registration_fee(org_id, household_id, actor_id=user_id,
+                                                finish_registration=_finish)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/households/<household_id>/emergency-contacts', methods=['POST'])

@@ -283,9 +283,12 @@ def my_onboarding(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
         return err
+    # The mirror of the family portal's filter: staff checklists only, so a
+    # teacher who is also a parent doesn't meet their family paperwork here.
     return jsonify({'success': True,
                     'assignments': onboarding.list_assignments(
-                        org_id, user_id=_read_target(user_id, org_id))})
+                        org_id, user_id=_read_target(user_id, org_id),
+                        audience='staff')})
 
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])

@@ -447,8 +447,11 @@ def my_family_checklists(user_id):
     org_id = _org(request)
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    # audience='family': a guardian who is also on staff must not see their
+    # teacher onboarding here (reported 2026-08-05).
     return jsonify({'success': True,
-                    'assignments': onboarding.list_assignments(org_id, user_id=user_id)})
+                    'assignments': onboarding.list_assignments(
+                        org_id, user_id=user_id, audience='family')})
 
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])

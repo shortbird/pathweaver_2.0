@@ -19,6 +19,7 @@ from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
 from services import sis_planned_absence_service as absences
 from services import sis_service
+from utils.db_fetch import fetch_all_rows
 from utils.org_features import org_has_feature
 from utils.logger import get_logger
 
@@ -963,7 +964,7 @@ def _guardian_households(user_id: str, org_id: str) -> List[Dict[str, Any]]:
         return []
     return (
         _admin().table('households')
-        .select('id, name, phone, directory_opt_in, '
+        .select('id, name, phone, directory_opt_in, directory_opted_out, carpool_interest, '
                 'directory_share_email, directory_share_phone, directory_share_address')
         .in_('id', hh_ids).eq('organization_id', org_id).execute()
     ).data or []
@@ -973,12 +974,37 @@ DIRECTORY_SHARE_FIELDS = ('directory_share_email', 'directory_share_phone',
                           'directory_share_address')
 
 
+def directory_default_in(org_id: str) -> bool:
+    """Does this school list families by default (opt-OUT rather than opt-in)?
+
+    iCreate asked for opt-out — a directory nobody opts into is an empty
+    directory. It stays a per-school setting, off until turned on, because it
+    publishes contact details to other families without them acting.
+    """
+    return bool(_sis_settings(org_id).get('directory_default_in'))
+
+
+def _is_listed(household: Dict[str, Any], default_in: bool) -> bool:
+    """Whether a family appears in the directory. An explicit choice either way
+    beats the school default; the default only decides the untouched middle."""
+    if household.get('directory_opt_in'):
+        return True
+    if household.get('directory_opted_out'):
+        return False
+    return default_in
+
+
 def directory_opt_in_status(user_id: str, org_id: str) -> Dict[str, Any]:
     households = _guardian_households(user_id, org_id)
     if not households:
         return {'error': 'No family found for your account'}
     first = households[0]
-    return {'opted_in': any(h.get('directory_opt_in') for h in households),
+    default_in = directory_default_in(org_id)
+    return {'opted_in': any(_is_listed(h, default_in) for h in households),
+            # The page explains the switch differently under each model ("join
+            # the directory" vs "your family is listed unless you opt out").
+            'default_in': default_in,
+            'carpool_interest': bool(first.get('carpool_interest', False)),
             'share_email': bool(first.get('directory_share_email', True)),
             'share_phone': bool(first.get('directory_share_phone', True)),
             'share_address': bool(first.get('directory_share_address', False))}
@@ -987,17 +1013,29 @@ def directory_opt_in_status(user_id: str, org_id: str) -> Dict[str, Any]:
 def set_directory_opt_in(user_id: str, org_id: str, opted_in: bool,
                          shares: Dict[str, Any] = None) -> Dict[str, Any]:
     """Families choose what the directory shows about them: opted_in is the
-    master switch, and share_email/share_phone/share_address pick the fields."""
+    master switch, share_email/share_phone/share_address pick the fields, and
+    carpool_interest flags them to families looking to share a drive.
+
+    Both sides of the master switch are recorded, not just the "in" side: a
+    family that turns it off has opted OUT, which must survive the school
+    switching its default on later.
+    """
     households = _guardian_households(user_id, org_id)
     if not households:
         return {'error': 'No family found for your account'}
-    payload = {'directory_opt_in': bool(opted_in)}
+    payload = {'directory_opt_in': bool(opted_in),
+               'directory_opted_out': not bool(opted_in)}
     for key in ('email', 'phone', 'address'):
         if shares and f'share_{key}' in shares:
             payload[f'directory_share_{key}'] = bool(shares[f'share_{key}'])
+    if shares and 'carpool_interest' in shares:
+        payload['carpool_interest'] = bool(shares['carpool_interest'])
     _admin().table('households').update(payload) \
         .in_('id', [h['id'] for h in households]).execute()
     return {'opted_in': bool(opted_in),
+            'default_in': directory_default_in(org_id),
+            **({'carpool_interest': payload['carpool_interest']}
+               if 'carpool_interest' in payload else {}),
             **{f'share_{k}': payload.get(f'directory_share_{k}')
                for k in ('email', 'phone', 'address')
                if f'directory_share_{k}' in payload}}
@@ -1013,13 +1051,19 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
     with it in front of them."""
     if not _is_org_member(user_id, org_id):
         return None
-    households = (
+    default_in = directory_default_in(org_id)
+    # Under the default-in model the filter can't be a WHERE clause — "listed"
+    # is opt_in OR (default AND NOT opted_out) — so read the org's families and
+    # decide per row. Bounded by one school's household count.
+    households = fetch_all_rows(lambda: (
         _admin().table('households')
-        .select('id, name, phone, address_line1, city, '
+        .select('id, name, phone, address_line1, city, carpool_interest, '
+                'directory_opt_in, directory_opted_out, '
                 'directory_share_email, directory_share_phone, directory_share_address')
-        .eq('organization_id', org_id).eq('directory_opt_in', True)
-        .order('name').execute()
-    ).data or []
+        .eq('organization_id', org_id)
+    ))
+    households = sorted((h for h in households if _is_listed(h, default_in)),
+                        key=lambda h: (h.get('name') or '').lower())
     if not households:
         return []
     hh_ids = [h['id'] for h in households]
@@ -1064,6 +1108,11 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
             'family_name': h['name'],
             'phone': h.get('phone') if h.get('directory_share_phone', True) else None,
             'address': address,
+            # City is shown to every listed family, independent of the street
+            # address: it is what makes the directory usable for carpooling,
+            # and a town name doesn't identify a house.
+            'city': h.get('city') or None,
+            'carpool_interest': bool(h.get('carpool_interest')),
             'guardians': guardians,
             'students': sorted(by_household[h['id']]['students']),
         })

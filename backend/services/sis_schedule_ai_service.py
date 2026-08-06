@@ -35,6 +35,39 @@ INT_FIELDS = ('capacity', 'min_age', 'max_age', 'price_cents')
 # Dollar amounts (numeric), NOT cents — supply_fee is stored as e.g. 35.00.
 FLOAT_FIELDS = ('supply_fee',)
 
+# The two fields that are money. They get their old -> new value spelled out in
+# the operation label and repeated as a warning, because of what happened on
+# 2026-07-23: asked to "change the supply fee to $35 on all 4 open art studio
+# classes", the editor wrote $35 to TUITION on one class and changed nothing on
+# the others. The root cause (supply_fee missing from ALLOWED_FIELDS, so the
+# model reached for price_cents and the whitelist silently dropped the rest) was
+# fixed the same day. What was not fixed is why nobody could tell: the
+# confirmation screen said "Update Open Art Studio (price_cents)" and a dropped
+# field said nothing at all. A wrong write to a money field must be visible
+# BEFORE it is applied, so money changes are never summarised as a field name.
+MONEY_FIELDS = ('price_cents', 'supply_fee')
+
+# How each field reads on the confirmation screen. The AI's own field names are
+# not a language staff should have to learn to check its work.
+FIELD_LABELS = {
+    'name': 'name', 'description': 'description', 'location': 'location',
+    'capacity': 'capacity', 'min_age': 'minimum age', 'max_age': 'maximum age',
+    'price_cents': 'tuition', 'supply_fee': 'supply fee',
+    'primary_instructor_id': 'teacher',
+}
+
+
+def _money_text(field: str, value: Any) -> str:
+    """A money field's value as staff would write it. price_cents is cents,
+    supply_fee is dollars — the exact distinction that got confused."""
+    if value is None:
+        return 'not set'
+    try:
+        dollars = (float(value) / 100) if field == 'price_cents' else float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f'${dollars:,.2f}'
+
 
 def _repo():
     return SisClassRepository(client=get_supabase_admin_client())
@@ -124,8 +157,103 @@ Include only the operations needed. Omit fields you are not changing."""
                                  max_output_tokens=16384, strict=True)
         summary = str(raw.get('summary') or '').strip()
         ops, errors = _validate_operations(org_id, raw.get('operations') or [], snapshot)
-        warnings = _conflict_warnings(snapshot, ops) + errors
+        # Money first: it is the change most expensive to get wrong, and the one
+        # a staff member is least likely to spot inside a list of field names.
+        warnings = (_money_warnings(ops, snapshot)
+                    + _coverage_warnings(prompt, snapshot, ops)
+                    + _conflict_warnings(snapshot, ops) + errors)
         return {'summary': summary, 'operations': ops, 'warnings': warnings}
+
+
+# Distinct from None, which is a legitimate "clear this field" value.
+_UNPARSEABLE = object()
+
+
+def _parse_number(value: Any, *, integer: bool):
+    """A number, None to clear it, or _UNPARSEABLE. Returning a sentinel instead
+    of swallowing the error is the point: a value the model wrote that we cannot
+    read has to reach the staff member, not vanish."""
+    if value is None:
+        return None
+    try:
+        return int(value) if integer else round(float(value), 2)
+    except (TypeError, ValueError):
+        return _UNPARSEABLE
+
+
+def _describe_changes(fields: Dict[str, Any], klass: Dict[str, Any]) -> str:
+    """What this operation does, in words, with money spelled out old -> new.
+
+    The old label was a list of column names ("price_cents, capacity"), which
+    reads as correct whether or not the value is. Money is the field where that
+    matters most, so it never appears as a bare name.
+    """
+    parts = []
+    for k, v in fields.items():
+        if k in MONEY_FIELDS:
+            parts.append(f'{FIELD_LABELS[k]} {_money_text(k, klass.get(k))} '
+                         f'-> {_money_text(k, v)}')
+        else:
+            parts.append(FIELD_LABELS.get(k, k))
+    return ', '.join(parts)
+
+
+def _money_warnings(ops: List[Dict[str, Any]], snapshot: Dict[str, Any]) -> List[str]:
+    """Every money change, restated as its own line.
+
+    Tuition and the supply fee are one keystroke apart in the model's output and
+    thousands of dollars apart in a family's invoice. Repeating them outside the
+    operation list means a staff member skimming the confirmation sees the money
+    even if they don't read every row.
+    """
+    classes_by_id = {c['id']: c for c in snapshot['classes']}
+    out = []
+    for op in ops:
+        if op.get('action') != 'update_class':
+            continue
+        klass = classes_by_id.get(op.get('class_id')) or {}
+        for k in MONEY_FIELDS:
+            if k in op.get('fields', {}):
+                out.append(f'Money: "{klass.get("name")}" {FIELD_LABELS[k]} '
+                           f'{_money_text(k, klass.get(k))} -> {_money_text(k, op["fields"][k])}. '
+                           f'Check this is the fee you meant before applying.')
+    return out
+
+
+def _coverage_warnings(prompt: str, snapshot: Dict[str, Any],
+                       ops: List[Dict[str, Any]]) -> List[str]:
+    """Warn when a request names a class that has several sections but the
+    proposal only touches some of them.
+
+    The other half of the 07-23 report was "it didn't change it on ANY of those
+    classes" — four sections of Open Art Studio, one operation. The instruction
+    to emit one operation per section lives in the prompt, and a prompt is a
+    request, not a guarantee. Sections share the name before the "(" (the
+    schedule-import convention), so we can count what the staff member probably
+    meant and say so when the numbers disagree. A warning, never a block: naming
+    a class is not always asking to change it.
+    """
+    text = (prompt or '').lower()
+    touched = {op.get('class_id') for op in ops if op.get('class_id')}
+    by_base: Dict[str, List[Dict[str, Any]]] = {}
+    for c in snapshot['classes']:
+        base = (c.get('name') or '').split('(')[0].strip().lower()
+        if len(base) >= 4:  # "art" would match half the catalogue
+            by_base.setdefault(base, []).append(c)
+
+    warnings = []
+    for base, classes in by_base.items():
+        if len(classes) < 2 or base not in text:
+            continue
+        hit = [c for c in classes if c['id'] in touched]
+        if len(hit) < len(classes):
+            warnings.append(
+                f'"{classes[0]["name"].split("(")[0].strip()}" has {len(classes)} sections '
+                f'and this changes {len(hit)}. '
+                + ('None are included — say "all sections" if you meant every one.'
+                   if not hit else
+                   'Check the list above covers the ones you meant.'))
+    return warnings
 
 
 def _validate_operations(org_id: str, raw_ops: List[Dict[str, Any]],
@@ -178,26 +306,27 @@ def _validate_operations(org_id: str, raw_ops: List[Dict[str, Any]],
             for k in ('description', 'location'):
                 if op.get(k):
                     fields[k] = str(op[k]).strip()
-            for k in INT_FIELDS:
-                if op.get(k) is not None:
-                    try:
-                        fields[k] = int(op[k])
-                    except (TypeError, ValueError):
-                        pass
-            for k in FLOAT_FIELDS:
-                if op.get(k) is not None:
-                    try:
-                        fields[k] = round(float(op[k]), 2)
-                    except (TypeError, ValueError):
-                        pass
+            for k in INT_FIELDS + FLOAT_FIELDS:
+                if op.get(k) is None:
+                    continue
+                parsed = _parse_number(op[k], integer=k in INT_FIELDS)
+                if parsed is _UNPARSEABLE:
+                    errors.append(f'Operation {i + 1} ({name}): couldn\'t read "{op[k]}" as a '
+                                  f'number for {FIELD_LABELS.get(k, k)} — left unset.')
+                else:
+                    fields[k] = parsed
             instructor_id = resolve_instructor(op.get('instructor_name'))
             if instructor_id:
                 fields['primary_instructor_id'] = instructor_id
             elif op.get('instructor_name'):
                 errors.append(f"Operation {i + 1} ({name}): couldn't match teacher "
                               f"\"{op['instructor_name']}\" — leaving unassigned.")
+            # Fees on a new class are spelled out for the same reason they are on
+            # an update — "Create class X" hides a wrong tuition completely.
+            money = ', '.join(f'{FIELD_LABELS[k]} {_money_text(k, fields[k])}'
+                              for k in MONEY_FIELDS if k in fields)
             ops.append({'action': 'create_class', 'fields': fields, 'meetings': meetings,
-                        'label': f'Create class "{name}"'})
+                        'label': f'Create class "{name}"' + (f' — {money}' if money else '')})
 
         elif action in ('update_class', 'set_meetings', 'archive_class'):
             class_id = op.get('class_id')
@@ -218,6 +347,13 @@ def _validate_operations(org_id: str, raw_ops: List[Dict[str, Any]],
             else:
                 raw_fields = op.get('fields') or {}
                 fields = {}
+                # A field the model asked for that this editor cannot set is
+                # NAMED, never dropped in silence. Silence is what let the
+                # 07-23 supply-fee bug look like "it just didn't work".
+                for k in raw_fields:
+                    if k not in ALLOWED_FIELDS:
+                        errors.append(f'Operation {i + 1} ({klass["name"]}): this editor can\'t set '
+                                      f'"{k}" — that part was skipped. Change it on the class itself.')
                 for k in ALLOWED_FIELDS:
                     if k not in raw_fields:
                         continue
@@ -229,23 +365,21 @@ def _validate_operations(org_id: str, raw_ops: List[Dict[str, Any]],
                         else:
                             errors.append(f'Operation {i + 1} ({klass["name"]}): '
                                           f'couldn\'t match teacher "{v}" — skipped that field.')
-                    elif k in INT_FIELDS:
-                        try:
-                            fields[k] = int(v) if v is not None else None
-                        except (TypeError, ValueError):
-                            pass
-                    elif k in FLOAT_FIELDS:
-                        try:
-                            fields[k] = round(float(v), 2) if v is not None else None
-                        except (TypeError, ValueError):
-                            pass
+                    elif k in INT_FIELDS or k in FLOAT_FIELDS:
+                        parsed = _parse_number(v, integer=k in INT_FIELDS)
+                        if parsed is _UNPARSEABLE:
+                            errors.append(f'Operation {i + 1} ({klass["name"]}): couldn\'t read '
+                                          f'"{v}" as a number for {FIELD_LABELS.get(k, k)} '
+                                          f'— skipped that field.')
+                        else:
+                            fields[k] = parsed
                     else:
                         fields[k] = str(v).strip()
                 if not fields:
                     errors.append(f'Operation {i + 1} ({klass["name"]}): nothing valid to change — skipped.')
                     continue
                 ops.append({'action': 'update_class', 'class_id': class_id, 'fields': fields,
-                            'label': f'Update "{klass["name"]}" ({", ".join(fields.keys())})'})
+                            'label': f'Update "{klass["name"]}" — {_describe_changes(fields, klass)}'})
         else:
             errors.append(f'Operation {i + 1}: unknown action "{action}" — skipped.')
 
@@ -347,7 +481,8 @@ def apply_operations(org_id: str, user_id: str,
                     repo.update_sis_fields(class_id, fields)
                     prior = {k: before.get(k) for k in fields}
                     undo.append({'action': 'update_class', 'class_id': class_id, 'fields': prior,
-                                 'label': f'Restore "{before.get("name")}" ({", ".join(fields.keys())})'})
+                                 'label': f'Restore "{before.get("name")}" — '
+                                          f'{_describe_changes(prior, dict(before, **fields))}'})
                 elif action == 'archive_class':
                     repo.archive(class_id)
                     undo.append({'action': 'restore_class', 'class_id': class_id,

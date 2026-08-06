@@ -151,6 +151,108 @@ class TestFindPlaceholderMatch:
 
 
 @pytest.mark.unit
+class TestAddTeacherWhoAlreadyHasAnAccount:
+    """iCreate, 2026-08-05: "When I try to add a teacher who is also a parent,
+    it just says a user with this email already exists but it won't let me add
+    them as a teacher." One person gets one login with both roles."""
+
+    PARENT = {'id': 'u-9', 'email': 'mom@real.com', 'role': 'org_managed',
+              'org_role': 'parent', 'org_roles': ['parent'], 'organization_id': ORG,
+              'is_dependent': False, 'first_name': 'Mo', 'last_name': 'Parent',
+              'display_name': 'Mo Parent'}
+
+    def test_existing_parent_is_offered_instead_of_an_error(self):
+        from services import sis_service
+        client, _ = _create_client([[self.PARENT]])
+        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+             patch('services.sis_service.find_placeholder_match', return_value=None):
+            result = sis_service.create_org_teacher(
+                ORG, {'first_name': 'Mo', 'last_name': 'Parent', 'email': 'mom@real.com'})
+        assert result['existing_account']['id'] == 'u-9'
+        assert result['existing_account']['roles'] == ['parent']
+        assert 'error' not in result
+        client.auth.admin.create_user.assert_not_called()  # no second login
+
+    def test_student_email_is_still_refused(self):
+        from services import sis_service
+        student = {**self.PARENT, 'org_role': 'student', 'org_roles': ['student']}
+        client, _ = _create_client([[student]])
+        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+             patch('services.sis_service.find_placeholder_match', return_value=None):
+            result = sis_service.create_org_teacher(
+                ORG, {'first_name': 'Kid', 'last_name': 'One', 'email': 'mom@real.com'})
+        assert result['error'] == 'This email belongs to a student account'
+
+    def test_account_in_another_org_is_refused(self):
+        from services import sis_service
+        other = {**self.PARENT, 'organization_id': 'org-2'}
+        client, _ = _create_client([[other]])
+        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+             patch('services.sis_service.find_placeholder_match', return_value=None):
+            result = sis_service.create_org_teacher(
+                ORG, {'email': 'mom@real.com'})
+        assert 'another organization' in result['error']
+
+    def test_grant_keeps_the_roles_they_already_had(self):
+        from services import sis_service
+        client, table = _admin_with([[self.PARENT], []])
+        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+             patch('services.sis_service._org_name', return_value='iCreate'), \
+             patch('services.email_service.email_service.send_staff_access_added_email',
+                   return_value=True):
+            result = sis_service.grant_teacher_role(ORG, 'u-9', {})
+        assert result['granted'] is True
+        # advisor leads (it picks the console they land in) but parent survives,
+        # so the family portal still works for them.
+        assert result['roles'] == ['advisor', 'parent']
+        updated = table.update.call_args[0][0]
+        assert updated['org_role'] == 'advisor'
+        assert updated['org_roles'] == ['advisor', 'parent']
+
+    def test_grant_refuses_someone_who_is_already_a_teacher(self):
+        from services import sis_service
+        teacher = {**self.PARENT, 'org_role': 'advisor', 'org_roles': ['advisor']}
+        client, _ = _admin_with([[teacher]])
+        with patch('services.sis_service.get_supabase_admin_client', return_value=client):
+            result = sis_service.grant_teacher_role(ORG, 'u-9', {})
+        assert 'already a teacher' in result['error']
+
+
+@pytest.mark.unit
+class TestChecklistAudience:
+    """A guardian who is also staff holds both kinds of checklist. Reported
+    2026-08-05: the family portal was showing the teacher onboarding."""
+
+    def test_assign_stamps_the_template_audience(self):
+        from services import sis_onboarding_service as onboarding
+        template = {'id': 't1', 'organization_id': ORG, 'name': 'Family paperwork',
+                    'audience': 'family', 'items': [{'key': 'i1', 'title': 'Sign'}]}
+        client, table = _admin_with([[template], [{'id': 'a1'}]])
+        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+                   return_value=client), \
+             patch('services.sis_notifications.notify'):
+            onboarding.assign(ORG, 't1', 'u-9', assigned_by='admin-1')
+        assert table.insert.call_args[0][0]['audience'] == 'family'
+
+    def test_list_filters_by_audience(self):
+        from services import sis_onboarding_service as onboarding
+        client, table = _admin_with([[], []])
+        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+                   return_value=client):
+            onboarding.list_assignments(ORG, user_id='u-9', audience='family')
+        filters = [c[0] for c in table.eq.call_args_list]
+        assert ('audience', 'family') in filters
+
+    def test_admin_rollup_is_not_filtered(self):
+        from services import sis_onboarding_service as onboarding
+        client, table = _admin_with([[], []])
+        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+                   return_value=client):
+            onboarding.list_assignments(ORG)
+        assert not any(c[0][0] == 'audience' for c in table.eq.call_args_list)
+
+
+@pytest.mark.unit
 class TestOnboardingRecipientsExcludePlaceholders:
     def test_placeholder_staff_excluded(self):
         from services import sis_onboarding_service as onboarding
