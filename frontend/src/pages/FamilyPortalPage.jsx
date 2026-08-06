@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
+import BackToSchool from '../components/navigation/BackToSchool'
 
 /**
  * Family portal (Learning app) — the checklists a school assigns to a guardian.
@@ -86,6 +87,7 @@ const FamilyPortalPage = () => {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      <BackToSchool className="mb-3" />
       <div className="flex items-center justify-between mb-1 gap-3">
         <h1 className="text-2xl font-bold text-neutral-900">Your portal</h1>
         {orgs.length > 1 && (

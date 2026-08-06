@@ -115,7 +115,6 @@ class TestAddClassEnforcesCap:
 
         with patch.object(p, '_can_register', return_value=True), \
              patch.object(p, '_changes_locked', return_value=False), \
-             patch.object(p, '_submission_gate', return_value=None), \
              patch.object(p, '_family_gate', return_value=None), \
              patch.object(p, '_sis_settings', return_value=CFG), \
              patch.object(p.catalog, 'list_classes', return_value=[target, ol1, ol2]), \
@@ -143,7 +142,6 @@ class TestAddClassEnforcesCap:
 
         with patch.object(p, '_can_register', return_value=True), \
              patch.object(p, '_changes_locked', return_value=False), \
-             patch.object(p, '_submission_gate', return_value=None), \
              patch.object(p, '_family_gate', return_value=None), \
              patch.object(p, '_sis_settings', return_value=CFG), \
              patch.object(p.catalog, 'list_classes', return_value=[target, ol1, ol2, summit]), \

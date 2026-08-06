@@ -76,8 +76,6 @@ import ClpPage from './ClpPage'
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
-  // Nothing submitted or approved unless a test says otherwise.
-  STUDENT_PAYLOAD.schedule_approval = { status: null }
   vi.clearAllMocks()
 })
 
@@ -165,15 +163,15 @@ describe('ClpPage', () => {
     render(<ClpPage />)
     const alice = (await screen.findByText('Alice Ant')).closest('button')
     const bob = screen.getByText('Bob Ant').closest('button')
-    expect(alice.querySelector('[aria-label="CLP finished"]')).toBeTruthy()
-    expect(bob.querySelector('[aria-label="CLP finished"]')).toBeFalsy()
+    expect(alice.querySelector('[aria-label="CLP done"]')).toBeTruthy()
+    expect(bob.querySelector('[aria-label="CLP done"]')).toBeFalsy()
   })
 
   it('marks the CLP finished from the student header', async () => {
     render(<ClpPage />)
     fireEvent.click(await screen.findByText('Alice Ant'))
     await screen.findByText('Weekly schedule')
-    fireEvent.click(screen.getByRole('button', { name: 'Mark CLP finished' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mark CLP done' }))
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
       expect.stringContaining('/api/sis/clp/students/s1/record'), { finished: true },
     ))
@@ -184,7 +182,7 @@ describe('ClpPage', () => {
     try {
       render(<ClpPage />)
       fireEvent.click(await screen.findByText('Alice Ant'))
-      expect(await screen.findByText('CLP finished')).toBeInTheDocument()
+      expect(await screen.findByText('CLP done')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Reopen' }))
       await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
         expect.stringContaining('/api/sis/clp/students/s1/record'), { finished: false },
@@ -221,58 +219,5 @@ describe('ClpPage', () => {
     await screen.findByText('Weekly schedule')
     expect(screen.getByText('Learning day:')).toBeInTheDocument()
     expect(screen.getByText('Elementary At-Home Academic Learning Day')).toBeInTheDocument()
-  })
-
-  describe('schedule approval', () => {
-    it('approves the schedule from the meeting screen', async () => {
-      render(<ClpPage />)
-      fireEvent.click(await screen.findByText('Alice Ant'))
-      fireEvent.click(await screen.findByText('Approve schedule'))
-      await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-        expect.stringContaining('/api/sis/clp/students/s1/schedule-approval'),
-        expect.objectContaining({ action: 'approve', organization_id: 'org-1' }),
-      ))
-    })
-
-    it('credits the family submission when there is one', async () => {
-      STUDENT_PAYLOAD.schedule_approval = {
-        status: 'submitted', submitted_by_name: 'Gina Guardian',
-        submitted_at: '2026-07-20T10:00:00Z',
-      }
-      render(<ClpPage />)
-      fireEvent.click(await screen.findByText('Alice Ant'))
-      await screen.findByText('Approve schedule')
-      expect(screen.getByText(/Submitted by Gina Guardian/)).toBeInTheDocument()
-    })
-
-    it('shows who approved it and can reopen it for the family', async () => {
-      STUDENT_PAYLOAD.schedule_approval = {
-        status: 'approved', reviewed_by_name: 'Molly C', reviewed_at: '2026-07-21T10:00:00Z',
-      }
-      const prompt = vi.spyOn(window, 'prompt').mockReturnValue('Add a Thursday class')
-      render(<ClpPage />)
-      fireEvent.click(await screen.findByText('Alice Ant'))
-      expect(await screen.findByText('Schedule approved')).toBeInTheDocument()
-      expect(screen.getByText(/by Molly C/)).toBeInTheDocument()
-      expect(screen.queryByText('Approve schedule')).not.toBeInTheDocument()
-
-      fireEvent.click(screen.getByText('Reopen for the family'))
-      await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-        expect.stringContaining('/api/sis/clp/students/s1/schedule-approval'),
-        expect.objectContaining({ action: 'reopen', note: 'Add a Thursday class' }),
-      ))
-      prompt.mockRestore()
-    })
-
-    it('keeps the approve button but hides the undo in presentation mode', async () => {
-      STUDENT_PAYLOAD.schedule_approval = { status: 'approved', reviewed_by_name: 'Molly C' }
-      render(<ClpPage />)
-      fireEvent.click(await screen.findByText('Alice Ant'))
-      await screen.findByText('Schedule approved')
-      fireEvent.click(screen.getByText('Presentation mode'))
-      await screen.findByText('Exit presentation')
-      expect(screen.getByText('Schedule approved')).toBeInTheDocument()
-      expect(screen.queryByText('Reopen for the family')).not.toBeInTheDocument()
-    })
   })
 })

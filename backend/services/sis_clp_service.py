@@ -102,10 +102,6 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
     except Exception as e:  # noqa: BLE001 — the flag is decoration, never a blocker
         logger.warning(f'CLP: finished lookup failed for org {org_id}: {e}')
         finished = set()
-    # "Can we get a list somewhere that shows who all has completed their CLP?
-    # And a list of everyone who needs their schedule approved still?" — both are
-    # this one directory, filtered; so each student carries the two states.
-    schedule_status = _schedule_status_by_student(org_id)
     students = [{
         'student_id': r['student_id'],
         'name': r['name'],
@@ -118,8 +114,6 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
         'grade_level': r.get('grade_level'),
         'enrollment_status': r.get('enrollment_status'),
         'clp_finished': r['student_id'] in finished,
-        # None = nobody has submitted or approved anything yet.
-        'schedule_status': schedule_status.get(r['student_id']),
     } for r in roster
         if r.get('is_student')
         and (r.get('enrollment_status') or 'unassigned') not in _HIDDEN_ENROLLMENT_STATUSES]
@@ -151,30 +145,8 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
         'total': len(students),
         'clp_finished': sum(1 for s in students if s['clp_finished']),
         'clp_todo': sum(1 for s in students if not s['clp_finished']),
-        # "Needs approval" is everyone whose schedule isn't approved yet —
-        # submitted-and-waiting *and* never-submitted, because in a CLP meeting
-        # the schedule is usually built live and never goes through the builder.
-        'awaiting_approval': sum(1 for s in students if s['schedule_status'] != 'approved'),
-        'submitted': sum(1 for s in students if s['schedule_status'] == 'submitted'),
-        'approved': sum(1 for s in students if s['schedule_status'] == 'approved'),
     }
     return {'families': family_list, 'students': students, 'counts': counts}
-
-
-def _schedule_status_by_student(org_id: str) -> Dict[str, str]:
-    """{student_user_id: submission status} for the whole org. Best-effort: a
-    missing table (pre-migration) just means nobody has a status yet."""
-    try:
-        from utils.db_fetch import fetch_all_rows
-        rows = fetch_all_rows(lambda: (
-            _admin().table('sis_schedule_submissions')
-            .select('student_user_id, status')
-            .eq('organization_id', org_id)
-        ))
-        return {r['student_user_id']: r.get('status') for r in rows if r.get('student_user_id')}
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'CLP: schedule status lookup failed for org {org_id}: {e}')
-        return {}
 
 
 def _student_profile(student_id: str) -> Optional[Dict[str, Any]]:
@@ -341,14 +313,6 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:  # noqa: BLE001
         logger.warning(f'CLP: learning-day lookup failed for {student_id[:8]}: {e}')
 
-    # Schedule approval state, so the meeting screen can show where this
-    # student's schedule stands and approve it without leaving the CLP.
-    schedule_approval = None
-    try:
-        schedule_approval = schedule_approval_state(org_id, student_id)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'CLP: schedule approval lookup failed for {student_id[:8]}: {e}')
-
     return {
         'student': student,
         'family': family,
@@ -357,7 +321,6 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
         'schedule': schedule,
         'clp_record': clp_record,
         'learning_day': learning_day,
-        'schedule_approval': schedule_approval,
         # What this family has ASKED for and is still waiting on. In a CLP
         # meeting these are the open questions, and staff had to go hunting on
         # two other pages to find them.
@@ -412,31 +375,6 @@ def open_requests(org_id: str, student_id: str,
     except Exception as e:  # noqa: BLE001
         logger.warning(f'CLP: exception lookup failed for {student_id[:8]}: {e}')
     return {'waitlist': waitlist, 'age_exceptions': exceptions}
-
-
-def schedule_approval_state(org_id: str, student_id: str) -> Dict[str, Any]:
-    """Where this student's schedule stands for approval, hydrated with the
-    names the meeting screen shows. `status` is None when neither the family nor
-    staff has ever acted on it."""
-    from services import sis_schedule_submission_service as submissions
-    sub = submissions.current(org_id, student_id) or {}
-    people_ids = [i for i in (sub.get('submitted_by'), sub.get('reviewed_by')) if i]
-    names = {}
-    if people_ids:
-        rows = (
-            _admin().table('users')
-            .select('id, display_name, first_name, last_name, username, email')
-            .in_('id', people_ids).execute()
-        ).data or []
-        names = {r['id']: _full_name(r) for r in rows}
-    return {
-        'status': sub.get('status'),
-        'submitted_at': sub.get('submitted_at'),
-        'submitted_by_name': names.get(sub.get('submitted_by')),
-        'reviewed_at': sub.get('reviewed_at'),
-        'reviewed_by_name': names.get(sub.get('reviewed_by')),
-        'review_note': sub.get('review_note'),
-    }
 
 
 # ── CLP meeting record: finished flag + staff meeting notes ───────────────────

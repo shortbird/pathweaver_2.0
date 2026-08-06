@@ -79,13 +79,15 @@ def _resolver(table, eq, in_):
 
 @pytest.mark.unit
 class TestOrgResources:
-    def test_requires_org_access(self):
-        with patch('services.sis_parent_service._has_org_access', return_value=False):
+    def test_requires_org_membership(self):
+        # Membership, not guardianship: the library is readable by anyone in the
+        # school (see test_sis_school_context), and by nobody outside it.
+        with patch('services.sis_parent_service._is_org_member', return_value=False):
             assert parent.org_resources('stranger', 'org1') is None
 
     def test_lists_resources_for_family(self):
         client, _ = _fake_admin(_resolver)
-        with patch('services.sis_parent_service._has_org_access', return_value=True), \
+        with patch('services.sis_parent_service._is_org_member', return_value=True), \
              patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
             rows = parent.org_resources('g1', 'org1')
         assert rows[0]['title'] == 'Family Guidebook'
@@ -93,13 +95,13 @@ class TestOrgResources:
 
 @pytest.mark.unit
 class TestFamilyDirectory:
-    def test_requires_org_access(self):
-        with patch('services.sis_parent_service._has_org_access', return_value=False):
+    def test_requires_org_membership(self):
+        with patch('services.sis_parent_service._is_org_member', return_value=False):
             assert parent.family_directory('stranger', 'org1') is None
 
     def test_lists_only_opted_in_households_with_guardians_and_kid_first_names(self):
         client, _ = _fake_admin(_resolver)
-        with patch('services.sis_parent_service._has_org_access', return_value=True), \
+        with patch('services.sis_parent_service._is_org_member', return_value=True), \
              patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
             families = parent.family_directory('g1', 'org1')
         assert len(families) == 1

@@ -14,7 +14,6 @@ from services import sis_service
 from services import sis_registration_service as regs
 from services import sis_exception_service as exceptions
 from services import sis_enrollment_waitlist_service as enrollment_waitlist
-from services import sis_schedule_submission_service as submissions
 # Admin tier: this whole module is org management, not teacher-facing.
 from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
 
@@ -179,60 +178,6 @@ def resolve_age_exception_request(user_id, request_id):
         # Enrolling would double-book the student; the client confirms and
         # re-posts with drop_conflicting=true. The request stays pending.
         return jsonify({'success': False, 'conflicts': result['conflicts']}), 409
-    return jsonify({'success': True, **result})
-
-
-# ── Parent schedule submissions (submit for approval) ────────────────────────
-@bp.route('/schedule-submissions', methods=['GET'])
-@require_role(*STAFF_ROLES)
-def list_schedule_submissions(user_id):
-    """Parent-submitted schedules for staff review (newest first)."""
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    status = request.args.get('status')
-    if status and status not in submissions.STATUSES:
-        return jsonify({'success': False, 'error': f'Invalid status: {status}'}), 400
-    return jsonify({'success': True,
-                    'submissions': submissions.list_submissions(org_id, status)})
-
-
-@bp.route('/schedule-submissions/<submission_id>/review', methods=['POST'])
-@require_role(*STAFF_ROLES)
-def review_schedule_submission(user_id, submission_id):
-    """Approve a submitted schedule (stays locked, staff-managed; billing
-    happens outside Optio) or send it back to the family with a note."""
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    data = request.json or {}
-    action = data.get('action')
-    if action not in submissions.REVIEW_ACTIONS:
-        return jsonify({'success': False,
-                        'error': "action must be 'approve' or 'send_back'"}), 400
-    # drop_waitlists: the approver decides, per family, whether approving also
-    # takes the student off the class waitlists they're still queued for.
-    result = submissions.review(org_id, submission_id, action,
-                                reviewed_by=user_id, note=data.get('note'),
-                                drop_waitlists=bool(data.get('drop_waitlists')))
-    if result.get('error'):
-        code = 404 if result['error'] == 'Submission not found' else 400
-        return jsonify({'success': False, 'error': result['error']}), code
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/schedule-submissions/<submission_id>/schedule', methods=['GET'])
-@require_role(*STAFF_ROLES)
-def schedule_submission_schedule(user_id, submission_id):
-    """The classes on a submitted schedule, so staff can review the week before
-    approving it or sending it back."""
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    result = submissions.submission_schedule(org_id, submission_id)
-    if result.get('error'):
-        code = 404 if result['error'] == 'Submission not found' else 400
-        return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, **result})
 
 

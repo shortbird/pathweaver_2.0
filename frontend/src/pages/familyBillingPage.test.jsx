@@ -14,6 +14,7 @@ const { api } = vi.hoisted(() => {
     household_id: 'hh1',
     household_name: 'Bowman Family',
     organization: { id: 'org-1', name: 'Gryffin Microschool', logo_url: null },
+    pay_through_ufa: false,
     invoices: [{
       id: 'inv1', status: 'partial', total_cents: 120000, amount_paid_cents: 50000,
       discount_cents: 0, issued_at: '2026-07-01T00:00:00Z', due_date: '2026-07-15',
@@ -46,6 +47,7 @@ const { api } = vi.hoisted(() => {
         if (url.includes('/api/sis/parent/billing')) return Promise.resolve({ data: { households: [household] } })
         return Promise.resolve({ data: {} })
       }),
+      post: vi.fn(() => Promise.resolve({ data: { checkout_url: 'https://pay.example' } })),
     },
   }
 })
@@ -53,9 +55,18 @@ vi.mock('../services/api', () => ({ default: api }))
 
 import FamilyBillingPage from './FamilyBillingPage'
 
+// A writable window.location stub so pay handlers can set href without jsdom navigating.
+const stubLocation = () => {
+  Object.defineProperty(window, 'location', {
+    value: { origin: 'http://localhost', pathname: '/family/billing', href: '', search: '' },
+    writable: true, configurable: true,
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   window.print = vi.fn()
+  stubLocation()
 })
 
 describe('FamilyBillingPage', () => {
@@ -65,7 +76,7 @@ describe('FamilyBillingPage', () => {
     expect(screen.getByText('$1200.00')).toBeInTheDocument()          // invoiced
     expect(screen.getAllByText('$500.00').length).toBeGreaterThan(0)  // paid (summary + payment row)
     expect(screen.getByText('$700.00')).toBeInTheDocument()           // balance
-    expect(screen.getByText(/Pay by Zelle or through your scholarship program/)).toBeInTheDocument()
+    expect(screen.getByText(/Pay online, by Zelle, or through your scholarship program/)).toBeInTheDocument()
   })
 
   it('lists invoices with status and expands line items + installments', async () => {
@@ -99,5 +110,52 @@ describe('FamilyBillingPage', () => {
     api.get.mockResolvedValueOnce({ data: { households: [] } })
     render(<FamilyBillingPage />)
     expect(await screen.findByText(/No billing history yet/)).toBeInTheDocument()
+  })
+
+  it('shows the pay-through-UFA message and hides card payment for a UFA family', async () => {
+    api.get.mockImplementationOnce(() => Promise.resolve({ data: { households: [{
+      household_id: 'hh2', household_name: 'Ford Family',
+      organization: { id: 'org-1', name: 'iCreate', online_pay_enabled: true },
+      pay_through_ufa: true, funding_label: 'UFA – Private School',
+      invoices: [{ id: 'inv2', status: 'sent', total_cents: 475000, amount_paid_cents: 0,
+        student_name: 'Uma', line_items: [], installments: [], payments: [] }],
+      payments: [], totals: { invoiced_cents: 475000, paid_cents: 0, balance_cents: 475000 },
+    }] } }))
+    render(<FamilyBillingPage />)
+    expect(await screen.findByText(/make your payment through UFA/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Pay whole family/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/online$/)).not.toBeInTheDocument()
+  })
+
+  it('offers whole-family payment and starts checkout', async () => {
+    api.get.mockImplementationOnce(() => Promise.resolve({ data: { households: [{
+      household_id: 'hh3', household_name: 'Lee Family',
+      organization: { id: 'org-1', name: 'iCreate', online_pay_enabled: true },
+      pay_through_ufa: false,
+      invoices: [{ id: 'inv3', status: 'sent', total_cents: 60000, amount_paid_cents: 0,
+        student_name: 'Ann', line_items: [], installments: [], payments: [] }],
+      payments: [], totals: { invoiced_cents: 60000, paid_cents: 0, balance_cents: 60000 },
+    }] } }))
+    render(<FamilyBillingPage />)
+    fireEvent.click(await screen.findByText(/Pay whole family/))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/parent/billing/family-checkout',
+        expect.objectContaining({ household_id: 'hh3' })))
+  })
+
+  it('starts a 10-payment plan on a payable invoice', async () => {
+    api.get.mockImplementationOnce(() => Promise.resolve({ data: { households: [{
+      household_id: 'hh3', household_name: 'Lee Family',
+      organization: { id: 'org-1', name: 'iCreate', online_pay_enabled: true },
+      pay_through_ufa: false,
+      invoices: [{ id: 'inv3', status: 'sent', total_cents: 60000, amount_paid_cents: 0,
+        student_name: 'Ann', line_items: [], installments: [], payments: [] }],
+      payments: [], totals: { invoiced_cents: 60000, paid_cents: 0, balance_cents: 60000 },
+    }] } }))
+    render(<FamilyBillingPage />)
+    fireEvent.click(await screen.findByText('Set up 10-payment plan'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/parent/billing/invoices/inv3/autopay-setup',
+        expect.objectContaining({ installment_count: 10 })))
   })
 })

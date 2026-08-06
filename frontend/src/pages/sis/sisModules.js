@@ -18,6 +18,7 @@
 export const SIS_MODULE_BY_PATH = {
   '/clp': 'clp',
   '/billing': 'billing',
+  '/tuition': 'billing',
   '/forms': 'forms',
   '/onboarding': 'onboarding',
   '/secure-documents': 'secure_documents',

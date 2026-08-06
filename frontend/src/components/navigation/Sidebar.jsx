@@ -268,105 +268,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Schedule Builder / Goal Setting: guardians at a SIS-enabled school get the
-  // org's post-registration surface — iCreate-style schools build class
-  // schedules; goals-mode schools (post_registration_flow === 'goals') set a
-  // direction and per-subject goals reviewed with school staff instead.
-  if (sisEnabled && hasParentRelationships) {
-    const goalsMode = organization?.feature_flags?.sis_settings?.post_registration_flow === 'goals'
-    if (goalsMode) {
-      navItems.push({
-        name: 'Goal Setting',
-        path: '/family/goals',
-        icon: (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        )
-      })
-    } else {
-      navItems.push({
-        name: 'Schedule Builder',
-        path: '/schedule-builder',
-        icon: (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-          </svg>
-        )
-      })
-    }
-    // Billing: household balance, invoices, and printable receipts (families pay
-    // outside Optio; the school records payments).
-    navItems.push({
-      name: 'Billing',
-      path: '/family/billing',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-        </svg>
-      )
-    })
-    // Absences: guardians report when a child will be out (whole day or a class).
-    navItems.push({
-      name: 'Absences',
-      path: '/absences',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      )
-    })
-    // School Calendar: the school's events (field trips, showcases, closures).
-    navItems.push({
-      name: 'School Calendar',
-      path: '/school-calendar',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      )
-    })
-    // Resources: the school's document library (guidebook, contracts, forms).
-    navItems.push({
-      name: 'Resources',
-      path: '/resources',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      )
-    })
-    // Directory: opt-in family contact list (families choose to be visible).
-    navItems.push({
-      name: 'Directory',
-      path: '/family-directory',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zM16 3.13a4 4 0 010 7.75" />
-        </svg>
-      )
-    })
-    // Portal: checklists the school assigns to the guardian to complete.
-    navItems.push({
-      name: 'Portal',
-      path: '/family/portal',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-        </svg>
-      )
-    })
-    // Requests: guardians file school requests (records, meeting, at-home day).
-    navItems.push({
-      name: 'Requests',
-      path: '/family/forms',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      )
-    })
-  }
+  // The school's own surfaces — Schedule Builder / Goal Setting, Billing,
+  // Absences, School Calendar, Resources, Directory, Portal, Requests — are NOT
+  // sidebar items. They were, until 2026-08-06, and a guardian at a SIS school
+  // ended up with fourteen items where eight were the same school. They are
+  // cards on the school's own page now (see SCHOOL_CARDS in SchoolPage.jsx),
+  // reached through the school item above. The routes did not move, so older
+  // emailed links still work.
 
   // Add Advisor link if user is advisor (platform or org) OR has advisor assignments (parent-advisor implicit access)
   // Check both org_role and org_roles array for multiple role support

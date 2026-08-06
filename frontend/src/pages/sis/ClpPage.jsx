@@ -76,12 +76,6 @@ const meetingSummary = (meetings) => {
     .join(', ')
 }
 
-const fmtDate = (ts) => {
-  if (!ts) return ''
-  try { return new Date(ts).toLocaleDateString(undefined, { dateStyle: 'medium' }) }
-  catch { return '' }
-}
-
 const priceLabel = (cents) => (cents ? `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}` : null)
 
 const dollars = (n) => `$${Number(n).toFixed(Number(n) % 1 ? 2 : 0)}`
@@ -130,10 +124,9 @@ const ClpPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
 
   const [directory, setDirectory] = useState({ families: [], students: [], counts: null })
-  // Directory lens: everyone / CLP still to do / CLP done / schedule not yet
-  // approved. iCreate asked for "a list of who has completed their CLP" and
-  // "a list of everyone who needs their schedule approved still" — same list,
-  // filtered, so the picker you already work from answers both.
+  // Directory lens: everyone / CLP still to do / CLP done. iCreate asked for
+  // "a list of who has completed their CLP" — same list, filtered, so the
+  // picker you already work from answers it.
   const [lens, setLens] = useState('all')
   const [dirLoading, setDirLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -242,61 +235,7 @@ const ClpPage = () => {
     notesTimer.current = setTimeout(() => saveNotes(value), 800)
   }
 
-  // Approve the schedule in the meeting (or hand it back to the family).
-  // Approving locks the family's Schedule Builder — staff make changes from here
-  // on, which is exactly the state a finished CLP meeting should leave behind.
-  const [approvalBusy, setApprovalBusy] = useState(false)
   const [schoolBusy, setSchoolBusy] = useState(false)
-  const reviewSchedule = async (action, { dropWaitlists = false } = {}) => {
-    let note
-    if (action === 'reopen') {
-      note = window.prompt('Anything to tell the family about what needs to change? (optional)')
-      if (note === null) return // cancelled
-    }
-    setApprovalBusy(true)
-    try {
-      const { data } = await api.post(withOrg(`/api/sis/clp/students/${selectedId}/schedule-approval`, orgId),
-        { action, note, organization_id: orgId, drop_waitlists: dropWaitlists })
-      if (action === 'approve') {
-        // Approving always closes the family's age-exception requests. What it
-        // does to their waitlist places is the approver's call, made above.
-        const closed = data?.age_exceptions_closed
-        const closedCount = (closed?.approved || 0) + (closed?.declined || 0)
-        const waiting = data?.waitlist_still_open || 0
-        const dropped = data?.waitlist_dropped || 0
-        toast.success(['Schedule approved',
-          closedCount ? `${closedCount} age exception${closedCount === 1 ? '' : 's'} closed` : '',
-          dropped ? `removed from ${dropped} waitlist${dropped === 1 ? '' : 's'}` : '',
-          waiting ? `still on ${waiting} waitlist${waiting === 1 ? '' : 's'}` : '',
-        ].filter(Boolean).join(' · '))
-      } else {
-        toast.success('Schedule reopened for the family')
-      }
-      loadStudent(selectedId)
-      loadDirectory()
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not update the schedule approval')
-    } finally {
-      setApprovalBusy(false)
-    }
-  }
-
-  // Approving is where the waitlist question gets answered — per family, not by
-  // a rule. iCreate asked for it both ways in the same sentence ("it would seem
-  // to make sense. However at the same time it doesn't make sense I guess"),
-  // which is what a case-by-case decision sounds like. Keeping is the default:
-  // a dropped place can't be un-dropped, the student's position in line is gone.
-  const approveSchedule = () => {
-    const n = openRequests.waitlist.length
-    if (!n) return reviewSchedule('approve')
-    const names = openRequests.waitlist.map((w) => w.class_name).join(', ')
-    const drop = window.confirm(
-      `${student?.student?.name || 'This student'} is still on ${n} waitlist${n === 1 ? '' : 's'}: ${names}.\n\n`
-      + 'OK — approve and TAKE THEM OFF those waitlists (they lose their place in line).\n'
-      + 'Cancel — approve and KEEP their place, so a seat can still be offered later.',
-    )
-    reviewSchedule('approve', { dropWaitlists: drop })
-  }
 
   // Actions on the family's open requests, straight from the meeting screen.
   const enrollFromWaitlist = (w) => runAction(
@@ -398,9 +337,6 @@ const ClpPage = () => {
   const matchesLens = useCallback((s) => {
     if (lens === 'clp_todo') return !s.clp_finished
     if (lens === 'clp_done') return !!s.clp_finished
-    // Never-submitted counts as "needs approval": in a CLP meeting the schedule
-    // is built live and never goes through the family's builder.
-    if (lens === 'needs_approval') return s.schedule_status !== 'approved'
     return true
   }, [lens])
 
@@ -480,57 +416,6 @@ const ClpPage = () => {
       <div className="flex-shrink-0">{renderClassActions(cls)}</div>
     </div>
   )
-
-  // Approve the week without leaving the meeting. Approved is the end state a
-  // CLP meeting aims for, so the button sits on the schedule itself rather than
-  // in the Registration review queue the family's own submissions land in.
-  const renderScheduleApproval = () => {
-    const approval = student?.schedule_approval || {}
-    const approved = approval.status === 'approved'
-    return (
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        {approved ? (
-          <>
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-              <CheckIcon className="w-4 h-4" /> Schedule approved
-            </span>
-            {(approval.reviewed_by_name || approval.reviewed_at) && (
-              <span className="text-xs text-neutral-400">
-                {approval.reviewed_by_name ? `by ${approval.reviewed_by_name}` : ''}
-                {approval.reviewed_at ? ` · ${fmtDate(approval.reviewed_at)}` : ''}
-              </span>
-            )}
-            {/* Undo, staff-side only — never a stray click with the screen
-                turned toward the family. */}
-            {!presentation && (
-              <button type="button" onClick={() => reviewSchedule('reopen')} disabled={approvalBusy}
-                className="text-xs text-neutral-400 underline hover:text-neutral-600 disabled:opacity-50">
-                Reopen for the family
-              </button>
-            )}
-          </>
-        ) : (
-          <>
-            <Button size="sm" onClick={() => approveSchedule()} disabled={approvalBusy}>
-              {approvalBusy ? 'Approving…' : 'Approve schedule'}
-            </Button>
-            {approval.status === 'submitted' && (
-              <span className="text-xs text-neutral-400">
-                Submitted by {approval.submitted_by_name || 'the family'}
-                {approval.submitted_at ? ` · ${fmtDate(approval.submitted_at)}` : ''}
-              </span>
-            )}
-            {approval.status === 'sent_back' && !presentation && (
-              <span className="text-xs text-amber-600">Sent back to the family</span>
-            )}
-            {!presentation && (
-              <span className="text-xs text-neutral-400">Locks the family's schedule builder</span>
-            )}
-          </>
-        )}
-      </div>
-    )
-  }
 
   const renderScheduleGrid = () => {
     const byDay = {}
@@ -760,7 +645,7 @@ const ClpPage = () => {
             {student.clp_record?.finished ? (
               <>
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                  <CheckIcon className="w-4 h-4" /> CLP finished
+                  <CheckIcon className="w-4 h-4" /> CLP done
                 </span>
                 <button type="button" onClick={toggleFinished}
                   className="text-xs text-neutral-400 underline hover:text-neutral-600">
@@ -768,7 +653,7 @@ const ClpPage = () => {
                 </button>
               </>
             ) : (
-              <Button size="sm" onClick={toggleFinished}>Mark CLP finished</Button>
+              <Button size="sm" onClick={toggleFinished}>Mark CLP done</Button>
             )}
           </div>
         </div>
@@ -854,8 +739,8 @@ const ClpPage = () => {
               ))}
             </div>
             <p className="mt-2 text-xs text-neutral-400">
-              Approving the schedule closes any age exceptions left here; waitlist places are kept
-              until you enroll or remove them.
+              Approve or decline each age exception here; waitlist places are kept until you enroll
+              or remove them.
             </p>
           </div>
         )}
@@ -867,7 +752,6 @@ const ClpPage = () => {
               <h3 className="font-semibold text-neutral-900">Weekly schedule</h3>
               <span className="text-sm text-neutral-400">{schedule.length} class{schedule.length === 1 ? '' : 'es'}</span>
             </div>
-            {renderScheduleApproval()}
           </div>
           {renderScheduleGrid()}
         </div>
@@ -943,7 +827,6 @@ const ClpPage = () => {
           ['all', 'Everyone', directory.counts?.total],
           ['clp_todo', 'CLP to do', directory.counts?.clp_todo],
           ['clp_done', 'CLP done', directory.counts?.clp_finished],
-          ['needs_approval', 'Needs approval', directory.counts?.awaiting_approval],
         ].map(([key, label, count]) => (
           <button key={key} type="button" onClick={() => setLens(key)}
             className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${
@@ -974,7 +857,7 @@ const ClpPage = () => {
                 {stu.name}
                 {stu.age != null && <span className="text-xs text-neutral-400 ml-1.5">· {stu.age}</span>}
                 {stu.grade_level && <span className="text-xs text-neutral-400 ml-1.5">Grade {stu.grade_level}</span>}
-                {stu.clp_finished && <CheckIcon className="w-3.5 h-3.5 text-green-500 inline ml-1.5 align-text-bottom" label="CLP finished" />}
+                {stu.clp_finished && <CheckIcon className="w-3.5 h-3.5 text-green-500 inline ml-1.5 align-text-bottom" label="CLP done" />}
               </button>
             ))}
           </div>

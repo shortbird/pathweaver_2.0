@@ -12,12 +12,6 @@ vi.mock('../services/api', () => ({
   },
 }))
 
-vi.mock('@heroicons/react/24/outline', () => ({
-  MegaphoneIcon: (props) => <svg data-testid="megaphone-icon" {...props} />,
-  MagnifyingGlassIcon: (props) => <svg data-testid="search-icon" {...props} />,
-  ChevronDownIcon: (props) => <svg data-testid="chevron-icon" {...props} />,
-}))
-
 import api from '../services/api'
 
 const longBody = 'This announcement body is intentionally long. '.repeat(10)

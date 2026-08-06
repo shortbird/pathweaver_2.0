@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
+import BackToSchool from '../components/navigation/BackToSchool'
 import Button from '../components/ui/Button'
 
 /**
@@ -160,9 +161,10 @@ const StatementPrintView = ({ household }) => {
   )
 }
 
-const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline }) => {
+const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline, onSetupPlan, planning }) => {
   const amountDue = (invoice.total_cents || 0) + (invoice.processing_fee_cents || 0) - (invoice.amount_paid_cents || 0)
   const payable = canPayOnline && amountDue > 0 && !['paid', 'void', 'draft'].includes(invoice.status)
+  const hasPlan = !!(invoice.installments || []).length
   return (
   <div className="bg-white rounded-xl border border-gray-200">
     <button onClick={onToggle} className="w-full text-left p-4">
@@ -179,11 +181,16 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline 
       </div>
     </button>
     {payable && (
-      <div className="px-4 pb-3 -mt-1">
+      <div className="px-4 pb-3 -mt-1 flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={() => onPay(invoice)} loading={paying}>
           Pay {money(amountDue)} online
         </Button>
-        <span className="ml-2 text-xs text-neutral-400">A card processing fee is added at checkout.</span>
+        {!hasPlan && (
+          <Button size="sm" variant="secondary" onClick={() => onSetupPlan(invoice)} loading={planning}>
+            Set up 10-payment plan
+          </Button>
+        )}
+        <span className="text-xs text-neutral-400">A card processing fee is added at checkout.</span>
       </div>
     )}
     {expanded && (
@@ -224,6 +231,8 @@ const FamilyBillingPage = () => {
   const [statementFor, setStatementFor] = useState(null)
   const [printMode, setPrintMode] = useState(null) // 'receipt' | 'statement'
   const [paying, setPaying] = useState(null) // invoice id mid-checkout
+  const [payingFamily, setPayingFamily] = useState(null) // household id mid-checkout
+  const [planning, setPlanning] = useState(null) // invoice id mid-plan-setup
 
   const loadBilling = () => api.get('/api/sis/parent/billing')
     .then((r) => setHouseholds(r.data?.households || []))
@@ -231,23 +240,47 @@ const FamilyBillingPage = () => {
 
   useEffect(() => { loadBilling() }, [])
 
-  // Returning from Stripe (?payment=return&pay_invoice=<id>): verify + record.
+  // Returning from Stripe. Three flows share this handler:
+  //   ?payment=return&pay_invoice=<id>   single invoice paid in full
+  //   ?payment=return&pay_family=<hhId>  whole family paid at once
+  //   ?autopay=return&setup_invoice=<id> card saved -> start the payment plan
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const invoiceId = params.get('pay_invoice')
+    const familyId = params.get('pay_family')
+    const setupInvoiceId = params.get('setup_invoice')
     const outcome = params.get('payment')
-    if (!invoiceId || !outcome) return
+    const autopay = params.get('autopay')
+    if (!invoiceId && !familyId && !setupInvoiceId) return
     // Clean the URL so a refresh doesn't re-trigger.
     window.history.replaceState({}, '', window.location.pathname)
-    if (outcome === 'canceled') { toast('Payment canceled'); return }
-    if (outcome !== 'return') return
-    api.post(`/api/sis/parent/billing/invoices/${invoiceId}/confirm-payment`, {})
-      .then((r) => {
-        if (r.data?.paid) toast.success('Payment received — thank you!')
-        else toast('We could not confirm the payment yet. It may take a moment.')
-        loadBilling()
-      })
-      .catch(() => toast.error('Could not confirm the payment'))
+    if (outcome === 'canceled' || autopay === 'canceled') { toast('Payment canceled'); return }
+
+    if (invoiceId && outcome === 'return') {
+      api.post(`/api/sis/parent/billing/invoices/${invoiceId}/confirm-payment`, {})
+        .then((r) => {
+          if (r.data?.paid) toast.success('Payment received — thank you!')
+          else toast('We could not confirm the payment yet. It may take a moment.')
+          loadBilling()
+        })
+        .catch(() => toast.error('Could not confirm the payment'))
+    } else if (familyId && outcome === 'return') {
+      api.post('/api/sis/parent/billing/family-confirm', { household_id: familyId })
+        .then((r) => {
+          if (r.data?.paid) toast.success('Payment received — thank you!')
+          else toast('We could not confirm the payment yet. It may take a moment.')
+          loadBilling()
+        })
+        .catch(() => toast.error('Could not confirm the payment'))
+    } else if (setupInvoiceId && autopay === 'return') {
+      api.post(`/api/sis/parent/billing/invoices/${setupInvoiceId}/autopay-confirm`, { installment_count: 10 })
+        .then((r) => {
+          if (r.data?.ready) toast.success('Payment plan started — your card is saved and the first payment was made.')
+          else toast('We could not finish setting up the plan yet. It may take a moment.')
+          loadBilling()
+        })
+        .catch((e) => toast.error(e?.response?.data?.error || 'Could not set up the payment plan'))
+    }
   }, [])
 
   const payInvoice = async (invoice) => {
@@ -260,6 +293,30 @@ const FamilyBillingPage = () => {
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not start the payment')
     } finally { setPaying(null) }
+  }
+
+  const payFamily = async (hh) => {
+    setPayingFamily(hh.household_id)
+    try {
+      const returnUrl = `${window.location.origin}${window.location.pathname}?pay_family=${hh.household_id}`
+      const r = await api.post('/api/sis/parent/billing/family-checkout', { household_id: hh.household_id, return_url: returnUrl })
+      if (r.data?.checkout_url) window.location.href = r.data.checkout_url
+      else toast.error('Could not start the payment')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not start the payment')
+    } finally { setPayingFamily(null) }
+  }
+
+  const setupPlan = async (invoice) => {
+    setPlanning(invoice.id)
+    try {
+      const returnUrl = `${window.location.origin}${window.location.pathname}?setup_invoice=${invoice.id}`
+      const r = await api.post(`/api/sis/parent/billing/invoices/${invoice.id}/autopay-setup`, { return_url: returnUrl, installment_count: 10 })
+      if (r.data?.checkout_url) window.location.href = r.data.checkout_url
+      else toast.error('Could not start the payment plan setup')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not start the payment plan')
+    } finally { setPlanning(null) }
   }
 
   useEffect(() => {
@@ -284,6 +341,7 @@ const FamilyBillingPage = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <style>{PRINT_STYLES}</style>
+      <BackToSchool className="mb-3 print:hidden" />
       <h1 className="text-2xl font-bold text-neutral-900 mb-1">Billing</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Your family's balance, invoices, and payments. Print any payment as a receipt for scholarship reimbursement.
@@ -322,9 +380,28 @@ const FamilyBillingPage = () => {
               </div>
             </div>
           </div>
-          <p className="text-xs text-neutral-500 mb-5">
-            Pay by Zelle or through your scholarship program; the school records each payment here.
-          </p>
+          {hh.pay_through_ufa ? (
+            <div className="mb-5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+              Your family's tuition is funded through UFA{hh.funding_label ? ` (${hh.funding_label})` : ''}.
+              Please make your payment through UFA — the school records it here once it's received.
+            </div>
+          ) : (
+            <>
+              {(hh.totals?.balance_cents || 0) > 0 && hh.organization?.online_pay_enabled && (
+                <div className="mb-3">
+                  <Button size="sm" onClick={() => payFamily(hh)} loading={payingFamily === hh.household_id}>
+                    Pay whole family · {money(hh.totals?.balance_cents)}
+                  </Button>
+                  <span className="ml-2 text-xs text-neutral-400">
+                    Pays every open invoice at once. A card processing fee is added at checkout.
+                  </span>
+                </div>
+              )}
+              <p className="text-xs text-neutral-500 mb-5">
+                Pay online, by Zelle, or through your scholarship program; the school records each payment here.
+              </p>
+            </>
+          )}
 
           {/* Invoices */}
           <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Invoices</h3>
@@ -335,7 +412,8 @@ const FamilyBillingPage = () => {
                 key={inv.id} invoice={inv} expanded={!!expanded[inv.id]}
                 onToggle={() => setExpanded((e) => ({ ...e, [inv.id]: !e[inv.id] }))}
                 onPay={payInvoice} paying={paying === inv.id}
-                canPayOnline={!!hh.organization?.online_pay_enabled}
+                onSetupPlan={setupPlan} planning={planning === inv.id}
+                canPayOnline={!hh.pay_through_ufa && !!hh.organization?.online_pay_enabled}
               />
             ))}
           </div>

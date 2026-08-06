@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
+import BackToSchool from '../components/navigation/BackToSchool'
 
 /**
  * Family forms (Learning app).
@@ -117,6 +118,7 @@ const FamilyFormsPage = () => {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      <BackToSchool className="mb-3" />
       <h1 className="text-2xl font-bold text-neutral-900 mb-1">Submit a request</h1>
       <p className="text-neutral-500 mb-6">
         Send a request to {org?.organization_name || 'your school'} — they’ll see it come in and follow up.

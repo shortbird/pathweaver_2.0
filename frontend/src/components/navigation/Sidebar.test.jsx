@@ -199,3 +199,51 @@ describe('Sidebar — the school item', () => {
     expect(screen.getByRole('link', { name: /my school/i })).toBeInTheDocument()
   })
 })
+
+describe('Sidebar — the school surfaces moved onto the school page', () => {
+  // Until 2026-08-06 a guardian at a SIS school got eight more nav items on top
+  // of everything else: Schedule Builder, Billing, Absences, School Calendar,
+  // Resources, Directory, Portal, Requests. Fourteen items, eight of them the
+  // same school. They are cards on /school now; the sidebar keeps the school
+  // itself and nothing else about it.
+  const SCHOOL_SURFACES = [
+    /^billing$/i, /^absences$/i, /^school calendar$/i, /^resources$/i,
+    /^directory$/i, /^portal$/i, /^requests$/i, /^schedule builder$/i,
+    /^goal setting$/i,
+  ]
+
+  beforeEach(() => {
+    localStorage.clear()
+    authState = {
+      user: { id: 'p1', role: 'parent', email: 'p@example.com', has_dependents: true },
+      logout: vi.fn(), isAuthenticated: true,
+    }
+    orgState = {
+      organization: { id: 'org-1', feature_flags: { sis_enabled: true } },
+      school: { id: 'org-1', name: 'iCreate' },
+    }
+  })
+
+  it('gives a guardian at a SIS school one item for the school, not nine', () => {
+    renderSidebar()
+    for (const surface of SCHOOL_SURFACES) {
+      expect(screen.queryByRole('link', { name: surface })).not.toBeInTheDocument()
+    }
+    expect(screen.getByRole('link', { name: /icreate/i })).toHaveAttribute('href', '/school')
+  })
+
+  it('keeps the things that are not the school', () => {
+    // Family is the guardian's own children, which is a different question from
+    // what the school is doing, so it stays put.
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute(
+      'href', '/parent/dashboard')
+    expect(screen.getByRole('link', { name: /^messages$/i })).toBeInTheDocument()
+  })
+
+  it('still shows staff the way into the SIS console', () => {
+    authState.user = { id: 'a1', role: 'superadmin', email: 'a@example.com' }
+    renderSidebar()
+    expect(screen.getByRole('button', { name: /school admin/i })).toBeInTheDocument()
+  })
+})

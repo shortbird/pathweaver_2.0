@@ -18,6 +18,7 @@ from services import sis_registration_service as regs
 from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
 from services import sis_planned_absence_service as absences
+from services import sis_service
 from utils.org_features import org_has_feature
 from utils.logger import get_logger
 
@@ -145,8 +146,74 @@ def context(user_id: str) -> Dict[str, Any]:
     return {'orgs': list(orgs.values()), 'my_avatar_url': avatar_by_id.get(user_id)}
 
 
+def school_context(user_id: str) -> Dict[str, Any]:
+    """Every school whose hub this user may open, by membership OR guardianship.
+
+    context() above answers a narrower question — "where am I a guardian" — and
+    is empty for a student or a teacher who guards nobody. The school hub is the
+    whole school's page, so it also resolves plain membership through
+    sis_service.member_org_id (own organization_id, else through a child).
+    Without this, every non-guardian member of a school was told their account
+    wasn't linked to one.
+
+    `is_guardian` per org is what the hub renders the family-only cards off
+    (billing, absences, portal, requests, schedule). A staff member who is also
+    a parent resolves down both paths; guardian wins, or they'd lose the family
+    cards on their own school's page.
+
+    `post_registration_flow` rides along because the hub cannot work it out for
+    itself: a platform parent has no organization_id, so the frontend's
+    `organization` (and its feature_flags) is null for exactly the people who
+    need the Schedule Builder / Goal Setting card.
+    """
+    guardian_org_ids = [o['organization_id'] for o in context(user_id)['orgs']]
+    org_ids = list(guardian_org_ids)
+
+    member_org = sis_service.member_org_id(user_id)
+    if member_org and member_org not in guardian_org_ids \
+            and org_has_feature(member_org, 'sis_enabled'):
+        org_ids.append(member_org)
+
+    if not org_ids:
+        return {'orgs': [], 'is_guardian': False}
+
+    rows_by_id: Dict[str, Dict[str, Any]] = {}
+    try:
+        rows = (_admin().table('organizations').select('id, name, feature_flags')
+                .in_('id', org_ids).execute()).data or []
+        rows_by_id = {r['id']: r for r in rows}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'school_context: org lookup failed for {user_id[:8]}: {e}')
+
+    orgs = []
+    for oid in org_ids:
+        row = rows_by_id.get(oid) or {}
+        settings = ((row.get('feature_flags') or {}).get('sis_settings') or {})
+        orgs.append({
+            'organization_id': oid,
+            'organization_name': row.get('name'),
+            'is_guardian': oid in guardian_org_ids,
+            'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
+        })
+    return {'orgs': orgs, 'is_guardian': any(o['is_guardian'] for o in orgs)}
+
+
 def _has_org_access(user_id: str, org_id: str) -> bool:
     return any(s['org_id'] == org_id for s in registerable_students(user_id))
+
+
+def _is_org_member(user_id: str, org_id: str) -> bool:
+    """In this school at all — guardian, student, or staff.
+
+    The authorization floor for the school-wide reads (calendar, resources,
+    directory). Deliberately weaker than _has_org_access, and deliberately NOT
+    used by anything that acts on a family: being a member of the school is not
+    grounds to open a household's billing or change its directory listing.
+    """
+    if _has_org_access(user_id, org_id):
+        return True
+    return (sis_service.member_org_id(user_id) == org_id
+            and org_has_feature(org_id, 'sis_enabled'))
 
 
 def _can_register(user_id: str, org_id: str, student_user_id: str) -> bool:
@@ -309,29 +376,6 @@ def _student_household(org_id: str, student_user_id: str) -> Optional[Dict[str, 
     return rows[0] if rows else None
 
 
-def _submission_gate(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
-    """Blocks self-service changes while the schedule sits with the school
-    (submitted for approval) or after it was approved. sent_back unlocks.
-    Fails open pre-migration (missing table must not break the builder)."""
-    try:
-        from services import sis_schedule_submission_service as submissions
-        cur = submissions.current(org_id, student_user_id)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'submission gate lookup failed for {student_user_id[:8]}: {e}')
-        return None
-    if not cur:
-        return None
-    if cur.get('status') == 'submitted':
-        return {'error': 'This schedule has been submitted for approval — changes are '
-                         'locked while the school reviews it.',
-                'submission_locked': True}
-    if cur.get('status') == 'approved':
-        return {'error': 'This schedule has been approved by the school — contact them '
-                         'to make changes.',
-                'submission_locked': True}
-    return None
-
-
 def _family_gate(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
     """The error blocking this family from class signup, or None if clear.
 
@@ -419,9 +463,6 @@ def add_course(user_id: str, org_id: str, student_user_id: str, course_id: str) 
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
-    sub_gate = _submission_gate(org_id, student_user_id)
-    if sub_gate:
-        return sub_gate
     gate = _family_gate(org_id, student_user_id)
     if gate:
         return gate
@@ -441,9 +482,6 @@ def drop_course(user_id: str, org_id: str, student_user_id: str, course_id: str)
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
-    sub_gate = _submission_gate(org_id, student_user_id)
-    if sub_gate:
-        return sub_gate
     from services.course_enrollment_service import CourseEnrollmentService
     result = CourseEnrollmentService(_admin()).unenroll_user(student_user_id, course_id)
     if not result.get('success'):
@@ -511,24 +549,14 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     # Age-gated at registration: the student is queued for enrollment itself —
     # the builder renders read-only with their place in line.
     ew_entry = enrollment_waitlist.waiting_entry(org_id, student_user_id)
-    # UFA learning day + approval submission — best-effort (missing tables
-    # pre-migration must not break the builder).
+    # UFA learning day — best-effort (missing table pre-migration must not
+    # break the builder).
     learning_day_sel = None
     try:
         from services import sis_learning_day_service as learning_day
         learning_day_sel = learning_day.get_selection(org_id, student_user_id)
     except Exception as e:  # noqa: BLE001
         logger.warning(f'learning-day lookup failed for {student_user_id[:8]}: {e}')
-    submission = None
-    submission_lookup_ok = True
-    try:
-        from services import sis_schedule_submission_service as submissions
-        submission = submissions.current(org_id, student_user_id)
-    except Exception as e:  # noqa: BLE001
-        # Table missing (pre-migration) or transient failure: hide the
-        # Submit-for-approval button rather than render one that can only 500.
-        submission_lookup_ok = False
-        logger.warning(f'submission lookup failed for {student_user_id[:8]}: {e}')
     return {
         'classes': classes,
         'waitlist': waitlist,
@@ -547,11 +575,6 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         'block_pricing': settings.get('block_pricing') or None,
         'tuition_plan': tuition_plan,
         'learning_day': learning_day_sel,
-        'submission': submission,
-        # Org toggle for the "Submit for approval" flow; ON by default for
-        # SIS-scheduling orgs (sis_settings.schedule_approval_enabled: false to
-        # hide) — and forced off while the submissions table is unavailable.
-        'approval_enabled': bool(settings.get('schedule_approval_enabled', True)) and submission_lookup_ok,
     }
 
 
@@ -644,9 +667,6 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
-    sub_gate = _submission_gate(org_id, student_user_id)
-    if sub_gate:
-        return sub_gate
     gate = _family_gate(org_id, student_user_id)
     if gate:
         return gate
@@ -717,9 +737,6 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
-    sub_gate = _submission_gate(org_id, student_user_id)
-    if sub_gate:
-        return sub_gate
 
     dropped = False
     enr = (
@@ -849,7 +866,7 @@ def claim_offered_spot(user_id: str, org_id: str, student_user_id: str,
     return {'enrolled': True, 'class_name': klass.get('name')}
 
 
-# ── UFA learning day + schedule submission (guardian-scoped) ──────────────────
+# ── UFA learning day (guardian-scoped) ────────────────────────────────────────
 def set_learning_day(user_id: str, org_id: str, student_user_id: str,
                      choice: Optional[str]) -> Dict[str, Any]:
     """Save (or clear) the student's learning-day choice — the UFA private
@@ -858,42 +875,8 @@ def set_learning_day(user_id: str, org_id: str, student_user_id: str,
         return {'error': 'Not authorized for this student'}
     if _changes_locked(org_id):
         return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
-    sub_gate = _submission_gate(org_id, student_user_id)
-    if sub_gate:
-        return sub_gate
     from services import sis_learning_day_service as learning_day
     return learning_day.set_selection(org_id, student_user_id, choice, user_id)
-
-
-def submit_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
-    """Submit the student's schedule for the school to approve and bill.
-    Locks self-service changes until staff approve or send it back."""
-    if not _can_register(user_id, org_id, student_user_id):
-        return {'error': 'Not authorized for this student'}
-    if _changes_locked(org_id):
-        return {'error': 'Schedule changes are now handled by the school — please contact them directly.'}
-    gate = _family_gate(org_id, student_user_id)
-    if gate:
-        return gate
-    enrolled = (
-        _admin().table('class_enrollments').select('id')
-        .eq('student_id', student_user_id).eq('status', 'active').execute()
-    ).data or []
-    if not enrolled:
-        return {'error': 'Add at least one class before submitting'}
-    from services import sis_schedule_submission_service as submissions
-    return submissions.submit(org_id, student_user_id, user_id)
-
-
-def withdraw_schedule_submission(user_id: str, org_id: str,
-                                 student_user_id: str) -> Dict[str, Any]:
-    """Take back a submission the school hasn't reviewed yet, so the family can
-    keep editing. Not subject to the first-day-of-school lock: submitting is
-    what locked them, and undoing it only returns them to where they were."""
-    if not _can_register(user_id, org_id, student_user_id):
-        return {'error': 'Not authorized for this student'}
-    from services import sis_schedule_submission_service as submissions
-    return submissions.withdraw(org_id, student_user_id, user_id)
 
 
 # ── Age-exception requests ────────────────────────────────────────────────────
@@ -937,7 +920,7 @@ def request_age_exception(user_id: str, org_id: str, student_user_id: str,
 def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     """The org's resource library (guidebooks, contracts, links) for a family.
     Staff-only knowledge-base entries (audience='staff') never reach families."""
-    if not _has_org_access(user_id, org_id):
+    if not _is_org_member(user_id, org_id):
         return None
     return (
         _admin().table('org_resources')
@@ -952,7 +935,7 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
                to_iso: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
     """The school's event calendar (field trips, showcases, closures) for a
     family. Same overlap-window semantics as the staff calendar."""
-    if not _has_org_access(user_id, org_id):
+    if not _is_org_member(user_id, org_id):
         return None
     q = (
         _admin().table('sis_events')
@@ -1023,8 +1006,12 @@ def set_directory_opt_in(user_id: str, org_id: str, opted_in: bool,
 def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     """Opted-in families only: family name, phone, guardians (name + email),
     and student FIRST names. Staff always see everyone elsewhere; this is the
-    family-to-family view, so opt-in is the hard filter."""
-    if not _has_org_access(user_id, org_id):
+    school's directory, so opt-in is the hard filter.
+
+    Readable by any member of the school, not only guardians — see the opt-in
+    copy in FamilyDirectoryPage, which names that audience so families choose
+    with it in front of them."""
+    if not _is_org_member(user_id, org_id):
         return None
     households = (
         _admin().table('households')

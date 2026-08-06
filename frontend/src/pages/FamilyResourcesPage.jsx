@@ -1,25 +1,25 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
+import useSchoolContext from '../hooks/useSchoolContext'
+import BackToSchool from '../components/navigation/BackToSchool'
 
 /**
- * Resources — the school's document library for families (family guidebook,
- * student contract, forms). Read-only; staff manage the list in the SIS.
+ * Resources — the school's document library (family guidebook, student
+ * contract, forms). Read-only; staff manage the list in the SIS.
+ *
+ * Reached from a card on /school. Open to everyone in the school, not only
+ * guardians — hence useSchoolContext rather than the guardian context this page
+ * used to bootstrap from, which told students they had no school.
  */
 const FamilyResourcesPage = () => {
-  const [orgs, setOrgs] = useState(null)
+  const { orgs } = useSchoolContext()
   const [orgId, setOrgId] = useState(null)
   const [resources, setResources] = useState(null)
 
   useEffect(() => {
-    api.get('/api/sis/parent/context')
-      .then((r) => {
-        const list = r.data?.orgs || []
-        setOrgs(list)
-        if (list.length) setOrgId(list[0].organization_id)
-      })
-      .catch(() => { toast.error('Could not load your school'); setOrgs([]) })
-  }, [])
+    if (orgs?.length && !orgId) setOrgId(orgs[0].organization_id)
+  }, [orgs, orgId])
 
   useEffect(() => {
     if (!orgId) return
@@ -37,6 +37,7 @@ const FamilyResourcesPage = () => {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      <BackToSchool className="mb-3" />
       <h1 className="text-2xl font-bold text-neutral-900 mb-1">Resources</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Documents and links from {org?.organization_name || 'your school'} — guidebooks, contracts, and forms you can refer back to any time.

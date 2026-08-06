@@ -863,12 +863,16 @@ def register_sis_routes(app):
     app.register_blueprint(clp_bp)
     from routes.sis.billing import bp as billing_bp
     app.register_blueprint(billing_bp)
+    from routes.sis.tuition import bp as tuition_bp
+    app.register_blueprint(tuition_bp)
     from routes.sis.attendance import bp as attendance_bp
     app.register_blueprint(attendance_bp)
     from routes.sis.reports import bp as reports_bp
     app.register_blueprint(reports_bp)
     from routes.sis.parent import bp as parent_bp
     app.register_blueprint(parent_bp)
+    from routes.sis.school import bp as school_bp
+    app.register_blueprint(school_bp)
     from routes.sis.resources import bp as resources_bp
     app.register_blueprint(resources_bp)
     from routes.sis.events import bp as events_bp

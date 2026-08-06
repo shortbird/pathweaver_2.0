@@ -85,6 +85,7 @@ const NAV_SECTIONS = [
       { name: 'My Documents', path: '/my-documents', teacherOnly: true, d: ICONS.doc },
       { name: 'My Time', path: '/time', teacherOnly: true, d: ICONS.clock },
       { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock },
+      { name: 'Tuition', path: '/tuition', adminOnly: true, financeOnly: true, d: ICONS.check },
       { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card },
       { name: 'Messaging', path: '/messaging', adminOnly: true, d: ICONS.chat },
     ],

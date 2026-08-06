@@ -25,6 +25,9 @@ REMINDER_COOLDOWN_DAYS = 25
 UNPAID_INSTALLMENT_STATUSES = ('scheduled', 'due', 'late')
 OPEN_INVOICE_STATUSES = ('sent', 'partial', 'overdue')
 
+# Household funding sources that pay THROUGH UFA rather than by card in Optio.
+UFA_FUNDING_SOURCES = ('ufa', 'ufa_private')
+
 
 def _admin():
     return get_supabase_admin_client()
@@ -314,6 +317,122 @@ def create_charge(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         'quantity': 1,
     }).execute()
     return {'invoice': invoice}
+
+
+# ── Tuition invoice (multi-line, from the CLP tuition-approver) ──────────────
+def create_tuition_invoice(org_id: str, student_user_id: Optional[str],
+                           household_id: Optional[str], line_items: List[Dict[str, Any]],
+                           discount_cents: int = 0, note: Optional[str] = None,
+                           due_date: Optional[str] = None,
+                           status: str = 'sent',
+                           actor_user_id: Optional[str] = None) -> Dict[str, Any]:
+    """Create a tuition invoice for one student from explicit, approver-verified
+    line items (the tuition-approver flow, where the schedule was finalized in a
+    CLP meeting rather than through the registration funnel).
+
+    line_items: [{description, amount_cents, class_id?}]. subtotal = sum(amounts);
+    total = subtotal - discount (clamped to >= 0). Status defaults to 'sent'
+    ('draft' keeps it staff-only / off the family portal). Returns {'invoice': ...}
+    or {'error': ...}."""
+    clean: List[Dict[str, Any]] = []
+    for li in line_items or []:
+        desc = (li.get('description') or '').strip()
+        amt = li.get('amount_cents')
+        if not desc:
+            return {'error': 'Each line item needs a description'}
+        if not isinstance(amt, int) or amt < 0:
+            return {'error': 'Each line item needs a whole, non-negative amount'}
+        clean.append({'description': desc, 'amount_cents': amt, 'class_id': li.get('class_id')})
+    if not clean:
+        return {'error': 'Add at least one line item to invoice'}
+    if status not in ('sent', 'draft'):
+        return {'error': 'Invalid invoice status'}
+    subtotal = sum(li['amount_cents'] for li in clean)
+    discount = max(0, min(int(discount_cents or 0), subtotal))
+    total = subtotal - discount
+    invoice = (
+        _admin().table('sis_invoices').insert({
+            'organization_id': org_id,
+            'household_id': household_id,
+            'student_user_id': student_user_id,
+            'status': status,
+            'subtotal_cents': subtotal,
+            'discount_cents': discount,
+            'total_cents': total,
+            'amount_paid_cents': 0,
+            'issued_at': _now() if status != 'draft' else None,
+            'due_date': due_date or None,
+        }).execute()
+    ).data[0]
+    invoice = _assign_invoice_number(invoice)
+    _admin().table('sis_invoice_line_items').insert([{
+        'invoice_id': invoice['id'],
+        'description': li['description'],
+        'class_id': li.get('class_id'),
+        'amount_cents': li['amount_cents'],
+        'quantity': 1,
+    } for li in clean]).execute()
+    _audit(org_id, invoice['id'], actor_user_id, 'tuition_invoice_created',
+           {'subtotal_cents': subtotal, 'discount_cents': discount,
+            'total_cents': total, 'line_count': len(clean),
+            'note': (note or '').strip() or None})
+    enqueue_qbo(org_id, 'invoice', invoice['id'])
+    return {'invoice': invoice}
+
+
+def _household_primary_contact(household_id: Optional[str]) -> Optional[str]:
+    if not household_id:
+        return None
+    row = (_admin().table('households').select('primary_contact_user_id')
+           .eq('id', household_id).limit(1).execute()).data
+    return (row[0].get('primary_contact_user_id') if row else None)
+
+
+def email_invoice_to_family(org_id: str, invoice_id: str) -> Dict[str, Any]:
+    """Email the household's guardians that a tuition invoice is ready, linking to
+    the family billing portal. Best-effort; returns {'emailed': n}."""
+    inv = get_invoice(org_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    hh_id = inv.get('household_id')
+    guardians = (_guardian_emails_for_household(hh_id, _household_primary_contact(hh_id))
+                 if hh_id else [])
+    if not guardians:
+        return {'emailed': 0}
+    org = _org_branding([org_id]).get(org_id) or {}
+    org_name = org.get('name') or 'Your school'
+    student = _users_map([inv.get('student_user_id')]).get(inv.get('student_user_id'))
+    student_name = _display_name(student) if student else 'your student'
+    total = inv.get('total_cents') or 0
+    number = inv.get('invoice_number') or ''
+    link = f"{Config.FRONTEND_URL.rstrip('/')}/family/billing"
+    subject = f"{org_name}: tuition invoice for {student_name}"
+    text = (
+        f"Hello,\n\n"
+        f"{org_name} has issued a tuition invoice ({number}) for {student_name} "
+        f"totaling {_money(total)}.\n\n"
+        f"View the invoice and pay online — in full or on a payment plan — here: {link}\n\n"
+        f"Thank you,\n{org_name}"
+    )
+    html = (
+        f"<p>Hello,</p>"
+        f"<p>{org_name} has issued a tuition invoice (<strong>{number}</strong>) for "
+        f"<strong>{student_name}</strong> totaling <strong>{_money(total)}</strong>.</p>"
+        f"<p><a href=\"{link}\">View the invoice and pay online</a> — in full or on a "
+        f"payment plan.</p>"
+        f"<p>Thank you,<br/>{org_name}</p>"
+    )
+    from services.email_service import EmailService
+    svc = EmailService()
+    emailed = 0
+    for g in guardians:
+        try:
+            if svc.send_email(to_email=g['email'], subject=subject,
+                              html_body=html, text_body=text):
+                emailed += 1
+        except Exception as e:  # noqa: BLE001 — one bad address must not break the send
+            logger.warning(f"[SIS billing] invoice email failed for {g['email']}: {e}")
+    return {'emailed': emailed}
 
 
 # ── Charges ledger (staff table: who owes / who paid) ────────────────────────
@@ -691,10 +810,17 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
         paid = sum(i.get('amount_paid_cents') or 0 for i in billable)
         payments = [p for i in invoices for p in i.get('payments', [])]
         payments.sort(key=lambda p: p.get('recorded_at') or '', reverse=True)
+        # Funding source gates the parent page: UFA / UFA-private families pay
+        # through UFA, not by card, so the portal shows a "pay through UFA"
+        # message instead of the card / payment-plan buttons.
+        funding = _household_funding_source(hh['id'])
         out.append({
             'household_id': hh['id'],
             'household_name': hh.get('name'),
             'organization': orgs.get(hh.get('organization_id')) or {'id': hh.get('organization_id')},
+            'funding_source': funding,
+            'funding_label': _FUNDING_LABELS.get(funding) if funding else None,
+            'pay_through_ufa': funding in UFA_FUNDING_SOURCES,
             'invoices': invoices,
             'payments': payments,
             'totals': {'invoiced_cents': invoiced, 'paid_cents': paid,
@@ -955,6 +1081,399 @@ def confirm_invoice_payment(user_id: str, invoice_id: str) -> Dict[str, Any]:
         _audit(org_id, invoice_id, user_id, 'online_payment', {'session_id': sid, 'amount_cents': amount_total})
         return {'paid': True, 'payment': result.get('payment'), 'invoice': result.get('invoice')}
     return {'paid': False}
+
+
+# ── Pay the whole family at once (one Checkout across a household's invoices) ──
+def _household_open_invoices(org_id: str, household_id: str) -> List[Dict[str, Any]]:
+    """Open, non-void invoices for a household that still have a tuition balance."""
+    return [i for i in list_invoices(org_id, household_id=household_id)
+            if i.get('status') in OPEN_INVOICE_STATUSES
+            and (i.get('total_cents') or 0) > (i.get('amount_paid_cents') or 0)]
+
+
+def create_family_checkout(user_id: str, household_id: str, return_url: str) -> Dict[str, Any]:
+    """One Stripe Checkout covering every open invoice in the family, on the
+    school's own account (one line per kid + a single card processing fee).
+    Returns a hosted URL. Verified on return by confirm_family_payment."""
+    hh = next((h for h in _guardian_household_rows(user_id) if h['id'] == household_id), None)
+    if not hh:
+        return {'error': 'Family not found'}
+    org_id = hh.get('organization_id')
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school'}
+    if not (return_url or '').startswith('http'):
+        return {'error': 'Invalid return URL'}
+    invoices = _household_open_invoices(org_id, household_id)
+    balances = {i['id']: (i.get('total_cents') or 0) - (i.get('amount_paid_cents') or 0) for i in invoices}
+    base_total = sum(b for b in balances.values() if b > 0)
+    if base_total <= 0:
+        return {'error': 'This family has no balance due'}
+    fee = compute_processing_fee(org_id, base_total)
+    org = _org_branding([org_id]).get(org_id) or {}
+    org_name = org.get('name') or 'School'
+    guardian = _users_map([user_id]).get(user_id) or {}
+    students = _users_map([i.get('student_user_id') for i in invoices])
+    try:
+        import stripe
+        sep = '&' if '?' in return_url else '?'
+        line_items = []
+        for inv in invoices:
+            bal = balances[inv['id']]
+            if bal <= 0:
+                continue
+            s = students.get(inv.get('student_user_id'))
+            who = _display_name(s) if s else (inv.get('invoice_number') or 'Tuition')
+            line_items.append({
+                'price_data': {'currency': 'usd',
+                               'product_data': {'name': f"{org_name} tuition · {who}"},
+                               'unit_amount': bal},
+                'quantity': 1})
+        if fee > 0:
+            line_items.append({
+                'price_data': {'currency': 'usd',
+                               'product_data': {'name': 'Card processing fee'}, 'unit_amount': fee},
+                'quantity': 1})
+        session = stripe.checkout.Session.create(
+            api_key=secret, mode='payment', line_items=line_items,
+            customer_email=guardian.get('email') or None,
+            metadata={'kind': 'family', 'household_id': household_id,
+                      'fee_cents': fee, 'base_total_cents': base_total},
+            success_url=f'{return_url}{sep}payment=return',
+            cancel_url=f'{return_url}{sep}payment=canceled')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'[SIS billing] family checkout failed for household {household_id}: {e}')
+        return {'error': 'Could not start the payment. Please try again or contact the school.'}
+    # Poll target: record the session id against every invoice it covers.
+    for inv in invoices:
+        if balances[inv['id']] <= 0:
+            continue
+        history = list(inv.get('stripe_session_ids') or [])
+        history.append(session.id)
+        _admin().table('sis_invoices').update(
+            {'stripe_session_ids': history[-10:], 'updated_at': _now()}).eq('id', inv['id']).execute()
+    return {'checkout_url': session.url}
+
+
+def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
+    """After the family returns from a whole-family Checkout, find the paid
+    session and record a payment against each covered invoice (idempotent),
+    allocating the card fee proportionally so each invoice reads as paid."""
+    hh = next((h for h in _guardian_household_rows(user_id) if h['id'] == household_id), None)
+    if not hh:
+        return {'error': 'Family not found'}
+    org_id = hh.get('organization_id')
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school'}
+    invoices = _household_open_invoices(org_id, household_id)
+    if not invoices:
+        return {'paid': False}
+    session_ids: List[str] = []
+    for inv in invoices:
+        for sid in (inv.get('stripe_session_ids') or []):
+            if sid not in session_ids:
+                session_ids.append(sid)
+    if not session_ids:
+        return {'paid': False}
+    try:
+        import stripe
+    except Exception:  # noqa: BLE001
+        return {'error': 'Payment library unavailable'}
+    for sid in reversed(session_ids):  # newest first
+        try:
+            sess = stripe.checkout.Session.retrieve(sid, api_key=secret)
+        except Exception:  # noqa: BLE001
+            continue
+        md = sess.get('metadata') or {}
+        if sess.get('payment_status') != 'paid' or md.get('kind') != 'family' \
+                or md.get('household_id') != household_id:
+            continue
+        pi = sess.get('payment_intent')
+        fee_total = int(md.get('fee_cents') or 0)
+        base_total = int(md.get('base_total_cents') or 0)
+        covered = [i for i in invoices if sid in (i.get('stripe_session_ids') or [])]
+        recorded = 0
+        for inv in covered:
+            base = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+            if base <= 0:
+                continue
+            ext = f"{pi or sid}:{inv['id']}"
+            already = (_admin().table('sis_payment_records').select('id')
+                       .eq('invoice_id', inv['id']).eq('external_ref', ext).limit(1).execute()).data
+            if already:
+                continue
+            fee_share = round(fee_total * base / base_total) if base_total else 0
+            if fee_share > 0:
+                _admin().table('sis_invoices').update(
+                    {'processing_fee_cents': fee_share, 'updated_at': _now()}).eq('id', inv['id']).execute()
+            record_payment(org_id, inv['id'], amount_cents=base + fee_share, method='card',
+                           external_ref=ext, installment_id=None, recorded_by=user_id,
+                           note='Online card payment — whole family (Stripe)')
+            _audit(org_id, inv['id'], user_id, 'online_payment',
+                   {'session_id': sid, 'amount_cents': base + fee_share, 'family': True})
+            recorded += 1
+        return {'paid': True, 'recorded': recorded, 'already_recorded': recorded == 0}
+    return {'paid': False}
+
+
+# ── Auto-charge payment plan (saved card + off-session installments) ──────────
+def _saved_payment_method(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    pm_id = plan.get('saved_payment_method_id')
+    if not pm_id:
+        return None
+    rows = (_admin().table('sis_saved_payment_methods').select('*')
+            .eq('id', pm_id).limit(1).execute()).data
+    return rows[0] if rows else None
+
+
+def _upsert_saved_pm(org_id: str, guardian_user_id: str, household_id: Optional[str],
+                     customer_id: str, pm_id: str, brand: Optional[str], last4: Optional[str],
+                     exp_month: Optional[int], exp_year: Optional[int]) -> Dict[str, Any]:
+    """Store the Stripe Customer + PaymentMethod ids (and non-sensitive card
+    display fields) for a guardian on this school's account. One card per
+    guardian per org (re-saving replaces it)."""
+    return (_admin().table('sis_saved_payment_methods').upsert({
+        'organization_id': org_id, 'guardian_user_id': guardian_user_id,
+        'household_id': household_id, 'stripe_customer_id': customer_id,
+        'stripe_payment_method_id': pm_id, 'card_brand': brand, 'card_last4': last4,
+        'card_exp_month': exp_month, 'card_exp_year': exp_year, 'updated_at': _now(),
+    }, on_conflict='organization_id,guardian_user_id').execute()).data[0]
+
+
+def create_autopay_setup_checkout(user_id: str, invoice_id: str, return_url: str,
+                                  installment_count: int = 10) -> Dict[str, Any]:
+    """Start a Stripe Checkout in SETUP mode to save the family's card on the
+    school's account. On return, confirm_autopay_setup persists it and builds the
+    payment plan. Returns a hosted URL."""
+    inv = _guardian_invoice(user_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    if inv.get('status') in ('paid', 'void', 'draft'):
+        return {'error': 'This invoice is not payable'}
+    org_id = inv['organization_id']
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school'}
+    if not (return_url or '').startswith('http'):
+        return {'error': 'Invalid return URL'}
+    count = max(2, min(int(installment_count or 10), 24))
+    guardian = _users_map([user_id]).get(user_id) or {}
+    try:
+        import stripe
+        sep = '&' if '?' in return_url else '?'
+        customer = stripe.Customer.create(
+            api_key=secret, email=guardian.get('email') or None,
+            metadata={'guardian_user_id': user_id, 'organization_id': org_id})
+        session = stripe.checkout.Session.create(
+            api_key=secret, mode='setup', customer=customer.id,
+            metadata={'kind': 'autopay_setup', 'invoice_id': invoice_id,
+                      'guardian_user_id': user_id, 'installment_count': count},
+            success_url=f'{return_url}{sep}autopay=return',
+            cancel_url=f'{return_url}{sep}autopay=canceled')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'[SIS billing] autopay setup failed for invoice {invoice_id}: {e}')
+        return {'error': 'Could not start card setup. Please try again or contact the school.'}
+    history = list(inv.get('stripe_session_ids') or [])
+    history.append(session.id)
+    _admin().table('sis_invoices').update(
+        {'stripe_session_ids': history[-10:], 'updated_at': _now()}).eq('id', invoice_id).execute()
+    return {'checkout_url': session.url}
+
+
+def confirm_autopay_setup(user_id: str, invoice_id: str, installment_count: int = 10,
+                          start_date: Optional[str] = None) -> Dict[str, Any]:
+    """After returning from the setup Checkout, save the card and build a
+    monthly auto-charge plan for the invoice's balance, charging installment #1
+    immediately. Idempotent: a second call returns the existing plan."""
+    inv = _guardian_invoice(user_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    org_id = inv['organization_id']
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'error': 'Online card payment is not set up for this school'}
+    try:
+        import stripe
+    except Exception:  # noqa: BLE001
+        return {'error': 'Payment library unavailable'}
+    setup_sess = None
+    for sid in reversed(list(inv.get('stripe_session_ids') or [])):
+        try:
+            sess = stripe.checkout.Session.retrieve(sid, api_key=secret, expand=['setup_intent'])
+        except Exception:  # noqa: BLE001
+            continue
+        if (sess.get('metadata') or {}).get('kind') == 'autopay_setup' and sess.get('status') == 'complete':
+            setup_sess = sess
+            break
+    if not setup_sess:
+        return {'ready': False}
+    si = setup_sess.get('setup_intent')
+    pm_id = (si.get('payment_method') if isinstance(si, dict) else None)
+    customer_id = setup_sess.get('customer')
+    if not pm_id or not customer_id:
+        return {'ready': False}
+    brand = last4 = None
+    exp_month = exp_year = None
+    try:
+        pm = stripe.PaymentMethod.retrieve(pm_id, api_key=secret)
+        card = (pm.get('card') or {}) if isinstance(pm, dict) else {}
+        brand, last4 = card.get('brand'), card.get('last4')
+        exp_month, exp_year = card.get('exp_month'), card.get('exp_year')
+    except Exception as e:  # noqa: BLE001 — card display fields are best-effort
+        logger.debug(f'[SIS billing] card detail lookup failed for {pm_id}: {e}')
+    saved = _upsert_saved_pm(org_id, user_id, inv.get('household_id'), customer_id, pm_id,
+                             brand, last4, exp_month, exp_year)
+    # Idempotency: one auto-charge plan per invoice.
+    existing = (_admin().table('sis_payment_plans').select('*')
+                .eq('invoice_id', invoice_id).eq('auto_charge', True).limit(1).execute()).data
+    if existing:
+        return {'ready': True, 'already': True, 'plan': existing[0], 'saved_card': _card_public(saved)}
+    count = int((setup_sess.get('metadata') or {}).get('installment_count') or installment_count or 10)
+    result = _create_autopay_plan(org_id, inv, saved, count, start_date, secret)
+    return {'ready': True, 'saved_card': _card_public(saved), **result}
+
+
+def _card_public(saved: Dict[str, Any]) -> Dict[str, Any]:
+    return {'brand': saved.get('card_brand'), 'last4': saved.get('card_last4'),
+            'exp_month': saved.get('card_exp_month'), 'exp_year': saved.get('card_exp_year')}
+
+
+def _create_autopay_plan(org_id: str, inv: Dict[str, Any], saved_pm: Dict[str, Any],
+                         count: int, start_date: Optional[str], secret: str) -> Dict[str, Any]:
+    balance = (inv.get('total_cents') or 0) - (inv.get('amount_paid_cents') or 0)
+    if balance <= 0:
+        return {'error': 'This invoice is already paid'}
+    count = max(2, min(int(count or 10), 24))
+    schedule = pricing.build_schedule(balance, 'monthly', count, start_date or date.today().isoformat())
+    plan = (_admin().table('sis_payment_plans').insert({
+        'invoice_id': inv['id'], 'cadence': 'monthly', 'installment_count': len(schedule),
+        'auto_charge': True, 'saved_payment_method_id': saved_pm['id'],
+    }).execute()).data[0]
+    rows = [{'payment_plan_id': plan['id'], 'due_date': s['due_date'],
+             'amount_cents': s['amount_cents'], 'status': 'scheduled'} for s in schedule]
+    installments = (_admin().table('sis_installments').insert(rows).execute()).data or []
+    plan['installments'] = installments
+    _audit(org_id, inv['id'], saved_pm.get('guardian_user_id'), 'autopay_plan_created',
+           {'installment_count': len(schedule), 'total_cents': balance})
+    # Decision: charge installment #1 immediately at setup.
+    first_charge = None
+    if installments:
+        first_charge = _charge_installment(org_id, plan, installments[0], saved_pm, secret,
+                                           recorded_by=saved_pm.get('guardian_user_id'))
+    return {'plan': plan, 'first_charge': first_charge}
+
+
+def _charge_installment(org_id: str, plan: Dict[str, Any], installment: Dict[str, Any],
+                        saved_pm: Dict[str, Any], secret: str,
+                        recorded_by: Optional[str] = None) -> Dict[str, Any]:
+    """Charge one installment off-session against the saved card. On success
+    records the payment (marks the installment paid + recomputes the invoice); on
+    failure marks it late, logs the error, and emails the family once (no
+    auto-retry — staff follow up). Returns {'status': 'charged'|'failed', ...}."""
+    invoice_id = plan.get('invoice_id')
+    amount = installment.get('amount_cents') or 0
+    now = _now()
+    attempts = (installment.get('charge_attempts') or 0) + 1
+
+    def _mark_failed(reason: str) -> Dict[str, Any]:
+        _admin().table('sis_installments').update({
+            'status': 'late', 'charge_attempts': attempts, 'last_attempt_at': now,
+            'last_error': reason[:400], 'updated_at': now,
+        }).eq('id', installment['id']).execute()
+        _notify_autopay_failure(org_id, invoice_id, installment, saved_pm)
+        return {'status': 'failed', 'error': reason[:400]}
+
+    try:
+        import stripe
+        intent = stripe.PaymentIntent.create(
+            api_key=secret, amount=amount, currency='usd',
+            customer=saved_pm['stripe_customer_id'],
+            payment_method=saved_pm['stripe_payment_method_id'],
+            off_session=True, confirm=True,
+            metadata={'kind': 'autopay', 'installment_id': installment['id'], 'invoice_id': invoice_id})
+    except Exception as e:  # noqa: BLE001 — card declines raise here (CardError etc.)
+        logger.warning(f'[SIS billing] autopay charge failed for installment {installment["id"]}: {e}')
+        return _mark_failed(str(e))
+    if intent.get('status') != 'succeeded':
+        return _mark_failed(f"status={intent.get('status')}")
+    record_payment(org_id, invoice_id, amount_cents=amount, method='card',
+                   external_ref=intent.get('id'), installment_id=installment['id'],
+                   recorded_by=recorded_by, note='Auto-charge (Stripe)')
+    _admin().table('sis_installments').update({
+        'charge_attempts': attempts, 'last_attempt_at': now, 'last_error': None, 'updated_at': now,
+    }).eq('id', installment['id']).execute()
+    return {'status': 'charged', 'payment_intent': intent.get('id')}
+
+
+def _notify_autopay_failure(org_id: str, invoice_id: str, installment: Dict[str, Any],
+                            saved_pm: Dict[str, Any]) -> None:
+    """Email the family that an auto-charge was declined (best-effort, once)."""
+    try:
+        guardian = _users_map([saved_pm.get('guardian_user_id')]).get(saved_pm.get('guardian_user_id'))
+        email = (guardian or {}).get('email')
+        if not email:
+            return
+        org = _org_branding([org_id]).get(org_id) or {}
+        org_name = org.get('name') or 'Your school'
+        link = f"{Config.FRONTEND_URL.rstrip('/')}/family/billing"
+        amount = _money(installment.get('amount_cents') or 0)
+        subject = f"{org_name}: a tuition payment didn't go through"
+        text = (f"Hello,\n\nWe tried to charge your saved card {amount} for your tuition payment "
+                f"plan, but it didn't go through. Please update your payment or contact {org_name}.\n\n"
+                f"View your balance: {link}\n\nThank you,\n{org_name}")
+        html = (f"<p>Hello,</p><p>We tried to charge your saved card <strong>{amount}</strong> for "
+                f"your tuition payment plan, but it didn't go through. Please contact {org_name} to "
+                f"sort it out.</p><p><a href=\"{link}\">View your balance</a></p><p>Thank you,<br/>{org_name}</p>")
+        from services.email_service import EmailService
+        EmailService().send_email(to_email=email, subject=subject, html_body=html, text_body=text)
+    except Exception as e:  # noqa: BLE001 — never let a notification break the sweep
+        logger.warning(f'[SIS billing] autopay failure notice skipped for invoice {invoice_id}: {e}')
+
+
+def charge_due_installments(org_id: Optional[str] = None,
+                            today: Optional[str] = None) -> Dict[str, Any]:
+    """Cron sweep: charge every due installment on active auto-charge plans.
+
+    Picks scheduled/due installments with due_date <= today (skips 'late' — a
+    declined installment is handed to staff, not retried). Returns counts."""
+    today = today or date.today().isoformat()
+    plans = (_admin().table('sis_payment_plans').select('*')
+             .eq('auto_charge', True).eq('status', 'active').execute()).data or []
+    charged = failed = 0
+    for plan in plans:
+        saved = _saved_payment_method(plan)
+        if not saved:
+            continue
+        inv_rows = (_admin().table('sis_invoices').select('*')
+                    .eq('id', plan['invoice_id']).limit(1).execute()).data
+        if not inv_rows:
+            continue
+        inv = inv_rows[0]
+        if org_id and inv.get('organization_id') != org_id:
+            continue
+        oid = inv['organization_id']
+        secret = _org_stripe_secret(oid)
+        if not secret:
+            continue
+        due = (_admin().table('sis_installments').select('*')
+               .eq('payment_plan_id', plan['id']).in_('status', ['scheduled', 'due'])
+               .lte('due_date', today).order('due_date').execute()).data or []
+        for inst in due:
+            result = _charge_installment(oid, plan, inst, saved, secret,
+                                         recorded_by=saved.get('guardian_user_id'))
+            if result.get('status') == 'charged':
+                charged += 1
+            else:
+                failed += 1
+        # Complete the plan once every installment is settled.
+        remaining = (_admin().table('sis_installments').select('id')
+                     .eq('payment_plan_id', plan['id']).neq('status', 'paid')
+                     .limit(1).execute()).data
+        if not remaining:
+            _admin().table('sis_payment_plans').update(
+                {'status': 'completed'}).eq('id', plan['id']).execute()
+    return {'charged': charged, 'failed': failed, 'plans': len(plans)}
 
 
 # ── Outstanding-balance report (staff) ───────────────────────────────────────

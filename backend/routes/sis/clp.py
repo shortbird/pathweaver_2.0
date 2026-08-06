@@ -17,7 +17,6 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_clp_service as clp
-from services import sis_schedule_submission_service as submissions
 # Admin tier: this whole module is org management, not teacher-facing.
 from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
 
@@ -82,39 +81,3 @@ def update_clp_record(user_id, student_id):
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
     return jsonify({'success': True, **result})
-
-
-@bp.route('/clp/students/<student_id>/schedule-approval', methods=['POST'])
-@require_role(*STAFF_ROLES)
-def review_clp_schedule(user_id, student_id):
-    """Approve this student's schedule from the CLP meeting (or reopen it).
-
-    The same approval the Registration review queue applies, keyed by student:
-    in a CLP meeting the schedule is built live with the family, so there is
-    often no parent submission to act on. Approving locks self-service changes
-    for the family; reopening hands the Schedule Builder back to them."""
-    org_id, err = _org_or_error(user_id)
-    if err:
-        return err
-    if not sis_service.student_in_org(student_id, org_id):
-        return jsonify({'success': False, 'error': 'Student not found'}), 404
-    data = request.get_json(silent=True) or {}
-    action = data.get('action', 'approve')
-    if action not in ('approve', 'reopen'):
-        return jsonify({'success': False,
-                        'error': "action must be 'approve' or 'reopen'"}), 400
-    note = data.get('note')
-    if action == 'approve':
-        # The approver chooses whether to also clear the student's waitlist
-        # places (default: keep them — a dropped place can't be un-dropped).
-        result = submissions.approve_for_student(
-            org_id, student_id, reviewed_by=user_id, note=note,
-            drop_waitlists=bool(data.get('drop_waitlists')))
-    else:
-        result = submissions.reopen_for_student(org_id, student_id,
-                                                reviewed_by=user_id, note=note)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True,
-                    'schedule_approval': clp.schedule_approval_state(org_id, student_id),
-                    **result})

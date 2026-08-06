@@ -2,11 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import ModalOverlay from '../components/ui/ModalOverlay'
+import useSchoolContext from '../hooks/useSchoolContext'
+import BackToSchool from '../components/navigation/BackToSchool'
 
 /**
- * School Calendar — the school's events (field trips, showcases, closures) for
- * families. Read-only; staff manage events in the SIS. Shown as a month grid
- * (families asked for a calendar, not a list); tap a day or event for details.
+ * School Calendar — the school's events (field trips, showcases, closures).
+ * Read-only; staff manage events in the SIS. Shown as a month grid (families
+ * asked for a calendar, not a list); tap a day or event for details.
+ *
+ * Reached from a card on /school, and open to everyone in the school —
+ * students most of all, since these are the days that change their week.
  *
  * Times are wall-clock: stored verbatim ("Z" suffixed) and displayed verbatim,
  * so the date never shifts by the viewer's timezone.
@@ -36,7 +41,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const FamilyCalendarPage = () => {
-  const [orgs, setOrgs] = useState(null)
+  const { orgs } = useSchoolContext()
   const [orgId, setOrgId] = useState(null)
   const [events, setEvents] = useState(null)
   const [openDay, setOpenDay] = useState(null) // 'YYYY-MM-DD' whose events are shown
@@ -49,14 +54,8 @@ const FamilyCalendarPage = () => {
   const nextMonth = month === 11 ? `${year + 1}-01-01` : `${year}-${pad(month + 2)}-01`
 
   useEffect(() => {
-    api.get('/api/sis/parent/context')
-      .then((r) => {
-        const list = r.data?.orgs || []
-        setOrgs(list)
-        if (list.length) setOrgId(list[0].organization_id)
-      })
-      .catch(() => { toast.error('Could not load your school'); setOrgs([]) })
-  }, [])
+    if (orgs?.length && !orgId) setOrgId(orgs[0].organization_id)
+  }, [orgs, orgId])
 
   useEffect(() => {
     if (!orgId) return
@@ -104,6 +103,7 @@ const FamilyCalendarPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <BackToSchool className="mb-3" />
       <h1 className="text-2xl font-bold text-neutral-900 mb-1">School Calendar</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Events at {org?.organization_name || 'your school'} — field trips, showcases, closures, and more.

@@ -54,6 +54,7 @@ const PeoplePage = lazy(() => import('../pages/sis/PeoplePage'))
 const ClassesPage = lazy(() => import('../pages/sis/ClassesPage'))
 const ClpPage = lazy(() => import('../pages/sis/ClpPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
+const TuitionApprovalPage = lazy(() => import('../pages/sis/TuitionApprovalPage'))
 const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
 const FamilyMessagingPage = lazy(() => import('../pages/sis/FamilyMessagingPage'))
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
@@ -115,6 +116,7 @@ const SisRoutes = () => (
       <Route path="classes" element={<ClassesPage />} />
       <Route path="clp" element={<ModuleRoute path="/clp"><ClpPage /></ModuleRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleRoute path="/billing"><BillingPage /></ModuleRoute></FinanceRoute>} />
+      <Route path="tuition" element={<FinanceRoute><ModuleRoute path="/tuition"><TuitionApprovalPage /></ModuleRoute></FinanceRoute>} />
       <Route path="attendance" element={<AttendancePage />} />
       <Route path="goals" element={<GoalsReviewPage />} />
       <Route path="submissions" element={<SubmissionsPage />} />

@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Navigate } from 'react-router-dom'
-import { MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import { Navigate, Link } from 'react-router-dom'
+import {
+  MegaphoneIcon, MagnifyingGlassIcon, ChevronDownIcon, CalendarDaysIcon,
+  BookOpenIcon, UsersIcon, CreditCardIcon, ClipboardDocumentListIcon,
+  DocumentTextIcon, CheckCircleIcon, CalendarIcon, TableCellsIcon,
+} from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { useOrganization } from '../contexts/OrganizationContext'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
@@ -10,13 +14,20 @@ import { htmlToText } from '../utils/richText'
 const PAGE_SIZE = 20
 
 /**
- * SchoolPage — everything a family gets from their school, in one place, titled
+ * SchoolPage — everything a member gets from their school, in one place, titled
  * with the school's name (/school; /announcements still lands here so older
  * emails and notifications keep working).
  *
- * Two tabs:
- * - Announcements — the searchable archive of what the school has sent them
+ * The page is a hub over three things:
+ * - Cards for the school's other surfaces (calendar, resources, directory, and
+ *   the family ones). These lived loose in the sidebar until 2026-08-06, where
+ *   a parent at a SIS school saw fourteen nav items, eight of them the same
+ *   school. The cards link to the same routes, which did not move, so every
+ *   emailed link and bookmark still works.
+ * - Announcements — the searchable archive of what the school has sent
  *   (GET /api/announcements/archive), newest first, with a "Load more" pager.
+ *   Deliberately still ON the page rather than behind a card: it is the
+ *   most-read thing here and putting it a click away would be a downgrade.
  * - Community — the school's board: noticeboard posts, what's on, lost & found,
  *   shout-outs (GET /api/sis/community/feed). iCreate, 2026-08-01: "I can't see
  *   the shoutouts or lost and found or other things from the non-admin side."
@@ -25,6 +36,70 @@ const PAGE_SIZE = 20
  * page could show, so they are sent home rather than shown an empty shell — and
  * the nav item is hidden for them too.
  */
+
+/**
+ * The cards, and who each is for.
+ *
+ * `guardianOnly` is the whole safety property of this file. Calendar, Resources
+ * and Directory are the school's own content and belong to everyone in the
+ * school. The rest act on a FAMILY — a household's invoices, a child's absence,
+ * the checklists assigned to a guardian — and a student is a member of the
+ * school without being a guardian in it. The backend enforces this too
+ * (sis_parent_service authorizes those by family relationship); this list only
+ * decides what to offer.
+ */
+const SCHOOL_CARDS = [
+  {
+    name: 'School Calendar', path: '/school-calendar', Icon: CalendarDaysIcon,
+    description: 'Field trips, showcases and closures.',
+  },
+  {
+    name: 'Resources', path: '/resources', Icon: BookOpenIcon,
+    description: 'Guidebooks, contracts and forms to refer back to.',
+  },
+  {
+    name: 'Directory', path: '/family-directory', Icon: UsersIcon,
+    description: 'Contact details for families who opted in.',
+  },
+  {
+    name: 'Billing', path: '/family/billing', Icon: CreditCardIcon,
+    description: 'Your balance, invoices and receipts.', guardianOnly: true,
+  },
+  {
+    name: 'Absences', path: '/absences', Icon: CalendarIcon,
+    description: 'Tell the school a child will be out.', guardianOnly: true,
+  },
+  {
+    name: 'Portal', path: '/family/portal', Icon: ClipboardDocumentListIcon,
+    description: 'Checklists the school has assigned to you.', guardianOnly: true,
+  },
+  {
+    name: 'Requests', path: '/family/forms', Icon: DocumentTextIcon,
+    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true,
+  },
+]
+
+/** The post-registration card, which differs by how the school runs. */
+const flowCard = (postRegistrationFlow) => (
+  postRegistrationFlow === 'goals'
+    ? {
+      name: 'Goal Setting', path: '/family/goals', Icon: CheckCircleIcon,
+      description: 'Set a direction and per-subject goals for each child.',
+      guardianOnly: true,
+    }
+    : {
+      name: 'Schedule Builder', path: '/schedule-builder', Icon: TableCellsIcon,
+      description: 'Build and change your children’s class schedules.',
+      guardianOnly: true,
+    }
+)
+
+export function cardsFor(org) {
+  if (!org) return []
+  const cards = [flowCard(org.post_registration_flow), ...SCHOOL_CARDS]
+  return org.is_guardian ? cards : cards.filter((c) => !c.guardianOnly)
+}
+
 export default function SchoolPage() {
   const [announcements, setAnnouncements] = useState([])
   const [orgName, setOrgName] = useState(null)
@@ -38,6 +113,7 @@ export default function SchoolPage() {
   const { school, loading: orgLoading } = useOrganization()
   const [feed, setFeed] = useState(null)
   const [tab, setTab] = useState('sent')
+  const [schoolOrg, setSchoolOrg] = useState(null)
   const debounceRef = useRef(null)
 
   const fetchPage = useCallback(async (offset, q, append) => {
@@ -67,6 +143,21 @@ export default function SchoolPage() {
   useEffect(() => {
     fetchPage(0, query, false)
   }, [query, fetchPage])
+
+  // Which of the school's surfaces to offer, and whether this viewer is a
+  // guardian here. A school that isn't on the SIS resolves to no org and so to
+  // no cards, which is correct — it has nothing behind those links. Failing
+  // silently degrades to the announcements page rather than an error.
+  useEffect(() => {
+    let active = true
+    api.get('/api/sis/school/context')
+      .then(({ data }) => {
+        if (!active || !data?.success) return
+        setSchoolOrg((data.orgs || [])[0] || null)
+      })
+      .catch(() => { /* not a SIS school, or the lookup is down */ })
+    return () => { active = false }
+  }, [])
 
   // The community board, loaded once. A failure here is silent: the archive is
   // the page, the board is the extra.
@@ -111,6 +202,7 @@ export default function SchoolPage() {
 
   const hasMore = announcements.length < total
   const schoolName = school?.name || orgName
+  const cards = cardsFor(schoolOrg)
 
   // Wait for /me before deciding — redirecting on a not-yet-loaded context
   // would bounce every member of a school on a hard refresh.
@@ -132,6 +224,34 @@ export default function SchoolPage() {
           </p>
         </div>
       </div>
+
+      {/* The school's other surfaces. Above the archive, not in front of it. */}
+      {cards.length > 0 && (
+        <nav
+          aria-label="School surfaces"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6"
+        >
+          {cards.map(({ name, path, description, Icon }) => (
+            <Link
+              key={path}
+              to={path}
+              className="group bg-white border border-gray-200 rounded-xl p-4 hover:border-optio-purple hover:shadow-sm transition-all"
+            >
+              <span className="flex items-start gap-3">
+                <span className="w-9 h-9 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-5 h-5 text-white" />
+                </span>
+                <span className="min-w-0">
+                  <h2 className="font-semibold text-gray-900 group-hover:text-optio-purple">
+                    {name}
+                  </h2>
+                  <span className="block text-xs text-gray-500 mt-0.5">{description}</span>
+                </span>
+              </span>
+            </Link>
+          ))}
+        </nav>
+      )}
 
       {hasCommunityContent(feed) && (
         <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-6 mt-6">

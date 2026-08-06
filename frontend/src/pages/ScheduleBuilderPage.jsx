@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
+import BackToSchool from '../components/navigation/BackToSchool'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ClassDetailsModal, { meetingText, money } from '../components/schedule/ClassDetailsModal'
 import { ModalOverlay } from '../components/ui'
@@ -298,10 +299,7 @@ const ScheduleBuilderPage = () => {
   const ufaShortfall = ufa?.min_blocks && totalBlocks < ufa.min_blocks ? ufa.min_blocks - totalBlocks : 0
   const tuitionCount = enrolled.length
 
-  // Approval submission: submitted/approved schedules are read-only for parents.
-  const submission = schedule?.submission || null
-  const submissionLocked = submission?.status === 'submitted' || submission?.status === 'approved'
-  const interactionLocked = locked || !!enrollmentWaitlist || submissionLocked
+  const interactionLocked = locked || !!enrollmentWaitlist
 
   // Program classes (requires_full_day, e.g. the microschool programs meeting
   // blocks 1 & 5) anchor their meeting days: the student must fill every
@@ -483,38 +481,6 @@ const ScheduleBuilderPage = () => {
     } finally { setBusy(null) }
   }
 
-  // Send the finished schedule to the school to approve and bill. Locks
-  // self-service changes until staff approve or send it back.
-  const submitForApproval = async () => {
-    const orgName = org?.organization_name || 'the school'
-    if (!window.confirm(`Submit this schedule to ${orgName} for approval? You won't be able to make changes while it's under review.`)) return
-    setBusy('submit')
-    try {
-      await api.post(`/api/sis/parent/students/${studentId}/schedule-submission`, {
-        organization_id: orgId,
-      })
-      toast.success(`Schedule submitted to ${orgName} for approval`)
-      reload()
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not submit the schedule')
-    } finally { setBusy(null) }
-  }
-
-  // Take the schedule back while the school hasn't looked at it yet. Almost
-  // every "please unlock me" the office fields is a parent who changed their
-  // mind before review — that never needed to cross a desk.
-  const withdrawSubmission = async () => {
-    if (!window.confirm('Take this schedule back so you can make changes? You will need to submit it again when you are done.')) return
-    setBusy('withdraw')
-    try {
-      await api.delete(`/api/sis/parent/students/${studentId}/schedule-submission?organization_id=${orgId}`)
-      toast.success('Schedule unlocked — make your changes and submit again')
-      reload()
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not take the schedule back')
-    } finally { setBusy(null) }
-  }
-
   if (loading) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" /></div>
   }
@@ -540,6 +506,9 @@ const ScheduleBuilderPage = () => {
           drops here aren't saved.
         </div>
       )}
+      {/* Not in preview: that route is public, reached by staff from the
+          registration funnel, and its viewer has no school page to go back to. */}
+      {!previewCode && <BackToSchool className="mb-3" />}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
         <h1 className="text-2xl font-bold text-neutral-900">Schedule Builder</h1>
         <div className="flex items-center gap-2">
@@ -760,70 +729,6 @@ const ScheduleBuilderPage = () => {
 
       </div>
 
-      {/* Submit for approval: sends the finished schedule to the school to
-          approve and bill. Submitted/approved schedules are parent-read-only. */}
-      {!previewCode && schedule?.approval_enabled && !locked && !enrollmentWaitlist
-        && (enrolled.length > 0 || submission) && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 mb-6">
-          {submission?.status === 'submitted' ? (
-            <div className="flex items-start gap-3">
-              <SendIcon className="w-5 h-5 text-optio-purple shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-neutral-900">
-                  Submitted to {org?.organization_name || 'the school'} for approval
-                  {submission.submitted_at ? ` on ${fmtDate(String(submission.submitted_at).slice(0, 10))}` : ''}.
-                </p>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Changes are locked while the school reviews it — they'll approve it or send it
-                  back to you.
-                </p>
-                <button onClick={withdrawSubmission} disabled={busy === 'withdraw'}
-                  className="mt-2 text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
-                  {busy === 'withdraw' ? 'Unlocking…' : 'Need to change something? Take it back'}
-                </button>
-              </div>
-            </div>
-          ) : submission?.status === 'approved' ? (
-            <div className="flex items-start gap-3">
-              <CheckIcon className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-neutral-900">
-                  Approved by {org?.organization_name || 'the school'}
-                  {submission.reviewed_at ? ` on ${fmtDate(String(submission.reviewed_at).slice(0, 10))}` : ''}.
-                </p>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Contact {org?.organization_name || 'the school'} for any further changes.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div>
-              {submission?.status === 'sent_back' && (
-                <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-                  {org?.organization_name || 'The school'} sent this schedule back
-                  {submission.review_note ? <>: <span className="font-medium">“{submission.review_note}”</span></> : ''}.
-                  {' '}Make your changes and resubmit.
-                </div>
-              )}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <SendIcon className="w-5 h-5 text-optio-purple shrink-0 mt-0.5" />
-                  <p className="text-sm text-neutral-600">
-                    Done building? This sends the schedule to {org?.organization_name || 'the school'} to
-                    approve and set up billing. You won't be able to make changes while it's under review.
-                  </p>
-                </div>
-                <button onClick={submitForApproval} disabled={busy === 'submit'}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50 shrink-0">
-                  {busy === 'submit' ? 'Submitting…'
-                    : `${submission?.status === 'sent_back' ? 'Resubmit' : 'Submit'} for ${org?.organization_name || 'school'} approval`}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {slotModal && (
         <SlotClassesModal
           slot={slotModal}
@@ -874,12 +779,6 @@ const ScheduleBuilderPage = () => {
 const CheckIcon = ({ className = '' }) => (
   <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-  </svg>
-)
-
-const SendIcon = ({ className = '' }) => (
-  <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
   </svg>
 )
 

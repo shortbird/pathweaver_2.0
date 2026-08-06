@@ -5,16 +5,15 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import AgeExceptionRequestsCard from '../../components/sis/AgeExceptionRequestsCard'
-import ScheduleApprovalsCard from '../../components/sis/ScheduleApprovalsCard'
 import AddToWaitlistModal from '../../components/sis/AddToWaitlistModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 
 /**
  * SIS Registration page — the enrollment operations queue: the day-to-day work
- * of processing families as they register. Schedule approvals, age-exception
- * requests, the enrollment waitlist (release/decline students), and the
- * prepaid/hold family list (who's prepaid / on hold, and who has registered).
+ * of processing families as they register. Age-exception requests, the
+ * enrollment waitlist (release/decline students), and the prepaid/hold family
+ * list (who's prepaid / on hold, and who has registered).
  *
  * The registration CONFIG (the parent funnel — link, fees, paperwork, questions —
  * plus the first day of school and the waitlisted age groups) lives on the SIS
@@ -69,7 +68,6 @@ const RegistrationPage = () => {
           </div>
 
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
-          <ScheduleApprovalsCard key={`subs-${orgId}`} orgId={orgId} />
           <AgeExceptionRequestsCard key={`aex-${orgId}`} orgId={orgId} />
           <EnrollmentWaitlistCard key={`ewl-${orgId}`} orgId={orgId} org={orgData.organization} />
           <FamilyDirectivesCard key={`dir-${orgId}`} orgId={orgId} />

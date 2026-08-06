@@ -23,12 +23,6 @@ vi.mock('../contexts/OrganizationContext', () => ({
 vi.mock('../services/api', () => ({
   default: { get: vi.fn(() => Promise.resolve({ data: { success: true, announcements: [], total: 0 } })) },
 }))
-vi.mock('@heroicons/react/24/outline', () => ({
-  MegaphoneIcon: (props) => <svg {...props} />,
-  MagnifyingGlassIcon: (props) => <svg {...props} />,
-  ChevronDownIcon: (props) => <svg {...props} />,
-}))
-
 import SchoolPage from './SchoolPage'
 
 const renderAt = (path = '/school') => render(

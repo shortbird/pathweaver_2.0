@@ -4,7 +4,7 @@ SIS Parent self-service routes — guardians register their own children.
 NEW, additive (/api/sis/parent). Unlike the rest of /api/sis (staff-gated), these
 use @require_auth and authorize by family relationship inside sis_parent_service
 (the user must be a guardian of the student, in a SIS-enabled org). Self-service
-stops at 'submitted'; staff invoice and full payment auto-enrolls.
+ends at the CLP meeting; staff invoice and full payment auto-enrolls.
 """
 
 import uuid
@@ -185,6 +185,79 @@ def billing_invoice_confirm(user_id, invoice_id):
     return jsonify({'success': True, **result})
 
 
+def _installment_count(data):
+    try:
+        return int(data.get('installment_count') or 10)
+    except (TypeError, ValueError):
+        return 10
+
+
+@bp.route('/billing/family-checkout', methods=['POST'])
+@require_auth
+def billing_family_checkout(user_id):
+    """One online payment covering every open invoice in a family. Body:
+    {household_id, return_url}. Returns a hosted checkout URL."""
+    from services import sis_billing_service as billing
+    data = request.get_json(silent=True) or {}
+    household_id = data.get('household_id')
+    if not household_id:
+        return jsonify({'success': False, 'error': 'household_id is required'}), 400
+    result = billing.create_family_checkout(user_id, household_id, data.get('return_url', ''))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Family not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/billing/family-confirm', methods=['POST'])
+@require_auth
+def billing_family_confirm(user_id):
+    """After returning from a whole-family checkout, verify + record. Body:
+    {household_id}. Returns {paid, recorded?}."""
+    from services import sis_billing_service as billing
+    household_id = (request.get_json(silent=True) or {}).get('household_id')
+    if not household_id:
+        return jsonify({'success': False, 'error': 'household_id is required'}), 400
+    result = billing.confirm_family_payment(user_id, household_id)
+    if result.get('error'):
+        code = 404 if result['error'] == 'Family not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/billing/invoices/<invoice_id>/autopay-setup', methods=['POST'])
+@require_auth
+def billing_autopay_setup(user_id, invoice_id):
+    """Start card setup for a 10-payment plan on an invoice. Body: {return_url,
+    installment_count?}. Returns a hosted setup-checkout URL."""
+    from services import sis_billing_service as billing
+    data = request.get_json(silent=True) or {}
+    result = billing.create_autopay_setup_checkout(
+        user_id, invoice_id, data.get('return_url', ''),
+        installment_count=_installment_count(data))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/billing/invoices/<invoice_id>/autopay-confirm', methods=['POST'])
+@require_auth
+def billing_autopay_confirm(user_id, invoice_id):
+    """After returning from card setup, save the card + build the plan and charge
+    the first installment. Body: {installment_count?, start_date?}. Returns
+    {ready, plan?, saved_card?, first_charge?}."""
+    from services import sis_billing_service as billing
+    data = request.get_json(silent=True) or {}
+    result = billing.confirm_autopay_setup(
+        user_id, invoice_id, installment_count=_installment_count(data),
+        start_date=data.get('start_date'))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result})
+
+
 # ── Family photos (self-service) ──────────────────────────────────────────────
 def _photo_file_or_error():
     """Validate the multipart photo upload; returns (file, ext, None) or (None, None, response)."""
@@ -348,7 +421,7 @@ def claim_student_spot(user_id, student_id, class_id):
     return jsonify({'success': True, **result})
 
 
-# ── UFA learning day + schedule submission ────────────────────────────────────
+# ── UFA learning day ──────────────────────────────────────────────────────────
 @bp.route('/students/<student_id>/learning-day', methods=['PUT'])
 @require_auth
 def set_learning_day(user_id, student_id):
@@ -359,37 +432,6 @@ def set_learning_day(user_id, student_id):
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.set_learning_day(user_id, org_id, student_id, data.get('choice'))
-    if result.get('error'):
-        code = 403 if 'authorized' in result['error'] else 400
-        return jsonify({'success': False, 'error': result['error']}), code
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/students/<student_id>/schedule-submission', methods=['POST'])
-@require_auth
-def submit_schedule(user_id, student_id):
-    """Submit the schedule for the school to approve and bill. Locks
-    self-service changes until staff approve or send it back."""
-    org_id = _org(request)
-    if not org_id:
-        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
-    result = parent.submit_schedule(user_id, org_id, student_id)
-    if result.get('error'):
-        code = 403 if 'authorized' in result['error'] else 400
-        return jsonify({'success': False, 'error': result['error']}), code
-    return jsonify({'success': True, **result}), 201
-
-
-@bp.route('/students/<student_id>/schedule-submission', methods=['DELETE'])
-@require_auth
-def withdraw_schedule(user_id, student_id):
-    """Take back a schedule the school hasn't reviewed yet, unlocking the
-    builder. Refused once staff have approved it — from then on the school
-    makes the changes."""
-    org_id = _org(request)
-    if not org_id:
-        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
-    result = parent.withdraw_schedule_submission(user_id, org_id, student_id)
     if result.get('error'):
         code = 403 if 'authorized' in result['error'] else 400
         return jsonify({'success': False, 'error': result['error']}), code

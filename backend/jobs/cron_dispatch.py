@@ -85,6 +85,14 @@ def main():
     if now.hour == 15 and now.minute < 10:
         _run("sis-billing-reminders", f"{base}/api/sis/internal/billing-reminders", cron_secret, failures)
 
+    # Once/day: SIS tuition auto-charge sweep (14:00 UTC; charges installments
+    # whose due date has arrived on saved-card payment plans. Only touches
+    # scheduled/due installments, so re-runs the same day are idempotent — a
+    # charged installment is 'paid' and a declined one is 'late', neither of
+    # which is picked up again).
+    if now.hour == 14 and now.minute < 10:
+        _run("sis-tuition-autopay", f"{base}/api/sis/internal/tuition-autopay", cron_secret, failures)
+
     # Once/day: SIS quest engagement sweep (13:00 UTC; open-alert dedupe is a
     # partial unique index server-side, so re-runs are idempotent).
     if now.hour == 13 and now.minute < 10:

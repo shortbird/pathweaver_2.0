@@ -323,3 +323,27 @@ def billing_reminders_cron():
         if not is_super:
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
     return jsonify({'success': True, **billing.run_payment_reminders()})
+
+
+@bp.route('/internal/tuition-autopay', methods=['POST'])
+def tuition_autopay_cron():
+    """Cron entrypoint: charge every due auto-charge installment across ALL orgs
+    (saved-card payment plans). Auth via X-Cron-Secret, or a signed-in superadmin
+    for manual triggering (mirrors /api/sis/internal/billing-reminders)."""
+    from app_config import Config
+    from database import get_supabase_admin_client
+    secret = request.headers.get('X-Cron-Secret')
+    is_cron = bool(secret and Config.CRON_SECRET and secret == Config.CRON_SECRET)
+    if not is_cron:
+        from utils.session_manager import session_manager
+        uid = session_manager.get_effective_user_id()
+        is_super = False
+        if uid:
+            row = (
+                get_supabase_admin_client().table('users').select('role')
+                .eq('id', uid).limit(1).execute()
+            ).data
+            is_super = bool(row and row[0].get('role') == 'superadmin')
+        if not is_super:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return jsonify({'success': True, **billing.charge_due_installments()})

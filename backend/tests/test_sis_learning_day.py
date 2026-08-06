@@ -1,6 +1,6 @@
 """
 Unit tests for UFA learning-day selections (sis_learning_day_service) and the
-parent-service wiring (guardian authorization + first-day / submission locks).
+parent-service wiring (guardian authorization + first-day-of-school lock).
 
 The learning day is a recorded CHOICE (Quest Learning Day or Elementary At-Home
 Academic Learning Day), not an enrollable class — it counts toward the 3
@@ -84,18 +84,9 @@ class TestParentWiring:
             out = parent.set_learning_day('g1', 'org1', 'stu1', 'quest_learning_day')
         assert 'handled by the school' in out['error']
 
-    def test_locked_while_submitted_for_approval(self):
-        with patch('services.sis_parent_service.registerable_students', return_value=_MINE), \
-             patch('services.sis_parent_service._changes_locked', return_value=False), \
-             patch('services.sis_schedule_submission_service.current',
-                   return_value={'status': 'submitted'}):
-            out = parent.set_learning_day('g1', 'org1', 'stu1', 'quest_learning_day')
-        assert out.get('submission_locked') is True
-
     def test_saves_the_choice_for_an_authorized_guardian(self):
         with patch('services.sis_parent_service.registerable_students', return_value=_MINE), \
              patch('services.sis_parent_service._changes_locked', return_value=False), \
-             patch('services.sis_schedule_submission_service.current', return_value=None), \
              patch('services.sis_learning_day_service.set_selection',
                    return_value={'selection': {'choice': 'quest_learning_day'}}) as setter:
             out = parent.set_learning_day('g1', 'org1', 'stu1', 'quest_learning_day')

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
+import BackToSchool from '../components/navigation/BackToSchool'
 import Button from '../components/ui/Button'
 
 /**
@@ -135,6 +136,7 @@ const FamilyGoalsPage = ({ preview = null }) => {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      <BackToSchool className="mb-3" />
       <div className="rounded-xl bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-5 mb-6">
         <h1 className="text-2xl font-bold">Goal Setting</h1>
         <p className="text-sm opacity-90 mt-1">

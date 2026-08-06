@@ -20,12 +20,6 @@ vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => ({ school: { id: 'org-1', name: 'iCreate' }, loading: false }),
 }))
 vi.mock('../services/api', () => ({ default: { get: vi.fn() } }))
-vi.mock('@heroicons/react/24/outline', () => ({
-  MegaphoneIcon: (props) => <svg {...props} />,
-  MagnifyingGlassIcon: (props) => <svg {...props} />,
-  ChevronDownIcon: (props) => <svg {...props} />,
-}))
-
 import api from '../services/api'
 import SchoolPage from './SchoolPage'
 
