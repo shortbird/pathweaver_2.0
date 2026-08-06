@@ -102,3 +102,53 @@ describe('the draft round trip', () => {
     expect(() => draftToPayload(toDraft({}))).not.toThrow()
   })
 })
+
+/**
+ * Density. iCreate, 2026-08-06: "the registration toggle doesn't need its own
+ * full row. class image leaves lots of blank space on the right. the times are
+ * too big. generally lots of inefficient use of space."
+ */
+describe('the grid earns its space', () => {
+  const shape = (container) => [...container.querySelectorAll('section')].map((b) => {
+    const fields = b.querySelectorAll(':scope > div.grid > div')
+    const cols = [...fields].reduce((sum, f) => {
+      const m = f.className.match(/md:col-span-(\d)/) || f.className.match(/col-span-(\d)/)
+      return sum + Number(m?.[1] || 1)
+    }, 0)
+    return { title: b.querySelector('h4').textContent, rows: Math.ceil(cols / 4) }
+  })
+
+  it('fits every field into five rows of four', () => {
+    const { container } = render(
+      <ClassFieldsEditor draft={toDraft(CLASS)} onChange={() => {}} staff={STAFF}
+        onImageChange={() => {}} timeBlocks={[]} />,
+    )
+    expect(shape(container)).toEqual([
+      { title: 'Basics', rows: 2 },
+      { title: 'Schedule', rows: 1 },
+      { title: 'Enrollment & money', rows: 2 },
+    ])
+  })
+
+  it('puts the registration switch on the heading line, not a row of its own', () => {
+    const { container } = render(
+      <ClassFieldsEditor draft={toDraft(CLASS)} onChange={() => {}} staff={STAFF}
+        headerAside={<button type="button" role="switch" aria-checked aria-label="Toggle registration" />} />,
+    )
+    const basics = container.querySelector('section')
+    // Inside the heading row, above the grid.
+    expect(basics.querySelector('div').querySelector('[role="switch"]')).toBeTruthy()
+    expect(basics.querySelector('div.grid [role="switch"]')).toBeNull()
+  })
+
+  it('shows am/pm on the time pickers', () => {
+    // fmt12 drops the meridiem — right on a block pill, but it turned a 2pm
+    // start and a 3pm end into "2" and "3" in these dropdowns.
+    render(
+      <ClassFieldsEditor draft={toDraft(CLASS)} onChange={() => {}} staff={STAFF}
+        timeBlocks={[{ start: '14:00', end: '15:00' }]} />,
+    )
+    expect(screen.getByRole('option', { name: '2pm' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '3pm' })).toBeInTheDocument()
+  })
+})

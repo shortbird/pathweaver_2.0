@@ -2,7 +2,7 @@ import React from 'react'
 import { PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import SearchSelect from '../ui/SearchSelect'
 import {
-  DAY_OPTIONS, hhmm, fmt12, blockMinutes, blockEndOptions, addMin, minutesBetween,
+  DAY_OPTIONS, hhmm, fmt12ap, blockMinutes, blockEndOptions, addMin, minutesBetween,
 } from './classFields'
 
 /**
@@ -27,7 +27,10 @@ import {
  * Hosts render it beside the class, where it acts.
  */
 
-const cell = 'w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple bg-white'
+// py-2 so a plain input is the same height as a SearchSelect (which sets its
+// own padding) and as the image tile. Packing the fields four-across made the
+// old 34px-vs-38px mismatch visible on every row.
+const cell = 'w-full rounded-md border border-gray-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple bg-white'
 
 const Field = ({ label, children, className = '' }) => (
   <div className={className}>
@@ -36,10 +39,16 @@ const Field = ({ label, children, className = '' }) => (
   </div>
 )
 
-const Band = ({ title, children }) => (
+// `aside` rides on the heading line rather than taking a row of its own — the
+// registration switch was a full-width bar holding one toggle.
+const Band = ({ title, aside = null, children }) => (
   <section>
-    <h4 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">{title}</h4>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">{children}</div>
+    <div className="flex items-center gap-3 mb-1.5">
+      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{title}</h4>
+      <span className="h-px flex-1 bg-gray-100" />
+      {aside}
+    </div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-2.5">{children}</div>
   </section>
 )
 
@@ -62,20 +71,25 @@ export default function ClassFieldsEditor({
   onImageChange = null,
   onImageRemove = null,
   namePlaceholder = 'e.g. Intro to Robotics',
+  // Rendered on the Basics heading line. The row editor puts the registration
+  // switch here: it is a publish state that saves the moment you flip it, so it
+  // does not belong among the draft fields — but it also does not deserve a
+  // full-width bar of its own to hold one toggle.
+  headerAside = null,
 }) {
   const set = (patch) => onChange(patch)
   const pickable = timeBlocks.filter((b) => !b.label)
 
   return (
-    <div className="space-y-5">
-      <Band title="Basics">
+    <div className="space-y-4">
+      <Band title="Basics" aside={headerAside}>
         <Field label="Name" className="col-span-2">
           <input className={cell} value={d.name} placeholder={namePlaceholder}
             aria-label="Class name" onChange={(e) => set({ name: e.target.value })} />
         </Field>
 
         {staff.length > 0 && (
-          <Field label="Teacher" className="col-span-2">
+          <Field label="Teacher">
             <SearchSelect
               value={d.primary_instructor_id}
               onChange={(id) => set({ primary_instructor_id: id })}
@@ -88,7 +102,7 @@ export default function ClassFieldsEditor({
         {/* Description sits with the name it describes, two rows rather than a
             full-width box at the bottom — it was the biggest element on the
             panel and the least often edited. */}
-        <Field label="Description" className="col-span-2">
+        <Field label="Description" className="col-span-2 md:col-span-3">
           <textarea rows={2} className={`${cell} resize-y`} value={d.description}
             aria-label="Class description"
             placeholder="What students will do in this class"
@@ -96,7 +110,7 @@ export default function ClassFieldsEditor({
         </Field>
 
         {staff.length > 0 && (
-          <Field label="Assistant teacher(s)" className="col-span-2">
+          <Field label="Assistant teacher(s)">
             {d.assistant_instructor_ids.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-1.5">
                 {d.assistant_instructor_ids.map((id) => {
@@ -139,19 +153,19 @@ export default function ClassFieldsEditor({
         )}
 
         {onImageChange && (
-          <Field label="Class image" className="col-span-2 md:col-span-4">
+          <Field label="Class image">
             {imagePreview ? (
-              <div className="relative max-w-sm">
-                <img src={imagePreview} alt="Class" className="w-full h-28 object-cover rounded-lg border border-gray-200" />
+              <div className="relative">
+                <img src={imagePreview} alt="Class" className="w-full h-[38px] object-cover rounded-md border border-gray-200" />
                 <button type="button" onClick={onImageRemove} aria-label="Remove class image"
-                  className="absolute top-2 right-2 p-1.5 bg-white/90 text-gray-600 hover:text-gray-900 rounded-full shadow">
-                  <XMarkIcon className="w-4 h-4" />
+                  className="absolute top-1 right-1 p-1 bg-white/90 text-gray-600 hover:text-gray-900 rounded-full shadow">
+                  <XMarkIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
-              <label className="flex items-center justify-center gap-2 max-w-sm h-16 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
-                <PhotoIcon className="w-5 h-5 text-gray-400" />
-                <span className="text-xs text-gray-500">Add an image (max 5MB)</span>
+              <label className="flex items-center justify-center gap-1.5 h-[38px] border border-dashed border-gray-300 rounded-md cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
+                <PhotoIcon className="w-4 h-4 text-gray-400" />
+                <span className="text-xs text-gray-500">Add image</span>
                 <input type="file" accept="image/*" className="hidden"
                   aria-label="Class image"
                   onChange={(e) => e.target.files?.[0] && onImageChange(e.target.files[0])} />
@@ -185,23 +199,23 @@ export default function ClassFieldsEditor({
           </div>
         </Field>
 
-        <Field label="Time" className="col-span-2">
+        <Field label="Time">
           {pickable.length ? (
             <div className="flex items-center gap-1">
-              <select className={cell} value={d.start_time} aria-label="Start block"
+              <select className={`${cell} px-1`} value={d.start_time} aria-label="Start block"
                 onChange={(e) => {
                   const b = pickable.find((x) => hhmm(x.start) === e.target.value)
                   if (b) set({ start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
                 }}>
                 <option value="" disabled>Start</option>
-                {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12(b.start)}</option>)}
+                {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12ap(b.start)}</option>)}
               </select>
               <span className="text-neutral-300">–</span>
-              <select className={cell} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
+              <select className={`${cell} px-1`} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
                 disabled={!d.start_time}
                 onChange={(e) => set({ duration_minutes: String(minutesBetween(d.start_time, e.target.value)) })}>
                 {blockEndOptions(timeBlocks, d.start_time, addMin(d.start_time, d.duration_minutes)).map((end) => (
-                  <option key={end} value={end}>{fmt12(end)}</option>
+                  <option key={end} value={end}>{fmt12ap(end)}</option>
                 ))}
               </select>
             </div>
@@ -219,6 +233,18 @@ export default function ClassFieldsEditor({
         <Field label="Classroom">
           <input className={cell} placeholder="Room" value={d.location} aria-label="Classroom"
             onChange={(e) => set({ location: e.target.value })} />
+        </Field>
+
+        {/* A rule about which days a student must fill — a schedule constraint,
+            so it sits with the schedule and fills the fourth column. */}
+        <Field label="Full-day program">
+          <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
+            <input type="checkbox" checked={d.requires_full_day}
+              aria-label="Requires a full day of classes"
+              onChange={(e) => set({ requires_full_day: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+            <span className="text-xs text-neutral-500 leading-tight">Must fill its meeting days</span>
+          </label>
         </Field>
       </Band>
 
@@ -246,24 +272,15 @@ export default function ClassFieldsEditor({
           <Money value={d.supply_fee} label="Supply fee" onChange={(v) => set({ supply_fee: v })} />
         </Field>
 
-        <Field label="Materials allowance" className="col-span-2">
+        <Field label="Materials allowance">
           <Money value={d.supply_budget_per_student} label="Materials allowance per student"
             placeholder="School default"
             onChange={(v) => set({ supply_budget_per_student: v })} />
-          <p className="mt-1 text-[11px] text-neutral-400">
-            Per student, per year. Blank uses the school default from Settings.
+          <p className="mt-0.5 text-[10px] text-neutral-400 leading-tight">
+            Per student/year. Blank = school default.
           </p>
         </Field>
 
-        <Field label="Full-day program" className="col-span-2">
-          <label className="inline-flex items-center gap-2 cursor-pointer py-1.5">
-            <input type="checkbox" checked={d.requires_full_day}
-              aria-label="Requires a full day of classes"
-              onChange={(e) => set({ requires_full_day: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            <span className="text-xs text-neutral-500">Students must fill its meeting days</span>
-          </label>
-        </Field>
       </Band>
     </div>
   )

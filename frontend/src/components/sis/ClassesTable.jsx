@@ -277,24 +277,6 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                 {open && (
                   <tr className="border-b border-gray-100 bg-optio-purple/[0.02]">
                     <td colSpan={8} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
-                      {/* Registration lives here, above the fields: it saves
-                          the moment you flip it, while everything below is a
-                          draft you Save. Mixing a live switch into the field
-                          grid is how a class gets published by accident. */}
-                      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 mb-4">
-                        <span className="text-sm text-neutral-600">
-                          Registration is <span className={isOpen ? 'font-medium text-green-600' : 'font-medium text-neutral-500'}>{isOpen ? 'open' : 'closed'}</span>
-                          <span className="text-neutral-400"> · saves immediately</span>
-                        </span>
-                        <button
-                          type="button" role="switch" aria-checked={isOpen}
-                          aria-label={`Toggle registration for ${c.name}`}
-                          onClick={() => onToggleRegistration(c)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isOpen ? 'bg-green-500' : 'bg-neutral-300'}`}>
-                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                        </button>
-                      </div>
-
                       <ClassFieldsEditor
                         draft={d}
                         onChange={(patch) => edit(c, patch)}
@@ -303,6 +285,27 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], onSave, onToggleRegistr
                         imagePreview={imagePreviews[c.id] ?? c.image_url ?? null}
                         onImageChange={(file) => pickImage(c, file)}
                         onImageRemove={() => clearImage(c)}
+                        headerAside={(
+                          /* On the heading line, not a bar of its own. It still
+                             says "saves now", because it is the one control here
+                             that writes without pressing Save. */
+                          <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+                            <span className="text-[11px] text-neutral-400 uppercase tracking-wide">
+                              Registration{' '}
+                              <span className={isOpen ? 'text-green-600 font-semibold' : 'text-neutral-500 font-semibold'}>
+                                {isOpen ? 'open' : 'closed'}
+                              </span>
+                              <span className="normal-case tracking-normal"> · saves now</span>
+                            </span>
+                            <button
+                              type="button" role="switch" aria-checked={isOpen}
+                              aria-label={`Toggle registration for ${c.name}`}
+                              onClick={() => onToggleRegistration(c)}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isOpen ? 'bg-green-500' : 'bg-neutral-300'}`}>
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                            </button>
+                          </label>
+                        )}
                       />
 
                       <div className="flex items-center justify-between mt-3">
