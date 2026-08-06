@@ -16,6 +16,20 @@ NEW, additive (/api/sis/curriculum). Admins manage the org-wide library; teacher
 get the same form scoped to a class they teach (add/edit/remove their own entries
 on that class) via the /classes/<id>/curriculum routes. Org scoping via
 sis_service.resolve_org_id on every route.
+
+A curriculum is also the CONTAINER for the teaching material a class inherits —
+its quest set (sis_curriculum_quests, 20260804) and its courses
+(sis_curriculum_courses, 20260806). iCreate, 2026-08-06: "admin should attach
+courses/quests to curriculum so they're reusable year after year and teachers
+have resources to use, rather than requiring teachers to create their own
+quests." Both sets are edited here, in the library, because that is the object
+that outlives the timetable; a class inherits from them.
+
+The two sets behave differently on purpose:
+  - quests are COPIED onto a section, which then owns its own list (per-section
+    publish/due dates, removals) — see routes/sis/class_quests.py;
+  - courses are LINKED, because a course carries no per-section state, so fixing
+    the library should fix every class rather than leave stale copies behind.
 """
 
 from datetime import datetime, timezone
@@ -115,6 +129,26 @@ def _attachments(curriculum_ids):
     return out
 
 
+def _set_counts(table, curriculum_ids):
+    """{curriculum_id: n} for one of the curriculum's attached sets.
+
+    Bounded by the org's own curriculum list, so this is a single read rather
+    than a per-row count — but it is a read of LINK rows, which grow with the
+    library, so it pages.
+    """
+    if not curriculum_ids:
+        return {}
+    from utils.db_fetch import fetch_all_rows
+    rows = fetch_all_rows(lambda: (
+        _admin().table(table).select('id, curriculum_id')
+        .in_('curriculum_id', curriculum_ids)
+    ))
+    counts = {}
+    for r in rows:
+        counts[r['curriculum_id']] = counts.get(r['curriculum_id'], 0) + 1
+    return counts
+
+
 # ── Admin: the library ────────────────────────────────────────────────────────
 
 @bp.route('/curriculum', methods=['GET'])
@@ -129,9 +163,17 @@ def list_curriculum(user_id):
     if request.args.get('include_inactive') not in ('1', 'true', 'yes'):
         q = q.eq('is_active', True)
     rows = q.execute().data or []
-    attached = _attachments([r['id'] for r in rows])
+    ids = [r['id'] for r in rows]
+    attached = _attachments(ids)
+    quest_counts = _set_counts('sis_curriculum_quests', ids)
+    course_counts = _set_counts('sis_curriculum_courses', ids)
     for r in rows:
         r['classes'] = attached.get(r['id'], [])
+        # What this curriculum carries, so the library can say "3 quests, 1
+        # course" without a request per row. A curriculum with nothing on it is
+        # the one a teacher still has to build from scratch.
+        r['quest_count'] = quest_counts.get(r['id'], 0)
+        r['course_count'] = course_counts.get(r['id'], 0)
     return jsonify({'success': True, 'curriculum': rows})
 
 
@@ -244,6 +286,247 @@ def set_curriculum_classes(user_id, curriculum_id):
     return jsonify({'success': True, 'attached': len(valid), 'rejected': len(rejected)})
 
 
+# ── The curriculum's teaching material: its quests and its courses ───────────
+#
+# Both sets used to be reachable only from a class — you opened a section, and
+# from there pushed its quest list back onto the curriculum. That works for a
+# teacher tidying up at the end of a term and not at all for an admin setting up
+# a year's curriculum before any section exists. These routes are that missing
+# direction: edit the durable object directly, and let classes inherit.
+
+
+def _quest_titles(quest_ids):
+    if not quest_ids:
+        return {}
+    rows = (_admin().table('quests').select('id, title, is_active')
+            .in_('id', quest_ids).execute()).data or []
+    return {r['id']: r for r in rows}
+
+
+def _course_rows(course_ids):
+    if not course_ids:
+        return {}
+    rows = (_admin().table('courses')
+            .select('id, title, description, status, organization_id')
+            .in_('id', course_ids).execute()).data or []
+    return {r['id']: r for r in rows}
+
+
+@bp.route('/curriculum/<curriculum_id>/resources', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def curriculum_resources(user_id, curriculum_id):
+    """The quests and courses this curriculum carries.
+
+    Staff-tier, not admin-tier: a teacher reads this to see what their class is
+    meant to be taught from. Writing is admin-only (the routes below).
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+
+    quest_links = (_admin().table('sis_curriculum_quests')
+                   .select('quest_id, sequence_order')
+                   .eq('curriculum_id', curriculum_id)
+                   .order('sequence_order').execute()).data or []
+    quests = _quest_titles([l['quest_id'] for l in quest_links])
+    course_links = (_admin().table('sis_curriculum_courses')
+                    .select('course_id, sequence_order')
+                    .eq('curriculum_id', curriculum_id)
+                    .order('sequence_order').execute()).data or []
+    courses = _course_rows([l['course_id'] for l in course_links])
+
+    return jsonify({
+        'success': True,
+        # A link can outlive what it points at (a quest deleted from the library,
+        # a course archived). Drop the dangling ones from the read rather than
+        # render a row with no title.
+        'quests': [{'id': l['quest_id'], 'title': quests[l['quest_id']].get('title'),
+                    'is_active': quests[l['quest_id']].get('is_active', True)}
+                   for l in quest_links if l['quest_id'] in quests],
+        'courses': [{'id': l['course_id'], **{k: courses[l['course_id']].get(k)
+                                              for k in ('title', 'description', 'status')}}
+                    for l in course_links if l['course_id'] in courses],
+    })
+
+
+@bp.route('/curriculum/<curriculum_id>/assignable-quests', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def curriculum_assignable_quests(user_id, curriculum_id):
+    """Quests that could be added: the school's own, plus the Optio library.
+
+    Same two sources and same shape as the class-level picker
+    (/classes/<id>/assignable-quests) so the two screens don't disagree about
+    what is available; this one just isn't scoped to a section.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    search = (request.args.get('search') or '').strip()
+    limit = min(int(request.args.get('limit', 40) or 40), 100)
+
+    already = {r['quest_id'] for r in (
+        _admin().table('sis_curriculum_quests').select('quest_id')
+        .eq('curriculum_id', curriculum_id).execute()).data or []}
+
+    def _q(base):
+        if search:
+            base = base.ilike('title', f'%{search}%')
+        return base.limit(limit).execute().data or []
+
+    org_quests = _q(_admin().table('quests')
+                    .select('id, title, quest_type, organization_id')
+                    .eq('organization_id', org_id).eq('is_active', True))
+    lib_quests = _q(_admin().table('quests')
+                    .select('id, title, quest_type, organization_id')
+                    .is_('organization_id', 'null').eq('is_active', True).eq('is_public', True))
+
+    out, seen = [], set()
+    for source, rows in (('organization', org_quests), ('library', lib_quests)):
+        for q in rows:
+            if q['id'] in seen or q['id'] in already:
+                continue
+            seen.add(q['id'])
+            out.append({'quest_id': q['id'], 'title': q.get('title'), 'source': source})
+    return jsonify({'success': True, 'quests': out})
+
+
+@bp.route('/curriculum/<curriculum_id>/assignable-courses', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def curriculum_assignable_courses(user_id, curriculum_id):
+    """Courses that could be added: the school's own, plus public Optio ones."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    search = (request.args.get('search') or '').strip()
+    limit = min(int(request.args.get('limit', 40) or 40), 100)
+
+    already = {r['course_id'] for r in (
+        _admin().table('sis_curriculum_courses').select('course_id')
+        .eq('curriculum_id', curriculum_id).execute()).data or []}
+
+    def _q(base):
+        if search:
+            base = base.ilike('title', f'%{search}%')
+        return base.limit(limit).execute().data or []
+
+    org_courses = _q(_admin().table('courses')
+                     .select('id, title, status, organization_id')
+                     .eq('organization_id', org_id))
+    # Archived library courses are noise in a picker — an org's own drafts are
+    # not, because that is how a school builds one before publishing it.
+    lib_courses = _q(_admin().table('courses')
+                     .select('id, title, status, organization_id')
+                     .eq('visibility', 'public').eq('status', 'published'))
+
+    out, seen = [], set()
+    for source, rows in (('organization', org_courses), ('library', lib_courses)):
+        for c in rows:
+            if c['id'] in seen or c['id'] in already:
+                continue
+            seen.add(c['id'])
+            out.append({'course_id': c['id'], 'title': c.get('title'),
+                        'status': c.get('status'), 'source': source})
+    return jsonify({'success': True, 'courses': out})
+
+
+def _replace_links(table, curriculum_id, id_field, ids, user_id):
+    """Replace a curriculum's link set wholesale, preserving the given order.
+
+    Sent as the whole list rather than add/remove calls for the same reason the
+    class attachment is: the picker in front of the admin is the statement of
+    what the set should be, and two admins editing at once can't interleave into
+    a half-applied state.
+    """
+    admin = _admin()
+    admin.table(table).delete().eq('curriculum_id', curriculum_id).execute()
+    if ids:
+        admin.table(table).insert([
+            {'curriculum_id': curriculum_id, id_field: v,
+             'sequence_order': i, 'added_by': user_id}
+            for i, v in enumerate(ids)
+        ]).execute()
+
+
+@bp.route('/curriculum/<curriculum_id>/quests', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_curriculum_quests(user_id, curriculum_id):
+    """Set the curriculum's reusable quest set, in order.
+
+    Classes COPY from this set (POST /classes/<id>/quests/from-curriculum), so
+    editing it never changes what a section already has in front of enrolled
+    students — it changes what the next section starts from.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    requested = [q for q in ((request.get_json(silent=True) or {}).get('quest_ids') or []) if q]
+    if any(_bad_uuid(q) for q in requested):
+        return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
+
+    # Only this org's quests, or the shared Optio library (organization_id NULL).
+    # Never another school's — a curriculum that points at one would 404 forever
+    # for everybody but them.
+    valid_order = []
+    if requested:
+        rows = (_admin().table('quests').select('id, organization_id')
+                .in_('id', requested).execute()).data or []
+        allowed = {r['id'] for r in rows
+                   if r.get('organization_id') in (None, org_id)}
+        seen = set()
+        for q in requested:
+            if q in allowed and q not in seen:
+                seen.add(q)
+                valid_order.append(q)
+
+    _replace_links('sis_curriculum_quests', curriculum_id, 'quest_id', valid_order, user_id)
+    return jsonify({'success': True, 'attached': len(valid_order),
+                    'rejected': len(requested) - len(valid_order)})
+
+
+@bp.route('/curriculum/<curriculum_id>/courses', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_curriculum_courses(user_id, curriculum_id):
+    """Set the courses attached to this curriculum, in order.
+
+    A live link: every class attached to the curriculum shows these, so removing
+    a wrong one here removes it everywhere rather than leaving copies behind.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    requested = [c for c in ((request.get_json(silent=True) or {}).get('course_ids') or []) if c]
+    if any(_bad_uuid(c) for c in requested):
+        return jsonify({'success': False, 'error': 'Invalid course id'}), 400
+
+    valid_order = []
+    if requested:
+        rows = (_admin().table('courses').select('id, organization_id, visibility')
+                .in_('id', requested).execute()).data or []
+        # The org's own courses, plus public ones from the shared Optio library —
+        # the same two sources the Classes page already offers.
+        allowed = {r['id'] for r in rows
+                   if r.get('organization_id') == org_id or r.get('visibility') == 'public'}
+        seen = set()
+        for c in requested:
+            if c in allowed and c not in seen:
+                seen.add(c)
+                valid_order.append(c)
+
+    _replace_links('sis_curriculum_courses', curriculum_id, 'course_id', valid_order, user_id)
+    return jsonify({'success': True, 'attached': len(valid_order),
+                    'rejected': len(requested) - len(valid_order)})
+
+
 # ── Teacher: the curriculum for a class they teach ────────────────────────────
 #
 # Teachers get the SAME curriculum form admins do, scoped to their own classes:
@@ -314,12 +597,40 @@ def class_curriculum(user_id, class_id):
                    .select('id, title, subject, description, drive_url, notes, is_active, created_by')
                    .in_('id', ids).eq('organization_id', org_id)
                    .eq('is_active', True).order('title').execute()).data or []
+    # Each entry carries the courses attached to it in the library. This is the
+    # point of the container: a teacher opening their class finds the school's
+    # course already there instead of being expected to build one (iCreate,
+    # 2026-08-06). Courses are a live link, so what shows here is always what the
+    # library currently says.
+    _attach_courses(entries)
     return jsonify({
         'success': True,
         'curriculum': entries,
         'can_manage': bool(is_teacher or is_admin),
         'is_admin': bool(is_admin),
     })
+
+
+def _attach_courses(entries):
+    """Hang each curriculum entry's linked courses off it, in order."""
+    ids = [e['id'] for e in entries]
+    for e in entries:
+        e['courses'] = []
+    if not ids:
+        return
+    links = (_admin().table('sis_curriculum_courses')
+             .select('curriculum_id, course_id, sequence_order')
+             .in_('curriculum_id', ids).order('sequence_order').execute()).data or []
+    courses = _course_rows([l['course_id'] for l in links])
+    by_id = {e['id']: e for e in entries}
+    for l in links:
+        course = courses.get(l['course_id'])
+        if not course:  # link outlived the course
+            continue
+        by_id[l['curriculum_id']]['courses'].append({
+            'id': course['id'], 'title': course.get('title'),
+            'status': course.get('status'),
+        })
 
 
 @bp.route('/classes/<class_id>/curriculum', methods=['POST'])

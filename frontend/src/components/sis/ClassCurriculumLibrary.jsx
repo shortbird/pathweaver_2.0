@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
   LinkIcon, PencilSquareIcon, TrashIcon, PlusIcon, LockClosedIcon,
-  ArrowRightCircleIcon, CheckCircleIcon,
+  ArrowRightCircleIcon, CheckCircleIcon, AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 import { FolderIcon } from '@heroicons/react/24/solid'
 import api from '../../services/api'
@@ -146,6 +147,42 @@ export default function ClassCurriculumLibrary({ classId, sharedUrls, onSharedTo
                 </a>
               )}
               {e.notes && <p className="text-xs text-amber-700 mt-1">Note: {e.notes}</p>}
+              {/* Courses the school attached to this curriculum. The whole point
+                  of the container: a teacher given this class finds the school's
+                  course already here rather than being expected to build one
+                  (iCreate, 2026-08-06). Linked, not copied, so this is always
+                  what the library currently says. */}
+              {e.courses?.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">
+                    Courses for this curriculum
+                  </p>
+                  <ul className="space-y-1">
+                    {e.courses.map((c) => (
+                      <li key={c.id} className="flex items-center gap-2 flex-wrap">
+                        <Link to={`/courses/${c.id}`}
+                          className="inline-flex items-center gap-1.5 text-sm text-optio-purple hover:underline">
+                          <AcademicCapIcon className="w-4 h-4" /> {c.title}
+                        </Link>
+                        {c.status && c.status !== 'published' && (
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-gray-100 text-neutral-500 capitalize">
+                            {c.status}
+                          </span>
+                        )}
+                        {/* "if we connect courses, we need to have a way for the
+                            teachers to edit those" (iCreate, 2026-07-25). The
+                            builder already admits an advisor from the course's
+                            own org; it refuses cleanly for library courses. */}
+                        {canManage && (
+                          <Link to={`/courses/${c.id}/edit`} className="text-xs text-neutral-500 hover:underline">
+                            Edit
+                          </Link>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {/* Send this resource to students — copies the link, no re-upload.
                   Available for any entry with a link, including admin-shared ones. */}
               {canManage && e.drive_url && (

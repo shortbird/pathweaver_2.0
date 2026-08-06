@@ -9,6 +9,7 @@ import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import CurriculumFields, { curriculumFieldsOf } from '../../components/sis/CurriculumFields'
+import CurriculumResources from '../../components/sis/CurriculumResources'
 
 /**
  * CurriculumPage — the school's curriculum library.
@@ -120,6 +121,12 @@ const ageRange = (classes = []) => {
   return `${Math.min(...mins)}–${Math.max(...maxes)}`
 }
 
+// "3 quests · 1 course" — what a class inherits from this curriculum.
+const carriesText = (e) => [
+  e.quest_count ? `${e.quest_count} quest${e.quest_count === 1 ? '' : 's'}` : null,
+  e.course_count ? `${e.course_count} course${e.course_count === 1 ? '' : 's'}` : null,
+].filter(Boolean).join(' · ')
+
 const SortHeader = ({ label, col, sort, onSort }) => (
   <th className="px-4 py-3 font-medium">
     <button onClick={() => onSort(col)}
@@ -182,6 +189,9 @@ const CurriculumPage = () => {
         return mins.length ? Math.min(...mins) : 999   // no age info sorts last
       }
       if (sort.key === 'classes') return (e.classes || []).length
+      // Sorted by how much it carries, so the curricula that still need
+      // building sort to one end.
+      if (sort.key === 'carries') return (e.quest_count || 0) + (e.course_count || 0)
       if (sort.key === 'folder') return e.drive_url ? 0 : 1
       return (e.title || '').toLowerCase()
     }
@@ -255,6 +265,7 @@ const CurriculumPage = () => {
                 <SortHeader label="Ages" col="ages" sort={sort} onSort={toggleSort} />
                 <SortHeader label="Subject" col="subject" sort={sort} onSort={toggleSort} />
                 <SortHeader label="Classes" col="classes" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Carries" col="carries" sort={sort} onSort={toggleSort} />
                 <SortHeader label="Folder" col="folder" sort={sort} onSort={toggleSort} />
                 <th className="px-4 py-3 font-medium" />
               </tr>
@@ -263,7 +274,10 @@ const CurriculumPage = () => {
               {rows.map((e) => {
                 const open = expanded === e.id
                 const classes = e.classes || []
-                const hasDetail = Boolean(e.description || (admin && e.notes) || classes.length)
+                // Always expandable now: the row opens onto what the curriculum
+                // carries, which is the point of it, and an entry with nothing
+                // attached is exactly the one somebody needs to open.
+                const hasDetail = true
                 return (
                   <React.Fragment key={e.id}>
                     <tr className={`hover:bg-neutral-50 ${hasDetail ? 'cursor-pointer' : ''}`}
@@ -283,6 +297,12 @@ const CurriculumPage = () => {
                             Not taught this term
                           </span>
                         )}
+                      </td>
+                      {/* What a teacher inherits by being given this class. An
+                          empty cell is the signal that somebody still has to
+                          build it from scratch. */}
+                      <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">
+                        {carriesText(e) || <span className="text-neutral-300">—</span>}
                       </td>
                       <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                         {e.drive_url ? (
@@ -307,16 +327,22 @@ const CurriculumPage = () => {
                         )}
                       </td>
                     </tr>
-                    {open && hasDetail && (
+                    {open && (
                       <tr className="bg-neutral-50/60">
-                        <td colSpan={6} className="px-4 py-3">
+                        <td colSpan={7} className="px-4 py-3 space-y-3">
                           {e.description && <p className="text-sm text-neutral-600">{e.description}</p>}
                           {classes.length > 0 && (
-                            <p className="text-xs text-neutral-500 mt-1">
+                            <p className="text-xs text-neutral-500">
                               Used by {classes.map((c) => c.name).join(' · ')}
                             </p>
                           )}
-                          {admin && e.notes && <p className="text-xs text-amber-700 mt-1">Note: {e.notes}</p>}
+                          {admin && e.notes && <p className="text-xs text-amber-700">Note: {e.notes}</p>}
+                          <CurriculumResources
+                            orgId={orgId}
+                            curriculumId={e.id}
+                            canManage={admin}
+                            onChanged={load}
+                          />
                         </td>
                       </tr>
                     )}
