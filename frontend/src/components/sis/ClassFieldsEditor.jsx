@@ -32,23 +32,34 @@ import {
 // old 34px-vs-38px mismatch visible on every row.
 const cell = 'w-full rounded-md border border-gray-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple bg-white'
 
+// A column stretches to its row's height, so a tall neighbour (the description)
+// pulls the short one (the image tile) up to match instead of leaving a gap.
 const Field = ({ label, children, className = '' }) => (
-  <div className={className}>
+  <div className={`flex flex-col min-w-0 ${className}`}>
     <label className="block text-[11px] font-medium text-neutral-400 uppercase tracking-wide mb-1">{label}</label>
-    {children}
+    <div className="flex-1 flex flex-col">{children}</div>
   </div>
 )
 
+// Column counts by width, not one fixed grid: four-across is unreadable on a
+// laptop-narrow console and impossible on a tablet, which is what the office
+// actually uses. One field per row on a phone, two from `sm`, the full band
+// from `lg`.
+const BAND_COLS = {
+  4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+  5: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-5',
+}
+
 // `aside` rides on the heading line rather than taking a row of its own — the
 // registration switch was a full-width bar holding one toggle.
-const Band = ({ title, aside = null, children }) => (
+const Band = ({ title, cols = 4, aside = null, children }) => (
   <section>
     <div className="flex items-center gap-3 mb-1.5">
-      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{title}</h4>
+      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 shrink-0">{title}</h4>
       <span className="h-px flex-1 bg-gray-100" />
       {aside}
     </div>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-2.5">{children}</div>
+    <div className={`grid ${BAND_COLS[cols]} gap-x-3 gap-y-2.5`}>{children}</div>
   </section>
 )
 
@@ -83,7 +94,7 @@ export default function ClassFieldsEditor({
   return (
     <div className="space-y-4">
       <Band title="Basics" aside={headerAside}>
-        <Field label="Name" className="col-span-2">
+        <Field label="Name" className="sm:col-span-2">
           <input className={cell} value={d.name} placeholder={namePlaceholder}
             aria-label="Class name" onChange={(e) => set({ name: e.target.value })} />
         </Field>
@@ -98,16 +109,6 @@ export default function ClassFieldsEditor({
             />
           </Field>
         )}
-
-        {/* Description sits with the name it describes, two rows rather than a
-            full-width box at the bottom — it was the biggest element on the
-            panel and the least often edited. */}
-        <Field label="Description" className="col-span-2 md:col-span-3">
-          <textarea rows={2} className={`${cell} resize-y`} value={d.description}
-            aria-label="Class description"
-            placeholder="What students will do in this class"
-            onChange={(e) => set({ description: e.target.value })} />
-        </Field>
 
         {staff.length > 0 && (
           <Field label="Assistant teacher(s)">
@@ -152,18 +153,29 @@ export default function ClassFieldsEditor({
           </Field>
         )}
 
+        {/* Row two: the description and, beside it, the image. The description
+            is the tall field, so the row's height comes from it and the image
+            tile stretches to match rather than sitting in a short box with
+            empty space under it. */}
+        <Field label="Description" className="sm:col-span-2 lg:col-span-3">
+          <textarea className={`${cell} resize-y h-full min-h-[76px]`} value={d.description}
+            aria-label="Class description"
+            placeholder="What students will do in this class"
+            onChange={(e) => set({ description: e.target.value })} />
+        </Field>
+
         {onImageChange && (
           <Field label="Class image">
             {imagePreview ? (
-              <div className="relative">
-                <img src={imagePreview} alt="Class" className="w-full h-[38px] object-cover rounded-md border border-gray-200" />
+              <div className="relative flex-1">
+                <img src={imagePreview} alt="Class" className="w-full h-full min-h-[76px] object-cover rounded-md border border-gray-200" />
                 <button type="button" onClick={onImageRemove} aria-label="Remove class image"
                   className="absolute top-1 right-1 p-1 bg-white/90 text-gray-600 hover:text-gray-900 rounded-full shadow">
                   <XMarkIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
-              <label className="flex items-center justify-center gap-1.5 h-[38px] border border-dashed border-gray-300 rounded-md cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
+              <label className="flex flex-1 items-center justify-center gap-1.5 min-h-[76px] border border-dashed border-gray-300 rounded-md cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
                 <PhotoIcon className="w-4 h-4 text-gray-400" />
                 <span className="text-xs text-gray-500">Add image</span>
                 <input type="file" accept="image/*" className="hidden"
@@ -248,7 +260,7 @@ export default function ClassFieldsEditor({
         </Field>
       </Band>
 
-      <Band title="Enrollment & money">
+      <Band title="Enrollment & money" cols={5}>
         <Field label="Capacity">
           <input type="number" min={1} className={cell} placeholder="Unlimited" value={d.capacity}
             aria-label="Capacity" onChange={(e) => set({ capacity: e.target.value })} />

@@ -109,25 +109,52 @@ describe('the draft round trip', () => {
  * too big. generally lots of inefficient use of space."
  */
 describe('the grid earns its space', () => {
+  // Read the band's own column count and each field's span at the widest
+  // breakpoint, so the assertion follows the layout instead of assuming it.
   const shape = (container) => [...container.querySelectorAll('section')].map((b) => {
-    const fields = b.querySelectorAll(':scope > div.grid > div')
-    const cols = [...fields].reduce((sum, f) => {
-      const m = f.className.match(/md:col-span-(\d)/) || f.className.match(/col-span-(\d)/)
+    const grid = b.querySelector('div.grid')
+    const cols = Number(grid.className.match(/lg:grid-cols-(\d)/)[1])
+    const fields = grid.querySelectorAll(':scope > div')
+    const used = [...fields].reduce((sum, f) => {
+      const m = f.className.match(/lg:col-span-(\d)/) || f.className.match(/sm:col-span-(\d)/)
       return sum + Number(m?.[1] || 1)
     }, 0)
-    return { title: b.querySelector('h4').textContent, rows: Math.ceil(cols / 4) }
+    return { title: b.querySelector('h4').textContent, cols, rows: Math.ceil(used / cols) }
   })
 
-  it('fits every field into five rows of four', () => {
-    const { container } = render(
-      <ClassFieldsEditor draft={toDraft(CLASS)} onChange={() => {}} staff={STAFF}
-        onImageChange={() => {}} timeBlocks={[]} />,
-    )
-    expect(shape(container)).toEqual([
-      { title: 'Basics', rows: 2 },
-      { title: 'Schedule', rows: 1 },
-      { title: 'Enrollment & money', rows: 2 },
+  const full = () => render(
+    <ClassFieldsEditor draft={toDraft(CLASS)} onChange={() => {}} staff={STAFF}
+      onImageChange={() => {}} timeBlocks={[]} />,
+  )
+
+  it('fits every field into four rows, each one full', () => {
+    expect(shape(full().container)).toEqual([
+      { title: 'Basics', cols: 4, rows: 2 },
+      { title: 'Schedule', cols: 4, rows: 1 },
+      { title: 'Enrollment & money', cols: 5, rows: 1 },
     ])
+  })
+
+  it('puts the assistants beside the teacher, and the image beside the description', () => {
+    const { container } = full()
+    // Each field's OWN label — its first — not the checkbox and upload labels
+    // nested inside some of them.
+    const labels = [...container.querySelector('section').querySelectorAll(':scope div.grid > div')]
+      .map((f) => f.querySelector('label').textContent)
+    expect(labels).toEqual(['Name', 'Teacher', 'Assistant teacher(s)', 'Description', 'Class image'])
+  })
+
+  it('lets the image tile stretch to the description’s height', () => {
+    const { container } = full()
+    expect(container.querySelector('label[class*="min-h-"]')).toBeTruthy()
+  })
+
+  it('collapses to one column on a phone and two on a tablet', () => {
+    const { container } = full()
+    container.querySelectorAll('div.grid').forEach((g) => {
+      expect(g.className).toContain('grid-cols-1')
+      expect(g.className).toContain('sm:grid-cols-2')
+    })
   })
 
   it('puts the registration switch on the heading line, not a row of its own', () => {
@@ -136,7 +163,6 @@ describe('the grid earns its space', () => {
         headerAside={<button type="button" role="switch" aria-checked aria-label="Toggle registration" />} />,
     )
     const basics = container.querySelector('section')
-    // Inside the heading row, above the grid.
     expect(basics.querySelector('div').querySelector('[role="switch"]')).toBeTruthy()
     expect(basics.querySelector('div.grid [role="switch"]')).toBeNull()
   })
