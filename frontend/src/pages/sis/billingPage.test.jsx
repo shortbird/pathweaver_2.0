@@ -34,6 +34,17 @@ const { api } = vi.hoisted(() => {
         amount_due_cents: 9000, days_overdue: 12,
       }] } }
     }
+    if (url.includes('/document')) {
+      return { data: { document: {
+        invoice_number: 'INV-2026-3B3796', status: 'sent', student_name: 'Robin',
+        family: 'Bowman Family', due_date: '2026-08-01',
+        organization: { name: 'iCreate', logo_url: null },
+        line_items: [{ description: 'Reading Workshop (Tues Block 1)', amount_cents: 36500 }],
+        subtotal_cents: 36500, discount_cents: 0, processing_fee_cents: 0,
+        total_cents: 36500, amount_paid_cents: 0, amount_due_cents: 36500,
+        funding_label: null,
+      } } }
+    }
     if (url.includes('/api/sis/households')) {
       return { data: { households: [{
         id: 'hh1', name: 'Bowman Family',
@@ -127,5 +138,45 @@ describe('BillingPage', () => {
       expect(api.post).toHaveBeenCalledWith('/api/sis/billing/reminders/run', expect.objectContaining({ organization_id: expect.anything() })))
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Reminders sent: 2')))
+  })
+})
+
+/**
+ * iCreate, 2026-08-06: "when I click a line on the /billing table I want to see
+ * the invoice that was sent to them."
+ *
+ * Chasing a payment starts with "what did we actually send?", and the row only
+ * ever showed a family, an amount and a status. The modal renders the same
+ * branded document the family has in their portal, off the same endpoint — so
+ * the office and the parent are looking at one artifact, not two summaries.
+ */
+describe('opening the invoice a family was sent', () => {
+  it('opens from a row in the charges table', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    expect(await screen.findByText('INV-2026-3B3796')).toBeInTheDocument()
+    expect(screen.getByText('Reading Workshop (Tues Block 1)')).toBeInTheDocument()
+  })
+
+  it('opens from the outstanding report too', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByRole('button', { name: /Outstanding/i }))
+    const rows = await screen.findAllByText('Bowman Family')
+    fireEvent.click(rows[rows.length - 1])
+    expect(await screen.findByText('INV-2026-3B3796')).toBeInTheDocument()
+  })
+
+  it('shows what the family owes, not just the total', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    expect(await screen.findByText('Amount due')).toBeInTheDocument()
+    expect(screen.getAllByText('$365.00').length).toBeGreaterThan(0)
+  })
+
+  it('does not open the invoice when Record payment is clicked', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Record payment'))
+    // The payment modal opened; the invoice document was never fetched.
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/document'))
   })
 })

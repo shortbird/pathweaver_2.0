@@ -9,6 +9,7 @@ import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { switchSurfaceInApp } from '../../utils/appSurface'
+import QuestDraftForm, { blankTask } from '../../components/sis/QuestDraftForm'
 
 /**
  * StaffTrainingPage — the quests a school sets, built out of ordinary quests.
@@ -47,6 +48,14 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
   const [category, setCategory] = useState('')
   const [required, setRequired] = useState(false)
   const [busy, setBusy] = useState(false)
+  // "Where does the quest get built?" (iCreate, 2026-08-06). Attaching an
+  // existing quest is a dead end if you have not made one, and sending somebody
+  // to the learning app to author one and come back is not a flow people
+  // finish. Both doors, same panel.
+  const [tab, setTab] = useState('existing') // existing | new
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [tasks, setTasks] = useState([blankTask()])
 
   useEffect(() => {
     if (!orgId) return
@@ -64,10 +73,29 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
         organization_id: orgId, quest_id: questId, audience,
         category: category.trim(), is_required: required,
       })
-      toast.success('Added to training')
+      toast.success(audience === 'family' ? 'Set for families' : 'Added to training')
       onAdded()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not add it')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const createAndAdd = async () => {
+    if (!title.trim()) { toast.error('Give the quest a title'); return }
+    setBusy(true)
+    try {
+      await api.post('/api/sis/training/create', {
+        organization_id: orgId, audience,
+        title: title.trim(), description: description.trim(),
+        tasks: tasks.filter((t) => t.title.trim()),
+        category: category.trim(), is_required: required,
+      })
+      toast.success(audience === 'family' ? 'Quest built and set for families' : 'Quest built and added')
+      onAdded()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not build the quest')
     } finally {
       setBusy(false)
     }
@@ -77,17 +105,42 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
     <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5 mb-6">
       <p className="text-sm text-neutral-600">
         {audience === 'family'
-          ? 'A family quest is an ordinary quest. Build the content (videos, reading, tasks) first, then set it for families here \u2014 parents complete it on their own account.'
-          : 'Training is a quest. Build the content (videos, reading, tasks) as a quest first, then add it here.'}
+          ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, or build it here.'
+          : 'Training is a quest. Attach one you already have, or build it here.'}
       </p>
-      <select value={questId} onChange={(e) => setQuestId(e.target.value)} className={inputClass}>
-        <option value="">Choose a quest…</option>
-        {options.map((q) => (
-          <option key={q.quest_id} value={q.quest_id}>
-            {q.title}{q.source === 'library' ? ' (Optio library)' : ''}
-          </option>
+      {/* Two doors: attach one that exists, or build one here. */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {[['existing', 'Use an existing quest'], ['new', 'Build a new one']].map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              tab === k ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}>
+            {label}
+          </button>
         ))}
-      </select>
+      </div>
+
+      {tab === 'existing' ? (
+        <select value={questId} onChange={(e) => setQuestId(e.target.value)} className={inputClass}
+          aria-label="Choose a quest">
+          <option value="">Choose a quest…</option>
+          {options.map((q) => (
+            <option key={q.quest_id} value={q.quest_id}>
+              {q.title}{q.source === 'library' ? ' (Optio library)' : ''}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <QuestDraftForm
+          title={title} setTitle={setTitle}
+          description={description} setDescription={setDescription}
+          tasks={tasks} setTasks={setTasks}
+          titlePlaceholder={audience === 'family' ? 'Quest title (e.g. Back to school night)' : 'Quest title (e.g. Classroom management)'}
+          descriptionPlaceholder={audience === 'family' ? 'What are families doing?' : 'What are teachers learning?'}
+          taskHint={audience === 'family'
+            ? 'Preset tasks are copied to each parent when they start the quest. Leave it empty and they write their own.'
+            : 'Preset tasks are copied to each teacher when they start the quest. Leave it empty and they write their own.'}
+        />
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <input value={category} onChange={(e) => setCategory(e.target.value)}
           placeholder="Category (e.g. Onboarding, Classroom management)" className={inputClass} />
@@ -98,10 +151,17 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
       </div>
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>
-        <button onClick={add} disabled={busy || !questId}
-          className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
-          {busy ? 'Adding…' : 'Add training'}
-        </button>
+        {tab === 'existing' ? (
+          <button onClick={add} disabled={busy || !questId}
+            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            {busy ? 'Adding…' : 'Add training'}
+          </button>
+        ) : (
+          <button onClick={createAndAdd} disabled={busy || !title.trim()}
+            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            {busy ? 'Building…' : 'Build and add'}
+          </button>
+        )}
       </div>
     </div>
   )

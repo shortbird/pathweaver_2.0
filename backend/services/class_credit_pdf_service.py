@@ -14,6 +14,7 @@ Built with PyMuPDF (fitz) Story rendering — already a deployed dependency
 import gc
 import html as html_lib
 import io
+import os
 import re
 import threading
 from collections import deque
@@ -74,7 +75,8 @@ body {{ font-family: sans-serif; font-size: 10pt; color: {TEXT_DARK}; }}
 h1 {{ font-size: 21pt; color: {OPTIO_PURPLE}; margin: 2pt 0; }}
 h2 {{ font-size: 13pt; color: {OPTIO_PURPLE}; margin: 14pt 0 2pt 0; }}
 p {{ margin: 5pt 0; line-height: 1.45; }}
-.brand {{ font-size: 10pt; color: {OPTIO_PINK}; letter-spacing: 2px; font-weight: bold; }}
+.brand {{ font-size: 10pt; color: {OPTIO_PINK}; letter-spacing: 2px; font-weight: bold; text-align: center; }}
+.logo {{ text-align: center; margin: 0 0 10pt 0; }}
 .muted {{ color: {TEXT_MUTED}; font-size: 9pt; }}
 .credit-line {{ font-size: 12pt; color: {TEXT_DARK}; }}
 .evidence-label {{ color: {TEXT_MUTED}; font-size: 8.5pt; letter-spacing: 1px; font-weight: bold; margin-top: 10pt; }}
@@ -467,6 +469,28 @@ def _block_fragments(block: Dict[str, Any], archive: fitz.Archive,
     return ''.join(fragments), pdf_docs
 
 
+# Full Optio logo (wordmark, not the icon alone), flattened onto white because
+# the Story renderer has no alpha compositing. Bundled rather than fetched so a
+# portfolio never depends on the network to look right.
+LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         'assets', 'optio-logo.png')
+LOGO_DISPLAY_WIDTH = 150   # px units, against CONTENT_WIDTH_PX
+LOGO_ASPECT = 229 / 560
+
+
+def _logo_fragment(archive: fitz.Archive) -> str:
+    """Centered logo for the cover, falling back to the wordmark in text."""
+    try:
+        with open(LOGO_PATH, 'rb') as fh:
+            archive.add(fh.read(), 'optio_logo.png')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Portfolio logo unavailable, using text brand: {e}")
+        return '<p class="brand">OPTIO</p>'
+    height = int(LOGO_DISPLAY_WIDTH * LOGO_ASPECT)
+    return (f'<p class="logo"><img src="optio_logo.png" '
+            f'width="{LOGO_DISPLAY_WIDTH}" height="{height}"></p>')
+
+
 def _story_to_pdf(html: str, archive: fitz.Archive) -> bytes:
     fileobj = io.BytesIO()
     writer = fitz.DocumentWriter(fileobj)
@@ -490,8 +514,10 @@ def build_class_credit_pdf(data: Dict[str, Any], include_documents: bool = True)
     awarded = datetime.now(timezone.utc).strftime('%B %-d, %Y')
     description = quest.get('big_idea') or quest.get('description') or ''
 
+    archive = fitz.Archive()
+
     cover = [
-        '<p class="brand">OPTIO</p>',
+        _logo_fragment(archive),
         f'<h1>{_esc(quest.get("title"))}</h1>',
         f'<p class="credit-line"><b>{_esc(student_name)}</b> earned '
         f'<b>{data["credits"]} credit</b> in <b>{_esc(data["subject_display"])}</b></p>',
@@ -504,7 +530,6 @@ def build_class_credit_pdf(data: Dict[str, Any], include_documents: bool = True)
                  'this transcript credit. Evidence appears exactly as the student '
                  'submitted it; uploaded documents are included as full pages.</p>')
 
-    archive = fitz.Archive()
     budget = _Budget()
     segments: List[Tuple[str, Any]] = []
     html_parts: List[str] = cover

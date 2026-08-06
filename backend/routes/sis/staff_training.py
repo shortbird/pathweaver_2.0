@@ -22,6 +22,8 @@ NEW, additive (/api/sis/training). Admin manages the catalog; teachers read thei
 own progress here, and guardians read theirs through /api/sis/parent/quests.
 """
 
+from datetime import datetime, timezone
+
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
@@ -61,6 +63,48 @@ def _bad_uuid(*values):
 
 
 AUDIENCES = ('staff', 'family')
+
+# Quest-authoring limits and pillar handling, matching routes/sis/class_quests.py
+# — the same rules about what a quest IS, reached from the other screen that
+# builds one.
+_MAX_TITLE_LEN = 300
+_MAX_TASKS = 40
+_PILLAR_ALIASES = {
+    'art': 'art', 'creativity': 'art', 'arts_creativity': 'art',
+    'stem': 'stem', 'critical_thinking': 'stem',
+    'communication': 'communication',
+    'wellness': 'wellness', 'practical_skills': 'wellness',
+    'civics': 'civics', 'cultural_literacy': 'civics',
+}
+_DEFAULT_PILLAR = 'art'
+_DEFAULT_XP = 100
+# The XP floor since the scale was halved (2026-06-15).
+_MIN_XP = 25
+
+
+def _clean_task(raw, order_index):
+    """One preset task, or None when it has no title (an untouched blank row)."""
+    if not isinstance(raw, dict):
+        return None
+    title = (raw.get('title') or '').strip()
+    if not title:
+        return None
+    try:
+        xp = int(raw.get('xp_value') or _DEFAULT_XP)
+    except (TypeError, ValueError):
+        xp = _DEFAULT_XP
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        'title': title[:_MAX_TITLE_LEN],
+        'description': (raw.get('description') or '').strip(),
+        'pillar': _PILLAR_ALIASES.get((raw.get('pillar') or '').strip().lower(), _DEFAULT_PILLAR),
+        'xp_value': max(_MIN_XP, xp),
+        'is_required': bool(raw.get('is_required', True)),
+        'order_index': order_index,
+        'ai_generated': False,
+        'created_at': now,
+        'updated_at': now,
+    }
 
 
 def _audience(value):
@@ -226,6 +270,78 @@ def add_training(user_id):
         'created_by': user_id,
     }, on_conflict='organization_id,quest_id,audience').execute()).data
     return jsonify({'success': True, 'training': row[0] if row else None}), 201
+
+
+@bp.route('/training/create', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_training_quest(user_id):
+    """Build a new quest and set it for this audience in one step.
+
+    iCreate, 2026-08-06, of the family-quest screen: "where does the quest get
+    built?" It could only attach a quest that already existed somewhere else,
+    which is a dead end if you have not made one — and "go to the learning app,
+    author a quest, come back, find it in a dropdown" is not a flow anybody
+    completes. Same builder the class-quest screen uses (the shared
+    QuestDraftForm), pointed at the catalog instead of at a class.
+
+    Body: {title, description?, tasks?[], audience?, category?, is_required?}
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'success': False, 'error': 'A quest title is required.'}), 400
+    if len(title) > _MAX_TITLE_LEN:
+        return jsonify({'success': False, 'error': 'Title is too long.'}), 400
+    raw_tasks = data.get('tasks') or []
+    if len(raw_tasks) > _MAX_TASKS:
+        return jsonify({'success': False,
+                        'error': f'A quest can have at most {_MAX_TASKS} tasks.'}), 400
+
+    description = (data.get('description') or '').strip()
+    audience = _audience(data.get('audience'))
+    admin = _admin()
+
+    image_url = None
+    try:
+        from services.image_service import search_quest_image
+        image_url = search_quest_image(title, description)
+    except Exception as e:  # noqa: BLE001 — a missing header image is not a failure
+        logger.warning(f'Training-quest image lookup failed (non-fatal): {e}')
+
+    now = datetime.now(timezone.utc).isoformat()
+    # is_public False: a school's own quest, not pushed into the shared library.
+    quest = (admin.table('quests').insert({
+        'title': title, 'big_idea': description, 'description': description,
+        'is_v3': True, 'is_active': True, 'is_public': False,
+        'quest_type': 'optio', 'header_image_url': image_url, 'image_url': image_url,
+        'created_by': user_id, 'created_at': now, 'organization_id': org_id,
+    }).execute()).data
+    if not quest:
+        return jsonify({'success': False, 'error': 'Could not create the quest.'}), 500
+    quest_id = quest[0]['id']
+
+    cleaned = [t for t in (_clean_task(r, i) for i, r in enumerate(raw_tasks)) if t]
+    if cleaned:
+        for t in cleaned:
+            t['quest_id'] = quest_id
+        admin.table('quest_template_tasks').insert(cleaned).execute()
+
+    last = (admin.table('sis_staff_training').select('sequence_order')
+            .eq('organization_id', org_id).eq('audience', audience)
+            .order('sequence_order', desc=True).limit(1).execute()).data
+    admin.table('sis_staff_training').insert({
+        'organization_id': org_id, 'quest_id': quest_id, 'audience': audience,
+        'category': (data.get('category') or '').strip() or None,
+        'is_required': bool(data.get('is_required')),
+        'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
+        'created_by': user_id,
+    }).execute()
+
+    return jsonify({'success': True, 'quest_id': quest_id,
+                    'task_count': len(cleaned), 'audience': audience}), 201
 
 
 @bp.route('/training/<training_id>', methods=['PATCH'])

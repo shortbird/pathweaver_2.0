@@ -19,7 +19,12 @@ import SisOrgPicker from './SisOrgPicker'
  */
 
 const money = (cents) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+// No width here on purpose. It used to carry w-full, which collides with the
+// w-32 on the amount inputs — Tailwind emits w-full after the numeric widths, so
+// w-full won, the amount box went full width, and the description box next to it
+// was squeezed to a sliver you couldn't read the class name in. Callers set
+// their own width.
+const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 const toCents = (str) => {
   const n = parseFloat(str)
@@ -247,11 +252,11 @@ const TuitionApprovalPage = () => {
               <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-neutral-500 mb-1">Due date (optional)</label>
-                  <input className={field} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                  <input className={`${field} w-full`} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-neutral-500 mb-1">Internal note (optional)</label>
-                  <input className={field} placeholder="Not shown to the family" value={note}
+                  <input className={`${field} w-full`} placeholder="Not shown to the family" value={note}
                     onChange={(e) => setNote(e.target.value)} />
                 </div>
               </div>

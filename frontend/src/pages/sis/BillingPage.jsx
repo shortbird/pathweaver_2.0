@@ -70,6 +70,7 @@ const BillingPage = () => {
   const [showAdd, setShowAdd] = useState(false)
   const [payFor, setPayFor] = useState(null)      // ledger row being paid
   const [receiptFor, setReceiptFor] = useState(null) // ledger row for receipt print
+  const [invoiceFor, setInvoiceFor] = useState(null) // invoice id whose document is open
 
   const months = useMemo(monthOptions, [])
 
@@ -189,7 +190,10 @@ const BillingPage = () => {
                     const pill = rowPill(row)
                     const balance = row.balance_cents ?? ((row.total_cents || 0) - (row.amount_paid_cents || 0))
                     return (
-                      <tr key={row.invoice_id}>
+                      <tr key={row.invoice_id}
+                        onClick={() => setInvoiceFor(row.invoice_id)}
+                        className="cursor-pointer hover:bg-neutral-50"
+                        title="View the invoice this family was sent">
                         <td className="px-4 py-2 font-medium text-neutral-900">{row.family_name || '—'}</td>
                         <td className="px-4 py-2">{row.student_name || '—'}</td>
                         <td className="px-4 py-2 text-neutral-600">{row.description || '—'}</td>
@@ -198,7 +202,10 @@ const BillingPage = () => {
                         <td className="px-4 py-2">
                           <span className={`text-xs rounded-full px-2 py-0.5 ${pill.cls}`}>{pill.text}</span>
                         </td>
-                        <td className="px-4 py-2 text-right whitespace-nowrap no-print">
+                        {/* stopPropagation: the row opens the invoice, so a
+                            click on Record payment must not do both. */}
+                        <td className="px-4 py-2 text-right whitespace-nowrap no-print"
+                          onClick={(e) => e.stopPropagation()}>
                           {balance > 0 ? (
                             <button className="text-optio-purple font-medium hover:underline"
                               onClick={() => setPayFor(row)}>Record payment</button>
@@ -246,7 +253,14 @@ const BillingPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {outstanding.map((row) => (
-                    <tr key={row.invoice_id}>
+                    // The row opens what was actually sent. Chasing a payment
+                    // starts with "what did we send them?", and reading it off a
+                    // summary line is how the office and the family end up
+                    // describing different documents.
+                    <tr key={row.invoice_id}
+                      onClick={() => setInvoiceFor(row.invoice_id)}
+                      className="cursor-pointer hover:bg-neutral-50"
+                      title="View the invoice this family was sent">
                       <td className="px-4 py-2 font-medium text-neutral-900">{row.family_name || '—'}</td>
                       <td className="px-4 py-2">{row.student_name || '—'}</td>
                       <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">{row.invoice_number || '—'}</td>
@@ -277,6 +291,10 @@ const BillingPage = () => {
           onClose={() => setPayFor(null)}
           onSaved={() => { setPayFor(null); loadLedger() }}
         />
+      )}
+      {invoiceFor && (
+        <InvoiceModal invoiceId={invoiceFor} orgId={orgId}
+          onClose={() => setInvoiceFor(null)} onPrint={printArea} />
       )}
       {receiptFor && (
         <ReceiptModal row={receiptFor} onClose={() => setReceiptFor(null)} onPrint={printArea} />
@@ -440,6 +458,103 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
           <Button size="sm" variant="secondary" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={submit} disabled={saving}>{saving ? 'Saving…' : 'Record payment'}</Button>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── The invoice the family was sent ──────────────────────────────────────────
+//
+// Chasing a payment starts with "what did we actually send them?", and until
+// 2026-08-06 there was no way to answer it from this page — the outstanding row
+// gave a family, an amount and nothing else. This renders the same branded
+// document the family sees in their portal, off the same endpoint, so the office
+// and the parent are looking at one artifact rather than two summaries.
+const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint }) => {
+  const [doc, setDoc] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    api.get(withOrg(`/api/sis/billing/invoices/${invoiceId}/document`, orgId))
+      .then((r) => setDoc(r.data?.document || null))
+      .catch((e) => setError(e?.response?.data?.error || 'Could not load the invoice'))
+  }, [invoiceId, orgId])
+
+  const org = doc?.organization || {}
+  return (
+    <Modal title={doc?.invoice_number ? `Invoice ${doc.invoice_number}` : 'Invoice'} onClose={onClose}>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!doc && !error && <p className="text-sm text-neutral-500">Loading…</p>}
+      {doc && (
+        <div className="print-area">
+          <div className="border border-gray-200 rounded-lg p-4 text-sm space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                {org.logo_url && <img src={org.logo_url} alt="" className="h-8 w-auto mb-1" />}
+                <div className="font-semibold text-neutral-900">{org.name || 'School'}</div>
+                <div className="text-xs text-neutral-500">Tuition invoice</div>
+              </div>
+              <div className="text-right">
+                <div className="font-semibold text-neutral-900">{doc.student_name || '—'}</div>
+                <div className="text-xs text-neutral-500">{doc.family || '—'}</div>
+              </div>
+            </div>
+
+            <div className="flex justify-between text-xs text-neutral-500 border-t border-gray-100 pt-2">
+              <span>{doc.invoice_number || '—'}</span>
+              <span className="capitalize">{doc.status || '—'}</span>
+              {doc.due_date && <span>Due {String(doc.due_date).slice(0, 10)}</span>}
+            </div>
+
+            <div className="space-y-1">
+              {(doc.line_items || []).map((li, i) => (
+                <div key={i} className="flex justify-between gap-3">
+                  <span className="text-neutral-700 min-w-0">{li.description || 'Charge'}</span>
+                  <span className="shrink-0">{money(li.amount_cents)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-gray-100 pt-2 space-y-1">
+              <div className="flex justify-between text-neutral-600">
+                <span>Subtotal</span><span>{money(doc.subtotal_cents)}</span>
+              </div>
+              {!!doc.discount_cents && (
+                <div className="flex justify-between text-neutral-600">
+                  <span>Discount</span><span>−{money(doc.discount_cents)}</span>
+                </div>
+              )}
+              {!!doc.processing_fee_cents && (
+                <div className="flex justify-between text-neutral-600">
+                  <span>Processing fee</span><span>{money(doc.processing_fee_cents)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold text-neutral-900">
+                <span>Total</span><span>{money(doc.total_cents)}</span>
+              </div>
+              {!!doc.amount_paid_cents && (
+                <div className="flex justify-between text-green-700">
+                  <span>Paid</span><span>−{money(doc.amount_paid_cents)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold text-neutral-900">
+                <span>Amount due</span><span>{money(doc.amount_due_cents)}</span>
+              </div>
+            </div>
+
+            {/* A UFA family pays through UFA, not by card. Saying so here stops
+                somebody chasing a card payment that is never coming. */}
+            {doc.funding_label && (
+              <p className="text-xs text-neutral-500 border-t border-gray-100 pt-2">
+                Funding: {doc.funding_label}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="flex justify-end gap-2 pt-4 no-print">
+        <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
+        <Button size="sm" onClick={onPrint} disabled={!doc}>Print</Button>
       </div>
     </Modal>
   )

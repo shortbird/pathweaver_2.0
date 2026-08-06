@@ -4,6 +4,7 @@ import {
   PlusIcon, TrashIcon, AcademicCapIcon, ChevronDownIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
+import QuestDraftForm, { PILLARS, PILLAR_LABEL, blankTask } from './QuestDraftForm'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -14,59 +15,7 @@ import api from '../../services/api'
  * Talks to /api/sis/classes/:classId/quests* (moderator-gated backend).
  */
 
-const PILLARS = [
-  ['art', 'Arts & Creativity'],
-  ['stem', 'STEM'],
-  ['communication', 'Communication'],
-  ['wellness', 'Life & Wellness'],
-  ['civics', 'Society & Culture'],
-]
-const PILLAR_LABEL = Object.fromEntries(PILLARS)
-
-const blankTask = () => ({ title: '', pillar: 'art', xp_value: 100, is_required: true })
-
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
-// ── Inline editor for a list of preset tasks (used when creating a quest) ──────
-function TaskRows({ tasks, setTasks }) {
-  const update = (i, patch) => setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
-  const remove = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i))
-  return (
-    <div className="space-y-2">
-      {tasks.map((t, i) => (
-        <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-2">
-          <input value={t.title} onChange={(e) => update(i, { title: e.target.value })}
-            placeholder={`Task ${i + 1} — what should the student do?`} className={inputCls} />
-          <div className="flex flex-wrap items-center gap-2">
-            <select value={t.pillar} onChange={(e) => update(i, { pillar: e.target.value })}
-              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
-              {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-            </select>
-            <label className="flex items-center gap-1 text-sm text-neutral-600">
-              XP
-              <input type="number" min={25} step={25} value={t.xp_value}
-                onChange={(e) => update(i, { xp_value: e.target.value })}
-                className="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
-            </label>
-            <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-              <input type="checkbox" checked={t.is_required}
-                onChange={(e) => update(i, { is_required: e.target.checked })} />
-              Required
-            </label>
-            <button type="button" onClick={() => remove(i)}
-              className="ml-auto p-1 text-gray-400 hover:text-red-500" aria-label="Remove task">
-              <TrashIcon className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      ))}
-      <button type="button" onClick={() => setTasks((prev) => [...prev, blankTask()])}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-optio-purple hover:underline">
-        <PlusIcon className="w-4 h-4" /> Add a preset task
-      </button>
-    </div>
-  )
-}
 
 // ── Manage preset tasks on an already-assigned, school-owned quest ────────────
 function PresetTaskManager({ classId, questId }) {
@@ -446,14 +395,14 @@ export default function ClassQuestsManager({ classId }) {
 
           {mode === 'new' && (
             <div className="space-y-3">
-              <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Quest title (e.g. Watercolor Basics)" className={inputCls} />
-              <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2}
-                placeholder="What is this quest about? (optional)" className={inputCls} />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Preset tasks (optional)</p>
-                <TaskRows tasks={newTasks} setTasks={setNewTasks} />
-              </div>
+              <QuestDraftForm
+                title={newTitle} setTitle={setNewTitle}
+                description={newDesc} setDescription={setNewDesc}
+                tasks={newTasks} setTasks={setNewTasks}
+                titlePlaceholder="Quest title (e.g. Watercolor Basics)"
+                descriptionPlaceholder="What is this quest about? (optional)"
+                taskHint="Preset tasks are copied to each student when they start the quest. Leave it empty and they write their own."
+              />
               <div className="flex justify-end">
                 <button onClick={createNew} disabled={creating || !newTitle.trim()}
                   className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
