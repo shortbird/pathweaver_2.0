@@ -1,19 +1,25 @@
 """
-SIS staff training — the org's training quests for its own teachers.
+SIS school quests — the quests a school sets for its own teachers and families.
 
 iCreate wanted teacher training as quests rather than a separate video system:
 an onboarding walkthrough, plus optional themed courses ("Classroom
 Management", "Whole Brain Learning") that uplevel teaching. Rather than build a
-parallel content system, this marks existing quests as staff training and reads
-completion back from the ordinary quest tables — so training content is authored
-in the normal curriculum editor, videos and all.
+parallel content system, this marks existing quests as school-set and reads
+completion back from the ordinary quest tables — so the content is authored in
+the normal curriculum editor, videos and all.
 
-A teacher completing training is a learner like any other: they enrol in the
-quest and finish its tasks in the web platform. This module only answers "which
-quests are training, and how far has each teacher got".
+Two audiences, one catalog (`audience`, added 2026-08-06):
+  staff   the original meaning — training for teachers.
+  family  quests for GUARDIANS, on their own accounts. iCreate, 2026-08-06:
+          "back to school night with families will be a quest." A parent
+          completes it themselves; it is not their child's work.
 
-NEW, additive (/api/sis/training). Admin manages the catalog; teachers read
-their own progress.
+Anyone completing one is a learner like any other: they enrol in the quest and
+finish its tasks in the web platform. This module only answers "which quests has
+the school set, for whom, and how far has each person got".
+
+NEW, additive (/api/sis/training). Admin manages the catalog; teachers read their
+own progress here, and guardians read theirs through /api/sis/parent/quests.
 """
 
 from flask import Blueprint, request, jsonify
@@ -54,12 +60,22 @@ def _bad_uuid(*values):
     return False
 
 
-def _catalog(org_id):
-    """The org's training quests, newest config first, with quest titles."""
+AUDIENCES = ('staff', 'family')
+
+
+def _audience(value):
+    """Normalise an audience, defaulting to the original 'staff' meaning."""
+    v = (str(value or '').strip().lower())
+    return v if v in AUDIENCES else 'staff'
+
+
+def _catalog(org_id, audience='staff'):
+    """The org's quests for one audience, in order, with quest titles."""
     rows = (_admin().table('sis_staff_training')
-            .select('id, quest_id, category, is_required, sequence_order, '
+            .select('id, quest_id, category, is_required, sequence_order, audience, '
                     'quests(id, title, description, is_active)')
-            .eq('organization_id', org_id).order('sequence_order').execute()).data or []
+            .eq('organization_id', org_id).eq('audience', _audience(audience))
+            .order('sequence_order').execute()).data or []
     out = []
     for r in rows:
         q = r.get('quests') or {}
@@ -75,6 +91,7 @@ def _catalog(org_id):
             'category': r.get('category'),
             'is_required': bool(r.get('is_required')),
             'sequence_order': r.get('sequence_order') or 0,
+            'audience': _audience(r.get('audience')),
         })
     return out
 
@@ -122,15 +139,20 @@ _NOT_STARTED = {'started': False, 'completed': False, 'done': 0, 'total': 0}
 @bp.route('/training', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_training(user_id):
-    """The training catalog, plus the caller's own progress through it."""
+    """The catalog for one audience, plus the caller's own progress through it.
+
+    Defaults to 'staff' so a teacher opening their training page sees exactly
+    what they saw before the family audience existed.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    catalog = _catalog(org_id)
+    audience = _audience(request.args.get('audience'))
+    catalog = _catalog(org_id, audience)
     progress = _progress_for([user_id], [c['quest_id'] for c in catalog])
     for c in catalog:
         c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
-    return jsonify({'success': True, 'training': catalog})
+    return jsonify({'success': True, 'training': catalog, 'audience': audience})
 
 
 @bp.route('/training/assignable-quests', methods=['GET'])
@@ -143,8 +165,12 @@ def assignable_training_quests(user_id):
     if err:
         return err
     admin = _admin()
+    # Scoped to the audience being edited: a quest already set for teachers is
+    # still a fair choice for families (a school-values quest everyone does).
+    audience = _audience(request.args.get('audience'))
     already = {r['quest_id'] for r in (admin.table('sis_staff_training')
-               .select('quest_id').eq('organization_id', org_id).execute()).data or []}
+               .select('quest_id').eq('organization_id', org_id)
+               .eq('audience', audience).execute()).data or []}
     search = (request.args.get('search') or '').strip()
 
     def _q(base):
@@ -186,17 +212,19 @@ def add_training(user_id):
                          or (quest.get('organization_id') is None and quest.get('is_public'))):
         return jsonify({'success': False, 'error': 'That quest is not available'}), 404
 
+    audience = _audience(data.get('audience'))
     last = (_admin().table('sis_staff_training').select('sequence_order')
-            .eq('organization_id', org_id).order('sequence_order', desc=True)
-            .limit(1).execute()).data
+            .eq('organization_id', org_id).eq('audience', audience)
+            .order('sequence_order', desc=True).limit(1).execute()).data
     row = (_admin().table('sis_staff_training').upsert({
         'organization_id': org_id,
         'quest_id': quest_id,
+        'audience': audience,
         'category': (data.get('category') or '').strip() or None,
         'is_required': bool(data.get('is_required')),
         'sequence_order': ((last[0]['sequence_order'] or 0) + 1) if last else 0,
         'created_by': user_id,
-    }, on_conflict='organization_id,quest_id').execute()).data
+    }, on_conflict='organization_id,quest_id,audience').execute()).data
     return jsonify({'success': True, 'training': row[0] if row else None}), 201
 
 
@@ -252,13 +280,17 @@ def remove_training(user_id, training_id):
 @bp.route('/training/progress', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def training_progress(user_id):
-    """Every staff member against every training item — the completion record
-    an accreditor or UFA would ask for."""
+    """Everyone in the audience against every quest set for them — the
+    completion record an accreditor or UFA would ask for, and for families the
+    answer to "who still hasn't done back to school night".
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
-    catalog = _catalog(org_id)
-    staff = sis_service.list_org_staff(org_id)
+    audience = _audience(request.args.get('audience'))
+    catalog = _catalog(org_id, audience)
+    staff = (_guardians(org_id) if audience == 'family'
+             else sis_service.list_org_staff(org_id))
     quest_ids = [c['quest_id'] for c in catalog]
     progress = _progress_for([s['id'] for s in staff], quest_ids)
 
@@ -276,4 +308,23 @@ def training_progress(user_id):
         })
     required_total = len([c for c in catalog if c['is_required']])
     return jsonify({'success': True, 'training': catalog, 'staff': rows,
-                    'required_total': required_total})
+                    'audience': audience, 'required_total': required_total})
+
+
+def _guardians(org_id):
+    """The org's guardians, shaped like list_org_staff so the report is one code
+    path for both audiences."""
+    from utils.db_fetch import fetch_all_rows
+    rows = fetch_all_rows(lambda: (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, email, org_role, role')
+        .eq('organization_id', org_id)
+    ))
+    out = [{
+        'id': u['id'],
+        'name': (u.get('display_name')
+                 or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                 or u.get('email') or 'Unnamed'),
+    } for u in rows if 'parent' in (u.get('org_role'), u.get('role'))]
+    out.sort(key=lambda p: (p['name'] or '').lower())
+    return out

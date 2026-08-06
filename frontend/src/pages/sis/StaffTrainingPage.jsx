@@ -11,12 +11,19 @@ import { isSisAdmin } from './sisRole'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 
 /**
- * StaffTrainingPage — training for teachers, built out of quests.
+ * StaffTrainingPage — the quests a school sets, built out of ordinary quests.
+ *
+ * Two audiences (iCreate, 2026-08-06: "admin need to be able to create quests
+ * for all their teachers and families"):
+ *   Teachers  training — the original page.
+ *   Families  quests guardians do themselves, e.g. back to school night.
  *
  * Teachers see what they need to do and how far they've got; admins also see
- * who has finished what. The content itself is an ordinary quest, so it is
- * written in the normal curriculum editor (videos included) and completed in
- * the web platform — this page is the staff-facing door to it.
+ * who has finished what, for either audience. The content itself is an ordinary
+ * quest, so it is written in the normal curriculum editor (videos included) and
+ * completed in the web platform — this page is the staff-facing door to it.
+ *
+ * Families read their own side in the family portal, not here.
  */
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
@@ -34,7 +41,7 @@ const progressStyle = (p) => {
   return 'bg-amber-100 text-amber-800'
 }
 
-const AddTraining = ({ orgId, onAdded, onCancel }) => {
+const AddTraining = ({ orgId, audience, onAdded, onCancel }) => {
   const [options, setOptions] = useState([])
   const [questId, setQuestId] = useState('')
   const [category, setCategory] = useState('')
@@ -44,17 +51,17 @@ const AddTraining = ({ orgId, onAdded, onCancel }) => {
   useEffect(() => {
     if (!orgId) return
     // Training content is an ordinary quest — the school's own, or the library.
-    api.get(withOrg('/api/sis/training/assignable-quests', orgId))
+    api.get(`${withOrg('/api/sis/training/assignable-quests', orgId)}&audience=${audience}`)
       .then((r) => setOptions(r.data?.quests || []))
       .catch(() => setOptions([]))
-  }, [orgId])
+  }, [orgId, audience])
 
   const add = async () => {
     if (!questId) { toast.error('Pick a quest'); return }
     setBusy(true)
     try {
       await api.post('/api/sis/training', {
-        organization_id: orgId, quest_id: questId,
+        organization_id: orgId, quest_id: questId, audience,
         category: category.trim(), is_required: required,
       })
       toast.success('Added to training')
@@ -69,7 +76,9 @@ const AddTraining = ({ orgId, onAdded, onCancel }) => {
   return (
     <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5 mb-6">
       <p className="text-sm text-neutral-600">
-        Training is a quest. Build the content (videos, reading, tasks) as a quest first, then add it here.
+        {audience === 'family'
+          ? 'A family quest is an ordinary quest. Build the content (videos, reading, tasks) first, then set it for families here \u2014 parents complete it on their own account.'
+          : 'Training is a quest. Build the content (videos, reading, tasks) as a quest first, then add it here.'}
       </p>
       <select value={questId} onChange={(e) => setQuestId(e.target.value)} className={inputClass}>
         <option value="">Choose a quest…</option>
@@ -84,7 +93,7 @@ const AddTraining = ({ orgId, onAdded, onCancel }) => {
           placeholder="Category (e.g. Onboarding, Classroom management)" className={inputClass} />
         <label className="flex items-center gap-2 text-sm text-neutral-700">
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-          Required for all staff
+          {audience === 'family' ? 'Required for all families' : 'Required for all staff'}
         </label>
       </div>
       <div className="flex justify-end gap-2">
@@ -107,20 +116,23 @@ const StaffTrainingPage = () => {
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [view, setView] = useState('mine') // mine | everyone
+  // Which group's quests are being looked at. Teachers only ever have one, so
+  // the switch is admin-only and 'staff' stays the default everywhere.
+  const [audience, setAudience] = useState('staff')
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
     setLoading(true)
-    api.get(withOrg('/api/sis/training', orgId))
+    api.get(`${withOrg('/api/sis/training', orgId)}&audience=${audience}`)
       .then((r) => setTraining(r.data?.training || []))
-      .catch(() => toast.error('Failed to load training'))
+      .catch(() => toast.error('Failed to load the quests'))
       .finally(() => setLoading(false))
     if (admin) {
-      api.get(withOrg('/api/sis/training/progress', orgId))
+      api.get(`${withOrg('/api/sis/training/progress', orgId)}&audience=${audience}`)
         .then((r) => setReport(r.data))
         .catch(() => setReport(null))
     }
-  }, [orgId, admin])
+  }, [orgId, admin, audience])
 
   useEffect(() => { load() }, [load])
 
@@ -152,13 +164,31 @@ const StaffTrainingPage = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Training</h1>
+        <h1 className="text-2xl font-bold text-neutral-900">
+          {admin ? 'Quests' : 'Training'}
+        </h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-6">
-        Courses to work through at your own pace. Open one to start it on the web platform —
-        your progress shows up here automatically.
+        {admin
+          ? 'Quests your school sets for its teachers and its families. Open one to start it on the web platform \u2014 progress shows up here automatically.'
+          : 'Courses to work through at your own pace. Open one to start it on the web platform \u2014 your progress shows up here automatically.'}
       </p>
+
+      {/* Audience switch. Families read their own side in the family portal;
+          this is where an admin decides what is on it. */}
+      {admin && (
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-4">
+          {[['staff', 'For teachers'], ['family', 'For families']].map(([key, label]) => (
+            <button key={key} onClick={() => { setAudience(key); setAdding(false) }}
+              aria-pressed={audience === key}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                audience === key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {mine.requiredTotal > 0 && (
         <div className={`rounded-xl border p-4 mb-6 ${
@@ -176,7 +206,8 @@ const StaffTrainingPage = () => {
       {admin && (
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
-            {[['mine', 'The courses'], ['everyone', 'Who has done what']].map(([key, label]) => (
+            {[['mine', audience === 'family' ? 'The quests' : 'The courses'],
+              ['everyone', 'Who has done what']].map(([key, label]) => (
               <button key={key} onClick={() => setView(key)}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   view === key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>
@@ -187,20 +218,23 @@ const StaffTrainingPage = () => {
           {!adding && view === 'mine' && (
             <button onClick={() => setAdding(true)}
               className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
-              <PlusIcon className="w-4 h-4" /> Add training
+              <PlusIcon className="w-4 h-4" /> {audience === 'family' ? 'Add a family quest' : 'Add training'}
             </button>
           )}
         </div>
       )}
 
-      {adding && <AddTraining orgId={orgId} onAdded={() => { setAdding(false); load() }} onCancel={() => setAdding(false)} />}
+      {adding && <AddTraining orgId={orgId} audience={audience}
+        onAdded={() => { setAdding(false); load() }} onCancel={() => setAdding(false)} />}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
 
       {!loading && !training.length && (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
           <AcademicCapIcon className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
-          <p className="text-sm text-neutral-600 font-medium">No training courses yet.</p>
+          <p className="text-sm text-neutral-600 font-medium">
+            {audience === 'family' ? 'No family quests yet.' : 'No training courses yet.'}
+          </p>
           {admin && <p className="text-sm text-neutral-500 mt-1">Build a quest, then add it here.</p>}
         </div>
       )}
@@ -251,7 +285,9 @@ const StaffTrainingPage = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left px-4 py-2.5 font-semibold text-neutral-700">Staff</th>
+        <th className="text-left px-4 py-2.5 font-semibold text-neutral-700">
+                    {audience === 'family' ? 'Family' : 'Staff'}
+                  </th>
                   {(report.training || []).map((t) => (
                     <th key={t.quest_id} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
                       <span className="block truncate max-w-[10rem] mx-auto" title={t.title}>{t.title}</span>

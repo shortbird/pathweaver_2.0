@@ -438,6 +438,24 @@ def set_learning_day(user_id, student_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/quests', methods=['GET'])
+@require_auth
+def my_school_quests(user_id):
+    """Quests the school has set for its families, with this guardian's progress.
+
+    Open to any member of the school, not only guardians — the same widening the
+    calendar, resources and directory got on 2026-08-06. The service returns None
+    for somebody who isn't in this school at all.
+    """
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    quests = parent.school_quests(user_id, org_id)
+    if quests is None:
+        return jsonify({'success': False, 'error': 'Not available'}), 403
+    return jsonify({'success': True, 'quests': quests})
+
+
 # ── Family portal: checklists a school assigns to the guardian ────────────────
 # These reuse the onboarding template/assignment machinery (family-audience
 # templates). A guardian only ever sees checklists assigned to their own user id.

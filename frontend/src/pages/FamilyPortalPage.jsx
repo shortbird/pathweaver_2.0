@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
+import { Link } from 'react-router-dom'
+import { AcademicCapIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import BackToSchool from '../components/navigation/BackToSchool'
 import ChecklistSignature from '../components/sis/ChecklistSignature'
 
@@ -21,11 +23,27 @@ const ITEM_BADGE = {
   rejected: 'bg-red-100 text-red-700',
 }
 
+// Same wording the staff training page uses, so a parent who is also a teacher
+// reads one vocabulary across both portals.
+const questProgressLabel = (p) => {
+  if (!p?.started) return 'Not started'
+  if (p.completed) return 'Complete'
+  if (!p.total) return 'In progress'
+  return `${p.done} of ${p.total} tasks`
+}
+
+const questProgressStyle = (p) => {
+  if (!p?.started) return 'bg-gray-100 text-neutral-500'
+  if (p.completed) return 'bg-green-100 text-green-700'
+  return 'bg-amber-100 text-amber-800'
+}
+
 const FamilyPortalPage = () => {
   const [loading, setLoading] = useState(true)
   const [orgs, setOrgs] = useState([])
   const [orgId, setOrgId] = useState('')
   const [assignments, setAssignments] = useState([])
+  const [quests, setQuests] = useState([])
   const [busyKey, setBusyKey] = useState(null)
 
   useEffect(() => {
@@ -44,6 +62,11 @@ const FamilyPortalPage = () => {
     api.get(`/api/sis/parent/onboarding?organization_id=${orgId}`)
       .then((r) => setAssignments(r.data?.assignments || []))
       .catch(() => toast.error('Could not load your checklists'))
+    // A school with no family quests set is the normal case, so this failing
+    // must not take the checklists down with it.
+    api.get(`/api/sis/parent/quests?organization_id=${orgId}`)
+      .then((r) => setQuests(r.data?.quests || []))
+      .catch(() => setQuests([]))
   }, [orgId])
 
   useEffect(() => { load() }, [load])
@@ -101,8 +124,46 @@ const FamilyPortalPage = () => {
       </div>
       <p className="text-neutral-500 mb-6">Checklists your school has shared with you. Mark each step done as you finish it.</p>
 
+      {/* Quests the school set for families — back to school night and the like.
+          Yours, on your own account: this is not your child's work. */}
+      {quests.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-1">Quests from your school</h2>
+          <p className="text-sm text-neutral-500 mb-3">
+            These are yours to do. Open one to start it, and your progress shows up here.
+          </p>
+          <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+            {quests.map((q) => (
+              <div key={q.quest_id} className="p-4 flex items-start gap-3">
+                {q.progress?.completed
+                  ? <CheckCircleIcon className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                  : <AcademicCapIcon className="w-5 h-5 text-optio-purple shrink-0 mt-0.5" />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-neutral-900">{q.title}</span>
+                    {q.is_required && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">
+                        Required
+                      </span>
+                    )}
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full ${questProgressStyle(q.progress)}`}>
+                      {questProgressLabel(q.progress)}
+                    </span>
+                  </div>
+                  {q.description && <p className="text-sm text-neutral-500 mt-0.5 line-clamp-2">{q.description}</p>}
+                  <Link to={`/quests/${q.quest_id}`}
+                    className="inline-block text-sm text-optio-purple hover:underline mt-1">
+                    {q.progress?.started ? 'Continue' : 'Start this quest'}
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!assignments.length ? (
-        <p className="text-neutral-400">Nothing to complete right now.</p>
+        !quests.length && <p className="text-neutral-400">Nothing to complete right now.</p>
       ) : (
         <div className="space-y-4">
           {assignments.map((a) => (

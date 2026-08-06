@@ -917,6 +917,72 @@ def request_age_exception(user_id: str, org_id: str, student_user_id: str,
         class_min_age=klass.get('min_age'), class_max_age=klass.get('max_age'))
 
 
+# ── Quests the school sets for families ──────────────────────────────────────
+def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
+    """The quests this school has set for its families, with this guardian's own
+    progress through each.
+
+    iCreate, 2026-08-06: "back to school night with families will be a quest."
+    The guardian holds it on their own account and completes it themselves —
+    this is not their child's work, and it deliberately does not read or write
+    anything on a student.
+
+    Same catalog and same progress derivation as staff training
+    (routes/sis/staff_training.py), read for the 'family' audience.
+    """
+    if not _is_org_member(user_id, org_id):
+        return None
+    admin = _admin()
+    rows = (admin.table('sis_staff_training')
+            .select('quest_id, category, is_required, sequence_order, '
+                    'quests(id, title, description, is_active, header_image_url)')
+            .eq('organization_id', org_id).eq('audience', 'family')
+            .order('sequence_order').execute()).data or []
+    catalog = [r for r in rows if (r.get('quests') or {}).get('is_active')]
+    if not catalog:
+        return []
+
+    quest_ids = [r['quest_id'] for r in catalog]
+    # Progress comes from the ordinary quest tables — the same records that drive
+    # the guardian's own dashboard, so nothing here needs keeping in step.
+    user_quests = (admin.table('user_quests')
+                   .select('id, quest_id, completed_at')
+                   .eq('user_id', user_id).in_('quest_id', quest_ids).execute()).data or []
+    by_quest = {uq['quest_id']: uq for uq in user_quests}
+    uq_ids = [uq['id'] for uq in user_quests]
+    tasks = []
+    if uq_ids:
+        tasks = (admin.table('user_quest_tasks').select('id, user_quest_id')
+                 .in_('user_quest_id', uq_ids).execute()).data or []
+    done = set()
+    task_ids = [t['id'] for t in tasks]
+    for i in range(0, len(task_ids), 200):
+        done.update(r['task_id'] for r in (
+            admin.table('quest_task_completions').select('task_id')
+            .in_('task_id', task_ids[i:i + 200]).execute()).data or [])
+
+    out = []
+    for r in catalog:
+        quest = r['quests']
+        uq = by_quest.get(r['quest_id'])
+        own = [t for t in tasks if uq and t['user_quest_id'] == uq['id']]
+        out.append({
+            'quest_id': r['quest_id'],
+            'title': quest.get('title'),
+            'description': quest.get('description'),
+            'image_url': quest.get('header_image_url'),
+            'category': r.get('category'),
+            'is_required': bool(r.get('is_required')),
+            'progress': {
+                'started': bool(uq),
+                'completed': bool(uq and uq.get('completed_at')),
+                'done': len([t for t in own if t['id'] in done]),
+                'total': len(own),
+            },
+        })
+    return out
+
+
 # ── Org resources (family-readable document library) ─────────────────────────
 def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     """The org's resource library (guidebooks, contracts, links) for a family.
